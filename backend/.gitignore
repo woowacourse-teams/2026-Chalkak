@@ -1,3 +1,8 @@
+### 환경변수 ###
+.env
+.env.*
+!.env.example
+
 HELP.md
 .gradle
 build/

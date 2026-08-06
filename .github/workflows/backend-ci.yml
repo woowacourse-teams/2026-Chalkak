@@ -1,0 +1,60 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches:
+      - main
+      - be/develop
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18.4
+        env:
+          POSTGRES_DB: chalkak_test
+          POSTGRES_USER: chalkak
+          POSTGRES_PASSWORD: test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chalkak -d chalkak_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+          cache-dependency-path: backend/*.gradle.kts
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Test
+        env:
+          POSTGRES_DB: chalkak_test
+          POSTGRES_USER: chalkak
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_PORT: 5432
+        run: ./gradlew test

@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:chalkak}
+    username: ${POSTGRES_USER:chalkak}
+    password: ${POSTGRES_PASSWORD:local-password}
+
+  jpa:
+    show-sql: false
+
+  flyway:
+    clean-disabled: true
