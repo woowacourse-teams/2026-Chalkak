@@ -1,0 +1,12 @@
+# 배포 환경 프로필.
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    show-sql: false
+
+  flyway:
+    enabled: true

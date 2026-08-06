@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: backend
+
+  profiles:
+    default: local
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
