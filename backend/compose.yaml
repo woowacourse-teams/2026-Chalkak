@@ -26,5 +26,33 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-test:
+    image: postgres:18.4
+    container_name: chalkak-postgres-test
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-chalkak_test}
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-chalkak}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-test-password}
+      TZ: Asia/Seoul
+
+    ports:
+      - "${TEST_POSTGRES_PORT:-5433}:5432"
+
+    volumes:
+      - postgres-test-data:/var/lib/postgresql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${TEST_POSTGRES_USER:-chalkak} -d ${TEST_POSTGRES_DB:-chalkak_test}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres-data:
+  postgres-test-data:
