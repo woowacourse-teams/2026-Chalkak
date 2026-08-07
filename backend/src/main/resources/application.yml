@@ -15,6 +15,7 @@ spring:
 
   flyway:
     enabled: true
+    clean-disabled: true
 
 management:
   endpoints:
