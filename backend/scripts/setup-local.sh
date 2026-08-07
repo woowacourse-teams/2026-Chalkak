@@ -23,20 +23,26 @@ echo "==> 4. PostgreSQL 기동"
 docker compose up -d
 
 echo "==> 5. 컨테이너가 healthy 가 될 때까지 대기"
-status="starting"
-for _ in $(seq 1 30); do
-  status="$(docker inspect -f '{{.State.Health.Status}}' chalkak-postgres 2>/dev/null || echo "starting")"
-  if [ "$status" = "healthy" ]; then
-    echo "    chalkak-postgres: healthy"
-    break
-  fi
-  sleep 2
-done
+wait_for_healthy() {
+  local container_name="$1"
+  local service_name="$2"
+  local health_status="starting"
 
-if [ "$status" != "healthy" ]; then
-  echo "    chalkak-postgres 가 healthy 상태가 되지 않았다. 'docker compose logs postgres' 로 확인한다." >&2
-  exit 1
-fi
+  for _ in $(seq 1 30); do
+    health_status="$(docker inspect -f '{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "starting")"
+    if [ "$health_status" = "healthy" ]; then
+      echo "    $container_name: healthy"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "    $container_name 이 healthy 상태가 되지 않았다. 'docker compose logs $service_name' 로 확인한다." >&2
+  return 1
+}
+
+wait_for_healthy chalkak-postgres postgres
+wait_for_healthy chalkak-postgres-test postgres-test
 
 echo "==> 6. 빌드 확인"
 ./gradlew build
