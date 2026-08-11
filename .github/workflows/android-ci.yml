@@ -5,13 +5,13 @@ on:
     branches:
       - client/develop
     paths:
-      - "android/**"
+      - "client/android/**"
       - ".github/workflows/android-ci.yml"
   push:
     branches:
       - client/develop
     paths:
-      - "android/**"
+      - "client/android/**"
       - ".github/workflows/android-ci.yml"
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: android
+        working-directory: client/android
 
     steps:
       - name: Checkout repository
@@ -68,7 +68,7 @@ jobs:
         with:
           name: android-ci-failure-reports-${{ github.run_attempt }}
           path: |
-            android/app/build/reports/**
-            android/app/build/test-results/**
+            client/android/app/build/reports/**
+            client/android/app/build/test-results/**
           if-no-files-found: ignore
           retention-days: 7
