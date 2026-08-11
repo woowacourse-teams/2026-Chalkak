@@ -1,0 +1,68 @@
+# 이 파일이 Android 프로젝트의 최상위 EditorConfig임을 나타냅니다.
+# 상위 디렉터리에 있는 다른 .editorconfig 설정은 더 이상 탐색하지 않습니다.
+root = true
+
+# 파일 확장자와 관계없이 Android 프로젝트의 모든 파일에 적용합니다.
+[*]
+
+# 한글을 포함한 모든 텍스트 파일의 문자 인코딩을 UTF-8로 통일합니다.
+charset = utf-8
+
+# 운영체제와 관계없이 줄바꿈 문자를 LF로 통일합니다.
+end_of_line = lf
+
+# 모든 파일의 마지막 줄에 줄바꿈 문자를 추가합니다.
+insert_final_newline = true
+
+# 각 줄 끝에 남아 있는 불필요한 공백을 제거합니다.
+trim_trailing_whitespace = true
+
+# Kotlin 소스(.kt)와 Kotlin Gradle 스크립트(.kts)에만 적용합니다.
+[*.{kt,kts}]
+
+# 들여쓰기에 탭 문자가 아닌 스페이스를 사용합니다.
+indent_style = space
+
+# 들여쓰기 한 단계의 크기를 스페이스 4칸으로 지정합니다.
+indent_size = 4
+
+# ktlint가 Android Studio 코드 스타일을 기준으로 포맷하도록 지정합니다.
+ktlint_code_style = android_studio
+
+# 코드 한 줄의 최대 길이를 120자로 제한합니다.
+max_line_length = 120
+
+# 향후 동작이 변경될 수 있는 ktlint 실험 규칙은 사용하지 않습니다.
+ktlint_experimental = disabled
+
+# @Composable 함수는 Kotlin 함수와 달리 PascalCase 이름을 사용하므로 함수명 검사를 예외 처리합니다.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# 함수 선언에 파라미터가 2개 이상 있으면 각 파라미터를 별도 줄에 배치합니다.
+ktlint_function_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = 2
+
+# 클래스 또는 data class 생성자에 파라미터가 2개 이상 있으면 각각 개행합니다.
+ktlint_class_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = 2
+
+# 여러 줄로 작성된 함수 호출에서는 모든 인자를 각각 별도 줄에 배치합니다.
+# ktlint 1.8은 인자 개수만으로 짧은 호출을 강제 개행하는 옵션은 제공하지 않습니다.
+ktlint_standard_argument-list-wrapping = enabled
+
+# Android Studio 스타일에서는 기본 비활성화된 메서드 체이닝 개행 규칙을 활성화합니다.
+ktlint_standard_chain-method-continuation = enabled
+
+# 점(.) 또는 안전 호출(?.)이 3개 이상인 긴 체인은 각 호출을 별도 줄에 배치합니다.
+# 기준을 3으로 두면 Color.Black.copy(...)처럼 짧고 읽기 좋은 표현식은 한 줄로 유지됩니다.
+# 예: users.map { ... }.filter { ... }.sorted()
+# 결과:
+# users
+#     .map { ... }
+#     .filter { ... }
+#     .sorted()
+ktlint_chain_method_rule_force_multiline_when_chain_operator_count_greater_or_equal_than = 3
+
+# 여러 줄 함수/클래스 선언의 마지막 파라미터 뒤에 trailing comma를 적용합니다.
+ij_kotlin_allow_trailing_comma = true
+
+# 여러 줄 함수 호출의 마지막 인자 뒤에도 trailing comma를 적용합니다.
+ij_kotlin_allow_trailing_comma_on_call_site = true

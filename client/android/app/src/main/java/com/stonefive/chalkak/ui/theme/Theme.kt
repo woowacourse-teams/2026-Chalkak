@@ -53,9 +53,7 @@ private val LocalChalkakShapes = staticCompositionLocalOf { DefaultChalkakShapes
 private val LocalChalkakSpacing = staticCompositionLocalOf { DefaultChalkakSpacing }
 
 @Composable
-fun ChalkakTheme(
-    content: @Composable () -> Unit,
-) {
+fun ChalkakTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(
         LocalChalkakColors provides LightChalkakColors,
         LocalChalkakTypography provides DefaultChalkakTypography,
