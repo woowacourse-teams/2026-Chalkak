@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="Theme.Chalkak.Base" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#2B2724</item>
+        <item name="android:navigationBarColor">@color/chalkak_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@color/chalkak_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 
-    <style name="Theme.Chalkak" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Chalkak" parent="Theme.Chalkak.Base" />
 </resources>
