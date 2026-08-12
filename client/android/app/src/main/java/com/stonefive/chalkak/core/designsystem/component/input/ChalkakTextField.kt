@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.core.designsystem.component.input
 
+import android.icu.text.BreakIterator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -46,6 +47,7 @@ fun ChalkakTextField(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
+    val characterCount = remember(value) { value.graphemeCount() }
     val resolvedTextStyle = (textStyle ?: ChalkakTheme.typography.body).copy(
         color = if (enabled) {
             ChalkakTheme.colors.textPrimary
@@ -63,7 +65,7 @@ fun ChalkakTextField(
         value = value,
         onValueChange = { changedValue ->
             onValueChange(
-                maxLength?.let(changedValue::take) ?: changedValue,
+                maxLength?.let(changedValue::takeGraphemes) ?: changedValue,
             )
         },
         modifier = modifier
@@ -107,7 +109,7 @@ fun ChalkakTextField(
 
                 if (showCharacterCount && maxLength != null) {
                     Text(
-                        text = "${value.length} / $maxLength",
+                        text = "$characterCount / $maxLength",
                         modifier = Modifier.align(Alignment.BottomEnd),
                         color = ChalkakTextInactive,
                         style = ChalkakTheme.typography.subheadline,
@@ -116,6 +118,36 @@ fun ChalkakTextField(
             }
         },
     )
+}
+
+private fun String.graphemeCount(): Int {
+    val iterator = BreakIterator.getCharacterInstance().apply {
+        setText(this@graphemeCount)
+    }
+    var count = 0
+
+    while (iterator.next() != BreakIterator.DONE) {
+        count++
+    }
+
+    return count
+}
+
+private fun String.takeGraphemes(count: Int): String {
+    if (count == 0 || isEmpty()) return ""
+
+    val iterator = BreakIterator.getCharacterInstance().apply {
+        setText(this@takeGraphemes)
+    }
+    var endIndex = iterator.first()
+
+    repeat(count) {
+        val nextIndex = iterator.next()
+        if (nextIndex == BreakIterator.DONE) return this
+        endIndex = nextIndex
+    }
+
+    return substring(0, endIndex)
 }
 
 @Preview(showBackground = true)
