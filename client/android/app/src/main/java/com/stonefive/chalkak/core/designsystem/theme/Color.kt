@@ -4,8 +4,10 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 val ChalkakBackground = Color(0xFFF7F6F3)
+val ChalkakInputBackground = Color(0xFFFCFAF6)
 val ChalkakBottomBar = Color(0xFF8C8479)
 val ChalkakAction = Color(0xFF2B2724)
+val ChalkakTextInactive = Color(0xFF9A968D)
 val ChalkakStroke = Color(0x26888888)
 val ChalkakWhite = Color(0xFFFFFFFF)
 
