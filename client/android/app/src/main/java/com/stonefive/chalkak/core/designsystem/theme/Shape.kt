@@ -21,7 +21,7 @@ data class ChalkakShapes(
 val DefaultChalkakShapes = ChalkakShapes(
     small = RoundedCornerShape(7.dp),
     button = RoundedCornerShape(12.dp),
-    input = RoundedCornerShape(12.dp),
+    input = RoundedCornerShape(14.dp),
     photoCard = RoundedCornerShape(12.dp),
     large = RoundedCornerShape(16.dp),
     sheet = RoundedCornerShape(28.dp),
