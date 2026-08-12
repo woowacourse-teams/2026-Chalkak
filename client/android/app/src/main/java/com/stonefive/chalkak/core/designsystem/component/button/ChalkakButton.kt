@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.core.designsystem.component
+package com.stonefive.chalkak.core.designsystem.component.button
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
