@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.ui.theme
+package com.stonefive.chalkak.core.designsystem.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.Dp
