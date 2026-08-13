@@ -99,7 +99,6 @@ class HomeViewModelTest {
                 .first()
                 .likeCount,
         )
-        assertEquals(HomeUiEvent.LikeUpdateFailed, controlledViewModel.uiEvent.first())
     }
 
     @Test

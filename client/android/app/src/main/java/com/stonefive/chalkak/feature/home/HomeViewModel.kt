@@ -70,7 +70,6 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                     if (generation != latestLoadGeneration) return@onFailure
 
                     _uiState.update { it.copy(isLoading = false) }
-                    _uiEvent.send(HomeUiEvent.LoadFailed)
                 }
         }
     }
@@ -121,7 +120,6 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                         },
                     )
                 }
-                _uiEvent.send(HomeUiEvent.LikeUpdateFailed)
             }
         }
     }

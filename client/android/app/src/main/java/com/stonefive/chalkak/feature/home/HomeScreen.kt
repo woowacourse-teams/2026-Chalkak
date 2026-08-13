@@ -48,12 +48,7 @@ fun HomeRoute(
         viewModel.uiEvent.collect { event ->
             when (event) {
                 HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
-
                 is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
-
-                HomeUiEvent.LikeUpdateFailed,
-                HomeUiEvent.LoadFailed,
-                -> Unit
             }
         }
     }
