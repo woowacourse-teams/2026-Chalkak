@@ -44,8 +44,6 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
             }
 
             is HomeUiAction.LikeClicked -> updateLike(action.photoId)
-
-            is HomeUiAction.StoryClicked -> _uiState.update { it.reduce(action) }
         }
     }
 

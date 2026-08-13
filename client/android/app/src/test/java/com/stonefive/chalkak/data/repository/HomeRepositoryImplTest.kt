@@ -27,6 +27,12 @@ class HomeRepositoryImplTest {
                 .first()
                 .imageUrl,
         )
+        assertEquals(
+            "사진 제목",
+            content.photos
+                .first()
+                .title,
+        )
         assertEquals(setOf("photo-1"), content.likedPhotoIds)
     }
 
@@ -56,7 +62,7 @@ private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
                     imageUrl = "https://example.com/photo.jpg",
                     signatureUrl = "https://example.com/signature.png",
                     contentDescription = "하늘",
-                    story = "이야기",
+                    title = "사진 제목",
                     likeCount = 24,
                 ),
             ),

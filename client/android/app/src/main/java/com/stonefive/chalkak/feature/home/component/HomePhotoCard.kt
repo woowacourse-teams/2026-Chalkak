@@ -1,12 +1,10 @@
 package com.stonefive.chalkak.feature.home.component
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +23,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
@@ -38,9 +38,7 @@ private val HomeText = Color(0xFF7D7D7D)
 fun HomePhotoCard(
     photo: Photo,
     isLiked: Boolean,
-    isStoryExpanded: Boolean,
     onLikeClick: () -> Unit,
-    onStoryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -64,21 +62,8 @@ fun HomePhotoCard(
         PhotoActionRow(
             photo = photo,
             isLiked = isLiked,
-            isStoryExpanded = isStoryExpanded,
             onLikeClick = onLikeClick,
-            onStoryClick = onStoryClick,
         )
-        AnimatedVisibility(visible = photo.story != null && isStoryExpanded) {
-            Text(
-                text = photo.story.orEmpty(),
-                color = HomeText,
-                style = ChalkakTheme.typography.subheadline,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(31.dp)
-                    .padding(horizontal = 22.dp),
-            )
-        }
     }
 }
 
@@ -86,15 +71,16 @@ fun HomePhotoCard(
 private fun PhotoActionRow(
     photo: Photo,
     isLiked: Boolean,
-    isStoryExpanded: Boolean,
     onLikeClick: () -> Unit,
-    onStoryClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(57.dp)
-            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+            .padding(
+                start = ChalkakTheme.spacing.screenHorizontal,
+                end = 14.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
@@ -124,40 +110,15 @@ private fun PhotoActionRow(
                     .copy(fontWeight = FontWeight.Normal),
             )
         }
-        Spacer(modifier = Modifier.weight(1f))
-        if (photo.story == null) {
-            Text(
-                text = "무제",
-                color = HomeText,
-                style = ChalkakTheme.typography.body
-                    .copy(fontWeight = FontWeight.Normal),
-            )
-        } else {
-            Row(
-                modifier = Modifier.clickable(
-                    interactionSource = null,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onStoryClick,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (isStoryExpanded) "이야기 닫기" else "이야기 보기",
-                    color = HomeText,
-                    style = ChalkakTheme.typography.body
-                        .copy(fontWeight = FontWeight.Normal),
-                )
-                Icon(
-                    painter = painterResource(
-                        if (isStoryExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
-                    ),
-                    contentDescription = null,
-                    tint = HomeText,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
+        Text(
+            text = photo.title?.takeIf { it.isNotBlank() } ?: "무제",
+            color = HomeText,
+            style = ChalkakTheme.typography.body
+                .copy(fontWeight = FontWeight.Normal),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
     }
 }

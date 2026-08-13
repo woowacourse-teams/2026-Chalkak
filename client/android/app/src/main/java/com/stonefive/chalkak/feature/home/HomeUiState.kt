@@ -12,5 +12,4 @@ data class HomeUiState(
     val selectedSort: PhotoSort = PhotoSort.LATEST,
     val selectedBottomBarItem: ChalkakBottomBarItem = ChalkakBottomBarItem.TODAY,
     val likedPhotoIds: Set<String> = emptySet(),
-    val expandedStoryPhotoIds: Set<String> = emptySet(),
 )

@@ -32,7 +32,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         imageUrl = imageUrl,
         signatureUrl = signatureUrl,
         contentDescription = contentDescription,
-        story = story,
+        title = title,
         likeCount = likeCount,
     )
 }

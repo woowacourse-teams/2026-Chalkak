@@ -115,9 +115,7 @@ fun HomeScreen(
                     HomePhotoCard(
                         photo = photo,
                         isLiked = photo.id in uiState.likedPhotoIds,
-                        isStoryExpanded = photo.id in uiState.expandedStoryPhotoIds,
                         onLikeClick = { onAction(HomeUiAction.LikeClicked(photo.id)) },
-                        onStoryClick = { onAction(HomeUiAction.StoryClicked(photo.id)) },
                     )
                 }
             }
@@ -187,7 +185,7 @@ private fun HomeScreenPreview() {
                         imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
                         signatureUrl = null,
                         contentDescription = "노을이 진 하늘과 전신주",
-                        story = "안녕하세요 감사합니다.",
+                        title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,
                     ),
                     Photo(
@@ -195,7 +193,7 @@ private fun HomeScreenPreview() {
                         imageUrl = drawableResourceUrl(R.drawable.preview_photo),
                         signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "두 번째 사진",
-                        story = null,
+                        title = null,
                         likeCount = 12,
                     ),
                 ),

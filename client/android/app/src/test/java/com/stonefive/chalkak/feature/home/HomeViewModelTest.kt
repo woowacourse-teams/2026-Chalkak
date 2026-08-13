@@ -159,7 +159,7 @@ private fun homeContent(topic: String = "하늘하늘하늘") = PhotoContent(
             imageUrl = "https://example.com/photo.jpg",
             signatureUrl = null,
             contentDescription = "하늘",
-            story = "이야기",
+            title = "사진 제목",
             likeCount = 24,
         ),
     ),
