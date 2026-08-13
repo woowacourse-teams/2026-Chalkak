@@ -99,9 +99,7 @@ fun HomeScreen(
                 selectedOption = uiState.selectedSort,
                 optionLabel = { it.label },
                 onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = ChalkakTheme.spacing.screenHorizontal),
+                modifier = Modifier.fillMaxWidth(),
             )
             LazyColumn(
                 modifier = Modifier

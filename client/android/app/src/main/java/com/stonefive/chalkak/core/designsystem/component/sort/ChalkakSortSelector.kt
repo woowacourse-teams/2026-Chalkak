@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.core.designsystem.component.sort
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -29,7 +30,10 @@ fun <T> ChalkakSortSelector(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.selectableGroup(),
+        modifier = modifier
+            .selectableGroup()
+            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+        horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
     ) {
         options.forEach { option ->
             ChalkakSortItem(
@@ -62,7 +66,7 @@ private fun ChalkakSortItem(
                 indication = null,
                 role = Role.RadioButton,
                 onClick = onClick,
-            ).padding(10.dp),
+            ).padding(vertical = ChalkakTheme.spacing.md),
     ) {
         Text(
             text = label,
