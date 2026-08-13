@@ -22,6 +22,8 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
     private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
+    private var latestLoadGeneration = 0
+
     init {
         loadHome()
     }
@@ -47,10 +49,15 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
     }
 
     private fun loadHome() {
+        val requestedSort = _uiState.value.selectedSort
+        val generation = ++latestLoadGeneration
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            runCatching { repository.getHome(_uiState.value.selectedSort) }
+            runCatching { repository.getHome(requestedSort) }
                 .onSuccess { content ->
+                    if (generation != latestLoadGeneration) return@onSuccess
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -61,6 +68,8 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                         )
                     }
                 }.onFailure {
+                    if (generation != latestLoadGeneration) return@onFailure
+
                     _uiState.update { it.copy(isLoading = false) }
                     _uiEvent.send(HomeUiEvent.LoadFailed)
                 }

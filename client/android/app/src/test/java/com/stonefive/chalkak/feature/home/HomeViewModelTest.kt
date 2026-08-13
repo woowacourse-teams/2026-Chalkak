@@ -5,6 +5,7 @@ import com.stonefive.chalkak.domain.model.Photo
 import com.stonefive.chalkak.domain.model.PhotoContent
 import com.stonefive.chalkak.domain.model.PhotoSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
+래import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,6 +43,31 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `이전 정렬 요청이 나중에 완료되어도 최신 정렬 결과를 유지한다`() = runTest {
+        val controlledRepository = ControlledHomeRepository()
+        val controlledViewModel = HomeViewModel(controlledRepository)
+
+        controlledViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        controlledRepository.complete(
+            sort = PhotoSort.POPULAR,
+            content = homeContent(topic = "인기순 결과"),
+        )
+
+        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
+        assertFalse(controlledViewModel.uiState.value.isLoading)
+
+        controlledRepository.complete(
+            sort = PhotoSort.LATEST,
+            content = homeContent(topic = "최신순 결과"),
+        )
+
+        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
+        assertFalse(controlledViewModel.uiState.value.isLoading)
+    }
+
+    @Test
     fun `좋아요 액션은 선택한 사진 상태와 저장소를 함께 갱신한다`() = runTest {
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
 
@@ -66,6 +92,22 @@ class HomeViewModelTest {
 
 private const val PHOTO_ID = "photo-1"
 
+private fun homeContent(topic: String = "하늘하늘하늘") = PhotoContent(
+    dateLabel = "8월 3일 · 오늘의 주제",
+    topic = topic,
+    photos = listOf(
+        Photo(
+            id = PHOTO_ID,
+            imageUrl = "https://example.com/photo.jpg",
+            signatureUrl = null,
+            contentDescription = "하늘",
+            story = "이야기",
+            likeCount = 24,
+        ),
+    ),
+    likedPhotoIds = emptySet(),
+)
+
 private class FakeHomeRepository : HomeRepository {
     val requestedSorts = mutableListOf<PhotoSort>()
     var updatedPhotoId: String? = null
@@ -73,21 +115,7 @@ private class FakeHomeRepository : HomeRepository {
 
     override suspend fun getHome(sort: PhotoSort): PhotoContent {
         requestedSorts += sort
-        return PhotoContent(
-            dateLabel = "8월 3일 · 오늘의 주제",
-            topic = "하늘하늘하늘",
-            photos = listOf(
-                Photo(
-                    id = PHOTO_ID,
-                    imageUrl = "https://example.com/photo.jpg",
-                    signatureUrl = null,
-                    contentDescription = "하늘",
-                    story = "이야기",
-                    likeCount = 24,
-                ),
-            ),
-            likedPhotoIds = emptySet(),
-        )
+        return homeContent()
     }
 
     override suspend fun updateLike(
@@ -98,4 +126,26 @@ private class FakeHomeRepository : HomeRepository {
         updatedIsLiked = isLiked
         return if (isLiked) 25 else 24
     }
+}
+
+private class ControlledHomeRepository : HomeRepository {
+    private val responses = mutableMapOf<PhotoSort, CompletableDeferred<PhotoContent>>()
+
+    override suspend fun getHome(sort: PhotoSort): PhotoContent {
+        val response = CompletableDeferred<PhotoContent>()
+        responses[sort] = response
+        return response.await()
+    }
+
+    fun complete(
+        sort: PhotoSort,
+        content: PhotoContent,
+    ) {
+        checkNotNull(responses[sort]).complete(content)
+    }
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): Int = error("Not used")
 }
