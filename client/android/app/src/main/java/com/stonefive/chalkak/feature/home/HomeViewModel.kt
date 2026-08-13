@@ -23,6 +23,7 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
     val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLoadGeneration = 0
+    private var homeContentRevision = 0
     private val latestLikeGenerationByPhotoId = mutableMapOf<String, Int>()
 
     init {
@@ -57,6 +58,7 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                 .onSuccess { content ->
                     if (generation != latestLoadGeneration) return@onSuccess
 
+                    homeContentRevision++
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -80,6 +82,7 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
         val wasLiked = photoId in previousState.likedPhotoIds
         val nextState = previousState.reduce(HomeUiAction.LikeClicked(photoId))
         val generation = latestLikeGenerationByPhotoId.getOrDefault(photoId, 0) + 1
+        val requestedHomeContentRevision = homeContentRevision
         latestLikeGenerationByPhotoId[photoId] = generation
         _uiState.value = nextState
 
@@ -90,7 +93,12 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                     isLiked = photoId in nextState.likedPhotoIds,
                 )
             }.onSuccess { likeCount ->
-                if (latestLikeGenerationByPhotoId[photoId] != generation) return@onSuccess
+                if (
+                    latestLikeGenerationByPhotoId[photoId] != generation ||
+                    homeContentRevision != requestedHomeContentRevision
+                ) {
+                    return@onSuccess
+                }
 
                 _uiState.update { state ->
                     state.copy(
@@ -100,7 +108,12 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                     )
                 }
             }.onFailure {
-                if (latestLikeGenerationByPhotoId[photoId] != generation) return@onFailure
+                if (
+                    latestLikeGenerationByPhotoId[photoId] != generation ||
+                    homeContentRevision != requestedHomeContentRevision
+                ) {
+                    return@onFailure
+                }
 
                 _uiState.update { state ->
                     if (state.photos.none { it.id == photoId }) return@update state

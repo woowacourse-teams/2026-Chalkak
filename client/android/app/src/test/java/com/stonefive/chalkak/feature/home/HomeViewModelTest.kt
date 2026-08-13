@@ -140,6 +140,34 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `홈 재조회 후 이전 좋아요 요청이 실패해도 최신 홈 콘텐츠를 유지한다`() = runTest {
+        val reloadRepository = ReloadDuringLikeRepository()
+        val reloadViewModel = HomeViewModel(reloadRepository)
+
+        reloadViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        reloadViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+
+        assertEquals(
+            30,
+            reloadViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+        assertEquals(setOf(PHOTO_ID), reloadViewModel.uiState.value.likedPhotoIds)
+
+        reloadRepository.failLike()
+
+        assertEquals(PhotoSort.POPULAR, reloadViewModel.uiState.value.selectedSort)
+        assertEquals(
+            30,
+            reloadViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+        assertEquals(setOf(PHOTO_ID), reloadViewModel.uiState.value.likedPhotoIds)
+    }
+
+    @Test
     fun `추가 액션은 업로드 열기 이벤트를 전달한다`() = runTest {
         viewModel.onAction(HomeUiAction.AddClicked)
 
@@ -149,7 +177,11 @@ class HomeViewModelTest {
 
 private const val PHOTO_ID = "photo-1"
 
-private fun homeContent(topic: String = "하늘하늘하늘") = PhotoContent(
+private fun homeContent(
+    topic: String = "하늘하늘하늘",
+    likeCount: Int = 24,
+    likedPhotoIds: Set<String> = emptySet(),
+) = PhotoContent(
     dateLabel = "8월 3일 · 오늘의 주제",
     topic = topic,
     photos = listOf(
@@ -159,10 +191,10 @@ private fun homeContent(topic: String = "하늘하늘하늘") = PhotoContent(
             signatureUrl = null,
             contentDescription = "하늘",
             title = "사진 제목",
-            likeCount = 24,
+            likeCount = likeCount,
         ),
     ),
-    likedPhotoIds = emptySet(),
+    likedPhotoIds = likedPhotoIds,
 )
 
 private class FakeHomeRepository : HomeRepository {
@@ -230,5 +262,31 @@ private class ControlledLikeRepository : HomeRepository {
 
     fun failLike(requestIndex: Int) {
         likeResponses[requestIndex].completeExceptionally(IllegalStateException("Like update failed"))
+    }
+}
+
+private class ReloadDuringLikeRepository : HomeRepository {
+    private val likeResponse = CompletableDeferred<Int>()
+    private var homeRequestCount = 0
+
+    override suspend fun getHome(sort: PhotoSort): PhotoContent {
+        homeRequestCount++
+        return if (homeRequestCount == 1) {
+            homeContent()
+        } else {
+            homeContent(
+                likeCount = 30,
+                likedPhotoIds = setOf(PHOTO_ID),
+            )
+        }
+    }
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): Int = likeResponse.await()
+
+    fun failLike() {
+        likeResponse.completeExceptionally(IllegalStateException("Like update failed"))
     }
 }
