@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,7 +28,6 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomePhoto
 import com.stonefive.chalkak.feature.home.component.HomePhotoCard
 import com.stonefive.chalkak.feature.home.component.HomeSortChipRow
@@ -131,11 +129,12 @@ private fun TodayTopic(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(122.dp)
             .bottomDivider()
             .padding(
                 start = ChalkakTheme.spacing.screenHorizontal,
                 top = ChalkakTheme.spacing.lg,
+                end = ChalkakTheme.spacing.screenHorizontal,
+                bottom = ChalkakTheme.spacing.xxl,
             ),
     ) {
         Text(
@@ -181,16 +180,16 @@ private fun HomeScreenPreview() {
                 photos = listOf(
                     HomePhoto(
                         id = "preview-1",
-                        image = HomeImage.Local(R.drawable.home_feed_photo),
-                        signatureImage = null,
+                        imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        signatureUrl = null,
                         contentDescription = "노을이 진 하늘과 전신주",
                         story = "안녕하세요 감사합니다.",
                         likeCount = 24,
                     ),
                     HomePhoto(
                         id = "preview-2",
-                        image = HomeImage.Local(R.drawable.preview_photo),
-                        signatureImage = HomeImage.Local(R.drawable.preview_signature),
+                        imageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "두 번째 사진",
                         story = null,
                         likeCount = 12,
@@ -201,3 +200,6 @@ private fun HomeScreenPreview() {
         )
     }
 }
+
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://com.stonefive.chalkak/$resourceId"
