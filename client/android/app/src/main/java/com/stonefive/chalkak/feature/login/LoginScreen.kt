@@ -32,6 +32,7 @@ import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
 @Composable
 fun LoginRoute(
+    onLoginSuccess: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
@@ -40,7 +41,9 @@ fun LoginRoute(
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
             when (event) {
-                LoginUiEvent.NavigateToHome -> {}
+                LoginUiEvent.NavigateToHome -> {
+                    onLoginSuccess()
+                }
             }
         }
     }
