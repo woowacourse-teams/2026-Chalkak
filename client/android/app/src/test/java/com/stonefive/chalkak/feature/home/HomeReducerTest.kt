@@ -99,13 +99,13 @@ class HomeReducerTest {
         val sortedState = HomeUiState(
             expandedStoryPhotoIds = setOf(photoWithStory.id),
         ).reduce(
-            HomeUiAction.SortSelected(HomeSort.RECOMMENDED),
+            HomeUiAction.SortSelected(HomeSort.RANDOM),
         )
         val navigationState = sortedState.reduce(
             HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY),
         )
 
-        assertEquals(HomeSort.RECOMMENDED, navigationState.selectedSort)
+        assertEquals(HomeSort.RANDOM, navigationState.selectedSort)
         assertEquals(ChalkakBottomBarItem.DISPLAY, navigationState.selectedBottomBarItem)
         assertTrue(navigationState.expandedStoryPhotoIds.isEmpty())
     }

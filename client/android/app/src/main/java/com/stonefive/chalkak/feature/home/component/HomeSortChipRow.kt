@@ -39,11 +39,11 @@ fun HomeSortChipRow(
 private fun HomeSort.toDesignSystemOption(): ChalkakSortOption = when (this) {
     HomeSort.LATEST -> ChalkakSortOption.LATEST
     HomeSort.POPULAR -> ChalkakSortOption.POPULAR
-    HomeSort.RECOMMENDED -> ChalkakSortOption.RANDOM
+    HomeSort.RANDOM -> ChalkakSortOption.RANDOM
 }
 
 private fun ChalkakSortOption.toHomeSort(): HomeSort = when (this) {
     ChalkakSortOption.LATEST -> HomeSort.LATEST
     ChalkakSortOption.POPULAR -> HomeSort.POPULAR
-    ChalkakSortOption.RANDOM -> HomeSort.RECOMMENDED
+    ChalkakSortOption.RANDOM -> HomeSort.RANDOM
 }
