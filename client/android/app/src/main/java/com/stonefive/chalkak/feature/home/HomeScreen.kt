@@ -26,11 +26,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Photo
+import com.stonefive.chalkak.domain.model.PhotoSort
 import com.stonefive.chalkak.feature.home.component.HomePhotoCard
-import com.stonefive.chalkak.feature.home.component.HomeSortChipRow
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 
 private val HomeDivider = Color(0xFFE8E6E1)
@@ -93,9 +94,14 @@ fun HomeScreen(
                 dateLabel = uiState.dateLabel,
                 topic = uiState.topic,
             )
-            HomeSortChipRow(
-                selectedSort = uiState.selectedSort,
-                onSortSelected = { onAction(HomeUiAction.SortSelected(it)) },
+            ChalkakSortSelector(
+                options = PhotoSort.entries,
+                selectedOption = uiState.selectedSort,
+                optionLabel = { it.label },
+                onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = ChalkakTheme.spacing.screenHorizontal),
             )
             LazyColumn(
                 modifier = Modifier
@@ -202,3 +208,10 @@ private fun HomeScreenPreview() {
 }
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+
+private val PhotoSort.label: String
+    get() = when (this) {
+        PhotoSort.LATEST -> "최신순"
+        PhotoSort.POPULAR -> "인기순"
+        PhotoSort.RANDOM -> "랜덤순"
+    }
