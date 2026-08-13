@@ -67,7 +67,7 @@ fun LoginScreen(
             .fillMaxSize()
             .background(ChalkakTheme.colors.background),
     ) {
-        LoginHero(modifier = Modifier.weight(1.2f))
+        LoginHeader(modifier = Modifier.weight(1.2f))
 
         LoginActions(
             onSocialLoginClick = onSocialLoginClick,
@@ -79,7 +79,7 @@ fun LoginScreen(
 }
 
 @Composable
-private fun LoginHero(modifier: Modifier = Modifier) {
+private fun LoginHeader(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth(),
