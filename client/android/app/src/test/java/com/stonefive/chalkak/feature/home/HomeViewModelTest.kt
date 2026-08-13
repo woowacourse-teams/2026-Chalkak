@@ -5,7 +5,7 @@ import com.stonefive.chalkak.domain.model.Photo
 import com.stonefive.chalkak.domain.model.PhotoContent
 import com.stonefive.chalkak.domain.model.PhotoSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
-래import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -83,6 +83,64 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `좋아요 실패는 해당 사진만 복원하고 새 정렬 상태를 유지한다`() = runTest {
+        val controlledRepository = ControlledLikeRepository()
+        val controlledViewModel = HomeViewModel(controlledRepository)
+
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        controlledRepository.failLike(requestIndex = 0)
+
+        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
+        assertEquals(
+            24,
+            controlledViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+        assertEquals(HomeUiEvent.LikeUpdateFailed, controlledViewModel.uiEvent.first())
+    }
+
+    @Test
+    fun `이전 좋아요 성공 응답이 나중에 완료되어도 최신 요청 결과를 유지한다`() = runTest {
+        val controlledRepository = ControlledLikeRepository()
+        val controlledViewModel = HomeViewModel(controlledRepository)
+
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledRepository.completeLike(requestIndex = 1, likeCount = 24)
+        controlledRepository.completeLike(requestIndex = 0, likeCount = 25)
+
+        assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
+        assertEquals(
+            24,
+            controlledViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+    }
+
+    @Test
+    fun `이전 좋아요 실패 응답은 최신 낙관적 상태를 복원하지 않는다`() = runTest {
+        val controlledRepository = ControlledLikeRepository()
+        val controlledViewModel = HomeViewModel(controlledRepository)
+
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        controlledRepository.failLike(requestIndex = 0)
+
+        assertEquals(setOf(PHOTO_ID), controlledViewModel.uiState.value.likedPhotoIds)
+        assertEquals(
+            25,
+            controlledViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+    }
+
+    @Test
     fun `추가 액션은 업로드 열기 이벤트를 전달한다`() = runTest {
         viewModel.onAction(HomeUiAction.AddClicked)
 
@@ -148,4 +206,30 @@ private class ControlledHomeRepository : HomeRepository {
         photoId: String,
         isLiked: Boolean,
     ): Int = error("Not used")
+}
+
+private class ControlledLikeRepository : HomeRepository {
+    private val likeResponses = mutableListOf<CompletableDeferred<Int>>()
+
+    override suspend fun getHome(sort: PhotoSort): PhotoContent = homeContent()
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): Int {
+        val response = CompletableDeferred<Int>()
+        likeResponses += response
+        return response.await()
+    }
+
+    fun completeLike(
+        requestIndex: Int,
+        likeCount: Int,
+    ) {
+        likeResponses[requestIndex].complete(likeCount)
+    }
+
+    fun failLike(requestIndex: Int) {
+        likeResponses[requestIndex].completeExceptionally(IllegalStateException("Like update failed"))
+    }
 }

@@ -23,6 +23,7 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
     val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLoadGeneration = 0
+    private val latestLikeGenerationByPhotoId = mutableMapOf<String, Int>()
 
     init {
         loadHome()
@@ -78,8 +79,11 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
 
     private fun updateLike(photoId: String) {
         val previousState = _uiState.value
-        if (previousState.photos.none { it.id == photoId }) return
+        val previousPhoto = previousState.photos.find { it.id == photoId } ?: return
+        val wasLiked = photoId in previousState.likedPhotoIds
         val nextState = previousState.reduce(HomeUiAction.LikeClicked(photoId))
+        val generation = latestLikeGenerationByPhotoId.getOrDefault(photoId, 0) + 1
+        latestLikeGenerationByPhotoId[photoId] = generation
         _uiState.value = nextState
 
         viewModelScope.launch {
@@ -89,6 +93,8 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                     isLiked = photoId in nextState.likedPhotoIds,
                 )
             }.onSuccess { likeCount ->
+                if (latestLikeGenerationByPhotoId[photoId] != generation) return@onSuccess
+
                 _uiState.update { state ->
                     state.copy(
                         photos = state.photos.map { photo ->
@@ -97,7 +103,26 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
                     )
                 }
             }.onFailure {
-                _uiState.value = previousState
+                if (latestLikeGenerationByPhotoId[photoId] != generation) return@onFailure
+
+                _uiState.update { state ->
+                    if (state.photos.none { it.id == photoId }) return@update state
+
+                    state.copy(
+                        photos = state.photos.map { photo ->
+                            if (photo.id == photoId) {
+                                photo.copy(likeCount = previousPhoto.likeCount)
+                            } else {
+                                photo
+                            }
+                        },
+                        likedPhotoIds = if (wasLiked) {
+                            state.likedPhotoIds + photoId
+                        } else {
+                            state.likedPhotoIds - photoId
+                        },
+                    )
+                }
                 _uiEvent.send(HomeUiEvent.LikeUpdateFailed)
             }
         }
