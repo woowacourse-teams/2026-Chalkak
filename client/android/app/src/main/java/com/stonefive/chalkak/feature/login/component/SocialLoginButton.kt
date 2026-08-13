@@ -71,7 +71,7 @@ fun SocialLoginButton(
             Image(
                 painter = painterResource(provider.logoResId),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(20.dp),
             )
             Text(
                 text = stringResource(provider.labelResId),
