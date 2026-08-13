@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -95,7 +94,7 @@ private fun LoginHero(modifier: Modifier = Modifier) {
         )
 
         Text(
-            text = stringResource(R.string.login_headline),
+            text = "매일 하나의 주제,\n각자의 한 장",
             modifier = Modifier
                 .statusBarsPadding()
                 .padding(
@@ -137,7 +136,7 @@ private fun LoginActions(
         }
 
         Text(
-            text = stringResource(R.string.login_continue_as_guest),
+            text = "로그인 없이 사진 둘러보기",
             modifier = Modifier
                 .clickable(enabled = enabled, onClick = onContinueAsGuestClick)
                 .padding(ChalkakTheme.spacing.sm),

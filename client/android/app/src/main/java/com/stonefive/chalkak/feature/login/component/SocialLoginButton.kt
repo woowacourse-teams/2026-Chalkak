@@ -1,7 +1,6 @@
 package com.stonefive.chalkak.feature.login.component
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -32,11 +30,10 @@ private val SocialLoginProvider.logoResId: Int
         SocialLoginProvider.KAKAO -> R.drawable.img_kakao_logo
     }
 
-@get:StringRes
-private val SocialLoginProvider.labelResId: Int
+private val SocialLoginProvider.label: String
     get() = when (this) {
-        SocialLoginProvider.GOOGLE -> R.string.login_continue_with_google
-        SocialLoginProvider.KAKAO -> R.string.login_continue_with_kakao
+        SocialLoginProvider.GOOGLE -> "Google로 계속하기"
+        SocialLoginProvider.KAKAO -> "카카오로 계속하기"
     }
 
 @Composable
@@ -74,7 +71,7 @@ fun SocialLoginButton(
                 modifier = Modifier.size(20.dp),
             )
             Text(
-                text = stringResource(provider.labelResId),
+                text = provider.label,
                 style = ChalkakTheme.typography.callout,
             )
         }
