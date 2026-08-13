@@ -28,7 +28,7 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.HomePhoto
+import com.stonefive.chalkak.domain.model.Photo
 import com.stonefive.chalkak.feature.home.component.HomePhotoCard
 import com.stonefive.chalkak.feature.home.component.HomeSortChipRow
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
@@ -106,7 +106,7 @@ fun HomeScreen(
             ) {
                 items(
                     items = uiState.photos,
-                    key = HomePhoto::id,
+                    key = Photo::id,
                 ) { photo ->
                     HomePhotoCard(
                         photo = photo,
@@ -178,7 +178,7 @@ private fun HomeScreenPreview() {
                 dateLabel = "8월 3일 · 오늘의 주제",
                 topic = "하늘하늘하늘",
                 photos = listOf(
-                    HomePhoto(
+                    Photo(
                         id = "preview-1",
                         imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
                         signatureUrl = null,
@@ -186,7 +186,7 @@ private fun HomeScreenPreview() {
                         story = "안녕하세요 감사합니다.",
                         likeCount = 24,
                     ),
-                    HomePhoto(
+                    Photo(
                         id = "preview-2",
                         imageUrl = drawableResourceUrl(R.drawable.preview_photo),
                         signatureUrl = drawableResourceUrl(R.drawable.preview_signature),

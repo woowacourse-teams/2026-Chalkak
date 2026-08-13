@@ -1,10 +1,10 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.domain.model.HomeSort
+import com.stonefive.chalkak.domain.model.PhotoSort
 
 sealed interface HomeUiAction {
-    data class SortSelected(val sort: HomeSort) : HomeUiAction
+    data class SortSelected(val sort: PhotoSort) : HomeUiAction
 
     data class LikeClicked(val photoId: String) : HomeUiAction
 

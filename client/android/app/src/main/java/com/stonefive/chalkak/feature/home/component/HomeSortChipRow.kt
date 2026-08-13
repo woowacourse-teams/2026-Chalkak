@@ -13,12 +13,12 @@ import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortOption
 import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.HomeSort
+import com.stonefive.chalkak.domain.model.PhotoSort
 
 @Composable
 fun HomeSortChipRow(
-    selectedSort: HomeSort,
-    onSortSelected: (HomeSort) -> Unit,
+    selectedSort: PhotoSort,
+    onSortSelected: (PhotoSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -31,19 +31,19 @@ fun HomeSortChipRow(
     ) {
         ChalkakSortSelector(
             selectedOption = selectedSort.toDesignSystemOption(),
-            onOptionSelected = { onSortSelected(it.toHomeSort()) },
+            onOptionSelected = { onSortSelected(it.toPhotoSort()) },
         )
     }
 }
 
-private fun HomeSort.toDesignSystemOption(): ChalkakSortOption = when (this) {
-    HomeSort.LATEST -> ChalkakSortOption.LATEST
-    HomeSort.POPULAR -> ChalkakSortOption.POPULAR
-    HomeSort.RANDOM -> ChalkakSortOption.RANDOM
+private fun PhotoSort.toDesignSystemOption(): ChalkakSortOption = when (this) {
+    PhotoSort.LATEST -> ChalkakSortOption.LATEST
+    PhotoSort.POPULAR -> ChalkakSortOption.POPULAR
+    PhotoSort.RANDOM -> ChalkakSortOption.RANDOM
 }
 
-private fun ChalkakSortOption.toHomeSort(): HomeSort = when (this) {
-    ChalkakSortOption.LATEST -> HomeSort.LATEST
-    ChalkakSortOption.POPULAR -> HomeSort.POPULAR
-    ChalkakSortOption.RANDOM -> HomeSort.RANDOM
+private fun ChalkakSortOption.toPhotoSort(): PhotoSort = when (this) {
+    ChalkakSortOption.LATEST -> PhotoSort.LATEST
+    ChalkakSortOption.POPULAR -> PhotoSort.POPULAR
+    ChalkakSortOption.RANDOM -> PhotoSort.RANDOM
 }

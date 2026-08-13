@@ -1,10 +1,10 @@
 package com.stonefive.chalkak.domain.repository
 
-import com.stonefive.chalkak.domain.model.HomeContent
-import com.stonefive.chalkak.domain.model.HomeSort
+import com.stonefive.chalkak.domain.model.PhotoContent
+import com.stonefive.chalkak.domain.model.PhotoSort
 
 interface HomeRepository {
-    suspend fun getHome(sort: HomeSort): HomeContent
+    suspend fun getHome(sort: PhotoSort): PhotoContent
 
     suspend fun updateLike(
         photoId: String,

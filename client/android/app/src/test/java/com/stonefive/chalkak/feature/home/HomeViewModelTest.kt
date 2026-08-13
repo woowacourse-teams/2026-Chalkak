@@ -1,9 +1,9 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.HomeContent
-import com.stonefive.chalkak.domain.model.HomePhoto
-import com.stonefive.chalkak.domain.model.HomeSort
+import com.stonefive.chalkak.domain.model.Photo
+import com.stonefive.chalkak.domain.model.PhotoContent
+import com.stonefive.chalkak.domain.model.PhotoSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -30,15 +30,15 @@ class HomeViewModelTest {
     fun `화면 진입 시 홈 콘텐츠를 불러온다`() = runTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals("하늘하늘하늘", viewModel.uiState.value.topic)
-        assertEquals(listOf(HomeSort.LATEST), repository.requestedSorts)
+        assertEquals(listOf(PhotoSort.LATEST), repository.requestedSorts)
     }
 
     @Test
     fun `정렬 액션은 선택 상태를 바꾸고 해당 정렬로 홈을 다시 불러온다`() = runTest {
-        viewModel.onAction(HomeUiAction.SortSelected(HomeSort.POPULAR))
+        viewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
 
-        assertEquals(HomeSort.POPULAR, viewModel.uiState.value.selectedSort)
-        assertEquals(listOf(HomeSort.LATEST, HomeSort.POPULAR), repository.requestedSorts)
+        assertEquals(PhotoSort.POPULAR, viewModel.uiState.value.selectedSort)
+        assertEquals(listOf(PhotoSort.LATEST, PhotoSort.POPULAR), repository.requestedSorts)
     }
 
     @Test
@@ -67,17 +67,17 @@ class HomeViewModelTest {
 private const val PHOTO_ID = "photo-1"
 
 private class FakeHomeRepository : HomeRepository {
-    val requestedSorts = mutableListOf<HomeSort>()
+    val requestedSorts = mutableListOf<PhotoSort>()
     var updatedPhotoId: String? = null
     var updatedIsLiked: Boolean? = null
 
-    override suspend fun getHome(sort: HomeSort): HomeContent {
+    override suspend fun getHome(sort: PhotoSort): PhotoContent {
         requestedSorts += sort
-        return HomeContent(
+        return PhotoContent(
             dateLabel = "8월 3일 · 오늘의 주제",
             topic = "하늘하늘하늘",
             photos = listOf(
-                HomePhoto(
+                Photo(
                     id = PHOTO_ID,
                     imageUrl = "https://example.com/photo.jpg",
                     signatureUrl = null,

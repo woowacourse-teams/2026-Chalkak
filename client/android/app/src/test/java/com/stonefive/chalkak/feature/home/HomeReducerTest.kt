@@ -1,15 +1,15 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.domain.model.HomePhoto
-import com.stonefive.chalkak.domain.model.HomeSort
+import com.stonefive.chalkak.domain.model.Photo
+import com.stonefive.chalkak.domain.model.PhotoSort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeReducerTest {
-    private val photoWithStory = HomePhoto(
+    private val photoWithStory = Photo(
         id = "photo-id",
         imageUrl = "https://example.com/photo.jpg",
         signatureUrl = null,
@@ -98,13 +98,13 @@ class HomeReducerTest {
         val sortedState = HomeUiState(
             expandedStoryPhotoIds = setOf(photoWithStory.id),
         ).reduce(
-            HomeUiAction.SortSelected(HomeSort.RANDOM),
+            HomeUiAction.SortSelected(PhotoSort.RANDOM),
         )
         val navigationState = sortedState.reduce(
             HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY),
         )
 
-        assertEquals(HomeSort.RANDOM, navigationState.selectedSort)
+        assertEquals(PhotoSort.RANDOM, navigationState.selectedSort)
         assertEquals(ChalkakBottomBarItem.DISPLAY, navigationState.selectedBottomBarItem)
         assertTrue(navigationState.expandedStoryPhotoIds.isEmpty())
     }
