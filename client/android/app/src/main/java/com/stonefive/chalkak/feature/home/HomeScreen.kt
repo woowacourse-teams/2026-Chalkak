@@ -39,8 +39,8 @@ private val HomeDivider = Color(0xFFE8E6E1)
 
 @Composable
 fun HomeRoute(
-    onOpenPhotoUpload: () -> Unit = {},
-    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit = {},
+    onOpenPhotoUpload: () -> Unit,
+    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

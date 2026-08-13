@@ -23,7 +23,10 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                HomeRoute()
+                HomeRoute(
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                )
             }
         }
     }
