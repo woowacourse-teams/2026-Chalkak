@@ -20,25 +20,20 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTextInactive
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
-// 26/08/12 (#14) 추후 이동 필요 + 백엔드에 맞게 Enum 수정할 것 + toString과 같은 로직 생각해 볼 것
-enum class ChalkakSortOption(val label: String) {
-    LATEST("최신순"),
-    POPULAR("인기순"),
-    RANDOM("랜덤순"),
-}
-
 @Composable
-fun ChalkakSortSelector(
-    selectedOption: ChalkakSortOption,
-    onOptionSelected: (ChalkakSortOption) -> Unit,
+fun <T> ChalkakSortSelector(
+    options: List<T>,
+    selectedOption: T,
+    optionLabel: (T) -> String,
+    onOptionSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.selectableGroup(),
     ) {
-        ChalkakSortOption.entries.forEach { option ->
+        options.forEach { option ->
             ChalkakSortItem(
-                option = option,
+                label = optionLabel(option),
                 selected = option == selectedOption,
                 onClick = { onOptionSelected(option) },
             )
@@ -48,7 +43,7 @@ fun ChalkakSortSelector(
 
 @Composable
 private fun ChalkakSortItem(
-    option: ChalkakSortOption,
+    label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -70,7 +65,7 @@ private fun ChalkakSortItem(
             ).padding(10.dp),
     ) {
         Text(
-            text = option.label,
+            text = label,
             color = color,
             style = ChalkakTheme.typography.subheadline,
             modifier = Modifier.drawBehind {
@@ -93,12 +88,15 @@ private fun ChalkakSortItem(
 @Composable
 private fun ChalkakSortSelectorPreview() {
     ChalkakTheme {
+        val options = listOf("최신순", "인기순", "랜덤순")
         var selectedOption by remember {
-            mutableStateOf(ChalkakSortOption.LATEST)
+            mutableStateOf(options.first())
         }
 
         ChalkakSortSelector(
+            options = options,
             selectedOption = selectedOption,
+            optionLabel = { it },
             onOptionSelected = { selectedOption = it },
         )
     }

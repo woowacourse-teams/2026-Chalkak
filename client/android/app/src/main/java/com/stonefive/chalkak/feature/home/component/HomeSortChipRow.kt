@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortOption
 import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -30,20 +29,17 @@ fun HomeSortChipRow(
         contentAlignment = Alignment.CenterStart,
     ) {
         ChalkakSortSelector(
-            selectedOption = selectedSort.toDesignSystemOption(),
-            onOptionSelected = { onSortSelected(it.toPhotoSort()) },
+            options = PhotoSort.entries,
+            selectedOption = selectedSort,
+            optionLabel = { it.label },
+            onOptionSelected = onSortSelected,
         )
     }
 }
 
-private fun PhotoSort.toDesignSystemOption(): ChalkakSortOption = when (this) {
-    PhotoSort.LATEST -> ChalkakSortOption.LATEST
-    PhotoSort.POPULAR -> ChalkakSortOption.POPULAR
-    PhotoSort.RANDOM -> ChalkakSortOption.RANDOM
-}
-
-private fun ChalkakSortOption.toPhotoSort(): PhotoSort = when (this) {
-    ChalkakSortOption.LATEST -> PhotoSort.LATEST
-    ChalkakSortOption.POPULAR -> PhotoSort.POPULAR
-    ChalkakSortOption.RANDOM -> PhotoSort.RANDOM
-}
+private val PhotoSort.label: String
+    get() = when (this) {
+        PhotoSort.LATEST -> "최신순"
+        PhotoSort.POPULAR -> "인기순"
+        PhotoSort.RANDOM -> "랜덤순"
+    }
