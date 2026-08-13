@@ -25,6 +25,7 @@ fun ChalkakSignedImage(
         ChalkakImage(
             model = imageModel,
             contentDescription = contentDescription,
+            modifier = Modifier.matchParentSize(),
             contentScale = contentScale,
         )
 
