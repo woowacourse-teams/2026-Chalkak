@@ -8,6 +8,4 @@
     <string name="login_continue_with_kakao">카카오로 계속하기</string>
     <string name="login_headline">매일 하나의 주제,\n각자의 한 장</string>
     <string name="login_continue_as_guest">로그인 없이 사진 둘러보기</string>
-    <string name="mock_social_login_success">%1$s 테스트 로그인 성공</string>
-    <string name="mock_guest_login_success">비회원 테스트 진입 성공</string>
 </resources>
