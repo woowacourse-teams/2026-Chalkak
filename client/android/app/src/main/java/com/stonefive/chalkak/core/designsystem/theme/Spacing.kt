@@ -23,6 +23,6 @@ val DefaultChalkakSpacing = ChalkakSpacing(
     md = 12.dp,
     lg = 16.dp,
     xl = 24.dp,
-    xxl = 32.dp,
-    screenHorizontal = 20.dp,
+    xxl = 40.dp,
+    screenHorizontal = 25.dp,
 )
