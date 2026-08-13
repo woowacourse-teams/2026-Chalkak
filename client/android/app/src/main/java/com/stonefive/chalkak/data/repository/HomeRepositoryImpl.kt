@@ -1,11 +1,9 @@
 package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
-import com.stonefive.chalkak.data.remote.home.model.HomeImageResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
 import com.stonefive.chalkak.domain.model.HomeContent
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomePhoto
 import com.stonefive.chalkak.domain.model.HomeSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
@@ -31,15 +29,10 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
 
     private fun HomePhotoResponse.toDomain(): HomePhoto = HomePhoto(
         id = id,
-        image = image.toDomain(),
-        signatureImage = signatureImage?.toDomain(),
+        imageUrl = imageUrl,
+        signatureUrl = signatureUrl,
         contentDescription = contentDescription,
         story = story,
         likeCount = likeCount,
     )
-
-    private fun HomeImageResponse.toDomain(): HomeImage = when (this) {
-        is HomeImageResponse.Local -> HomeImage.Local(resourceId)
-        is HomeImageResponse.Remote -> HomeImage.Remote(url)
-    }
 }

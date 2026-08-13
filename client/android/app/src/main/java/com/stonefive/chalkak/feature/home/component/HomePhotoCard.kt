@@ -30,7 +30,6 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomePhoto
 
 private val HomeText = Color(0xFF7D7D7D)
@@ -54,8 +53,8 @@ fun HomePhotoCard(
             ).background(ChalkakWhite),
     ) {
         ChalkakSignedImage(
-            imageModel = photo.image.toImageModel(),
-            signatureModel = photo.signatureImage?.toImageModel(),
+            imageModel = photo.imageUrl,
+            signatureModel = photo.signatureUrl,
             contentDescription = photo.contentDescription,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -161,9 +160,4 @@ private fun PhotoActionRow(
             }
         }
     }
-}
-
-private fun HomeImage.toImageModel(): Any = when (this) {
-    is HomeImage.Local -> resourceId
-    is HomeImage.Remote -> url
 }

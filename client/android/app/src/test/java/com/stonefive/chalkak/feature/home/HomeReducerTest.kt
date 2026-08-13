@@ -1,7 +1,6 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomePhoto
 import com.stonefive.chalkak.domain.model.HomeSort
 import org.junit.Assert.assertEquals
@@ -12,8 +11,8 @@ import org.junit.Test
 class HomeReducerTest {
     private val photoWithStory = HomePhoto(
         id = "photo-id",
-        image = HomeImage.Local(0),
-        signatureImage = null,
+        imageUrl = "https://example.com/photo.jpg",
+        signatureUrl = null,
         contentDescription = "photo",
         story = "안녕하세요 감사합니다.",
         likeCount = 24,

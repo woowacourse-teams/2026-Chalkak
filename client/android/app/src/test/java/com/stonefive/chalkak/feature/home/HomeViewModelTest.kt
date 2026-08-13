@@ -2,7 +2,6 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.HomeContent
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomePhoto
 import com.stonefive.chalkak.domain.model.HomeSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
@@ -80,8 +79,8 @@ private class FakeHomeRepository : HomeRepository {
             photos = listOf(
                 HomePhoto(
                     id = PHOTO_ID,
-                    image = HomeImage.Local(0),
-                    signatureImage = null,
+                    imageUrl = "https://example.com/photo.jpg",
+                    signatureUrl = null,
                     contentDescription = "하늘",
                     story = "이야기",
                     likeCount = 24,

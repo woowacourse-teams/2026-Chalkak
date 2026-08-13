@@ -1,11 +1,9 @@
 package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
-import com.stonefive.chalkak.data.remote.home.model.HomeImageResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
-import com.stonefive.chalkak.domain.model.HomeImage
 import com.stonefive.chalkak.domain.model.HomeSort
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -23,10 +21,11 @@ class HomeRepositoryImplTest {
         assertEquals(HomeSort.POPULAR, remoteDataSource.requestedSort)
         assertEquals("하늘하늘하늘", content.topic)
         assertEquals(1, content.photos.size)
-        assertTrue(
+        assertEquals(
+            "https://example.com/photo.jpg",
             content.photos
                 .first()
-                .image is HomeImage.Remote,
+                .imageUrl,
         )
         assertEquals(setOf("photo-1"), content.likedPhotoIds)
     }
@@ -54,8 +53,8 @@ private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
             photos = listOf(
                 HomePhotoResponse(
                     id = "photo-1",
-                    image = HomeImageResponse.Remote("https://example.com/photo.jpg"),
-                    signatureImage = HomeImageResponse.Local(1),
+                    imageUrl = "https://example.com/photo.jpg",
+                    signatureUrl = "https://example.com/signature.png",
                     contentDescription = "하늘",
                     story = "이야기",
                     likeCount = 24,

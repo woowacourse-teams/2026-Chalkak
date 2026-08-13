@@ -1,7 +1,7 @@
 package com.stonefive.chalkak.data.remote.home
 
+import androidx.annotation.DrawableRes
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.data.remote.home.model.HomeImageResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
@@ -20,24 +20,24 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
             photos = listOf(
                 HomePhotoResponse(
                     id = FIRST_PHOTO_ID,
-                    image = HomeImageResponse.Local(R.drawable.home_feed_photo),
-                    signatureImage = null,
+                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    signatureUrl = null,
                     contentDescription = "노을이 진 하늘과 전신주",
                     story = "안녕하세요 감사합니다.",
                     likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT),
                 ),
                 HomePhotoResponse(
                     id = SECOND_PHOTO_ID,
-                    image = HomeImageResponse.Local(R.drawable.preview_photo),
-                    signatureImage = HomeImageResponse.Local(R.drawable.preview_signature),
+                    imageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                     contentDescription = "오늘의 주제를 담은 두 번째 사진",
                     story = null,
                     likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT),
                 ),
                 HomePhotoResponse(
                     id = THIRD_PHOTO_ID,
-                    image = HomeImageResponse.Local(R.drawable.home_feed_photo),
-                    signatureImage = null,
+                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    signatureUrl = null,
                     contentDescription = "저녁 하늘을 담은 세 번째 사진",
                     story = "하루가 저무는 순간을 기록했어요.",
                     likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT),
@@ -68,6 +68,9 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
         photoId: String,
         defaultLikeCount: Int,
     ): Int = defaultLikeCount + if (photoId in likedPhotoIds) 1 else 0
+
+    private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
+        "android.resource://com.stonefive.chalkak/$resourceId"
 
     private companion object {
         const val FIRST_PHOTO_ID = "sample-home-photo-1"

@@ -201,5 +201,4 @@ private fun HomeScreenPreview() {
     }
 }
 
-private fun drawableResourceUrl(resourceId: Int): String =
-    "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
