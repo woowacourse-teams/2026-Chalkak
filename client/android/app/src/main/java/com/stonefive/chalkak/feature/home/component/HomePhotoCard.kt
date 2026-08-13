@@ -77,10 +77,7 @@ private fun PhotoActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(57.dp)
-            .padding(
-                start = ChalkakTheme.spacing.screenHorizontal,
-                end = 14.dp,
-            ),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
