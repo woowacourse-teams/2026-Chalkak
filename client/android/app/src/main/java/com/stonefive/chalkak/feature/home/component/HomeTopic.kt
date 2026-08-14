@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
@@ -55,4 +56,15 @@ internal fun Modifier.homeBottomDivider(): Modifier = drawBehind {
         end = Offset(size.width, size.height - strokeWidth / 2),
         strokeWidth = strokeWidth,
     )
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun HomeTopicPreview() {
+    ChalkakTheme {
+        HomeTopic(
+            dateLabel = "8월 3일 · 오늘의 주제",
+            topic = "하늘하늘하늘",
+        )
+    }
 }
