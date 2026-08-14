@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,19 +37,18 @@ internal fun TermsAllConsentRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(60.dp)
             .clip(TermsCardShape)
             .border(BorderStroke(1.dp, TermsCardBorder), TermsCardShape)
-            .clickable(
-                interactionSource = interactionSource,
+            .toggleable(
+                value = checked,
+                interactionSource = null,
                 indication = null,
                 role = Role.Checkbox,
-                onClick = onClick,
+                onValueChange = { onClick() },
             ).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -70,7 +70,6 @@ internal fun TermsRequiredConsentRow(
     onViewClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
     val viewInteractionSource = remember { MutableInteractionSource() }
 
     Row(
@@ -83,11 +82,12 @@ internal fun TermsRequiredConsentRow(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize()
-                .clickable(
-                    interactionSource = interactionSource,
+                .toggleable(
+                    value = checked,
+                    interactionSource = null,
                     indication = null,
                     role = Role.Checkbox,
-                    onClick = onCheckedChange,
+                    onValueChange = { onCheckedChange() },
                 ).padding(start = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
