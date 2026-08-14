@@ -5,14 +5,14 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
-import com.stonefive.chalkak.domain.model.PhotoSort
+import com.stonefive.chalkak.domain.model.PostSort
 import kotlinx.coroutines.delay
 
 class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : HomeRemoteDataSource {
     private val likedPhotoIds = mutableSetOf<String>()
 
     @Suppress("UNUSED_PARAMETER")
-    override suspend fun getHome(sort: PhotoSort): HomeResponse {
+    override suspend fun getHome(sort: PostSort): HomeResponse {
         delay(responseDelayMillis)
         return HomeResponse(
             dateLabel = "8월 3일 · 오늘의 주제",

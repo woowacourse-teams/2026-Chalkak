@@ -29,8 +29,8 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.Photo
-import com.stonefive.chalkak.domain.model.PhotoSort
+import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.home.component.HomePhotoCard
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 
@@ -90,7 +90,7 @@ fun HomeScreen(
                 topic = uiState.topic,
             )
             ChalkakSortSelector(
-                options = PhotoSort.entries,
+                options = PostSort.entries,
                 selectedOption = uiState.selectedSort,
                 optionLabel = { it.label },
                 onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
@@ -105,7 +105,7 @@ fun HomeScreen(
             ) {
                 items(
                     items = uiState.photos,
-                    key = Photo::id,
+                    key = Post::id,
                 ) { photo ->
                     HomePhotoCard(
                         photo = photo,
@@ -175,7 +175,7 @@ private fun HomeScreenPreview() {
                 dateLabel = "8월 3일 · 오늘의 주제",
                 topic = "하늘하늘하늘",
                 photos = listOf(
-                    Photo(
+                    Post(
                         id = "preview-1",
                         imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
                         signatureUrl = null,
@@ -183,7 +183,7 @@ private fun HomeScreenPreview() {
                         title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,
                     ),
-                    Photo(
+                    Post(
                         id = "preview-2",
                         imageUrl = drawableResourceUrl(R.drawable.preview_photo),
                         signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
@@ -200,9 +200,9 @@ private fun HomeScreenPreview() {
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
-private val PhotoSort.label: String
+private val PostSort.label: String
     get() = when (this) {
-        PhotoSort.LATEST -> "최신순"
-        PhotoSort.POPULAR -> "인기순"
-        PhotoSort.RANDOM -> "랜덤순"
+        PostSort.LATEST -> "최신순"
+        PostSort.POPULAR -> "인기순"
+        PostSort.RANDOM -> "랜덤순"
     }

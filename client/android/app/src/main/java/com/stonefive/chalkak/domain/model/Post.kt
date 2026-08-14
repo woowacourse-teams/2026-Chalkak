@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.domain.model
 
-data class Photo(
+data class Post(
     val id: String,
     val imageUrl: String,
     val signatureUrl: String?,

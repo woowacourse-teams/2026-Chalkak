@@ -1,8 +1,8 @@
 package com.stonefive.chalkak.domain.model
 
-data class PhotoContent(
+data class PostContent(
     val dateLabel: String,
     val topic: String,
-    val photos: List<Photo>,
+    val photos: List<Post>,
     val likedPhotoIds: Set<String>,
 )

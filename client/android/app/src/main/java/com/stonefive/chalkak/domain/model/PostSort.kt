@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.domain.model
 
-enum class PhotoSort {
+enum class PostSort {
     LATEST,
     POPULAR,
     RANDOM,

@@ -4,7 +4,7 @@ import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
-import com.stonefive.chalkak.domain.model.PhotoSort
+import com.stonefive.chalkak.domain.model.PostSort
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -16,9 +16,9 @@ class HomeRepositoryImplTest {
 
     @Test
     fun `홈 응답을 도메인 모델로 변환한다`() = runTest {
-        val content = repository.getHome(PhotoSort.POPULAR)
+        val content = repository.getHome(PostSort.POPULAR)
 
-        assertEquals(PhotoSort.POPULAR, remoteDataSource.requestedSort)
+        assertEquals(PostSort.POPULAR, remoteDataSource.requestedSort)
         assertEquals("하늘하늘하늘", content.topic)
         assertEquals(1, content.photos.size)
         assertEquals(
@@ -47,11 +47,11 @@ class HomeRepositoryImplTest {
 }
 
 private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
-    var requestedSort: PhotoSort? = null
+    var requestedSort: PostSort? = null
     var updatedPhotoId: String? = null
     var updatedIsLiked: Boolean = false
 
-    override suspend fun getHome(sort: PhotoSort): HomeResponse {
+    override suspend fun getHome(sort: PostSort): HomeResponse {
         requestedSort = sort
         return HomeResponse(
             dateLabel = "8월 3일 · 오늘의 주제",

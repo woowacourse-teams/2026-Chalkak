@@ -1,9 +1,9 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.Photo
-import com.stonefive.chalkak.domain.model.PhotoContent
-import com.stonefive.chalkak.domain.model.PhotoSort
+import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
@@ -31,15 +31,15 @@ class HomeViewModelTest {
     fun `화면 진입 시 홈 콘텐츠를 불러온다`() = runTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals("하늘하늘하늘", viewModel.uiState.value.topic)
-        assertEquals(listOf(PhotoSort.LATEST), repository.requestedSorts)
+        assertEquals(listOf(PostSort.LATEST), repository.requestedSorts)
     }
 
     @Test
     fun `정렬 액션은 선택 상태를 바꾸고 해당 정렬로 홈을 다시 불러온다`() = runTest {
-        viewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
 
-        assertEquals(PhotoSort.POPULAR, viewModel.uiState.value.selectedSort)
-        assertEquals(listOf(PhotoSort.LATEST, PhotoSort.POPULAR), repository.requestedSorts)
+        assertEquals(PostSort.POPULAR, viewModel.uiState.value.selectedSort)
+        assertEquals(listOf(PostSort.LATEST, PostSort.POPULAR), repository.requestedSorts)
     }
 
     @Test
@@ -47,22 +47,22 @@ class HomeViewModelTest {
         val controlledRepository = ControlledHomeRepository()
         val controlledViewModel = HomeViewModel(controlledRepository)
 
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
         controlledRepository.complete(
-            sort = PhotoSort.POPULAR,
+            sort = PostSort.POPULAR,
             content = homeContent(topic = "인기순 결과"),
         )
 
-        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
         assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
         assertFalse(controlledViewModel.uiState.value.isLoading)
 
         controlledRepository.complete(
-            sort = PhotoSort.LATEST,
+            sort = PostSort.LATEST,
             content = homeContent(topic = "최신순 결과"),
         )
 
-        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
         assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
         assertFalse(controlledViewModel.uiState.value.isLoading)
     }
@@ -88,10 +88,10 @@ class HomeViewModelTest {
         val controlledViewModel = HomeViewModel(controlledRepository)
 
         controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
         controlledRepository.failLike(requestIndex = 0)
 
-        assertEquals(PhotoSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
         assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
         assertEquals(
             24,
@@ -145,7 +145,7 @@ class HomeViewModelTest {
         val reloadViewModel = HomeViewModel(reloadRepository)
 
         reloadViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        reloadViewModel.onAction(HomeUiAction.SortSelected(PhotoSort.POPULAR))
+        reloadViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
 
         assertEquals(
             30,
@@ -157,7 +157,7 @@ class HomeViewModelTest {
 
         reloadRepository.failLike()
 
-        assertEquals(PhotoSort.POPULAR, reloadViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.POPULAR, reloadViewModel.uiState.value.selectedSort)
         assertEquals(
             30,
             reloadViewModel.uiState.value.photos
@@ -181,11 +181,11 @@ private fun homeContent(
     topic: String = "하늘하늘하늘",
     likeCount: Int = 24,
     likedPhotoIds: Set<String> = emptySet(),
-) = PhotoContent(
+) = PostContent(
     dateLabel = "8월 3일 · 오늘의 주제",
     topic = topic,
     photos = listOf(
-        Photo(
+        Post(
             id = PHOTO_ID,
             imageUrl = "https://example.com/photo.jpg",
             signatureUrl = null,
@@ -198,11 +198,11 @@ private fun homeContent(
 )
 
 private class FakeHomeRepository : HomeRepository {
-    val requestedSorts = mutableListOf<PhotoSort>()
+    val requestedSorts = mutableListOf<PostSort>()
     var updatedPhotoId: String? = null
     var updatedIsLiked: Boolean? = null
 
-    override suspend fun getHome(sort: PhotoSort): PhotoContent {
+    override suspend fun getHome(sort: PostSort): PostContent {
         requestedSorts += sort
         return homeContent()
     }
@@ -218,17 +218,17 @@ private class FakeHomeRepository : HomeRepository {
 }
 
 private class ControlledHomeRepository : HomeRepository {
-    private val responses = mutableMapOf<PhotoSort, CompletableDeferred<PhotoContent>>()
+    private val responses = mutableMapOf<PostSort, CompletableDeferred<PostContent>>()
 
-    override suspend fun getHome(sort: PhotoSort): PhotoContent {
-        val response = CompletableDeferred<PhotoContent>()
+    override suspend fun getHome(sort: PostSort): PostContent {
+        val response = CompletableDeferred<PostContent>()
         responses[sort] = response
         return response.await()
     }
 
     fun complete(
-        sort: PhotoSort,
-        content: PhotoContent,
+        sort: PostSort,
+        content: PostContent,
     ) {
         checkNotNull(responses[sort]).complete(content)
     }
@@ -242,7 +242,7 @@ private class ControlledHomeRepository : HomeRepository {
 private class ControlledLikeRepository : HomeRepository {
     private val likeResponses = mutableListOf<CompletableDeferred<Int>>()
 
-    override suspend fun getHome(sort: PhotoSort): PhotoContent = homeContent()
+    override suspend fun getHome(sort: PostSort): PostContent = homeContent()
 
     override suspend fun updateLike(
         photoId: String,
@@ -269,7 +269,7 @@ private class ReloadDuringLikeRepository : HomeRepository {
     private val likeResponse = CompletableDeferred<Int>()
     private var homeRequestCount = 0
 
-    override suspend fun getHome(sort: PhotoSort): PhotoContent {
+    override suspend fun getHome(sort: PostSort): PostContent {
         homeRequestCount++
         return if (homeRequestCount == 1) {
             homeContent()

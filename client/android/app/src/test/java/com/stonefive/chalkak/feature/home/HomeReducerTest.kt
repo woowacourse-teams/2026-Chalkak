@@ -1,15 +1,15 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.domain.model.Photo
-import com.stonefive.chalkak.domain.model.PhotoSort
+import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostSort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeReducerTest {
-    private val photo = Photo(
+    private val photo = Post(
         id = "photo-id",
         imageUrl = "https://example.com/photo.jpg",
         signatureUrl = null,
@@ -66,13 +66,13 @@ class HomeReducerTest {
     @Test
     fun `정렬과 하단 탭 액션은 각 선택 상태를 변경한다`() {
         val sortedState = HomeUiState().reduce(
-            HomeUiAction.SortSelected(PhotoSort.RANDOM),
+            HomeUiAction.SortSelected(PostSort.RANDOM),
         )
         val navigationState = sortedState.reduce(
             HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY),
         )
 
-        assertEquals(PhotoSort.RANDOM, navigationState.selectedSort)
+        assertEquals(PostSort.RANDOM, navigationState.selectedSort)
         assertEquals(ChalkakBottomBarItem.DISPLAY, navigationState.selectedBottomBarItem)
     }
 }

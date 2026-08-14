@@ -30,13 +30,13 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
-import com.stonefive.chalkak.domain.model.Photo
+import com.stonefive.chalkak.domain.model.Post
 
 private val HomeText = Color(0xFF7D7D7D)
 
 @Composable
 fun HomePhotoCard(
-    photo: Photo,
+    photo: Post,
     isLiked: Boolean,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -69,7 +69,7 @@ fun HomePhotoCard(
 
 @Composable
 private fun PhotoActionRow(
-    photo: Photo,
+    photo: Post,
     isLiked: Boolean,
     onLikeClick: () -> Unit,
 ) {
