@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -40,7 +39,6 @@ internal fun TermsAllConsentRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(60.dp)
             .clip(TermsCardShape)
             .border(BorderStroke(1.dp, TermsCardBorder), TermsCardShape)
             .toggleable(
@@ -49,7 +47,10 @@ internal fun TermsAllConsentRow(
                 indication = null,
                 role = Role.Checkbox,
                 onValueChange = { onClick() },
-            ).padding(horizontal = 16.dp),
+            ).padding(
+                horizontal = 16.dp,
+                vertical = 19.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -74,21 +75,23 @@ internal fun TermsRequiredConsentRow(
 
     Row(
         modifier = modifier
-            .fillMaxWidth()
-            .height(54.dp),
+            .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxSize()
                 .toggleable(
                     value = checked,
                     interactionSource = null,
                     indication = null,
                     role = Role.Checkbox,
                     onValueChange = { onCheckedChange() },
-                ).padding(start = 4.dp),
+                ).padding(
+                    start = 4.dp,
+                    top = 16.dp,
+                    bottom = 16.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -110,8 +113,12 @@ internal fun TermsRequiredConsentRow(
                     interactionSource = viewInteractionSource,
                     indication = null,
                     onClick = onViewClick,
-                ).padding(start = 12.dp, end = 4.dp)
-                .semantics { role = Role.Button },
+                ).padding(
+                    start = 12.dp,
+                    top = 16.dp,
+                    end = 4.dp,
+                    bottom = 16.dp,
+                ).semantics { role = Role.Button },
         )
     }
 }

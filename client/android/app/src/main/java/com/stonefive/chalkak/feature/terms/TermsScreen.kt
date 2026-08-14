@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
@@ -121,6 +122,39 @@ fun TermsScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp),
             enabled = uiState.isAllAgreed,
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 402,
+    heightDp = 874,
+)
+@Composable
+private fun TermsScreenPreview() {
+    ChalkakTheme {
+        TermsRoute(onNextClick = {})
+    }
+}
+
+@Preview(
+    showBackground = true,
+    widthDp = 402,
+    heightDp = 874,
+)
+@Composable
+private fun TermsScreenAgreedPreview() {
+    ChalkakTheme {
+        TermsScreen(
+            uiState = TermsUiState(
+                serviceTermsAgreed = true,
+                privacyPolicyAgreed = true,
+            ),
+            onAllConsentClick = {},
+            onServiceTermsClick = {},
+            onPrivacyPolicyClick = {},
+            onNextClick = {},
         )
     }
 }
