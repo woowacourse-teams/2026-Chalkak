@@ -41,11 +41,13 @@ fun TermsRoute(
 
     TermsScreen(
         uiState = uiState,
-        onAction = { action ->
-            val nextState = uiState.reduce(action)
-            serviceTermsAgreed = nextState.serviceTermsAgreed
-            privacyPolicyAgreed = nextState.privacyPolicyAgreed
+        onAllConsentClick = {
+            val nextAgreement = !uiState.isAllAgreed
+            serviceTermsAgreed = nextAgreement
+            privacyPolicyAgreed = nextAgreement
         },
+        onServiceTermsClick = { serviceTermsAgreed = !serviceTermsAgreed },
+        onPrivacyPolicyClick = { privacyPolicyAgreed = !privacyPolicyAgreed },
         onNextClick = onNextClick,
         onServiceTermsViewClick = onServiceTermsViewClick,
         onPrivacyPolicyViewClick = onPrivacyPolicyViewClick,
@@ -56,7 +58,9 @@ fun TermsRoute(
 @Composable
 fun TermsScreen(
     uiState: TermsUiState,
-    onAction: (TermsUiAction) -> Unit,
+    onAllConsentClick: () -> Unit,
+    onServiceTermsClick: () -> Unit,
+    onPrivacyPolicyClick: () -> Unit,
     onNextClick: () -> Unit,
     onServiceTermsViewClick: () -> Unit = {},
     onPrivacyPolicyViewClick: () -> Unit = {},
@@ -85,7 +89,7 @@ fun TermsScreen(
 
             TermsAllConsentRow(
                 checked = uiState.isAllAgreed,
-                onClick = { onAction(TermsUiAction.AllConsentClicked) },
+                onClick = onAllConsentClick,
             )
 
             Spacer(modifier = Modifier.height(3.dp))
@@ -93,14 +97,14 @@ fun TermsScreen(
             TermsRequiredConsentRow(
                 text = "(필수) 서비스 이용약관",
                 checked = uiState.serviceTermsAgreed,
-                onCheckedChange = { onAction(TermsUiAction.ServiceTermsClicked) },
+                onCheckedChange = onServiceTermsClick,
                 onViewClick = onServiceTermsViewClick,
             )
             TermsDivider()
             TermsRequiredConsentRow(
                 text = "(필수) 개인정보 처리방침",
                 checked = uiState.privacyPolicyAgreed,
-                onCheckedChange = { onAction(TermsUiAction.PrivacyPolicyClicked) },
+                onCheckedChange = onPrivacyPolicyClick,
                 onViewClick = onPrivacyPolicyViewClick,
             )
             TermsDivider()

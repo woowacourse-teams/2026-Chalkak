@@ -29,7 +29,9 @@ private fun TermsScreenAgreedPreview() {
                 serviceTermsAgreed = true,
                 privacyPolicyAgreed = true,
             ),
-            onAction = {},
+            onAllConsentClick = {},
+            onServiceTermsClick = {},
+            onPrivacyPolicyClick = {},
             onNextClick = {},
         )
     }
