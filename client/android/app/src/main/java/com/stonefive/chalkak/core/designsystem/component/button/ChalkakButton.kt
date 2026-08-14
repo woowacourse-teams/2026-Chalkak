@@ -6,7 +6,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -17,21 +16,7 @@ fun ChalkakButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    disabledContainerColor: Color = Color.Unspecified,
-    disabledContentColor: Color = Color.Unspecified,
 ) {
-    val resolvedDisabledContainerColor = if (disabledContainerColor == Color.Unspecified) {
-        ChalkakTheme.colors.actionPrimary
-            .copy(alpha = 0.12f)
-    } else {
-        disabledContainerColor
-    }
-    val resolvedDisabledContentColor = if (disabledContentColor == Color.Unspecified) {
-        ChalkakTheme.colors.textPrimary
-    } else {
-        disabledContentColor
-    }
-
     Button(
         onClick = onClick,
         modifier = modifier,
@@ -44,8 +29,9 @@ fun ChalkakButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = ChalkakTheme.colors.actionPrimary,
             contentColor = ChalkakTheme.colors.onActionPrimary,
-            disabledContainerColor = resolvedDisabledContainerColor,
-            disabledContentColor = resolvedDisabledContentColor,
+            disabledContainerColor = ChalkakTheme.colors.actionPrimary
+                .copy(alpha = 0.12f),
+            disabledContentColor = ChalkakTheme.colors.textPrimary,
         ),
     ) {
         Text(

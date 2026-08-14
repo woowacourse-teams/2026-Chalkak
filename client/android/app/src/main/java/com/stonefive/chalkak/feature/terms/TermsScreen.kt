@@ -121,8 +121,6 @@ fun TermsScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp),
             enabled = uiState.isAllAgreed,
-            disabledContainerColor = ChalkakTheme.colors.actionPrimary,
-            disabledContentColor = ChalkakTheme.colors.onActionPrimary,
         )
     }
 }
