@@ -1,25 +1,58 @@
-name: Backend CI
+name: Backend PR CI
 
 on:
+  workflow_dispatch:
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
-  push:
     branches:
       - main
       - be/develop
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
 
 defaults:
   run:
     working-directory: backend
 
 jobs:
-  test:
+  detect-backend-changes:
+    name: Detect backend changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend changes
+        id: changes
+        working-directory: .
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "${EVENT_NAME}" != pull_request ]]; then
+            echo "backend=true" >> "${GITHUB_OUTPUT}"
+          elif git diff --quiet "${BASE_SHA}" "${HEAD_SHA}" -- \
+            backend \
+            buildspec.yml \
+            .github/workflows/backend-ci.yml; then
+            echo "backend=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "backend=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+  verify:
+    name: Verify backend
+    needs: detect-backend-changes
+    if: needs.detect-backend-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -51,10 +84,38 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Test
+      - name: Test and build
         env:
           TEST_POSTGRES_DB: chalkak_test
           TEST_POSTGRES_USER: chalkak
           TEST_POSTGRES_PASSWORD: test-password
           TEST_POSTGRES_PORT: 5432
-        run: ./gradlew test
+        run: ./gradlew clean test bootJar --no-daemon
+
+  backend-ci:
+    name: Backend CI
+    needs:
+      - detect-backend-changes
+      - verify
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Confirm backend verification
+        working-directory: .
+        shell: bash
+        env:
+          DETECTION_RESULT: ${{ needs.detect-backend-changes.result }}
+          BACKEND_CHANGED: ${{ needs.detect-backend-changes.outputs.backend }}
+          VERIFICATION_RESULT: ${{ needs.verify.result }}
+        run: |
+          if [[ "${DETECTION_RESULT}" != success ]]; then
+            echo "Backend change detection failed." >&2
+            exit 1
+          fi
+
+          if [[ "${BACKEND_CHANGED}" == true && "${VERIFICATION_RESULT}" != success ]]; then
+            echo "Backend verification did not succeed." >&2
+            exit 1
+          fi
