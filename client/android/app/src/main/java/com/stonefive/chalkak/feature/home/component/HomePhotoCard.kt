@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
@@ -119,3 +120,25 @@ private fun PhotoActionRow(
         )
     }
 }
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun HomePhotoCardPreview() {
+    ChalkakTheme {
+        HomePhotoCard(
+            photo = Post(
+                id = "preview",
+                imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                contentDescription = "노을이 진 하늘과 전신주",
+                title = "안녕하세요 찰캌입니다.",
+                likeCount = 24,
+            ),
+            isLiked = true,
+            onLikeClick = {},
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"

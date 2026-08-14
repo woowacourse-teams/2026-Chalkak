@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.logo.ChalkakLogo
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -27,5 +28,13 @@ fun HomeTopBar(modifier: Modifier = Modifier) {
     ) {
         ChalkakLogo()
         Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun HomeTopBarPreview() {
+    ChalkakTheme {
+        HomeTopBar()
     }
 }

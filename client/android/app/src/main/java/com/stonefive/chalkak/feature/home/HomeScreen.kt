@@ -1,26 +1,17 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -31,10 +22,10 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.feature.home.component.HomePhotoCard
+import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
-
-private val HomeDivider = Color(0xFFE8E6E1)
+import com.stonefive.chalkak.feature.home.component.HomeTopic
+import com.stonefive.chalkak.feature.home.component.homeBottomDivider
 
 @Composable
 fun HomeRoute(
@@ -84,8 +75,8 @@ fun HomeScreen(
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding(),
         ) {
-            HomeTopBar(modifier = Modifier.bottomDivider())
-            TodayTopic(
+            HomeTopBar(modifier = Modifier.homeBottomDivider())
+            HomeTopic(
                 dateLabel = uiState.dateLabel,
                 topic = uiState.topic,
             )
@@ -96,69 +87,16 @@ fun HomeScreen(
                 onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            LazyColumn(
+            HomePhotoList(
+                photos = uiState.photos,
+                likedPhotoIds = uiState.likedPhotoIds,
+                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentPadding = PaddingValues(bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xxl),
-            ) {
-                items(
-                    items = uiState.photos,
-                    key = Post::id,
-                ) { photo ->
-                    HomePhotoCard(
-                        photo = photo,
-                        isLiked = photo.id in uiState.likedPhotoIds,
-                        onLikeClick = { onAction(HomeUiAction.LikeClicked(photo.id)) },
-                    )
-                }
-            }
+            )
         }
     }
-}
-
-@Composable
-private fun TodayTopic(
-    dateLabel: String,
-    topic: String,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .bottomDivider()
-            .padding(
-                start = ChalkakTheme.spacing.screenHorizontal,
-                top = ChalkakTheme.spacing.lg,
-                end = ChalkakTheme.spacing.screenHorizontal,
-                bottom = ChalkakTheme.spacing.xxl,
-            ),
-    ) {
-        Text(
-            text = dateLabel,
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.subheadline,
-        )
-        Text(
-            text = topic,
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.title1
-                .copy(fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(top = 10.dp),
-        )
-    }
-}
-
-private fun Modifier.bottomDivider(): Modifier = drawBehind {
-    val strokeWidth = 0.5.dp.toPx()
-    drawLine(
-        color = HomeDivider,
-        start = androidx.compose.ui.geometry
-            .Offset(0f, size.height - strokeWidth / 2),
-        end = androidx.compose.ui.geometry
-            .Offset(size.width, size.height - strokeWidth / 2),
-        strokeWidth = strokeWidth,
-    )
 }
 
 @Preview(
