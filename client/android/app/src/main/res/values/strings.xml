@@ -4,10 +4,4 @@
     <string name="bottom_bar_display">전시</string>
     <string name="bottom_bar_record">기록</string>
     <string name="bottom_bar_settings">설정</string>
-    <string name="terms_title">찰칵에\n오신 것을 환영합니다.</string>
-    <string name="terms_all_consent">전체 동의</string>
-    <string name="terms_service_terms">(필수) 서비스 이용약관</string>
-    <string name="terms_privacy_policy">(필수) 개인정보 처리방침</string>
-    <string name="terms_view">보기</string>
-    <string name="terms_next">다음</string>
 </resources>

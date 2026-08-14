@@ -28,15 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.checkbox.ChalkakCheckbox
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
@@ -94,10 +90,10 @@ fun TermsScreen(
                 .fillMaxWidth()
                 .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
         ) {
-            Spacer(modifier = Modifier.height(92.dp))
+            Spacer(modifier = Modifier.height(50.dp))
 
             Text(
-                text = stringResource(R.string.terms_title),
+                text = "찰캌에\n오신 것을 환영합니다.",
                 color = ChalkakTheme.colors.textPrimary,
                 style = ChalkakTheme.typography.title1,
             )
@@ -112,14 +108,14 @@ fun TermsScreen(
             Spacer(modifier = Modifier.height(3.dp))
 
             RequiredConsentRow(
-                text = stringResource(R.string.terms_service_terms),
+                text = "(필수) 서비스 이용약관",
                 checked = uiState.serviceTermsAgreed,
                 onCheckedChange = { onAction(TermsUiAction.ServiceTermsClicked) },
                 onViewClick = onServiceTermsViewClick,
             )
             TermsDivider()
             RequiredConsentRow(
-                text = stringResource(R.string.terms_privacy_policy),
+                text = "(필수) 개인정보 처리방침",
                 checked = uiState.privacyPolicyAgreed,
                 onCheckedChange = { onAction(TermsUiAction.PrivacyPolicyClicked) },
                 onViewClick = onPrivacyPolicyViewClick,
@@ -130,7 +126,7 @@ fun TermsScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         ChalkakButton(
-            text = stringResource(R.string.terms_next),
+            text = "다음",
             onClick = onNextClick,
             modifier = Modifier
                 .fillMaxWidth()
@@ -169,13 +165,9 @@ private fun AllConsentRow(
     ) {
         ChalkakCheckbox(checked = checked)
         Text(
-            text = stringResource(R.string.terms_all_consent),
+            text = "전체 동의",
             color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.title3.copy(
-                fontSize = 20.sp,
-                lineHeight = 25.sp,
-                fontWeight = FontWeight.Normal,
-            ),
+            style = ChalkakTheme.typography.body,
         )
     }
 }
@@ -220,7 +212,7 @@ private fun RequiredConsentRow(
         }
 
         Text(
-            text = stringResource(R.string.terms_view),
+            text = "보기",
             color = ChalkakTheme.colors.textMuted,
             style = ChalkakTheme.typography.callout,
             modifier = Modifier

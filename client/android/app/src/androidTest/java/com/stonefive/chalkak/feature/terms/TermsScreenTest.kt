@@ -25,7 +25,7 @@ class TermsScreenTest {
         }
 
         composeRule
-            .onNodeWithText("찰칵에\n오신 것을 환영합니다.")
+            .onNodeWithText("찰캌에\n오신 것을 환영합니다.")
             .assertIsDisplayed()
         composeRule.onNodeWithText("전체 동의").assertIsDisplayed()
         composeRule.onNodeWithText("(필수) 서비스 이용약관").assertIsDisplayed()
