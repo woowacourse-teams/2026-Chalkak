@@ -9,7 +9,7 @@ class SignaturePngEncoderTest {
     private val encoder = AndroidSignaturePngEncoder()
 
     @Test
-    fun encodesStrokesOnTransparentPng() {
+    fun `서명 획을 투명 배경의 PNG로 인코딩한다`() {
         val png = encoder.encode(
             strokes = listOf(
                 SignatureStroke(

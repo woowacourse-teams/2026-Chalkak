@@ -18,7 +18,7 @@ class SignatureScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun submitButtonIsDisabledWithoutSignature() {
+    fun `서명이 없으면 제출 버튼이 비활성화된다`() {
         composeRule.setContent {
             ChalkakTheme {
                 SignatureScreen(
@@ -32,7 +32,7 @@ class SignatureScreenTest {
     }
 
     @Test
-    fun submitButtonIsEnabledWithSignature() {
+    fun `서명이 있으면 제출 버튼이 활성화된다`() {
         composeRule.setContent {
             ChalkakTheme {
                 SignatureScreen(
@@ -52,7 +52,7 @@ class SignatureScreenTest {
     }
 
     @Test
-    fun draggingPadDispatchesStrokeActions() {
+    fun `서명 패드를 드래그하면 획 액션을 전달한다`() {
         val actions = mutableListOf<SignatureUiAction>()
         composeRule.setContent {
             ChalkakTheme {
@@ -77,7 +77,7 @@ class SignatureScreenTest {
     }
 
     @Test
-    fun tappingPadDispatchesSinglePointStroke() {
+    fun `서명 패드를 탭하면 단일 지점 획을 전달한다`() {
         val actions = mutableListOf<SignatureUiAction>()
         composeRule.setContent {
             ChalkakTheme {

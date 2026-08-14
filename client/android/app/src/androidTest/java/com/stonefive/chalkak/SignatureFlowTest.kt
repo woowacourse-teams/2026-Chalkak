@@ -18,7 +18,7 @@ class SignatureFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun savingSignatureOpensHome() {
+    fun `서명을 저장하면 홈 화면이 열린다`() {
         composeRule.onNodeWithTag("signaturePad").performTouchInput {
             swipe(
                 start = Offset(width * 0.2f, height * 0.3f),
