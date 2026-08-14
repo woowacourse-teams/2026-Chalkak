@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.repository.SignatureRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,17 +90,18 @@ class SignatureViewModel(
 
         viewModelScope.launch {
             _uiState.value = state.copy(isSubmitting = true, error = null)
-            runCatching {
+            try {
                 val signaturePng = pngEncoder.encode(state.strokes)
                 signatureRepository.uploadSignature(signaturePng)
-            }.onSuccess {
-                _uiState.value = _uiState.value.copy(isSubmitting = false)
                 _uiEvent.send(SignatureUiEvent.SignatureSaved)
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
                 _uiState.value = _uiState.value.copy(
-                    isSubmitting = false,
                     error = error,
                 )
+            } finally {
+                _uiState.value = _uiState.value.copy(isSubmitting = false)
             }
         }
     }

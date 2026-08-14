@@ -2,11 +2,13 @@ package com.stonefive.chalkak.feature.signature
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.repository.SignatureRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -77,6 +79,18 @@ class SignatureViewModelTest {
 
         assertTrue(viewModel.uiState.value.hasSignature)
         assertSame(failure, viewModel.uiState.value.error)
+        assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+
+    @Test
+    fun `제출 취소는 UI 오류로 노출하지 않는다`() {
+        repository.failure = CancellationException("upload cancelled")
+        viewModel.drawSampleStroke()
+
+        viewModel.onAction(SignatureUiAction.SubmitClicked)
+
+        assertTrue(viewModel.uiState.value.hasSignature)
+        assertNull(viewModel.uiState.value.error)
         assertFalse(viewModel.uiState.value.isSubmitting)
     }
 
