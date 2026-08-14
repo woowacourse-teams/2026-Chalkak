@@ -99,7 +99,8 @@ Windows에서는 `./gradlew` 대신 `gradlew.bat`을 사용한다.
 |---|---|---|
 | `local` | `application-local.yml` | 기본값으로 자동 적용 |
 | `test` | `application-test.yml` | `./gradlew test` 실행 시 자동 적용 |
-| `prod` | `application-prod.yml` | 배포 환경에서 `SPRING_PROFILES_ACTIVE=prod`로 활성화 |
+| `dev` | `application-dev.yml` | 개발 EC2에서 `SPRING_PROFILES_ACTIVE=dev`로 활성화 |
+| `prod` | `application-prod.yml` | 운영 환경에서 `SPRING_PROFILES_ACTIVE=prod`로 활성화 |
 
 `application.yml`에 다음 설정이 있어 별도 지정 없이 `local` 프로필로 실행된다.
 
@@ -163,7 +164,9 @@ V202608071045__create_likes.sql
 
 ## 배포 환경
 
-민감한 환경변수는 저장소에 커밋하지 않는다. GitHub Secrets 또는 배포 환경의 Secret Store에서 관리하고 배포 시 애플리케이션에 주입한다.
+개발·운영 CI/CD 구성과 CodePipeline·CodeBuild·CodeDeploy·Flyway 운영 규칙은 [`deploy/README.md`](deploy/README.md)를 참고한다.
+
+민감한 환경변수는 저장소에 커밋하거나 build artifact에 포함하지 않는다. 각 EC2의 `/etc/chalcak/application.env`에 `root:root`, `600` 권한으로 저장하고 systemd가 애플리케이션에 전달한다.
 
 주의사항:
 

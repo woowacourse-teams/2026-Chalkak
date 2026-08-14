@@ -1,7 +1,7 @@
-# 배포 환경 프로필.
+# 단일 EC2 개발 서버용 프로필. 운영 환경은 application-prod.yml을 사용한다.
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
@@ -17,3 +17,4 @@ management:
   endpoint:
     health:
       show-details: never
+
