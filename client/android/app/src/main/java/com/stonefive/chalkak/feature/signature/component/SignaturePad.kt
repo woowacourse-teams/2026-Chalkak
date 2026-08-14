@@ -112,7 +112,7 @@ private fun SignatureCanvas(
                     do {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id }
-                        if (change != null && change.pressed && change.positionChanged()) {
+                        if (change != null && change.positionChanged()) {
                             change.consume()
                             currentOnStrokeMoved(
                                 change.position.toSignaturePoint(size.width, size.height),
