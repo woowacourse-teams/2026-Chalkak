@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.core.designsystem.component.image
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -18,13 +19,17 @@ fun ChalkakSignedImage(
     signatureModel: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    signatureModifier: Modifier = Modifier,
+    signatureModifier: Modifier = Modifier.size(
+        width = 56.dp,
+        height = 42.dp,
+    ),
     contentScale: ContentScale = ContentScale.Crop,
 ) {
     Box(modifier = modifier) {
         ChalkakImage(
             model = imageModel,
             contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
             contentScale = contentScale,
         )
 
@@ -53,10 +58,6 @@ private fun ChalkakSignedImagePreview() {
             modifier = Modifier.size(
                 width = 270.dp,
                 height = 360.dp,
-            ),
-            signatureModifier = Modifier.size(
-                width = 56.dp,
-                height = 42.dp,
             ),
         )
     }
