@@ -31,8 +31,7 @@ internal fun TermsRequiredConsentRow(
     val viewInteractionSource = remember { MutableInteractionSource() }
 
     Row(
-        modifier = modifier
-            .fillMaxWidth(),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
@@ -85,6 +84,7 @@ internal fun TermsRequiredConsentRow(
 private fun TermsRequiredConsentRowPreview() {
     ChalkakTheme {
         TermsRequiredConsentRow(
+            modifier = Modifier.fillMaxWidth(),
             text = "(필수) 서비스 이용약관",
             checked = false,
             onCheckedChange = {},
@@ -98,6 +98,7 @@ private fun TermsRequiredConsentRowPreview() {
 private fun TermsRequiredConsentRowCheckedPreview() {
     ChalkakTheme {
         TermsRequiredConsentRow(
+            modifier = Modifier.fillMaxWidth(),
             text = "(필수) 개인정보 처리방침",
             checked = true,
             onCheckedChange = {},

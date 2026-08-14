@@ -31,7 +31,6 @@ internal fun TermsAllConsentRow(
 ) {
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .clip(TermsCardShape)
             .border(BorderStroke(1.dp, TermsCardBorder), TermsCardShape)
             .toggleable(
@@ -61,6 +60,7 @@ internal fun TermsAllConsentRow(
 private fun TermsAllConsentRowPreview() {
     ChalkakTheme {
         TermsAllConsentRow(
+            modifier = Modifier.fillMaxWidth(),
             checked = false,
             onClick = {},
         )
@@ -72,6 +72,7 @@ private fun TermsAllConsentRowPreview() {
 private fun TermsAllConsentRowCheckedPreview() {
     ChalkakTheme {
         TermsAllConsentRow(
+            modifier = Modifier.fillMaxWidth(),
             checked = true,
             onClick = {},
         )

@@ -89,6 +89,7 @@ fun TermsScreen(
             Spacer(modifier = Modifier.height(57.dp))
 
             TermsAllConsentRow(
+                modifier = Modifier.fillMaxWidth(),
                 checked = uiState.isAllAgreed,
                 onClick = onAllConsentClick,
             )
@@ -96,6 +97,7 @@ fun TermsScreen(
             Spacer(modifier = Modifier.height(3.dp))
 
             TermsRequiredConsentRow(
+                modifier = Modifier.fillMaxWidth(),
                 text = "(필수) 서비스 이용약관",
                 checked = uiState.serviceTermsAgreed,
                 onCheckedChange = onServiceTermsClick,
@@ -103,6 +105,7 @@ fun TermsScreen(
             )
             TermsDivider()
             TermsRequiredConsentRow(
+                modifier = Modifier.fillMaxWidth(),
                 text = "(필수) 개인정보 처리방침",
                 checked = uiState.privacyPolicyAgreed,
                 onCheckedChange = onPrivacyPolicyClick,
