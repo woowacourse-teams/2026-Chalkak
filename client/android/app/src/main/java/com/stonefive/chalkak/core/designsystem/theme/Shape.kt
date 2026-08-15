@@ -14,6 +14,7 @@ data class ChalkakShapes(
     val input: CornerBasedShape,
     val photoCard: CornerBasedShape,
     val large: CornerBasedShape,
+    val xlarge: CornerBasedShape,
     val sheet: CornerBasedShape,
     val pill: CornerBasedShape,
 )
@@ -24,6 +25,7 @@ val DefaultChalkakShapes = ChalkakShapes(
     input = RoundedCornerShape(14.dp),
     photoCard = RoundedCornerShape(12.dp),
     large = RoundedCornerShape(16.dp),
+    xlarge = RoundedCornerShape(18.dp),
     sheet = RoundedCornerShape(28.dp),
     pill = CircleShape,
 )
