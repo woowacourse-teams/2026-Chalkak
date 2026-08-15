@@ -24,7 +24,7 @@ import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImag
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-fun 가(
+fun SignaturePreviewRoute(
     imageModel: Any?,
     signatureModel: Any?,
     onRedrawClick: () -> Unit,
