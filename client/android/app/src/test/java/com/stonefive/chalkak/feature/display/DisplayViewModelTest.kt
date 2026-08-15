@@ -43,7 +43,7 @@ class DisplayViewModelTest {
         val content = viewModel.uiState.value.content
         assertEquals(ARCHIVE_DATE, viewModel.uiState.value.selectedDate)
         assertTrue(content is DisplayContentState.Archive)
-        assertEquals(1, (content as DisplayContentState.Archive).featuredPhotos.size)
+        assertEquals(2, (content as DisplayContentState.Archive).featuredPhotos.size)
         assertEquals(ARCHIVE_DATE to PostSort.LATEST, repository.requests.last())
     }
 
@@ -68,13 +68,22 @@ class DisplayViewModelTest {
     }
 
     @Test
-    fun `과거 전시 페이지 변경은 Archive 상태에만 반영한다`() = runTest {
+    fun `과거 전시 페이지를 변경한다`() = runTest {
         viewModel.moveToPreviousDate()
 
         viewModel.updateFeaturedPage(1)
 
         val content = viewModel.uiState.value.content as DisplayContentState.Archive
-        assertEquals(0, content.featuredPage)
+        assertEquals(1, content.featuredPage)
+    }
+
+    @Test
+    fun `최신 전시에서는 과거 전시 페이지 변경을 무시한다`() = runTest {
+        val content = viewModel.uiState.value.content
+
+        viewModel.updateFeaturedPage(1)
+
+        assertEquals(content, viewModel.uiState.value.content)
     }
 }
 
@@ -97,7 +106,7 @@ private class FakeDisplayRepository : DisplayRepository {
             earliestDate = EARLIEST_DATE,
             topic = if (selectedDate == LATEST_DATE) "바다" else "다리",
             photos = listOf(post),
-            featuredPhotos = if (selectedDate < LATEST_DATE) listOf(post) else emptyList(),
+            featuredPhotos = if (selectedDate < LATEST_DATE) listOf(post, post) else emptyList(),
         )
     }
 }
