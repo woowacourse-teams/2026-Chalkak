@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -18,6 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -31,8 +31,7 @@ fun PhotoUploadTopBar(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .height(93.dp)
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 26.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -63,5 +62,13 @@ fun PhotoUploadTopBar(
         )
 
         Spacer(modifier = Modifier.size(40.dp))
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun PhotoUploadTopBarPreview() {
+    ChalkakTheme {
+        PhotoUploadTopBar(onBackClick = {})
     }
 }

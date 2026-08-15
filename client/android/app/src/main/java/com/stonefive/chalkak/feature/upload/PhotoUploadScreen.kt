@@ -117,17 +117,18 @@ fun PhotoUploadScreen(
             onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
         )
 
+        Spacer(modifier = Modifier.height(34.dp))
+
         ChalkakTextField(
             value = uiState.caption,
             onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(132.dp)
                 .padding(horizontal = 22.dp)
-                .padding(top = 34.dp)
                 .testTag(PHOTO_UPLOAD_CAPTION_TAG),
             placeholder = "한 줄은 선택이에요.",
             textStyle = ChalkakTheme.typography.subheadline,
+            minLines = 3,
             maxLength = CAPTION_MAX_LENGTH,
         )
 

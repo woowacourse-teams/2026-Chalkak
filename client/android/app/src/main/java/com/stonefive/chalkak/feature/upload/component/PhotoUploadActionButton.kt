@@ -16,8 +16,11 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 
 @Composable
@@ -51,6 +54,18 @@ internal fun PhotoUploadActionButton(
             contentDescription = null,
             tint = Color.Unspecified,
             modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PhotoUploadActionButtonPreview() {
+    ChalkakTheme {
+        PhotoUploadActionButton(
+            iconRes = R.drawable.ic_photo_library,
+            description = "앨범에서 사진 선택",
+            onClick = {},
         )
     }
 }
