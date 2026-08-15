@@ -35,12 +35,12 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
             HomeUiAction.AddClicked -> sendUiEvent(HomeUiEvent.OpenPhotoUpload)
 
             is HomeUiAction.BottomBarSelected -> {
-                _uiState.update { it.reduce(action) }
+                _uiState.update { it.copy(selectedBottomBarItem = action.item) }
                 sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
             }
 
             is HomeUiAction.SortSelected -> {
-                _uiState.update { it.reduce(action) }
+                _uiState.update { it.copy(selectedSort = action.sort) }
                 loadHome()
             }
 
@@ -80,7 +80,21 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
         val previousState = _uiState.value
         val previousPhoto = previousState.photos.find { it.id == photoId } ?: return
         val wasLiked = photoId in previousState.likedPhotoIds
-        val nextState = previousState.reduce(HomeUiAction.LikeClicked(photoId))
+        val liked = !wasLiked
+        val nextState = previousState.copy(
+            photos = previousState.photos.map { photo ->
+                if (photo.id == photoId) {
+                    photo.copy(likeCount = photo.likeCount + if (liked) 1 else -1)
+                } else {
+                    photo
+                }
+            },
+            likedPhotoIds = if (liked) {
+                previousState.likedPhotoIds + photoId
+            } else {
+                previousState.likedPhotoIds - photoId
+            },
+        )
         val generation = latestLikeGenerationByPhotoId.getOrDefault(photoId, 0) + 1
         val requestedHomeContentRevision = homeContentRevision
         latestLikeGenerationByPhotoId[photoId] = generation
