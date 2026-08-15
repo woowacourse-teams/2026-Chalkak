@@ -12,7 +12,7 @@ class HomeReducerTest {
     private val photo = Post(
         id = "photo-id",
         imageUrl = "https://example.com/photo.jpg",
-        signatureUrl = null,
+        signatureUrl = "https://example.com/signature.png",
         contentDescription = "photo",
         title = "사진 제목",
         likeCount = 24,

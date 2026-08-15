@@ -10,7 +10,7 @@ data class HomeResponse(
 data class HomePhotoResponse(
     val id: String,
     val imageUrl: String,
-    val signatureUrl: String?,
+    val signatureUrl: String,
     val contentDescription: String,
     val title: String?,
     val likeCount: Int,

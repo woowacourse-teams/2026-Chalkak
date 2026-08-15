@@ -188,7 +188,7 @@ private fun homeContent(
         Post(
             id = PHOTO_ID,
             imageUrl = "https://example.com/photo.jpg",
-            signatureUrl = null,
+            signatureUrl = "https://example.com/signature.png",
             contentDescription = "하늘",
             title = "사진 제목",
             likeCount = likeCount,
