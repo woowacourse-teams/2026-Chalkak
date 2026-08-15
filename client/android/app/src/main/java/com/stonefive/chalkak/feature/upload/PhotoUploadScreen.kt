@@ -1,8 +1,6 @@
 package com.stonefive.chalkak.feature.upload
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -25,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
@@ -42,6 +39,7 @@ fun PhotoUploadRoute(
     modifier: Modifier = Modifier,
 ) {
     var selectedImage by remember { mutableStateOf<Any?>(null) }
+    var pendingCameraCapture by remember { mutableStateOf<CameraCapture?>(null) }
     var caption by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
 
@@ -51,14 +49,15 @@ fun PhotoUploadRoute(
         if (uri != null) selectedImage = uri
     }
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview(),
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) selectedImage = bitmap
-    }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) cameraLauncher.launch(null)
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success ->
+        val capture = pendingCameraCapture
+        pendingCameraCapture = null
+        if (success && capture != null) {
+            selectedImage = capture.uri
+        } else {
+            capture?.file?.delete()
+        }
     }
 
     PhotoUploadScreen(
@@ -74,15 +73,13 @@ fun PhotoUploadRoute(
                 PhotoUploadUiAction.GalleryClicked -> galleryLauncher.launch("image/*")
 
                 PhotoUploadUiAction.CameraClicked -> {
-                    if (
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        cameraLauncher.launch(null)
-                    } else {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    val capture = createCameraCapture(context)
+                    pendingCameraCapture = capture
+                    try {
+                        cameraLauncher.launch(capture.uri)
+                    } catch (_: ActivityNotFoundException) {
+                        pendingCameraCapture = null
+                        capture.file.delete()
                     }
                 }
 
