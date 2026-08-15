@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 @Immutable
 data class PhotoUploadUiState(
     val selectedImage: Any? = null,
+    val signatureModel: Any? = null,
     val caption: String = "",
 ) {
     val canSubmit: Boolean
