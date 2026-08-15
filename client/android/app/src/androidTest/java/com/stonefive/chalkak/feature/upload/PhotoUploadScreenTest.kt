@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -67,6 +68,26 @@ class PhotoUploadScreenTest {
         assertTrue(actions.contains(PhotoUploadUiAction.GalleryClicked))
         assertTrue(actions.contains(PhotoUploadUiAction.CameraClicked))
         assertTrue(actions.contains(PhotoUploadUiAction.BackClicked))
+    }
+
+    @Test
+    fun cameraActionIsHiddenWithoutCamera() {
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = PhotoUploadUiState(isCameraAvailable = false),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("앨범에서 사진 선택").assertIsDisplayed()
+        assertTrue(
+            composeRule
+                .onAllNodesWithContentDescription("카메라로 촬영")
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
     }
 
     @Test

@@ -32,6 +32,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun PhotoUploadImageArea(
     selectedImage: Any?,
     signatureModel: Any?,
+    isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -83,11 +84,13 @@ fun PhotoUploadImageArea(
                 description = "앨범에서 사진 선택",
                 onClick = onGalleryClick,
             )
-            PhotoUploadActionButton(
-                iconRes = R.drawable.ic_photo_camera,
-                description = "카메라로 촬영",
-                onClick = onCameraClick,
-            )
+            if (isCameraAvailable) {
+                PhotoUploadActionButton(
+                    iconRes = R.drawable.ic_photo_camera,
+                    description = "카메라로 촬영",
+                    onClick = onCameraClick,
+                )
+            }
         }
     }
 }
@@ -112,6 +115,20 @@ private fun PhotoUploadImageAreaSelectedPreview() {
         PhotoUploadImageArea(
             selectedImage = R.drawable.preview_photo,
             signatureModel = R.drawable.preview_signature,
+            onGalleryClick = {},
+            onCameraClick = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun PhotoUploadImageAreaWithoutCameraPreview() {
+    ChalkakTheme {
+        PhotoUploadImageArea(
+            selectedImage = null,
+            signatureModel = null,
+            isCameraAvailable = false,
             onGalleryClick = {},
             onCameraClick = {},
         )

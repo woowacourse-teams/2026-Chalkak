@@ -7,6 +7,7 @@ data class PhotoUploadUiState(
     val selectedImage: Any? = null,
     val signatureModel: Any? = null,
     val caption: String = "",
+    val isCameraAvailable: Boolean = true,
 ) {
     val canSubmit: Boolean
         get() = selectedImage != null

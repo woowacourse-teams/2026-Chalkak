@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.upload
 
 import android.content.ActivityNotFoundException
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -42,6 +43,9 @@ fun PhotoUploadRoute(
     var pendingCameraCapture by remember { mutableStateOf<CameraCapture?>(null) }
     var caption by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
+    val isCameraAvailable = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -65,6 +69,7 @@ fun PhotoUploadRoute(
             selectedImage = selectedImage,
             signatureModel = signatureModel,
             caption = caption,
+            isCameraAvailable = isCameraAvailable,
         ),
         onAction = { action ->
             when (action) {
@@ -110,6 +115,7 @@ fun PhotoUploadScreen(
         PhotoUploadImageArea(
             selectedImage = uiState.selectedImage,
             signatureModel = uiState.signatureModel,
+            isCameraAvailable = uiState.isCameraAvailable,
             onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
             onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
         )
