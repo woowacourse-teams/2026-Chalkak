@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,7 +38,6 @@ fun PhotoUploadImageArea(
 ) {
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .aspectRatio(PHOTO_AREA_ASPECT_RATIO)
             .background(ChalkakInputBackground),
     ) {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +111,10 @@ fun PhotoUploadScreen(
     ) {
         PhotoUploadTopBar(
             onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 26.dp),
         )
 
         PhotoUploadImageArea(
@@ -118,6 +123,7 @@ fun PhotoUploadScreen(
             isCameraAvailable = uiState.isCameraAvailable,
             onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
             onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
+            modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.height(34.dp))

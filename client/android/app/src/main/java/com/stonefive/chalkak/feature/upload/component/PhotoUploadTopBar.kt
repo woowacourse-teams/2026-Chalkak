@@ -28,10 +28,7 @@ fun PhotoUploadTopBar(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 26.dp),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -69,6 +66,12 @@ fun PhotoUploadTopBar(
 @Composable
 private fun PhotoUploadTopBarPreview() {
     ChalkakTheme {
-        PhotoUploadTopBar(onBackClick = {})
+        PhotoUploadTopBar(
+            onBackClick = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 26.dp),
+        )
     }
 }
