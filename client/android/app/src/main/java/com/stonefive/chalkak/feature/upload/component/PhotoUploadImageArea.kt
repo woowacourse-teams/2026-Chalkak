@@ -30,7 +30,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
 fun PhotoUploadImageArea(
-    selectedImage: Any?,
+    selectedImage: String?,
     signatureModel: String?,
     isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
@@ -112,7 +112,7 @@ private fun PhotoUploadImageAreaEmptyPreview() {
 private fun PhotoUploadImageAreaSelectedPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
-            selectedImage = R.drawable.preview_photo,
+            selectedImage = drawableResourceUrl(R.drawable.preview_photo),
             signatureModel = drawableResourceUrl(R.drawable.preview_signature),
             onGalleryClick = {},
             onCameraClick = {},

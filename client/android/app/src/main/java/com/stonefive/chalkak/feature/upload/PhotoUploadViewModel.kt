@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.feature.upload
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -40,7 +39,7 @@ class PhotoUploadViewModel : ViewModel() {
         }
     }
 
-    fun onImageSelected(image: Uri) {
+    fun onImageSelected(image: String) {
         _uiState.update { it.copy(selectedImage = image) }
     }
 

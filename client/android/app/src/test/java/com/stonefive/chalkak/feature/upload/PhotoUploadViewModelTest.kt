@@ -18,7 +18,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `사진을 선택하면 제출할 수 있다`() {
-        val image = Any()
+        val image = "content://media/photo/1"
 
         viewModel.onImageSelected(image)
 
@@ -42,7 +42,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `사진이 있으면 제출 이벤트를 보낸다`() = runTest {
-        viewModel.onImageSelected(Any())
+        viewModel.onImageSelected("content://media/photo/1")
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -51,7 +51,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `초기화하면 사진과 캡션을 제거한다`() {
-        viewModel.onImageSelected(Any())
+        viewModel.onImageSelected("content://media/photo/1")
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("오늘의 사진"))
 
         viewModel.reset()

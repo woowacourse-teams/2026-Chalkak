@@ -54,7 +54,7 @@ fun PhotoUploadRoute(
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri ->
-        if (uri != null) viewModel.onImageSelected(uri)
+        if (uri != null) viewModel.onImageSelected(uri.toString())
     }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture(),
@@ -62,7 +62,7 @@ fun PhotoUploadRoute(
         val capture = pendingCameraCapture
         pendingCameraCapture = null
         if (success && capture != null) {
-            viewModel.onImageSelected(capture.uri)
+            viewModel.onImageSelected(capture.uri.toString())
         } else {
             capture?.file?.delete()
         }
@@ -200,7 +200,7 @@ private fun PhotoUploadScreenSelectedPreview() {
     ChalkakTheme {
         PhotoUploadScreen(
             uiState = PhotoUploadUiState(
-                selectedImage = R.drawable.preview_photo,
+                selectedImage = drawableResourceUrl(R.drawable.preview_photo),
                 signatureModel = drawableResourceUrl(R.drawable.preview_signature),
                 caption = "전선 사이로 빠져나온 하늘",
             ),
