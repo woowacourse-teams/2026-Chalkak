@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.upload.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +31,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun PhotoUploadImageArea(
     selectedImage: Any?,
-    signatureModel: Any?,
+    signatureModel: String?,
     isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
@@ -112,7 +113,7 @@ private fun PhotoUploadImageAreaSelectedPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = R.drawable.preview_photo,
-            signatureModel = R.drawable.preview_signature,
+            signatureModel = drawableResourceUrl(R.drawable.preview_signature),
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -134,6 +135,9 @@ private fun PhotoUploadImageAreaWithoutCameraPreview() {
 }
 
 private const val PHOTO_AREA_ASPECT_RATIO = 1.216f
+
+private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
+    "android.resource://com.stonefive.chalkak/$resourceId"
 
 private fun Modifier.photoUploadDashedOutline(
     color: Color,
