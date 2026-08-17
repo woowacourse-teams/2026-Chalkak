@@ -68,21 +68,29 @@ class DisplayViewModel(private val repository: DisplayRepository) : ViewModel() 
     }
 
     private fun startDateChange(targetDate: LocalDate) {
+        val sort = if (targetDate < requireNotNull(_uiState.value.latestDate)) {
+            PostSort.POPULAR
+        } else {
+            selectedSort
+        }
         _uiState.update {
             it.copy(
                 selectedDate = targetDate,
                 content = DisplayContentState.Loading,
             )
         }
-        loadDisplay(targetDate)
+        loadDisplay(targetDate, sort)
     }
 
-    private fun loadDisplay(date: LocalDate?) {
+    private fun loadDisplay(
+        date: LocalDate?,
+        sort: PostSort = selectedSort,
+    ) {
         val generation = ++latestLoadGeneration
 
         viewModelScope.launch {
             _uiState.update { it.copy(content = DisplayContentState.Loading) }
-            runCatching { repository.getDisplay(date, selectedSort) }
+            runCatching { repository.getDisplay(date, sort) }
                 .onSuccess { display ->
                     if (generation != latestLoadGeneration) return@onSuccess
                     val content = if (display.selectedDate < display.latestDate) {

@@ -34,12 +34,14 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `과거 날짜는 인기 사진 영역을 표시하고 정렬은 숨긴다`() {
+    fun `과거 날짜는 인기 사진 영역만 표시하고 정렬 옵션은 제공하지 않는다`() {
         setDisplayContent(archiveUiState())
 
         composeRule.onNodeWithText("가장 사람들이 좋아했던 사진들이에요").assertIsDisplayed()
         composeRule.onNodeWithText("한낮의 다리").assertIsDisplayed()
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        composeRule.onAllNodesWithText("인기순").assertCountEquals(0)
+        composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
     }
 
     private fun setDisplayContent(uiState: DisplayUiState) {

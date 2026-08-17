@@ -44,7 +44,7 @@ class DisplayViewModelTest {
         assertEquals(ARCHIVE_DATE, viewModel.uiState.value.selectedDate)
         assertTrue(content is DisplayContentState.Archive)
         assertEquals(2, (content as DisplayContentState.Archive).featuredPhotos.size)
-        assertEquals(ARCHIVE_DATE to PostSort.LATEST, repository.requests.last())
+        assertEquals(ARCHIVE_DATE to PostSort.POPULAR, repository.requests.last())
     }
 
     @Test
@@ -65,6 +65,21 @@ class DisplayViewModelTest {
         val content = viewModel.uiState.value.content as DisplayContentState.Latest
         assertEquals(PostSort.POPULAR, content.selectedSort)
         assertEquals(LATEST_DATE to PostSort.POPULAR, repository.requests.last())
+    }
+
+    @Test
+    fun `과거 날짜는 인기순으로 불러오고 최신 날짜로 돌아오면 기존 정렬을 복원한다`() = runTest {
+        viewModel.selectSort(PostSort.RANDOM)
+
+        viewModel.moveToPreviousDate()
+
+        assertEquals(ARCHIVE_DATE to PostSort.POPULAR, repository.requests.last())
+
+        viewModel.moveToNextDate()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Latest
+        assertEquals(PostSort.RANDOM, content.selectedSort)
+        assertEquals(LATEST_DATE to PostSort.RANDOM, repository.requests.last())
     }
 
     @Test
