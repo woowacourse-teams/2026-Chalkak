@@ -116,13 +116,13 @@ fun PhotoUploadScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(ChalkakBackground),
+            .background(ChalkakBackground)
+            .statusBarsPadding(),
     ) {
         PhotoUploadTopBar(
             onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 26.dp),
         )
 
