@@ -144,7 +144,7 @@ fun PhotoUploadScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp)
                 .testTag(PHOTO_UPLOAD_CAPTION_TAG),
-            placeholder = "한 줄은 선택이에요.",
+            placeholder = "작품 제목은 선택이에요.",
             textStyle = ChalkakTheme.typography.subheadline,
             minLines = 3,
             maxLength = CAPTION_MAX_LENGTH,
@@ -170,7 +170,7 @@ fun PhotoUploadScreen(
 const val PHOTO_UPLOAD_SUBMIT_BUTTON_TAG = "photoUploadSubmitButton"
 const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
 
-private const val CAPTION_MAX_LENGTH = 30
+private const val CAPTION_MAX_LENGTH = 10
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
     "android.resource://com.stonefive.chalkak/$resourceId"
