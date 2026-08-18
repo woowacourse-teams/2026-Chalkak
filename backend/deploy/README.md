@@ -22,10 +22,10 @@ Pull Request
 | 항목 | 개발 | 운영 |
 | --- | --- | --- |
 | GitHub branch | `be/develop` | `main` |
-| Pipeline | `chalcak-dev-pipeline` | `chalcak-prod-pipeline` |
-| CodeDeploy application | `chalcak-dev-backend` | `chalcak-prod-backend` |
-| Deployment group | `chalcak-dev-backend-dg` | `chalcak-prod-backend-dg` |
-| EC2 tag | `Name=chalcak-dev-api` | `Name=chalcak-prod-api` |
+| Pipeline | `chalkak-dev-pipeline` | `chalkak-prod-pipeline` |
+| CodeDeploy application | `chalkak-dev-backend` | `chalkak-prod-backend` |
+| Deployment group | `chalkak-dev-backend-dg` | `chalkak-prod-backend-dg` |
+| EC2 tag | `Name=chalkak-dev-api` | `Name=chalkak-prod-api` |
 | Spring profile | `dev` | `prod` |
 | Database | 같은 EC2의 Docker PostgreSQL | RDS PostgreSQL |
 | Load balancer | 사용하지 않음 | 기존 ALB target group 연결 |
@@ -34,7 +34,7 @@ Pull Request
 CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 만들기 때문에 다음 하나를 두 파이프라인에서 공유한다.
 
 ```text
-chalcak-backend-build
+chalkak-backend-build
 ```
 
 ## 2. 회사 공용 리소스
@@ -55,7 +55,7 @@ chalcak-backend-build
 ```text
 Service=techcourse
 Role=techcourse-etc
-ProjectTeam=chalcak
+ProjectTeam=chalkak
 ```
 
 다른 팀의 IAM role, pipeline, build project, deployment group, S3 prefix를 열거나 수정하지 않는다. 삭제 권한이 제한된 공유 계정이므로 테스트용 리소스를 임의로 만들지 않는다. 권한이나 삭제가 필요한 문제는 `#8기-기술-검토`에 문의한다.
@@ -84,7 +84,7 @@ Gradle toolchain의 vendor는 Adoptium으로 유지되어 있어 실제 compilat
 
 ### CodeDeploy
 
-동일한 revision을 개발·운영에 사용할 수 있다. 서버의 `/etc/chalcak/application.env`에 지정된 `SPRING_PROFILES_ACTIVE`로 환경을 구분한다.
+동일한 revision을 개발·운영에 사용할 수 있다. 서버의 `/etc/chalkak/application.env`에 지정된 `SPRING_PROFILES_ACTIVE`로 환경을 구분한다.
 
 - `dev`: Docker PostgreSQL 기동 및 배포 직전 `pg_dump` 수행
 - `prod`: Docker를 사용하지 않고 RDS에 연결
@@ -187,7 +187,7 @@ sudo docker compose version
 비밀값은 GitHub, CodeBuild, CodePipeline, S3 artifact, CodeDeploy revision에 넣지 않는다. 각 EC2에 다음 파일로 한 번만 저장한다.
 
 ```text
-/etc/chalcak/application.env
+/etc/chalkak/application.env
 owner: root:root
 mode: 600
 ```
@@ -195,12 +195,12 @@ mode: 600
 파일을 만든다.
 
 ```bash
-sudo install -d -o root -g root -m 0700 /etc/chalcak
-sudo install -o root -g root -m 0600 /dev/null /etc/chalcak/application.env
-sudoedit /etc/chalcak/application.env
-sudo chown root:root /etc/chalcak/application.env
-sudo chmod 600 /etc/chalcak/application.env
-sudo stat /etc/chalcak/application.env
+sudo install -d -o root -g root -m 0700 /etc/chalkak
+sudo install -o root -g root -m 0600 /dev/null /etc/chalkak/application.env
+sudoedit /etc/chalkak/application.env
+sudo chown root:root /etc/chalkak/application.env
+sudo chmod 600 /etc/chalkak/application.env
+sudo stat /etc/chalkak/application.env
 ```
 
 SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 위 작업을 수행한다. 운영 EC2를 private subnet에 둘 경우에는 public 접근을 제거하기 전에 회사가 허용한 bastion, SSM 또는 다른 관리 접속 경로를 먼저 확보해야 한다. 이를 해결하기 위해 `.env`를 CodeDeploy artifact에 넣어서는 안 된다.
@@ -217,7 +217,7 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
 
 ```bash
-sudo systemctl restart chalcak-backend.service
+sudo systemctl restart chalkak-backend.service
 ```
 
 개발 PostgreSQL volume을 만든 뒤 `DB_PASSWORD`만 수정해도 DB 계정 비밀번호는 변경되지 않는다. 먼저 PostgreSQL의 role password를 변경하고 파일 값을 동일하게 수정한다.
@@ -243,7 +243,7 @@ aws sts get-caller-identity
 CodeBuild project는 개발 CodePipeline을 만들면서 Build stage의 `Create project` 버튼으로 생성하는 것이 가장 확실하다. CodeBuild console에서 단독으로 생성하면 Source provider에 CodePipeline이 표시되지 않을 수 있다. 이 절에서는 입력값만 확인하고 실제 생성은 10절에서 진행한다.
 
 ```text
-AWS Console → CodePipeline → chalcak-dev-pipeline 생성
+AWS Console → CodePipeline → chalkak-dev-pipeline 생성
 → Build stage
 → Build provider: AWS CodeBuild
 → Create project
@@ -253,7 +253,7 @@ AWS Console → CodePipeline → chalcak-dev-pipeline 생성
 
 | 항목 | 값 |
 | --- | --- |
-| Project name | `chalcak-backend-build` |
+| Project name | `chalkak-backend-build` |
 | Tags | 회사 필수 태그 3개 |
 
 ### Source
@@ -299,12 +299,12 @@ Pipeline에서 호출되는 project이므로 artifact type은 `CodePipeline`을 
 | --- | --- |
 | CloudWatch logs | 활성화 |
 | Group name | `/aws/codebuild/project-2026` |
-| Stream name | `chalcak-backend` |
+| Stream name | `chalkak-backend` |
 
 Cache 권한이 허용된다면 S3 cache를 다음 prefix로 설정할 수 있다. 권한 오류가 나면 cache 없이 시작한다.
 
 ```text
-techcourse-project-2026-artifacts/chalcak/cache/codebuild
+techcourse-project-2026-artifacts/chalkak/cache/codebuild
 ```
 
 ## 9. CodeDeploy application과 group
@@ -320,18 +320,18 @@ AWS Console
 
 | 항목 | 값 |
 | --- | --- |
-| Application name | `chalcak-dev-backend` |
+| Application name | `chalkak-dev-backend` |
 | Compute platform | EC2/On-premises |
 
 application 안에서 `Create deployment group`을 선택한다.
 
 | 항목 | 값 |
 | --- | --- |
-| Deployment group name | `chalcak-dev-backend-dg` |
+| Deployment group name | `chalkak-dev-backend-dg` |
 | Service role | `arn:aws:iam::843255971531:role/codedeploy-project` |
 | Deployment type | In-place |
 | Environment | Amazon EC2 instances |
-| EC2 tag | `Name=chalcak-dev-api` |
+| EC2 tag | `Name=chalkak-dev-api` |
 | Agent installation | Never 또는 자동 설치 안 함 |
 | Deployment configuration | `CodeDeployDefault.OneAtATime` |
 | Load balancer | 비활성화 |
@@ -345,11 +345,11 @@ target instance가 반드시 개발 EC2 한 대만 표시되는지 확인한다.
 
 | 항목 | 값 |
 | --- | --- |
-| Application name | `chalcak-prod-backend` |
-| Deployment group name | `chalcak-prod-backend-dg` |
+| Application name | `chalkak-prod-backend` |
+| Deployment group name | `chalkak-prod-backend-dg` |
 | Service role | `arn:aws:iam::843255971531:role/codedeploy-project` |
 | Deployment type | In-place |
-| EC2 tag | `Name=chalcak-prod-api` |
+| EC2 tag | `Name=chalkak-prod-api` |
 | Deployment configuration | `CodeDeployDefault.OneAtATime` |
 | Load balancer | 기존 운영 ALB target group 연결 |
 | Automatic rollback | 배포 실패 시 활성화 |
@@ -369,7 +369,7 @@ AWS Console
 
 | 항목 | 값 |
 | --- | --- |
-| Pipeline name | `chalcak-dev-pipeline` |
+| Pipeline name | `chalkak-dev-pipeline` |
 | Pipeline type | V1 |
 | Service role | Existing service role |
 | Role ARN | `arn:aws:iam::843255971531:role/codepipeline-project` |
@@ -402,7 +402,7 @@ Android-only 병합에서 백엔드 pipeline 자체가 시작되지 않게 하�
 | 항목 | 값 |
 | --- | --- |
 | Build provider | AWS CodeBuild |
-| Project | `chalcak-backend-build` 또는 `Create project`로 8절 설정 적용 |
+| Project | `chalkak-backend-build` 또는 `Create project`로 8절 설정 적용 |
 | Input artifact | `DevSource` |
 | Output artifact | `DevBuild` |
 
@@ -411,8 +411,8 @@ Android-only 병합에서 백엔드 pipeline 자체가 시작되지 않게 하�
 | 항목 | 값 |
 | --- | --- |
 | Deploy provider | AWS CodeDeploy |
-| Application | `chalcak-dev-backend` |
-| Deployment group | `chalcak-dev-backend-dg` |
+| Application | `chalkak-dev-backend` |
+| Deployment group | `chalkak-dev-backend-dg` |
 | Input artifact | `DevBuild` |
 
 Pipeline을 생성하면 첫 실행이 자동으로 시작될 수 있다. 서버 환경파일과 CodeDeploy agent 준비가 끝나기 전이라면 즉시 실행을 중지한다.
@@ -423,12 +423,12 @@ Pipeline을 생성하면 첫 실행이 자동으로 시작될 수 있다. 서버
 
 | 항목 | 값 |
 | --- | --- |
-| Pipeline name | `chalcak-prod-pipeline` |
+| Pipeline name | `chalkak-prod-pipeline` |
 | Source branch | `main` |
 | Source artifact | `ProdSource` |
 | Build artifact | `ProdBuild` |
-| CodeDeploy application | `chalcak-prod-backend` |
-| Deployment group | `chalcak-prod-backend-dg` |
+| CodeDeploy application | `chalkak-prod-backend` |
+| Deployment group | `chalkak-prod-backend-dg` |
 
 Build와 Deploy 사이에 stage를 추가한다.
 
@@ -450,15 +450,15 @@ SNS topic은 회사 정책에 따라 사용할 수 있을 때만 연결한다. �
 
 1. 이 CI/CD 변경사항을 Pull Request로 `be/develop`에 병합한다.
 2. GitHub Actions의 `Backend PR CI / Backend CI`가 성공하는지 확인한다. 백엔드 변경 PR에서는 `Verify backend`도 성공해야 한다.
-3. `chalcak-dev-pipeline` 실행이 시작되는지 확인한다.
+3. `chalkak-dev-pipeline` 실행이 시작되는지 확인한다.
 4. Source와 Build stage가 성공하는지 확인한다.
 5. CodeDeploy deployment가 `Succeeded`인지 확인한다.
 6. 개발 EC2에서 다음을 확인한다.
 
 ```bash
 sudo systemctl status codedeploy-agent --no-pager
-sudo systemctl status chalcak-backend.service --no-pager
-sudo docker ps --filter name=chalcak-dev-postgres
+sudo systemctl status chalkak-backend.service --no-pager
+sudo docker ps --filter name=chalkak-dev-postgres
 curl --fail http://127.0.0.1:8080/actuator/health
 ```
 
@@ -466,17 +466,17 @@ curl --fail http://127.0.0.1:8080/actuator/health
 
 ## 13. 첫 운영 배포
 
-운영 EC2, RDS, ALB와 target group, `/etc/chalcak/application.env`가 준비된 뒤 진행한다.
+운영 EC2, RDS, ALB와 target group, `/etc/chalkak/application.env`가 준비된 뒤 진행한다.
 
 1. `be/develop`에서 충분히 검증한 PR을 `main`에 병합한다.
 2. GitHub Actions가 성공했는지 확인한다.
-3. `chalcak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
+3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
 5. 승인 후 CodeDeploy와 ALB target health를 확인한다.
 6. 운영 EC2 내부와 외부 endpoint를 모두 확인한다.
 
 ```bash
-sudo systemctl status chalcak-backend.service --no-pager
+sudo systemctl status chalkak-backend.service --no-pager
 curl --fail http://127.0.0.1:8080/actuator/health
 ```
 
@@ -490,7 +490,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 - migration이나 Hibernate validation 실패 시 health check가 실패하고 CodeDeploy도 실패한다.
 - CodeDeploy가 이전 JAR을 다시 배포해도 이미 성공한 DB migration은 자동으로 되돌아가지 않는다.
 
-개발 배포는 Flyway 실행 전에 `/opt/chalcak/backups`에 `pg_dump`를 만들고 7일 지난 자동 백업을 삭제한다. 개발 DB와 백업이 같은 EC2 disk에 있으므로 중요한 데이터는 별도 백업해야 한다.
+개발 배포는 Flyway 실행 전에 `/opt/chalkak/backups`에 `pg_dump`를 만들고 7일 지난 자동 백업을 삭제한다. 개발 DB와 백업이 같은 EC2 disk에 있으므로 중요한 데이터는 별도 백업해야 한다.
 
 운영은 RDS automated backup과 point-in-time recovery를 활성화하고, 위험한 migration 전에는 별도 snapshot을 만든다.
 
@@ -522,18 +522,18 @@ sudo tail -n 200 /var/log/aws/codedeploy-agent/codedeploy-agent.log
 ### PostgreSQL 개발 container
 
 ```bash
-sudo docker ps -a --filter name=chalcak-dev-postgres
-sudo docker logs --tail 200 chalcak-dev-postgres
+sudo docker ps -a --filter name=chalkak-dev-postgres
+sudo docker logs --tail 200 chalkak-dev-postgres
 ```
 
 ### Spring Boot와 Flyway
 
 ```bash
-sudo systemctl status chalcak-backend.service --no-pager
-sudo journalctl -u chalcak-backend.service -n 200 --no-pager
+sudo systemctl status chalkak-backend.service --no-pager
+sudo journalctl -u chalkak-backend.service -n 200 --no-pager
 ```
 
-환경변수 문제를 확인할 때도 `/etc/chalcak/application.env` 전체 내용을 로그나 채팅에 붙이지 않는다.
+환경변수 문제를 확인할 때도 `/etc/chalkak/application.env` 전체 내용을 로그나 채팅에 붙이지 않는다.
 
 ## 16. 공식 문서
 

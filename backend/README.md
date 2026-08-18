@@ -166,7 +166,7 @@ V202608071045__create_likes.sql
 
 개발·운영 CI/CD 구성과 CodePipeline·CodeBuild·CodeDeploy·Flyway 운영 규칙은 [`deploy/README.md`](deploy/README.md)를 참고한다.
 
-민감한 환경변수는 저장소에 커밋하거나 build artifact에 포함하지 않는다. 각 EC2의 `/etc/chalcak/application.env`에 `root:root`, `600` 권한으로 저장하고 systemd가 애플리케이션에 전달한다.
+민감한 환경변수는 저장소에 커밋하거나 build artifact에 포함하지 않는다. 각 EC2의 `/etc/chalkak/application.env`에 `root:root`, `600` 권한으로 저장하고 systemd가 애플리케이션에 전달한다.
 
 주의사항:
 

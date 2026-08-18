@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:18.4
-    container_name: chalcak-dev-postgres
+    container_name: chalkak-dev-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
@@ -20,4 +20,4 @@ services:
 
 volumes:
   postgres-data:
-    name: chalcak-dev-postgres-data
+    name: chalkak-dev-postgres-data

@@ -3,12 +3,12 @@ os: linux
 
 files:
   - source: application.jar
-    destination: /opt/chalcak/app
+    destination: /opt/chalkak/app
   - source: deploy/compose.dev.yml
-    destination: /opt/chalcak/db
+    destination: /opt/chalkak/db
   - source: deploy/scripts
-    destination: /opt/chalcak/bin
-  - source: deploy/systemd/chalcak-backend.service
+    destination: /opt/chalkak/bin
+  - source: deploy/systemd/chalkak-backend.service
     destination: /etc/systemd/system
 
 file_exists_behavior: OVERWRITE

@@ -8,13 +8,13 @@ for command_name in java curl; do
   fi
 done
 
-chown chalcak:chalcak /opt/chalcak/app/application.jar
-chmod 0640 /opt/chalcak/app/application.jar
-chown root:root /opt/chalcak/bin/*.sh /opt/chalcak/db/compose.dev.yml /etc/systemd/system/chalcak-backend.service
-chmod 0700 /opt/chalcak/bin/*.sh
-chmod 0644 /opt/chalcak/db/compose.dev.yml /etc/systemd/system/chalcak-backend.service
+chown chalkak:chalkak /opt/chalkak/app/application.jar
+chmod 0640 /opt/chalkak/app/application.jar
+chown root:root /opt/chalkak/bin/*.sh /opt/chalkak/db/compose.dev.yml /etc/systemd/system/chalkak-backend.service
+chmod 0700 /opt/chalkak/bin/*.sh
+chmod 0644 /opt/chalkak/db/compose.dev.yml /etc/systemd/system/chalkak-backend.service
 
-systemctl disable --now chalcak-config.service 2>/dev/null || true
-rm -f /run/chalcak/application.env /run/chalcak/postgres.env
+systemctl disable --now chalkak-config.service 2>/dev/null || true
+rm -f /run/chalkak/application.env /run/chalkak/postgres.env
 systemctl daemon-reload
-systemctl enable chalcak-backend.service
+systemctl enable chalkak-backend.service

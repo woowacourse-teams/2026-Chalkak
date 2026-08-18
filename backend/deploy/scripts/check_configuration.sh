@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_FILE=/etc/chalcak/application.env
+CONFIG_FILE=/etc/chalkak/application.env
 
 if [[ ! -f "${CONFIG_FILE}" || -L "${CONFIG_FILE}" ]]; then
   echo "Missing regular configuration file: ${CONFIG_FILE}" >&2
