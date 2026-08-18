@@ -1,12 +1,15 @@
 package com.stonefive.chalkak
 
 import com.stonefive.chalkak.data.remote.auth.MockAuthRemoteDataSource
+import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.MockSignatureRemoteDataSource
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
+import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
 import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
 import com.stonefive.chalkak.data.repository.SignatureRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.DisplayRepository
 import com.stonefive.chalkak.domain.repository.HomeRepository
 import com.stonefive.chalkak.domain.repository.SignatureRepository
 
@@ -20,6 +23,12 @@ class AppContainer {
     val homeRepository: HomeRepository by lazy {
         HomeRepositoryImpl(
             remoteDataSource = MockHomeRemoteDataSource(),
+        )
+    }
+
+    val displayRepository: DisplayRepository by lazy {
+        DisplayRepositoryImpl(
+            remoteDataSource = MockDisplayRemoteDataSource(),
         )
     }
 

@@ -26,7 +26,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun SignaturePreviewRoute(
     imageModel: Any?,
-    signatureModel: Any?,
+    signatureModel: Any,
     onRedrawClick: () -> Unit,
     onStartClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -43,7 +43,7 @@ fun SignaturePreviewRoute(
 @Composable
 fun SignaturePreviewScreen(
     imageModel: Any?,
-    signatureModel: Any?,
+    signatureModel: Any,
     onRedrawClick: () -> Unit,
     onStartClick: () -> Unit,
     modifier: Modifier = Modifier,
