@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +38,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
+import java.io.File
 
 @Composable
 fun PhotoUploadRoute(
@@ -44,31 +48,10 @@ fun PhotoUploadRoute(
     signatureModel: String? = drawableResourceUrl(R.drawable.preview_signature),
     viewModel: PhotoUploadViewModel = viewModel(factory = PhotoUploadViewModel.Factory),
 ) {
-    var pendingCameraCapture by remember { mutableStateOf<CameraCapture?>(null) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val isCameraAvailable = remember(context) {
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
-    }
+    val photoPickerState = rememberPhotoPickerState(viewModel::onImageSelected)
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri ->
-        if (uri != null) viewModel.onImageSelected(uri.toString())
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { success ->
-        val capture = pendingCameraCapture
-        pendingCameraCapture = null
-        if (success && capture != null) {
-            viewModel.onImageSelected(capture.uri.toString())
-        } else {
-            capture?.file?.delete()
-        }
-    }
-
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, photoPickerState) {
         viewModel.uiEvent.collect { event ->
             when (event) {
                 PhotoUploadUiEvent.NavigateBack -> {
@@ -76,18 +59,9 @@ fun PhotoUploadRoute(
                     onBack()
                 }
 
-                PhotoUploadUiEvent.OpenGallery -> galleryLauncher.launch("image/*")
+                PhotoUploadUiEvent.OpenGallery -> photoPickerState.openGallery()
 
-                PhotoUploadUiEvent.OpenCamera -> {
-                    val capture = createCameraCapture(context)
-                    pendingCameraCapture = capture
-                    try {
-                        cameraLauncher.launch(capture.uri)
-                    } catch (_: ActivityNotFoundException) {
-                        pendingCameraCapture = null
-                        capture.file.delete()
-                    }
-                }
+                PhotoUploadUiEvent.OpenCamera -> photoPickerState.openCamera()
 
                 PhotoUploadUiEvent.PhotoSubmitted -> {
                     viewModel.reset()
@@ -100,11 +74,26 @@ fun PhotoUploadRoute(
     PhotoUploadScreen(
         uiState = uiState.copy(
             signatureModel = signatureModel,
-            isCameraAvailable = isCameraAvailable,
+            isCameraAvailable = photoPickerState.isCameraAvailable,
         ),
         onAction = viewModel::onAction,
         modifier = modifier,
     )
+}
+
+@Stable
+private class PhotoPickerState(
+    val isCameraAvailable: Boolean,
+    private val launchGallery: () -> Unit,
+    private val launchCamera: () -> Unit,
+) {
+    fun openGallery() {
+        launchGallery()
+    }
+
+    fun openCamera() {
+        launchCamera()
+    }
 }
 
 @Composable
@@ -163,6 +152,59 @@ fun PhotoUploadScreen(
                 .padding(bottom = 26.dp)
                 .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
             enabled = uiState.canSubmit,
+        )
+    }
+}
+
+@Composable
+private fun rememberPhotoPickerState(onImageSelected: (String) -> Unit): PhotoPickerState {
+    val context = LocalContext.current
+    val currentOnImageSelected by rememberUpdatedState(onImageSelected)
+    val isCameraAvailable = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
+    var pendingCaptureUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingCaptureFilePath by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun clearPendingCapture() {
+        pendingCaptureUri = null
+        pendingCaptureFilePath = null
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri ->
+        uri?.toString()?.let(currentOnImageSelected)
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success ->
+        val captureUri = pendingCaptureUri
+        val captureFilePath = pendingCaptureFilePath
+        clearPendingCapture()
+
+        if (success && captureUri != null) {
+            currentOnImageSelected(captureUri)
+        } else {
+            captureFilePath?.let(::File)?.delete()
+        }
+    }
+
+    return remember(context, galleryLauncher, cameraLauncher, isCameraAvailable) {
+        PhotoPickerState(
+            isCameraAvailable = isCameraAvailable,
+            launchGallery = { galleryLauncher.launch("image/*") },
+            launchCamera = {
+                val capture = createCameraCapture(context)
+                pendingCaptureUri = capture.uri.toString()
+                pendingCaptureFilePath = capture.file.absolutePath
+                try {
+                    cameraLauncher.launch(capture.uri)
+                } catch (_: ActivityNotFoundException) {
+                    clearPendingCapture()
+                    capture.file.delete()
+                }
+            },
         )
     }
 }

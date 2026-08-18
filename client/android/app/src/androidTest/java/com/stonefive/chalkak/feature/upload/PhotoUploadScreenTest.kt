@@ -40,7 +40,7 @@ class PhotoUploadScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = R.drawable.preview_photo),
+                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
                     onAction = {},
                 )
             }
@@ -96,7 +96,7 @@ class PhotoUploadScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = R.drawable.preview_photo),
+                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
                     onAction = actions::add,
                 )
             }
@@ -107,3 +107,5 @@ class PhotoUploadScreenTest {
         assertTrue(actions.contains(PhotoUploadUiAction.SubmitClicked))
     }
 }
+
+private val PREVIEW_PHOTO_URI = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}"
