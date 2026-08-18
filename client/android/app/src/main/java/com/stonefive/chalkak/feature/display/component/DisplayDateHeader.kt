@@ -42,7 +42,7 @@ fun DisplayDateHeader(
 ) {
     Column(
         modifier = modifier
-            .then(if (isArchiveDate) Modifier else Modifier.headerBottomDivider())
+            .headerBottomDivider()
             .padding(
                 top = 20.dp,
                 end = ChalkakTheme.spacing.screenHorizontal,

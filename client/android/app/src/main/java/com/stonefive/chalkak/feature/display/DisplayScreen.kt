@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -101,6 +103,10 @@ fun DisplayScreen(
                 onNextClick = onNextDateClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (uiState.content is DisplayContentState.Archive) {
+                Spacer(modifier = Modifier.height(15.dp))
+            }
 
             DisplayBody(
                 content = uiState.content,
