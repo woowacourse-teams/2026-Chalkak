@@ -1,15 +1,15 @@
 [Unit]
-Description=Chalcak backend
+Description=Chalkak backend
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=chalcak
-Group=chalcak
-WorkingDirectory=/opt/chalcak
-EnvironmentFile=/etc/chalcak/application.env
-ExecStart=/usr/bin/java -XX:MaxRAMPercentage=70 -jar /opt/chalcak/app/application.jar
+User=chalkak
+Group=chalkak
+WorkingDirectory=/opt/chalkak
+EnvironmentFile=/etc/chalkak/application.env
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=70 -jar /opt/chalkak/app/application.jar
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5
@@ -19,7 +19,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/chalcak/logs
+ReadWritePaths=/opt/chalkak/logs
 
 [Install]
 WantedBy=multi-user.target

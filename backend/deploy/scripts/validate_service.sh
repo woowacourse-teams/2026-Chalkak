@@ -8,13 +8,13 @@ for _ in {1..60}; do
     exit 0
   fi
 
-  if ! systemctl is-active --quiet chalcak-backend.service; then
+  if ! systemctl is-active --quiet chalkak-backend.service; then
     break
   fi
 
   sleep 2
 done
 
-systemctl status chalcak-backend.service --no-pager >&2 || true
-journalctl -u chalcak-backend.service -n 200 --no-pager >&2 || true
+systemctl status chalkak-backend.service --no-pager >&2 || true
+journalctl -u chalkak-backend.service -n 200 --no-pager >&2 || true
 exit 1
