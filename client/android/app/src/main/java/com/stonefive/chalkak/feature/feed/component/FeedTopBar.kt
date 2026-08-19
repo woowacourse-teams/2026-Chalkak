@@ -29,12 +29,12 @@ fun FeedTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 26.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .semantics { contentDescription = "뒤로 가기" }
                 .clickable(
                     interactionSource = null,
@@ -47,17 +47,17 @@ fun FeedTopBar(
                 painter = painterResource(R.drawable.ic_display_arrow_left),
                 contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
         Text(
             text = "피드",
             color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.title2,
+            style = ChalkakTheme.typography.headline,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.size(40.dp))
+        Spacer(modifier = Modifier.size(44.dp))
     }
 }
 

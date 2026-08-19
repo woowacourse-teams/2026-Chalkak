@@ -89,8 +89,8 @@ private fun FeedLikeRow(
 ) {
     Row(
         modifier = modifier
-            .height(70.dp)
-            .padding(horizontal = FeedHorizontalPadding)
+            .height(60.dp)
+            .padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "좋아요 $likeCount"
                 stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
