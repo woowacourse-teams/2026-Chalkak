@@ -44,7 +44,7 @@ fun FeedTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_arrow_back),
+                painter = painterResource(R.drawable.ic_display_arrow_left),
                 contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
                 modifier = Modifier.size(20.dp),
