@@ -19,6 +19,8 @@ spring:
   flyway:
     enabled: true
     clean-disabled: true
+    default-schema: public
+    validate-migration-naming: true
 
 management:
   endpoints:
