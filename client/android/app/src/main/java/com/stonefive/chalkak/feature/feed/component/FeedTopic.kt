@@ -10,8 +10,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
-private val FeedHorizontalPadding = 20.dp
-
 @Composable
 fun FeedTopic(
     dateLabel: String,
@@ -20,11 +18,10 @@ fun FeedTopic(
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .padding(
-                start = FeedHorizontalPadding,
-                top = 25.dp,
-                end = FeedHorizontalPadding,
+                start = ChalkakTheme.spacing.screenHorizontal,
+                end = ChalkakTheme.spacing.screenHorizontal,
+                top = 16.dp,
                 bottom = 40.dp,
             ),
     ) {
@@ -37,7 +34,7 @@ fun FeedTopic(
             text = topic,
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.display,
-            modifier = Modifier.padding(top = 22.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }
@@ -49,6 +46,7 @@ private fun FeedTopicPreview() {
         FeedTopic(
             dateLabel = "8월 3일의 주제",
             topic = "하늘하늘하늘",
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
