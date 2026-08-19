@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ChalkakShape {
+struct ChalkakShapes {
     let small: CGFloat
     let button: CGFloat
     let input: CGFloat
@@ -43,7 +43,7 @@ struct ChalkakShape {
     static let sheet: CGFloat = 28
     static let pill = Capsule()
 
-    static let standard = ChalkakShape(
+    static let standard = ChalkakShapes(
         small: small,
         button: button,
         input: input,

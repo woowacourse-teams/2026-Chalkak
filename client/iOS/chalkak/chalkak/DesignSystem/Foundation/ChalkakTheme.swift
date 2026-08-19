@@ -4,7 +4,7 @@ struct ChalkakTheme {
     let colors: ChalkakColors
     let typography: ChalkakTypography
     let spacing: ChalkakSpacing
-    let shapes: ChalkakShape
+    let shapes: ChalkakShapes
 
     static let light = ChalkakTheme(
         colors: .light,
@@ -27,7 +27,7 @@ private struct ChalkakSpacingKey: EnvironmentKey {
 }
 
 private struct ChalkakShapesKey: EnvironmentKey {
-    static let defaultValue = ChalkakShape.standard
+    static let defaultValue = ChalkakShapes.standard
 }
 
 extension EnvironmentValues {
@@ -46,7 +46,7 @@ extension EnvironmentValues {
         set { self[ChalkakSpacingKey.self] = newValue }
     }
 
-    var chalkakShapes: ChalkakShape {
+    var chalkakShapes: ChalkakShapes {
         get { self[ChalkakShapesKey.self] }
         set { self[ChalkakShapesKey.self] = newValue }
     }
