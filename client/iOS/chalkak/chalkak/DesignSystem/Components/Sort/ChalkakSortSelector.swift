@@ -22,19 +22,21 @@ struct ChalkakSortSelector<Option: Hashable>: View {
         return Button {
             onSelect(option)
         } label: {
-            VStack(spacing: ChalkakSpacing.xs) {
-                Text(label(option))
-                    .font(ChalkakTypography.subheadline)
-                    .foregroundStyle(
-                        isSelected ? colors.textPrimary : colors.textInactive
-                    )
-
-                Rectangle()
-                    .fill(isSelected ? colors.textPrimary : Color.clear)
-                    .frame(height: Metrics.indicatorHeight)
-            }
-            .frame(minHeight: Metrics.minimumTouchHeight)
-            .contentShape(Rectangle())
+            Text(label(option))
+                .font(ChalkakTypography.subheadline)
+                .foregroundStyle(
+                    isSelected ? colors.textPrimary : colors.textInactive
+                )
+                .padding(.bottom, ChalkakSpacing.xs)
+                .overlay(alignment: .bottom) {
+                    if isSelected {
+                        Rectangle()
+                            .fill(colors.textPrimary)
+                            .frame(height: Metrics.indicatorHeight)
+                    }
+                }
+                .frame(minHeight: Metrics.minimumTouchHeight)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityValue(isSelected ? "선택됨" : "")
