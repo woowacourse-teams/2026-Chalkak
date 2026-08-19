@@ -1,10 +1,12 @@
 package com.stonefive.chalkak.feature.feed.component
 
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -22,21 +24,19 @@ fun FeedCaption(
     title: String?,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
+            .height(57.dp)
             .feedTopDivider()
-            .padding(
-                start = FeedHorizontalPadding,
-                top = 16.dp,
-                end = FeedHorizontalPadding,
-            ),
+            .padding(horizontal = FeedHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = title?.takeIf { it.isNotBlank() } ?: "무제",
             color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-            maxLines = 2,
+            style = ChalkakTheme.typography.subheadline,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
