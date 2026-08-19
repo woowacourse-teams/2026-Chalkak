@@ -12,6 +12,7 @@ struct ChalkakColors {
     let textInactive = Color(hex: 0x9A968D)
     let textOnImage = Color.white
     let border = Color(hex: 0x888888).opacity(0.15)
+    let inputCursor = Color(hex: 0xB0563B)
     let actionPrimary = Color(hex: 0x2B2724)
     let onActionPrimary = Color.white
     let iconPrimary = Color(hex: 0x2B2724)

@@ -29,7 +29,7 @@ struct ChalkakTextField: View {
         .allowsHitTesting(!isReadOnly)
         .font(ChalkakTypography.body)
         .foregroundStyle(isEnabled ? colors.textPrimary : colors.textMuted)
-        .tint(colors.actionPrimary)
+        .tint(colors.inputCursor)
         .padding(
             .bottom,
             showsCharacterCount && maximumCharacterCount != nil
