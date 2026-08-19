@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,11 +62,22 @@ fun FeedScreen(
         FeedContent(
             content = uiState.content,
             onLikeClick = onLikeClick,
+            captionModifier = Modifier.feedCaptionDivider(),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
         )
     }
+}
+
+private fun Modifier.feedCaptionDivider(): Modifier = drawBehind {
+    val strokeWidth = 0.5.dp.toPx()
+    drawLine(
+        color = Color(0xFFB8B5AF),
+        start = Offset(0f, strokeWidth / 2),
+        end = Offset(size.width, strokeWidth / 2),
+        strokeWidth = strokeWidth,
+    )
 }
 
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)

@@ -16,6 +16,7 @@ import com.stonefive.chalkak.feature.feed.FeedContentState
 fun FeedContent(
     content: FeedContentState.Success?,
     onLikeClick: () -> Unit,
+    captionModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
     if (content == null) return
@@ -23,6 +24,7 @@ fun FeedContent(
     FeedPostContent(
         content = content,
         onLikeClick = onLikeClick,
+        captionModifier = captionModifier,
         modifier = modifier,
     )
 }
@@ -55,6 +57,7 @@ private fun FeedContentPreview() {
 private fun FeedPostContent(
     content: FeedContentState.Success,
     onLikeClick: () -> Unit,
+    captionModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -75,7 +78,10 @@ private fun FeedPostContent(
             )
         }
         item(key = "caption") {
-            FeedCaption(title = content.post.title)
+            FeedCaption(
+                title = content.post.title,
+                modifier = captionModifier,
+            )
         }
     }
 }
