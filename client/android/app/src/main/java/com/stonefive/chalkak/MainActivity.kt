@@ -6,7 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.display.DisplayRoute
+import com.stonefive.chalkak.feature.feed.FeedRoute
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,10 +23,7 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                DisplayRoute(
-                    onOpenPhotoUpload = {},
-                    onNavigateToBottomBar = {},
-                )
+                FeedRoute(onNavigateBack = { finish() })
             }
         }
     }
