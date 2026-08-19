@@ -64,7 +64,7 @@ private enum Metrics {
     static let placeholderIconSize: CGFloat = 24
 }
 
-#Preview("Image") {
+#Preview("Image", traits: .sizeThatFitsLayout) {
     ChalkakImage(
         source: .asset("preview_photo"),
         contentDescription: "전시 사진",

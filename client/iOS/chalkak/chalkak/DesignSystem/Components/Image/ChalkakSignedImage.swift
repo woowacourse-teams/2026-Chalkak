@@ -29,7 +29,7 @@ private enum Metrics {
     static let defaultSignatureSize = CGSize(width: 56, height: 42)
 }
 
-#Preview("Signed Image") {
+#Preview("Signed Image", traits: .sizeThatFitsLayout) {
     ChalkakSignedImage(
         imageSource: .asset("preview_photo"),
         signatureSource: .asset("preview_signature"),
