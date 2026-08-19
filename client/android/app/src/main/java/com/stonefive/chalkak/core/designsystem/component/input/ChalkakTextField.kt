@@ -23,8 +23,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTextInactive
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
@@ -70,7 +68,7 @@ fun ChalkakTextField(
         },
         modifier = modifier
             .background(
-                color = ChalkakInputBackground,
+                color = ChalkakTheme.colors.inputBackground,
                 shape = ChalkakTheme.shapes.input,
             ).border(
                 width = 1.dp,
@@ -100,7 +98,7 @@ fun ChalkakTextField(
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
-                            color = ChalkakTextInactive,
+                            color = ChalkakTheme.colors.textInactive,
                             style = resolvedTextStyle,
                         )
                     }
@@ -111,7 +109,7 @@ fun ChalkakTextField(
                     Text(
                         text = "$characterCount / $maxLength",
                         modifier = Modifier.align(Alignment.BottomEnd),
-                        color = ChalkakTextInactive,
+                        color = ChalkakTheme.colors.textInactive,
                         style = ChalkakTheme.typography.subheadline,
                     )
                 }
