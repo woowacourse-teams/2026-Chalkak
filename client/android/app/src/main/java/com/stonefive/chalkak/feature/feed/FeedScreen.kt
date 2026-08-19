@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -96,27 +97,39 @@ private fun FeedTopBar(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.height(56.dp),
-        contentAlignment = Alignment.Center,
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 26.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(
-            onClick = onNavigateBack,
+        Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 8.dp),
+                .size(40.dp)
+                .semantics { contentDescription = "뒤로 가기" }
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    onClick = onNavigateBack,
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_display_arrow_left),
-                contentDescription = "뒤로 가기",
+                painter = painterResource(R.drawable.ic_arrow_back),
+                contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
+                modifier = Modifier.size(20.dp),
             )
         }
         Text(
             text = "피드",
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title2,
+            modifier = Modifier
+                .weight(1f),
+            textAlign = TextAlign.Center,
         )
+        Spacer(modifier = Modifier.size(40.dp))
     }
 }
 
