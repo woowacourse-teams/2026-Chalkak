@@ -12,33 +12,32 @@ struct ChalkakTextField: View {
     var lineLimit: ClosedRange<Int> = 1...5
     var maximumCharacterCount: Int?
     var showsCharacterCount = true
+    var height: CGFloat?
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: ChalkakSpacing.sm) {
-            TextField(
-                label,
-                text: limitedText,
-                prompt: Text(placeholder)
-                    .foregroundStyle(colors.textInactive),
-                axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
-            )
-            .labelsHidden()
-            .lineLimit(lineLimit)
-            .focused($isFocused)
-            .disabled(!isEnabled)
-            .allowsHitTesting(!isReadOnly)
-
-            if showsCharacterCount, let maximumCharacterCount {
-                Text("\(text.count) / \(maximumCharacterCount)")
-                    .font(ChalkakTypography.subheadline)
-                    .foregroundStyle(colors.textInactive)
-                    .accessibilityHidden(true)
-            }
-        }
+        TextField(
+            label,
+            text: limitedText,
+            prompt: Text(placeholder)
+                .foregroundStyle(colors.textInactive),
+            axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
+        )
+        .labelsHidden()
+        .lineLimit(lineLimit)
+        .focused($isFocused)
+        .disabled(!isEnabled)
+        .allowsHitTesting(!isReadOnly)
         .font(ChalkakTypography.body)
         .foregroundStyle(isEnabled ? colors.textPrimary : colors.textMuted)
         .tint(colors.actionPrimary)
+        .padding(
+            .bottom,
+            showsCharacterCount && maximumCharacterCount != nil
+                ? ChalkakSpacing.xl
+                : ChalkakSpacing.none
+        )
         .padding(ChalkakSpacing.lg)
+        .frame(height: height, alignment: .topLeading)
         .background(
             colors.inputBackground,
             in: RoundedRectangle(cornerRadius: ChalkakShape.input)
@@ -49,6 +48,15 @@ struct ChalkakTextField: View {
                     isFocused ? colors.actionPrimary : colors.border,
                     lineWidth: Metrics.borderWidth
                 )
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showsCharacterCount, let maximumCharacterCount {
+                Text("\(text.count) / \(maximumCharacterCount)")
+                    .font(ChalkakTypography.subheadline)
+                    .foregroundStyle(colors.textInactive)
+                    .padding(ChalkakSpacing.lg)
+                    .accessibilityHidden(true)
+            }
         }
         .accessibilityLabel(label)
         .accessibilityValue(accessibilityValue)
@@ -89,9 +97,9 @@ private enum Metrics {
             text: $text,
             label: "사진 설명",
             placeholder: "한 줄은 선택이에요.",
-            maximumCharacterCount: 50
+            maximumCharacterCount: 50,
+            height: 148
         )
-        .frame(height: 148)
 
         ChalkakTextField(
             text: .constant("수정할 수 없는 설명"),

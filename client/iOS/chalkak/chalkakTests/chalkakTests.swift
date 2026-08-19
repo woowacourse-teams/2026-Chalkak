@@ -1,4 +1,6 @@
+import SwiftUI
 import Testing
+import UIKit
 @testable import chalkak
 
 struct ChalkakTextFieldTests {
@@ -23,5 +25,25 @@ struct ChalkakTextFieldTests {
     func returnsEmptyTextForNonPositiveLimit() {
         #expect("찰칵".limited(toCharacterCount: 0).isEmpty)
         #expect("찰칵".limited(toCharacterCount: -1).isEmpty)
+    }
+
+    @MainActor
+    @Test("명시한 높이를 테두리와 배경에 반영한다")
+    func honorsExplicitHeight() {
+        let view = ChalkakTextField(
+            text: .constant(""),
+            label: "사진 설명",
+            maximumCharacterCount: 50,
+            height: 148
+        )
+        let hostingController = UIHostingController(
+            rootView: view.frame(width: 320)
+        )
+
+        let size = hostingController.sizeThatFits(
+            in: CGSize(width: 320, height: 1_000)
+        )
+
+        #expect(size.height == 148)
     }
 }
