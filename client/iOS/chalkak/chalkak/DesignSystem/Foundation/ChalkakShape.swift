@@ -1,4 +1,4 @@
-import CoreGraphics
+import SwiftUI
 
 enum ChalkakShape {
     static let small: CGFloat = 7
@@ -6,6 +6,7 @@ enum ChalkakShape {
     static let input: CGFloat = 14
     static let photoCard: CGFloat = 12
     static let large: CGFloat = 16
-    static let extraLarge: CGFloat = 18
+    static let xlarge: CGFloat = 18
     static let sheet: CGFloat = 28
+    static let pill = Capsule()
 }

@@ -14,7 +14,7 @@ struct ChalkakTextField: View {
     var showsCharacterCount = true
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: ChalkakSpacing.small) {
+        VStack(alignment: .trailing, spacing: ChalkakSpacing.sm) {
             TextField(
                 label,
                 text: limitedText,
@@ -38,7 +38,7 @@ struct ChalkakTextField: View {
         .font(ChalkakTypography.body)
         .foregroundStyle(isEnabled ? colors.textPrimary : colors.textMuted)
         .tint(colors.actionPrimary)
-        .padding(ChalkakSpacing.large)
+        .padding(ChalkakSpacing.lg)
         .background(
             colors.inputBackground,
             in: RoundedRectangle(cornerRadius: ChalkakShape.input)
@@ -84,7 +84,7 @@ private enum Metrics {
 #Preview("Text Field") {
     @Previewable @State var text = ""
 
-    VStack(spacing: ChalkakSpacing.large) {
+    VStack(spacing: ChalkakSpacing.lg) {
         ChalkakTextField(
             text: $text,
             label: "사진 설명",
@@ -100,5 +100,5 @@ private enum Metrics {
             maximumCharacterCount: 50
         )
     }
-    .padding(ChalkakSpacing.extraLarge)
+    .padding(ChalkakSpacing.xl)
 }

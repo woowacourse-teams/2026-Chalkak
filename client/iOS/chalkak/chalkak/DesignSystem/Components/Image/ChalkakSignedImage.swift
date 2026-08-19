@@ -20,7 +20,7 @@ struct ChalkakSignedImage: View {
                 contentMode: .fit
             )
             .frame(width: signatureSize.width, height: signatureSize.height)
-            .padding(ChalkakSpacing.small)
+            .padding(ChalkakSpacing.sm)
         }
     }
 }

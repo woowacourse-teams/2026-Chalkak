@@ -9,7 +9,7 @@ struct ChalkakSortSelector<Option: Hashable>: View {
     let onSelect: (Option) -> Void
 
     var body: some View {
-        HStack(spacing: ChalkakSpacing.large) {
+        HStack(spacing: ChalkakSpacing.lg) {
             ForEach(options, id: \.self) { option in
                 sortButton(for: option)
             }
@@ -22,7 +22,7 @@ struct ChalkakSortSelector<Option: Hashable>: View {
         return Button {
             onSelect(option)
         } label: {
-            VStack(spacing: ChalkakSpacing.extraSmall) {
+            VStack(spacing: ChalkakSpacing.xs) {
                 Text(label(option))
                     .font(ChalkakTypography.subheadline)
                     .foregroundStyle(

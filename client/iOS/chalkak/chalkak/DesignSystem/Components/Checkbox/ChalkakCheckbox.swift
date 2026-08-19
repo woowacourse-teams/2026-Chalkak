@@ -34,7 +34,7 @@ private enum Metrics {
 }
 
 #Preview("Checkbox") {
-    HStack(spacing: ChalkakSpacing.large) {
+    HStack(spacing: ChalkakSpacing.lg) {
         ChalkakCheckbox(isChecked: true)
         ChalkakCheckbox(isChecked: false)
     }

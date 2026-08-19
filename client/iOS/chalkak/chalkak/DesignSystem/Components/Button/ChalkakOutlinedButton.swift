@@ -10,7 +10,7 @@ struct ChalkakOutlinedButton: View {
     var body: some View {
         Button(title, action: action)
             .font(ChalkakTypography.callout)
-            .padding(.horizontal, ChalkakSpacing.extraLarge)
+            .padding(.horizontal, ChalkakSpacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
                 isEnabled ? colors.textPrimary : colors.textMuted
@@ -32,7 +32,7 @@ private enum Metrics {
 }
 
 #Preview("Outlined Button") {
-    VStack(spacing: ChalkakSpacing.large) {
+    VStack(spacing: ChalkakSpacing.lg) {
         ChalkakOutlinedButton(title: "다시 그리기", action: {})
         ChalkakOutlinedButton(
             title: "다시 그리기",

@@ -10,7 +10,7 @@ struct ChalkakButton: View {
     var body: some View {
         Button(title, action: action)
             .font(ChalkakTypography.callout)
-            .padding(.horizontal, ChalkakSpacing.extraLarge)
+            .padding(.horizontal, ChalkakSpacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
                 isEnabled ? colors.onActionPrimary : colors.textPrimary
@@ -32,7 +32,7 @@ private enum Metrics {
 }
 
 #Preview("Filled Button") {
-    VStack(spacing: ChalkakSpacing.large) {
+    VStack(spacing: ChalkakSpacing.lg) {
         ChalkakButton(title: "전시하기", action: {})
         ChalkakButton(title: "전시하기", action: {}, isEnabled: false)
     }
