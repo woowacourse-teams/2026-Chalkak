@@ -17,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
@@ -85,7 +84,7 @@ fun ChalkakTextField(
         maxLines = maxLines,
         visualTransformation = visualTransformation,
         interactionSource = interactionSource,
-        cursorBrush = SolidColor(Color(0xFFB0563B)),
+        cursorBrush = SolidColor(ChalkakTheme.colors.inputCursor),
         decorationBox = { innerTextField ->
             Box {
                 Box(
