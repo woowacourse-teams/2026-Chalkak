@@ -77,6 +77,7 @@ private fun FeedPostContent(
             post = content.post,
             isLiked = content.isLiked,
             onLikeClick = onLikeClick,
+            modifier = Modifier.fillMaxWidth(),
         )
         FeedCaption(
             title = content.post.title,

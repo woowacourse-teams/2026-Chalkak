@@ -28,7 +28,6 @@ import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImag
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
-private val FeedHorizontalPadding = 20.dp
 private val FeedPhotoAspectRatio = 0.935f
 
 @Composable
@@ -38,7 +37,7 @@ fun FeedPhoto(
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier) {
         ChalkakSignedImage(
             imageModel = post.imageUrl,
             signatureModel = post.signatureUrl,

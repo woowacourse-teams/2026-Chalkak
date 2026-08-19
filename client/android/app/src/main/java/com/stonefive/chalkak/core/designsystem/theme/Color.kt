@@ -9,6 +9,7 @@ val ChalkakBottomBar = Color(0xFF8C8479)
 val ChalkakAction = Color(0xFF2B2724)
 val ChalkakTextInactive = Color(0xFF9A968D)
 val ChalkakStroke = Color(0x26888888)
+val ChalkakThickDivider = Color(0xFF757575)
 val ChalkakWhite = Color(0xFFFFFFFF)
 
 @Immutable
@@ -22,6 +23,7 @@ data class ChalkakColors(
     val textMuted: Color,
     val textOnImage: Color,
     val border: Color,
+    val divider: Color,
     val actionPrimary: Color,
     val onActionPrimary: Color,
     val iconPrimary: Color,
@@ -40,6 +42,7 @@ internal val LightChalkakColors = ChalkakColors(
     textMuted = ChalkakAction.copy(alpha = 0.48f),
     textOnImage = ChalkakWhite,
     border = ChalkakStroke,
+    divider = ChalkakThickDivider,
     actionPrimary = ChalkakAction,
     onActionPrimary = ChalkakWhite,
     iconPrimary = ChalkakAction,

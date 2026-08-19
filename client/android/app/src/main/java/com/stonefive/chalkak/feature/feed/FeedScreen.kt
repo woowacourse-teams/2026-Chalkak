@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,6 +22,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.component.FeedContent
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
+
+private val FeedCaptionHorizontalPadding = 20.dp
 
 @Composable
 fun FeedRoute(
@@ -62,7 +65,10 @@ fun FeedScreen(
         FeedContent(
             content = uiState.content,
             onLikeClick = onLikeClick,
-            captionModifier = Modifier.feedCaptionDivider(),
+            captionModifier = Modifier
+                .fillMaxWidth()
+                .feedCaptionDivider(ChalkakTheme.colors.divider)
+                .padding(horizontal = FeedCaptionHorizontalPadding),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -70,10 +76,10 @@ fun FeedScreen(
     }
 }
 
-private fun Modifier.feedCaptionDivider(): Modifier = drawBehind {
+private fun Modifier.feedCaptionDivider(color: Color): Modifier = drawBehind {
     val strokeWidth = 0.5.dp.toPx()
     drawLine(
-        color = Color(0xFFB8B5AF),
+        color = color,
         start = Offset(0f, strokeWidth / 2),
         end = Offset(size.width, strokeWidth / 2),
         strokeWidth = strokeWidth,
