@@ -1,9 +1,11 @@
 package com.stonefive.chalkak.feature.feed.component
 
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -61,29 +63,24 @@ private fun FeedPostContent(
     captionModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(bottom = 40.dp),
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 40.dp),
     ) {
-        item(key = "topic") {
-            FeedTopic(
-                dateLabel = content.dateLabel,
-                topic = content.topic,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item(key = content.post.id) {
-            FeedPhoto(
-                post = content.post,
-                isLiked = content.isLiked,
-                onLikeClick = onLikeClick,
-            )
-        }
-        item(key = "caption") {
-            FeedCaption(
-                title = content.post.title,
-                modifier = captionModifier,
-            )
-        }
+        FeedTopic(
+            dateLabel = content.dateLabel,
+            topic = content.topic,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FeedPhoto(
+            post = content.post,
+            isLiked = content.isLiked,
+            onLikeClick = onLikeClick,
+        )
+        FeedCaption(
+            title = content.post.title,
+            modifier = captionModifier,
+        )
     }
 }
