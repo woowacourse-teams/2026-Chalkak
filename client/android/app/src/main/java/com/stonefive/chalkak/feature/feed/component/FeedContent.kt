@@ -1,14 +1,9 @@
 package com.stonefive.chalkak.feature.feed.component
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -19,24 +14,17 @@ import com.stonefive.chalkak.feature.feed.FeedContentState
 
 @Composable
 fun FeedContent(
-    content: FeedContentState,
+    content: FeedContentState.Success?,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    when (content) {
-        FeedContentState.Loading -> FeedLoadingContent(modifier = modifier)
+    if (content == null) return
 
-        is FeedContentState.Success -> FeedPostContent(
-            content = content,
-            onLikeClick = onLikeClick,
-            modifier = modifier,
-        )
-
-        is FeedContentState.Error -> FeedErrorContent(
-            message = content.message,
-            modifier = modifier,
-        )
-    }
+    FeedPostContent(
+        content = content,
+        onLikeClick = onLikeClick,
+        modifier = modifier,
+    )
 }
 
 @Preview(name = "성공", showBackground = true, widthDp = 402, heightDp = 874)
@@ -57,30 +45,6 @@ private fun FeedContentPreview() {
                 ),
                 isLiked = false,
             ),
-            onLikeClick = {},
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Preview(name = "로딩", showBackground = true, widthDp = 402, heightDp = 874)
-@Composable
-private fun FeedLoadingContentPreview() {
-    ChalkakTheme {
-        FeedContent(
-            content = FeedContentState.Loading,
-            onLikeClick = {},
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Preview(name = "오류", showBackground = true, widthDp = 402, heightDp = 874)
-@Composable
-private fun FeedErrorContentPreview() {
-    ChalkakTheme {
-        FeedContent(
-            content = FeedContentState.Error(message = "피드를 불러오지 못했어요."),
             onLikeClick = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -113,35 +77,5 @@ private fun FeedPostContent(
         item(key = "caption") {
             FeedCaption(title = content.post.title)
         }
-    }
-}
-
-@Composable
-private fun FeedLoadingContent(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        CircularProgressIndicator(
-            color = ChalkakTheme.colors.actionPrimary,
-            modifier = Modifier.padding(top = 64.dp),
-        )
-    }
-}
-
-@Composable
-private fun FeedErrorContent(
-    message: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-        )
     }
 }

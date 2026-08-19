@@ -33,7 +33,7 @@ class FeedViewModel(
     }
 
     fun onLikeClicked() {
-        val content = _uiState.value.content as? FeedContentState.Success ?: return
+        val content = _uiState.value.content ?: return
         val liked = !content.isLiked
         val previousPost = content.post
         val optimisticPost = previousPost.copy(
@@ -93,18 +93,14 @@ class FeedViewModel(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                _uiState.value = FeedUiState(
-                    content = FeedContentState.Error(
-                        message = "피드를 불러오지 못했어요",
-                    ),
-                )
+                return@launch
             }
         }
     }
 
     private fun updateSuccess(transform: (FeedContentState.Success) -> FeedContentState.Success) {
         _uiState.update { state ->
-            val content = state.content as? FeedContentState.Success ?: return@update state
+            val content = state.content ?: return@update state
             state.copy(content = transform(content))
         }
     }
