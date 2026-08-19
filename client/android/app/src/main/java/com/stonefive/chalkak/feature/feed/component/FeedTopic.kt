@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
@@ -37,6 +38,17 @@ fun FeedTopic(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.display,
             modifier = Modifier.padding(top = 22.dp),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun FeedTopicPreview() {
+    ChalkakTheme {
+        FeedTopic(
+            dateLabel = "8월 3일의 주제",
+            topic = "하늘하늘하늘",
         )
     }
 }

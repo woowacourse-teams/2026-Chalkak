@@ -16,6 +16,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -57,5 +58,13 @@ fun FeedTopBar(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.size(40.dp))
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun FeedTopBarPreview() {
+    ChalkakTheme {
+        FeedTopBar(onNavigateBack = {})
     }
 }

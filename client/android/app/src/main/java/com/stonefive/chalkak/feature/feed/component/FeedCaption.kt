@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
@@ -38,6 +39,14 @@ fun FeedCaption(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun FeedCaptionPreview() {
+    ChalkakTheme {
+        FeedCaption(title = "안녕하세요 감사합니다.")
     }
 }
 

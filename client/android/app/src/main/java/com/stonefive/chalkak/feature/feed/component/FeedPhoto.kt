@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
@@ -56,6 +57,25 @@ fun FeedPhoto(
             isLiked = isLiked,
             onLikeClick = onLikeClick,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun FeedPhotoPreview() {
+    ChalkakTheme {
+        FeedPhoto(
+            post = Post(
+                id = "preview",
+                imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                contentDescription = "노을이 진 하늘과 전신주",
+                title = "안녕하세요 감사합니다.",
+                likeCount = 24,
+            ),
+            isLiked = false,
+            onLikeClick = {},
         )
     }
 }

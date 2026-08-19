@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.feed.component
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
@@ -9,8 +10,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.FeedContentState
 
 @Composable
@@ -31,6 +35,54 @@ fun FeedContent(
         is FeedContentState.Error -> FeedErrorContent(
             message = content.message,
             modifier = modifier,
+        )
+    }
+}
+
+@Preview(name = "성공", showBackground = true, widthDp = 402, heightDp = 874)
+@Composable
+private fun FeedContentPreview() {
+    ChalkakTheme {
+        FeedContent(
+            content = FeedContentState.Success(
+                dateLabel = "8월 3일의 주제",
+                topic = "하늘하늘하늘",
+                post = Post(
+                    id = "preview",
+                    imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                    signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                    contentDescription = "노을이 진 하늘과 전신주",
+                    title = "안녕하세요 감사합니다.",
+                    likeCount = 24,
+                ),
+                isLiked = false,
+            ),
+            onLikeClick = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(name = "로딩", showBackground = true, widthDp = 402, heightDp = 874)
+@Composable
+private fun FeedLoadingContentPreview() {
+    ChalkakTheme {
+        FeedContent(
+            content = FeedContentState.Loading,
+            onLikeClick = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(name = "오류", showBackground = true, widthDp = 402, heightDp = 874)
+@Composable
+private fun FeedErrorContentPreview() {
+    ChalkakTheme {
+        FeedContent(
+            content = FeedContentState.Error(message = "피드를 불러오지 못했어요."),
+            onLikeClick = {},
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
