@@ -66,7 +66,7 @@ private enum Metrics {
 
 #Preview("Image") {
     ChalkakImage(
-        source: .system("photo.artframe"),
+        source: .asset("preview_photo"),
         contentDescription: "전시 사진",
         contentMode: .fit
     )

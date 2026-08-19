@@ -31,8 +31,8 @@ private enum Metrics {
 
 #Preview("Signed Image") {
     ChalkakSignedImage(
-        imageSource: .system("photo.artframe"),
-        signatureSource: .system("signature"),
+        imageSource: .asset("preview_photo"),
+        signatureSource: .asset("preview_signature"),
         contentDescription: "서명이 포함된 전시 사진",
         contentMode: .fit
     )
