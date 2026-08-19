@@ -52,15 +52,12 @@ class FeedViewModel(
 
         viewModelScope.launch {
             try {
-                val likeCount = repository.updateLike(
+                // 서버 반영만 수행하고 카운트는 낙관적 값을 그대로 유지한다.
+                // (Home Mock은 Display 등 다른 소스 게시물의 원래 카운트를 몰라 반환값을 신뢰할 수 없다.)
+                repository.updateLike(
                     photoId = previousPost.id,
                     isLiked = liked,
                 )
-                if (generation != latestLikeGeneration) return@launch
-
-                updateSuccess { state ->
-                    state.copy(post = state.post.copy(likeCount = likeCount))
-                }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
@@ -95,13 +92,6 @@ class FeedViewModel(
             } catch (_: Exception) {
                 return@launch
             }
-        }
-    }
-
-    private fun updateSuccess(transform: (FeedContentState.Success) -> FeedContentState.Success) {
-        _uiState.update { state ->
-            val content = state.content ?: return@update state
-            state.copy(content = transform(content))
         }
     }
 
