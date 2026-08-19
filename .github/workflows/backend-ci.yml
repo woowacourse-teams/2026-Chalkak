@@ -7,6 +7,10 @@ on:
       - main
       - be/develop
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     working-directory: backend
@@ -51,6 +55,7 @@ jobs:
     needs: detect-backend-changes
     if: needs.detect-backend-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -91,6 +96,17 @@ jobs:
           TEST_POSTGRES_PASSWORD: test-password
           TEST_POSTGRES_PORT: 5432
         run: ./gradlew clean test bootJar --no-daemon
+
+      - name: Upload test failure reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            backend/build/test-results/test/
+            backend/build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 7
 
   backend-ci:
     name: Backend CI
