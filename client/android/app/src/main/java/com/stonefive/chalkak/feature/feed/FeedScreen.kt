@@ -52,8 +52,12 @@ private val FeedDivider = Color(0xFFB8B5AF)
 @Composable
 fun FeedRoute(
     onNavigateBack: () -> Unit,
+    initialContent: FeedContentState.Success? = null,
     modifier: Modifier = Modifier,
-    viewModel: FeedViewModel = viewModel(factory = FeedViewModel.Factory),
+    viewModel: FeedViewModel = viewModel(
+        key = "feed-${initialContent?.post?.id ?: "latest"}",
+        factory = FeedViewModel.factory(initialContent),
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 

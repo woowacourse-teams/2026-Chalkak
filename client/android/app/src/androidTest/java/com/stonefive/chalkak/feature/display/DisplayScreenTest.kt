@@ -1,17 +1,19 @@
 package com.stonefive.chalkak.feature.display
 
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -29,8 +31,28 @@ class DisplayScreenTest {
         composeRule
             .onNodeWithContentDescription("좋아요 17")
             .assertIsDisplayed()
-            .assertHasNoClickAction()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun `전시 사진을 누르면 선택한 사진과 전시 정보로 피드 이동 콜백을 호출한다`() {
+        var selected: Triple<Post, String, String>? = null
+        setDisplayContent(
+            uiState = latestUiState(),
+            onOpenFeed = { post, dateLabel, topic ->
+                selected = Triple(post, dateLabel, topic)
+            },
+        )
+
+        composeRule
+            .onNodeWithContentDescription("사진")
+            .assertHasClickAction()
+            .performClick()
+
+        assertEquals(
+            Triple(photo, "8월 5일의 주제", "바다"),
+            selected,
+        )
     }
 
     @Test
@@ -44,7 +66,10 @@ class DisplayScreenTest {
         composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
     }
 
-    private fun setDisplayContent(uiState: DisplayUiState) {
+    private fun setDisplayContent(
+        uiState: DisplayUiState,
+        onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+    ) {
         composeRule.setContent {
             ChalkakTheme {
                 DisplayScreen(
@@ -55,6 +80,7 @@ class DisplayScreenTest {
                     onFeaturedPageChanged = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
+                    onOpenFeed = onOpenFeed,
                 )
             }
         }

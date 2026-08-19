@@ -15,14 +15,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class FeedViewModel(private val repository: HomeRepository) : ViewModel() {
+class FeedViewModel(
+    private val repository: HomeRepository,
+    private val initialContent: FeedContentState.Success? = null,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
 
     private var latestLikeGeneration = 0
 
     init {
-        loadFeed()
+        if (initialContent == null) {
+            loadFeed()
+        } else {
+            _uiState.value = FeedUiState(content = initialContent)
+        }
     }
 
     fun onLikeClicked() {
@@ -109,13 +116,16 @@ class FeedViewModel(private val repository: HomeRepository) : ViewModel() {
     }
 
     companion object {
-        val Factory = viewModelFactory {
+        fun factory(initialContent: FeedContentState.Success? = null) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
                     repository = application.appContainer.homeRepository,
+                    initialContent = initialContent,
                 )
             }
         }
+
+        val Factory = factory()
     }
 }

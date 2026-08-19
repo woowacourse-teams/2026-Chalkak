@@ -3,9 +3,16 @@ package com.stonefive.chalkak
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.feature.display.DisplayRoute
+import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 
 class MainActivity : ComponentActivity() {
@@ -23,7 +30,31 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                FeedRoute(onNavigateBack = { finish() })
+                var selectedFeed by remember {
+                    mutableStateOf<FeedContentState.Success?>(null)
+                }
+
+                if (selectedFeed == null) {
+                    DisplayRoute(
+                        onOpenPhotoUpload = {},
+                        onNavigateToBottomBar = {},
+                        onOpenFeed = { post, dateLabel, topic ->
+                            selectedFeed = FeedContentState.Success(
+                                dateLabel = dateLabel,
+                                topic = topic,
+                                post = post,
+                                isLiked = false,
+                            )
+                        },
+                    )
+                } else {
+                    BackHandler { selectedFeed = null }
+
+                    FeedRoute(
+                        initialContent = selectedFeed,
+                        onNavigateBack = { selectedFeed = null },
+                    )
+                }
             }
         }
     }

@@ -39,6 +39,35 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun `전달받은 게시물 정보로 피드 상태를 시작한다`() = runTest {
+        val selectedRepository = FakeHomeRepository()
+        val selectedPost = Post(
+            id = "display-photo-1",
+            imageUrl = "https://example.com/display-photo.jpg",
+            signatureUrl = "https://example.com/display-signature.png",
+            contentDescription = "전시 사진",
+            title = "전시에서 선택한 사진",
+            likeCount = 31,
+        )
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 5일의 주제",
+                topic = "바다",
+                post = selectedPost,
+                isLiked = false,
+            ),
+        )
+
+        val content = selectedViewModel.uiState.value.content as FeedContentState.Success
+
+        assertEquals(selectedPost, content.post)
+        assertEquals("8월 5일의 주제", content.dateLabel)
+        assertEquals("바다", content.topic)
+        assertTrue(selectedRepository.requestedSorts.isEmpty())
+    }
+
+    @Test
     fun `좋아요 액션은 게시물 상태와 저장소를 함께 갱신한다`() = runTest {
         viewModel.onLikeClicked()
 
