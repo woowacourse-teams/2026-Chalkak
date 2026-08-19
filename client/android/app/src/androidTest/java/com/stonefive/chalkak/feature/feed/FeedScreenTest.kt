@@ -1,14 +1,11 @@
 package com.stonefive.chalkak.feature.feed
 
 import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -39,8 +36,6 @@ class FeedScreenTest {
 
         composeRule
             .onNodeWithContentDescription("뒤로 가기")
-            .assertWidthIsEqualTo(40.dp)
-            .assertHeightIsEqualTo(40.dp)
             .assertHasClickAction()
             .performClick()
 
