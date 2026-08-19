@@ -56,7 +56,12 @@ struct ChalkakTypography {
     static let subheadline = pretendard(.regular, size: 14, relativeTo: .subheadline)
     static let footnote = pretendard(.regular, size: 13, relativeTo: .footnote)
     static let caption = pretendard(.regular, size: 12, relativeTo: .caption)
+    // Android는 자간 -0.42을 적용한다. SwiftUI `Font`는 자간을 담지 못하므로
+    // 이 토큰을 쓰는 곳에서 `.tracking(-0.42)`로 보정해 디자인을 일치시킨다.
     static let brand = Font.custom("Continuous", size: 30, relativeTo: .title)
+    // Android는 라인 높이를 17(폰트 크기 20보다 압축)로 적용한다. SwiftUI `Font`는
+    // 라인 높이를 담지 못하므로 이 토큰을 쓰는 곳에서 `.lineSpacing`(또는 커스텀
+    // 라인 높이 modifier)으로 보정해 디자인을 일치시킨다.
     static let handwriting = Font.custom(
         "GriunXHangeulBanguri-Regular",
         size: 20,
