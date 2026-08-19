@@ -96,15 +96,15 @@ private enum Metrics {
         ChalkakTextField(
             text: $text,
             label: "사진 설명",
-            placeholder: "한 줄은 선택이에요.",
-            maximumCharacterCount: 50,
+            placeholder: "제목은 선택이에요.",
+            maximumCharacterCount: 10,
             height: 148
         )
 
         ChalkakTextField(
-            text: .constant("수정할 수 없는 설명"),
-            label: "사진 설명",
-            isEnabled: false,
+            text: $text,
+            label: "사진 제목",
+            placeholder: "제목은 선택이지롱.",
             maximumCharacterCount: 50
         )
     }
