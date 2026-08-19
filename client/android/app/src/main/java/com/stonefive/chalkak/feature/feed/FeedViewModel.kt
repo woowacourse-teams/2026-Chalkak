@@ -50,6 +50,8 @@ class FeedViewModel(
             )
         }
 
+        // TODO(like): API 연동 시 동일 게시물 좋아요 요청을 직렬화(또는 디바운스)하고
+        //  역순 응답을 무시하도록 보강한다. 현재 generation은 UI 롤백만 막고 서버 쓰기 순서는 보장하지 않는다.
         viewModelScope.launch {
             try {
                 // 서버 반영만 수행하고 카운트는 낙관적 값을 그대로 유지한다.
