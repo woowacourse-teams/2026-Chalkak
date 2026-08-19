@@ -116,7 +116,7 @@ private fun HomeScreenPreview() {
                     Post(
                         id = "preview-1",
                         imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        signatureUrl = null,
+                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,

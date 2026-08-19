@@ -21,7 +21,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
                 HomePhotoResponse(
                     id = FIRST_PHOTO_ID,
                     imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = null,
+                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 찰캌입니다",
                     likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT),
@@ -37,7 +37,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
                 HomePhotoResponse(
                     id = THIRD_PHOTO_ID,
                     imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = null,
+                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
                     contentDescription = "저녁 하늘을 담은 세 번째 사진",
                     title = "저녁 하늘",
                     likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT),

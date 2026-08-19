@@ -24,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -62,6 +63,13 @@ fun PhotoUploadImageArea(
                     modifier = Modifier.padding(top = 5.dp),
                 )
             }
+        } else if (signatureModel == null) {
+            ChalkakImage(
+                model = selectedImage,
+                contentDescription = "선택한 사진",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
         } else {
             ChalkakSignedImage(
                 imageModel = selectedImage,

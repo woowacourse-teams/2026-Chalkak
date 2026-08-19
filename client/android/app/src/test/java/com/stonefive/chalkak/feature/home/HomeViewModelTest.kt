@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostSort
@@ -43,6 +44,20 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `하단 탭 액션은 선택 상태를 바꾸고 네비게이션 이벤트를 전달한다`() = runTest {
+        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
+
+        assertEquals(
+            ChalkakBottomBarItem.DISPLAY,
+            viewModel.uiState.value.selectedBottomBarItem,
+        )
+        assertEquals(
+            HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
+            viewModel.uiEvent.first(),
+        )
+    }
+
+    @Test
     fun `이전 정렬 요청이 나중에 완료되어도 최신 정렬 결과를 유지한다`() = runTest {
         val controlledRepository = ControlledHomeRepository()
         val controlledViewModel = HomeViewModel(controlledRepository)
@@ -80,6 +95,47 @@ class HomeViewModelTest {
         )
         assertEquals(PHOTO_ID, repository.updatedPhotoId)
         assertEquals(true, repository.updatedIsLiked)
+    }
+
+    @Test
+    fun `좋아요 액션은 좋아요 상태와 개수를 토글한다`() = runTest {
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPhotoIds)
+        assertEquals(
+            24,
+            viewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+    }
+
+    @Test
+    fun `좋아요 액션은 선택한 사진에만 적용한다`() = runTest {
+        val firstPhoto = homeContent().photos.first()
+        val secondPhoto = firstPhoto.copy(id = "photo-2", likeCount = 10)
+        val multiPhotoViewModel = HomeViewModel(
+            FakeHomeRepository(
+                content = homeContent().copy(photos = listOf(firstPhoto, secondPhoto)),
+            ),
+        )
+
+        multiPhotoViewModel.onAction(HomeUiAction.LikeClicked(secondPhoto.id))
+
+        assertEquals(
+            24,
+            multiPhotoViewModel.uiState.value.photos
+                .first()
+                .likeCount,
+        )
+        assertEquals(
+            11,
+            multiPhotoViewModel.uiState.value.photos
+                .last()
+                .likeCount,
+        )
+        assertEquals(setOf(secondPhoto.id), multiPhotoViewModel.uiState.value.likedPhotoIds)
     }
 
     @Test
@@ -188,7 +244,7 @@ private fun homeContent(
         Post(
             id = PHOTO_ID,
             imageUrl = "https://example.com/photo.jpg",
-            signatureUrl = null,
+            signatureUrl = "https://example.com/signature.png",
             contentDescription = "하늘",
             title = "사진 제목",
             likeCount = likeCount,
@@ -197,14 +253,17 @@ private fun homeContent(
     likedPhotoIds = likedPhotoIds,
 )
 
-private class FakeHomeRepository : HomeRepository {
+private class FakeHomeRepository(private val content: PostContent = homeContent()) : HomeRepository {
     val requestedSorts = mutableListOf<PostSort>()
     var updatedPhotoId: String? = null
     var updatedIsLiked: Boolean? = null
+    private val serverLikeCounts = content.photos
+        .associate { photo -> photo.id to photo.likeCount }
+        .toMutableMap()
 
     override suspend fun getHome(sort: PostSort): PostContent {
         requestedSorts += sort
-        return homeContent()
+        return content
     }
 
     override suspend fun updateLike(
@@ -213,7 +272,10 @@ private class FakeHomeRepository : HomeRepository {
     ): Int {
         updatedPhotoId = photoId
         updatedIsLiked = isLiked
-        return if (isLiked) 25 else 24
+        val likeCount = checkNotNull(serverLikeCounts[photoId])
+        val nextLikeCount = likeCount + if (isLiked) 1 else -1
+        serverLikeCounts[photoId] = nextLikeCount
+        return nextLikeCount
     }
 }
 

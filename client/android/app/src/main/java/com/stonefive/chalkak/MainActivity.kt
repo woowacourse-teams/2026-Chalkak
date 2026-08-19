@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.home.HomeRoute
+import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 
 class MainActivity : ComponentActivity() {
@@ -45,7 +45,7 @@ private fun ChalkakApp() {
             onSubmitted = { showPhotoUpload = false },
         )
     } else {
-        HomeRoute(
+        DisplayRoute(
             onOpenPhotoUpload = { showPhotoUpload = true },
             onNavigateToBottomBar = {},
         )
