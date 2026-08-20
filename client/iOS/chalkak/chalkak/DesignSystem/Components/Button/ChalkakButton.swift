@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct ChalkakButton: View {
-    @Environment(\.chalkakColors) private var colors
-
     let title: String
     let action: () -> Void
     var isEnabled = true
@@ -13,12 +11,12 @@ struct ChalkakButton: View {
             .padding(.horizontal, ChalkakSpacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
-                isEnabled ? colors.onActionPrimary : colors.textPrimary
+                isEnabled ? ChalkakColor.onActionPrimary : ChalkakColor.textPrimary
             )
             .background(
                 isEnabled
-                    ? colors.actionPrimary
-                    : colors.actionPrimary.opacity(0.12),
+                    ? ChalkakColor.actionPrimary
+                    : ChalkakColor.actionPrimary.opacity(0.12),
                 in: RoundedRectangle(cornerRadius: ChalkakShape.button)
             )
             .contentShape(RoundedRectangle(cornerRadius: ChalkakShape.button))

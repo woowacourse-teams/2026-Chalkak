@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct ChalkakSortSelector<Option: Hashable>: View {
-    @Environment(\.chalkakColors) private var colors
-
     let options: [Option]
     let selectedOption: Option
     let label: (Option) -> String
@@ -25,13 +23,13 @@ struct ChalkakSortSelector<Option: Hashable>: View {
             Text(label(option))
                 .font(ChalkakTypography.subheadline)
                 .foregroundStyle(
-                    isSelected ? colors.textPrimary : colors.textInactive
+                    isSelected ? ChalkakColor.textPrimary : ChalkakColor.textInactive
                 )
                 .padding(.bottom, ChalkakSpacing.xs)
                 .overlay(alignment: .bottom) {
                     if isSelected {
                         Rectangle()
-                            .fill(colors.textPrimary)
+                            .fill(ChalkakColor.textPrimary)
                             .frame(height: Metrics.indicatorHeight)
                     }
                 }

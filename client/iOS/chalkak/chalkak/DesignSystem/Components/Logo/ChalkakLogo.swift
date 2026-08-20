@@ -1,13 +1,11 @@
 import SwiftUI
 
 struct ChalkakLogo: View {
-    @Environment(\.chalkakColors) private var colors
-
     var body: some View {
         Text("Chalkak")
             .font(ChalkakTypography.brand)
             .tracking(-0.42)
-            .foregroundStyle(colors.textPrimary)
+            .foregroundStyle(ChalkakColor.textPrimary)
             .accessibilityLabel("찰칵")
     }
 }

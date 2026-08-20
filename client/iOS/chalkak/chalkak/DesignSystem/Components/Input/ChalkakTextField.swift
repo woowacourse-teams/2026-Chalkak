@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ChalkakTextField: View {
-    @Environment(\.chalkakColors) private var colors
     @FocusState private var isFocused: Bool
 
     @Binding var text: String
@@ -19,7 +18,7 @@ struct ChalkakTextField: View {
             label,
             text: limitedText,
             prompt: Text(placeholder)
-                .foregroundStyle(colors.textInactive),
+                .foregroundStyle(ChalkakColor.textInactive),
             axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
         )
         .labelsHidden()
@@ -28,8 +27,8 @@ struct ChalkakTextField: View {
         .disabled(!isEnabled)
         .allowsHitTesting(!isReadOnly)
         .font(ChalkakTypography.body)
-        .foregroundStyle(isEnabled ? colors.textPrimary : colors.textMuted)
-        .tint(colors.inputCursor)
+        .foregroundStyle(isEnabled ? ChalkakColor.textPrimary : ChalkakColor.textMuted)
+        .tint(ChalkakColor.inputCursor)
         .padding(
             .bottom,
             showsCharacterCount && maximumCharacterCount != nil
@@ -39,13 +38,13 @@ struct ChalkakTextField: View {
         .padding(ChalkakSpacing.lg)
         .frame(height: height, alignment: .topLeading)
         .background(
-            colors.inputBackground,
+            ChalkakColor.inputBackground,
             in: RoundedRectangle(cornerRadius: ChalkakShape.input)
         )
         .overlay {
             RoundedRectangle(cornerRadius: ChalkakShape.input)
                 .stroke(
-                    isFocused ? colors.actionPrimary : colors.border,
+                    isFocused ? ChalkakColor.actionPrimary : ChalkakColor.border,
                     lineWidth: Metrics.borderWidth
                 )
         }
@@ -53,7 +52,7 @@ struct ChalkakTextField: View {
             if showsCharacterCount, let maximumCharacterCount {
                 Text("\(text.count) / \(maximumCharacterCount)")
                     .font(ChalkakTypography.subheadline)
-                    .foregroundStyle(colors.textInactive)
+                    .foregroundStyle(ChalkakColor.textInactive)
                     .padding(ChalkakSpacing.lg)
                     .accessibilityHidden(true)
             }

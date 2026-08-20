@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct ChalkakOutlinedButton: View {
-    @Environment(\.chalkakColors) private var colors
-
     let title: String
     let action: () -> Void
     var isEnabled = true
@@ -13,12 +11,12 @@ struct ChalkakOutlinedButton: View {
             .padding(.horizontal, ChalkakSpacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
-                isEnabled ? colors.textPrimary : colors.textMuted
+                isEnabled ? ChalkakColor.textPrimary : ChalkakColor.textMuted
             )
-            .background(colors.surfaceElevated.opacity(0.001))
+            .background(ChalkakColor.surfaceElevated.opacity(0.001))
             .overlay {
                 RoundedRectangle(cornerRadius: ChalkakShape.button)
-                    .stroke(colors.border, lineWidth: Metrics.borderWidth)
+                    .stroke(ChalkakColor.border, lineWidth: Metrics.borderWidth)
             }
             .contentShape(RoundedRectangle(cornerRadius: ChalkakShape.button))
             .buttonStyle(.plain)

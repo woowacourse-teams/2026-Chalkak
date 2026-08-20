@@ -37,5 +37,5 @@ private enum Metrics {
         contentMode: .fit
     )
     .frame(width: 270, height: 360)
-    .background(ChalkakColors().inputBackground)
+    .background(ChalkakColor.inputBackground)
 }

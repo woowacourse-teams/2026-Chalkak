@@ -36,8 +36,6 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 }
 
 struct ChalkakBottomBar: View {
-    @Environment(\.chalkakColors) private var colors
-
     let selectedItem: ChalkakBottomBarItem
     let onSelect: (ChalkakBottomBarItem) -> Void
     let onAdd: () -> Void
@@ -52,12 +50,12 @@ struct ChalkakBottomBar: View {
         }
         .padding(.top, Metrics.topPadding)
         .padding(.bottom, Metrics.bottomPadding)
-        .background(colors.surfaceElevated)
+        .background(ChalkakColor.surfaceElevated)
     }
 
     private func itemButton(_ item: ChalkakBottomBarItem) -> some View {
         let isSelected = item == selectedItem
-        let color = isSelected ? colors.actionPrimary : colors.bottomBar
+        let color = isSelected ? ChalkakColor.actionPrimary : ChalkakColor.bottomBar
 
         return Button {
             onSelect(item)
@@ -85,9 +83,9 @@ struct ChalkakBottomBar: View {
         Button(action: onAdd) {
             Image(systemName: "plus")
                 .font(.system(size: Metrics.addIconSize, weight: .medium))
-                .foregroundStyle(colors.onActionPrimary)
+                .foregroundStyle(ChalkakColor.onActionPrimary)
                 .frame(width: Metrics.addButtonSize, height: Metrics.addButtonSize)
-                .background(colors.actionPrimary, in: Circle())
+                .background(ChalkakColor.actionPrimary, in: Circle())
                 .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchSize)
                 .contentShape(Rectangle())
         }
