@@ -67,11 +67,21 @@ fun RecordCalendarGrid(
                 week.forEach { date ->
                     val photo = date?.let { photosByDate[it] }
                     if (photo == null) {
-                        Spacer(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO),
-                        )
+                        if (date == null) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO),
+                            )
+                        } else {
+                            RecordDayCell(
+                                date = date,
+                                photo = null,
+                                selected = false,
+                                onClick = {},
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     } else {
                         RecordDayCell(
                             date = photo.date,
@@ -90,25 +100,33 @@ fun RecordCalendarGrid(
 @Composable
 private fun RecordDayCell(
     date: LocalDate,
-    photo: RecordPhoto,
+    photo: RecordPhoto?,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = ChalkakTheme.shapes.photoCard
+    val hasPhoto = photo != null
+    val cellDescription = if (hasPhoto) {
+        "${date.format(DateFormatter)} 사진"
+    } else {
+        "${date.format(DateFormatter)} 사진 없음"
+    }
     var cellModifier = modifier
         .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO)
         .clip(shape)
         .background(ChalkakTheme.colors.calendarCell)
-        .semantics { contentDescription = "${date.format(DateFormatter)} 사진" }
-        .clickable(onClick = onClick)
+        .semantics { contentDescription = cellDescription }
         .border(
             width = 1.dp,
             color = ChalkakTheme.colors.calendarCellBorder,
             shape = shape,
         )
 
-    if (selected) {
+    if (hasPhoto) {
+        cellModifier = cellModifier.clickable(onClick = onClick)
+    }
+    if (selected && hasPhoto) {
         cellModifier = cellModifier.border(
             width = SelectedBorderWidth,
             color = ChalkakTheme.colors.calendarSelection,
@@ -117,12 +135,14 @@ private fun RecordDayCell(
     }
 
     Box(modifier = cellModifier) {
-        ChalkakImage(
-            model = photo.imageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (photo != null) {
+            ChalkakImage(
+                model = photo.imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 

@@ -51,7 +51,7 @@ class RecordScreenTest {
             .assertIsDisplayed()
         composeRule
             .onAllNodesWithContentDescription("2026년 8월 5일 사진 없음")
-            .assertCountEquals(0)
+            .assertCountEquals(1)
         composeRule
             .onAllNodesWithContentDescription("달력 빈 칸")
             .assertCountEquals(0)
