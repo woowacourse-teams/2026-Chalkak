@@ -69,6 +69,6 @@ private enum Metrics {
         contentDescription: "전시 사진",
         contentMode: .fit
     )
-    .frame(width: 120, height: 120)
+    .frame(width: 270, height: 360)
     .background(ChalkakTheme.light.colors.inputBackground)
 }
