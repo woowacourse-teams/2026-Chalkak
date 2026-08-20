@@ -6,6 +6,7 @@
 - [사전 설치](#사전-설치)
 - [최초 실행](#최초-실행)
 - [IntelliJ 설정](#intellij-설정)
+- [AI 하네스](#ai-하네스)
 - [자주 사용하는 명령](#자주-사용하는-명령)
 - [프로필](#프로필)
 - [DB 스키마](#db-스키마)
@@ -74,6 +75,40 @@ docker compose ps
 모노레포이므로 저장소 루트가 아니라 `backend/build.gradle.kts`를 Gradle 프로젝트로 Import한다.
 
 프로젝트 SDK와 Gradle JVM은 Eclipse Temurin 25를 사용한다.
+
+## AI 하네스
+
+백엔드 작업에서 Claude와 Codex가 팀 컨벤션을 따르도록 AI 하네스를 사용한다.
+
+### 실행 방법
+
+하네스는 `backend/`를 기준으로 구성되어 있으므로 저장소 최상위가 아닌 `backend/`에서 AI를 실행한다.
+
+Codex:
+
+```bash
+cd backend
+codex
+```
+
+Claude:
+
+```bash
+cd backend
+claude
+```
+
+### 운영 방식
+
+하네스는 최소한의 컨벤션으로 시작한다.
+
+1. 코드 리뷰에서 같은 피드백이 반복되는지 관찰한다.
+2. 반복되는 피드백을 팀 컨벤션으로 합의한다.
+3. 하네스 변경 이슈를 생성한다.
+4. Codex와 Claude 규칙에 함께 반영한다.
+5. 적용 결과를 관찰해 규칙을 유지·수정·제거한다.
+
+하네스 지침과 컨벤션은 [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`.agents/skills/`](.agents/skills/), [`.claude/rules/`](.claude/rules/)에서 관리한다.
 
 ## 자주 사용하는 명령
 
