@@ -44,7 +44,9 @@ fun SettingsSignatureCard(
 
             Text(
                 text = "변경하기",
-                modifier = Modifier.clickable(onClick = onChangeClick),
+                modifier = Modifier
+                    .clickable(onClick = onChangeClick)
+                    .padding(vertical = 5.dp, horizontal = 10.dp),
                 color = ChalkakTheme.colors.textSecondary,
                 style = ChalkakTheme.typography.callout,
                 textDecoration = TextDecoration.Underline,
