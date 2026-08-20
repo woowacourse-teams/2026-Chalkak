@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +30,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val CALENDAR_PHOTO_ASPECT_RATIO = 3f / 4f
-private val CalendarGridGap = 6.dp
+private val CalendarGridItemPadding = 6.dp
 private val CalendarHorizontalPadding = 20.dp
 private val SelectedBorderWidth = 2.dp
 private val DateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN)
@@ -56,21 +57,30 @@ fun RecordCalendarGrid(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = CalendarHorizontalPadding),
-        verticalArrangement = Arrangement.spacedBy(CalendarGridGap),
+        verticalArrangement = Arrangement.spacedBy(CalendarGridItemPadding),
     ) {
         dates.chunked(7).forEach { week ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(CalendarGridGap),
+                horizontalArrangement = Arrangement.spacedBy(CalendarGridItemPadding),
             ) {
                 week.forEach { date ->
-                    RecordDayCell(
-                        date = date,
-                        photo = date?.let { photosByDate[it] },
-                        selected = date == selectedDate,
-                        onClick = { date?.let(onDateClick) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    val photo = date?.let { photosByDate[it] }
+                    if (photo == null) {
+                        Spacer(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO),
+                        )
+                    } else {
+                        RecordDayCell(
+                            date = photo.date,
+                            photo = photo,
+                            selected = photo.date == selectedDate,
+                            onClick = { onDateClick(photo.date) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -79,34 +89,26 @@ fun RecordCalendarGrid(
 
 @Composable
 private fun RecordDayCell(
-    date: LocalDate?,
-    photo: RecordPhoto?,
+    date: LocalDate,
+    photo: RecordPhoto,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = ChalkakTheme.shapes.photoCard
-    val hasPhoto = date != null && photo != null
-    val cellDescription = when {
-        date == null -> "달력 빈 칸"
-        hasPhoto -> "${date.format(DateFormatter)} 사진"
-        else -> "${date.format(DateFormatter)} 사진 없음"
-    }
     var cellModifier = modifier
         .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO)
         .clip(shape)
         .background(ChalkakTheme.colors.calendarCell)
-        .semantics { contentDescription = cellDescription }
+        .semantics { contentDescription = "${date.format(DateFormatter)} 사진" }
+        .clickable(onClick = onClick)
         .border(
             width = 1.dp,
             color = ChalkakTheme.colors.calendarCellBorder,
             shape = shape,
         )
 
-    if (hasPhoto) {
-        cellModifier = cellModifier.clickable(onClick = onClick)
-    }
-    if (selected && hasPhoto) {
+    if (selected) {
         cellModifier = cellModifier.border(
             width = SelectedBorderWidth,
             color = ChalkakTheme.colors.calendarSelection,
@@ -115,14 +117,12 @@ private fun RecordDayCell(
     }
 
     Box(modifier = cellModifier) {
-        if (photo != null) {
-            ChalkakImage(
-                model = photo.imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        ChalkakImage(
+            model = photo.imageUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 

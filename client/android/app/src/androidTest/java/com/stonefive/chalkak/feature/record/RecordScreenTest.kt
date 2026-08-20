@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.record
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -47,6 +49,12 @@ class RecordScreenTest {
         composeRule
             .onNodeWithContentDescription("2026년 8월 2일 사진")
             .assertIsDisplayed()
+        composeRule
+            .onAllNodesWithContentDescription("2026년 8월 5일 사진 없음")
+            .assertCountEquals(0)
+        composeRule
+            .onAllNodesWithContentDescription("달력 빈 칸")
+            .assertCountEquals(0)
     }
 
     @Test
