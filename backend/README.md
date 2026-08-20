@@ -108,7 +108,7 @@ claude
 4. Codex와 Claude 규칙에 함께 반영한다.
 5. 적용 결과를 관찰해 규칙을 유지·수정·제거한다.
 
-하네스 지침과 컨벤션은 [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`.agents/skills/`](.agents/skills/), [`.claude/rules/`](.claude/rules/)에서 관리한다.
+하네스 지침과 컨벤션은 [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`.agents/skills/`](.agents/skills/), [`.claude/rules/`](.claude/rules/), [`.claude/skills/`](.claude/skills/)에서 관리한다.
 
 ## 자주 사용하는 명령
 

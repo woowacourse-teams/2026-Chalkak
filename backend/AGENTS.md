@@ -3,7 +3,8 @@
 - 작업 범위는 현재 `backend/` 디렉터리로 제한한다.
 - 명시적인 요청 없이 `../client/**`를 읽거나 수정하지 않는다.
 - `src/main/java/**/*.java` 작업에는 `$main-code`를 사용한다.
+- API Endpoint, Controller, Request·Response 계약을 추가·변경·삭제하거나 API 버전을 검토할 때는 `$api-versioning`도 함께 사용한다.
 - `src/test/java/**/*.java` 작업에는 `$test-code`를 사용한다.
-- 두 경로를 함께 변경하면 두 Skill을 모두 사용한다.
+- 운영 코드와 테스트 코드를 함께 변경하면 해당하는 모든 Skill을 사용한다.
 - 불분명하거나 충돌하는 규칙은 임의로 해석하지 않고 사용자에게 확인한다.
 - 명시적인 요청 없이 컨벤션 자체를 변경하지 않는다.
