@@ -1,23 +1,24 @@
 import SwiftUI
 
 struct ChalkakCheckbox: View {
+    @Environment(\.chalkakTheme) private var theme
     let isChecked: Bool
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: ChalkakShape.small)
-                .fill(isChecked ? ChalkakColor.actionPrimary : Color.clear)
+            RoundedRectangle(cornerRadius: theme.shapes.small)
+                .fill(isChecked ? theme.colors.actionPrimary : Color.clear)
 
-            RoundedRectangle(cornerRadius: ChalkakShape.small)
+            RoundedRectangle(cornerRadius: theme.shapes.small)
                 .stroke(
-                    isChecked ? ChalkakColor.actionPrimary : ChalkakColor.border,
+                    isChecked ? theme.colors.actionPrimary : theme.colors.border,
                     lineWidth: Metrics.borderWidth
                 )
 
             if isChecked {
                 Image(systemName: "checkmark")
                     .font(.system(size: Metrics.iconSize, weight: .bold))
-                    .foregroundStyle(ChalkakColor.onActionPrimary)
+                    .foregroundStyle(theme.colors.onActionPrimary)
             }
         }
         .frame(width: Metrics.size, height: Metrics.size)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ChalkakTextField: View {
+    @Environment(\.chalkakTheme) private var theme
     @FocusState private var isFocused: Bool
 
     @Binding var text: String
@@ -18,7 +19,7 @@ struct ChalkakTextField: View {
             label,
             text: limitedText,
             prompt: Text(placeholder)
-                .foregroundStyle(ChalkakColor.textInactive),
+                .foregroundStyle(theme.colors.textInactive),
             axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
         )
         .labelsHidden()
@@ -26,34 +27,34 @@ struct ChalkakTextField: View {
         .focused($isFocused)
         .disabled(!isEnabled)
         .allowsHitTesting(!isReadOnly)
-        .font(ChalkakTypography.body)
-        .foregroundStyle(isEnabled ? ChalkakColor.textPrimary : ChalkakColor.textMuted)
-        .tint(ChalkakColor.inputCursor)
+        .font(theme.typography.body)
+        .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
+        .tint(theme.colors.inputCursor)
         .padding(
             .bottom,
             showsCharacterCount && maximumCharacterCount != nil
-                ? ChalkakSpacing.xl
-                : ChalkakSpacing.none
+                ? theme.spacing.xl
+                : theme.spacing.none
         )
-        .padding(ChalkakSpacing.lg)
+        .padding(theme.spacing.lg)
         .frame(height: height, alignment: .topLeading)
         .background(
-            ChalkakColor.inputBackground,
-            in: RoundedRectangle(cornerRadius: ChalkakShape.input)
+            theme.colors.inputBackground,
+            in: RoundedRectangle(cornerRadius: theme.shapes.input)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: ChalkakShape.input)
+            RoundedRectangle(cornerRadius: theme.shapes.input)
                 .stroke(
-                    isFocused ? ChalkakColor.actionPrimary : ChalkakColor.border,
+                    isFocused ? theme.colors.actionPrimary : theme.colors.border,
                     lineWidth: Metrics.borderWidth
                 )
         }
         .overlay(alignment: .bottomTrailing) {
             if showsCharacterCount, let maximumCharacterCount {
                 Text("\(text.count) / \(maximumCharacterCount)")
-                    .font(ChalkakTypography.subheadline)
-                    .foregroundStyle(ChalkakColor.textInactive)
-                    .padding(ChalkakSpacing.lg)
+                    .font(theme.typography.subheadline)
+                    .foregroundStyle(theme.colors.textInactive)
+                    .padding(theme.spacing.lg)
                     .accessibilityHidden(true)
             }
         }

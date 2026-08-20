@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct ChalkakLogo: View {
+    @Environment(\.chalkakTheme) private var theme
     var body: some View {
         Text("Chalkak")
-            .font(ChalkakTypography.brand)
+            .font(theme.typography.brand)
             .tracking(-0.42)
-            .foregroundStyle(ChalkakColor.textPrimary)
+            .foregroundStyle(theme.colors.textPrimary)
             .accessibilityLabel("찰칵")
     }
 }

@@ -36,12 +36,13 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 }
 
 struct ChalkakBottomBar: View {
+    @Environment(\.chalkakTheme) private var theme
     let selectedItem: ChalkakBottomBarItem
     let onSelect: (ChalkakBottomBarItem) -> Void
     let onAdd: () -> Void
 
     var body: some View {
-        HStack(spacing: ChalkakSpacing.none) {
+        HStack(spacing: theme.spacing.none) {
             itemButton(.today)
             itemButton(.display)
             addButton
@@ -50,12 +51,12 @@ struct ChalkakBottomBar: View {
         }
         .padding(.top, Metrics.topPadding)
         .padding(.bottom, Metrics.bottomPadding)
-        .background(ChalkakColor.surfaceElevated)
+        .background(theme.colors.surfaceElevated)
     }
 
     private func itemButton(_ item: ChalkakBottomBarItem) -> some View {
         let isSelected = item == selectedItem
-        let color = isSelected ? ChalkakColor.actionPrimary : ChalkakColor.bottomBar
+        let color = isSelected ? theme.colors.actionPrimary : theme.colors.bottomBar
 
         return Button {
             onSelect(item)
@@ -67,7 +68,7 @@ struct ChalkakBottomBar: View {
                     .accessibilityHidden(true)
 
                 Text(item.label)
-                    .font(ChalkakTypography.footnote)
+                    .font(theme.typography.footnote)
                     .fontWeight(isSelected ? .bold : .regular)
             }
             .foregroundStyle(color)
@@ -83,9 +84,9 @@ struct ChalkakBottomBar: View {
         Button(action: onAdd) {
             Image(systemName: "plus")
                 .font(.system(size: Metrics.addIconSize, weight: .medium))
-                .foregroundStyle(ChalkakColor.onActionPrimary)
+                .foregroundStyle(theme.colors.onActionPrimary)
                 .frame(width: Metrics.addButtonSize, height: Metrics.addButtonSize)
-                .background(ChalkakColor.actionPrimary, in: Circle())
+                .background(theme.colors.actionPrimary, in: Circle())
                 .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchSize)
                 .contentShape(Rectangle())
         }

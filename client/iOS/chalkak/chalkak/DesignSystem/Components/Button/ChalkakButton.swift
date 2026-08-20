@@ -1,25 +1,26 @@
 import SwiftUI
 
 struct ChalkakButton: View {
+    @Environment(\.chalkakTheme) private var theme
     let title: String
     let action: () -> Void
     var isEnabled = true
 
     var body: some View {
         Button(title, action: action)
-            .font(ChalkakTypography.callout)
-            .padding(.horizontal, ChalkakSpacing.xl)
+            .font(theme.typography.callout)
+            .padding(.horizontal, theme.spacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
-                isEnabled ? ChalkakColor.onActionPrimary : ChalkakColor.textPrimary
+                isEnabled ? theme.colors.onActionPrimary : theme.colors.textPrimary
             )
             .background(
                 isEnabled
-                    ? ChalkakColor.actionPrimary
-                    : ChalkakColor.actionPrimary.opacity(0.12),
-                in: RoundedRectangle(cornerRadius: ChalkakShape.button)
+                    ? theme.colors.actionPrimary
+                    : theme.colors.actionPrimary.opacity(0.12),
+                in: RoundedRectangle(cornerRadius: theme.shapes.button)
             )
-            .contentShape(RoundedRectangle(cornerRadius: ChalkakShape.button))
+            .contentShape(RoundedRectangle(cornerRadius: theme.shapes.button))
             .buttonStyle(.plain)
             .disabled(!isEnabled)
     }

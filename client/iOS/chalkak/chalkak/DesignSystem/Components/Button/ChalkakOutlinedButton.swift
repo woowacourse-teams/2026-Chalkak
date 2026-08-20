@@ -1,24 +1,25 @@
 import SwiftUI
 
 struct ChalkakOutlinedButton: View {
+    @Environment(\.chalkakTheme) private var theme
     let title: String
     let action: () -> Void
     var isEnabled = true
 
     var body: some View {
         Button(title, action: action)
-            .font(ChalkakTypography.callout)
-            .padding(.horizontal, ChalkakSpacing.xl)
+            .font(theme.typography.callout)
+            .padding(.horizontal, theme.spacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
             .foregroundStyle(
-                isEnabled ? ChalkakColor.textPrimary : ChalkakColor.textMuted
+                isEnabled ? theme.colors.textPrimary : theme.colors.textMuted
             )
-            .background(ChalkakColor.surfaceElevated.opacity(0.001))
+            .background(theme.colors.surfaceElevated.opacity(0.001))
             .overlay {
-                RoundedRectangle(cornerRadius: ChalkakShape.button)
-                    .stroke(ChalkakColor.border, lineWidth: Metrics.borderWidth)
+                RoundedRectangle(cornerRadius: theme.shapes.button)
+                    .stroke(theme.colors.border, lineWidth: Metrics.borderWidth)
             }
-            .contentShape(RoundedRectangle(cornerRadius: ChalkakShape.button))
+            .contentShape(RoundedRectangle(cornerRadius: theme.shapes.button))
             .buttonStyle(.plain)
             .disabled(!isEnabled)
     }

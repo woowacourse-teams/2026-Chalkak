@@ -7,6 +7,7 @@ enum ChalkakImageSource {
 }
 
 struct ChalkakImage: View {
+    @Environment(\.chalkakTheme) private var theme
     let source: ChalkakImageSource
     var contentDescription: String?
     var contentMode: ContentMode = .fill
@@ -29,7 +30,7 @@ struct ChalkakImage: View {
             Image(systemName: name)
                 .resizable()
                 .aspectRatio(contentMode: contentMode)
-                .foregroundStyle(ChalkakColor.iconSecondary)
+                .foregroundStyle(theme.colors.iconSecondary)
         case let .remote(url):
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -50,10 +51,10 @@ struct ChalkakImage: View {
 
     private func imagePlaceholder(systemName: String) -> some View {
         ZStack {
-            ChalkakColor.inputBackground
+            theme.colors.inputBackground
             Image(systemName: systemName)
                 .font(.system(size: Metrics.placeholderIconSize))
-                .foregroundStyle(ChalkakColor.iconSecondary)
+                .foregroundStyle(theme.colors.iconSecondary)
         }
     }
 }
@@ -69,5 +70,5 @@ private enum Metrics {
         contentMode: .fit
     )
     .frame(width: 120, height: 120)
-    .background(ChalkakColor.inputBackground)
+    .background(ChalkakTheme.light.colors.inputBackground)
 }

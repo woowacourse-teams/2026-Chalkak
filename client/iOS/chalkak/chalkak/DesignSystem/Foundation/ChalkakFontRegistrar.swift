@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 enum ChalkakFontRegistrar {
-    private static let resources: [(name: String, extension: String)] = [
+    private static let resources: [(name: String, fileExtension: String)] = [
         ("Pretendard-Regular", "otf"),
         ("Pretendard-SemiBold", "otf"),
         ("Pretendard-Bold", "otf"),
@@ -15,9 +15,11 @@ enum ChalkakFontRegistrar {
         resources.forEach { resource in
             guard let url = bundle.url(
                 forResource: resource.name,
-                withExtension: resource.extension
+                withExtension: resource.fileExtension
             ) else {
-                assertionFailure("Missing bundled font: \(resource.name).\(resource.extension)")
+                assertionFailure(
+                    "Missing bundled font: \(resource.name).\(resource.fileExtension)"
+                )
                 return
             }
 

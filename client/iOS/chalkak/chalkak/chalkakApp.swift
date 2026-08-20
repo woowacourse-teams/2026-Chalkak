@@ -16,6 +16,7 @@ struct chalkakApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .chalkakTheme(.light)
         }
     }
 }

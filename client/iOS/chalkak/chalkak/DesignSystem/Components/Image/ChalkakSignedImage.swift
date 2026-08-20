@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ChalkakSignedImage: View {
+    @Environment(\.chalkakTheme) private var theme
     let imageSource: ChalkakImageSource
     let signatureSource: ChalkakImageSource
     var contentDescription: String?
@@ -20,7 +21,7 @@ struct ChalkakSignedImage: View {
                 contentMode: .fit
             )
             .frame(width: signatureSize.width, height: signatureSize.height)
-            .padding(ChalkakSpacing.sm)
+            .padding(theme.spacing.sm)
         }
     }
 }
@@ -37,5 +38,5 @@ private enum Metrics {
         contentMode: .fit
     )
     .frame(width: 270, height: 360)
-    .background(ChalkakColor.inputBackground)
+    .background(ChalkakTheme.light.colors.inputBackground)
 }
