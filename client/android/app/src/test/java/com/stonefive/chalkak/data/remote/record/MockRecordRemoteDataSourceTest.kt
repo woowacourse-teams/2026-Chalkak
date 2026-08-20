@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.remote.record
 
+import com.stonefive.chalkak.R
 import java.time.YearMonth
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -20,6 +21,12 @@ class MockRecordRemoteDataSourceTest {
             response.photos
                 .first()
                 .date,
+        )
+        assertEquals(
+            "android.resource://com.stonefive.chalkak/${R.drawable.record_landscape_photo}",
+            response.photos
+                .single { it.date == "2026-08-21" }
+                .imageUrl,
         )
     }
 
