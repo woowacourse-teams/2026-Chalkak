@@ -8,17 +8,24 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.chalkakTheme) private var theme
+
     var body: some View {
-        VStack {
+        VStack(spacing: theme.spacing.md) {
             Image(systemName: "globe")
                 .imageScale(.large)
-                .foregroundStyle(.tint)
+                .foregroundStyle(theme.colors.iconPrimary)
             Text("Hello, world!")
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.textPrimary)
         }
-        .padding()
+        .padding(theme.spacing.screenHorizontal)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.colors.background)
     }
 }
 
 #Preview {
     ContentView()
+        .chalkakTheme(.light)
 }
