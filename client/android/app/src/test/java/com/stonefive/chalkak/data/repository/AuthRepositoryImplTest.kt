@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.auth.AuthRemoteDataSource
 import com.stonefive.chalkak.data.remote.auth.model.AuthResponse
+import com.stonefive.chalkak.data.remote.auth.model.ProfileResponse
 import com.stonefive.chalkak.domain.model.AuthSession
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import kotlinx.coroutines.runBlocking
@@ -27,11 +28,21 @@ class AuthRepositoryImplTest {
         assertEquals(1, dataSource.guestRequestCount)
         assertEquals(AuthSession.Guest, result)
     }
+
+    @Test
+    fun `내 프로필 응답을 도메인 모델로 변환한다`() = runBlocking {
+        dataSource.profileResponse = ProfileResponse(signatureUrl = "https://example.com/signature.png")
+
+        val result = repository.getMyProfile()
+
+        assertEquals("https://example.com/signature.png", result?.signatureUrl)
+    }
 }
 
 private class RecordingAuthRemoteDataSource : AuthRemoteDataSource {
     var requestedProvider: SocialLoginProvider? = null
     var guestRequestCount: Int = 0
+    var profileResponse: ProfileResponse? = null
 
     override suspend fun login(provider: SocialLoginProvider): AuthResponse {
         requestedProvider = provider
@@ -48,4 +59,10 @@ private class RecordingAuthRemoteDataSource : AuthRemoteDataSource {
             isGuest = true,
         )
     }
+
+    override suspend fun getMyProfile(): ProfileResponse? = profileResponse
+
+    override suspend fun logout() = Unit
+
+    override suspend fun withdraw() = Unit
 }

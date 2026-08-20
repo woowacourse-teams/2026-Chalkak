@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.login
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.AuthSession
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
+import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -57,4 +58,10 @@ private class FakeLoginRepository : AuthRepository {
         failure?.let { throw it }
         return AuthSession.Guest
     }
+
+    override suspend fun getMyProfile(): UserProfile? = null
+
+    override suspend fun logout() = Unit
+
+    override suspend fun withdraw() = Unit
 }
