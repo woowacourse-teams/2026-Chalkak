@@ -7,7 +7,7 @@ struct ChalkakLogo: View {
             .font(theme.typography.brand)
             .tracking(-0.42)
             .foregroundStyle(theme.colors.textPrimary)
-            .accessibilityLabel("찰칵")
+            .accessibilityLabel("찰캌")
     }
 }
 
