@@ -102,12 +102,34 @@ private enum Metrics {
     static let minimumTouchSize: CGFloat = 48
 }
 
+private enum PreviewMetrics {
+    static let screenWidth: CGFloat = 402
+    static let screenHeight: CGFloat = 874
+    static let bottomSafeArea: CGFloat = 34
+}
+
 #Preview("Bottom Bar") {
     @Previewable @State var selection = ChalkakBottomBarItem.today
 
-    ChalkakBottomBar(
-        selectedItem: selection,
-        onSelect: { selection = $0 },
-        onAdd: {}
-    )
+    ZStack(alignment: .bottom) {
+        ChalkakTheme.light.colors.background
+            .ignoresSafeArea()
+
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            ChalkakBottomBar(
+                selectedItem: selection,
+                onSelect: { selection = $0 },
+                onAdd: {}
+            )
+            .frame(maxWidth: .infinity)
+
+            ChalkakTheme.light.colors.surfaceElevated
+                .frame(height: PreviewMetrics.bottomSafeArea)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    .frame(width: PreviewMetrics.screenWidth, height: PreviewMetrics.screenHeight)
+    .chalkakTheme(.light)
 }
