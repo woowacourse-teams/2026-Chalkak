@@ -36,7 +36,7 @@ jobs:
       PROJECT: chalkak.xcodeproj
       SCHEME: chalkak
       DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5
-      DERIVED_DATA_PATH: ${{ runner.temp }}/chalkak-derived-data
+      DERIVED_DATA_PATH: /tmp/chalkak-derived-data
 
     steps:
       - name: Checkout repository
