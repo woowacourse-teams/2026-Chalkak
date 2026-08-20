@@ -21,16 +21,16 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    var iconName: String {
         switch self {
         case .today:
-            "photo.on.rectangle.angled"
+            "ic_bottom_today"
         case .display:
-            "rectangle.stack"
+            "ic_bottom_display"
         case .record:
-            "clock.arrow.circlepath"
+            "ic_bottom_record"
         case .settings:
-            "gearshape"
+            "ic_bottom_setting"
         }
     }
 }
@@ -62,8 +62,8 @@ struct ChalkakBottomBar: View {
             onSelect(item)
         } label: {
             VStack(spacing: Metrics.itemSpacing) {
-                Image(systemName: item.systemImage)
-                    .font(.system(size: Metrics.iconSize, weight: .regular))
+                Image(item.iconName)
+                    .renderingMode(.template)
                     .frame(width: Metrics.iconSize, height: Metrics.iconSize)
                     .accessibilityHidden(true)
 
@@ -82,11 +82,9 @@ struct ChalkakBottomBar: View {
 
     private var addButton: some View {
         Button(action: onAdd) {
-            Image(systemName: "plus")
-                .font(.system(size: Metrics.addIconSize, weight: .medium))
-                .foregroundStyle(theme.colors.onActionPrimary)
+            Image("ic_bottom_write")
+                .renderingMode(.original)
                 .frame(width: Metrics.addButtonSize, height: Metrics.addButtonSize)
-                .background(theme.colors.actionPrimary, in: Circle())
                 .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchSize)
                 .contentShape(Rectangle())
         }
@@ -100,8 +98,7 @@ private enum Metrics {
     static let bottomPadding: CGFloat = 12
     static let itemSpacing: CGFloat = 7
     static let iconSize: CGFloat = 23
-    static let addIconSize: CGFloat = 18
-    static let addButtonSize: CGFloat = 44
+    static let addButtonSize: CGFloat = 40
     static let minimumTouchSize: CGFloat = 48
 }
 
