@@ -9,9 +9,14 @@ import SwiftUI
 
 @main
 struct chalkakApp: App {
+    init() {
+        ChalkakFontRegistrar.registerFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .chalkakTheme(.light)
         }
     }
 }

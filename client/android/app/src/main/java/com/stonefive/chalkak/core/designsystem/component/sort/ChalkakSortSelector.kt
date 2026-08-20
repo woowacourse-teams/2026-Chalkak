@@ -18,7 +18,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTextInactive
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
@@ -55,7 +54,7 @@ private fun ChalkakSortItem(
     val color = if (selected) {
         ChalkakTheme.colors.textPrimary
     } else {
-        ChalkakTextInactive
+        ChalkakTheme.colors.textInactive
     }
 
     Box(
