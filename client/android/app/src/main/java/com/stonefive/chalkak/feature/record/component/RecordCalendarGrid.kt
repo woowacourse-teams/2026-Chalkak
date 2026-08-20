@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -107,6 +108,7 @@ private fun RecordDayCell(
 ) {
     val shape = ChalkakTheme.shapes.small
     val hasPhoto = photo != null
+    val cellBackground = if (hasPhoto) Color.Black else ChalkakTheme.colors.calendarCell
     val cellDescription = if (hasPhoto) {
         "${date.format(DateFormatter)} 사진"
     } else {
@@ -115,7 +117,7 @@ private fun RecordDayCell(
     var cellModifier = modifier
         .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO)
         .clip(shape)
-        .background(ChalkakTheme.colors.calendarCell)
+        .background(cellBackground)
         .semantics { contentDescription = cellDescription }
         .border(
             width = 1.dp,
@@ -139,7 +141,7 @@ private fun RecordDayCell(
             ChalkakImage(
                 model = photo.imageUrl,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
         }
