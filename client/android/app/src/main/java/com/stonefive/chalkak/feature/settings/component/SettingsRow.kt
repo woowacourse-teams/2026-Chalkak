@@ -26,12 +26,19 @@ internal fun SettingsRow(
     text: String,
     modifier: Modifier = Modifier,
     textColor: Color = ChalkakTheme.colors.textPrimary,
+    enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailingContent: @Composable () -> Unit = {},
 ) {
     Row(
         modifier = modifier
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(enabled = enabled, onClick = onClick)
+                } else {
+                    Modifier
+                },
+            )
             .padding(
                 horizontal = 20.dp,
                 vertical = 16.dp,

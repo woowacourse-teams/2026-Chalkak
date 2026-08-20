@@ -43,6 +43,9 @@ fun SettingsRoute(
         viewModel.uiEvent.collect { event ->
             when (event) {
                 SettingsUiEvent.NavigateToLogin -> onNavigateToLogin()
+                SettingsUiEvent.AccountActionFailed -> {
+                    // 스낵바 등 사용자 안내 필요
+                }
             }
         }
     }
@@ -131,6 +134,7 @@ fun SettingsScreen(
                 SettingsAccountCard(
                     onLogoutClick = onLogoutClick,
                     onWithdrawClick = onWithdrawClick,
+                    enabled = !uiState.isAccountActionInProgress,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

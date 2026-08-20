@@ -40,16 +40,25 @@ class SettingsViewModel(
     fun withdraw() = clearProfile(authRepository::withdraw)
 
     private fun clearProfile(block: suspend () -> Unit) {
+        if (_uiState.value.isAccountActionInProgress) return
+
+        _uiState.update { it.copy(isAccountActionInProgress = true) }
+
         viewModelScope.launch {
             runCatching { block() }
                 .onSuccess {
                     _uiState.update {
                         it.copy(
                             isLoggedIn = false,
+                            isAccountActionInProgress = false,
                             signatureModel = null,
                         )
                     }
                     _uiEvent.send(SettingsUiEvent.NavigateToLogin)
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isAccountActionInProgress = false) }
+                    _uiEvent.send(SettingsUiEvent.AccountActionFailed)
                 }
         }
     }

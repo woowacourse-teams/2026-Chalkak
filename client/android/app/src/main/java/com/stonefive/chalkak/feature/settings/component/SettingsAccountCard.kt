@@ -17,12 +17,14 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun SettingsAccountCard(
     onLogoutClick: () -> Unit,
     onWithdrawClick: () -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     SettingsCard(modifier = modifier) {
         SettingsRow(
             text = "로그아웃",
             onClick = onLogoutClick,
+            enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             trailingContent = {
                 Icon(
@@ -40,6 +42,7 @@ fun SettingsAccountCard(
             text = "회원탈퇴",
             textColor = Color(0xFFFF4D4F),
             onClick = onWithdrawClick,
+            enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
         )
     }
