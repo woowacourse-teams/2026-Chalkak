@@ -105,7 +105,7 @@ private fun RecordDayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = ChalkakTheme.shapes.photoCard
+    val shape = ChalkakTheme.shapes.small
     val hasPhoto = photo != null
     val cellDescription = if (hasPhoto) {
         "${date.format(DateFormatter)} 사진"
