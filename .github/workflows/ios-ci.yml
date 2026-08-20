@@ -1,0 +1,68 @@
+name: iOS CI
+
+on:
+  pull_request:
+    branches:
+      - client/develop
+    paths:
+      - "client/iOS/**"
+      - ".github/workflows/ios-ci.yml"
+  push:
+    branches:
+      - client/develop
+    paths:
+      - "client/iOS/**"
+      - ".github/workflows/ios-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: client/iOS/chalkak
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      PROJECT: chalkak.xcodeproj
+      SCHEME: chalkak
+      DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5
+      DERIVED_DATA_PATH: ${{ runner.temp }}/chalkak-derived-data
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            build
+
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -parallel-testing-enabled NO \
+            test \
+            -only-testing:chalkakTests
