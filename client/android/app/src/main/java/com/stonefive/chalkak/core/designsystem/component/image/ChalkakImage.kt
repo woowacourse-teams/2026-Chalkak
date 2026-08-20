@@ -9,6 +9,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
@@ -20,6 +21,7 @@ fun ChalkakImage(
     placeholder: Painter? = null,
     error: Painter? = null,
     fallback: Painter? = error,
+    onSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
     alignment: Alignment = Alignment.Center,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
@@ -30,6 +32,7 @@ fun ChalkakImage(
         placeholder = placeholder,
         error = error,
         fallback = fallback,
+        onSuccess = onSuccess,
         alignment = alignment,
         contentScale = contentScale,
     )

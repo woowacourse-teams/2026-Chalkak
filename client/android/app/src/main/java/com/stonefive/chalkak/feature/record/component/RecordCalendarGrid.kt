@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -108,7 +112,13 @@ private fun RecordDayCell(
 ) {
     val shape = ChalkakTheme.shapes.small
     val hasPhoto = photo != null
-    val cellBackground = if (hasPhoto) Color.Black else ChalkakTheme.colors.calendarCell
+    var isLandscapePhoto by remember(photo?.imageUrl) { mutableStateOf(false) }
+    val cellBackground = if (isLandscapePhoto) Color.Black else ChalkakTheme.colors.calendarCell
+    val imageContentScale = if (isLandscapePhoto) {
+        ContentScale.Fit
+    } else {
+        ContentScale.Crop
+    }
     val cellDescription = if (hasPhoto) {
         "${date.format(DateFormatter)} 사진"
     } else {
@@ -141,7 +151,12 @@ private fun RecordDayCell(
             ChalkakImage(
                 model = photo.imageUrl,
                 contentDescription = null,
-                contentScale = ContentScale.Fit,
+                contentScale = imageContentScale,
+                onSuccess = { success ->
+                    success.result.image?.let { image ->
+                        isLandscapePhoto = image.width > image.height
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         }
