@@ -55,7 +55,7 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 
 ### Controller
 
-- `@WebMvcTest`와 Service `@MockBean`을 사용한다.
+- `@WebMvcTest`와 Service `@MockitoBean`을 사용한다.
 - 요청 검증, 상태 코드, 직렬화, 예외 처리, 인가를 검증한다.
 - 비즈니스 로직 분기는 검증하지 않는다.
 
@@ -109,7 +109,7 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 ## 통합 테스트 상위 클래스
 
 - 통합 테스트는 `IntegrationTestSupport`를 상속한다.
-- Context 설정, 프로파일, 공통 `@MockBean`, DB 정리를 상위 클래스에서 통일한다.
+- Context 설정, 프로파일, 공통 `@MockitoBean`, DB 정리를 상위 클래스에서 통일한다.
 - Context 캐싱을 유지하기 위해 개별 테스트 클래스에 별도 Context 설정을 추가하지 않는다.
 
 ## 네이밍

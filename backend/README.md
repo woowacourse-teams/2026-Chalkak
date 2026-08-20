@@ -98,6 +98,8 @@ cd backend
 claude
 ```
 
+AI 하네스는 Codex CLI 0.138.0 이상과 Claude Code 2.1.228 이상에서 사용한다.
+
 ### 운영 방식
 
 하네스는 최소한의 컨벤션으로 시작한다.
@@ -108,7 +110,7 @@ claude
 4. Codex와 Claude 규칙에 함께 반영한다.
 5. 적용 결과를 관찰해 규칙을 유지·수정·제거한다.
 
-하네스 지침과 컨벤션은 [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`.agents/skills/`](.agents/skills/), [`.claude/rules/`](.claude/rules/), [`.claude/skills/`](.claude/skills/)에서 관리한다.
+하네스 지침과 컨벤션은 [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`.agents/skills/`](.agents/skills/), [`.claude/rules/`](.claude/rules/), [`.claude/skills/`](.claude/skills/)에서 관리한다. 클라이언트 코드 수정 제한은 [`.codex/config.toml`](.codex/config.toml)과 [`.claude/settings.json`](.claude/settings.json)에서 관리한다.
 
 ## 자주 사용하는 명령
 
