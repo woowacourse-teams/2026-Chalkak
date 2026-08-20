@@ -32,6 +32,9 @@ data class ChalkakColors(
     val iconSecondary: Color,
     val scrim: Color,
     val error: Color,
+    val calendarCell: Color,
+    val calendarCellBorder: Color,
+    val calendarSelection: Color,
 )
 
 internal val LightChalkakColors = ChalkakColors(
@@ -53,4 +56,7 @@ internal val LightChalkakColors = ChalkakColors(
     iconSecondary = ChalkakAction.copy(alpha = 0.62f),
     scrim = Color.Black.copy(alpha = 0.4f),
     error = Color(0xFFBA1A1A),
+    calendarCell = Color(0xFFEAE7DE),
+    calendarCellBorder = Color(0xFFDCD8CE),
+    calendarSelection = ChalkakInputCursor,
 )
