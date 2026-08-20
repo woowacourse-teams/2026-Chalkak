@@ -70,8 +70,8 @@ jobs:
 
           echo "android=$android" >> "$GITHUB_OUTPUT"
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
-          echo "Android changes: $android"
-          echo "iOS changes: $ios"
+          echo "Android changes detected: $android"
+          echo "iOS changes detected: $ios"
 
   android:
     name: Android CI
@@ -148,10 +148,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Show Xcode version
+      - name: Set up Xcode
         run: xcodebuild -version
 
-      - name: Build app
+      - name: Build debug app
         run: |
           xcodebuild \
             -project "$PROJECT" \
@@ -193,18 +193,18 @@ jobs:
           set -euo pipefail
 
           if [[ "$CHANGES_RESULT" != "success" ]]; then
-            echo "::error::변경 플랫폼을 확인하지 못했습니다."
+            echo "::error::Failed to detect changed clients."
             exit 1
           fi
 
           if [[ "$ANDROID_CHANGED" == "true" && "$ANDROID_RESULT" != "success" ]]; then
-            echo "::error::Android CI 결과가 성공이 아닙니다: $ANDROID_RESULT"
+            echo "::error::Android CI failed: $ANDROID_RESULT"
             exit 1
           fi
 
           if [[ "$IOS_CHANGED" == "true" && "$IOS_RESULT" != "success" ]]; then
-            echo "::error::iOS CI 결과가 성공이 아닙니다: $IOS_RESULT"
+            echo "::error::iOS CI failed: $IOS_RESULT"
             exit 1
           fi
 
-          echo "변경된 플랫폼의 CI가 모두 성공했습니다."
+          echo "All changed client CI checks passed."
