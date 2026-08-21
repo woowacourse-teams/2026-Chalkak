@@ -8,6 +8,9 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
@@ -31,6 +34,23 @@ class DisplayScreenTest {
             .assertIsDisplayed()
             .assertHasNoClickAction()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun `최신 날짜에서 아래로 스크롤하면 정렬 필터가 사라지고 위로 스크롤하면 다시 표시된다`() {
+        setDisplayContent(scrollableLatestUiState())
+
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
+
+        composeRule
+            .onNodeWithContentDescription("사진 1")
+            .performTouchInput { swipeUp() }
+        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+
+        composeRule
+            .onNodeWithContentDescription("사진 1")
+            .performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
     }
 
     @Test
@@ -78,6 +98,18 @@ private fun latestUiState() = DisplayUiState(
     topic = "바다",
     content = DisplayContentState.Latest(
         photos = listOf(photo),
+        selectedSort = PostSort.LATEST,
+    ),
+)
+
+private fun scrollableLatestUiState() = latestUiState().copy(
+    content = DisplayContentState.Latest(
+        photos = List(12) { index ->
+            photo.copy(
+                id = "photo-$index",
+                contentDescription = "사진 $index",
+            )
+        },
         selectedSort = PostSort.LATEST,
     ),
 )
