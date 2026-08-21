@@ -14,8 +14,8 @@ public class CloudFrontUrlProvider implements ImageUrlProvider {
     private final String originPath;
 
     public CloudFrontUrlProvider(
-            @Value("${CLOUDFRONT_BASE_URL:https://dx6imgwswqps9.cloudfront.net}") URI baseUrl,
-            @Value("${CLOUDFRONT_ORIGIN_PATH:/chalkak}") String originPath
+            @Value("${CLOUDFRONT_BASE_URL}") URI baseUrl,
+            @Value("${CLOUDFRONT_ORIGIN_PATH}") String originPath
     ) {
         this.baseUrl = baseUrl;
         this.originPath = originPath;
