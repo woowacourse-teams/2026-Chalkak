@@ -55,8 +55,7 @@ class SettingsViewModel(
                         )
                     }
                     _uiEvent.send(SettingsUiEvent.NavigateToLogin)
-                }
-                .onFailure {
+                }.onFailure {
                     _uiState.update { it.copy(isAccountActionInProgress = false) }
                     _uiEvent.send(SettingsUiEvent.AccountActionFailed)
                 }

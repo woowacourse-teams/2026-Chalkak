@@ -38,8 +38,7 @@ internal fun SettingsRow(
                 } else {
                     Modifier
                 },
-            )
-            .padding(
+            ).padding(
                 horizontal = 20.dp,
                 vertical = 16.dp,
             ),

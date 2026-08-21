@@ -43,6 +43,7 @@ fun SettingsRoute(
         viewModel.uiEvent.collect { event ->
             when (event) {
                 SettingsUiEvent.NavigateToLogin -> onNavigateToLogin()
+
                 SettingsUiEvent.AccountActionFailed -> {
                     // 스낵바 등 사용자 안내 필요
                 }
