@@ -11,7 +11,7 @@ public record PostDetailResponse(
         @JsonProperty("original_image_url") String originalImageUrl,
         @JsonProperty("thumbnail_image_url") String thumbnailImageUrl,
         @JsonProperty("signature_original_image_url") String signatureOriginalImageUrl,
-        String description
+        String title
 ) {
 
     public static PostDetailResponse fromPostDetail(PostDetail detail) {
@@ -21,7 +21,7 @@ public record PostDetailResponse(
                 detail.originalImageUrl(),
                 detail.thumbnailImageUrl(),
                 detail.signatureOriginalImageUrl(),
-                detail.description()
+                detail.title()
         );
     }
 

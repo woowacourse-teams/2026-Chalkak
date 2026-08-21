@@ -65,7 +65,7 @@ class PostControllerTest {
                         .value("https://cdn.example.com/dev/posts/thumbnail.jpg"))
                 .andExpect(jsonPath("$.signature_original_image_url")
                         .value("https://cdn.example.com/dev/signatures/signature.png"))
-                .andExpect(jsonPath("$.description").value("오늘의 순간"));
+                .andExpect(jsonPath("$.title").value("오늘의 순간"));
     }
 
     @Test

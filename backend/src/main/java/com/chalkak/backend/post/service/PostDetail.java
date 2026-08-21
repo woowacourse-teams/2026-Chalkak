@@ -12,7 +12,7 @@ public record PostDetail(
         String originalImageUrl,
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
-        String description
+        String title
 ) {
 
     public static PostDetail from(
