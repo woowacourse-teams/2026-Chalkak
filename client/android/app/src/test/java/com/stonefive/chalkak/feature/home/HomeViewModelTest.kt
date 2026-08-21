@@ -44,13 +44,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `하단 탭 액션은 선택 상태를 바꾸고 네비게이션 이벤트를 전달한다`() = runTest {
+    fun `하단 탭 액션은 네비게이션 이벤트를 전달한다`() = runTest {
         viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
 
-        assertEquals(
-            ChalkakBottomBarItem.DISPLAY,
-            viewModel.uiState.value.selectedBottomBarItem,
-        )
         assertEquals(
             HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
             viewModel.uiEvent.first(),

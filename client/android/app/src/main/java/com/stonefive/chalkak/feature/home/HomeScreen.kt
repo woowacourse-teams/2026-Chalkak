@@ -62,7 +62,7 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
             ChalkakBottomBar(
-                selectedItem = uiState.selectedBottomBarItem,
+                selectedItem = ChalkakBottomBarItem.TODAY,
                 onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
                 onAddClick = { onAction(HomeUiAction.AddClicked) },
                 modifier = Modifier.fillMaxWidth(),

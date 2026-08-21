@@ -21,19 +21,19 @@ class LoginViewModelTest {
     private val viewModel = LoginViewModel(authRepository = repository)
 
     @Test
-    fun `소셜 로그인에 성공하면 홈 이동 이벤트를 전달한다`() = runTest {
+    fun `소셜 로그인에 성공하면 온보딩 이동 이벤트를 전달한다`() = runTest {
         viewModel.login(SocialLoginProvider.KAKAO)
 
         assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals(LoginUiEvent.NavigateToHome, viewModel.uiEvent.first())
+        assertEquals(LoginUiEvent.NavigateToOnboarding, viewModel.uiEvent.first())
         assertNull(viewModel.uiState.value.error)
     }
 
     @Test
-    fun `비회원으로 계속하면 홈 이동 이벤트를 전달한다`() = runTest {
+    fun `비회원으로 계속하면 온보딩 이동 이벤트를 전달한다`() = runTest {
         viewModel.continueAsGuest()
 
-        assertEquals(LoginUiEvent.NavigateToHome, viewModel.uiEvent.first())
+        assertEquals(LoginUiEvent.NavigateToOnboarding, viewModel.uiEvent.first())
     }
 
     @Test
