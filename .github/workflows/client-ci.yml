@@ -1,0 +1,210 @@
+name: Client CI
+
+on:
+  # Keep the pull request trigger unfiltered so the required gate always reports a status.
+  pull_request:
+    branches:
+      - client/develop
+  push:
+    branches:
+      - client/develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed clients
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect platform changes
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          else
+            base_sha="$PUSH_BEFORE_SHA"
+            head_sha="$PUSH_AFTER_SHA"
+          fi
+
+          if [[ "$base_sha" =~ ^0+$ ]]; then
+            changed_files="$(git ls-tree -r --name-only "$head_sha")"
+          else
+            changed_files="$(git diff --name-only "$base_sha...$head_sha")"
+          fi
+
+          echo "Changed files:"
+          printf '%s\n' "$changed_files"
+
+          android=false
+          ios=false
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(client/android/|\.github/workflows/)'; then
+            android=true
+          fi
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(client/iOS/|\.github/workflows/)'; then
+            ios=true
+          fi
+
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+          echo "Android changes detected: $android"
+          echo "iOS changes detected: $ios"
+
+  android:
+    name: Android CI
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: client/android
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Compile debug sources
+        run: ./gradlew compileDebugKotlin --stacktrace
+
+      - name: Check Kotlin code style
+        run: ./gradlew ktlintCheck --stacktrace
+
+      - name: Run Android lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-ci-failure-reports-${{ github.run_attempt }}
+          path: |
+            client/android/app/build/reports/**
+            client/android/app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ios:
+    name: iOS CI
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: client/iOS/chalkak
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      PROJECT: chalkak.xcodeproj
+      SCHEME: chalkak
+      DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5
+      DERIVED_DATA_PATH: /tmp/chalkak-derived-data
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Xcode
+        run: xcodebuild -version
+
+      - name: Build debug app
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            build
+
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -parallel-testing-enabled NO \
+            test \
+            -only-testing:chalkakTests
+
+  required:
+    name: Client CI gate
+    if: always()
+    needs:
+      - changes
+      - android
+      - ios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate platform results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ANDROID_CHANGED: ${{ needs.changes.outputs.android }}
+          ANDROID_RESULT: ${{ needs.android.result }}
+          IOS_CHANGED: ${{ needs.changes.outputs.ios }}
+          IOS_RESULT: ${{ needs.ios.result }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "::error::Failed to detect changed clients."
+            exit 1
+          fi
+
+          if [[ "$ANDROID_CHANGED" == "true" && "$ANDROID_RESULT" != "success" ]]; then
+            echo "::error::Android CI failed: $ANDROID_RESULT"
+            exit 1
+          fi
+
+          if [[ "$IOS_CHANGED" == "true" && "$IOS_RESULT" != "success" ]]; then
+            echo "::error::iOS CI failed: $IOS_RESULT"
+            exit 1
+          fi
+
+          echo "All changed client CI checks passed."

@@ -10,11 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun TermsDivider() {
+fun TermsDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -30,7 +29,7 @@ private fun TermsDividerPreview() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(ChalkakInputBackground),
+                .background(ChalkakTheme.colors.inputBackground),
         ) {
             Spacer(modifier = Modifier.height(49.dp))
             TermsDivider()

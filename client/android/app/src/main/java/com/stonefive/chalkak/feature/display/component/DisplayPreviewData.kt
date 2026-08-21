@@ -3,7 +3,7 @@ package com.stonefive.chalkak.feature.display.component
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.domain.model.Post
 
-internal val previewDisplayPost = Post(
+val previewDisplayPost = Post(
     id = "preview",
     imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}",
     signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
@@ -12,7 +12,7 @@ internal val previewDisplayPost = Post(
     likeCount = 17,
 )
 
-internal val previewDisplayPhotos = listOf(
+val previewDisplayPhotos = listOf(
     previewDisplayPost,
     previewDisplayPost.copy(
         id = "preview-2",

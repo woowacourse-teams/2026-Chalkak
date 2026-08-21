@@ -1,5 +1,5 @@
 package com.stonefive.chalkak.feature.login
 
 sealed interface LoginUiEvent {
-    data object NavigateToHome : LoginUiEvent
+    data object NavigateToOnboarding : LoginUiEvent
 }

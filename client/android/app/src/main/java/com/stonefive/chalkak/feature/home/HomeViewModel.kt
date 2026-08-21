@@ -35,7 +35,6 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
             HomeUiAction.AddClicked -> sendUiEvent(HomeUiEvent.OpenPhotoUpload)
 
             is HomeUiAction.BottomBarSelected -> {
-                _uiState.update { it.copy(selectedBottomBarItem = action.item) }
                 sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
             }
 

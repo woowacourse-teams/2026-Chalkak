@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.terms.component.TermsAllConsentRow
 import com.stonefive.chalkak.feature.terms.component.TermsDivider
@@ -71,7 +70,7 @@ fun TermsScreen(
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(ChalkakInputBackground),
+            .background(ChalkakTheme.colors.inputBackground),
     ) {
         Column(
             modifier = Modifier

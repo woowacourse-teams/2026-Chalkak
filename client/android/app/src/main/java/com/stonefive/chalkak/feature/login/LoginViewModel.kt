@@ -40,7 +40,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
 
             if (result.isSuccess) {
                 _uiState.value = LoginUiState()
-                _uiEvent.send(LoginUiEvent.NavigateToHome)
+                _uiEvent.send(LoginUiEvent.NavigateToOnboarding)
             } else {
                 _uiState.value = LoginUiState(error = result.exceptionOrNull())
             }

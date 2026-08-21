@@ -24,13 +24,12 @@ fun HomeTopic(
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .homeBottomDivider()
             .padding(
                 start = ChalkakTheme.spacing.screenHorizontal,
-                top = ChalkakTheme.spacing.lg,
                 end = ChalkakTheme.spacing.screenHorizontal,
-                bottom = ChalkakTheme.spacing.xxl,
+                top = 16.dp,
+                bottom = 40.dp,
             ),
     ) {
         Text(
@@ -48,7 +47,7 @@ fun HomeTopic(
     }
 }
 
-internal fun Modifier.homeBottomDivider(): Modifier = drawBehind {
+fun Modifier.homeBottomDivider(): Modifier = drawBehind {
     val strokeWidth = 0.5.dp.toPx()
     drawLine(
         color = HomeDivider,
@@ -65,6 +64,7 @@ private fun HomeTopicPreview() {
         HomeTopic(
             dateLabel = "8월 3일 · 오늘의 주제",
             topic = "하늘하늘하늘",
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

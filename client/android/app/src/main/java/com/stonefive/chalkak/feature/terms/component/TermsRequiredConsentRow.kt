@@ -21,7 +21,7 @@ import com.stonefive.chalkak.core.designsystem.component.checkbox.ChalkakCheckbo
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun TermsRequiredConsentRow(
+fun TermsRequiredConsentRow(
     text: String,
     checked: Boolean,
     onCheckedChange: () -> Unit,
