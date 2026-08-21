@@ -40,7 +40,7 @@ fun LoginRoute(
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
             when (event) {
-                LoginUiEvent.NavigateToHome -> {
+                LoginUiEvent.NavigateToOnboarding -> {
                     onLoginSuccess()
                 }
             }
