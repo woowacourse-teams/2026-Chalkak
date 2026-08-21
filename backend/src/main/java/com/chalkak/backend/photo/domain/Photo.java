@@ -2,8 +2,6 @@ package com.chalkak.backend.photo.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -12,7 +10,9 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
@@ -24,7 +24,8 @@ import org.hibernate.type.SqlTypes;
 public class Photo {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Generated
+    @ColumnDefault("uuidv7()")
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
