@@ -96,6 +96,7 @@ description: backend Java 운영 코드에서 예외를 정의·발생·변환�
 ```
 
 - 현재 프로젝트의 예외 응답 DTO와 공통 응답 생성 방식을 재사용한다.
+- 예외 응답의 `errorCode`에는 `ErrorCode` enum 상수 이름을 그대로 전달한다.
 - 개별 예외마다 별도의 응답 DTO나 `@ExceptionHandler`를 만들지 않는다.
 - 기존 공통 처리 경로로 표현할 수 없는 경우에만 예외 처리 구조 변경을 검토한다.
 
