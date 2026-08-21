@@ -58,12 +58,12 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.id").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.topic.id").value(TOPIC_ID.toString()))
                 .andExpect(jsonPath("$.topic.title").value("오늘 가장 기억에 남은 순간"))
-                .andExpect(jsonPath("$.topic.topic_date").value("2026-08-12"))
-                .andExpect(jsonPath("$.original_image_url")
+                .andExpect(jsonPath("$.topic.topicDate").value("2026-08-12"))
+                .andExpect(jsonPath("$.originalImageUrl")
                         .value("https://cdn.example.com/dev/posts/original.jpg"))
-                .andExpect(jsonPath("$.thumbnail_image_url")
+                .andExpect(jsonPath("$.thumbnailImageUrl")
                         .value("https://cdn.example.com/dev/posts/thumbnail.jpg"))
-                .andExpect(jsonPath("$.signature_original_image_url")
+                .andExpect(jsonPath("$.signatureOriginalImageUrl")
                         .value("https://cdn.example.com/dev/signatures/signature.png"))
                 .andExpect(jsonPath("$.title").value("오늘의 순간"));
     }
