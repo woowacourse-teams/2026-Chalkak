@@ -6,12 +6,12 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
 
-internal data class CameraCapture(
+data class CameraCapture(
     val file: File,
     val uri: Uri,
 )
 
-internal fun createCameraCapture(context: Context): CameraCapture {
+fun createCameraCapture(context: Context): CameraCapture {
     val file = File(
         context.cacheDir,
         "photo-upload/camera/${UUID.randomUUID()}.jpg",

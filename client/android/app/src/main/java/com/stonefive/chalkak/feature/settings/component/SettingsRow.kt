@@ -57,7 +57,7 @@ fun SettingsRow(
 }
 
 @Composable
-internal fun SettingsDivider(modifier: Modifier = Modifier) {
+fun SettingsDivider(modifier: Modifier = Modifier) {
     Spacer(
         modifier = modifier
             .padding(horizontal = 20.dp)
@@ -67,7 +67,7 @@ internal fun SettingsDivider(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun SettingsArrowIcon(modifier: Modifier = Modifier) {
+fun SettingsArrowIcon(modifier: Modifier = Modifier) {
     Icon(
         painter = painterResource(R.drawable.ic_display_arrow_right),
         contentDescription = null,
