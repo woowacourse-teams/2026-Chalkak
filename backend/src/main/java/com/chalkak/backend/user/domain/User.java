@@ -1,5 +1,7 @@
 package com.chalkak.backend.user.domain;
 
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,6 +25,9 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
+
+    private static final String WITHDRAWN_EMAIL_FORMAT = "withdrawn+%s@chalkak.invalid";
+    private static final String WITHDRAWN_SIGNATURE_KEY_FORMAT = "withdrawn/%s";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -57,11 +62,25 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    public void withdraw() {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
+        }
+        anonymize();
+        delete();
+    }
+
     public void delete() {
         this.deletedAt = Instant.now();
     }
 
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    private void anonymize() {
+        this.email = WITHDRAWN_EMAIL_FORMAT.formatted(id);
+        this.signatureOriginalStorageKey = WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
+        this.signatureThumbnailStorageKey = null;
     }
 }
