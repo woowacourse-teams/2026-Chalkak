@@ -10,6 +10,12 @@ spring:
       hibernate:
         format_sql: true
 
+chalkak:
+  image:
+    bucket: ${S3_BUCKET:chalkak-local-images}
+    base-url: ${CLOUDFRONT_BASE_URL:http://localhost:4566}
+    root-prefix: ${S3_PREFIX:chalkak/local}
+
 logging:
   level:
     org.hibernate.SQL: debug
