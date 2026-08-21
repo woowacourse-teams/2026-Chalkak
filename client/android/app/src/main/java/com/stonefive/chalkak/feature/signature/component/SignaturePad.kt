@@ -34,8 +34,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTextInactive
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.signature.SignaturePoint
 import com.stonefive.chalkak.feature.signature.SignatureStroke
@@ -55,7 +53,7 @@ internal fun SignaturePad(
     Column(
         modifier = modifier
             .clip(ChalkakTheme.shapes.large)
-            .background(ChalkakInputBackground)
+            .background(ChalkakTheme.colors.inputBackground)
             .border(
                 width = 1.dp,
                 color = borderColor,
@@ -175,7 +173,7 @@ private fun SignatureCanvas(
         if (strokes.none { it.points.isNotEmpty() }) {
             Text(
                 text = "사인",
-                color = ChalkakTextInactive,
+                color = ChalkakTheme.colors.textInactive,
                 style = ChalkakTheme.typography.handwriting.copy(
                     fontSize = 48.sp,
                     lineHeight = 52.sp,
