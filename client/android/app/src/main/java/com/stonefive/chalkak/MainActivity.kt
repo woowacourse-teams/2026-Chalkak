@@ -6,14 +6,13 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.display.DisplayRoute
-import com.stonefive.chalkak.feature.feed.FeedContentState
-import com.stonefive.chalkak.feature.feed.FeedRoute
+import com.stonefive.chalkak.feature.settings.SettingsRoute
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,31 +29,14 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                var selectedFeed by remember {
-                    mutableStateOf<FeedContentState.Success?>(null)
-                }
-
-                if (selectedFeed == null) {
-                    DisplayRoute(
-                        onOpenPhotoUpload = {},
-                        onNavigateToBottomBar = {},
-                        onOpenFeed = { post, dateLabel, topic ->
-                            selectedFeed = FeedContentState.Success(
-                                dateLabel = dateLabel,
-                                topic = topic,
-                                post = post,
-                                isLiked = false,
-                            )
-                        },
-                    )
-                } else {
-                    BackHandler { selectedFeed = null }
-
-                    FeedRoute(
-                        initialContent = selectedFeed,
-                        onNavigateBack = { selectedFeed = null },
-                    )
-                }
+                SettingsRoute(
+                    onNavigateToLogin = {},
+                    onNavigateToSignature = {},
+                    onOpenPrivacyPolicy = {},
+                    onOpenTerms = {},
+                    onNavigateToBottomBar = {},
+                    onOpenPhotoUpload = {},
+                )
             }
         }
     }
