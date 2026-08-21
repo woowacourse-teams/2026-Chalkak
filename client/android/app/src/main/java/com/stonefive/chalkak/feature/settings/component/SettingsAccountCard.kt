@@ -40,7 +40,7 @@ fun SettingsAccountCard(
 
         SettingsRow(
             text = "회원탈퇴",
-            textColor = Color(0xFFFF4D4F),
+            textColor = ChalkakTheme.colors.error,
             onClick = onWithdrawClick,
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),

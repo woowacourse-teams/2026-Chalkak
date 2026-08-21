@@ -1,7 +1,6 @@
 package com.stonefive.chalkak.feature.settings.component
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -18,7 +17,7 @@ fun SettingsSectionLabel(
         text = text,
         modifier = modifier,
         color = ChalkakTheme.colors.textMuted,
-        style = MaterialTheme.typography.labelLarge,
+        style = ChalkakTheme.typography.callout,
     )
 }
 
