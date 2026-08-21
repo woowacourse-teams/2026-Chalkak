@@ -174,18 +174,21 @@ fun LatestDisplayContent(
         gridState.scrollToItem(0)
     }
 
-    DisplayPhotoGrid(
-        photos = content.photos,
-        state = gridState,
-        headerContent = {
-            DisplaySortTabs(
-                selectedSort = content.selectedSort,
-                onSortSelected = onSortSelected,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        modifier = modifier,
-    )
+    Column(modifier = modifier) {
+        DisplaySortTabs(
+            selectedSort = content.selectedSort,
+            onSortSelected = onSortSelected,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        DisplayPhotoGrid(
+            photos = content.photos,
+            state = gridState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        )
+    }
 }
 
 @Composable

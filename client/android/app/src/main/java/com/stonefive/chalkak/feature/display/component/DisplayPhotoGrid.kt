@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.runtime.Composable
@@ -20,7 +19,6 @@ fun DisplayPhotoGrid(
     photos: List<Post>,
     modifier: Modifier = Modifier,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
-    headerContent: (@Composable () -> Unit)? = null,
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
@@ -35,14 +33,6 @@ fun DisplayPhotoGrid(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalItemSpacing = 9.dp,
     ) {
-        headerContent?.let { content ->
-            item(
-                key = "sort-header",
-                span = StaggeredGridItemSpan.FullLine,
-            ) {
-                content()
-            }
-        }
         items(
             items = photos,
             key = Post::id,
