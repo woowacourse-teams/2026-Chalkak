@@ -19,6 +19,11 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public Optional<User> findActiveById(UUID id) {
+        return userJpaRepository.findByIdAndDeletedAtIsNull(id);
+    }
+
+    @Override
     public User save(User user) {
         return userJpaRepository.save(user);
     }
