@@ -1,5 +1,6 @@
 package com.chalkak.backend.exception;
 
 public enum ErrorCode {
-    BUSINESS_ERROR
+    BUSINESS_ERROR,
+    UNAUTHORIZED
 }
