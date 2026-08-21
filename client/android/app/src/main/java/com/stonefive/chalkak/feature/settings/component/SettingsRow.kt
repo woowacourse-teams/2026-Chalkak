@@ -22,7 +22,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun SettingsRow(
+fun SettingsRow(
     text: String,
     modifier: Modifier = Modifier,
     textColor: Color = ChalkakTheme.colors.textPrimary,
