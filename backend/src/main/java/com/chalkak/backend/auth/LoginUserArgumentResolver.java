@@ -10,12 +10,10 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 /**
- * {@link LoginUser} 파라미터에 사용자 식별자를 주입한다.
- *
- * <p>Spring Security 도입 전까지 사용하는 임시 수단이다. 요청 헤더의 값을 그대로 신뢰하므로 운영 환경에 노출하면 누구나 남의 계정을 조작할 수 있다.
+ * Spring Security 도입 전까지 쓰는 임시 수단이다. 요청 헤더 값을 검증 없이 신뢰하므로 누구나 남의 계정을 조작할 수 있다.
  * {@link AuthWebConfig}가 등록 대상 환경을 제한한다.
  *
- * <p>Security 도입 시 이 클래스의 내부만 SecurityContext 조회로 교체한다.
+ * <p>Security 도입 시 이 클래스의 내부만 SecurityContext 조회로 교체하면 컨트롤러 아래는 바뀌지 않는다.
  */
 public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver {
 

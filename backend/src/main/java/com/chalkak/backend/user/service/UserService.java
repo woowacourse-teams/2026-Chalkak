@@ -16,11 +16,6 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    /**
-     * 회원을 탈퇴시킨다.
-     *
-     * <p>이미 탈퇴한 회원은 조회 단계에서 걸러지므로 존재하지 않는 회원과 동일하게 처리한다. 계정 존재 여부를 응답으로 노출하지 않기 위함이다.
-     */
     @Transactional
     public void withdraw(UUID userId) {
         User user = userRepository.findActiveById(userId)
