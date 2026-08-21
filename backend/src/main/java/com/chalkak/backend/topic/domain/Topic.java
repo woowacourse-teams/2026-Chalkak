@@ -1,12 +1,11 @@
-package com.chalkak.backend.user.domain;
+package com.chalkak.backend.topic.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -14,15 +13,13 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "users")
+@Table(name = "topics")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class Topic {
 
     @Id
     @Generated
@@ -30,22 +27,17 @@ public class User {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "email", nullable = false, length = 320)
-    private String email;
+    @Column(name = "title", nullable = false, length = 255)
+    private String title;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "status", nullable = false)
-    private UserStatus status;
+    @Column(name = "topic_date", nullable = false)
+    private LocalDate topicDate;
 
-    @Column(name = "signature_original_storage_key", nullable = false, length = 1024)
-    private String signatureOriginalStorageKey;
+    @Column(name = "start_at", nullable = false)
+    private Instant startAt;
 
-    @Column(name = "signature_thumbnail_storage_key", length = 1024)
-    private String signatureThumbnailStorageKey;
-
-    @Column(name = "app_version", length = 50)
-    private String appVersion;
+    @Column(name = "end_at", nullable = false)
+    private Instant endAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -57,12 +49,4 @@ public class User {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
-
-    public void delete() {
-        this.deletedAt = Instant.now();
-    }
-
-    public boolean isDeleted() {
-        return deletedAt != null;
-    }
 }

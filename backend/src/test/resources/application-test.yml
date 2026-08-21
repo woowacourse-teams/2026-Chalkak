@@ -1,3 +1,6 @@
+CLOUDFRONT_BASE_URL: https://cdn.example.com
+CLOUDFRONT_ORIGIN_PATH: /chalkak
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:${TEST_POSTGRES_PORT:5433}/${TEST_POSTGRES_DB:chalkak_test}

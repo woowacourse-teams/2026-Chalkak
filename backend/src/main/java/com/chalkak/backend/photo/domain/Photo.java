@@ -1,12 +1,11 @@
-package com.chalkak.backend.user.domain;
+package com.chalkak.backend.photo.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,10 +18,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "users")
+@Table(name = "photos")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class Photo {
 
     @Id
     @Generated
@@ -30,22 +29,15 @@ public class User {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "email", nullable = false, length = 320)
-    private String email;
+    @Column(name = "original_storage_key", nullable = false, length = 1024)
+    private String originalStorageKey;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "status", nullable = false)
-    private UserStatus status;
+    @Column(name = "thumbnail_storage_key", length = 1024)
+    private String thumbnailStorageKey;
 
-    @Column(name = "signature_original_storage_key", nullable = false, length = 1024)
-    private String signatureOriginalStorageKey;
-
-    @Column(name = "signature_thumbnail_storage_key", length = 1024)
-    private String signatureThumbnailStorageKey;
-
-    @Column(name = "app_version", length = 50)
-    private String appVersion;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", nullable = false, columnDefinition = "jsonb")
+    private Map<String, Object> metadata;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -57,12 +49,4 @@ public class User {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
-
-    public void delete() {
-        this.deletedAt = Instant.now();
-    }
-
-    public boolean isDeleted() {
-        return deletedAt != null;
-    }
 }
