@@ -52,8 +52,9 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
         isLiked: Boolean,
     ): HomeLikeResponse {
         delay(responseDelayMillis)
-        val defaultLikeCount = defaultLikeCounts[photoId]
-            ?: error("Unknown home photo: $photoId")
+        // Feed는 Display 등 다른 소스의 게시물도 열 수 있어 이 Mock이 모르는 id가 올 수 있다.
+        // 프로토타입 단계에서는 예외 대신 기본값으로 관대하게 처리한다.
+        val defaultLikeCount = defaultLikeCounts[photoId] ?: FALLBACK_LIKE_COUNT
         if (isLiked) {
             likedPhotoIds += photoId
         } else {
@@ -79,6 +80,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
         const val FIRST_PHOTO_LIKE_COUNT = 24
         const val SECOND_PHOTO_LIKE_COUNT = 12
         const val THIRD_PHOTO_LIKE_COUNT = 31
+        const val FALLBACK_LIKE_COUNT = 0
 
         val defaultLikeCounts = mapOf(
             FIRST_PHOTO_ID to FIRST_PHOTO_LIKE_COUNT,

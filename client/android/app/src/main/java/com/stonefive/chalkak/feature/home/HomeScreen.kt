@@ -79,6 +79,7 @@ fun HomeScreen(
             HomeTopic(
                 dateLabel = uiState.dateLabel,
                 topic = uiState.topic,
+                modifier = Modifier.fillMaxWidth(),
             )
             ChalkakSortSelector(
                 options = PostSort.entries,

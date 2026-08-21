@@ -9,6 +9,7 @@ val ChalkakBottomBar = Color(0xFF8C8479)
 val ChalkakAction = Color(0xFF2B2724)
 val ChalkakTextInactive = Color(0xFF9A968D)
 val ChalkakStroke = Color(0x26888888)
+val ChalkakThickDivider = Color(0xFF757575)
 val ChalkakInputCursor = Color(0xFFB0563B)
 val ChalkakWhite = Color(0xFFFFFFFF)
 
@@ -25,6 +26,7 @@ data class ChalkakColors(
     val textInactive: Color,
     val textOnImage: Color,
     val border: Color,
+    val divider: Color,
     val inputCursor: Color,
     val actionPrimary: Color,
     val onActionPrimary: Color,
@@ -46,6 +48,7 @@ val LightChalkakColors = ChalkakColors(
     textInactive = ChalkakTextInactive,
     textOnImage = ChalkakWhite,
     border = ChalkakStroke,
+    divider = ChalkakThickDivider,
     inputCursor = ChalkakInputCursor,
     actionPrimary = ChalkakAction,
     onActionPrimary = ChalkakWhite,
