@@ -48,7 +48,7 @@ fun HomeTopic(
     }
 }
 
-internal fun Modifier.homeBottomDivider(): Modifier = drawBehind {
+fun Modifier.homeBottomDivider(): Modifier = drawBehind {
     val strokeWidth = 0.5.dp.toPx()
     drawLine(
         color = HomeDivider,

@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun TermsDivider() {
+fun TermsDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()

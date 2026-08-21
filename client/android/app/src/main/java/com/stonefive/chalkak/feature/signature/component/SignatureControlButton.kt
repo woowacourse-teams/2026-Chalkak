@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun SignatureControlButton(
+fun SignatureControlButton(
     text: String,
     enabled: Boolean,
     onClick: () -> Unit,

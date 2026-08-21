@@ -34,7 +34,7 @@ data class ChalkakColors(
     val error: Color,
 )
 
-internal val LightChalkakColors = ChalkakColors(
+val LightChalkakColors = ChalkakColors(
     background = ChalkakBackground,
     surface = ChalkakBackground,
     surfaceElevated = ChalkakWhite,
