@@ -69,13 +69,14 @@ class PostControllerTest {
     }
 
     @Test
-    @DisplayName("게시물 ID 형식이 올바르지 않으면 400 응답을 반환한다")
+    @DisplayName("ID 형식이 올바르지 않으면 400 응답을 반환한다")
     void getPost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", "invalid-post-id"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("게시물 ID 형식이 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -85,7 +86,7 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts/{postId}", "1-1-1-1-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("게시물 ID 형식이 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
         then(postService).shouldHaveNoInteractions();
     }
 

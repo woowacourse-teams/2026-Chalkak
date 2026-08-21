@@ -1,7 +1,6 @@
 package com.chalkak.backend.post.api.v1.controller;
 
-import com.chalkak.backend.exception.BusinessException;
-import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostService;
@@ -22,24 +21,9 @@ public class PostController {
 
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPost(@PathVariable String postId) {
-        PostDetail detail = postService.getPost(parsePostId(postId));
+        UUID parsedPostId = CanonicalUuidParser.parse(postId);
+        PostDetail detail = postService.getPost(parsedPostId);
 
         return ResponseEntity.ok(PostDetailResponse.fromPostDetail(detail));
-    }
-
-    private UUID parsePostId(String postId) {
-        try {
-            UUID parsedPostId = UUID.fromString(postId);
-
-            if (!parsedPostId.toString().equalsIgnoreCase(postId)) {
-                throw new IllegalArgumentException();
-            }
-            return parsedPostId;
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "게시물 ID 형식이 올바르지 않습니다."
-            );
-        }
     }
 }
