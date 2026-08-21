@@ -1,5 +1,9 @@
 package com.stonefive.chalkak.feature.display
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -55,6 +59,26 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun `정렬을 변경하면 필터가 다시 표시되고 사진 그리드가 첫 항목으로 이동한다`() {
+        setDisplayContent(scrollableLatestUiState())
+
+        composeRule
+            .onNodeWithContentDescription("사진 1")
+            .performTouchInput { swipeUp() }
+        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+
+        composeRule
+            .onNodeWithContentDescription("사진 1")
+            .performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
+
+        composeRule.onNodeWithText("인기순").performClick()
+
+        composeRule.onNodeWithText("인기순").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+    }
+
+    @Test
     fun `전시 사진을 누르면 선택한 사진과 전시 정보로 피드 이동 콜백을 호출한다`() {
         var selected: Triple<Post, String, String>? = null
         setDisplayContent(
@@ -88,15 +112,25 @@ class DisplayScreenTest {
 
     private fun setDisplayContent(
         uiState: DisplayUiState,
+        onSortSelected: (PostSort) -> Unit = {},
         onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     ) {
         composeRule.setContent {
             ChalkakTheme {
+                var currentUiState by remember { mutableStateOf(uiState) }
+
                 DisplayScreen(
-                    uiState = uiState,
+                    uiState = currentUiState,
                     onPreviousDateClick = {},
                     onNextDateClick = {},
-                    onSortSelected = {},
+                    onSortSelected = { sort ->
+                        currentUiState = currentUiState.copy(
+                            content = (currentUiState.content as? DisplayContentState.Latest)
+                                ?.copy(selectedSort = sort)
+                                ?: currentUiState.content,
+                        )
+                        onSortSelected(sort)
+                    },
                     onFeaturedPageChanged = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
