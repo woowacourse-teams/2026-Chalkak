@@ -12,6 +12,7 @@ val ChalkakStroke = Color(0x26888888)
 val ChalkakThickDivider = Color(0xFF757575)
 val ChalkakInputCursor = Color(0xFFB0563B)
 val ChalkakWhite = Color(0xFFFFFFFF)
+val ChalkakDestructive = Color(0xFFFF5A5F)
 
 @Immutable
 data class ChalkakColors(
@@ -34,6 +35,7 @@ data class ChalkakColors(
     val iconSecondary: Color,
     val scrim: Color,
     val error: Color,
+    val destructive: Color,
 )
 
 val LightChalkakColors = ChalkakColors(
@@ -56,4 +58,5 @@ val LightChalkakColors = ChalkakColors(
     iconSecondary = ChalkakAction.copy(alpha = 0.62f),
     scrim = Color.Black.copy(alpha = 0.4f),
     error = Color(0xFFBA1A1A),
+    destructive = ChalkakDestructive,
 )

@@ -66,7 +66,7 @@ fun FeedTopBar(
         ) {
             Text(
                 text = "삭제",
-                color = ChalkakTheme.colors.error,
+                color = ChalkakTheme.colors.destructive,
                 style = ChalkakTheme.typography.body,
             )
         }
