@@ -21,6 +21,7 @@ import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 @Composable
 fun FeedRoute(
     onNavigateBack: () -> Unit,
+    onDeleteClick: () -> Unit,
     initialContent: FeedContentState.Success? = null,
     modifier: Modifier = Modifier,
     viewModel: FeedViewModel = viewModel(
@@ -33,6 +34,7 @@ fun FeedRoute(
     FeedScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
+        onDeleteClick = onDeleteClick,
         onLikeClick = viewModel::onLikeClicked,
         modifier = modifier,
     )
@@ -42,6 +44,7 @@ fun FeedRoute(
 fun FeedScreen(
     uiState: FeedUiState,
     onNavigateBack: () -> Unit,
+    onDeleteClick: () -> Unit,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -53,6 +56,7 @@ fun FeedScreen(
     ) {
         FeedTopBar(
             onNavigateBack = onNavigateBack,
+            onDeleteClick = onDeleteClick,
             modifier = Modifier.fillMaxWidth(),
         )
         FeedContent(
@@ -86,6 +90,7 @@ private fun FeedScreenPreview() {
                 ),
             ),
             onNavigateBack = {},
+            onDeleteClick = {},
             onLikeClick = {},
         )
     }

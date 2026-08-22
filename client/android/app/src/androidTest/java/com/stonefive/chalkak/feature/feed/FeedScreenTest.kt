@@ -21,12 +21,12 @@ class FeedScreenTest {
     fun `피드 화면은 주제와 게시물 정보를 표시한다`() {
         setFeedContent()
 
-        composeRule.onNodeWithText("피드").assertIsDisplayed()
         composeRule.onNodeWithText("8월 3일의 주제").assertIsDisplayed()
         composeRule.onNodeWithText("하늘하늘하늘").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("사진").assertIsDisplayed()
         composeRule.onNodeWithText("안녕하세요 찰캌입니다.").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("좋아요 24").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("삭제").assertIsDisplayed()
     }
 
     @Test
@@ -40,6 +40,19 @@ class FeedScreenTest {
             .performClick()
 
         assertTrue(backClicked)
+    }
+
+    @Test
+    fun `삭제 버튼을 누르면 콜백을 호출한다`() {
+        var deleteClicked = false
+        setFeedContent(onDeleteClick = { deleteClicked = true })
+
+        composeRule
+            .onNodeWithContentDescription("삭제")
+            .assertHasClickAction()
+            .performClick()
+
+        assertTrue(deleteClicked)
     }
 
     @Test
@@ -57,6 +70,7 @@ class FeedScreenTest {
 
     private fun setFeedContent(
         onNavigateBack: () -> Unit = {},
+        onDeleteClick: () -> Unit = {},
         onLikeClick: () -> Unit = {},
     ) {
         composeRule.setContent {
@@ -64,6 +78,7 @@ class FeedScreenTest {
                 FeedScreen(
                     uiState = feedUiState,
                     onNavigateBack = onNavigateBack,
+                    onDeleteClick = onDeleteClick,
                     onLikeClick = onLikeClick,
                 )
             }

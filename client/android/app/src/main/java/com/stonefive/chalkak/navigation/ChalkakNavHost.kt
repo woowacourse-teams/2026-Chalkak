@@ -116,6 +116,7 @@ fun ChalkakNavHost(
                     isLiked = false,
                 ),
                 onNavigateBack = { navController.popBackStack() },
+                onDeleteClick = { navController.popBackStack() },
             )
         }
 
