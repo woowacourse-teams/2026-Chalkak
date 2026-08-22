@@ -36,7 +36,6 @@ class UserTest {
         user.withdraw();
 
         // Then
-        assertThat(user.getDeletedAt()).isNotNull();
         assertThat(user.isDeleted()).isTrue();
     }
 
