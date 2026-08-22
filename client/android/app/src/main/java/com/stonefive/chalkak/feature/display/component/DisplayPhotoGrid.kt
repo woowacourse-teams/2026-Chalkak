@@ -27,7 +27,7 @@ fun DisplayPhotoGrid(
         state = state,
         contentPadding = PaddingValues(
             start = 21.dp,
-            top = 14.dp,
+            top = 4.dp,
             end = 21.dp,
             bottom = 36.dp,
         ),

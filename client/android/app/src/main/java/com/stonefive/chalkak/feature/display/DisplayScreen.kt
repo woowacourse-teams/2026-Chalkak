@@ -1,5 +1,10 @@
 package com.stonefive.chalkak.feature.display
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +27,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -185,17 +197,44 @@ fun LatestDisplayContent(
     onPhotoClick: (Post) -> Unit = {},
 ) {
     val gridState = rememberLazyStaggeredGridState()
+    var isSortVisible by remember { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput) {
+                    when {
+                        available.y < 0f -> isSortVisible = false
+                        available.y > 0f -> isSortVisible = true
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     LaunchedEffect(content.selectedSort) {
+        isSortVisible = true
         gridState.scrollToItem(0)
     }
 
-    Column(modifier = modifier) {
-        DisplaySortTabs(
-            selectedSort = content.selectedSort,
-            onSortSelected = onSortSelected,
-            modifier = Modifier.fillMaxWidth(),
-        )
+    Column(
+        modifier = modifier.nestedScroll(nestedScrollConnection),
+    ) {
+        AnimatedVisibility(
+            visible = isSortVisible,
+            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
+        ) {
+            DisplaySortTabs(
+                selectedSort = content.selectedSort,
+                onSortSelected = onSortSelected,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         DisplayPhotoGrid(
             photos = content.photos,
