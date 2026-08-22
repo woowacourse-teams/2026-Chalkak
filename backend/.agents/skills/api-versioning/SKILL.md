@@ -29,8 +29,10 @@ description: backend API Endpoint, Controller, Request·Response 계약을 추�
 - HTTP Method
 - Request JSON 필드명
 - Request 필드 타입과 필수 여부
+- Path Variable, Query Parameter, Multipart·Form 필드명
 - Response JSON 필드명
 - Response 필드 타입
+- 응답에 노출되는 에러 코드 식별자
 - HTTP 상태 코드
 - 인증 및 권한 처리 방식
 - API의 의미와 동작
@@ -63,6 +65,8 @@ description: backend API Endpoint, Controller, Request·Response 계약을 추�
 - HTTP Method 변경
 - 기존 Request 또는 Response 필드 삭제
 - 기존 Request 또는 Response 필드명 변경
+- 기존 Path Variable, Query Parameter, Multipart·Form 필드명 변경
+- 응답에 노출되는 기존 에러 코드 식별자 변경
 - 기존 필드 타입 변경
 - 필수 요청 필드 추가
 - Request 또는 Response 구조의 큰 변경
