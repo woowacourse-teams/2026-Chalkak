@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -60,7 +61,11 @@ class DisplayScreenTest {
 
     @Test
     fun `정렬을 변경하면 필터가 다시 표시되고 사진 그리드가 첫 항목으로 이동한다`() {
-        setDisplayContent(scrollableLatestUiState())
+        var selectedSort: PostSort? = null
+        setDisplayContent(
+            uiState = scrollableLatestUiState(),
+            onSortSelected = { selectedSort = it },
+        )
 
         composeRule
             .onNodeWithContentDescription("사진 1")
@@ -69,11 +74,18 @@ class DisplayScreenTest {
 
         composeRule
             .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeDown() }
+            .performTouchInput {
+                swipe(
+                    start = center,
+                    end = center.copy(y = center.y + 40f),
+                )
+            }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 
         composeRule.onNodeWithText("인기순").performClick()
 
+        assertEquals(PostSort.POPULAR, selectedSort)
         composeRule.onNodeWithText("인기순").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
     }
