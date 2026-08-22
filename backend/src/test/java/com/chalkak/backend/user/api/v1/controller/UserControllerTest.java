@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.AuthWebConfig;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
@@ -24,7 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(UserController.class)
-@Import({GlobalExceptionHandler.class, AuthWebConfig.class})
+@Import(GlobalExceptionHandler.class)
 class UserControllerTest {
 
     private static final String USER_ID_HEADER = "X-User-Id";
@@ -73,7 +72,7 @@ class UserControllerTest {
         mockMvc.perform(delete("/api/v1/users/me"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("X-User-Id 헤더가 필요합니다."));
+                .andExpect(jsonPath("$.message").value("X-User-Id: 필수 요청 값이 없습니다."));
 
         verify(userService, never()).withdraw(any());
     }
@@ -86,8 +85,39 @@ class UserControllerTest {
                         .header(USER_ID_HEADER, "not-a-uuid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("X-User-Id 헤더 형식이 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message").value("X-User-Id: 요청 값의 형식이 올바르지 않습니다."));
 
         verify(userService, never()).withdraw(any());
+    }
+
+    @Test
+    @DisplayName("사용자 식별자를 쿼리 파라미터로 보내면 탈퇴를 시도하지 않는다")
+    void withdraw_userIdAsQueryParameter_returnsBadRequest() throws Exception {
+        // Given
+        UUID victimId = UUID.randomUUID();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .param("userId", victimId.toString()))
+                .andExpect(status().isBadRequest());
+
+        verify(userService, never()).withdraw(any());
+    }
+
+    @Test
+    @DisplayName("쿼리 파라미터를 함께 보내도 헤더의 식별자로 탈퇴한다")
+    void withdraw_bothHeaderAndQueryParameter_usesHeader() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        UUID victimId = UUID.randomUUID();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .header(USER_ID_HEADER, userId.toString())
+                        .param("userId", victimId.toString()))
+                .andExpect(status().isNoContent());
+
+        verify(userService).withdraw(userId);
+        verify(userService, never()).withdraw(victimId);
     }
 }
