@@ -8,5 +8,7 @@ public interface UserRepository {
 
     Optional<User> findById(UUID id);
 
+    Optional<User> findActiveById(UUID id);
+
     User save(User user);
 }
