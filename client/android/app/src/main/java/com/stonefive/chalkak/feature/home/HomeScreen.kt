@@ -1,16 +1,29 @@
 package com.stonefive.chalkak.feature.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,6 +69,31 @@ fun HomeScreen(
     onAction: (HomeUiAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val photoListState = rememberLazyListState()
+    var isSortVisible by remember { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput) {
+                    when {
+                        available.y < 0f -> isSortVisible = false
+                        available.y > 0f -> isSortVisible = true
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.selectedSort) {
+        isSortVisible = true
+        photoListState.scrollToItem(0)
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
@@ -73,7 +111,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .nestedScroll(nestedScrollConnection),
         ) {
             HomeTopBar(modifier = Modifier.homeBottomDivider())
             HomeTopic(
@@ -81,13 +120,19 @@ fun HomeScreen(
                 topic = uiState.topic,
                 modifier = Modifier.fillMaxWidth(),
             )
-            ChalkakSortSelector(
-                options = PostSort.entries,
-                selectedOption = uiState.selectedSort,
-                optionLabel = { it.label },
-                onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            AnimatedVisibility(
+                visible = isSortVisible,
+                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
+            ) {
+                ChalkakSortSelector(
+                    options = PostSort.entries,
+                    selectedOption = uiState.selectedSort,
+                    optionLabel = { it.label },
+                    onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             HomePhotoList(
                 photos = uiState.photos,
                 likedPhotoIds = uiState.likedPhotoIds,
@@ -95,6 +140,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
+                state = photoListState,
             )
         }
     }
