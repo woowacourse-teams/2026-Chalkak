@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.data.remote.record
 
-import com.stonefive.chalkak.R
 import java.time.YearMonth
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -11,23 +10,30 @@ class MockRecordRemoteDataSourceTest {
     private val dataSource = MockRecordRemoteDataSource()
 
     @Test
-    fun returns14PhotosForInitialMonth() = runTest {
+    fun returnsRemotePhotosWithEmptyDatesForInitialMonth() = runTest {
         val response = dataSource.getRecord(YearMonth.of(2026, 8))
 
         assertEquals("2026-08", response.month)
-        assertEquals(14, response.photos.size)
+        assertEquals(24, response.photos.size)
         assertEquals(
-            "2026-08-02",
+            "2026-08-01",
             response.photos
                 .first()
                 .date,
         )
         assertEquals(
-            "android.resource://com.stonefive.chalkak/${R.drawable.record_landscape_photo}",
+            "https://picsum.photos/seed/chalkak-2026-08-01/600/800.jpg",
+            response.photos
+                .first()
+                .imageUrl,
+        )
+        assertEquals(
+            "https://picsum.photos/seed/chalkak-2026-08-21/800/600.jpg",
             response.photos
                 .single { it.date == "2026-08-21" }
                 .imageUrl,
         )
+        assertTrue(response.photos.none { it.date == "2026-08-04" })
     }
 
     @Test

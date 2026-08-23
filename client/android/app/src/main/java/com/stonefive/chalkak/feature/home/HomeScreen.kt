@@ -62,7 +62,7 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
             ChalkakBottomBar(
-                selectedItem = uiState.selectedBottomBarItem,
+                selectedItem = ChalkakBottomBarItem.TODAY,
                 onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
                 onAddClick = { onAction(HomeUiAction.AddClicked) },
                 modifier = Modifier.fillMaxWidth(),
@@ -79,6 +79,7 @@ fun HomeScreen(
             HomeTopic(
                 dateLabel = uiState.dateLabel,
                 topic = uiState.topic,
+                modifier = Modifier.fillMaxWidth(),
             )
             ChalkakSortSelector(
                 options = PostSort.entries,

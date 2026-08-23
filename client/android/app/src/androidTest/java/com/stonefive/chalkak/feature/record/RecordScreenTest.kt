@@ -43,15 +43,16 @@ class RecordScreenTest {
 
         composeRule.onNodeWithText("2026년 8월").assertIsDisplayed()
         composeRule.onNodeWithText("일").assertIsDisplayed()
-        composeRule.onNodeWithText("이번 달에는 1장을 담았어요").assertIsDisplayed()
         composeRule.onNodeWithText("이미지로 저장").assertIsDisplayed()
+        composeRule.onNodeWithText("피드에서 보기").assertIsDisplayed()
+        composeRule.onNodeWithText("전시 보러가기").assertIsDisplayed()
         composeRule.onNodeWithText("8월 2일 · 물결").assertIsDisplayed()
         composeRule
             .onNodeWithContentDescription("2026년 8월 2일 사진")
             .assertIsDisplayed()
         composeRule
             .onAllNodesWithContentDescription("2026년 8월 5일 사진 없음")
-            .assertCountEquals(1)
+            .assertCountEquals(0)
         composeRule
             .onAllNodesWithContentDescription("달력 빈 칸")
             .assertCountEquals(0)
@@ -105,6 +106,89 @@ class RecordScreenTest {
         composeRule.onNodeWithText("오늘").performClick()
 
         assertEquals(ChalkakBottomBarItem.TODAY, selectedItem)
+    }
+
+    @Test
+    fun opensSelectedPhotoInFeed() {
+        val photo = recordPhoto(day = 2)
+        var openedPhoto: RecordPhoto? = null
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        isLoading = false,
+                        photos = listOf(photo),
+                        selectedDate = photo.date,
+                    ),
+                    onPreviousMonthClick = {},
+                    onNextMonthClick = {},
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                    onOpenFeed = { openedPhoto = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("피드에서 보기").performClick()
+
+        assertEquals(photo, openedPhoto)
+    }
+
+    @Test
+    fun opensSelectedPhotoInDisplay() {
+        val photo = recordPhoto(day = 2)
+        var selectedItem: ChalkakBottomBarItem? = null
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        isLoading = false,
+                        photos = listOf(photo),
+                        selectedDate = photo.date,
+                    ),
+                    onPreviousMonthClick = {},
+                    onNextMonthClick = {},
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = { selectedItem = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("전시 보러가기").performClick()
+
+        assertEquals(ChalkakBottomBarItem.DISPLAY, selectedItem)
+    }
+
+    @Test
+    fun opensSelectedPhotoDateInDisplay() {
+        val photo = recordPhoto(day = 2)
+        var openedDate: LocalDate? = null
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        isLoading = false,
+                        photos = listOf(photo),
+                        selectedDate = photo.date,
+                    ),
+                    onPreviousMonthClick = {},
+                    onNextMonthClick = {},
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                    onOpenDisplay = { openedDate = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("전시 보러가기").performClick()
+
+        assertEquals(photo.date, openedDate)
     }
 }
 

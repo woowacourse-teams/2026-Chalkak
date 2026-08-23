@@ -19,6 +19,7 @@ fun DisplayPhotoGrid(
     photos: List<Post>,
     modifier: Modifier = Modifier,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
+    onPhotoClick: (Post) -> Unit = {},
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
@@ -26,7 +27,7 @@ fun DisplayPhotoGrid(
         state = state,
         contentPadding = PaddingValues(
             start = 21.dp,
-            top = 14.dp,
+            top = 4.dp,
             end = 21.dp,
             bottom = 36.dp,
         ),
@@ -37,7 +38,10 @@ fun DisplayPhotoGrid(
             items = photos,
             key = Post::id,
         ) { photo ->
-            DisplayPhotoCard(photo = photo)
+            DisplayPhotoCard(
+                photo = photo,
+                onClick = { onPhotoClick(photo) },
+            )
         }
     }
 }

@@ -25,21 +25,21 @@ class RecordViewModel(
     private var latestLoadGeneration = 0
 
     init {
-        loadRecord(initialMonth)
+        loadRecord(initialMonth, isInitialLoad = true)
     }
 
     fun moveToPreviousMonth() {
-        loadRecord(
-            month = _uiState.value.month
-                .minusMonths(1),
-        )
+        val state = _uiState.value
+        if (!state.canGoPrevious) return
+
+        loadRecord(state.month.minusMonths(1))
     }
 
     fun moveToNextMonth() {
-        loadRecord(
-            month = _uiState.value.month
-                .plusMonths(1),
-        )
+        val state = _uiState.value
+        if (!state.canGoNext) return
+
+        loadRecord(state.month.plusMonths(1))
     }
 
     fun selectDate(date: LocalDate) {
@@ -49,13 +49,13 @@ class RecordViewModel(
         _uiState.update { it.copy(selectedDate = date) }
     }
 
-    private fun loadRecord(month: YearMonth) {
+    private fun loadRecord(
+        month: YearMonth,
+        isInitialLoad: Boolean = false,
+    ) {
         val generation = ++latestLoadGeneration
         _uiState.update {
             it.copy(
-                month = month,
-                photos = emptyList(),
-                selectedDate = null,
                 isLoading = true,
                 errorMessage = null,
             )
@@ -65,6 +65,16 @@ class RecordViewModel(
             runCatching { repository.getRecord(month) }
                 .onSuccess { content ->
                     if (generation != latestLoadGeneration) return@onSuccess
+
+                    if (content.photos.isEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                unavailableMonths = it.unavailableMonths + content.month,
+                            )
+                        }
+                        return@onSuccess
+                    }
 
                     _uiState.update {
                         it.copy(
@@ -83,8 +93,11 @@ class RecordViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.message
-                                ?: "기록을 불러오지 못했어요",
+                            errorMessage = if (isInitialLoad) {
+                                error.message ?: "기록을 불러오지 못했어요"
+                            } else {
+                                null
+                            },
                         )
                     }
                 }

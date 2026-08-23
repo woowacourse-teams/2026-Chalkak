@@ -18,7 +18,27 @@ class SignatureFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun `서명을 저장하면 홈 화면이 열린다`() {
+    fun `로그인부터 사인 미리보기를 거쳐 홈과 전시 화면으로 이동한다`() {
+        composeRule.onNodeWithText("Google로 계속하기").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule
+                .onAllNodesWithText("전체 동의")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText("전체 동의").performClick()
+        composeRule
+            .onNodeWithText("다음")
+            .assertIsEnabled()
+            .performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule
+                .onAllNodesWithText("작가님의\n사인을 그려주세요")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
         composeRule.onNodeWithTag("signaturePad").performTouchInput {
             swipe(
                 start = Offset(width * 0.2f, height * 0.3f),
@@ -33,10 +53,27 @@ class SignatureFlowTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
+                .onAllNodesWithText("이렇게 보여요")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText("시작하기").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule
                 .onAllNodesWithText("하늘하늘하늘")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
         composeRule.onNodeWithText("하늘하늘하늘").assertIsDisplayed()
+
+        composeRule.onNodeWithText("전시").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule
+                .onAllNodesWithText("바다")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
     }
 }

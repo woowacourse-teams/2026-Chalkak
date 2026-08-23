@@ -1,11 +1,16 @@
 package com.stonefive.chalkak.feature.record
 
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -14,9 +19,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,14 +33,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
-import com.stonefive.chalkak.feature.record.component.RecordCalendarHeader
+import com.stonefive.chalkak.feature.record.component.RecordSaveLink
 import com.stonefive.chalkak.feature.record.component.RecordSelectedPhoto
+import com.stonefive.chalkak.feature.record.component.RecordTopBar
 import com.stonefive.chalkak.feature.record.component.RecordWeekdayHeader
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val RecordHorizontalPadding = 20.dp
 
@@ -41,6 +55,10 @@ fun RecordRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
+    onOpenFeed: (RecordPhoto) -> Unit = {},
+    onOpenDisplay: (LocalDate) -> Unit = {
+        onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
+    },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -51,6 +69,8 @@ fun RecordRoute(
         onDateClick = viewModel::selectDate,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
+        onOpenFeed = onOpenFeed,
+        onOpenDisplay = onOpenDisplay,
         modifier = modifier,
     )
 }
@@ -64,7 +84,38 @@ fun RecordScreen(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenFeed: (RecordPhoto) -> Unit = {},
+    onOpenDisplay: (LocalDate) -> Unit = {
+        onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
+    },
 ) {
+    val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val calendarLayer = rememberGraphicsLayer()
+    val saveCalendarImage: () -> Unit = {
+        coroutineScope.launch {
+            val image = calendarLayer.toImageBitmap()
+            val saved = withContext(Dispatchers.IO) {
+                saveCalendarImageToGallery(
+                    context = context,
+                    image = image,
+                    month = uiState.month,
+                )
+            }
+            Toast
+                .makeText(
+                    context,
+                    if (saved) {
+                        "달력을 이미지로 저장했어요"
+                    } else {
+                        "이미지 저장에 실패했어요"
+                    },
+                    Toast.LENGTH_SHORT,
+                ).show()
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
@@ -83,31 +134,75 @@ fun RecordScreen(
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
         ) {
-            RecordCalendarHeader(
-                month = uiState.month,
-                onPreviousMonthClick = onPreviousMonthClick,
-                onNextMonthClick = onNextMonthClick,
-            )
-            RecordWeekdayHeader(
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            RecordCalendarGrid(
-                month = uiState.month,
-                photos = uiState.photos,
-                selectedDate = uiState.selectedDate,
-                onDateClick = onDateClick,
-                modifier = Modifier.padding(top = 14.dp),
-            )
-            RecordSummary(
-                photoCount = uiState.photos.size,
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ChalkakBackground)
+                        .drawWithContent {
+                            calendarLayer.record {
+                                drawRect(color = ChalkakBackground)
+                                this@drawWithContent.drawContent()
+                            }
+                            drawLayer(calendarLayer)
+                        },
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        RecordTopBar(
+                            month = uiState.month,
+                            canGoPrevious = uiState.canGoPrevious,
+                            canGoNext = uiState.canGoNext,
+                            onPreviousMonthClick = onPreviousMonthClick,
+                            onNextMonthClick = onNextMonthClick,
+                            showSaveLink = false,
+                        )
+                        RecordWeekdayHeader(
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        RecordCalendarGrid(
+                            month = uiState.month,
+                            photos = uiState.photos,
+                            onDateClick = onDateClick,
+                            modifier = Modifier.padding(top = 14.dp),
+                        )
+                        if (uiState.selectedPhoto != null) {
+                            Spacer(modifier = Modifier.height(36.dp))
+                        }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(
+                            top = 20.dp,
+                            end = ChalkakTheme.spacing.screenHorizontal,
+                        ).height(48.dp)
+                        .padding(end = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    RecordSaveLink(onClick = saveCalendarImage)
+                }
+            }
             if (uiState.errorMessage == null) {
+                val selectedPhoto = uiState.selectedPhoto
                 RecordSelectedPhoto(
-                    photo = uiState.selectedPhoto,
-                    modifier = Modifier.fillMaxWidth(),
+                    photo = selectedPhoto,
                 )
+                if (selectedPhoto != null) {
+                    RecordPhotoActions(
+                        onFeedClick = {
+                            onOpenFeed(selectedPhoto)
+                        },
+                        onDisplayClick = {
+                            onOpenDisplay(selectedPhoto.date)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             } else {
                 Text(
                     text = uiState.errorMessage,
@@ -121,30 +216,33 @@ fun RecordScreen(
 }
 
 @Composable
-private fun RecordSummary(
-    photoCount: Int,
+private fun RecordPhotoActions(
+    onFeedClick: () -> Unit,
+    onDisplayClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = RecordHorizontalPadding,
-                vertical = 20.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.padding(
+            start = RecordHorizontalPadding,
+            top = 24.dp,
+            end = RecordHorizontalPadding,
+            bottom = 32.dp,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Text(
-            text = "이번 달에는 ${photoCount}장을 담았어요",
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
+        ChalkakOutlinedButton(
+            text = "피드에서 보기",
+            onClick = onFeedClick,
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
         )
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = "이미지로 저장",
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-            textDecoration = TextDecoration.Underline,
+        ChalkakOutlinedButton(
+            text = "전시 보러가기",
+            onClick = onDisplayClick,
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
         )
     }
 }

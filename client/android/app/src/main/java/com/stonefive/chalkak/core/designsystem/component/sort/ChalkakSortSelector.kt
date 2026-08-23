@@ -65,7 +65,7 @@ private fun ChalkakSortItem(
                 indication = null,
                 role = Role.RadioButton,
                 onClick = onClick,
-            ).padding(vertical = ChalkakTheme.spacing.md),
+            ).padding(top = 12.dp, bottom = 22.dp),
     ) {
         Text(
             text = label,

@@ -10,9 +10,16 @@ data class RecordUiState(
     val selectedDate: LocalDate? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val unavailableMonths: Set<YearMonth> = emptySet(),
 ) {
     val selectedPhoto: RecordPhoto?
         get() = photos.firstOrNull { it.date == selectedDate }
+
+    val canGoPrevious: Boolean
+        get() = !isLoading && month.minusMonths(1) !in unavailableMonths
+
+    val canGoNext: Boolean
+        get() = !isLoading && month.plusMonths(1) !in unavailableMonths
 }
 
 val INITIAL_RECORD_MONTH: YearMonth = YearMonth.of(2026, 8)

@@ -24,7 +24,7 @@ private val TermsCardShape = RoundedCornerShape(16.dp)
 private val TermsCardBorder = Color(0xFFE3E1DD)
 
 @Composable
-internal fun TermsAllConsentRow(
+fun TermsAllConsentRow(
     checked: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,

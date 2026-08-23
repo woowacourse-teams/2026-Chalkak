@@ -5,14 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.display.DisplayRoute
-import com.stonefive.chalkak.feature.record.RecordRoute
+import com.stonefive.chalkak.navigation.ChalkakNavHost
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,35 +23,8 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                var currentScreen by rememberSaveable {
-                    mutableStateOf(AppScreen.DISPLAY.name)
-                }
-
-                when (currentScreen) {
-                    AppScreen.DISPLAY.name -> DisplayRoute(
-                        onOpenPhotoUpload = {},
-                        onNavigateToBottomBar = { item ->
-                            if (item == ChalkakBottomBarItem.RECORD) {
-                                currentScreen = AppScreen.RECORD.name
-                            }
-                        },
-                    )
-
-                    AppScreen.RECORD.name -> RecordRoute(
-                        onOpenPhotoUpload = {},
-                        onNavigateToBottomBar = { item ->
-                            if (item == ChalkakBottomBarItem.DISPLAY) {
-                                currentScreen = AppScreen.DISPLAY.name
-                            }
-                        },
-                    )
-                }
+                ChalkakNavHost()
             }
         }
     }
-}
-
-private enum class AppScreen {
-    DISPLAY,
-    RECORD,
 }

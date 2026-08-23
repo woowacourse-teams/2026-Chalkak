@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class DisplayViewModel(private val repository: DisplayRepository) : ViewModel() {
+class DisplayViewModel(
+    private val repository: DisplayRepository,
+    private val initialDate: LocalDate? = null,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(DisplayUiState())
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
 
@@ -23,7 +26,7 @@ class DisplayViewModel(private val repository: DisplayRepository) : ViewModel() 
     private var selectedSort = PostSort.LATEST
 
     init {
-        loadDisplay(date = null)
+        loadDisplay(date = initialDate)
     }
 
     fun moveToPreviousDate() {
@@ -127,13 +130,16 @@ class DisplayViewModel(private val repository: DisplayRepository) : ViewModel() 
     }
 
     companion object {
-        val Factory = viewModelFactory {
+        fun factory(initialDate: LocalDate? = null) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 DisplayViewModel(
                     repository = application.appContainer.displayRepository,
+                    initialDate = initialDate,
                 )
             }
         }
+
+        val Factory = factory()
     }
 }

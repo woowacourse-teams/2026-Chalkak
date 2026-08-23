@@ -1,5 +1,10 @@
 package com.stonefive.chalkak.feature.display
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +27,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,8 +58,13 @@ import java.time.LocalDate
 fun DisplayRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    initialDate: LocalDate? = null,
     modifier: Modifier = Modifier,
-    viewModel: DisplayViewModel = viewModel(factory = DisplayViewModel.Factory),
+    viewModel: DisplayViewModel = viewModel(
+        key = "display-${initialDate ?: "latest"}",
+        factory = DisplayViewModel.factory(initialDate),
+    ),
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -59,6 +76,7 @@ fun DisplayRoute(
         onFeaturedPageChanged = viewModel::updateFeaturedPage,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
+        onOpenFeed = onOpenFeed,
         modifier = modifier,
     )
 }
@@ -73,6 +91,7 @@ fun DisplayScreen(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     Scaffold(
         modifier = modifier,
@@ -112,6 +131,15 @@ fun DisplayScreen(
                 content = uiState.content,
                 onSortSelected = onSortSelected,
                 onFeaturedPageChanged = onFeaturedPageChanged,
+                onPhotoClick = { photo ->
+                    onOpenFeed(
+                        photo,
+                        uiState.selectedDate
+                            ?.toFeedDateLabel()
+                            .orEmpty(),
+                        uiState.topic,
+                    )
+                },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
@@ -126,6 +154,7 @@ fun DisplayBody(
     onSortSelected: (PostSort) -> Unit,
     onFeaturedPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onPhotoClick: (Post) -> Unit = {},
 ) {
     when (content) {
         DisplayContentState.Loading -> DisplayLoadingContent(modifier = modifier)
@@ -133,12 +162,14 @@ fun DisplayBody(
         is DisplayContentState.Latest -> LatestDisplayContent(
             content = content,
             onSortSelected = onSortSelected,
+            onPhotoClick = onPhotoClick,
             modifier = modifier,
         )
 
         is DisplayContentState.Archive -> ArchiveDisplayContent(
             content = content,
             onFeaturedPageChanged = onFeaturedPageChanged,
+            onPhotoClick = onPhotoClick,
             modifier = modifier,
         )
 
@@ -167,23 +198,52 @@ fun LatestDisplayContent(
     content: DisplayContentState.Latest,
     onSortSelected: (PostSort) -> Unit,
     modifier: Modifier = Modifier,
+    onPhotoClick: (Post) -> Unit = {},
 ) {
     val gridState = rememberLazyStaggeredGridState()
+    var isSortVisible by remember { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput) {
+                    when {
+                        available.y < 0f -> isSortVisible = false
+                        available.y > 0f -> isSortVisible = true
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     LaunchedEffect(content.selectedSort) {
+        isSortVisible = true
         gridState.scrollToItem(0)
     }
 
-    Column(modifier = modifier) {
-        DisplaySortTabs(
-            selectedSort = content.selectedSort,
-            onSortSelected = onSortSelected,
-            modifier = Modifier.fillMaxWidth(),
-        )
+    Column(
+        modifier = modifier.nestedScroll(nestedScrollConnection),
+    ) {
+        AnimatedVisibility(
+            visible = isSortVisible,
+            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
+        ) {
+            DisplaySortTabs(
+                selectedSort = content.selectedSort,
+                onSortSelected = onSortSelected,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         DisplayPhotoGrid(
             photos = content.photos,
             state = gridState,
+            onPhotoClick = onPhotoClick,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
@@ -196,6 +256,7 @@ fun ArchiveDisplayContent(
     content: DisplayContentState.Archive,
     onFeaturedPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onPhotoClick: (Post) -> Unit = {},
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
@@ -217,6 +278,7 @@ fun ArchiveDisplayContent(
                 photos = content.featuredPhotos,
                 selectedPage = content.featuredPage,
                 onPageChanged = onFeaturedPageChanged,
+                onPhotoClick = onPhotoClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
@@ -226,7 +288,10 @@ fun ArchiveDisplayContent(
             items = content.photos,
             key = Post::id,
         ) { photo ->
-            DisplayPhotoCard(photo = photo)
+            DisplayPhotoCard(
+                photo = photo,
+                onClick = { onPhotoClick(photo) },
+            )
         }
     }
 }
@@ -345,3 +410,5 @@ private fun DisplayScreenPreviewContent(uiState: DisplayUiState) {
         )
     }
 }
+
+private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"

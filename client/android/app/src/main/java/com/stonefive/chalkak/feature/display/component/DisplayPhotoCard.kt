@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.display.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -31,18 +33,33 @@ fun DisplayPhotoCard(
     photo: Post,
     modifier: Modifier = Modifier,
     variant: DisplayPhotoCardVariant = DisplayPhotoCardVariant.GRID,
+    onClick: (() -> Unit)? = null,
 ) {
     val isFeatured = variant == DisplayPhotoCardVariant.FEATURED
+    val photoClickModifier = if (onClick == null) {
+        Modifier
+    } else {
+        Modifier
+            .semantics(mergeDescendants = true) {
+                contentDescription = photo.contentDescription
+            }.clickable(
+                interactionSource = null,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+    }
 
     Box(
         modifier = modifier
             .clip(ChalkakTheme.shapes.photoCard)
-            .background(Color.Black),
+            .background(Color.Black)
+            .then(photoClickModifier),
     ) {
         ChalkakSignedImage(
             imageModel = photo.imageUrl,
             signatureModel = photo.signatureUrl,
-            contentDescription = photo.contentDescription,
+            contentDescription = if (onClick == null) photo.contentDescription else null,
             contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
             signatureModifier = Modifier.size(
                 width = if (isFeatured) 48.dp else 40.dp,

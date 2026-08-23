@@ -39,7 +39,7 @@ import com.stonefive.chalkak.feature.signature.SignaturePoint
 import com.stonefive.chalkak.feature.signature.SignatureStroke
 
 @Composable
-internal fun SignaturePad(
+fun SignaturePad(
     strokes: List<SignatureStroke>,
     enabled: Boolean,
     onStrokeStarted: (SignaturePoint) -> Unit,

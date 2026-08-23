@@ -17,16 +17,10 @@ class MockRecordRemoteDataSource(private val responseDelayMillis: Long = 0L) : R
                     val isLandscapePhoto = day == LANDSCAPE_PHOTO_DAY
                     RecordPhotoResponse(
                         date = month.atDay(day).toString(),
-                        imageUrl = drawableResourceUrl(
-                            if (isLandscapePhoto) {
-                                R.drawable.record_landscape_photo
-                            } else {
-                                R.drawable.home_feed_photo
-                            },
-                        ),
+                        imageUrl = picsumPhotoUrl(month, day, isLandscapePhoto),
                         signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        contentDescription = if (isLandscapePhoto) "바다" else "노을과 전신주",
-                        title = if (isLandscapePhoto) "하루" else "물결",
+                        contentDescription = "인터넷 Mock 사진",
+                        title = if (isLandscapePhoto) "하루" else "사진 $day",
                     )
                 }
             } else {
@@ -37,9 +31,19 @@ class MockRecordRemoteDataSource(private val responseDelayMillis: Long = 0L) : R
 
     private companion object {
         val INITIAL_MONTH: YearMonth = YearMonth.of(2026, 8)
-        val PHOTO_DAYS = listOf(2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 18, 19, 21)
+        val PHOTO_DAYS = (1..31).filter { it % 4 != 0 }
         const val LANDSCAPE_PHOTO_DAY = 21
+        const val PHOTO_URL = "https://picsum.photos/seed/chalkak"
 
         fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+
+        fun picsumPhotoUrl(
+            month: YearMonth,
+            day: Int,
+            isLandscapePhoto: Boolean,
+        ): String {
+            val dimensions = if (isLandscapePhoto) "800/600" else "600/800"
+            return "$PHOTO_URL-$month-${day.toString().padStart(2, '0')}/$dimensions.jpg"
+        }
     }
 }

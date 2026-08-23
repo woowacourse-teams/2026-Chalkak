@@ -10,7 +10,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -62,15 +61,16 @@ class RecordViewModelTest {
     }
 
     @Test
-    fun clearsSelectionWhenMovingToNextMonth() = runTest {
+    fun doesNotMoveToMonthWithoutPhotos() = runTest {
         advanceUntilIdle()
 
         viewModel.moveToNextMonth()
         advanceUntilIdle()
 
-        assertEquals(INITIAL_RECORD_MONTH.plusMonths(1), viewModel.uiState.value.month)
-        assertEquals(emptyList<RecordPhoto>(), viewModel.uiState.value.photos)
-        assertNull(viewModel.uiState.value.selectedDate)
+        assertEquals(INITIAL_RECORD_MONTH, viewModel.uiState.value.month)
+        assertEquals(2, viewModel.uiState.value.photos.size)
+        assertEquals(LocalDate.of(2026, 8, 2), viewModel.uiState.value.selectedDate)
+        assertEquals(false, viewModel.uiState.value.canGoNext)
         assertEquals(
             listOf(INITIAL_RECORD_MONTH, INITIAL_RECORD_MONTH.plusMonths(1)),
             repository.requests,

@@ -37,6 +37,21 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `전달받은 날짜의 전시 상태로 시작한다`() = runTest {
+        val selectedRepository = FakeDisplayRepository()
+        val selectedViewModel = DisplayViewModel(
+            repository = selectedRepository,
+            initialDate = ARCHIVE_DATE,
+        )
+
+        assertEquals(ARCHIVE_DATE, selectedViewModel.uiState.value.selectedDate)
+        assertEquals(
+            listOf(ARCHIVE_DATE to PostSort.LATEST),
+            selectedRepository.requests,
+        )
+    }
+
+    @Test
     fun `이전 날짜로 이동하면 과거 전시 상태를 만든다`() = runTest {
         viewModel.moveToPreviousDate()
 
