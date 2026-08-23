@@ -43,4 +43,20 @@ class ChalkakRouteTest {
             assertEquals(route, restored)
         }
     }
+
+    @Test
+    fun `photo upload success route preserves submission context after serialization`() {
+        val route = PhotoUploadSuccess(
+            imageModel = "content://media/photo/1",
+            caption = "한낮의 다리",
+            dateLabel = "2025. 07. 18",
+            topic = "다리",
+            nickname = "@@",
+            exhibitionCount = 128,
+        )
+
+        val restored = Json.decodeFromString<PhotoUploadSuccess>(Json.encodeToString(route))
+
+        assertEquals(route, restored)
+    }
 }
