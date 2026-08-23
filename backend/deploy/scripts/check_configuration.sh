@@ -26,6 +26,7 @@ required_keys=(
   S3_BUCKET
   S3_PREFIX
   CLOUDFRONT_BASE_URL
+  CLOUDFRONT_ORIGIN_PATH
 )
 
 for key in "${required_keys[@]}"; do
