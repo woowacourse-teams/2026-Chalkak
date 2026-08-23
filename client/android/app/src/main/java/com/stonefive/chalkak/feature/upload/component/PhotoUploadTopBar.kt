@@ -43,10 +43,10 @@ fun PhotoUploadTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_arrow_back),
+                painter = painterResource(R.drawable.ic_display_arrow_left),
                 contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
 
@@ -71,7 +71,11 @@ private fun PhotoUploadTopBarPreview() {
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 26.dp),
+                .padding(
+                    start = 4.dp,
+                    top = 26.dp,
+                    bottom = 26.dp,
+                ),
         )
     }
 }

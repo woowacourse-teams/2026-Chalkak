@@ -112,7 +112,11 @@ fun PhotoUploadScreen(
             onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 26.dp),
+                .padding(
+                    start = 4.dp,
+                    top = 26.dp,
+                    bottom = 26.dp,
+                ),
         )
 
         PhotoUploadImageArea(

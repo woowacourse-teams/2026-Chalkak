@@ -62,7 +62,12 @@ fun FeedScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 26.dp),
+                .padding(
+                    start = 4.dp,
+                    top = 26.dp,
+                    end = 12.dp,
+                    bottom = 26.dp,
+                ),
         )
         FeedContent(
             content = uiState.content,
