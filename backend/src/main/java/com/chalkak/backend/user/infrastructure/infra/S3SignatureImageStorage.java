@@ -48,11 +48,12 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
 
     @Override
     public String toImageUrl(String storageKey) {
+        String publicPath = removeRootPrefix(storageKey);
         String baseUrl = imageProperties.baseUrl();
         if (baseUrl.endsWith(PATH_DELIMITER)) {
-            return baseUrl + storageKey;
+            return baseUrl + publicPath;
         }
-        return baseUrl + PATH_DELIMITER + storageKey;
+        return baseUrl + PATH_DELIMITER + publicPath;
     }
 
     private Optional<StoredImageMetadata> findImage(String storageKey) {
@@ -64,6 +65,17 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
         } catch (NoSuchKeyException exception) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * CloudFront 오리진이 {@code {bucket}/{root-prefix}}를 가리키므로 공개 URL에는 root-prefix가 들어가지 않는다.
+     */
+    private String removeRootPrefix(String storageKey) {
+        String rootPrefix = imageProperties.rootPrefix();
+        if (!storageKey.startsWith(rootPrefix + PATH_DELIMITER)) {
+            throw new IllegalArgumentException("스토리지 키는 root-prefix로 시작해야 합니다: " + rootPrefix);
+        }
+        return storageKey.substring(rootPrefix.length() + PATH_DELIMITER.length());
     }
 
     private String toStagingStorageKey(UUID uploadId) {

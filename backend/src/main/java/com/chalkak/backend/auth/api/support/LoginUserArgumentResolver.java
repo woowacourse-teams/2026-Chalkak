@@ -12,7 +12,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 @Component
-@Profile({"local", "test"})
+@Profile("!prod")
 public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver {
 
     private static final String USER_ID_HEADER = "X-User-Id";

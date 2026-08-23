@@ -66,40 +66,40 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("사용자 식별 헤더가 없으면 탈퇴를 시도하지 않는다")
-    void withdraw_missingUserIdHeader_returnsBadRequest() throws Exception {
+    @DisplayName("사용자 식별 헤더가 없으면 401을 반환한다")
+    void withdraw_missingUserIdHeader_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("X-User-Id: 필수 요청 값이 없습니다."));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
         verify(userService, never()).withdraw(any());
     }
 
     @Test
-    @DisplayName("사용자 식별 헤더가 UUID 형식이 아니면 탈퇴를 시도하지 않는다")
-    void withdraw_invalidUserIdHeader_returnsBadRequest() throws Exception {
+    @DisplayName("사용자 식별 헤더가 UUID 형식이 아니면 401을 반환한다")
+    void withdraw_invalidUserIdHeader_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me")
                         .header(USER_ID_HEADER, "not-a-uuid"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("X-User-Id: 요청 값의 형식이 올바르지 않습니다."));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
         verify(userService, never()).withdraw(any());
     }
 
     @Test
     @DisplayName("사용자 식별자를 쿼리 파라미터로 보내면 탈퇴를 시도하지 않는다")
-    void withdraw_userIdAsQueryParameter_returnsBadRequest() throws Exception {
+    void withdraw_userIdAsQueryParameter_returnsUnauthorized() throws Exception {
         // Given
         UUID victimId = UUID.randomUUID();
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me")
                         .param("userId", victimId.toString()))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
 
         verify(userService, never()).withdraw(any());
     }
