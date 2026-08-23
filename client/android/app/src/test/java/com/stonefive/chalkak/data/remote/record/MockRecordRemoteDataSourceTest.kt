@@ -14,6 +14,7 @@ class MockRecordRemoteDataSourceTest {
         val response = dataSource.getRecord(YearMonth.of(2026, 8))
 
         assertEquals("2026-08", response.month)
+        assertEquals(listOf("2026-08"), response.availableMonths)
         assertEquals(24, response.photos.size)
         assertEquals(
             "2026-08-01",
@@ -41,6 +42,7 @@ class MockRecordRemoteDataSourceTest {
         val response = dataSource.getRecord(YearMonth.of(2026, 9))
 
         assertEquals("2026-09", response.month)
+        assertEquals(listOf("2026-08"), response.availableMonths)
         assertTrue(response.photos.isEmpty())
     }
 }

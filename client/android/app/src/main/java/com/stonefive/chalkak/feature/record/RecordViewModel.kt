@@ -70,7 +70,7 @@ class RecordViewModel(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                unavailableMonths = it.unavailableMonths + content.month,
+                                availableMonths = content.availableMonths - content.month,
                             )
                         }
                         return@onSuccess
@@ -85,6 +85,7 @@ class RecordViewModel(
                                 ?.date,
                             isLoading = false,
                             errorMessage = null,
+                            availableMonths = content.availableMonths + content.month,
                         )
                     }
                 }.onFailure { error ->

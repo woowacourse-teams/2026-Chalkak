@@ -12,6 +12,7 @@ class MockRecordRemoteDataSource(private val responseDelayMillis: Long = 0L) : R
 
         return RecordResponse(
             month = month.toString(),
+            availableMonths = listOf(INITIAL_MONTH.toString()),
             photos = if (month == INITIAL_MONTH) {
                 PHOTO_DAYS.map { day ->
                     val isLandscapePhoto = day == LANDSCAPE_PHOTO_DAY

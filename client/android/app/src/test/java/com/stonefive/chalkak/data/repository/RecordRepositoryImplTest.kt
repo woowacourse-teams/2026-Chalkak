@@ -18,6 +18,10 @@ class RecordRepositoryImplTest {
         val content = repository.getRecord(YearMonth.of(2026, 8))
 
         assertEquals(YearMonth.of(2026, 8), content.month)
+        assertEquals(
+            setOf(YearMonth.of(2026, 7), YearMonth.of(2026, 8)),
+            content.availableMonths,
+        )
         assertEquals(1, content.photos.size)
         assertEquals(
             2,
@@ -37,6 +41,7 @@ class RecordRepositoryImplTest {
 private class FakeRecordRemoteDataSource : RecordRemoteDataSource {
     override suspend fun getRecord(month: YearMonth): RecordResponse = RecordResponse(
         month = month.toString(),
+        availableMonths = listOf("2026-07", "2026-08"),
         photos = listOf(
             RecordPhotoResponse(
                 date = "2026-08-02",

@@ -15,6 +15,7 @@ class RecordRepositoryImpl(private val remoteDataSource: RecordRemoteDataSource)
     private fun RecordResponse.toDomain(): RecordContent = RecordContent(
         month = YearMonth.parse(month),
         photos = photos.map { it.toDomain() },
+        availableMonths = availableMonths.mapTo(mutableSetOf(), YearMonth::parse),
     )
 
     private fun RecordPhotoResponse.toDomain(): RecordPhoto = RecordPhoto(

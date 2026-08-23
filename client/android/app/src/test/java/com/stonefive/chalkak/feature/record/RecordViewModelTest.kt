@@ -61,43 +61,66 @@ class RecordViewModelTest {
     }
 
     @Test
-    fun doesNotMoveToMonthWithoutPhotos() = runTest {
+    fun disablesMonthsWithoutPhotosBeforeNavigation() = runTest {
         advanceUntilIdle()
 
+        assertEquals(false, viewModel.uiState.value.canGoPrevious)
+        assertEquals(false, viewModel.uiState.value.canGoNext)
+
+        viewModel.moveToPreviousMonth()
         viewModel.moveToNextMonth()
         advanceUntilIdle()
 
         assertEquals(INITIAL_RECORD_MONTH, viewModel.uiState.value.month)
-        assertEquals(2, viewModel.uiState.value.photos.size)
-        assertEquals(LocalDate.of(2026, 8, 2), viewModel.uiState.value.selectedDate)
-        assertEquals(false, viewModel.uiState.value.canGoNext)
-        assertEquals(
-            listOf(INITIAL_RECORD_MONTH, INITIAL_RECORD_MONTH.plusMonths(1)),
-            repository.requests,
+        assertEquals(listOf(INITIAL_RECORD_MONTH), repository.requests)
+    }
+
+    @Test
+    fun movesOnlyToAvailableAdjacentMonth() = runTest {
+        val nextMonth = INITIAL_RECORD_MONTH.plusMonths(1)
+        repository = FakeRecordRepository(
+            availableMonths = setOf(INITIAL_RECORD_MONTH, nextMonth),
         )
+        viewModel = RecordViewModel(repository)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.canGoNext)
+
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+
+        assertEquals(nextMonth, viewModel.uiState.value.month)
+        assertEquals(false, viewModel.uiState.value.canGoNext)
+        assertEquals(true, viewModel.uiState.value.canGoPrevious)
+        assertEquals(listOf(INITIAL_RECORD_MONTH, nextMonth), repository.requests)
     }
 }
 
-private class FakeRecordRepository : RecordRepository {
+private class FakeRecordRepository(private val availableMonths: Set<YearMonth> = setOf(INITIAL_RECORD_MONTH)) :
+    RecordRepository {
     val requests = mutableListOf<YearMonth>()
 
     override suspend fun getRecord(month: YearMonth): RecordContent {
         requests += month
         return RecordContent(
             month = month,
-            photos = if (month == INITIAL_RECORD_MONTH) {
+            photos = if (month in availableMonths) {
                 listOf(
-                    recordPhoto(day = 2),
-                    recordPhoto(day = 5),
+                    recordPhoto(month = month, day = 2),
+                    recordPhoto(month = month, day = 5),
                 )
             } else {
                 emptyList()
             },
+            availableMonths = availableMonths,
         )
     }
 
-    private fun recordPhoto(day: Int): RecordPhoto = RecordPhoto(
-        date = LocalDate.of(2026, 8, day),
+    private fun recordPhoto(
+        month: YearMonth,
+        day: Int,
+    ): RecordPhoto = RecordPhoto(
+        date = month.atDay(day),
         imageUrl = "photo-$day",
         signatureUrl = "signature-$day",
         contentDescription = "사진 $day",
