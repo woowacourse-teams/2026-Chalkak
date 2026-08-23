@@ -31,5 +31,6 @@ class DisplayRepositoryImpl(private val remoteDataSource: DisplayRemoteDataSourc
         contentDescription = contentDescription,
         title = title,
         likeCount = likeCount,
+        isOwnedByCurrentUser = isOwnedByCurrentUser,
     )
 }

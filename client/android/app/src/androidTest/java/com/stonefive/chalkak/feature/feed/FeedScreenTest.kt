@@ -1,8 +1,10 @@
 package com.stonefive.chalkak.feature.feed
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -56,6 +58,20 @@ class FeedScreenTest {
     }
 
     @Test
+    fun `다른 사용자의 게시물에는 삭제 버튼을 표시하지 않는다`() {
+        setFeedContent(
+            uiState = feedUiState.copy(
+                content = feedUiState.content?.copy(
+                    post = feedUiState.content.post
+                        .copy(isOwnedByCurrentUser = false),
+                ),
+            ),
+        )
+
+        composeRule.onAllNodesWithContentDescription("삭제").assertCountEquals(0)
+    }
+
+    @Test
     fun `좋아요 영역을 누르면 콜백을 호출한다`() {
         var likeClicked = false
         setFeedContent(onLikeClick = { likeClicked = true })
@@ -69,6 +85,7 @@ class FeedScreenTest {
     }
 
     private fun setFeedContent(
+        uiState: FeedUiState = feedUiState,
         onNavigateBack: () -> Unit = {},
         onDeleteClick: () -> Unit = {},
         onLikeClick: () -> Unit = {},
@@ -76,7 +93,7 @@ class FeedScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 FeedScreen(
-                    uiState = feedUiState,
+                    uiState = uiState,
                     onNavigateBack = onNavigateBack,
                     onDeleteClick = onDeleteClick,
                     onLikeClick = onLikeClick,
@@ -97,6 +114,7 @@ private val feedUiState = FeedUiState(
             contentDescription = "사진",
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,
+            isOwnedByCurrentUser = true,
         ),
         isLiked = false,
     ),

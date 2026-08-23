@@ -26,6 +26,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun FeedTopBar(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
+    isDeleteVisible: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -51,23 +52,25 @@ fun FeedTopBar(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .semantics { contentDescription = "삭제" }
-                .clickable(
-                    interactionSource = null,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onDeleteClick,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "삭제",
-                color = ChalkakTheme.colors.destructive,
-                style = ChalkakTheme.typography.callout,
-            )
+        if (isDeleteVisible) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .semantics { contentDescription = "삭제" }
+                    .clickable(
+                        interactionSource = null,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onDeleteClick,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "삭제",
+                    color = ChalkakTheme.colors.destructive,
+                    style = ChalkakTheme.typography.callout,
+                )
+            }
         }
     }
 }
@@ -79,6 +82,7 @@ private fun FeedTopBarPreview() {
         FeedTopBar(
             onNavigateBack = {},
             onDeleteClick = {},
+            isDeleteVisible = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
