@@ -45,7 +45,8 @@ fun RecordTopBar(
             .fillMaxWidth()
             .padding(
                 top = 20.dp,
-                end = ChalkakTheme.spacing.screenHorizontal,
+                start = 15.dp,
+                end = 25.dp,
             ).padding(start = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
