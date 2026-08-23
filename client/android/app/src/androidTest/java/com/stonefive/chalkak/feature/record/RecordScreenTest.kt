@@ -86,6 +86,35 @@ class RecordScreenTest {
     }
 
     @Test
+    fun keepsMonthNavigationCallbacks() {
+        var previousMonthClicked = false
+        var nextMonthClicked = false
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        isLoading = false,
+                        photos = listOf(recordPhoto(day = 2)),
+                        selectedDate = LocalDate.of(2026, 8, 2),
+                    ),
+                    onPreviousMonthClick = { previousMonthClicked = true },
+                    onNextMonthClick = { nextMonthClicked = true },
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("이전 달").performClick()
+        composeRule.onNodeWithContentDescription("다음 달").performClick()
+
+        assertEquals(true, previousMonthClicked)
+        assertEquals(true, nextMonthClicked)
+    }
+
+    @Test
     fun showsRecordBottomBarSelection() {
         var selectedItem: ChalkakBottomBarItem? = null
 

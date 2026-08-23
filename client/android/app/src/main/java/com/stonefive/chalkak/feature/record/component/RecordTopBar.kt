@@ -26,19 +26,17 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val MonthFormatter = DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)
-private val Weekdays = listOf("일", "월", "화", "수", "목", "금", "토")
-private val CalendarHorizontalPadding = 20.dp
 
 @Composable
 fun RecordTopBar(
     month: YearMonth,
     onPreviousMonthClick: () -> Unit,
     onNextMonthClick: () -> Unit,
+    modifier: Modifier = Modifier,
     canGoPrevious: Boolean = true,
     canGoNext: Boolean = true,
     onSaveClick: () -> Unit = {},
     showSaveLink: Boolean = true,
-    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
@@ -75,42 +73,14 @@ fun RecordTopBar(
         )
         Spacer(modifier = Modifier.weight(1f))
         if (showSaveLink) {
-            RecordSaveLink(
-                onClick = onSaveClick,
-                modifier = Modifier.padding(end = 12.dp),
-            )
-        }
-    }
-}
-
-@Composable
-fun RecordSaveLink(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        text = "이미지로 저장",
-        color = ChalkakTheme.colors.textMuted,
-        style = ChalkakTheme.typography.footnote,
-        textDecoration = TextDecoration.Underline,
-        modifier = modifier.clickable(onClick = onClick),
-    )
-}
-
-@Composable
-fun RecordWeekdayHeader(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = CalendarHorizontalPadding),
-    ) {
-        Weekdays.forEach { weekday ->
             Text(
-                text = weekday,
+                text = "이미지로 저장",
                 color = ChalkakTheme.colors.textMuted,
-                style = ChalkakTheme.typography.caption,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f),
+                style = ChalkakTheme.typography.footnote,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .clickable(onClick = onSaveClick),
             )
         }
     }
@@ -149,13 +119,5 @@ private fun RecordTopBarPreview() {
             onPreviousMonthClick = {},
             onNextMonthClick = {},
         )
-    }
-}
-
-@Preview(showBackground = true, widthDp = 402)
-@Composable
-private fun RecordWeekdayHeaderPreview() {
-    ChalkakTheme {
-        RecordWeekdayHeader()
     }
 }

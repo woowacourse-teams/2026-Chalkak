@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.record
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,7 +40,6 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
-import com.stonefive.chalkak.feature.record.component.RecordSaveLink
 import com.stonefive.chalkak.feature.record.component.RecordSelectedPhoto
 import com.stonefive.chalkak.feature.record.component.RecordTopBar
 import com.stonefive.chalkak.feature.record.component.RecordWeekdayHeader
@@ -184,7 +185,13 @@ fun RecordScreen(
                         .padding(end = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    RecordSaveLink(onClick = saveCalendarImage)
+                    Text(
+                        text = "이미지로 저장",
+                        color = ChalkakTheme.colors.textMuted,
+                        style = ChalkakTheme.typography.footnote,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(onClick = saveCalendarImage),
+                    )
                 }
             }
             if (uiState.errorMessage == null) {
