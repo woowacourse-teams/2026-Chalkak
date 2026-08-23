@@ -32,8 +32,15 @@ class PhotoUploadViewModel : ViewModel() {
             }
 
             PhotoUploadUiAction.SubmitClicked -> {
-                if (_uiState.value.canSubmit) {
-                    sendUiEvent(PhotoUploadUiEvent.PhotoSubmitted)
+                val state = _uiState.value
+                if (state.canSubmit) {
+                    sendUiEvent(
+                        PhotoUploadUiEvent.NavigateToSuccess(
+                            imageModel = checkNotNull(state.selectedImage),
+                            caption = state.caption,
+                            content = state.successContent,
+                        ),
+                    )
                 }
             }
         }

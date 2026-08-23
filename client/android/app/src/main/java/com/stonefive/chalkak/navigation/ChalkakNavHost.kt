@@ -27,6 +27,8 @@ import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
+import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
+import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
 
 @Composable
 fun ChalkakNavHost(
@@ -147,7 +149,39 @@ fun ChalkakNavHost(
         composable<PhotoUpload> {
             PhotoUploadRoute(
                 onBack = { navController.popBackStack() },
-                onSubmitted = { navController.popBackStack() },
+                onSubmitted = { submission ->
+                    navController.navigate(
+                        PhotoUploadSuccess(
+                            imageModel = submission.imageModel,
+                            caption = submission.caption,
+                            dateLabel = submission.content.dateLabel,
+                            topic = submission.content.topic,
+                            nickname = submission.content.nickname,
+                            exhibitionCount = submission.content.exhibitionCount,
+                        ),
+                    )
+                },
+            )
+        }
+
+        composable<PhotoUploadSuccess> { backStackEntry ->
+            val success = backStackEntry.toRoute<PhotoUploadSuccess>()
+
+            PhotoUploadSuccessScreen(
+                imageModel = success.imageModel,
+                caption = success.caption,
+                content = PhotoUploadSuccessContent(
+                    dateLabel = success.dateLabel,
+                    topic = success.topic,
+                    nickname = success.nickname,
+                    exhibitionCount = success.exhibitionCount,
+                ),
+                onConfirmClick = {
+                    navController.navigate(Display) {
+                        popUpTo<PhotoUpload> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
             )
         }
     }

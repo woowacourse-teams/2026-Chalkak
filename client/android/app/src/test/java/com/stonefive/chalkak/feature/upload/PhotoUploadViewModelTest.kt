@@ -41,12 +41,21 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
-    fun `사진이 있으면 제출 이벤트를 보낸다`() = runTest {
-        viewModel.onImageSelected("content://media/photo/1")
+    fun `사진이 있으면 성공 화면 이동 이벤트를 보낸다`() = runTest {
+        val image = "content://media/photo/1"
+        viewModel.onImageSelected(image)
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
-        assertEquals(PhotoUploadUiEvent.PhotoSubmitted, viewModel.uiEvent.first())
+        assertEquals(
+            PhotoUploadUiEvent.NavigateToSuccess(
+                imageModel = image,
+                caption = "한낮의 다리",
+                content = PhotoUploadSuccessContent(),
+            ),
+            viewModel.uiEvent.first(),
+        )
     }
 
     @Test

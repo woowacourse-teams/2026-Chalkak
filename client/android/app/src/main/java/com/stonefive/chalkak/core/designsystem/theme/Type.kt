@@ -119,6 +119,14 @@ private val Handwriting = TextStyle(
     letterSpacing = 0.sp,
 )
 
+private val PhotoCardTitle = TextStyle(
+    fontFamily = GriunHangeulBanguri,
+    fontWeight = FontWeight.Normal,
+    fontSize = 19.sp,
+    lineHeight = 22.sp,
+    letterSpacing = 0.sp,
+)
+
 @Immutable
 data class ChalkakTypography(
     val display: TextStyle,
@@ -133,6 +141,7 @@ data class ChalkakTypography(
     val caption: TextStyle,
     val brand: TextStyle,
     val handwriting: TextStyle,
+    val photoCardTitle: TextStyle,
 )
 
 val DefaultChalkakTypography = ChalkakTypography(
@@ -148,6 +157,7 @@ val DefaultChalkakTypography = ChalkakTypography(
     caption = Caption,
     brand = Brand,
     handwriting = Handwriting,
+    photoCardTitle = PhotoCardTitle,
 )
 
 val ChalkakMaterialTypography = Typography(
