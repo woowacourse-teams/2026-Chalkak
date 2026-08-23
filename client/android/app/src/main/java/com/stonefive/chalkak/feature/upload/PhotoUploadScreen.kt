@@ -43,7 +43,7 @@ import java.io.File
 @Composable
 fun PhotoUploadRoute(
     onBack: () -> Unit,
-    onSubmitted: () -> Unit,
+    onSubmitted: (PhotoUploadSubmission) -> Unit,
     modifier: Modifier = Modifier,
     signatureModel: String? = drawableResourceUrl(R.drawable.preview_signature),
     viewModel: PhotoUploadViewModel = viewModel(factory = PhotoUploadViewModel.Factory),
@@ -63,9 +63,15 @@ fun PhotoUploadRoute(
 
                 PhotoUploadUiEvent.OpenCamera -> photoPickerState.openCamera()
 
-                PhotoUploadUiEvent.PhotoSubmitted -> {
+                is PhotoUploadUiEvent.NavigateToSuccess -> {
                     viewModel.reset()
-                    onSubmitted()
+                    onSubmitted(
+                        PhotoUploadSubmission(
+                            imageModel = event.imageModel,
+                            caption = event.caption,
+                            content = event.content,
+                        ),
+                    )
                 }
             }
         }
