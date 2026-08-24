@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.topic.service.TopicDetail;
-import com.chalkak.backend.topic.service.TopicQueryService;
+import com.chalkak.backend.topic.service.TopicService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -31,7 +31,7 @@ class TopicControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private TopicQueryService topicQueryService;
+    private TopicService topicService;
 
     @Test
     @DisplayName("공개일로 주제를 조회한다")
@@ -45,7 +45,7 @@ class TopicControllerTest {
                 Instant.parse("2026-08-12T15:00:00Z"),
                 TopicPhase.OPEN
         );
-        given(topicQueryService.getTopic(TOPIC_DATE)).willReturn(detail);
+        given(topicService.getTopic(TOPIC_DATE)).willReturn(detail);
 
         // When & Then
         mockMvc.perform(get("/api/v1/topics").param("date", "2026-08-12"))

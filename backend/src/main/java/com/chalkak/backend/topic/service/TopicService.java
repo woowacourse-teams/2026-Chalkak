@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class TopicQueryService {
+public class TopicService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 

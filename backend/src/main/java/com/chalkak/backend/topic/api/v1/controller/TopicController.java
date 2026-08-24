@@ -2,7 +2,7 @@ package com.chalkak.backend.topic.api.v1.controller;
 
 import com.chalkak.backend.topic.api.v1.dto.response.TopicDetailResponse;
 import com.chalkak.backend.topic.service.TopicDetail;
-import com.chalkak.backend.topic.service.TopicQueryService;
+import com.chalkak.backend.topic.service.TopicService;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,13 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/topics")
 public class TopicController {
 
-    private final TopicQueryService topicQueryService;
+    private final TopicService topicService;
 
     @GetMapping
     public ResponseEntity<TopicDetailResponse> getTopic(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        TopicDetail detail = topicQueryService.getTopic(date);
+        TopicDetail detail = topicService.getTopic(date);
 
         return ResponseEntity.ok(TopicDetailResponse.fromTopicDetail(detail));
     }

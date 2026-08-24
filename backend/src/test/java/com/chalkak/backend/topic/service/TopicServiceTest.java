@@ -21,14 +21,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-class TopicQueryServiceTest extends IntegrationTestSupport {
+class TopicServiceTest extends IntegrationTestSupport {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final String TITLE = "오늘 가장 기억에 남은 순간";
 
     @Autowired
-    private TopicQueryService topicQueryService;
+    private TopicService topicService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -57,7 +57,7 @@ class TopicQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("공개일로 주제를 조회한다")
     void getTopic_openedTopic_returnsTopicDetail() {
         // When
-        TopicDetail detail = topicQueryService.getTopic(today);
+        TopicDetail detail = topicService.getTopic(today);
 
         // Then
         assertThat(detail.id()).isEqualTo(TOPIC_ID);
@@ -75,7 +75,7 @@ class TopicQueryServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> topicQueryService.getTopic(tomorrow)
+                () -> topicService.getTopic(tomorrow)
         );
 
         // Then
@@ -93,7 +93,7 @@ class TopicQueryServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> topicQueryService.getTopic(dateWithoutTopic)
+                () -> topicService.getTopic(dateWithoutTopic)
         );
 
         // Then
