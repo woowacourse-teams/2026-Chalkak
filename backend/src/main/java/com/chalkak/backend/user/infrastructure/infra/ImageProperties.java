@@ -18,7 +18,8 @@ public record ImageProperties(
                 message = "root-prefix는 앞뒤 슬래시와 빈 구간 없이 작성해야 합니다."
         )
         String rootPrefix,
-        Signature signature
+        Signature signature,
+        boolean anonymousAccess
 ) {
 
     public record Signature(long maxBytes, List<String> allowedContentTypes) {

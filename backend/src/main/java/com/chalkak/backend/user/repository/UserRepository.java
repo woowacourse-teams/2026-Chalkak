@@ -10,5 +10,7 @@ public interface UserRepository {
 
     Optional<User> findActiveById(UUID id);
 
+    boolean existsBySignatureOriginalStorageKey(String storageKey);
+
     User save(User user);
 }

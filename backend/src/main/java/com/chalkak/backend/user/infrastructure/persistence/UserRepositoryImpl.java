@@ -24,6 +24,11 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public boolean existsBySignatureOriginalStorageKey(String storageKey) {
+        return userJpaRepository.existsBySignatureOriginalStorageKey(storageKey);
+    }
+
+    @Override
     public User save(User user) {
         return userJpaRepository.save(user);
     }

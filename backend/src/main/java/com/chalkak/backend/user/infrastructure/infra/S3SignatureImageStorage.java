@@ -2,6 +2,7 @@ package com.chalkak.backend.user.infrastructure.infra;
 
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
+import java.net.HttpURLConnection;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -64,6 +65,13 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
             return Optional.of(new StoredImageMetadata(response.contentType(), response.contentLength()));
         } catch (NoSuchKeyException exception) {
             return Optional.empty();
+        } catch (S3Exception exception) {
+            // s3:ListBucket 권한이 없으면 S3가 객체 존재를 숨기려고 404 대신 403을 준다.
+            // 호출자 입장에서 둘을 구분할 수 없으므로 없는 것으로 본다.
+            if (exception.statusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
+                return Optional.empty();
+            }
+            throw exception;
         }
     }
 

@@ -2,11 +2,16 @@ package com.chalkak.backend.user.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
+import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,5 +34,18 @@ public class UserController {
         userService.withdraw(loginUser.userId());
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/me/signature")
+    public ResponseEntity<UserSignatureResponse> updateSignature(
+            @LoginUser AuthenticatedUser loginUser,
+            @Valid @RequestBody UserSignatureUpdateRequest request
+    ) {
+        String imageUrl = userService.updateSignature(
+                loginUser.userId(),
+                request.signatureOriginalUploadId()
+        );
+
+        return ResponseEntity.ok(new UserSignatureResponse(imageUrl));
     }
 }
