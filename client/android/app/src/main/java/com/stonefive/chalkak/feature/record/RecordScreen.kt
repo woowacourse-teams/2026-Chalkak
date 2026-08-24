@@ -8,10 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,11 +39,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
+import com.stonefive.chalkak.feature.record.component.RecordPhotoActions
 import com.stonefive.chalkak.feature.record.component.RecordSelectedPhoto
 import com.stonefive.chalkak.feature.record.component.RecordTopBar
 import com.stonefive.chalkak.feature.record.component.RecordWeekdayHeader
@@ -255,39 +253,7 @@ fun RecordScreen(
     }
 }
 
-@Composable
-private fun RecordPhotoActions(
-    onFeedClick: () -> Unit,
-    onDisplayClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.padding(
-            start = RecordHorizontalPadding,
-            top = 24.dp,
-            end = RecordHorizontalPadding,
-            bottom = 32.dp,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        ChalkakOutlinedButton(
-            text = "피드에서 보기",
-            onClick = onFeedClick,
-            modifier = Modifier
-                .weight(1f)
-                .height(56.dp),
-        )
-        ChalkakOutlinedButton(
-            text = "전시 보러가기",
-            onClick = onDisplayClick,
-            modifier = Modifier
-                .weight(1f)
-                .height(56.dp),
-        )
-    }
-}
-
-@Preview(showBackground = true, widthDp = 402, heightDp = 874)
+@Preview(showBackground = true, widthDp = 402, heightDp = 1000)
 @Composable
 private fun RecordScreenPreview() {
     val photo = RecordPhoto(
