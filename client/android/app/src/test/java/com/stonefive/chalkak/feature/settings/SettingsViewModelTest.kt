@@ -44,11 +44,38 @@ class SettingsViewModelTest {
         repository.profile = UserProfile(signatureUrl = null)
         val viewModel = createViewModel()
 
-        viewModel.logout()
+        viewModel.showLogoutDialog()
+
+        assertFalse(repository.logoutCalled)
+
+        viewModel.confirmAccountAction()
 
         assertEquals(SettingsUiEvent.NavigateToLogin, viewModel.uiEvent.first())
         assertTrue(repository.logoutCalled)
         assertFalse(viewModel.uiState.value.isLoggedIn)
+    }
+
+    @Test
+    fun `계정 작업 다이얼로그를 취소하면 API를 호출하지 않는다`() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.showLogoutDialog()
+        viewModel.dismissAccountDialog()
+
+        assertEquals(null, viewModel.uiState.value.accountDialog)
+        assertFalse(repository.logoutCalled)
+    }
+
+    @Test
+    fun `회원탈퇴 확인 시 회원탈퇴 API를 호출한다`() = runTest {
+        repository.profile = UserProfile(signatureUrl = null)
+        val viewModel = createViewModel()
+
+        viewModel.showWithdrawDialog()
+        viewModel.confirmAccountAction()
+
+        assertEquals(SettingsUiEvent.NavigateToLogin, viewModel.uiEvent.first())
+        assertTrue(repository.withdrawCalled)
     }
 
     private fun createViewModel() = SettingsViewModel(
@@ -60,6 +87,7 @@ class SettingsViewModelTest {
 private class FakeSettingsAuthRepository : AuthRepository {
     var profile: UserProfile? = null
     var logoutCalled: Boolean = false
+    var withdrawCalled: Boolean = false
 
     override suspend fun login(provider: SocialLoginProvider): AuthSession.Authenticated =
         AuthSession.Authenticated(provider)
@@ -74,6 +102,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     }
 
     override suspend fun withdraw() {
+        withdrawCalled = true
         profile = null
     }
 }

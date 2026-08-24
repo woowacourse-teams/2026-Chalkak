@@ -4,9 +4,11 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -50,9 +52,47 @@ class SettingsScreenTest {
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)
     }
 
+    @Test
+    fun `로그아웃 확인 다이얼로그를 표시하고 확인할 수 있다`() {
+        var confirmed = false
+        setSettingsContent(
+            uiState = SettingsUiState(
+                isLoggedIn = true,
+                versionName = "1.0",
+                accountDialog = SettingsAccountDialog.LOGOUT,
+            ),
+            onAccountDialogConfirm = { confirmed = true },
+        )
+
+        composeRule.onNodeWithText("정말 로그아웃 하시겠습니까?").assertIsDisplayed()
+        composeRule.onNodeWithTag(CONFIRM_BUTTON_TEST_TAG).performClick()
+
+        assertTrue(confirmed)
+    }
+
+    @Test
+    fun `회원탈퇴 확인 다이얼로그를 취소할 수 있다`() {
+        var dismissed = false
+        setSettingsContent(
+            uiState = SettingsUiState(
+                isLoggedIn = true,
+                versionName = "1.0",
+                accountDialog = SettingsAccountDialog.WITHDRAW,
+            ),
+            onAccountDialogDismiss = { dismissed = true },
+        )
+
+        composeRule.onNodeWithText("정말 회원탈퇴 하시겠습니까?").assertIsDisplayed()
+        composeRule.onNodeWithText("취소").performClick()
+
+        assertTrue(dismissed)
+    }
+
     private fun setSettingsContent(
         uiState: SettingsUiState,
         onLoginClick: () -> Unit = {},
+        onAccountDialogConfirm: () -> Unit = {},
+        onAccountDialogDismiss: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -64,6 +104,8 @@ class SettingsScreenTest {
                     onTermsClick = {},
                     onLogoutClick = {},
                     onWithdrawClick = {},
+                    onAccountDialogConfirm = onAccountDialogConfirm,
+                    onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
                 )

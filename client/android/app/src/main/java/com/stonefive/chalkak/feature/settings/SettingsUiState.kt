@@ -6,4 +6,10 @@ data class SettingsUiState(
     val isAccountActionInProgress: Boolean = false,
     val signatureModel: Any? = null,
     val versionName: String,
+    val accountDialog: SettingsAccountDialog? = null,
 )
+
+enum class SettingsAccountDialog {
+    LOGOUT,
+    WITHDRAW,
+}

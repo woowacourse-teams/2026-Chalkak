@@ -35,9 +35,27 @@ class SettingsViewModel(
         loadProfile()
     }
 
-    fun logout() = clearProfile(authRepository::logout)
+    fun showLogoutDialog() {
+        _uiState.update { it.copy(accountDialog = SettingsAccountDialog.LOGOUT) }
+    }
 
-    fun withdraw() = clearProfile(authRepository::withdraw)
+    fun showWithdrawDialog() {
+        _uiState.update { it.copy(accountDialog = SettingsAccountDialog.WITHDRAW) }
+    }
+
+    fun dismissAccountDialog() {
+        _uiState.update { it.copy(accountDialog = null) }
+    }
+
+    fun confirmAccountAction() {
+        val accountDialog = _uiState.value.accountDialog ?: return
+        _uiState.update { it.copy(accountDialog = null) }
+
+        when (accountDialog) {
+            SettingsAccountDialog.LOGOUT -> clearProfile(authRepository::logout)
+            SettingsAccountDialog.WITHDRAW -> clearProfile(authRepository::withdraw)
+        }
+    }
 
     private fun clearProfile(block: suspend () -> Unit) {
         if (_uiState.value.isAccountActionInProgress) return

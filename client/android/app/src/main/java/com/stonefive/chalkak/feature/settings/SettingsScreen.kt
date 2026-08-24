@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
@@ -20,6 +21,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.settings.component.SettingsAccountCard
 import com.stonefive.chalkak.feature.settings.component.SettingsInformationCard
@@ -57,8 +60,10 @@ fun SettingsRoute(
         onChangeSignatureClick = onNavigateToSignature,
         onPrivacyPolicyClick = onOpenPrivacyPolicy,
         onTermsClick = onOpenTerms,
-        onLogoutClick = viewModel::logout,
-        onWithdrawClick = viewModel::withdraw,
+        onLogoutClick = viewModel::showLogoutDialog,
+        onWithdrawClick = viewModel::showWithdrawDialog,
+        onAccountDialogConfirm = viewModel::confirmAccountAction,
+        onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
     )
@@ -73,10 +78,24 @@ fun SettingsScreen(
     onTermsClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onWithdrawClick: () -> Unit,
+    onAccountDialogConfirm: () -> Unit,
+    onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    uiState.accountDialog?.let { accountDialog ->
+        ChalkakConfirmDialog(
+            title = accountDialog.title,
+            message = accountDialog.message,
+            confirmText = accountDialog.confirmText,
+            onConfirm = onAccountDialogConfirm,
+            onDismiss = onAccountDialogDismiss,
+            modifier = Modifier.width(AccountDialogWidth),
+            confirmStyle = accountDialog.confirmStyle,
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakTheme.colors.background,
@@ -179,7 +198,32 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onTermsClick = {},
         onLogoutClick = {},
         onWithdrawClick = {},
+        onAccountDialogConfirm = {},
+        onAccountDialogDismiss = {},
         onNavigateToBottomBar = {},
         onAddClick = {},
     )
 }
+
+private val SettingsAccountDialog.title: String
+    get() = when (this) {
+        SettingsAccountDialog.LOGOUT -> "로그아웃"
+        SettingsAccountDialog.WITHDRAW -> "회원탈퇴"
+    }
+
+private val SettingsAccountDialog.message: String
+    get() = when (this) {
+        SettingsAccountDialog.LOGOUT -> "정말 로그아웃 하시겠습니까?"
+        SettingsAccountDialog.WITHDRAW -> "정말 회원탈퇴 하시겠습니까?"
+    }
+
+private val SettingsAccountDialog.confirmText: String
+    get() = title
+
+private val SettingsAccountDialog.confirmStyle: ChalkakConfirmDialogStyle
+    get() = when (this) {
+        SettingsAccountDialog.LOGOUT -> ChalkakConfirmDialogStyle.PRIMARY
+        SettingsAccountDialog.WITHDRAW -> ChalkakConfirmDialogStyle.DESTRUCTIVE
+    }
+
+private val AccountDialogWidth = 317.dp
