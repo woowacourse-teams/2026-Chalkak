@@ -4,7 +4,6 @@ import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.RecordContent
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.domain.repository.RecordRepository
-import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -25,39 +24,40 @@ class RecordViewModelTest {
     @Before
     fun setUp() {
         repository = FakeRecordRepository()
-        viewModel = RecordViewModel(repository)
+        viewModel = RecordViewModel(repository, RecordTestMonth)
     }
 
     @Test
     fun loadsInitialMonth() = runTest {
         advanceUntilIdle()
 
-        assertEquals(INITIAL_RECORD_MONTH, viewModel.uiState.value.month)
+        assertEquals(RecordTestMonth, viewModel.uiState.value.month)
         assertEquals(
             2,
             viewModel.uiState.value.selectedDate
                 ?.dayOfMonth,
         )
         assertEquals(2, viewModel.uiState.value.photos.size)
-        assertEquals(listOf(INITIAL_RECORD_MONTH), repository.requests)
+        assertEquals(listOf(RecordTestMonth), repository.requests)
     }
 
     @Test
     fun selectsPhotoDate() = runTest {
         advanceUntilIdle()
 
-        viewModel.selectDate(LocalDate.of(2026, 8, 5))
+        val selectedDate = RecordTestMonth.atDay(5)
+        viewModel.selectDate(selectedDate)
 
-        assertEquals(LocalDate.of(2026, 8, 5), viewModel.uiState.value.selectedDate)
+        assertEquals(selectedDate, viewModel.uiState.value.selectedDate)
     }
 
     @Test
     fun keepsSelectionForDateWithoutPhoto() = runTest {
         advanceUntilIdle()
 
-        viewModel.selectDate(LocalDate.of(2026, 8, 6))
+        viewModel.selectDate(RecordTestMonth.atDay(6))
 
-        assertEquals(LocalDate.of(2026, 8, 2), viewModel.uiState.value.selectedDate)
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
     }
 
     @Test
@@ -71,17 +71,17 @@ class RecordViewModelTest {
         viewModel.moveToNextMonth()
         advanceUntilIdle()
 
-        assertEquals(INITIAL_RECORD_MONTH, viewModel.uiState.value.month)
-        assertEquals(listOf(INITIAL_RECORD_MONTH), repository.requests)
+        assertEquals(RecordTestMonth, viewModel.uiState.value.month)
+        assertEquals(listOf(RecordTestMonth), repository.requests)
     }
 
     @Test
     fun movesOnlyToAvailableAdjacentMonth() = runTest {
-        val nextMonth = INITIAL_RECORD_MONTH.plusMonths(1)
+        val nextMonth = RecordTestMonth.plusMonths(1)
         repository = FakeRecordRepository(
-            availableMonths = setOf(INITIAL_RECORD_MONTH, nextMonth),
+            availableMonths = setOf(RecordTestMonth, nextMonth),
         )
-        viewModel = RecordViewModel(repository)
+        viewModel = RecordViewModel(repository, RecordTestMonth)
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.canGoNext)
@@ -92,11 +92,13 @@ class RecordViewModelTest {
         assertEquals(nextMonth, viewModel.uiState.value.month)
         assertEquals(false, viewModel.uiState.value.canGoNext)
         assertEquals(true, viewModel.uiState.value.canGoPrevious)
-        assertEquals(listOf(INITIAL_RECORD_MONTH, nextMonth), repository.requests)
+        assertEquals(listOf(RecordTestMonth, nextMonth), repository.requests)
     }
 }
 
-private class FakeRecordRepository(private val availableMonths: Set<YearMonth> = setOf(INITIAL_RECORD_MONTH)) :
+private val RecordTestMonth = YearMonth.of(2026, 8)
+
+private class FakeRecordRepository(private val availableMonths: Set<YearMonth> = setOf(RecordTestMonth)) :
     RecordRepository {
     val requests = mutableListOf<YearMonth>()
 

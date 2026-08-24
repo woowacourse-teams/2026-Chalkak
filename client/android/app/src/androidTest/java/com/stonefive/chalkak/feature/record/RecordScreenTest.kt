@@ -28,6 +28,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(selectedPhoto),
                         selectedDate = selectedPhoto.date,
@@ -67,6 +68,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(photo),
                         selectedDate = null,
@@ -94,6 +96,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(recordPhoto(day = 2)),
                         selectedDate = LocalDate.of(2026, 8, 2),
@@ -146,6 +149,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(photo),
                         selectedDate = photo.date,
@@ -174,6 +178,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(photo),
                         selectedDate = photo.date,
@@ -201,6 +206,7 @@ class RecordScreenTest {
             ChalkakTheme {
                 RecordScreen(
                     uiState = RecordUiState(
+                        month = RecordTestMonth,
                         isLoading = false,
                         photos = listOf(photo),
                         selectedDate = photo.date,
@@ -221,8 +227,10 @@ class RecordScreenTest {
     }
 }
 
+private val RecordTestMonth = YearMonth.of(2026, 8)
+
 private fun recordPhoto(day: Int): RecordPhoto = RecordPhoto(
-    date = LocalDate.of(2026, 8, day),
+    date = RecordTestMonth.atDay(day),
     imageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
     signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
     contentDescription = "노을과 전신주",

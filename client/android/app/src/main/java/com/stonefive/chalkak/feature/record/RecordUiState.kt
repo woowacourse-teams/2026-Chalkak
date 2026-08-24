@@ -22,4 +22,4 @@ data class RecordUiState(
         get() = !isLoading && month.plusMonths(1) in availableMonths
 }
 
-val INITIAL_RECORD_MONTH: YearMonth = YearMonth.of(2026, 8)
+val INITIAL_RECORD_MONTH: YearMonth = YearMonth.now()
