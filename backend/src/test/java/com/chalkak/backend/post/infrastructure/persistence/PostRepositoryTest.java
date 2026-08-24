@@ -11,6 +11,8 @@ import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -114,6 +116,102 @@ class PostRepositoryTest {
     }
 
     @Test
+    @DisplayName("공개 게시물을 최신순으로 슬라이스 조회한다")
+    void findVisibleRecentByTopicId_visiblePosts_returnsRecentSlice() {
+        // Given
+        UUID recentPostId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+        insertSecondVisiblePost();
+
+        // When
+        var result = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 1);
+
+        // Then
+        assertThat(result.posts()).extracting(Post::getId).containsExactly(recentPostId);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getTopic())).isFalse();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getPhoto())).isTrue();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getAuthor())).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPDATE posts SET moderation_status = 'REJECTED'",
+            "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP",
+            "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP",
+            "UPDATE photos SET deleted_at = CURRENT_TIMESTAMP",
+            "UPDATE users SET deleted_at = CURRENT_TIMESTAMP"
+    })
+    @DisplayName("공개 조건을 충족하지 않는 게시물은 목록에서 제외한다")
+    void findVisibleByTopicId_invisiblePost_returnsEmptySlice(String updateStatement) {
+        // Given
+        jdbcTemplate.update(updateStatement);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var recentResult = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20);
+        var randomResult = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                "f4c3a091",
+                0,
+                20
+        );
+
+        // Then
+        assertThat(recentResult.posts()).isEmpty();
+        assertThat(recentResult.hasNext()).isFalse();
+        assertThat(randomResult.posts()).isEmpty();
+        assertThat(randomResult.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("같은 시드로 공개 게시물을 조회하면 동일한 랜덤 순서를 반환한다")
+    void findVisibleRandomByTopicId_sameSeed_returnsSameOrder() {
+        // Given
+        insertSecondVisiblePost();
+
+        // When
+        var firstResult = postRepository.findVisibleRandomByTopicId(TOPIC_ID, "f4c3a091", 0, 20);
+        var secondResult = postRepository.findVisibleRandomByTopicId(TOPIC_ID, "f4c3a091", 0, 20);
+
+        // Then
+        assertThat(firstResult.posts()).extracting(Post::getId)
+                .containsExactlyElementsOf(
+                        secondResult.posts().stream().map(Post::getId).toList()
+                );
+        assertThat(firstResult.hasNext()).isFalse();
+        assertThat(Hibernate.isInitialized(firstResult.posts().getFirst().getTopic())).isFalse();
+        assertThat(Hibernate.isInitialized(firstResult.posts().getFirst().getPhoto())).isTrue();
+        assertThat(Hibernate.isInitialized(firstResult.posts().getFirst().getAuthor())).isTrue();
+    }
+
+    @Test
+    @DisplayName("같은 시드로 페이지를 나누면 랜덤 정렬 순서가 이어진다")
+    void findVisibleRandomByTopicId_sameSeed_returnsStablePages() {
+        // Given
+        insertSecondVisiblePost();
+        String randomSeed = "f4c3a091";
+        var fullResult = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                randomSeed,
+                0,
+                20
+        );
+
+        // When
+        var firstPage = postRepository.findVisibleRandomByTopicId(TOPIC_ID, randomSeed, 0, 1);
+        var secondPage = postRepository.findVisibleRandomByTopicId(TOPIC_ID, randomSeed, 1, 1);
+
+        // Then
+        assertThat(firstPage.posts()).extracting(Post::getId)
+                .containsExactly(fullResult.posts().get(0).getId());
+        assertThat(secondPage.posts()).extracting(Post::getId)
+                .containsExactly(fullResult.posts().get(1).getId());
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
     @DisplayName("존재하지 않는 게시물은 조회하지 않는다")
     void findVisibleById_unknownPost_returnsEmpty() {
         // Given
@@ -214,5 +312,51 @@ class PostRepositoryTest {
 
         // Then
         assertThat(result).isEmpty();
+    }
+
+    private void insertSecondVisiblePost() {
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = '2026-08-12T01:00:00Z' WHERE id = ?",
+                POST_ID
+        );
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key, created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                    'post-list@example.com',
+                    'ACTIVE',
+                    'chalkak/dev/signatures/signature-2.png',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO photos (
+                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                    'chalkak/dev/posts/original-2.jpg',
+                    'chalkak/dev/posts/thumbnail-2.jpg',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO posts (
+                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                    '두 번째 순간',
+                    'APPROVED',
+                    '2026-08-12T02:00:00Z',
+                    CURRENT_TIMESTAMP
+                )
+                """);
+        entityManager.flush();
+        entityManager.clear();
     }
 }
