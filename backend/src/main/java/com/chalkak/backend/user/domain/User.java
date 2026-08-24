@@ -71,6 +71,17 @@ public class User {
         delete();
     }
 
+    public void updateSignature(String storageKey) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
+        }
+        if (storageKey == null || storageKey.isBlank()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "사인 이미지 업로드 정보가 올바르지 않습니다.");
+        }
+        this.signatureOriginalStorageKey = storageKey;
+        this.signatureThumbnailStorageKey = null;
+    }
+
     public void delete() {
         this.deletedAt = Instant.now();
     }

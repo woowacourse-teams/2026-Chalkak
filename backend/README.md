@@ -9,6 +9,8 @@
 - [AI 하네스](#ai-하네스)
 - [자주 사용하는 명령](#자주-사용하는-명령)
 - [프로필](#프로필)
+- [임시 인증](#임시-인증)
+- [이미지 저장소](#이미지-저장소)
 - [DB 스키마](#db-스키마)
 - [테스트](#테스트)
 - [배포 환경](#배포-환경)
@@ -156,6 +158,59 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 > `prod` 프로필은 배포 환경 전용이므로 로컬에서 실행하지 않는다. 원격 DB에 Flyway 마이그레이션이 적용될 수 있다.  
 > `application-prod.yml`에는 DB 접속 정보의 기본값이 없으므로 필수 환경변수가 누락되면 애플리케이션이 기동되지 않는다.
+
+## 임시 인증
+
+로그인 사용자는 `X-User-Id` 헤더로 식별한다.
+
+```bash
+curl -X PUT localhost:8080/api/v1/users/me/signature \
+  -H "X-User-Id: 01a03199-f6e2-764c-afbf-23f7b0429eb6" \
+  -H 'Content-Type: application/json' \
+  -d '{"signatureOriginalUploadId":"<uuid>"}'
+```
+
+> **이 방식은 한시적이다.** MVP 핵심 기능을 먼저 만들고 로그인·회원가입·인증인가를 마지막에 붙이기로 해서, 그 전까지 쓰는 임시 수단이다. **헤더 값을 검증 없이 신뢰하므로 누구나 남의 계정을 조작할 수 있다.**
+
+배포 환경 유출을 막기 위해 임시 인증 관련 빈과 컨트롤러에 `@Profile("!prod")`를 붙인다.
+
+| 대상 | 역할 |
+|---|---|
+| `LoginUserArgumentResolver` | `X-User-Id`를 `AuthenticatedUser`로 변환. 없거나 UUID가 아니면 401 |
+| `WebMvcConfig` | 리졸버를 필수 생성자 파라미터로 주입받아 등록 |
+| `UserController` 등 임시 인증 사용 컨트롤러 | prod에서 미등록 → 404 |
+
+규칙:
+
+- **`@LoginUser`를 쓰는 컨트롤러에는 반드시 `@Profile("!prod")`를 붙인다.** 빠뜨리면 prod에 리졸버가 없어 `AuthenticatedUser`가 `@ModelAttribute`로 바인딩되고 userId가 null인 채 동작할 수 있다.
+- `WebMvcConfig`의 생성자 파라미터를 `Optional`이나 `ObjectProvider`로 바꾸지 않는다. 비운영 프로파일에서 리졸버가 사라지면 기동 단계에서 드러나야 한다.
+- 컨트롤러는 헤더를 직접 읽지 않고 `@LoginUser AuthenticatedUser`를 받는다.
+
+Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도록 바꾸고 `@Profile`을 제거한다. **컨트롤러 시그니처와 Service는 바뀌지 않는다.** 도입 이슈는 아직 생성되지 않았다.
+
+## 이미지 저장소
+
+이미지는 클라이언트가 S3에 직접 업로드하고, 조회는 CloudFront를 통한다. 백엔드는 이미지 바이트를 다루지 않고 업로드 완료 여부만 `HeadObject`로 확인한다.
+
+```text
+{bucket}/chalkak/
+├── staging/{uploadId}.png              업로드 직후. Lambda 검증 대기
+└── signatures/
+    ├── original/{uploadId}.png         검증 통과한 원본
+    └── thumbnail/{uploadId}.png        Lambda가 생성 (미구현)
+```
+
+- 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)뿐이다.
+- CloudFront 오리진이 `{bucket}/chalkak`을 가리키므로 **공개 URL에는 `chalkak/`이 들어가지 않는다.** `CLOUDFRONT_ORIGIN_PATH`가 이 값을 잡는다.
+- DB에는 항상 최종 경로를 저장한다. Lambda가 옮기기 전에는 그 URL이 비어 있다.
+
+### 로컬 실행
+
+개인 IAM 자격증명 없이도 조회가 동작한다. 버킷에 익명 공개 읽기 권한이 있어 `application-local.yml`의 `chalkak.image.anonymous-access: true`가 익명 호출로 전환하기 때문이다. 기본값은 `false`이므로 배포 환경은 EC2 인스턴스 역할을 그대로 사용한다.
+
+> 업로드는 여전히 자격증명이 필요하다. 로컬에서 검증하려면 권한이 있는 팀원이 콘솔로 `{uuid}.png`(확장자 소문자)를 한 번 올려두면 된다.
+>
+> 버킷 정책에서 공개 읽기가 제거되면 로컬 조회가 즉시 막힌다. 그때는 LocalStack으로 전환해야 한다.
 
 ## DB 스키마
 

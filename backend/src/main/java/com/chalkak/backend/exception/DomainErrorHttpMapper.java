@@ -8,6 +8,9 @@ public class DomainErrorHttpMapper {
         if (exception instanceof NotFoundException) {
             return HttpStatus.NOT_FOUND;
         }
+        if (exception instanceof UnauthorizedException) {
+            return HttpStatus.UNAUTHORIZED;
+        }
         if (exception instanceof BusinessException) {
             return HttpStatus.BAD_REQUEST;
         }
