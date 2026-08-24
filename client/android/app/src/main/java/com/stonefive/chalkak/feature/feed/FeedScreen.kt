@@ -67,6 +67,7 @@ fun FeedScreen(
                     .padding(
                         start = 4.dp,
                         end = 12.dp,
+                        top = 10.dp,
                         bottom = 8.dp,
                     ),
             )
