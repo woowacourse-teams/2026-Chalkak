@@ -34,6 +34,7 @@ class DisplayScreenTest {
         setDisplayContent(latestUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithText("같은 주제에서 다른 시선을 느껴보세요").assertIsDisplayed()
         composeRule.onAllNodesWithText("가장 사람들이 좋아했던 사진들이에요").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("사진").assertIsDisplayed()
         composeRule
