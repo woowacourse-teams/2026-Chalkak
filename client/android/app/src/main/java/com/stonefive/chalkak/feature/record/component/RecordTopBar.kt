@@ -1,13 +1,11 @@
 package com.stonefive.chalkak.feature.record.component
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -15,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,9 +39,8 @@ fun RecordTopBar(
         modifier = modifier
             .padding(
                 top = 20.dp,
-                start = 15.dp,
-                end = 25.dp,
-            ).padding(start = 8.dp),
+                start = 8.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CalendarArrowButton(
@@ -53,17 +49,11 @@ fun RecordTopBar(
             enabled = canGoPrevious,
             onClick = onPreviousMonthClick,
         )
-        Box(
-            modifier = Modifier.width(104.dp),
-        ) {
-            Text(
-                text = month.format(MonthFormatter),
-                color = ChalkakTheme.colors.textPrimary,
-                style = ChalkakTheme.typography.headline,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        Text(
+            text = month.format(MonthFormatter),
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.headline,
+        )
         CalendarArrowButton(
             iconRes = R.drawable.ic_display_arrow_right,
             contentDescription = "다음 달",
@@ -77,9 +67,7 @@ fun RecordTopBar(
                 color = ChalkakTheme.colors.textMuted,
                 style = ChalkakTheme.typography.footnote,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier
-                    .padding(end = 12.dp)
-                    .clickable(onClick = onSaveClick),
+                modifier = Modifier.clickable(onClick = onSaveClick),
             )
         }
     }
@@ -109,7 +97,7 @@ private fun CalendarArrowButton(
     }
 }
 
-@Preview(showBackground = true, widthDp = 402)
+@Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun RecordTopBarPreview() {
     ChalkakTheme {
