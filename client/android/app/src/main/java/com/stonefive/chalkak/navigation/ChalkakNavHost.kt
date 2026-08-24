@@ -1,34 +1,28 @@
 package com.stonefive.chalkak.navigation
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
+import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
+import java.time.LocalDate
 
 @Composable
 fun ChalkakNavHost(
@@ -79,10 +73,13 @@ fun ChalkakNavHost(
             )
         }
 
-        composable<Display> {
+        composable<Display> { backStackEntry ->
+            val display = backStackEntry.toRoute<Display>()
+
             DisplayRoute(
                 onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
                 onNavigateToBottomBar = navController::navigateToBottomBar,
+                initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
                     navController.navigate(
                         Feed(
@@ -125,10 +122,15 @@ fun ChalkakNavHost(
         }
 
         composable<Record> {
-            PlaceholderTabRoute(
-                title = "기록",
-                selectedItem = ChalkakBottomBarItem.RECORD,
-                navController = navController,
+            RecordRoute(
+                onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
+                onNavigateToBottomBar = navController::navigateToBottomBar,
+                onOpenFeed = { photo ->
+                    navController.navigate(photo.toFeedRoute())
+                },
+                onOpenDisplay = { date ->
+                    navController.navigateToDisplay(date)
+                },
             )
         }
 
@@ -180,7 +182,7 @@ fun ChalkakNavHost(
                     exhibitionCount = success.exhibitionCount,
                 ),
                 onConfirmClick = {
-                    navController.navigate(Display) {
+                    navController.navigate(Display(date = "")) {
                         popUpTo<PhotoUpload> { inclusive = true }
                         launchSingleTop = true
                     }
@@ -190,51 +192,10 @@ fun ChalkakNavHost(
     }
 }
 
-@Composable
-private fun PlaceholderTabRoute(
-    title: String,
-    selectedItem: ChalkakBottomBarItem,
-    navController: NavHostController,
-) {
-    Scaffold(
-        bottomBar = {
-            ChalkakBottomBar(
-                selectedItem = selectedItem,
-                onItemSelected = navController::navigateToBottomBar,
-                onAddClick = { navController.navigate(PhotoUpload) },
-            )
-        },
-    ) { innerPadding ->
-        PlaceholderScreen(
-            title = title,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        )
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "$title 화면 준비 중",
-            color = ChalkakTheme.colors.textPrimary,
-        )
-    }
-}
-
 private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
-        ChalkakBottomBarItem.DISPLAY -> Display
+        ChalkakBottomBarItem.DISPLAY -> Display(date = "")
         ChalkakBottomBarItem.RECORD -> Record
         ChalkakBottomBarItem.SETTINGS -> Settings
     }
@@ -247,3 +208,22 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
         }
     }
 }
+
+private fun NavHostController.navigateToDisplay(date: LocalDate) {
+    navigate(Display(date = date.toString()))
+}
+
+private fun RecordPhoto.toFeedRoute(): Feed = Feed(
+    postId = "record-$date",
+    imageUrl = imageUrl,
+    signatureUrl = signatureUrl,
+    contentDescription = contentDescription,
+    title = title,
+    likeCount = 0,
+    dateLabel = "${date.monthValue}월 ${date.dayOfMonth}일의 주제",
+    topic = title?.takeIf(String::isNotBlank) ?: "오늘의 기록",
+)
+
+private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
+    LocalDate.parse(this)
+}.getOrNull()

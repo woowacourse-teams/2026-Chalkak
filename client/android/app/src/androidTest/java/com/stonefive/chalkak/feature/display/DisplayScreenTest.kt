@@ -123,10 +123,29 @@ class DisplayScreenTest {
         composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
     }
 
+    @Test
+    fun `날짜 이동 헤더는 이전 다음 콜백을 유지한다`() {
+        var previousDateClicked = false
+        var nextDateClicked = false
+        setDisplayContent(
+            uiState = archiveUiState(),
+            onPreviousDateClick = { previousDateClicked = true },
+            onNextDateClick = { nextDateClicked = true },
+        )
+
+        composeRule.onNodeWithContentDescription("이전 날짜").performClick()
+        composeRule.onNodeWithContentDescription("다음 날짜").performClick()
+
+        assertEquals(true, previousDateClicked)
+        assertEquals(true, nextDateClicked)
+    }
+
     private fun setDisplayContent(
         uiState: DisplayUiState,
         onSortSelected: (PostSort) -> Unit = {},
         onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+        onPreviousDateClick: () -> Unit = {},
+        onNextDateClick: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -134,8 +153,8 @@ class DisplayScreenTest {
 
                 DisplayScreen(
                     uiState = currentUiState,
-                    onPreviousDateClick = {},
-                    onNextDateClick = {},
+                    onPreviousDateClick = onPreviousDateClick,
+                    onNextDateClick = onNextDateClick,
                     onSortSelected = { sort ->
                         currentUiState = currentUiState.copy(
                             content = (currentUiState.content as? DisplayContentState.Latest)

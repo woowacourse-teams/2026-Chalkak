@@ -58,8 +58,12 @@ import java.time.LocalDate
 fun DisplayRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    initialDate: LocalDate? = null,
     modifier: Modifier = Modifier,
-    viewModel: DisplayViewModel = viewModel(factory = DisplayViewModel.Factory),
+    viewModel: DisplayViewModel = viewModel(
+        key = "display-${initialDate ?: "latest"}",
+        factory = DisplayViewModel.factory(initialDate),
+    ),
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

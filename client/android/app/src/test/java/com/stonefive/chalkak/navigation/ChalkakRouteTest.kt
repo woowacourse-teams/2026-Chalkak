@@ -25,6 +25,15 @@ class ChalkakRouteTest {
     }
 
     @Test
+    fun `display route preserves selected date after serialization`() {
+        val route = Display(date = "2026-08-02")
+
+        val restored = Json.decodeFromString<Display>(Json.encodeToString(route))
+
+        assertEquals(route, restored)
+    }
+
+    @Test
     fun `signature route preserves its entry origin after serialization`() {
         SignatureOrigin.entries.forEach { origin ->
             val route = Signature(origin)

@@ -23,7 +23,7 @@ enum class SignatureOrigin {
 data object Today
 
 @Serializable
-data object Display
+data class Display(val date: String)
 
 @Serializable
 data class Feed(

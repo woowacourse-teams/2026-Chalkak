@@ -36,6 +36,9 @@ data class ChalkakColors(
     val scrim: Color,
     val error: Color,
     val destructive: Color,
+    val calendarCell: Color,
+    val calendarCellBorder: Color,
+    val calendarSelection: Color,
 )
 
 val LightChalkakColors = ChalkakColors(
@@ -59,4 +62,7 @@ val LightChalkakColors = ChalkakColors(
     scrim = Color.Black.copy(alpha = 0.4f),
     error = Color(0xFFBA1A1A),
     destructive = ChalkakDestructive,
+    calendarCell = Color(0xFFEAE7DE),
+    calendarCellBorder = Color(0xFFDCD8CE),
+    calendarSelection = ChalkakInputCursor,
 )
