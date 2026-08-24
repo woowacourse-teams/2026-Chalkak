@@ -32,6 +32,14 @@ public class UserService {
     @Transactional
     public String updateSignature(UUID userId, UUID uploadId) {
         String storageKey = signatureImageStorage.toOriginalStorageKey(uploadId);
+        User user = userRepository.findActiveById(userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR, "사인을 교체할 회원을 찾을 수 없습니다."));
+
+        // PUT은 멱등해야 하므로 이미 반영된 요청의 재시도는 상태를 건드리지 않고 같은 응답을 돌려준다.
+        if (user.hasSignature(storageKey)) {
+            return signatureImageStorage.toImageUrl(storageKey);
+        }
         if (userRepository.existsBySignatureOriginalStorageKey(storageKey)) {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "업로드한 사인 이미지를 찾을 수 없습니다.");
         }
@@ -40,10 +48,6 @@ public class UserService {
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR, "업로드한 사인 이미지를 찾을 수 없습니다."));
         signatureImagePolicy.validate(image);
-
-        User user = userRepository.findActiveById(userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR, "사인을 교체할 회원을 찾을 수 없습니다."));
         user.updateSignature(storageKey);
 
         return signatureImageStorage.toImageUrl(storageKey);

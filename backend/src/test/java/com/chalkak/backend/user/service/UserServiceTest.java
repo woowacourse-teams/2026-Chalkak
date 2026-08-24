@@ -127,6 +127,54 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("같은 사인 업로드를 다시 요청해도 같은 이미지 URL을 반환한다")
+    void updateSignature_sameUploadIdTwice_returnsSameImageUrl() {
+        // Given
+        UUID id = userRepository.save(UserFixture.create()).getId();
+        flushAndClear();
+        UUID uploadId = UUID.randomUUID();
+        String storageKey = "chalkak/signatures/original/" + uploadId + ".png";
+        String imageUrl = "https://cdn.test.chalkak/signatures/original/" + uploadId + ".png";
+        given(signatureImageStorage.toOriginalStorageKey(uploadId)).willReturn(storageKey);
+        given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toImageUrl(storageKey)).willReturn(imageUrl);
+
+        // When
+        String firstImageUrl = userService.updateSignature(id, uploadId);
+        flushAndClear();
+        String secondImageUrl = userService.updateSignature(id, uploadId);
+        flushAndClear();
+
+        // Then
+        assertThat(firstImageUrl).isEqualTo(imageUrl);
+        assertThat(secondImageUrl).isEqualTo(imageUrl);
+        assertThat(userRepository.findById(id).orElseThrow().getSignatureOriginalStorageKey())
+                .isEqualTo(storageKey);
+    }
+
+    @Test
+    @DisplayName("이미 반영된 사인을 다시 요청해도 생성된 썸네일 키를 지우지 않는다")
+    void updateSignature_storageKeyAlreadyOwnedByUser_keepsThumbnailKey() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String storageKey = saved.getSignatureOriginalStorageKey();
+        String thumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
+        flushAndClear();
+        UUID uploadId = UUID.randomUUID();
+        given(signatureImageStorage.toOriginalStorageKey(uploadId)).willReturn(storageKey);
+        given(signatureImageStorage.toImageUrl(storageKey)).willReturn("https://cdn.test.chalkak/" + storageKey);
+
+        // When
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+
+        // Then
+        assertThat(userRepository.findById(id).orElseThrow().getSignatureThumbnailStorageKey())
+                .isEqualTo(thumbnailStorageKey);
+    }
+
+    @Test
     @DisplayName("다른 회원이 이미 쓴 사인 키는 사용할 수 없다")
     void updateSignature_alreadyUsedStorageKey_throwsNotFoundException() {
         // Given
