@@ -13,15 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -133,29 +128,17 @@ private fun RecordDayCell(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(CalendarCellCornerRadius)
-    var isLandscapePhoto by remember(photo.imageUrl) { mutableStateOf(false) }
-    val cellBackground = if (isLandscapePhoto) Color.Black else ChalkakTheme.colors.calendarCell
-    val imageContentScale = if (isLandscapePhoto) {
-        ContentScale.Fit
-    } else {
-        ContentScale.Crop
-    }
     val cellModifier = modifier
         .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO)
         .clip(shape)
-        .background(cellBackground)
+        .background(ChalkakTheme.colors.calendarCell)
         .semantics { contentDescription = "${photo.date.format(DateFormatter)} 사진" }
         .clickable(onClick = onClick)
     Box(modifier = cellModifier) {
         ChalkakImage(
             model = photo.imageUrl,
             contentDescription = null,
-            contentScale = imageContentScale,
-            onSuccess = { success ->
-                success.result.image?.let { image ->
-                    isLandscapePhoto = image.width > image.height
-                }
-            },
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
     }
