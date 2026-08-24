@@ -53,8 +53,8 @@ class TopicControllerTest {
                 .andExpect(jsonPath("$.id").value(TOPIC_ID.toString()))
                 .andExpect(jsonPath("$.title").value("오늘 가장 기억에 남은 순간"))
                 .andExpect(jsonPath("$.topicDate").value("2026-08-12"))
-                .andExpect(jsonPath("$.startsAt").value("2026-08-12T00:00:00+09:00"))
-                .andExpect(jsonPath("$.endsAt").value("2026-08-13T00:00:00+09:00"))
+                .andExpect(jsonPath("$.startsAt").value("2026-08-11T15:00:00Z"))
+                .andExpect(jsonPath("$.endsAt").value("2026-08-12T15:00:00Z"))
                 .andExpect(jsonPath("$.phase").value("OPEN"));
     }
 

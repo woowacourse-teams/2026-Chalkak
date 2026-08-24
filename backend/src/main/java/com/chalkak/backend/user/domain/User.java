@@ -112,6 +112,16 @@ public class User {
         this.signatureProcessingStatus = SignatureProcessingStatus.FAILED;
         return true;
     }
+  
+    public boolean hasSignature(String storageKey) {
+        return storageKey != null
+                && storageKey.equals(signatureOriginalStorageKey);
+    }
+
+    public boolean hasPendingSignature(UUID uploadId) {
+        return uploadId != null
+                && uploadId.equals(pendingSignatureUploadId);
+    }
 
     public void delete() {
         this.deletedAt = Instant.now();
@@ -135,7 +145,9 @@ public class User {
         if (storageKeys == null
                 || isBlank(storageKeys.originalStorageKey())
                 || isBlank(storageKeys.thumbnailStorageKey())) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "사인 이미지 업로드 정보가 올바르지 않습니다.");
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "사인 이미지 업로드 정보가 올바르지 않습니다.");
         }
     }
 
@@ -147,7 +159,8 @@ public class User {
 
     private void anonymize() {
         this.email = WITHDRAWN_EMAIL_FORMAT.formatted(id);
-        this.signatureOriginalStorageKey = WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
+        this.signatureOriginalStorageKey =
+                WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
         this.signatureThumbnailStorageKey = null;
         clearSignatureProcessing();
     }

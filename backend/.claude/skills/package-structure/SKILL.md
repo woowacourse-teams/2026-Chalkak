@@ -47,8 +47,7 @@ src/main/java/com/chalkak/backend/
 | Controller | `{domain}/api/v{n}/controller` |
 | 요청 DTO | `{domain}/api/v{n}/dto/request` |
 | 응답 DTO | `{domain}/api/v{n}/dto/response` |
-| 상태 변경 유스케이스 | `{domain}/service/XxxService` |
-| 조회 유스케이스 | `{domain}/service/XxxQueryService` |
+| 유스케이스 Service | `{domain}/service/XxxService` |
 | 저장소 포트 | `{domain}/repository/XxxRepository` |
 | JPA 엔티티·애그리게이트·VO·Enum | `{domain}/domain` |
 | Spring Data JPA 인터페이스 | `{domain}/infrastructure/persistence/XxxJpaRepository` |
@@ -64,8 +63,7 @@ src/main/java/com/chalkak/backend/
 
 ## Service
 
-- 등록·수정·삭제·상태 변경은 `XxxService`가 담당한다.
-- 단건·목록·피드 조회와 조회 조건 처리는 `XxxQueryService`가 담당한다.
+- 등록·수정·삭제·상태 변경과 단건·목록·피드 조회는 `XxxService`가 담당한다.
 - Service에서 Spring Data JPA, AWS SDK 등 외부 기술에 직접 의존하지 않는다.
 
 ## Repository와 Persistence

@@ -118,6 +118,99 @@ class UserTest {
         UUID pendingUploadId = UUID.randomUUID();
         String originalStorageKey = user.getSignatureOriginalStorageKey();
         user.startSignatureProcessing(pendingUploadId, Instant.now());
+
+        SignatureStorageKeys staleStorageKeys = new SignatureStorageKeys(
+                "chalkak/signatures/dev/original/stale.png",
+                "chalkak/signatures/dev/thumbnail/stale.png");
+
+        // When
+        boolean completed = user.completeSignatureProcessing(
+                UUID.randomUUID(),
+                staleStorageKeys);
+
+        // Then
+        assertThat(completed).isFalse();
+        assertThat(user.getSignatureOriginalStorageKey())
+                .isEqualTo(originalStorageKey);
+        assertThat(user.getPendingSignatureUploadId())
+                .isEqualTo(pendingUploadId);
+    }
+
+    @Test
+    @DisplayName("현재 사인과 같은 원본 키를 가지고 있으면 참이다")
+    void hasSignature_sameStorageKey_returnsTrue() {
+        // Given
+        UUID id = UUID.randomUUID();
+        User user = UserFixture.create(id);
+
+        // When & Then
+        assertThat(user.hasSignature("signatures/" + id)).isTrue();
+    }
+
+    @Test
+    @DisplayName("현재 사인과 다른 원본 키를 가지고 있으면 거짓이다")
+    void hasSignature_differentStorageKey_returnsFalse() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThat(user.hasSignature(
+                "chalkak/signatures/dev/original/"
+                        + UUID.randomUUID()
+                        + ".png"))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("null 원본 키를 조회하면 거짓이다")
+    void hasSignature_nullStorageKey_returnsFalse() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThat(user.hasSignature(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("처리 중인 동일 업로드 ID를 pending으로 판단한다")
+    void hasPendingSignature_processingUpload_returnsTrue() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        UUID uploadId = UUID.randomUUID();
+        user.startSignatureProcessing(uploadId, Instant.now());
+
+        // When & Then
+        assertThat(user.hasPendingSignature(uploadId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("실패한 동일 업로드 ID도 pending으로 판단한다")
+    void hasPendingSignature_failedUpload_returnsTrue() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        UUID uploadId = UUID.randomUUID();
+        user.startSignatureProcessing(uploadId, Instant.now());
+        user.failSignatureProcessing(uploadId);
+
+        // When & Then
+        assertThat(user.hasPendingSignature(uploadId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("현재 pending과 다른 업로드 ID이면 거짓이다")
+    void hasPendingSignature_differentUpload_returnsFalse() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.startSignatureProcessing(UUID.randomUUID(), Instant.now());
+
+        // When & Then
+        assertThat(user.hasPendingSignature(UUID.randomUUID())).isFalse();
+    }
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        UUID pendingUploadId = UUID.randomUUID();
+        String originalStorageKey = user.getSignatureOriginalStorageKey();
+        user.startSignatureProcessing(pendingUploadId, Instant.now());
         SignatureStorageKeys staleStorageKeys = new SignatureStorageKeys(
                 "chalkak/signatures/dev/original/stale.png",
                 "chalkak/signatures/dev/thumbnail/stale.png");
