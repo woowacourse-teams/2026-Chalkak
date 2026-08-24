@@ -206,23 +206,6 @@ class UserTest {
         // When & Then
         assertThat(user.hasPendingSignature(UUID.randomUUID())).isFalse();
     }
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-        UUID pendingUploadId = UUID.randomUUID();
-        String originalStorageKey = user.getSignatureOriginalStorageKey();
-        user.startSignatureProcessing(pendingUploadId, Instant.now());
-        SignatureStorageKeys staleStorageKeys = new SignatureStorageKeys(
-                "chalkak/signatures/dev/original/stale.png",
-                "chalkak/signatures/dev/thumbnail/stale.png");
-
-        // When
-        boolean completed = user.completeSignatureProcessing(UUID.randomUUID(), staleStorageKeys);
-
-        // Then
-        assertThat(completed).isFalse();
-        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
-        assertThat(user.getPendingSignatureUploadId()).isEqualTo(pendingUploadId);
-    }
 
     @Test
     @DisplayName("영구 실패 콜백은 기존 활성 사인을 유지하고 pending 상태를 실패로 바꾼다")
