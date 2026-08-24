@@ -33,11 +33,11 @@ public class Topic {
     @Column(name = "topic_date", nullable = false)
     private LocalDate topicDate;
 
-    @Column(name = "start_at", nullable = false)
-    private Instant startAt;
+    @Column(name = "starts_at", nullable = false)
+    private Instant startsAt;
 
-    @Column(name = "end_at", nullable = false)
-    private Instant endAt;
+    @Column(name = "ends_at", nullable = false)
+    private Instant endsAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
