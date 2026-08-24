@@ -1,6 +1,7 @@
 package com.chalkak.backend.topic.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -33,11 +34,8 @@ public class Topic {
     @Column(name = "topic_date", nullable = false)
     private LocalDate topicDate;
 
-    @Column(name = "start_at", nullable = false)
-    private Instant startAt;
-
-    @Column(name = "end_at", nullable = false)
-    private Instant endAt;
+    @Embedded
+    private ParticipationPeriod participationPeriod;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -58,7 +58,7 @@ class PostServiceTest extends IntegrationTestSupport {
                 """);
         jdbcTemplate.update("""
                 INSERT INTO topics (
-                    id, title, topic_date, start_at, end_at, created_at, updated_at
+                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
                 ) VALUES (
                     '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
                     '오늘 가장 기억에 남은 순간',
