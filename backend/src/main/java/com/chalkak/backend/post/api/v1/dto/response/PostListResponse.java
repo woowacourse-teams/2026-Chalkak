@@ -1,8 +1,7 @@
 package com.chalkak.backend.post.api.v1.dto.response;
 
 import com.chalkak.backend.post.service.PostListResult;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,8 +12,6 @@ public record PostListResponse(
         String randomSeed,
         List<PostResponse> posts
 ) {
-
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     public static PostListResponse fromPostListResult(PostListResult result) {
         return new PostListResponse(
@@ -35,7 +32,7 @@ public record PostListResponse(
             String signatureOriginalImageUrl,
             String signatureThumbnailImageUrl,
             String title,
-            OffsetDateTime submittedAt
+            Instant submittedAt
     ) {
 
         private static PostResponse fromPostListResult(PostListResult.PostSummary post) {
@@ -46,7 +43,7 @@ public record PostListResponse(
                     post.signatureOriginalImageUrl(),
                     post.signatureThumbnailImageUrl(),
                     post.title(),
-                    post.submittedAt().atZone(KST).toOffsetDateTime()
+                    post.submittedAt()
             );
         }
     }

@@ -86,7 +86,7 @@ class PostControllerTest {
                         .value("https://cdn.example.com/dev/signatures/signature-thumbnail.png"))
                 .andExpect(jsonPath("$.posts[0].title").value("오늘의 순간"))
                 .andExpect(jsonPath("$.posts[0].submittedAt")
-                        .value("2026-08-12T12:30:00+09:00"))
+                        .value("2026-08-12T03:30:00Z"))
                 .andExpect(jsonPath("$.posts[0].likeCount").doesNotExist())
                 .andExpect(jsonPath("$.posts[0].isLiked").doesNotExist());
     }
@@ -170,22 +170,27 @@ class PostControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({
-            "sort, popular",
-            "sort, unknown",
-            "randomSeed, seed!"
-    })
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                    "sort | popular | sort: 요청 값의 형식이 올바르지 않습니다.",
+                    "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
+                    "randomSeed | seed! | randomSeed: 조회 조건이 올바르지 않습니다."
+            }
+    )
     @DisplayName("목록 조회 파라미터 형식이 올바르지 않으면 잘못된 요청을 반환한다")
     void getPosts_invalidQueryParameter_returnsBadRequest(
             String parameterName,
-            String parameterValue
+            String parameterValue,
+            String expectedMessage
     ) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
                         .queryParam("topicDate", "2026-08-12")
                         .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value(expectedMessage));
         then(postService).shouldHaveNoInteractions();
     }
 
@@ -201,7 +206,9 @@ class PostControllerTest {
                         .queryParam("sort", "random")
                         .queryParam("randomSeed", tooLongRandomSeed))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("randomSeed: 조회 조건이 올바르지 않습니다."));
         then(postService).shouldHaveNoInteractions();
     }
 
@@ -212,7 +219,9 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts")
                         .queryParam("topicDate", "2026-13-40"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("topicDate: 요청 값의 형식이 올바르지 않습니다."));
         then(postService).shouldHaveNoInteractions();
     }
 
