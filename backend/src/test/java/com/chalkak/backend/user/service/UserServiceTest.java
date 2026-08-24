@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import static org.mockito.BDDMockito.given;
 
-import com.chalkak.backend.IntegrationTestSupport;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
@@ -21,7 +21,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 
+@Transactional
 class UserServiceTest extends IntegrationTestSupport {
 
     private static final StoredImageMetadata VALID_IMAGE = new StoredImageMetadata("image/png", 1024L);
