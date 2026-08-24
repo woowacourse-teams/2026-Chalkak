@@ -56,6 +56,7 @@ class MockDisplayRemoteDataSource(private val responseDelayMillis: Long = 0L) : 
                 contentDescription = "노을과 전신주",
                 title = "저녁의 선",
                 likeCount = 17,
+                isOwnedByCurrentUser = true,
             ),
             DisplayPhotoResponse(
                 id = "seed-1",

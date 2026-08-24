@@ -33,7 +33,7 @@ fun PhotoUploadTopBar(
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .semantics { contentDescription = "뒤로 가기" }
                 .clickable(
                     interactionSource = null,
@@ -43,10 +43,10 @@ fun PhotoUploadTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_arrow_back),
+                painter = painterResource(R.drawable.ic_display_arrow_left),
                 contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
 
@@ -58,7 +58,7 @@ fun PhotoUploadTopBar(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(modifier = Modifier.size(40.dp))
+        Spacer(modifier = Modifier.size(44.dp))
     }
 }
 
@@ -71,7 +71,11 @@ private fun PhotoUploadTopBarPreview() {
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 26.dp),
+                .padding(
+                    start = 4.dp,
+                    end = 12.dp,
+                    bottom = 8.dp,
+                ),
         )
     }
 }
