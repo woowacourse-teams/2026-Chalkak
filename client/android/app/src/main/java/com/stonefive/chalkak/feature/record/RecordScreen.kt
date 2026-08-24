@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
@@ -193,18 +194,22 @@ fun RecordScreen(
                             showSaveLink = false,
                             modifier = Modifier.fillMaxWidth(),
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         RecordWeekdayHeader(
                             modifier = Modifier
-                                .padding(top = 8.dp)
                                 .fillMaxWidth()
                                 .padding(horizontal = RecordHorizontalPadding),
                         )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
                         RecordCalendarGrid(
                             month = uiState.month,
                             photos = uiState.photos,
                             onDateClick = onDateClick,
                             modifier = Modifier
-                                .padding(top = 14.dp)
                                 .fillMaxWidth()
                                 .padding(horizontal = RecordHorizontalPadding),
                         )
@@ -213,23 +218,20 @@ fun RecordScreen(
                         }
                     }
                 }
-                Box(
+                Text(
+                    text = "이미지로 저장",
+                    color = ChalkakTheme.colors.textMuted,
+                    style = ChalkakTheme.typography.footnote,
+                    textDecoration = TextDecoration.Underline,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(
                             top = 20.dp,
                             end = 20.dp,
-                        ).height(48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "이미지로 저장",
-                        color = ChalkakTheme.colors.textMuted,
-                        style = ChalkakTheme.typography.footnote,
-                        textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.clickable(onClick = saveCalendarImage),
-                    )
-                }
+                        ).clickable(onClick = saveCalendarImage)
+                        .height(48.dp)
+                        .wrapContentHeight(Alignment.CenterVertically),
+                )
             }
             if (uiState.errorMessage == null) {
                 val selectedPhoto = uiState.selectedPhoto
