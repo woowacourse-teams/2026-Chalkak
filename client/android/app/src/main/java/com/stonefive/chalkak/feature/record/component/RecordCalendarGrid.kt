@@ -34,7 +34,6 @@ import java.util.Locale
 
 private const val CALENDAR_PHOTO_ASPECT_RATIO = 1f
 private val CalendarGridItemPadding = 6.dp
-private val CalendarHorizontalPadding = 20.dp
 private val CalendarCellCornerRadius = 7.dp
 private val CalendarDividerWidth = 1.dp
 private val DateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN)
@@ -60,35 +59,32 @@ fun RecordCalendarGrid(
     val weeks = dates.chunked(7)
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = CalendarHorizontalPadding)
-            .drawBehind {
-                val gap = CalendarGridItemPadding.toPx()
-                val itemWidth = (size.width - gap * 6) / 7
-                val rowHeight = (size.height - gap * (weeks.size - 1)) / weeks.size
+        modifier = modifier.drawBehind {
+            val gap = CalendarGridItemPadding.toPx()
+            val itemWidth = (size.width - gap * 6) / 7
+            val rowHeight = (size.height - gap * (weeks.size - 1)) / weeks.size
 
-                for (column in 1 until 7) {
-                    val x = itemWidth * column + gap * (column - 0.5f)
-                    drawLine(
-                        color = calendarDividerColor,
-                        start = Offset(x, 0f),
-                        end = Offset(x, size.height),
-                        strokeWidth = CalendarDividerWidth.toPx(),
-                        cap = StrokeCap.Square,
-                    )
-                }
-                for (row in 1 until weeks.size) {
-                    val y = rowHeight * row + gap * (row - 0.5f)
-                    drawLine(
-                        color = calendarDividerColor,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
-                        strokeWidth = CalendarDividerWidth.toPx(),
-                        cap = StrokeCap.Square,
-                    )
-                }
-            },
+            for (column in 1 until 7) {
+                val x = itemWidth * column + gap * (column - 0.5f)
+                drawLine(
+                    color = calendarDividerColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = CalendarDividerWidth.toPx(),
+                    cap = StrokeCap.Square,
+                )
+            }
+            for (row in 1 until weeks.size) {
+                val y = rowHeight * row + gap * (row - 0.5f)
+                drawLine(
+                    color = calendarDividerColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = CalendarDividerWidth.toPx(),
+                    cap = StrokeCap.Square,
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -161,6 +157,9 @@ private fun RecordCalendarGridPreview() {
             month = month,
             photos = listOf(photo),
             onDateClick = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
         )
     }
 }

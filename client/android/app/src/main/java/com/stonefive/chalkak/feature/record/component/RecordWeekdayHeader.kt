@@ -12,15 +12,10 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 private val Weekdays = listOf("일", "월", "화", "수", "목", "금", "토")
-private val CalendarHorizontalPadding = 20.dp
 
 @Composable
 fun RecordWeekdayHeader(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = CalendarHorizontalPadding),
-    ) {
+    Row(modifier = modifier) {
         Weekdays.forEach { weekday ->
             Text(
                 text = weekday,
@@ -37,6 +32,10 @@ fun RecordWeekdayHeader(modifier: Modifier = Modifier) {
 @Composable
 private fun RecordWeekdayHeaderPreview() {
     ChalkakTheme {
-        RecordWeekdayHeader()
+        RecordWeekdayHeader(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        )
     }
 }

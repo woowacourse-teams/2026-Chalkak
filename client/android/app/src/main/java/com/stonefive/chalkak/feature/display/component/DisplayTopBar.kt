@@ -34,7 +34,6 @@ fun DisplayTopBar(
 ) {
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .padding(
                 top = 20.dp,
                 start = 8.dp,
@@ -98,6 +97,7 @@ private fun DisplayTopBarPreview() {
             canGoNext = true,
             onPreviousClick = {},
             onNextClick = {},
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

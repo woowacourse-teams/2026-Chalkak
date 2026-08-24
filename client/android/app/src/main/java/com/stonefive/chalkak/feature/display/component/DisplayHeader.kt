@@ -28,7 +28,6 @@ fun DisplayHeader(
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .headerBottomDivider()
             .padding(
                 end = ChalkakTheme.spacing.screenHorizontal,
@@ -41,6 +40,7 @@ fun DisplayHeader(
             canGoNext = canGoNext,
             onPreviousClick = onPreviousClick,
             onNextClick = onNextClick,
+            modifier = Modifier.fillMaxWidth(),
         )
         DisplayTopicHeader(
             topic = topic,
@@ -71,6 +71,7 @@ private fun DisplayHeaderPreview() {
             canGoNext = true,
             onPreviousClick = {},
             onNextClick = {},
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

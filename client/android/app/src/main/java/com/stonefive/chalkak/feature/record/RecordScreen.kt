@@ -191,15 +191,22 @@ fun RecordScreen(
                             onPreviousMonthClick = onPreviousMonthClick,
                             onNextMonthClick = onNextMonthClick,
                             showSaveLink = false,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                         RecordWeekdayHeader(
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = RecordHorizontalPadding),
                         )
                         RecordCalendarGrid(
                             month = uiState.month,
                             photos = uiState.photos,
                             onDateClick = onDateClick,
-                            modifier = Modifier.padding(top = 14.dp),
+                            modifier = Modifier
+                                .padding(top = 14.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = RecordHorizontalPadding),
                         )
                         if (uiState.selectedPhoto != null) {
                             Spacer(modifier = Modifier.height(36.dp))
@@ -229,6 +236,7 @@ fun RecordScreen(
                 val selectedPhoto = uiState.selectedPhoto
                 RecordSelectedPhoto(
                     photo = selectedPhoto,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (selectedPhoto != null) {
                     RecordPhotoActions(
@@ -238,7 +246,14 @@ fun RecordScreen(
                         onDisplayClick = {
                             onOpenDisplay(selectedPhoto.date)
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = RecordHorizontalPadding,
+                                top = 24.dp,
+                                end = RecordHorizontalPadding,
+                                bottom = 32.dp,
+                            ),
                     )
                 }
             } else {

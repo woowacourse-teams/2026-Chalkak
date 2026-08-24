@@ -31,9 +31,7 @@ fun RecordSelectedPhoto(
     if (photo == null) return
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(SELECTED_PHOTO_ASPECT_RATIO),
+        modifier = modifier.aspectRatio(SELECTED_PHOTO_ASPECT_RATIO),
     ) {
         ChalkakSignedImage(
             imageModel = photo.imageUrl,
@@ -74,6 +72,7 @@ private fun RecordSelectedPhotoPreview() {
                 contentDescription = "노을과 전신주",
                 title = "물결",
             ),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

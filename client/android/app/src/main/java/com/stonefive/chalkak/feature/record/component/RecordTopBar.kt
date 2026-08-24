@@ -40,7 +40,6 @@ fun RecordTopBar(
 ) {
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .padding(
                 top = 20.dp,
                 start = 15.dp,
@@ -118,6 +117,7 @@ private fun RecordTopBarPreview() {
             month = YearMonth.of(2026, 8),
             onPreviousMonthClick = {},
             onNextMonthClick = {},
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
