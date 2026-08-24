@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,9 @@ class UserTest {
         assertThat(user.getEmail()).isEqualTo("withdrawn+" + id + "@chalkak.invalid");
         assertThat(user.getSignatureOriginalStorageKey()).isEqualTo("withdrawn/" + id);
         assertThat(user.getSignatureThumbnailStorageKey()).isNull();
+        assertThat(user.getPendingSignatureUploadId()).isNull();
+        assertThat(user.getSignatureProcessingStatus()).isNull();
+        assertThat(user.getSignatureProcessingStartedAt()).isNull();
     }
 
     @Test
@@ -63,53 +67,98 @@ class UserTest {
     }
 
     @Test
-    @DisplayName("사인을 교체하면 원본 키가 새 키로 바뀐다")
-    void updateSignature_newStorageKey_replacesOriginalKey() {
+    @DisplayName("사인 처리를 시작해도 현재 활성 사인은 유지한다")
+    void startSignatureProcessing_activeSignature_preservesActiveKeys() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
-        String newStorageKey = "chalkak/signatures/original/" + UUID.randomUUID() + ".png";
+        UUID uploadId = UUID.randomUUID();
+        String originalStorageKey = user.getSignatureOriginalStorageKey();
+        String thumbnailStorageKey = user.getSignatureThumbnailStorageKey();
+        Instant startedAt = Instant.parse("2026-08-24T10:00:00Z");
 
         // When
-        user.updateSignature(newStorageKey);
+        user.startSignatureProcessing(uploadId, startedAt);
 
         // Then
-        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(newStorageKey);
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
+        assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(thumbnailStorageKey);
+        assertThat(user.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(user.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(user.getSignatureProcessingStartedAt()).isEqualTo(startedAt);
     }
 
     @Test
-    @DisplayName("사인을 교체하면 이전 사인의 썸네일 키를 버린다")
-    void updateSignature_newStorageKey_clearsThumbnailKey() {
+    @DisplayName("처리 중인 업로드가 완료되면 활성 키를 승격하고 pending 정보를 지운다")
+    void completeSignatureProcessing_matchingUpload_promotesAndClearsPending() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
+        UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = new SignatureStorageKeys(
+                "chalkak/signatures/dev/original/" + uploadId + ".png",
+                "chalkak/signatures/dev/thumbnail/" + uploadId + ".png");
+        user.startSignatureProcessing(uploadId, Instant.now());
 
         // When
-        user.updateSignature("chalkak/signatures/original/" + UUID.randomUUID() + ".png");
+        boolean completed = user.completeSignatureProcessing(uploadId, storageKeys);
 
         // Then
-        assertThat(user.getSignatureThumbnailStorageKey()).isNull();
+        assertThat(completed).isTrue();
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
+        assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(user.getPendingSignatureUploadId()).isNull();
+        assertThat(user.getSignatureProcessingStatus()).isNull();
+        assertThat(user.getSignatureProcessingStartedAt()).isNull();
     }
 
     @Test
-    @DisplayName("빈 키로는 사인을 교체할 수 없다")
-    void updateSignature_blankStorageKey_throwsException() {
+    @DisplayName("현재 pending과 다른 업로드의 느린 완료 콜백은 무시한다")
+    void completeSignatureProcessing_staleUpload_ignoresCallback() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
+        UUID pendingUploadId = UUID.randomUUID();
+        String originalStorageKey = user.getSignatureOriginalStorageKey();
+        user.startSignatureProcessing(pendingUploadId, Instant.now());
+        SignatureStorageKeys staleStorageKeys = new SignatureStorageKeys(
+                "chalkak/signatures/dev/original/stale.png",
+                "chalkak/signatures/dev/thumbnail/stale.png");
 
-        // When & Then
-        assertThatThrownBy(() -> user.updateSignature(" "))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("사인 이미지 업로드 정보가 올바르지 않습니다.");
+        // When
+        boolean completed = user.completeSignatureProcessing(UUID.randomUUID(), staleStorageKeys);
+
+        // Then
+        assertThat(completed).isFalse();
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
+        assertThat(user.getPendingSignatureUploadId()).isEqualTo(pendingUploadId);
     }
 
     @Test
-    @DisplayName("탈퇴한 회원은 사인을 교체할 수 없다")
-    void updateSignature_withdrawnUser_throwsException() {
+    @DisplayName("영구 실패 콜백은 기존 활성 사인을 유지하고 pending 상태를 실패로 바꾼다")
+    void failSignatureProcessing_matchingUpload_marksFailedAndPreservesActiveKeys() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        UUID uploadId = UUID.randomUUID();
+        String originalStorageKey = user.getSignatureOriginalStorageKey();
+        user.startSignatureProcessing(uploadId, Instant.now());
+
+        // When
+        boolean failed = user.failSignatureProcessing(uploadId);
+
+        // Then
+        assertThat(failed).isTrue();
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
+        assertThat(user.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(user.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 사인 처리를 시작할 수 없다")
+    void startSignatureProcessing_withdrawnUser_throwsException() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
         user.withdraw();
 
         // When & Then
-        assertThatThrownBy(() -> user.updateSignature("chalkak/signatures/original/key.png"))
+        assertThatThrownBy(() -> user.startSignatureProcessing(UUID.randomUUID(), Instant.now()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 탈퇴한 회원입니다.");
     }

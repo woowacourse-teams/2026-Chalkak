@@ -8,6 +8,8 @@ import static org.mockito.BDDMockito.given;
 import com.chalkak.backend.IntegrationTestSupport;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.user.domain.SignatureProcessingStatus;
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
@@ -100,17 +102,20 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("사인을 교체하면 최종 경로가 저장되고 이미지 URL을 반환한다")
-    void updateSignature_uploadedImage_replacesSignature() {
+    @DisplayName("사인 수정을 요청하면 기존 활성 사인을 유지하고 pending 정보를 저장한다")
+    void updateSignature_uploadedImage_startsProcessingAndPreservesActiveSignature() {
         // Given
-        UUID id = userRepository.save(UserFixture.create()).getId();
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
         UUID uploadId = UUID.randomUUID();
-        String storageKey = "chalkak/signatures/original/" + uploadId + ".png";
-        given(signatureImageStorage.toOriginalStorageKey(uploadId)).willReturn(storageKey);
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
         given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
-        given(signatureImageStorage.toImageUrl(storageKey))
-                .willReturn("https://cdn.test.chalkak/signatures/original/" + uploadId + ".png");
+        given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
+                .willReturn("https://cdn.test.chalkak/" + activeOriginalStorageKey);
 
         // When
         String imageUrl = userService.updateSignature(id, uploadId);
@@ -118,10 +123,106 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // Then
         User updated = userRepository.findById(id).orElseThrow();
-        assertThat(updated.getSignatureOriginalStorageKey()).isEqualTo(storageKey);
-        assertThat(updated.getSignatureThumbnailStorageKey()).isNull();
-        assertThat(imageUrl)
-                .isEqualTo("https://cdn.test.chalkak/signatures/original/" + uploadId + ".png");
+        assertThat(updated.getSignatureOriginalStorageKey()).isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getSignatureThumbnailStorageKey()).isEqualTo(activeThumbnailStorageKey);
+        assertThat(updated.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(updated.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(updated.getSignatureProcessingStartedAt()).isNotNull();
+        assertThat(imageUrl).isEqualTo("https://cdn.test.chalkak/" + activeOriginalStorageKey);
+    }
+
+    @Test
+    @DisplayName("Lambda가 등록 API보다 먼저 완료했으면 pending 저장 후 즉시 승격한다")
+    void updateSignature_alreadyProcessedImage_promotesImmediately() {
+        // Given
+        UUID id = userRepository.save(UserFixture.create()).getId();
+        flushAndClear();
+        UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
+        String completedImageUrl = "https://cdn.test.chalkak/signatures/dev/original/" + uploadId + ".png";
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        given(signatureImageStorage.toImageUrl(storageKeys.originalStorageKey())).willReturn(completedImageUrl);
+
+        // When
+        String imageUrl = userService.updateSignature(id, uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+        assertThat(updated.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
+        assertThat(updated.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(updated.getPendingSignatureUploadId()).isNull();
+        assertThat(updated.getSignatureProcessingStatus()).isNull();
+        assertThat(imageUrl).isEqualTo(completedImageUrl);
+    }
+
+    @Test
+    @DisplayName("성공 콜백은 pending 사인을 활성 사인으로 승격한다")
+    void completeSignatureProcessing_matchingPending_promotesSignature() {
+        // Given
+        UUID id = userRepository.save(UserFixture.create()).getId();
+        flushAndClear();
+        UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+        assertThat(updated.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
+        assertThat(updated.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(updated.getPendingSignatureUploadId()).isNull();
+    }
+
+    @Test
+    @DisplayName("실패 콜백은 기존 활성 사인을 유지하고 처리 상태만 실패로 바꾼다")
+    void failSignatureProcessing_matchingPending_preservesActiveSignature() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        flushAndClear();
+        UUID uploadId = UUID.randomUUID();
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+
+        // When
+        userService.failSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+        assertThat(updated.getSignatureOriginalStorageKey()).isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(updated.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("현재 pending과 다른 업로드의 느린 성공 콜백은 무시한다")
+    void completeSignatureProcessing_staleUpload_ignoresCallback() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(UUID.randomUUID());
+        flushAndClear();
+
+        // Then
+        assertThat(userRepository.findById(id).orElseThrow().getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
     }
 
     @Test
@@ -132,8 +233,9 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID id = userRepository.save(UserFixture.create()).getId();
         flushAndClear();
         UUID uploadId = UUID.randomUUID();
-        given(signatureImageStorage.toOriginalStorageKey(uploadId))
-                .willReturn(owner.getSignatureOriginalStorageKey());
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(new SignatureStorageKeys(
+                owner.getSignatureOriginalStorageKey(),
+                "chalkak/signatures/dev/thumbnail/" + uploadId + ".png"));
 
         // When & Then
         assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
@@ -148,8 +250,7 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID id = userRepository.save(UserFixture.create()).getId();
         flushAndClear();
         UUID uploadId = UUID.randomUUID();
-        given(signatureImageStorage.toOriginalStorageKey(uploadId))
-                .willReturn("chalkak/signatures/original/" + uploadId + ".png");
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.empty());
 
         // When & Then
@@ -165,8 +266,7 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID id = userRepository.save(UserFixture.create()).getId();
         flushAndClear();
         UUID uploadId = UUID.randomUUID();
-        given(signatureImageStorage.toOriginalStorageKey(uploadId))
-                .willReturn("chalkak/signatures/original/" + uploadId + ".png");
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(new StoredImageMetadata("image/jpeg", 1024L)));
 
@@ -182,8 +282,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         UUID notExistingId = UUID.randomUUID();
         UUID uploadId = UUID.randomUUID();
-        given(signatureImageStorage.toOriginalStorageKey(uploadId))
-                .willReturn("chalkak/signatures/original/" + uploadId + ".png");
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
 
         // When & Then
@@ -200,8 +299,7 @@ class UserServiceTest extends IntegrationTestSupport {
         userService.withdraw(id);
         flushAndClear();
         UUID uploadId = UUID.randomUUID();
-        given(signatureImageStorage.toOriginalStorageKey(uploadId))
-                .willReturn("chalkak/signatures/original/" + uploadId + ".png");
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId)).willReturn(Optional.of(VALID_IMAGE));
 
         // When & Then
@@ -213,5 +311,11 @@ class UserServiceTest extends IntegrationTestSupport {
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    private SignatureStorageKeys storageKeys(UUID uploadId) {
+        return new SignatureStorageKeys(
+                "chalkak/signatures/dev/original/" + uploadId + ".png",
+                "chalkak/signatures/dev/thumbnail/" + uploadId + ".png");
     }
 }

@@ -14,28 +14,66 @@ S3 ObjectCreated
   → PNG 실제 디코딩 및 검증
   → 메타데이터를 제거한 PNG 재인코딩
   → 원본과 썸네일 저장
+  → 백엔드 성공·실패 콜백
   → staging 객체 삭제
 ```
 
 현재 Spring 애플리케이션과 공유하는 S3 키 계약은 다음과 같다.
 
 ```text
-입력     chalkak/staging/signatures/{uploadId}.png
-원본     chalkak/signatures/original/{uploadId}.png
-썸네일   chalkak/signatures/thumbnail/{uploadId}.png
+입력(dev)   chalkak/staging/dev/signatures/{uploadId}.png
+입력(prod)  chalkak/staging/prod/signatures/{uploadId}.png
+원본         chalkak/signatures/{environment}/original/{uploadId}.png
+썸네일       chalkak/signatures/{environment}/thumbnail/{uploadId}.png
 ```
+
+S3 이벤트 알림의 prefix는 기존 `chalkak/staging/`를 그대로 유지한다.
+Lambda는 입력 키의 `environment`를 읽어 같은 환경의 결과 경로와 백엔드
+콜백 URL을 선택하며, `dev`와 `prod` 외의 환경은 반려한다.
+
+### 백엔드 DB 기록 계약
+
+사인 등록 API는 staging 객체의 형식과 크기를 검증한 뒤, Lambda 완료를
+기다리지 않고 `pending_signature_upload_id`와 처리 상태를 저장한다.
+기존 active 원본·썸네일 키는 Lambda가 완료될 때까지 유지한다.
+
+```text
+사인 등록 API 트랜잭션
+  pending_signature_upload_id = uploadId
+  signature_processing_status = PROCESSING
+  signature_processing_started_at = now
+  active 키는 유지
+  → 즉시 응답
+
+Lambda
+  → 원본·썸네일 객체 생성
+  → HMAC 성공 콜백
+  → 백엔드가 pending 일치 시 active 키로 승격
+  → staging 삭제
+```
+
+성공 콜백은 pending `uploadId`가 현재 작업과 같고 상태가
+`PROCESSING`일 때만 승격한다. 중복 콜백과 이전 작업의 느린 콜백은
+`204 No Content`로 멱등하게 무시한다. 영구 실패 콜백은 active를 유지하고
+상태만 `FAILED`로 바꾼다.
+
+초기 `null` 문제부터 중간안의 한계와 최종 상태 전이 계약은
+[`SIGNATURE_PROCESSING_DESIGN.md`](SIGNATURE_PROCESSING_DESIGN.md)에 기록한다.
 
 이슈 #101은 사인 처리만 포함한다. 포스트 이미지 처리를 추가할 때는
 `image_processor` 아래에 별도 프로세서를 추가하고 handler에서 staging 경로에 따라
-라우팅한다. 현재도 `staging/signatures/`와 `staging/posts/`를 라우터가
+라우팅한다. 현재도 `staging/{environment}/signatures/`와
+`staging/{environment}/posts/`를 라우터가
 구분하며, posts는 processor가 아직 없어 반려한다. 같은 SQS 큐에 소비
 Lambda를 하나 더 연결해서 메시지를 나누면 안 된다.
 
 ## 실패 정책
 
-- 잘못된 키, 크기 초과, 손상 파일, PNG가 아닌 파일은 반려하고 메시지를 정상 종료한다.
+- 크기 초과, 손상 파일, PNG가 아닌 파일은 실패 콜백 2xx 확인 후 메시지를 정상 종료한다.
+- 잘못된 버킷·키처럼 신뢰할 업로드 ID를 추출할 수 없는 이벤트는 콜백 없이 반려한다.
 - S3 timeout과 5xx처럼 복구 가능한 실패는 예외를 전파해 SQS가 다시 전달하게 한다.
-- 원본과 썸네일 저장이 모두 성공한 뒤에만 staging 객체를 삭제한다.
+- 원본과 썸네일 저장과 성공 콜백이 모두 성공한 뒤에만 staging 객체를 삭제한다.
+- 백엔드 콜백 timeout·4xx·5xx는 예외를 전파해 SQS 재시도 대상으로 둔다.
 - 출력 키가 결정적이므로 같은 메시지가 다시 전달돼도 동일한 객체를 덮어쓴다.
 - 현재 DLQ를 사용하지 않으므로 CloudWatch에서 Lambda 오류와 SQS 적체를 확인해야 한다.
 
@@ -54,6 +92,26 @@ Lambda를 하나 더 연결해서 메시지를 나누면 안 된다.
 | `SIGNATURE_MAX_PIXELS` | `25000000` | 압축 폭탄 방지용 최대 픽셀 수 |
 | `SIGNATURE_THUMBNAIL_MAX_SIZE` | `512` | 썸네일 가로·세로 최대 길이 |
 | `SIGNATURE_CACHE_CONTROL` | `public, max-age=86400` | 결과 객체 Cache-Control |
+| `DEV_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 dev 백엔드 HTTPS URL |
+| `PROD_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 prod 백엔드 HTTPS URL |
+| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키 |
+| `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
+
+### 배포 순서
+
+1. dev·prod EC2의 `/etc/chalkak/application.env`에 동일한 32자 이상의
+   `IMAGE_PROCESSOR_CALLBACK_SECRET`를 설정한다.
+2. DB 마이그레이션과 내부 콜백 API가 포함된 dev·prod 백엔드를 먼저 배포한다.
+3. Lambda에 `DEV_BACKEND_CALLBACK_URL`, `PROD_BACKEND_CALLBACK_URL`, 같은
+   `IMAGE_PROCESSOR_CALLBACK_SECRET`, `BACKEND_CALLBACK_TIMEOUT_SECONDS`를 설정한다.
+4. Lambda 코드를 배포하고 성공·실패 콜백이 204를 받는지 확인한다.
+
+Lambda를 먼저 배포하면 필수 환경 변수 누락 또는 콜백 API 미배포로
+SQS 재시도가 반복될 수 있다. HTTP 콜백은 추가 IAM 권한을 필요로
+하지 않지만, ALB가 `/internal/v1/signature-processing/*` 경로를 백엔드
+타겟 그룹으로 전달해야 한다.
+입력 키가 `chalkak/staging/dev/` 또는 `chalkak/staging/prod/`로 시작하므로
+공유 Lambda도 사인 등록을 소유한 백엔드 DB로만 콜백한다.
 
 ## 로컬 검증
 
@@ -260,8 +318,9 @@ notification은 `ObjectCreated` 이벤트, prefix `chalkak/staging/`, suffix는 
 설정하고 위 SQS 큐로 보낸다. Lambda 내부 라우터가 `signatures/`와
 `posts/`를 구분하므로 포스트 processor를 추가할 때 S3 notification을 다시
 바꾸지 않아도 된다. 다만 포스트 processor가 배포되기 전에는
-`staging/posts/`로 실제 파일을 업로드하지 않는다.
+`staging/{environment}/posts/`로 실제 파일을 업로드하지 않는다.
 
 배포 후 먼저 트리거를 비활성화한 상태에서 테스트 이벤트를 실행하고, 성공한 다음
-트리거를 활성화한다. 실제 검증은 고유 UUID PNG를 `staging/signatures/`에
+트리거를 활성화한다. 실제 검증은 고유 UUID PNG를
+`staging/dev/signatures/` 또는 `staging/prod/signatures/`에
 올려 원본과 썸네일이 생성되고 staging 객체가 삭제되는지 확인한다.

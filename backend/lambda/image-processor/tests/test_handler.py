@@ -27,7 +27,7 @@ def s3_body() -> dict:
                     "bucket": {"name": "test-bucket"},
                     "object": {
                         "key": (
-                            "chalkak/staging/signatures/"
+                            "chalkak/staging/dev/signatures/"
                             "0198d999-ff00-7000-8000-000000000001.png"
                         ),
                         "size": 100,

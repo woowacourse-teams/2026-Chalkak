@@ -24,6 +24,16 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public Optional<User> findActiveByIdForUpdate(UUID id) {
+        return userJpaRepository.findActiveByIdForUpdate(id);
+    }
+
+    @Override
+    public Optional<User> findActiveByPendingSignatureUploadIdForUpdate(UUID uploadId) {
+        return userJpaRepository.findActiveByPendingSignatureUploadIdForUpdate(uploadId);
+    }
+
+    @Override
     public boolean existsBySignatureOriginalStorageKey(String storageKey) {
         return userJpaRepository.existsBySignatureOriginalStorageKey(storageKey);
     }

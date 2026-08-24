@@ -18,3 +18,6 @@ management:
     health:
       show-details: never
 
+chalkak:
+  image:
+    environment: dev

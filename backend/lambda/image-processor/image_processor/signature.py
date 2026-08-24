@@ -21,26 +21,35 @@ class ProcessedSignature:
 
 
 class SignatureImageProcessor:
-    def __init__(self, s3_client: Any, settings: Settings):
+    def __init__(self, s3_client: Any, settings: Settings, callback_client: Any):
         self._s3_client = s3_client
         self._settings = settings
+        self._callback_client = callback_client
         self._staging_key_pattern = re.compile(
-            rf"^{re.escape(settings.root_prefix)}/staging/signatures/"
+            rf"^{re.escape(settings.root_prefix)}/staging/"
+            r"(?P<environment>dev|prod)/signatures/"
             r"(?P<upload_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
             r"[0-9a-f]{4}-[0-9a-f]{12})\.png$"
         )
 
     def process(self, event: S3ObjectCreated) -> ProcessedSignature:
-        self._validate_event(event)
-        upload_id = self._extract_upload_id(event.key)
-        source = self._download(event)
-        original, thumbnail = self._decode_and_transform(source)
+        self._validate_bucket(event)
+        environment, upload_id = self._extract_staging_identity(event.key)
+        try:
+            self._validate_size(event)
+            source = self._download(event)
+            original, thumbnail = self._decode_and_transform(source)
 
-        original_key = self._destination_key("original", upload_id)
-        thumbnail_key = self._destination_key("thumbnail", upload_id)
+            original_key = self._destination_key(environment, "original", upload_id)
+            thumbnail_key = self._destination_key(environment, "thumbnail", upload_id)
 
-        self._upload(event.bucket, original_key, original)
-        self._upload(event.bucket, thumbnail_key, thumbnail)
+            self._upload(event.bucket, original_key, original)
+            self._upload(event.bucket, thumbnail_key, thumbnail)
+        except RejectedImageError:
+            self._callback_client.failed(environment, upload_id)
+            raise
+
+        self._callback_client.complete(environment, upload_id)
         self._s3_client.delete_object(Bucket=event.bucket, Key=event.key)
 
         return ProcessedSignature(
@@ -48,17 +57,19 @@ class SignatureImageProcessor:
             thumbnail_key=thumbnail_key,
         )
 
-    def _validate_event(self, event: S3ObjectCreated) -> None:
+    def _validate_bucket(self, event: S3ObjectCreated) -> None:
         if event.bucket != self._settings.expected_bucket:
             raise RejectedImageError("image was uploaded to an unexpected bucket")
+
+    def _validate_size(self, event: S3ObjectCreated) -> None:
         if event.size is not None and event.size > self._settings.max_input_bytes:
             raise RejectedImageError("image exceeds the maximum input size")
 
-    def _extract_upload_id(self, key: str) -> str:
+    def _extract_staging_identity(self, key: str) -> tuple[str, str]:
         match = self._staging_key_pattern.fullmatch(key)
         if match is None:
             raise RejectedImageError("object key is not a signature staging key")
-        return match.group("upload_id")
+        return match.group("environment"), match.group("upload_id")
 
     def _download(self, event: S3ObjectCreated) -> bytes:
         try:
@@ -144,8 +155,16 @@ class SignatureImageProcessor:
         image.save(output, format="PNG", optimize=True)
         return output.getvalue()
 
-    def _destination_key(self, variant: str, upload_id: str) -> str:
-        return f"{self._settings.root_prefix}/signatures/{variant}/{upload_id}.png"
+    def _destination_key(
+        self,
+        environment: str,
+        variant: str,
+        upload_id: str,
+    ) -> str:
+        return (
+            f"{self._settings.root_prefix}/signatures/"
+            f"{environment}/{variant}/{upload_id}.png"
+        )
 
     def _upload(self, bucket: str, key: str, body: bytes) -> None:
         self._s3_client.put_object(

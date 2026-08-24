@@ -17,14 +17,14 @@ class ImageProcessorRouterTest(unittest.TestCase):
         )
 
     def test_process_routes_signature_directory_to_signature_processor(self) -> None:
-        event = created_event(f"chalkak/staging/signatures/{UPLOAD_ID}.png")
+        event = created_event(f"chalkak/staging/dev/signatures/{UPLOAD_ID}.png")
 
         self.router.process(event)
 
         self.signature_processor.process.assert_called_once_with(event)
 
     def test_process_rejects_posts_until_post_processor_is_implemented(self) -> None:
-        event = created_event(f"chalkak/staging/posts/{UPLOAD_ID}.webp")
+        event = created_event(f"chalkak/staging/prod/posts/{UPLOAD_ID}.webp")
 
         with self.assertRaisesRegex(RejectedImageError, "not implemented"):
             self.router.process(event)
@@ -32,7 +32,15 @@ class ImageProcessorRouterTest(unittest.TestCase):
         self.signature_processor.process.assert_not_called()
 
     def test_process_rejects_unknown_staging_directory(self) -> None:
-        event = created_event(f"chalkak/staging/unknown/{UPLOAD_ID}.png")
+        event = created_event(f"chalkak/staging/dev/unknown/{UPLOAD_ID}.png")
+
+        with self.assertRaisesRegex(RejectedImageError, "unsupported staging path"):
+            self.router.process(event)
+
+        self.signature_processor.process.assert_not_called()
+
+    def test_process_rejects_unsupported_environment(self) -> None:
+        event = created_event(f"chalkak/staging/test/signatures/{UPLOAD_ID}.png")
 
         with self.assertRaisesRegex(RejectedImageError, "unsupported staging path"):
             self.router.process(event)

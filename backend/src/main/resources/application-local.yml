@@ -12,6 +12,7 @@ spring:
 
 chalkak:
   image:
+    environment: local
     bucket: ${S3_BUCKET:chalkak-local-images}
     base-url: ${CLOUDFRONT_BASE_URL:http://localhost:4566}
     root-prefix: ${S3_PREFIX:chalkak}

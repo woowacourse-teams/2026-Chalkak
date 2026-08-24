@@ -4,6 +4,7 @@ from typing import Any
 
 import boto3
 
+from image_processor.callback import SignatureProcessingCallbackClient
 from image_processor.config import Settings
 from image_processor.errors import RejectedEventError, RejectedImageError
 from image_processor.events import parse_s3_records
@@ -84,9 +85,18 @@ def _get_processor() -> ImageProcessorRouter:
     global _processor
     if _processor is None:
         settings = Settings.from_environment()
+        callback_client = SignatureProcessingCallbackClient(
+            base_urls={
+                "dev": settings.dev_callback_base_url,
+                "prod": settings.prod_callback_base_url,
+            },
+            secret=settings.callback_secret,
+            timeout_seconds=settings.callback_timeout_seconds,
+        )
         signature_processor = SignatureImageProcessor(
             s3_client=boto3.client("s3"),
             settings=settings,
+            callback_client=callback_client,
         )
         _processor = ImageProcessorRouter(
             signature_processor=signature_processor,

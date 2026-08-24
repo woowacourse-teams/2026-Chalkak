@@ -18,6 +18,12 @@ public record ImageProperties(
                 message = "root-prefix는 앞뒤 슬래시와 빈 구간 없이 작성해야 합니다."
         )
         String rootPrefix,
+        @NotBlank
+        @Pattern(
+                regexp = "^(dev|prod|local|test)$",
+                message = "environment는 dev, prod, local, test 중 하나여야 합니다."
+        )
+        String environment,
         Signature signature,
         boolean anonymousAccess
 ) {

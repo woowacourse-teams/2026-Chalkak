@@ -14,6 +14,10 @@ class SettingsTest(unittest.TestCase):
             "SIGNATURE_MAX_PIXELS": "3000000",
             "SIGNATURE_THUMBNAIL_MAX_SIZE": "256",
             "SIGNATURE_CACHE_CONTROL": "no-cache",
+            "DEV_BACKEND_CALLBACK_URL": "https://dev-api.test.chalkak/internal/v1/signature-processing",
+            "PROD_BACKEND_CALLBACK_URL": "https://api.test.chalkak/internal/v1/signature-processing",
+            "IMAGE_PROCESSOR_CALLBACK_SECRET": "test-callback-secret-with-enough-length",
+            "BACKEND_CALLBACK_TIMEOUT_SECONDS": "3",
         }
 
         with patch.dict(os.environ, environment, clear=True):
@@ -25,6 +29,19 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(3_000_000, settings.max_image_pixels)
         self.assertEqual(256, settings.thumbnail_max_size)
         self.assertEqual("no-cache", settings.cache_control)
+        self.assertEqual(
+            "https://dev-api.test.chalkak/internal/v1/signature-processing",
+            settings.dev_callback_base_url,
+        )
+        self.assertEqual(
+            "https://api.test.chalkak/internal/v1/signature-processing",
+            settings.prod_callback_base_url,
+        )
+        self.assertEqual(
+            "test-callback-secret-with-enough-length",
+            settings.callback_secret,
+        )
+        self.assertEqual(3.0, settings.callback_timeout_seconds)
 
     def test_from_environment_rejects_non_positive_limit(self) -> None:
         with patch.dict(os.environ, {"SIGNATURE_MAX_BYTES": "0"}, clear=True):

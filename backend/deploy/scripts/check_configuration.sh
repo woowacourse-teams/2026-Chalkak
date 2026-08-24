@@ -27,6 +27,7 @@ required_keys=(
   S3_PREFIX
   CLOUDFRONT_BASE_URL
   CLOUDFRONT_ORIGIN_PATH
+  IMAGE_PROCESSOR_CALLBACK_SECRET
 )
 
 for key in "${required_keys[@]}"; do
@@ -47,6 +48,7 @@ db_host="$(read_value DB_HOST)"
 server_port="$(read_value SERVER_PORT)"
 aws_region="$(read_value AWS_REGION)"
 db_password="$(read_value DB_PASSWORD)"
+callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
 
 if [[ "${server_port}" != 8080 ]]; then
   echo "SERVER_PORT must be 8080 for the configured health check." >&2
@@ -60,6 +62,11 @@ fi
 
 if [[ ! "${db_password}" =~ ^[A-Za-z0-9._~@%+=,-]{20,}$ ]]; then
   echo "DB_PASSWORD must be at least 20 URL-safe characters without spaces, quotes, #, or $." >&2
+  exit 1
+fi
+
+if [[ ! "${callback_secret}" =~ ^[A-Za-z0-9._~@%+=,-]{32,}$ ]]; then
+  echo "IMAGE_PROCESSOR_CALLBACK_SECRET must be at least 32 URL-safe characters without spaces, quotes, #, or $." >&2
   exit 1
 fi
 

@@ -16,7 +16,7 @@ class S3EventParserTest(unittest.TestCase):
                         "s3": {
                             "bucket": {"name": "test-bucket"},
                             "object": {
-                                "key": "chalkak/staging/signatures/test%2Bimage.png",
+                                "key": "chalkak/staging/dev/signatures/test%2Bimage.png",
                                 "size": 100,
                             },
                         },
@@ -28,7 +28,7 @@ class S3EventParserTest(unittest.TestCase):
         records = parse_s3_records(body)
 
         self.assertEqual(
-            "chalkak/staging/signatures/test+image.png",
+            "chalkak/staging/dev/signatures/test+image.png",
             records[0].key,
         )
 

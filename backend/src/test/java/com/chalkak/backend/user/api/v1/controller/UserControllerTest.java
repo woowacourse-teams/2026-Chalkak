@@ -131,7 +131,7 @@ class UserControllerTest {
         // Given
         UUID userId = UUID.randomUUID();
         UUID uploadId = UUID.randomUUID();
-        String imageUrl = "https://cdn.example.com/signatures/original/" + uploadId + ".png";
+        String imageUrl = "https://cdn.example.com/signatures/dev/original/" + uploadId + ".png";
         given(userService.updateSignature(userId, uploadId)).willReturn(imageUrl);
 
         // When & Then

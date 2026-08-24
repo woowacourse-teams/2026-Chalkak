@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.infrastructure.infra;
 
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import java.net.HttpURLConnection;
@@ -16,8 +17,10 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 @RequiredArgsConstructor
 public class S3SignatureImageStorage implements SignatureImageStorage {
 
-    private static final String STAGING_PATH = "staging/signatures";
-    private static final String ORIGINAL_PATH = "signatures/original";
+    private static final String STAGING_PATH = "staging";
+    private static final String SIGNATURE_PATH = "signatures";
+    private static final String ORIGINAL_PATH = "original";
+    private static final String THUMBNAIL_PATH = "thumbnail";
     private static final String IMAGE_EXTENSION = ".png";
     private static final String PATH_DELIMITER = "/";
 
@@ -35,7 +38,7 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
         } catch (S3Exception exception) {
             stagingFailure = exception;
         }
-        Optional<StoredImageMetadata> originalImage = findImage(toOriginalStorageKey(uploadId));
+        Optional<StoredImageMetadata> originalImage = findImage(toStorageKeys(uploadId).originalStorageKey());
         if (originalImage.isEmpty() && stagingFailure != null) {
             throw stagingFailure;
         }
@@ -43,8 +46,15 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
     }
 
     @Override
-    public String toOriginalStorageKey(UUID uploadId) {
-        return createKey(ORIGINAL_PATH, uploadId);
+    public SignatureStorageKeys toStorageKeys(UUID uploadId) {
+        return new SignatureStorageKeys(
+                createSignatureKey(ORIGINAL_PATH, uploadId),
+                createSignatureKey(THUMBNAIL_PATH, uploadId));
+    }
+
+    @Override
+    public boolean isProcessingCompleted(UUID uploadId) {
+        return findImage(toStorageKeys(uploadId).thumbnailStorageKey()).isPresent();
     }
 
     @Override
@@ -87,14 +97,20 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
     }
 
     private String toStagingStorageKey(UUID uploadId) {
-        return createKey(STAGING_PATH, uploadId);
+        return createKey(STAGING_PATH, imageProperties.environment(), SIGNATURE_PATH, uploadId);
     }
 
-    private String createKey(String path, UUID uploadId) {
+    private String createSignatureKey(String variant, UUID uploadId) {
+        return createKey(SIGNATURE_PATH, imageProperties.environment(), variant, uploadId);
+    }
+
+    private String createKey(String firstPath, String secondPath, String thirdPath, UUID uploadId) {
         return String.join(
                 PATH_DELIMITER,
                 imageProperties.rootPrefix(),
-                path,
+                firstPath,
+                secondPath,
+                thirdPath,
                 uploadId + IMAGE_EXTENSION
         );
     }

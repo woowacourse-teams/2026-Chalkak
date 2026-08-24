@@ -213,6 +213,11 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 개발 환경의 `DB_HOST`는 `127.0.0.1`, 운영 환경은 RDS endpoint여야 한다. 배포 script가 이 값을 검증한다.
 
 `DB_PASSWORD`는 Docker Compose와 systemd가 같은 파일을 안전하게 읽을 수 있도록 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
+`IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고,
+dev·prod 백엔드와 Lambda 환경 변수에 동일한 값을 설정한다.
+Lambda에는 추가로 `DEV_BACKEND_CALLBACK_URL`과 `PROD_BACKEND_CALLBACK_URL`을
+`/internal/v1/signature-processing`까지 포함해 설정한다. 실제 값을 배포 artifact에
+포함하지 않는다.
 
 환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
 
