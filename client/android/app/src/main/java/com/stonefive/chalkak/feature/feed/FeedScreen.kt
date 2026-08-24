@@ -1,11 +1,11 @@
 package com.stonefive.chalkak.feature.feed
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -50,34 +50,34 @@ fun FeedScreen(
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ChalkakBackground)
-            .statusBarsPadding(),
-    ) {
-        FeedTopBar(
-            onNavigateBack = onNavigateBack,
-            onDeleteClick = onDeleteClick,
-            isDeleteVisible = uiState.content
-                ?.post
-                ?.isOwnedByCurrentUser == true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(
-                    start = 4.dp,
-                    top = 26.dp,
-                    end = 12.dp,
-                    bottom = 26.dp,
-                ),
-        )
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = ChalkakBackground,
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            FeedTopBar(
+                onNavigateBack = onNavigateBack,
+                onDeleteClick = onDeleteClick,
+                isDeleteVisible = uiState.content
+                    ?.post
+                    ?.isOwnedByCurrentUser == true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(
+                        start = 4.dp,
+                        end = 12.dp,
+                        bottom = 8.dp,
+                    ),
+            )
+        },
+    ) { innerPadding ->
         FeedContent(
             content = uiState.content,
             onLikeClick = onLikeClick,
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+                .fillMaxSize()
+                .padding(innerPadding),
         )
     }
 }
