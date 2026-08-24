@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
@@ -25,15 +24,15 @@ class S3SignatureImageStorageTest {
     private final S3Client s3Client = mock(S3Client.class);
 
     private final S3SignatureImageStorage signatureImageStorage = new S3SignatureImageStorage(
-            s3Client,
-            new ImageProperties(
-                    "test-bucket",
-                    "ap-northeast-2",
-                    BASE_URL,
-                    ROOT_PREFIX,
-                    new ImageProperties.Signature(1048576L, List.of("image/png")),
-                    false
-            )
+        s3Client,
+        new ImageProperties(
+            "test-bucket",
+            "ap-northeast-2",
+            BASE_URL,
+            ROOT_PREFIX,
+            new ImageProperties.Signature(1048576L, List.of("image/png")),
+            false
+        )
     );
 
     @Test
@@ -48,7 +47,7 @@ class S3SignatureImageStorageTest {
 
         // Then
         assertThat(imageUrl)
-                .isEqualTo(BASE_URL + "/signatures/original/" + uploadId + ".png");
+            .isEqualTo(BASE_URL + "/signatures/original/" + uploadId + ".png");
     }
 
     @Test
@@ -59,8 +58,8 @@ class S3SignatureImageStorageTest {
 
         // When & Then
         assertThatThrownBy(() -> signatureImageStorage.toImageUrl(storageKey))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("스토리지 키는 root-prefix로 시작해야 합니다: " + ROOT_PREFIX);
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("스토리지 키는 root-prefix로 시작해야 합니다: " + ROOT_PREFIX);
     }
 
     @Test
@@ -78,7 +77,7 @@ class S3SignatureImageStorageTest {
     void findUploadedImage_accessDenied_returnsEmpty() {
         // Given
         given(s3Client.headObject(anyHeadRequest()))
-                .willThrow(S3Exception.builder().statusCode(403).message("Forbidden").build());
+            .willThrow(S3Exception.builder().statusCode(403).message("Forbidden").build());
 
         // When & Then
         assertThat(signatureImageStorage.findUploadedImage(UUID.randomUUID())).isEmpty();
@@ -89,11 +88,11 @@ class S3SignatureImageStorageTest {
     void findUploadedImage_serverError_propagates() {
         // Given
         given(s3Client.headObject(anyHeadRequest()))
-                .willThrow(S3Exception.builder().statusCode(500).message("Internal Error").build());
+            .willThrow(S3Exception.builder().statusCode(500).message("Internal Error").build());
 
         // When & Then
         assertThatThrownBy(() -> signatureImageStorage.findUploadedImage(UUID.randomUUID()))
-                .isInstanceOf(S3Exception.class);
+            .isInstanceOf(S3Exception.class);
     }
 
     @SuppressWarnings("unchecked")
