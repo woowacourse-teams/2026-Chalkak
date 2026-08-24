@@ -606,6 +606,118 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThat(updated.getPendingSignatureUploadId()).isNull();
     }
 
+    @Test
+    @DisplayName("같은 성공 콜백이 두 번 도착해도 첫 승격 결과를 유지한다")
+    void completeSignatureProcessing_duplicateCallback_isIdempotent() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        flushAndClear();
+
+        UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
+
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toImageUrl(saved.getSignatureOriginalStorageKey()))
+                .willReturn("https://cdn.test.chalkak/active.png");
+
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(storageKeys.originalStorageKey());
+        assertThat(updated.getSignatureThumbnailStorageKey())
+                .isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(updated.getPendingSignatureUploadId()).isNull();
+        assertThat(updated.getSignatureProcessingStatus()).isNull();
+    }
+
+    @Test
+    @DisplayName("승격이 끝난 뒤 도착한 실패 콜백은 활성 사인을 훼손하지 않는다")
+    void failSignatureProcessing_afterPromotion_keepsActiveSignature() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        flushAndClear();
+
+        UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
+
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toImageUrl(saved.getSignatureOriginalStorageKey()))
+                .willReturn("https://cdn.test.chalkak/active.png");
+
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // When
+        userService.failSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(storageKeys.originalStorageKey());
+        assertThat(updated.getSignatureThumbnailStorageKey())
+                .isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(updated.getSignatureProcessingStatus()).isNull();
+    }
+
+    @Test
+    @DisplayName("영구 실패가 확정된 뒤 도착한 성공 콜백은 승격하지 않는다")
+    void completeSignatureProcessing_afterPermanentFailure_doesNotPromote() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey =
+                saved.getSignatureOriginalStorageKey();
+        flushAndClear();
+
+        UUID uploadId = UUID.randomUUID();
+
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
+                .willReturn("https://cdn.test.chalkak/" + activeOriginalStorageKey);
+
+        userService.updateSignature(id, uploadId);
+        flushAndClear();
+        userService.failSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.FAILED);
+    }
+
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
