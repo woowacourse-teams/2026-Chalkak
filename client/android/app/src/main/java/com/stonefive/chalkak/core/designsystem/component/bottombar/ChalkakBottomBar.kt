@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -62,10 +63,11 @@ fun ChalkakBottomBar(
     Row(
         modifier = modifier
             .background(ChalkakWhite)
+            .navigationBarsPadding()
             .selectableGroup()
             .padding(
                 top = 15.dp,
-                bottom = 26.dp,
+                bottom = 10.dp,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
