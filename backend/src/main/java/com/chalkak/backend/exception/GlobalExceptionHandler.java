@@ -4,6 +4,7 @@ import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -25,10 +26,7 @@ public class GlobalExceptionHandler {
     ) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(error -> fieldMessage(
-                        error.getField(),
-                        Objects.requireNonNullElse(error.getDefaultMessage(), "요청 값이 올바르지 않습니다.")
-                ))
+                .map(this::fieldErrorMessage)
                 .orElse("요청 값이 올바르지 않습니다.");
 
         return response(HttpStatus.BAD_REQUEST, ErrorCode.BUSINESS_ERROR, message);
@@ -112,6 +110,14 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> response(HttpStatus status, ErrorCode errorCode, String message) {
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(errorCode.name(), message));
+    }
+
+    private String fieldErrorMessage(FieldError error) {
+        String message = error.isBindingFailure()
+                ? "요청 값의 형식이 올바르지 않습니다."
+                : Objects.requireNonNullElse(error.getDefaultMessage(), "요청 값이 올바르지 않습니다.");
+
+        return fieldMessage(error.getField(), message);
     }
 
     private String fieldMessage(String field, String message) {
