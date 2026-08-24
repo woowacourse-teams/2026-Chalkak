@@ -59,6 +59,42 @@ class SignatureProcessingCallbackAuthenticatorTest {
                 .isInstanceOf(UnauthorizedException.class);
     }
 
+    @Test
+    @DisplayName("timestamp가 없으면 인증 실패로 거부한다")
+    void authenticate_nullTimestamp_throwsUnauthorizedException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+
+        // When & Then
+        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", null, "v1=00"))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("서명이 없으면 인증 실패로 거부한다")
+    void authenticate_nullSignature_throwsUnauthorizedException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+
+        // When & Then
+        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", timestamp, null))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("허용 시간 차 직전의 콜백 서명은 통과한다")
+    void authenticate_justInsideClockSkew_succeeds() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().minusSeconds(299).getEpochSecond());
+        String signature = sign(uploadId, "complete", timestamp);
+
+        // When & Then
+        assertThatCode(() -> authenticator.authenticate(uploadId, "complete", timestamp, signature))
+                .doesNotThrowAnyException();
+    }
+
     private String sign(UUID uploadId, String result, String timestamp) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

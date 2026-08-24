@@ -85,4 +85,38 @@ class SignatureProcessingCallbackControllerTest {
 
         verify(userService, never()).completeSignatureProcessing(uploadId);
     }
+
+    @Test
+    @DisplayName("서명 헤더가 없는 콜백은 401을 반환하고 상태를 변경하지 않는다")
+    void complete_missingSignatureHeader_returnsUnauthorized() throws Exception {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
+                .when(authenticator)
+                .authenticate(uploadId, "complete", "1787562000", null);
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
+                        .header(TIMESTAMP_HEADER, "1787562000"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).completeSignatureProcessing(uploadId);
+    }
+
+    @Test
+    @DisplayName("timestamp 헤더가 없는 콜백은 401을 반환하고 상태를 변경하지 않는다")
+    void complete_missingTimestampHeader_returnsUnauthorized() throws Exception {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
+                .when(authenticator)
+                .authenticate(uploadId, "complete", null, "signature");
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
+                        .header(SIGNATURE_HEADER, "signature"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).completeSignatureProcessing(uploadId);
+    }
 }
