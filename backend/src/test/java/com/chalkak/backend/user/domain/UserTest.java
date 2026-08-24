@@ -90,6 +90,27 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("현재 사인과 같은 원본 키를 가지고 있으면 참이다")
+    void hasSignature_sameStorageKey_returnsTrue() {
+        // Given
+        UUID id = UUID.randomUUID();
+        User user = UserFixture.create(id);
+
+        // When & Then
+        assertThat(user.hasSignature("signatures/" + id)).isTrue();
+    }
+
+    @Test
+    @DisplayName("현재 사인과 다른 원본 키를 가지고 있으면 거짓이다")
+    void hasSignature_differentStorageKey_returnsFalse() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThat(user.hasSignature("chalkak/signatures/original/" + UUID.randomUUID() + ".png")).isFalse();
+    }
+
+    @Test
     @DisplayName("빈 키로는 사인을 교체할 수 없다")
     void updateSignature_blankStorageKey_throwsException() {
         // Given

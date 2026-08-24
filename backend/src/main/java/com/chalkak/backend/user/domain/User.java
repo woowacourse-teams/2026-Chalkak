@@ -90,6 +90,10 @@ public class User {
         return deletedAt != null;
     }
 
+    public boolean hasSignature(String storageKey) {
+        return signatureOriginalStorageKey.equals(storageKey);
+    }
+
     private void anonymize() {
         this.email = WITHDRAWN_EMAIL_FORMAT.formatted(id);
         this.signatureOriginalStorageKey = WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
