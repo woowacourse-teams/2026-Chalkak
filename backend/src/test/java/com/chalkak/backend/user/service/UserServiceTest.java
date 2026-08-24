@@ -343,8 +343,8 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("실패한 같은 사인 업로드를 다시 요청해도 실패 상태를 초기화하지 않는다")
-    void updateSignature_sameFailedUploadId_preservesFailedState() {
+    @DisplayName("영구 실패한 사인 업로드를 다시 요청하면 재등록하도록 거부한다")
+    void updateSignature_sameFailedUploadId_throwsBusinessException() {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
@@ -353,16 +353,13 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
-        SignatureStorageKeys storageKeys = storageKeys(uploadId);
-        String activeImageUrl =
-                "https://cdn.test.chalkak/" + activeOriginalStorageKey;
 
         given(signatureImageStorage.toStorageKeys(uploadId))
-                .willReturn(storageKeys);
+                .willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(VALID_IMAGE));
         given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
-                .willReturn(activeImageUrl);
+                .willReturn("https://cdn.test.chalkak/" + activeOriginalStorageKey);
 
         userService.updateSignature(id, uploadId);
         flushAndClear();
@@ -370,26 +367,16 @@ class UserServiceTest extends IntegrationTestSupport {
         userService.failSignatureProcessing(uploadId);
         flushAndClear();
 
-        Instant startedAt = userRepository.findById(id)
-                .orElseThrow()
-                .getSignatureProcessingStartedAt();
+        // When & Then
+        assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("처리할 수 없는 사인 이미지입니다. 새 이미지를 업로드해 주세요.");
 
-        // When
-        String imageUrl = userService.updateSignature(id, uploadId);
-        flushAndClear();
-
-        // Then
         User updated = userRepository.findById(id).orElseThrow();
-
-        assertThat(imageUrl).isEqualTo(activeImageUrl);
         assertThat(updated.getSignatureOriginalStorageKey())
                 .isEqualTo(activeOriginalStorageKey);
-        assertThat(updated.getPendingSignatureUploadId())
-                .isEqualTo(uploadId);
         assertThat(updated.getSignatureProcessingStatus())
                 .isEqualTo(SignatureProcessingStatus.FAILED);
-        assertThat(updated.getSignatureProcessingStartedAt())
-                .isEqualTo(startedAt);
     }
 
     @Test

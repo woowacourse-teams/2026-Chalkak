@@ -125,9 +125,14 @@ public class User {
                 && storageKey.equals(signatureOriginalStorageKey);
     }
 
-    public boolean hasPendingSignature(UUID uploadId) {
+    public boolean isSignatureProcessing(UUID uploadId) {
+        return isProcessing(uploadId);
+    }
+
+    public boolean isSignatureProcessingFailed(UUID uploadId) {
         return uploadId != null
-                && uploadId.equals(pendingSignatureUploadId);
+                && uploadId.equals(pendingSignatureUploadId)
+                && signatureProcessingStatus == SignatureProcessingStatus.FAILED;
     }
 
     public void delete() {

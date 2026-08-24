@@ -172,20 +172,20 @@ class UserTest {
     }
 
     @Test
-    @DisplayName("처리 중인 동일 업로드 ID를 pending으로 판단한다")
-    void hasPendingSignature_processingUpload_returnsTrue() {
+    @DisplayName("처리 중인 동일 업로드 ID는 처리 중으로 판단한다")
+    void isSignatureProcessing_processingUpload_returnsTrue() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
         UUID uploadId = UUID.randomUUID();
         user.startSignatureProcessing(uploadId, Instant.now());
 
         // When & Then
-        assertThat(user.hasPendingSignature(uploadId)).isTrue();
+        assertThat(user.isSignatureProcessing(uploadId)).isTrue();
     }
 
     @Test
-    @DisplayName("실패한 동일 업로드 ID도 pending으로 판단한다")
-    void hasPendingSignature_failedUpload_returnsTrue() {
+    @DisplayName("실패한 동일 업로드 ID는 처리 중이 아니라 실패로 판단한다")
+    void isSignatureProcessing_failedUpload_returnsFalse() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
         UUID uploadId = UUID.randomUUID();
@@ -193,18 +193,19 @@ class UserTest {
         user.failSignatureProcessing(uploadId);
 
         // When & Then
-        assertThat(user.hasPendingSignature(uploadId)).isTrue();
+        assertThat(user.isSignatureProcessing(uploadId)).isFalse();
+        assertThat(user.isSignatureProcessingFailed(uploadId)).isTrue();
     }
 
     @Test
-    @DisplayName("현재 pending과 다른 업로드 ID이면 거짓이다")
-    void hasPendingSignature_differentUpload_returnsFalse() {
+    @DisplayName("현재 pending과 다른 업로드 ID이면 처리 중이 아니다")
+    void isSignatureProcessing_differentUpload_returnsFalse() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
         user.startSignatureProcessing(UUID.randomUUID(), Instant.now());
 
         // When & Then
-        assertThat(user.hasPendingSignature(UUID.randomUUID())).isFalse();
+        assertThat(user.isSignatureProcessing(UUID.randomUUID())).isFalse();
     }
 
     @Test

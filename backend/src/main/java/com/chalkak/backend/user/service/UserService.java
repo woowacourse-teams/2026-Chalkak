@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.service;
 
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
@@ -51,8 +52,15 @@ public class UserService {
                     user.getSignatureOriginalStorageKey());
         }
 
+        // 영구 실패한 업로드는 같은 바이트를 다시 처리해도 실패하므로 재등록만이 탈출구다.
+        if (user.isSignatureProcessingFailed(uploadId)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "처리할 수 없는 사인 이미지입니다. 새 이미지를 업로드해 주세요.");
+        }
+
         // 동일한 비동기 작업의 재요청이면 처리 시각과 상태를 초기화하지 않는다.
-        if (user.hasPendingSignature(uploadId)) {
+        if (user.isSignatureProcessing(uploadId)) {
             return signatureImageStorage.toImageUrl(
                     user.getSignatureOriginalStorageKey());
         }
