@@ -218,9 +218,8 @@ fun RecordScreen(
                         .align(Alignment.TopEnd)
                         .padding(
                             top = 20.dp,
-                            end = ChalkakTheme.spacing.screenHorizontal,
-                        ).height(48.dp)
-                        .padding(end = 12.dp),
+                            end = 20.dp,
+                        ).height(48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
