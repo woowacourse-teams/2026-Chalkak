@@ -112,6 +112,13 @@ public class User {
         this.signatureProcessingStatus = SignatureProcessingStatus.FAILED;
         return true;
     }
+
+    /**
+     * 진행 중이던 사인 처리를 포기한다. 이후 도착하는 그 작업의 콜백은 pending 불일치로 무시된다.
+     */
+    public void cancelSignatureProcessing() {
+        clearSignatureProcessing();
+    }
   
     public boolean hasSignature(String storageKey) {
         return storageKey != null

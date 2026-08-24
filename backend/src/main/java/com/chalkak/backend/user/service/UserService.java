@@ -43,8 +43,10 @@ public class UserService {
                         ErrorCode.BUSINESS_ERROR,
                         "사인을 교체할 회원을 찾을 수 없습니다."));
 
-        // 이미 완료된 동일 요청이면 상태를 변경하지 않는다.
+        // 이미 활성인 사인을 다시 고른 것이므로, 진행 중이던 다른 작업은 사용자가 되돌린 것으로 본다.
+        // 취소하지 않으면 그 작업의 완료 콜백이 나중에 도착해 사용자의 최신 선택을 덮어쓴다.
         if (user.hasSignature(storageKeys.originalStorageKey())) {
+            user.cancelSignatureProcessing();
             return signatureImageStorage.toImageUrl(
                     user.getSignatureOriginalStorageKey());
         }

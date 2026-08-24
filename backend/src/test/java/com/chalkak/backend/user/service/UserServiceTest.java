@@ -530,6 +530,95 @@ class UserServiceTest extends IntegrationTestSupport {
                 .hasMessage("사인을 교체할 회원을 찾을 수 없습니다.");
     }
 
+    @Test
+    @DisplayName("현재 활성 사인으로 되돌리면 진행 중이던 pending을 취소한다")
+    void updateSignature_revertToActiveSignature_cancelsPendingProcessing() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey =
+                saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey =
+                saved.getSignatureThumbnailStorageKey();
+        flushAndClear();
+
+        UUID pendingUploadId = UUID.randomUUID();
+        UUID activeUploadId = UUID.randomUUID();
+        String activeImageUrl =
+                "https://cdn.test.chalkak/" + activeOriginalStorageKey;
+
+        given(signatureImageStorage.toStorageKeys(pendingUploadId))
+                .willReturn(storageKeys(pendingUploadId));
+        given(signatureImageStorage.findUploadedImage(pendingUploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toStorageKeys(activeUploadId))
+                .willReturn(new SignatureStorageKeys(
+                        activeOriginalStorageKey,
+                        activeThumbnailStorageKey));
+        given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
+                .willReturn(activeImageUrl);
+
+        userService.updateSignature(id, pendingUploadId);
+        flushAndClear();
+
+        // When
+        String imageUrl = userService.updateSignature(id, activeUploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+
+        assertThat(imageUrl).isEqualTo(activeImageUrl);
+        assertThat(updated.getPendingSignatureUploadId()).isNull();
+        assertThat(updated.getSignatureProcessingStatus()).isNull();
+        assertThat(updated.getSignatureProcessingStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("취소된 pending의 뒤늦은 성공 콜백은 활성 사인을 바꾸지 못한다")
+    void completeSignatureProcessing_cancelledPending_doesNotOverwriteActive() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID id = saved.getId();
+        String activeOriginalStorageKey =
+                saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey =
+                saved.getSignatureThumbnailStorageKey();
+        flushAndClear();
+
+        UUID pendingUploadId = UUID.randomUUID();
+        UUID activeUploadId = UUID.randomUUID();
+
+        given(signatureImageStorage.toStorageKeys(pendingUploadId))
+                .willReturn(storageKeys(pendingUploadId));
+        given(signatureImageStorage.findUploadedImage(pendingUploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toStorageKeys(activeUploadId))
+                .willReturn(new SignatureStorageKeys(
+                        activeOriginalStorageKey,
+                        activeThumbnailStorageKey));
+        given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
+                .willReturn("https://cdn.test.chalkak/" + activeOriginalStorageKey);
+
+        userService.updateSignature(id, pendingUploadId);
+        flushAndClear();
+        userService.updateSignature(id, activeUploadId);
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(pendingUploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(id).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getSignatureThumbnailStorageKey())
+                .isEqualTo(activeThumbnailStorageKey);
+        assertThat(updated.getPendingSignatureUploadId()).isNull();
+    }
+
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
