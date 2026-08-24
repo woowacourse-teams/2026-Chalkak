@@ -91,7 +91,7 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 
 ## DB 격리
 
-일반적인 Service 통합 테스트는 `@Transactional`과 Rollback을 사용한다.
+일반적인 Service 통합 테스트는 각 테스트 클래스에 `@Transactional`을 선언해 Rollback을 사용한다.
 
 다음 테스트는 `@Transactional`을 사용하지 않고 `DatabaseCleaner`로 정리한다.
 
@@ -115,7 +115,8 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 ## 통합 테스트 상위 클래스
 
 - 통합 테스트는 `IntegrationTestSupport`를 상속한다.
-- Context 설정, 프로파일, 공통 `@MockitoBean`, DB 정리를 상위 클래스에서 통일한다.
+- Context 설정, 프로파일, 공통 `@MockitoBean`을 상위 클래스에서 통일한다.
+- 상위 클래스에 `@Transactional`을 선언하지 않는다. 롤백으로 격리할 수 없는 테스트도 같은 상위 클래스를 상속할 수 있어야 하므로, 격리 방식은 각 테스트 클래스가 선언한다.
 - Context 캐싱을 유지하기 위해 개별 테스트 클래스에 별도 Context 설정을 추가하지 않는다.
 
 ## 네이밍
