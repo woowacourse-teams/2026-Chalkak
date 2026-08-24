@@ -22,6 +22,17 @@ spring:
     default-schema: public
     validate-migration-naming: true
 
+chalkak:
+  image:
+    bucket: ${S3_BUCKET}
+    region: ${AWS_REGION:ap-northeast-2}
+    base-url: ${CLOUDFRONT_BASE_URL}
+    root-prefix: ${S3_PREFIX}
+    signature:
+      max-bytes: 1048576
+      allowed-content-types:
+        - image/png
+
 management:
   endpoints:
     web:

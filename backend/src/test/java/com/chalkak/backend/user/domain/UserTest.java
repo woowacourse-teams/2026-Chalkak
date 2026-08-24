@@ -61,4 +61,56 @@ class UserTest {
         // When & Then
         assertThat(user.isDeleted()).isFalse();
     }
+
+    @Test
+    @DisplayName("사인을 교체하면 원본 키가 새 키로 바뀐다")
+    void updateSignature_newStorageKey_replacesOriginalKey() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        String newStorageKey = "chalkak/signatures/original/" + UUID.randomUUID() + ".png";
+
+        // When
+        user.updateSignature(newStorageKey);
+
+        // Then
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(newStorageKey);
+    }
+
+    @Test
+    @DisplayName("사인을 교체하면 이전 사인의 썸네일 키를 버린다")
+    void updateSignature_newStorageKey_clearsThumbnailKey() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When
+        user.updateSignature("chalkak/signatures/original/" + UUID.randomUUID() + ".png");
+
+        // Then
+        assertThat(user.getSignatureThumbnailStorageKey()).isNull();
+    }
+
+    @Test
+    @DisplayName("빈 키로는 사인을 교체할 수 없다")
+    void updateSignature_blankStorageKey_throwsException() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThatThrownBy(() -> user.updateSignature(" "))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("사인 이미지 업로드 정보가 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 사인을 교체할 수 없다")
+    void updateSignature_withdrawnUser_throwsException() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.withdraw();
+
+        // When & Then
+        assertThatThrownBy(() -> user.updateSignature("chalkak/signatures/original/key.png"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 탈퇴한 회원입니다.");
+    }
 }
