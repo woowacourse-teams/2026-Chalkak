@@ -1,6 +1,11 @@
 package com.stonefive.chalkak.feature.record
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -94,7 +100,7 @@ fun RecordScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val calendarLayer = rememberGraphicsLayer()
-    val saveCalendarImage: () -> Unit = {
+    val saveCalendarImageNow: () -> Unit = {
         coroutineScope.launch {
             val image = calendarLayer.toImageBitmap()
             val saved = withContext(Dispatchers.IO) {
@@ -114,6 +120,33 @@ fun RecordScreen(
                     },
                     Toast.LENGTH_SHORT,
                 ).show()
+        }
+    }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        if (isGranted) {
+            saveCalendarImageNow()
+        } else {
+            Toast
+                .makeText(
+                    context,
+                    "이미지 저장 권한이 필요해요",
+                    Toast.LENGTH_SHORT,
+                ).show()
+        }
+    }
+    val saveCalendarImage: () -> Unit = {
+        val hasStoragePermission = Build.VERSION.SDK_INT > Build.VERSION_CODES.P ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasStoragePermission) {
+            saveCalendarImageNow()
+        } else {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 
