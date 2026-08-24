@@ -13,6 +13,12 @@ description: backend/src/test/java의 Java 테스트 코드를 생성·수정·�
 4. 관련 없는 기존 테스트는 변경하지 않는다.
 5. 완료 전 변경한 테스트를 아래 규칙으로 다시 확인한다.
 
+## 기본 스타일
+
+- Google Java Style을 기본으로 하되 블록 들여쓰기는 공백 4칸을 사용한다.
+- UTF-8·LF를 사용하고 파일 끝 개행을 추가하며 줄 끝 공백을 제거한다.
+- 완료 전 변경한 파일에서 사용하지 않는 import를 제거한다.
+
 ## 테스트 유형
 
 - 단위 테스트: Spring Context 없이 `new`로 객체를 생성해 검증한다.
@@ -28,6 +34,11 @@ description: backend/src/test/java의 Java 테스트 코드를 생성·수정·�
 - Controller: `@WebMvcTest`와 Service Mock
 - Infrastructure: Adapter 단위의 통합 테스트
 - E2E: 핵심 시나리오의 성공 경로만 테스트
+
+## 테스트 케이스
+
+- 각 계층의 테스트 전략 범위에서 적용 가능한 경계값을 검토하고 테스트한다.
+- 경계가 존재하면 경계 직전·경계값·경계 직후를 포함한다.
 
 ### Domain
 
@@ -85,7 +96,7 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 
 ## DB 격리
 
-일반적인 Service 통합 테스트는 `@Transactional`과 Rollback을 사용한다.
+일반적인 Service 통합 테스트는 각 테스트 클래스에 `@Transactional`을 선언해 Rollback을 사용한다.
 
 다음 테스트는 `@Transactional`을 사용하지 않고 `DatabaseCleaner`로 정리한다.
 
@@ -109,7 +120,8 @@ Spring Data JPA 기본 메서드는 별도로 테스트하지 않는다. 다음 
 ## 통합 테스트 상위 클래스
 
 - 통합 테스트는 `IntegrationTestSupport`를 상속한다.
-- Context 설정, 프로파일, 공통 `@MockitoBean`, DB 정리를 상위 클래스에서 통일한다.
+- Context 설정, 프로파일, 공통 `@MockitoBean`을 상위 클래스에서 통일한다.
+- 상위 클래스에 `@Transactional`을 선언하지 않는다. 롤백으로 격리할 수 없는 테스트도 같은 상위 클래스를 상속할 수 있어야 하므로, 격리 방식은 각 테스트 클래스가 선언한다.
 - Context 캐싱을 유지하기 위해 개별 테스트 클래스에 별도 Context 설정을 추가하지 않는다.
 
 ## 네이밍
