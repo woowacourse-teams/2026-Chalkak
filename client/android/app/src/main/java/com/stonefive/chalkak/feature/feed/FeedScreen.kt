@@ -24,8 +24,8 @@ import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 fun FeedRoute(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
-    initialContent: FeedContentState.Success? = null,
     modifier: Modifier = Modifier,
+    initialContent: FeedContentState.Success? = null,
     viewModel: FeedViewModel = viewModel(
         key = "feed-${initialContent?.post?.id ?: "latest"}",
         factory = FeedViewModel.factory(initialContent),
