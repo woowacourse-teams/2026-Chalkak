@@ -34,7 +34,12 @@ public class SignatureProcessingCallbackAuthenticator {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
     }
 
-    public void authenticate(UUID uploadId, String result, String timestamp, String signature) {
+    public void authenticate(
+            UUID uploadId,
+            String result,
+            String timestamp,
+            String signature
+    ) {
         long requestedAt = parseTimestamp(timestamp);
         if (Math.abs(Instant.now().getEpochSecond() - requestedAt) > MAX_CLOCK_SKEW_SECONDS) {
             throw unauthorized();

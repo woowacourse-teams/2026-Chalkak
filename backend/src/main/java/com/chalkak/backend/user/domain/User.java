@@ -119,7 +119,7 @@ public class User {
     public void cancelSignatureProcessing() {
         clearSignatureProcessing();
     }
-  
+
     public boolean hasSignature(String storageKey) {
         return storageKey != null
                 && storageKey.equals(signatureOriginalStorageKey);

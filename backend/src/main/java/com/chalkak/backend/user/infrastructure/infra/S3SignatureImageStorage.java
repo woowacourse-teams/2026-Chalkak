@@ -104,7 +104,12 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
         return createKey(SIGNATURE_PATH, imageProperties.environment(), variant, uploadId);
     }
 
-    private String createKey(String firstPath, String secondPath, String thirdPath, UUID uploadId) {
+    private String createKey(
+            String firstPath,
+            String secondPath,
+            String thirdPath,
+            UUID uploadId
+    ) {
         return String.join(
                 PATH_DELIMITER,
                 imageProperties.rootPrefix(),
