@@ -28,6 +28,8 @@ class PostRepositoryTest {
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID SECOND_POST_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
 
     @Autowired
     private PostRepository postRepository;
@@ -119,18 +121,39 @@ class PostRepositoryTest {
     @DisplayName("공개 게시물을 최신순으로 슬라이스 조회한다")
     void findVisibleRecentByTopicId_visiblePosts_returnsRecentSlice() {
         // Given
-        UUID recentPostId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
         insertSecondVisiblePost();
 
         // When
         var result = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 1);
 
         // Then
-        assertThat(result.posts()).extracting(Post::getId).containsExactly(recentPostId);
+        assertThat(result.posts()).extracting(Post::getId).containsExactly(SECOND_POST_ID);
         assertThat(result.hasNext()).isTrue();
         assertThat(Hibernate.isInitialized(result.posts().getFirst().getTopic())).isFalse();
         assertThat(Hibernate.isInitialized(result.posts().getFirst().getPhoto())).isTrue();
         assertThat(Hibernate.isInitialized(result.posts().getFirst().getAuthor())).isTrue();
+    }
+
+    @Test
+    @DisplayName("생성 시각이 같으면 게시물 ID 내림차순으로 조회한다")
+    void findVisibleRecentByTopicId_sameCreatedAt_returnsIdDescendingSlice() {
+        // Given
+        insertSecondVisiblePost();
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
+                POST_ID,
+                SECOND_POST_ID
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var result = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20);
+
+        // Then
+        assertThat(result.posts()).extracting(Post::getId)
+                .containsExactly(SECOND_POST_ID, POST_ID);
+        assertThat(result.hasNext()).isFalse();
     }
 
     @ParameterizedTest
