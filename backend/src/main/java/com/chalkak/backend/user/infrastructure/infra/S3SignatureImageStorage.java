@@ -16,7 +16,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 @RequiredArgsConstructor
 public class S3SignatureImageStorage implements SignatureImageStorage {
 
-    private static final String STAGING_PATH = "staging";
+    private static final String STAGING_PATH = "staging/signatures";
     private static final String ORIGINAL_PATH = "signatures/original";
     private static final String IMAGE_EXTENSION = ".png";
     private static final String PATH_DELIMITER = "/";

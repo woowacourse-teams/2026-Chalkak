@@ -1,0 +1,37 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      python: "3.14"
+    commands:
+      - python --version
+      - python -m pip install --upgrade pip
+
+  pre_build:
+    commands:
+      - cd backend/lambda/image-processor
+      - python -m pip install --requirement requirements.txt
+      - python -m unittest discover --start-directory tests --verbose
+
+  build:
+    commands:
+      - rm -rf build/package
+      - mkdir -p build/package
+      - >-
+        python -m pip install
+        --requirement requirements.txt
+        --target build/package
+        --no-cache-dir
+      - install -m 0644 handler.py build/package/handler.py
+      - cp -R image_processor build/package/image_processor
+      - python -m compileall -q build/package/handler.py build/package/image_processor
+
+artifacts:
+  files:
+    - "**/*"
+  base-directory: backend/lambda/image-processor/build/package
+  discard-paths: no

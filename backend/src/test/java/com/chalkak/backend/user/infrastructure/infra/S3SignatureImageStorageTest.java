@@ -5,14 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -70,6 +73,30 @@ class S3SignatureImageStorageTest {
 
         // When & Then
         assertThat(signatureImageStorage.findUploadedImage(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사인 업로드 이미지는 staging/signatures 경로에서 조회한다")
+    @SuppressWarnings("unchecked")
+    void findUploadedImage_existingStagingImage_usesSignatureStagingPath() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(s3Client.headObject(anyHeadRequest())).willReturn(HeadObjectResponse.builder()
+            .contentType("image/png")
+            .contentLength(100L)
+            .build());
+        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor =
+            ArgumentCaptor.forClass(Consumer.class);
+
+        // When
+        signatureImageStorage.findUploadedImage(uploadId);
+
+        // Then
+        verify(s3Client).headObject(requestCaptor.capture());
+        HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder();
+        requestCaptor.getValue().accept(requestBuilder);
+        assertThat(requestBuilder.build().key())
+            .isEqualTo("chalkak/staging/signatures/" + uploadId + ".png");
     }
 
     @Test
