@@ -46,8 +46,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
 import com.stonefive.chalkak.feature.display.component.DisplayFeaturedPager
-import com.stonefive.chalkak.feature.display.component.DisplayHeader
 import com.stonefive.chalkak.feature.display.component.DisplayPhotoCard
 import com.stonefive.chalkak.feature.display.component.DisplayPhotoGrid
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
@@ -112,7 +112,7 @@ fun DisplayScreen(
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding(),
         ) {
-            DisplayHeader(
+            DisplayDateHeader(
                 selectedDate = uiState.selectedDate,
                 topic = uiState.topic,
                 isArchiveDate = uiState.content is DisplayContentState.Archive,
