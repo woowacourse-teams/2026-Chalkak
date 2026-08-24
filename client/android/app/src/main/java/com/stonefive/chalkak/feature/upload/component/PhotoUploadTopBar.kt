@@ -33,7 +33,7 @@ fun PhotoUploadTopBar(
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .semantics { contentDescription = "뒤로 가기" }
                 .clickable(
                     interactionSource = null,
@@ -58,7 +58,7 @@ fun PhotoUploadTopBar(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(modifier = Modifier.size(40.dp))
+        Spacer(modifier = Modifier.size(44.dp))
     }
 }
 
@@ -73,8 +73,8 @@ private fun PhotoUploadTopBarPreview() {
                 .statusBarsPadding()
                 .padding(
                     start = 4.dp,
-                    top = 26.dp,
-                    bottom = 26.dp,
+                    end = 12.dp,
+                    bottom = 8.dp,
                 ),
         )
     }

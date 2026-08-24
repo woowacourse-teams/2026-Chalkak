@@ -5,9 +5,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -102,61 +103,69 @@ fun PhotoUploadScreen(
     onAction: (PhotoUploadUiAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ChalkakBackground)
-            .statusBarsPadding(),
-    ) {
-        PhotoUploadTopBar(
-            onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = ChalkakBackground,
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            PhotoUploadTopBar(
+                onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(
+                        start = 4.dp,
+                        end = 12.dp,
+                        top = 10.dp,
+                        bottom = 8.dp,
+                    ),
+            )
+        },
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 4.dp,
-                    top = 26.dp,
-                    bottom = 26.dp,
-                ),
-        )
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            PhotoUploadImageArea(
+                selectedImage = uiState.selectedImage,
+                signatureModel = uiState.signatureModel,
+                isCameraAvailable = uiState.isCameraAvailable,
+                onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
+                onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-        PhotoUploadImageArea(
-            selectedImage = uiState.selectedImage,
-            signatureModel = uiState.signatureModel,
-            isCameraAvailable = uiState.isCameraAvailable,
-            onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
-            onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
-            modifier = Modifier.fillMaxWidth(),
-        )
+            Spacer(modifier = Modifier.height(34.dp))
 
-        Spacer(modifier = Modifier.height(34.dp))
+            ChalkakTextField(
+                value = uiState.caption,
+                onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp)
+                    .testTag(PHOTO_UPLOAD_CAPTION_TAG),
+                placeholder = "작품 제목은 선택이에요.",
+                textStyle = ChalkakTheme.typography.subheadline,
+                minLines = 3,
+                maxLength = CAPTION_MAX_LENGTH,
+            )
 
-        ChalkakTextField(
-            value = uiState.caption,
-            onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 22.dp)
-                .testTag(PHOTO_UPLOAD_CAPTION_TAG),
-            placeholder = "작품 제목은 선택이에요.",
-            textStyle = ChalkakTheme.typography.subheadline,
-            minLines = 3,
-            maxLength = CAPTION_MAX_LENGTH,
-        )
+            Spacer(modifier = Modifier.weight(1f))
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        ChalkakButton(
-            text = "전시하기",
-            onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 26.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 26.dp)
-                .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
-            enabled = uiState.canSubmit,
-        )
+            ChalkakButton(
+                text = "전시하기",
+                onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 26.dp)
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(bottom = 26.dp)
+                    .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
+                enabled = uiState.canSubmit,
+            )
+        }
     }
 }
 
