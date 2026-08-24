@@ -1,10 +1,19 @@
 package com.chalkak.backend.topic.domain;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
+@Embeddable
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ParticipationPeriod {
 
+    @Column(name = "starts_at", nullable = false)
     private Instant startsAt;
+
+    @Column(name = "ends_at", nullable = false)
     private Instant endsAt;
 
     public ParticipationPeriod(Instant startsAt, Instant endsAt) {
