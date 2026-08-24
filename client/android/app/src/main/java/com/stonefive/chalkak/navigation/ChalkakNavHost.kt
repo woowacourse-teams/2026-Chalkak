@@ -207,11 +207,7 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
 }
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
-    navigate(Display(date = date.toString())) {
-        popUpTo(Today) {
-            saveState = false
-        }
-    }
+    navigate(Display(date = date.toString()))
 }
 
 private fun RecordPhoto.toFeedRoute(): Feed = Feed(
