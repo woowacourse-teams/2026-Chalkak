@@ -86,7 +86,7 @@ private fun FeedPostContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .feedCaptionDivider(ChalkakTheme.colors.divider)
-                .padding(horizontal = FeedCaptionHorizontalPadding),
+                .padding(horizontal = FeedCaptionHorizontalPadding, vertical = 5.dp),
         )
     }
 }

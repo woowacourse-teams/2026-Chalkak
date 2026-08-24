@@ -7,4 +7,5 @@ data class Post(
     val contentDescription: String,
     val title: String?,
     val likeCount: Int,
+    val isOwnedByCurrentUser: Boolean = false,
 )

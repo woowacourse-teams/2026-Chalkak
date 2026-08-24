@@ -35,6 +35,7 @@ data class Feed(
     val likeCount: Int,
     val dateLabel: String,
     val topic: String,
+    val isOwnedByCurrentUser: Boolean = false,
 )
 
 @Serializable

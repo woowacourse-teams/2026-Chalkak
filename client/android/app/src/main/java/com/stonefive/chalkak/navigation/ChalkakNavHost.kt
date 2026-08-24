@@ -94,6 +94,7 @@ fun ChalkakNavHost(
                             likeCount = post.likeCount,
                             dateLabel = dateLabel,
                             topic = topic,
+                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
                         ),
                     )
                 },
@@ -114,10 +115,12 @@ fun ChalkakNavHost(
                         contentDescription = feed.contentDescription,
                         title = feed.title,
                         likeCount = feed.likeCount,
+                        isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                     ),
                     isLiked = false,
                 ),
                 onNavigateBack = { navController.popBackStack() },
+                onDeleteClick = { navController.popBackStack() },
             )
         }
 

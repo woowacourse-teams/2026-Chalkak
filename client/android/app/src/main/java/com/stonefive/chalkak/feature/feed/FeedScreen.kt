@@ -1,14 +1,16 @@
 package com.stonefive.chalkak.feature.feed
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -21,8 +23,9 @@ import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 @Composable
 fun FeedRoute(
     onNavigateBack: () -> Unit,
-    initialContent: FeedContentState.Success? = null,
+    onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier,
+    initialContent: FeedContentState.Success? = null,
     viewModel: FeedViewModel = viewModel(
         key = "feed-${initialContent?.post?.id ?: "latest"}",
         factory = FeedViewModel.factory(initialContent),
@@ -33,6 +36,7 @@ fun FeedRoute(
     FeedScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
+        onDeleteClick = onDeleteClick,
         onLikeClick = viewModel::onLikeClicked,
         modifier = modifier,
     )
@@ -42,25 +46,39 @@ fun FeedRoute(
 fun FeedScreen(
     uiState: FeedUiState,
     onNavigateBack: () -> Unit,
+    onDeleteClick: () -> Unit,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ChalkakBackground)
-            .statusBarsPadding(),
-    ) {
-        FeedTopBar(
-            onNavigateBack = onNavigateBack,
-            modifier = Modifier.fillMaxWidth(),
-        )
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = ChalkakBackground,
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            FeedTopBar(
+                onNavigateBack = onNavigateBack,
+                onDeleteClick = onDeleteClick,
+                isDeleteVisible = uiState.content
+                    ?.post
+                    ?.isOwnedByCurrentUser == true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(
+                        start = 4.dp,
+                        end = 12.dp,
+                        top = 10.dp,
+                        bottom = 8.dp,
+                    ),
+            )
+        },
+    ) { innerPadding ->
         FeedContent(
             content = uiState.content,
             onLikeClick = onLikeClick,
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+                .fillMaxSize()
+                .padding(innerPadding),
         )
     }
 }
@@ -81,11 +99,13 @@ private fun FeedScreenPreview() {
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 감사합니다.",
                         likeCount = 24,
+                        isOwnedByCurrentUser = true,
                     ),
                     isLiked = false,
                 ),
             ),
             onNavigateBack = {},
+            onDeleteClick = {},
             onLikeClick = {},
         )
     }
