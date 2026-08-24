@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -63,9 +62,7 @@ fun DisplayDateHeader(
             Text(
                 text = selectedDate?.format(DateFormatter).orEmpty(),
                 color = ChalkakTheme.colors.textPrimary,
-                style = ChalkakTheme.typography.title2.copy(
-                    fontWeight = FontWeight.Normal,
-                ),
+                style = ChalkakTheme.typography.headline,
             )
 
             HeaderArrowButton(
@@ -86,17 +83,19 @@ fun DisplayDateHeader(
             modifier = Modifier.padding(start = ChalkakTheme.spacing.screenHorizontal),
         )
 
-        if (isArchiveDate) {
-            Text(
-                text = "가장 사람들이 좋아했던 사진들이에요",
-                color = ArchiveDescription,
-                style = ChalkakTheme.typography.subheadline,
-                modifier = Modifier.padding(
-                    start = 19.dp,
-                    top = 12.dp,
-                ),
-            )
-        }
+        Text(
+            text = if (isArchiveDate) {
+                "가장 사람들이 좋아했던 사진들이에요"
+            } else {
+                "같은 주제에서 다른 시선을 느껴보세요"
+            },
+            color = ArchiveDescription,
+            style = ChalkakTheme.typography.subheadline,
+            modifier = Modifier.padding(
+                start = 19.dp,
+                top = 12.dp,
+            ),
+        )
     }
 }
 
