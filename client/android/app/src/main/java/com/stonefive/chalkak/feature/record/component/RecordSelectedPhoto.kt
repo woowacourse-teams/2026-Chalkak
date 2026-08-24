@@ -1,8 +1,6 @@
 package com.stonefive.chalkak.feature.record.component
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -21,7 +19,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val SelectedPhotoDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
-private const val SELECTED_PHOTO_ASPECT_RATIO = 1.2f
 
 @Composable
 fun RecordSelectedPhoto(
@@ -30,15 +27,13 @@ fun RecordSelectedPhoto(
 ) {
     if (photo == null) return
 
-    Box(
-        modifier = modifier.aspectRatio(SELECTED_PHOTO_ASPECT_RATIO),
-    ) {
+    Box(modifier = modifier) {
         ChalkakSignedImage(
             imageModel = photo.imageUrl,
             signatureModel = photo.signatureUrl,
             contentDescription = photo.contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier.fillMaxWidth(),
         )
         Text(
             text = buildString {
