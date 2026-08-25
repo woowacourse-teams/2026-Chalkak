@@ -1,12 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -40,12 +36,14 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -88,17 +86,14 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
-    var isTopAreaVisible by remember { mutableStateOf(true) }
     var topAreaOffset by remember { mutableFloatStateOf(0f) }
     var topAreaHeight by remember { mutableIntStateOf(0) }
-    var isBottomBarVisible by remember { mutableStateOf(true) }
-    var isCollapsing by remember { mutableStateOf(false) }
-    val collapseScope = rememberCoroutineScope()
-    val collapseJob = remember { mutableStateOf<Job?>(null) }
-    val topBarBackgroundAlpha by animateFloatAsState(
-        targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
-        label = "home_top_bar_background_alpha",
-    )
+    var isTopAreaTargetHidden by remember { mutableStateOf(false) }
+    var bottomBarOffset by remember { mutableFloatStateOf(0f) }
+    var bottomBarHeight by remember { mutableIntStateOf(0) }
+    var isBottomBarTargetHidden by remember { mutableStateOf(false) }
+    val interactionScope = rememberCoroutineScope()
+    val settleJob = remember { mutableStateOf<Job?>(null) }
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
@@ -107,43 +102,76 @@ fun HomeScreen(
     val visibleTopAreaHeightPx =
         (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
     val photoListTopPadding = with(density) { visibleTopAreaHeightPx.toDp() }
-    val nestedScrollConnection = remember(topAreaHeight) {
+    val collapsedTopAreaProgress = if (topAreaHeight == 0) {
+        0f
+    } else {
+        (-topAreaOffset / topAreaHeight).coerceIn(0f, 1f)
+    }
+    val topBarBackgroundAlpha = 1f -
+        ((1f - COLLAPSED_TOP_BAR_BACKGROUND_ALPHA) * collapsedTopAreaProgress)
+    val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
+
+    fun settleBars() {
+        settleJob.value?.cancel()
+
+        val initialTopOffset = topAreaOffset
+        val targetTopOffset = settleBarOffset(
+            currentOffset = initialTopOffset,
+            hiddenOffset = -topAreaHeight.toFloat(),
+            restingOffset = if (isTopAreaTargetHidden) -topAreaHeight.toFloat() else 0f,
+        )
+        val initialBottomOffset = bottomBarOffset
+        val targetBottomOffset = settleBarOffset(
+            currentOffset = initialBottomOffset,
+            hiddenOffset = bottomBarHeight.toFloat(),
+            restingOffset = if (isBottomBarTargetHidden) bottomBarHeight.toFloat() else 0f,
+        )
+        isTopAreaTargetHidden = targetTopOffset != 0f
+        isBottomBarTargetHidden = targetBottomOffset != 0f
+
+        if (initialTopOffset == targetTopOffset && initialBottomOffset == targetBottomOffset) {
+            return
+        }
+
+        settleJob.value = interactionScope.launch {
+            animate(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+            ) { progress, _ ->
+                topAreaOffset = initialTopOffset +
+                    ((targetTopOffset - initialTopOffset) * progress)
+                bottomBarOffset = initialBottomOffset +
+                    ((targetBottomOffset - initialBottomOffset) * progress)
+            }
+        }
+    }
+
+    val nestedScrollConnection = remember(topAreaHeight, bottomBarHeight) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
-                    when {
-                        available.y < 0f -> isBottomBarVisible = false
-                        available.y > 0f -> isBottomBarVisible = true
+                    if (available.y != 0f) {
+                        settleJob.value?.cancel()
+                        bottomBarOffset = bottomBarOffsetAfterScroll(
+                            currentOffset = bottomBarOffset,
+                            scrollDelta = available.y,
+                            barHeight = bottomBarHeight.toFloat(),
+                        )
                     }
-                    when {
-                        available.y < 0f -> {
-                            if (isCollapsing) {
-                                return Offset(0f, available.y)
-                            }
-                            if (isTopAreaVisible && topAreaHeight > 0) {
-                                val previousOffset = topAreaOffset
-                                val nextOffset = (topAreaOffset + available.y)
-                                    .coerceAtLeast(-topAreaHeight.toFloat())
-                                val collapseThreshold = -topAreaHeight / 2f
-                                if (nextOffset <= collapseThreshold) {
-                                    isCollapsing = true
-                                    collapseJob.value?.cancel()
-                                    collapseJob.value = collapseScope.launch {
-                                        animate(
-                                            initialValue = previousOffset,
-                                            targetValue = -topAreaHeight.toFloat(),
-                                        ) { value, _ -> topAreaOffset = value }
-                                        isTopAreaVisible = false
-                                        isCollapsing = false
-                                    }
-                                    return Offset(0f, available.y)
-                                }
-                                topAreaOffset = nextOffset
-                                return Offset(0f, nextOffset - previousOffset)
-                            }
+
+                    if (available.y < 0f && topAreaHeight > 0) {
+                        val previousOffset = topAreaOffset
+                        topAreaOffset = topAreaOffsetAfterScroll(
+                            currentOffset = topAreaOffset,
+                            scrollDelta = available.y,
+                            areaHeight = topAreaHeight.toFloat(),
+                        )
+                        if (topAreaOffset != previousOffset) {
+                            return Offset(0f, topAreaOffset - previousOffset)
                         }
                     }
                 }
@@ -159,25 +187,30 @@ fun HomeScreen(
                     available.y > 0f &&
                     topAreaOffset < 0f
                 ) {
-                    collapseJob.value?.cancel()
-                    isCollapsing = false
-                    isTopAreaVisible = true
                     val previousOffset = topAreaOffset
-                    val nextOffset = (topAreaOffset + available.y).coerceAtMost(0f)
-                    topAreaOffset = nextOffset
-                    return Offset(0f, nextOffset - previousOffset)
+                    topAreaOffset = topAreaOffsetAfterScroll(
+                        currentOffset = topAreaOffset,
+                        scrollDelta = available.y,
+                        areaHeight = topAreaHeight.toFloat(),
+                    )
+                    return Offset(0f, topAreaOffset - previousOffset)
                 }
                 return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                settleBars()
+                return Velocity.Zero
             }
         }
     }
 
     LaunchedEffect(uiState.selectedSort) {
-        collapseJob.value?.cancel()
-        isCollapsing = false
-        isTopAreaVisible = true
+        settleJob.value?.cancel()
         topAreaOffset = 0f
-        isBottomBarVisible = true
+        isTopAreaTargetHidden = false
+        bottomBarOffset = 0f
+        isBottomBarTargetHidden = false
         photoListState.scrollToItem(0)
     }
 
@@ -230,8 +263,22 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
+                .clipToBounds(),
         ) {
+            if (collapsedTopAreaProgress > 0f) {
+                uiState.photos.firstOrNull()?.let { photo ->
+                    ChalkakImage(
+                        model = photo.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
+            )
             HomeTopBar(
                 modifier = Modifier
                     .statusBarsPadding()
@@ -244,26 +291,49 @@ fun HomeScreen(
                     ),
             )
         }
-        AnimatedVisibility(
-            visible = isBottomBarVisible,
+        ChalkakBottomBar(
+            selectedItem = ChalkakBottomBarItem.TODAY,
+            onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
+            onAddClick = { onAction(HomeUiAction.AddClicked) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
-            exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
-        ) {
-            ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.TODAY,
-                onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                onAddClick = { onAction(HomeUiAction.AddClicked) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+                .fillMaxWidth()
+                .onSizeChanged { bottomBarHeight = it.height }
+                .graphicsLayer { translationY = bottomBarOffset },
+        )
     }
 }
 
 private val HomeTopBarHeight = 55.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
+private const val BAR_SETTLE_DURATION_MILLIS = 220
+
+internal fun topAreaOffsetAfterScroll(
+    currentOffset: Float,
+    scrollDelta: Float,
+    areaHeight: Float,
+): Float = (currentOffset + scrollDelta).coerceIn(-areaHeight, 0f)
+
+internal fun bottomBarOffsetAfterScroll(
+    currentOffset: Float,
+    scrollDelta: Float,
+    barHeight: Float,
+): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
+
+internal fun settleBarOffset(
+    currentOffset: Float,
+    hiddenOffset: Float,
+    restingOffset: Float,
+): Float {
+    if (hiddenOffset == 0f) return 0f
+
+    val hiddenProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
+    return when {
+        hiddenProgress > 0.5f -> hiddenOffset
+        hiddenProgress < 0.5f -> 0f
+        else -> restingOffset
+    }
+}
 
 private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
