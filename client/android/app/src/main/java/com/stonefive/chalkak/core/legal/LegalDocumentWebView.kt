@@ -22,7 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 
 @Composable
-internal fun LegalDocumentWebView(
+fun LegalDocumentWebView(
     document: LegalDocument,
     onWebViewChanged: (WebView?) -> Unit,
     onPageStarted: () -> Unit,

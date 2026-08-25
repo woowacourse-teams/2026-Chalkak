@@ -28,14 +28,14 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
-internal enum class LegalDocumentLoadState {
+enum class LegalDocumentLoadState {
     LOADING,
     LOADED,
     ERROR,
 }
 
 @Composable
-internal fun LegalDocumentDialogContent(
+fun LegalDocumentDialogContent(
     loadState: LegalDocumentLoadState,
     closeContentDescription: String,
     loadFailedText: String,

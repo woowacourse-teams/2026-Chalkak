@@ -16,7 +16,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 
 @Composable
-internal fun LegalDocumentDialog(
+fun LegalDocumentDialog(
     document: LegalDocument,
     closeContentDescription: String,
     loadFailedText: String,
