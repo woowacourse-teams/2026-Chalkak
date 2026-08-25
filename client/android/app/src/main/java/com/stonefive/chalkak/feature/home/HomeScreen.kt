@@ -158,6 +158,8 @@ fun HomeScreen(
             .nestedScroll(nestedScrollConnection),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(HomeTopBarHeight))
             if (isTopAreaVisible) {
                 Box(
                     modifier = Modifier
@@ -169,10 +171,6 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .onSizeChanged { topAreaHeight = it.height },
                     ) {
-                        Spacer(
-                            modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars),
-                        )
-                        Spacer(modifier = Modifier.height(HomeTopBarHeight))
                         HomeTopic(
                             dateLabel = uiState.dateLabel,
                             topic = uiState.topic,
