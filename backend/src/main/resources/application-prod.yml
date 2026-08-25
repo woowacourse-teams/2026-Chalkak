@@ -17,3 +17,7 @@ management:
   endpoint:
     health:
       show-details: never
+
+chalkak:
+  image:
+    environment: prod

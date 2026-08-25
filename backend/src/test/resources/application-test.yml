@@ -1,5 +1,6 @@
 CLOUDFRONT_BASE_URL: https://cdn.example.com
 CLOUDFRONT_ORIGIN_PATH: /chalkak
+IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
 
 spring:
   datasource:
@@ -13,7 +14,7 @@ spring:
 # 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
 chalkak:
   image:
+    environment: test
     bucket: test-bucket
     base-url: https://cdn.test.chalkak
     root-prefix: chalkak
-

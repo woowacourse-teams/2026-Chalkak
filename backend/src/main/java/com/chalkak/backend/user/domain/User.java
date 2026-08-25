@@ -49,6 +49,17 @@ public class User {
     @Column(name = "signature_thumbnail_storage_key", length = 1024)
     private String signatureThumbnailStorageKey;
 
+    @Column(name = "pending_signature_upload_id")
+    private UUID pendingSignatureUploadId;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "signature_processing_status")
+    private SignatureProcessingStatus signatureProcessingStatus;
+
+    @Column(name = "signature_processing_started_at")
+    private Instant signatureProcessingStartedAt;
+
     @Column(name = "app_version", length = 50)
     private String appVersion;
 
@@ -71,15 +82,57 @@ public class User {
         delete();
     }
 
-    public void updateSignature(String storageKey) {
+    public void startSignatureProcessing(UUID uploadId, Instant startedAt) {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
         }
-        if (storageKey == null || storageKey.isBlank()) {
+        if (uploadId == null || startedAt == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "사인 이미지 업로드 정보가 올바르지 않습니다.");
         }
-        this.signatureOriginalStorageKey = storageKey;
-        this.signatureThumbnailStorageKey = null;
+        this.pendingSignatureUploadId = uploadId;
+        this.signatureProcessingStatus = SignatureProcessingStatus.PROCESSING;
+        this.signatureProcessingStartedAt = startedAt;
+    }
+
+    public boolean completeSignatureProcessing(UUID uploadId, SignatureStorageKeys storageKeys) {
+        if (!isProcessing(uploadId)) {
+            return false;
+        }
+        validateStorageKeys(storageKeys);
+        this.signatureOriginalStorageKey = storageKeys.originalStorageKey();
+        this.signatureThumbnailStorageKey = storageKeys.thumbnailStorageKey();
+        clearSignatureProcessing();
+        return true;
+    }
+
+    public boolean failSignatureProcessing(UUID uploadId) {
+        if (!isProcessing(uploadId)) {
+            return false;
+        }
+        this.signatureProcessingStatus = SignatureProcessingStatus.FAILED;
+        return true;
+    }
+
+    /**
+     * 진행 중이던 사인 처리를 포기한다. 이후 도착하는 그 작업의 콜백은 pending 불일치로 무시된다.
+     */
+    public void cancelSignatureProcessing() {
+        clearSignatureProcessing();
+    }
+
+    public boolean hasSignature(String storageKey) {
+        return storageKey != null
+                && storageKey.equals(signatureOriginalStorageKey);
+    }
+
+    public boolean isSignatureProcessing(UUID uploadId) {
+        return isProcessing(uploadId);
+    }
+
+    public boolean isSignatureProcessingFailed(UUID uploadId) {
+        return uploadId != null
+                && uploadId.equals(pendingSignatureUploadId)
+                && signatureProcessingStatus == SignatureProcessingStatus.FAILED;
     }
 
     public void delete() {
@@ -90,13 +143,37 @@ public class User {
         return deletedAt != null;
     }
 
-    public boolean hasSignature(String storageKey) {
-        return signatureOriginalStorageKey.equals(storageKey);
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private boolean isProcessing(UUID uploadId) {
+        return uploadId != null
+                && uploadId.equals(pendingSignatureUploadId)
+                && signatureProcessingStatus == SignatureProcessingStatus.PROCESSING;
+    }
+
+    private void validateStorageKeys(SignatureStorageKeys storageKeys) {
+        if (storageKeys == null
+                || isBlank(storageKeys.originalStorageKey())
+                || isBlank(storageKeys.thumbnailStorageKey())) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "사인 이미지 업로드 정보가 올바르지 않습니다.");
+        }
+    }
+
+    private void clearSignatureProcessing() {
+        this.pendingSignatureUploadId = null;
+        this.signatureProcessingStatus = null;
+        this.signatureProcessingStartedAt = null;
     }
 
     private void anonymize() {
         this.email = WITHDRAWN_EMAIL_FORMAT.formatted(id);
-        this.signatureOriginalStorageKey = WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
+        this.signatureOriginalStorageKey =
+                WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
         this.signatureThumbnailStorageKey = null;
+        clearSignatureProcessing();
     }
 }

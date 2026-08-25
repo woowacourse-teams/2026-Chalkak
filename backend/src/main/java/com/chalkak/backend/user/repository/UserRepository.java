@@ -10,6 +10,10 @@ public interface UserRepository {
 
     Optional<User> findActiveById(UUID id);
 
+    Optional<User> findActiveByIdForUpdate(UUID id);
+
+    Optional<User> findActiveByPendingSignatureUploadIdForUpdate(UUID uploadId);
+
     boolean existsBySignatureOriginalStorageKey(String storageKey);
 
     User save(User user);

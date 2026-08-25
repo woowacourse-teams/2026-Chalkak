@@ -194,10 +194,12 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 
 ```text
 {bucket}/chalkak/
-├── staging/{uploadId}.png              업로드 직후. Lambda 검증 대기
+├── staging/
+│   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 검증 대기
+│   └── posts/                          포스트 이미지 임시 경로
 └── signatures/
     ├── original/{uploadId}.png         검증 통과한 원본
-    └── thumbnail/{uploadId}.png        Lambda가 생성 (미구현)
+    └── thumbnail/{uploadId}.png        Lambda가 생성
 ```
 
 - 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)뿐이다.

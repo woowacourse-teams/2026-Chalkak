@@ -22,7 +22,7 @@ Pull Request
 | 항목 | 개발 | 운영 |
 | --- | --- | --- |
 | GitHub branch | `be/develop` | `main` |
-| Pipeline | `chalkak-dev-pipeline` | `chalkak-prod-pipeline` |
+| Pipeline | `chalkak-backend-dev-pipeline` | `chalkak-prod-pipeline` |
 | CodeDeploy application | `chalkak-dev-backend` | `chalkak-prod-backend` |
 | Deployment group | `chalkak-dev-backend-dg` | `chalkak-prod-backend-dg` |
 | EC2 tag | `Name=chalkak-dev-api` | `Name=chalkak-prod-api` |
@@ -213,6 +213,11 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 개발 환경의 `DB_HOST`는 `127.0.0.1`, 운영 환경은 RDS endpoint여야 한다. 배포 script가 이 값을 검증한다.
 
 `DB_PASSWORD`는 Docker Compose와 systemd가 같은 파일을 안전하게 읽을 수 있도록 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
+`IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고,
+dev·prod 백엔드와 Lambda 환경 변수에 동일한 값을 설정한다.
+Lambda에는 추가로 `DEV_BACKEND_CALLBACK_URL`과 `PROD_BACKEND_CALLBACK_URL`을
+`/internal/v1/signature-processing`까지 포함해 설정한다. 실제 값을 배포 artifact에
+포함하지 않는다.
 
 환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
 
@@ -243,7 +248,7 @@ aws sts get-caller-identity
 CodeBuild project는 개발 CodePipeline을 만들면서 Build stage의 `Create project` 버튼으로 생성하는 것이 가장 확실하다. CodeBuild console에서 단독으로 생성하면 Source provider에 CodePipeline이 표시되지 않을 수 있다. 이 절에서는 입력값만 확인하고 실제 생성은 10절에서 진행한다.
 
 ```text
-AWS Console → CodePipeline → chalkak-dev-pipeline 생성
+AWS Console → CodePipeline → chalkak-backend-dev-pipeline 편집
 → Build stage
 → Build provider: AWS CodeBuild
 → Create project
@@ -369,8 +374,8 @@ AWS Console
 
 | 항목 | 값 |
 | --- | --- |
-| Pipeline name | `chalkak-dev-pipeline` |
-| Pipeline type | V1 |
+| Pipeline name | `chalkak-backend-dev-pipeline` |
+| Pipeline type | V2 |
 | Service role | Existing service role |
 | Role ARN | `arn:aws:iam::843255971531:role/codepipeline-project` |
 | Artifact store | Custom location |
@@ -450,7 +455,7 @@ SNS topic은 회사 정책에 따라 사용할 수 있을 때만 연결한다. �
 
 1. 이 CI/CD 변경사항을 Pull Request로 `be/develop`에 병합한다.
 2. GitHub Actions의 `Backend PR CI / Backend CI`가 성공하는지 확인한다. 백엔드 변경 PR에서는 `Verify backend`도 성공해야 한다.
-3. `chalkak-dev-pipeline` 실행이 시작되는지 확인한다.
+3. `chalkak-backend-dev-pipeline` 실행이 시작되는지 확인한다.
 4. Source와 Build stage가 성공하는지 확인한다.
 5. CodeDeploy deployment가 `Succeeded`인지 확인한다.
 6. 개발 EC2에서 다음을 확인한다.
@@ -535,7 +540,22 @@ sudo journalctl -u chalkak-backend.service -n 200 --no-pager
 
 환경변수 문제를 확인할 때도 `/etc/chalkak/application.env` 전체 내용을 로그나 채팅에 붙이지 않는다.
 
-## 16. 공식 문서
+## 16. 사인 이미지 Lambda
+
+사인 이미지는 EC2 백엔드 배포와 분리한 `chalkak-image-processor` Lambda가
+처리한다. ECR은 사용하지 않고 CodeBuild에서 Linux 호환 ZIP을 만든다.
+
+- 코드·테스트: `backend/lambda/image-processor`
+- Lambda buildspec: `backend/lambda/image-processor/buildspec.yml`
+- 함수: `chalkak-image-processor`
+- SQS: `chalkak-image-processing`
+- 상세 생성·권한·테스트 절차: `backend/lambda/image-processor/README.md`
+
+기존 `chalkak-backend-build`와 산출물 형태가 다르므로 Lambda용 CodeBuild project를
+`chalkak-image-processor-build`로 분리한다. 두 project는 회사 공용
+`codebuild-project` role과 CloudWatch log group을 공유할 수 있다.
+
+## 17. 공식 문서
 
 - [GitHub protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches)
 - [CodePipeline GitHub v1 source](https://docs.aws.amazon.com/codepipeline/latest/userguide/appendix-github-oauth.html)
@@ -543,5 +563,9 @@ sudo journalctl -u chalkak-backend.service -n 200 --no-pager
 - [CodeBuild runtime versions](https://docs.aws.amazon.com/codebuild/latest/userguide/available-runtimes.html)
 - [CodeBuild buildspec](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html)
 - [CodeDeploy AppSpec](https://docs.aws.amazon.com/codedeploy/latest/userguide/application-specification-files.html)
+- [Lambda Python ZIP 배포](https://docs.aws.amazon.com/lambda/latest/dg/python-package.html)
+- [Lambda SQS 트리거 설정](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html)
+- [S3 event notification](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-event-notifications.html)
+- [CodePipeline V2 Lambda deploy action](https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-LambdaDeploy.html)
 - [Ubuntu CodeDeploy agent 설치](https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-ubuntu.html)
 - [Eclipse Temurin Ubuntu 설치](https://adoptium.net/installation/linux/)
