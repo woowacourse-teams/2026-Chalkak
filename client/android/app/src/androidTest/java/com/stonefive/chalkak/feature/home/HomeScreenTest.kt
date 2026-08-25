@@ -35,6 +35,7 @@ class HomeScreenTest {
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
         composeRule.onNodeWithText("바다").assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")
@@ -43,6 +44,7 @@ class HomeScreenTest {
         composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
         composeRule.onAllNodesWithText("바다").assertCountEquals(0)
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        composeRule.onAllNodesWithText("오늘").assertCountEquals(0)
 
         composeRule
             .onNodeWithContentDescription("사진 1")
@@ -51,6 +53,7 @@ class HomeScreenTest {
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
         composeRule.onNodeWithText("바다").assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘").assertIsDisplayed()
     }
 
     @Test

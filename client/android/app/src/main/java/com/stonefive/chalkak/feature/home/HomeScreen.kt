@@ -111,12 +111,19 @@ fun HomeScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.TODAY,
-                onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                onAddClick = { onAction(HomeUiAction.AddClicked) },
+            AnimatedVisibility(
+                visible = isTopAreaVisible,
                 modifier = Modifier.fillMaxWidth(),
-            )
+                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
+                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
+            ) {
+                ChalkakBottomBar(
+                    selectedItem = ChalkakBottomBarItem.TODAY,
+                    onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
+                    onAddClick = { onAction(HomeUiAction.AddClicked) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
     ) { innerPadding ->
         Box(

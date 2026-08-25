@@ -122,12 +122,19 @@ fun DisplayScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.DISPLAY,
-                onItemSelected = onNavigateToBottomBar,
-                onAddClick = onOpenPhotoUpload,
+            AnimatedVisibility(
+                visible = isTopAreaVisible,
                 modifier = Modifier.fillMaxWidth(),
-            )
+                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
+                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
+            ) {
+                ChalkakBottomBar(
+                    selectedItem = ChalkakBottomBarItem.DISPLAY,
+                    onItemSelected = onNavigateToBottomBar,
+                    onAddClick = onOpenPhotoUpload,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
     ) { innerPadding ->
         Column(
