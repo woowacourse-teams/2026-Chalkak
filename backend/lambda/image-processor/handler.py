@@ -4,7 +4,7 @@ from typing import Any
 
 import boto3
 
-from image_processor.callback import SignatureProcessingCallbackClient
+from image_processor.callback import ProcessingCallbackClient
 from image_processor.config import Settings
 from image_processor.errors import (
     PermanentCallbackError,
@@ -12,6 +12,7 @@ from image_processor.errors import (
     RejectedImageError,
 )
 from image_processor.events import parse_s3_records
+from image_processor.post import PostImageProcessor
 from image_processor.router import ImageProcessorRouter
 from image_processor.signature import SignatureImageProcessor
 
@@ -104,7 +105,8 @@ def _get_processor() -> ImageProcessorRouter:
     global _processor
     if _processor is None:
         settings = Settings.from_environment()
-        callback_client = SignatureProcessingCallbackClient(
+        callback_client = ProcessingCallbackClient(
+            kind="signature-processing",
             base_urls={
                 "dev": settings.dev_callback_base_url,
                 "prod": settings.prod_callback_base_url,
@@ -112,13 +114,29 @@ def _get_processor() -> ImageProcessorRouter:
             secret=settings.callback_secret,
             timeout_seconds=settings.callback_timeout_seconds,
         )
+        post_callback_client = ProcessingCallbackClient(
+            kind="post-image-processing",
+            base_urls={
+                "dev": settings.dev_post_callback_base_url,
+                "prod": settings.prod_post_callback_base_url,
+            },
+            secret=settings.callback_secret,
+            timeout_seconds=settings.callback_timeout_seconds,
+        )
+        s3_client = boto3.client("s3")
         signature_processor = SignatureImageProcessor(
-            s3_client=boto3.client("s3"),
+            s3_client=s3_client,
             settings=settings,
             callback_client=callback_client,
         )
+        post_processor = PostImageProcessor(
+            s3_client=s3_client,
+            settings=settings,
+            callback_client=post_callback_client,
+        )
         _processor = ImageProcessorRouter(
             signature_processor=signature_processor,
+            post_processor=post_processor,
             root_prefix=settings.root_prefix,
         )
     return _processor
