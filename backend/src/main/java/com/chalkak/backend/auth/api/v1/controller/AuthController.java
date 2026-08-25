@@ -1,10 +1,13 @@
 package com.chalkak.backend.auth.api.v1.controller;
 
 import com.chalkak.backend.auth.api.v1.docs.AuthApiDocs;
-import com.chalkak.backend.auth.api.v1.dto.request.SocialLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
+import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
+import com.chalkak.backend.auth.service.SocialSignupService;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -21,16 +24,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController implements AuthApiDocs {
 
     private final SocialLoginService socialLoginService;
+    private final SocialSignupService socialSignupService;
 
     @Override
     @PostMapping("/social-login")
     public ResponseEntity<SocialLoginResponse> socialLogin(
-            @Valid @RequestBody SocialLoginRequest request
+            @Valid @RequestBody SocialIdTokenRequest request
     ) {
         SocialLoginResult result = socialLoginService.login(
                 request.provider(),
                 request.idToken());
 
         return ResponseEntity.ok(SocialLoginResponse.from(result));
+    }
+
+    @Override
+    @PostMapping("/social-signup/signature/uploads")
+    public ResponseEntity<SocialSignupSignatureUploadResponse>
+            createSocialSignupSignatureUpload(
+                    @Valid @RequestBody SocialIdTokenRequest request
+            ) {
+        SignatureImageUpload upload = socialSignupService.createSignatureUpload(
+                request.provider(),
+                request.idToken());
+
+        return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(upload));
     }
 }

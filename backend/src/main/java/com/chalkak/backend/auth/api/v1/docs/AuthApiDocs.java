@@ -1,7 +1,8 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
-import com.chalkak.backend.auth.api.v1.dto.request.SocialLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
+import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,5 +40,34 @@ public interface AuthApiDocs {
                     )
             )
     })
-    ResponseEntity<SocialLoginResponse> socialLogin(SocialLoginRequest request);
+    ResponseEntity<SocialLoginResponse> socialLogin(SocialIdTokenRequest request);
+
+    @Operation(summary = "소셜 회원가입용 서명 이미지 업로드 URL 발급")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "업로드 URL 발급 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 또는 이미 가입된 소셜 계정",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 ID Token",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<SocialSignupSignatureUploadResponse>
+            createSocialSignupSignatureUpload(
+                    SocialIdTokenRequest request
+            );
 }

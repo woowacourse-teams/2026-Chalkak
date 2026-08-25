@@ -10,7 +10,9 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
 import com.chalkak.backend.auth.service.SocialLoginStatus;
+import com.chalkak.backend.auth.service.SocialSignupService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private SocialLoginService socialLoginService;
+
+    @MockitoBean
+    private SocialSignupService socialSignupService;
 
     @Test
     @DisplayName("기존 회원이 소셜 로그인하면 로그인 성공 상태와 사용자 식별자를 반환한다")
@@ -111,5 +116,54 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
         verifyNoInteractions(socialLoginService);
+    }
+
+    @Test
+    @DisplayName("신규 회원이 유효한 ID Token을 전달하면 서명 업로드 정보를 반환한다")
+    void createSocialSignupSignatureUpload_validRequest_returnsUploadInformation()
+            throws Exception {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                "google-id-token"))
+                .willReturn(new SignatureImageUpload(
+                        uploadId,
+                        "https://s3.example.com/presigned",
+                        300L));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "GOOGLE",
+                                  "idToken": "google-id-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
+                .andExpect(jsonPath("$.uploadUrl")
+                        .value("https://s3.example.com/presigned"))
+                .andExpect(jsonPath("$.expiresInSeconds").value(300L));
+    }
+
+    @Test
+    @DisplayName("서명 업로드 URL 요청의 ID Token이 비어 있으면 400을 반환한다")
+    void createSocialSignupSignatureUpload_blankIdToken_returnsBadRequest()
+            throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "GOOGLE",
+                                  "idToken": " "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        verifyNoInteractions(socialSignupService);
     }
 }
