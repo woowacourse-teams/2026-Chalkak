@@ -1,6 +1,5 @@
 package com.chalkak.backend.exception;
 
-import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -38,9 +37,9 @@ public class GlobalExceptionHandler {
     ) {
         String message = e.getParameterValidationResults().stream()
                 .flatMap(result -> result.getResolvableErrors().stream()
-                        .map(error -> fieldMessage(
+                        .map(error -> constraintMessage(
                                 result.getMethodParameter().getParameterName(),
-                                Objects.requireNonNullElse(error.getDefaultMessage(), "요청 값이 올바르지 않습니다.")
+                                error.getDefaultMessage()
                         )))
                 .findFirst()
                 .orElse("요청 값이 올바르지 않습니다.");
@@ -113,11 +112,21 @@ public class GlobalExceptionHandler {
     }
 
     private String fieldErrorMessage(FieldError error) {
-        String message = error.isBindingFailure()
-                ? "요청 값의 형식이 올바르지 않습니다."
-                : Objects.requireNonNullElse(error.getDefaultMessage(), "요청 값이 올바르지 않습니다.");
+        if (error.isBindingFailure()) {
+            return fieldMessage(error.getField(), "요청 값의 형식이 올바르지 않습니다.");
+        }
+        return constraintMessage(error.getField(), error.getDefaultMessage());
+    }
 
-        return fieldMessage(error.getField(), message);
+    /**
+     * 응답 {@code message}는 클라이언트가 사용자에게 그대로 보여주는 문구다. 제약에 작성된 문구가 있으면 필드명을 덧붙이지 않고
+     * 그대로 전달하고, 처리기가 일반 문구로 대신할 때만 어느 값이 문제인지 알 수 있도록 필드명을 붙인다.
+     */
+    private String constraintMessage(String field, String message) {
+        if (message == null) {
+            return fieldMessage(field, "요청 값이 올바르지 않습니다.");
+        }
+        return message;
     }
 
     private String fieldMessage(String field, String message) {

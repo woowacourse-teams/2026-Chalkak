@@ -223,7 +223,7 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
-                        .value("signatureOriginalUploadId: 사인 이미지 업로드 정보가 올바르지 않습니다."));
+                        .value("사인 이미지 업로드 정보가 올바르지 않습니다."));
 
         verify(userService, never()).updateSignature(any(), any());
     }

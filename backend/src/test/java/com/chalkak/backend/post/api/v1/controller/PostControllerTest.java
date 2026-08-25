@@ -175,7 +175,7 @@ class PostControllerTest {
             value = {
                     "sort | popular | sort: 요청 값의 형식이 올바르지 않습니다.",
                     "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
-                    "randomSeed | seed! | randomSeed: 조회 조건이 올바르지 않습니다."
+                    "randomSeed | seed! | 조회 조건이 올바르지 않습니다."
             }
     )
     @DisplayName("목록 조회 파라미터 형식이 올바르지 않으면 잘못된 요청을 반환한다")
@@ -208,7 +208,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
-                        .value("randomSeed: 조회 조건이 올바르지 않습니다."));
+                        .value("조회 조건이 올바르지 않습니다."));
         then(postService).shouldHaveNoInteractions();
     }
 
