@@ -9,6 +9,7 @@
 - [AI 하네스](#ai-하네스)
 - [자주 사용하는 명령](#자주-사용하는-명령)
 - [프로필](#프로필)
+- [API 문서](#api-문서)
 - [임시 인증](#임시-인증)
 - [이미지 저장소](#이미지-저장소)
 - [DB 스키마](#db-스키마)
@@ -158,6 +159,20 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 > `prod` 프로필은 배포 환경 전용이므로 로컬에서 실행하지 않는다. 원격 DB에 Flyway 마이그레이션이 적용될 수 있다.  
 > `application-prod.yml`에는 DB 접속 정보의 기본값이 없으므로 필수 환경변수가 누락되면 애플리케이션이 기동되지 않는다.
+
+## API 문서
+
+로컬·개발 환경의 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인한다. 첫 화면은 `user-api` 그룹으로 연다.
+
+| 그룹 | 포함 경로 |
+|---|---|
+| `user-api` | `/api/v1/**` 중 `/api/v1/admin/**` 제외 |
+| `admin-api` | `/api/v1/admin/**` |
+| `internal-api` | `/internal/v1/**` |
+
+운영 환경에서는 API 문서 JSON과 Swagger UI를 모두 비활성화한다.
+
+Spring Boot 4 지원과 최신 기능을 위해 `springdoc-openapi` 3.1.0을 유지한다. 다만 이 버전은 Bean Validation 제약이 붙은 숫자 파라미터를 문서화할 때 경고 로그를 출력하는 [알려진 회귀 문제](https://github.com/springdoc/springdoc-openapi/issues/3314)가 있다. 현재 문서 응답과 스키마 생성에는 문제가 없으므로 하위 버전으로 내리지 않고, [수정 PR](https://github.com/springdoc/springdoc-openapi/pull/3315)이 반영된 정식 버전이 나오면 업그레이드한다.
 
 ## 임시 인증
 
