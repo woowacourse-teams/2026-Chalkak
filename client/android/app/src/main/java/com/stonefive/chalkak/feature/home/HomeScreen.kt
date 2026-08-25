@@ -80,7 +80,7 @@ fun HomeScreen(
     val photoListState = rememberLazyListState()
     var isTopAreaVisible by remember { mutableStateOf(true) }
     val topBarBackgroundAlpha by animateFloatAsState(
-        targetValue = if (isTopAreaVisible) 1f else 0f,
+        targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
     val topBarContentOffset by animateDpAsState(
@@ -183,6 +183,7 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
+private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.72f
 
 @Preview(
     showBackground = true,
