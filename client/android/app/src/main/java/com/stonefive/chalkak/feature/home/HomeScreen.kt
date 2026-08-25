@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -43,7 +42,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -101,15 +99,14 @@ fun HomeScreen(
     }
     val visibleTopAreaHeightPx =
         (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
+    val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
     val photoListTopPadding = with(density) { visibleTopAreaHeightPx.toDp() }
     val collapsedTopAreaProgress = if (topAreaHeight == 0) {
         0f
     } else {
         (-topAreaOffset / topAreaHeight).coerceIn(0f, 1f)
     }
-    val topBarBackgroundAlpha = 1f -
-        ((1f - COLLAPSED_TOP_BAR_BACKGROUND_ALPHA) * collapsedTopAreaProgress)
-    val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
+    val topBarBackgroundAlpha = topBarBackgroundAlpha(collapsedTopAreaProgress)
 
     fun settleBars() {
         settleJob.value?.cancel()
@@ -224,10 +221,9 @@ fun HomeScreen(
             photos = uiState.photos,
             likedPhotoIds = uiState.likedPhotoIds,
             onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = photoListTopPadding),
+            modifier = Modifier.fillMaxSize(),
             state = photoListState,
+            topContentPadding = photoListTopPadding,
         )
         Column(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
@@ -263,22 +259,8 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .clipToBounds(),
+                .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
         ) {
-            if (collapsedTopAreaProgress > 0f) {
-                uiState.photos.firstOrNull()?.let { photo ->
-                    ChalkakImage(
-                        model = photo.imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                    )
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
-            )
             HomeTopBar(
                 modifier = Modifier
                     .statusBarsPadding()
@@ -306,7 +288,16 @@ fun HomeScreen(
 
 private val HomeTopBarHeight = 55.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
+private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
 private const val BAR_SETTLE_DURATION_MILLIS = 220
+
+internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
+    val fadeProgress = (
+        (collapsedProgress - TOP_BAR_FADE_START_PROGRESS) /
+            (1f - TOP_BAR_FADE_START_PROGRESS)
+        ).coerceIn(0f, 1f)
+    return 1f - ((1f - COLLAPSED_TOP_BAR_BACKGROUND_ALPHA) * fadeProgress)
+}
 
 internal fun topAreaOffsetAfterScroll(
     currentOffset: Float,

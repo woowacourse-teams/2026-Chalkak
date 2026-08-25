@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -23,11 +24,15 @@ fun HomePhotoList(
     onLikeClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
+    topContentPadding: Dp = 0.dp,
 ) {
     LazyColumn(
         modifier = modifier,
         state = state,
-        contentPadding = PaddingValues(bottom = 48.dp),
+        contentPadding = PaddingValues(
+            top = topContentPadding,
+            bottom = 48.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xxl),
     ) {
         items(

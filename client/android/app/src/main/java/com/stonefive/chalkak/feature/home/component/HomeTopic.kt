@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.home.component
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +31,7 @@ fun HomeTopic(
                 start = ChalkakTheme.spacing.screenHorizontal,
                 end = ChalkakTheme.spacing.screenHorizontal,
                 top = 16.dp,
-                bottom = 40.dp,
+                bottom = 20.dp,
             ),
     ) {
         Text(
@@ -37,12 +39,14 @@ fun HomeTopic(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.subheadline,
         )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         Text(
             text = topic,
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title1
                 .copy(fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(top = 10.dp),
         )
     }
 }
