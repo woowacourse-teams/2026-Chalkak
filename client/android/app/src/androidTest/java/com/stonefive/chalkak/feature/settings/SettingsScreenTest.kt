@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -53,6 +54,32 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun `개인정보처리방침 행을 누르면 개인정보처리방침 콜백을 호출한다`() {
+        var privacyPolicyClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(versionName = "1.0"),
+            onPrivacyPolicyClick = { privacyPolicyClickCount++ },
+        )
+
+        composeRule.onNodeWithText("개인정보처리방침").performClick()
+
+        assertEquals(1, privacyPolicyClickCount)
+    }
+
+    @Test
+    fun `이용약관 행을 누르면 이용약관 콜백을 호출한다`() {
+        var termsClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(versionName = "1.0"),
+            onTermsClick = { termsClickCount++ },
+        )
+
+        composeRule.onNodeWithText("이용약관").performClick()
+
+        assertEquals(1, termsClickCount)
+    }
+
+    @Test
     fun `로그아웃 확인 다이얼로그를 표시하고 확인할 수 있다`() {
         var confirmed = false
         setSettingsContent(
@@ -91,6 +118,8 @@ class SettingsScreenTest {
     private fun setSettingsContent(
         uiState: SettingsUiState,
         onLoginClick: () -> Unit = {},
+        onPrivacyPolicyClick: () -> Unit = {},
+        onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
     ) {
@@ -100,8 +129,8 @@ class SettingsScreenTest {
                     uiState = uiState,
                     onLoginClick = onLoginClick,
                     onChangeSignatureClick = {},
-                    onPrivacyPolicyClick = {},
-                    onTermsClick = {},
+                    onPrivacyPolicyClick = onPrivacyPolicyClick,
+                    onTermsClick = onTermsClick,
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,
