@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import handler
-from image_processor.errors import RejectedImageError
+from image_processor.errors import PermanentCallbackError, RejectedImageError
 
 
 def sqs_event(body: dict, message_id: str = "message-1") -> dict:
@@ -84,6 +84,22 @@ class LambdaHandlerTest(unittest.TestCase):
 
         self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
         handler._processor.process.assert_not_called()
+
+    def test_handler_acknowledges_permanent_callback_failure_without_retry(
+        self,
+    ) -> None:
+        processor = Mock()
+        processor.process.side_effect = PermanentCallbackError(
+            "backend callback rejected with HTTP 404"
+        )
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "error") as error:
+            result = handler.lambda_handler(sqs_event(s3_body()), None)
+
+        self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
+        error.assert_called_once()
+
 
     def test_handler_raises_transient_failure_for_sqs_retry(self) -> None:
         processor = Mock()

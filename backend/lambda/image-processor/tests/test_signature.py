@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from PIL import Image
 
 from image_processor.config import Settings
-from image_processor.errors import RejectedImageError
+from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
 from image_processor.signature import SignatureImageProcessor
 
@@ -117,6 +117,25 @@ class SignatureImageProcessorTest(unittest.TestCase):
         self.callback_client.failed.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.s3_client.put_object.assert_not_called()
         self.s3_client.delete_object.assert_not_called()
+
+    def test_process_keeps_rejection_when_failed_callback_is_permanently_refused(
+        self,
+    ) -> None:
+        source = jpeg_image()
+        self.s3_client.get_object.return_value = {
+            "ContentLength": len(source),
+            "Body": StreamingBodyStub(source),
+        }
+        self.callback_client.failed.side_effect = PermanentCallbackError(
+            "backend callback rejected with HTTP 400"
+        )
+
+        # 실패 콜백이 영구 거부돼도 원래 거부 사유가 살아남아야 재처리 루프에 빠지지 않는다.
+        with self.assertRaisesRegex(RejectedImageError, "not a PNG"):
+            self.processor.process(created_event(len(source)))
+
+        self.s3_client.delete_object.assert_not_called()
+
 
     def test_process_rejects_size_from_event_before_download(self) -> None:
         event = created_event(self.settings.max_input_bytes + 1)

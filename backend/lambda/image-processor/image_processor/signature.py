@@ -1,4 +1,5 @@
 import io
+import logging
 import re
 import warnings
 from dataclasses import dataclass
@@ -8,7 +9,7 @@ from botocore.exceptions import ClientError
 from PIL import Image, UnidentifiedImageError
 
 from image_processor.config import Settings
-from image_processor.errors import RejectedImageError
+from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
 
 PNG_CONTENT_TYPE = "image/png"
@@ -19,6 +20,8 @@ class ProcessedSignature:
     original_key: str
     thumbnail_key: str
 
+
+LOGGER = logging.getLogger(__name__)
 
 class SignatureImageProcessor:
     def __init__(self, s3_client: Any, settings: Settings, callback_client: Any):
@@ -46,7 +49,15 @@ class SignatureImageProcessor:
             self._upload(event.bucket, original_key, original)
             self._upload(event.bucket, thumbnail_key, thumbnail)
         except RejectedImageError:
-            self._callback_client.failed(environment, upload_id)
+            # 실패 콜백까지 영구 거부되면 재시도해도 같으므로 삼킨다. 여기서 예외가 새어 나가면
+            # 원래 거부 사유를 대체해, handler가 흡수해야 할 잘못된 이미지가 무한 재처리된다.
+            try:
+                self._callback_client.failed(environment, upload_id)
+            except PermanentCallbackError:
+                LOGGER.error(
+                    "failed callback permanently refused for %s",
+                    upload_id,
+                )
             raise
 
         self._callback_client.complete(environment, upload_id)

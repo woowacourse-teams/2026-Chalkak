@@ -6,7 +6,11 @@ import boto3
 
 from image_processor.callback import SignatureProcessingCallbackClient
 from image_processor.config import Settings
-from image_processor.errors import RejectedEventError, RejectedImageError
+from image_processor.errors import (
+    PermanentCallbackError,
+    RejectedEventError,
+    RejectedImageError,
+)
 from image_processor.events import parse_s3_records
 from image_processor.router import ImageProcessorRouter
 from image_processor.signature import SignatureImageProcessor
@@ -41,6 +45,21 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, int]:
                     str(exception),
                     bucket=s3_record.bucket,
                     key=s3_record.key,
+                )
+            except PermanentCallbackError as exception:
+                # 같은 요청을 다시 보내도 거부되므로 SQS 재시도가 인보케이션만 소모한다.
+                # 상태가 PROCESSING에 남지만 그건 처리 타임아웃이 정리할 몫이다.
+                rejected_count += 1
+                LOGGER.error(
+                    json.dumps(
+                        {
+                            "event": "callback_permanently_refused",
+                            "messageId": message_id,
+                            "bucket": s3_record.bucket,
+                            "key": s3_record.key,
+                            "reason": str(exception),
+                        }
+                    )
                 )
             except Exception:
                 LOGGER.exception(

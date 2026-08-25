@@ -3,6 +3,15 @@ import hmac
 import time
 from collections.abc import Mapping
 from urllib import request
+from urllib.error import HTTPError
+
+from image_processor.errors import PermanentCallbackError
+
+
+# 같은 요청을 다시 보내도 결과가 바뀌지 않는 상태들이다. 우리 코드나 설정이 잘못 만든 요청이므로
+# SQS 재시도는 인보케이션만 소모한다. 401·403은 secret 롤링 교체 중 잠깐 날 수 있고 429·408은
+# 명시적으로 재시도 대상이라 제외한다.
+NON_RETRYABLE_STATUSES = frozenset({400, 404, 405, 413, 414, 415})
 
 
 class SignatureProcessingCallbackClient:
@@ -49,11 +58,15 @@ class SignatureProcessingCallbackClient:
             method="POST",
         )
 
-        with request.urlopen(
-            callback_request,
-            timeout=self._timeout_seconds,
-        ) as response:
-            if not 200 <= response.status < 300:
-                raise RuntimeError(
-                    f"backend callback returned HTTP {response.status}"
-                )
+        try:
+            with request.urlopen(
+                callback_request,
+                timeout=self._timeout_seconds,
+            ):
+                return
+        except HTTPError as error:
+            if error.code in NON_RETRYABLE_STATUSES:
+                raise PermanentCallbackError(
+                    f"backend callback rejected with HTTP {error.code}"
+                ) from error
+            raise
