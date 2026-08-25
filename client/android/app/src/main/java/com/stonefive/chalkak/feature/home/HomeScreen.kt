@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,8 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeRoute(
@@ -87,15 +91,22 @@ fun HomeScreen(
     var topAreaOffset by remember { mutableFloatStateOf(0f) }
     var topAreaHeight by remember { mutableIntStateOf(0) }
     var isBottomBarVisible by remember { mutableStateOf(true) }
-    var bottomBarScrollDistance by remember { mutableFloatStateOf(0f) }
+    var isCollapsing by remember { mutableStateOf(false) }
+    val collapseScope = rememberCoroutineScope()
+    val collapseJob = remember { mutableStateOf<Job?>(null) }
     val topBarBackgroundAlpha by animateFloatAsState(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
-    val bottomBarScrollThreshold = with(LocalDensity.current) {
-        BottomBarScrollThreshold.toPx()
+    val topBarHeightPx = with(LocalDensity.current) {
+        HomeTopBarHeight.toPx()
     }
-    val nestedScrollConnection = remember(topAreaHeight, bottomBarScrollThreshold) {
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(LocalDensity.current)
+    val nestedScrollConnection = remember(
+        topAreaHeight,
+        topBarHeightPx,
+        statusBarHeightPx,
+    ) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -103,41 +114,58 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
                     when {
+                        available.y < 0f -> isBottomBarVisible = false
+                        available.y > 0f -> isBottomBarVisible = true
+                    }
+                    when {
                         available.y < 0f -> {
-                            if (topAreaOffset > -topAreaHeight) {
+                            if (isCollapsing) {
+                                return Offset(0f, available.y)
+                            }
+                            if (isTopAreaVisible && topAreaHeight > 0) {
                                 val previousOffset = topAreaOffset
                                 val nextOffset = (topAreaOffset + available.y)
                                     .coerceAtLeast(-topAreaHeight.toFloat())
-                                if (nextOffset <= -topAreaHeight / 2f) {
-                                    topAreaOffset = -topAreaHeight.toFloat()
-                                    isTopAreaVisible = false
+                                val collapseThreshold =
+                                    -(topAreaHeight - statusBarHeightPx - topBarHeightPx) / 2f
+                                if (nextOffset <= collapseThreshold) {
+                                    isCollapsing = true
+                                    collapseJob.value?.cancel()
+                                    collapseJob.value = collapseScope.launch {
+                                        animate(
+                                            initialValue = previousOffset,
+                                            targetValue = -topAreaHeight.toFloat(),
+                                        ) { value, _ -> topAreaOffset = value }
+                                        isTopAreaVisible = false
+                                        isCollapsing = false
+                                    }
                                     return Offset(0f, available.y)
                                 }
                                 topAreaOffset = nextOffset
                                 return Offset(0f, nextOffset - previousOffset)
                             }
-                            bottomBarScrollDistance -= available.y
-                            if (bottomBarScrollDistance >= bottomBarScrollThreshold) {
-                                isBottomBarVisible = false
-                                bottomBarScrollDistance = 0f
-                            }
-                        }
-
-                        available.y > 0f -> {
-                            if (topAreaOffset < 0f) {
-                                val previousOffset = topAreaOffset
-                                val nextOffset = (topAreaOffset + available.y).coerceAtMost(0f)
-                                topAreaOffset = nextOffset
-                                isTopAreaVisible = true
-                                return Offset(0f, nextOffset - previousOffset)
-                            }
-                            bottomBarScrollDistance -= available.y
-                            if (bottomBarScrollDistance <= -bottomBarScrollThreshold) {
-                                isBottomBarVisible = true
-                                bottomBarScrollDistance = 0f
-                            }
                         }
                     }
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput &&
+                    available.y > 0f &&
+                    topAreaOffset < 0f
+                ) {
+                    collapseJob.value?.cancel()
+                    isCollapsing = false
+                    isTopAreaVisible = true
+                    val previousOffset = topAreaOffset
+                    val nextOffset = (topAreaOffset + available.y).coerceAtMost(0f)
+                    topAreaOffset = nextOffset
+                    return Offset(0f, nextOffset - previousOffset)
                 }
                 return Offset.Zero
             }
@@ -145,10 +173,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(uiState.selectedSort) {
+        collapseJob.value?.cancel()
+        isCollapsing = false
         isTopAreaVisible = true
         topAreaOffset = 0f
         isBottomBarVisible = true
-        bottomBarScrollDistance = 0f
         photoListState.scrollToItem(0)
     }
 
@@ -159,33 +188,31 @@ fun HomeScreen(
             .nestedScroll(nestedScrollConnection),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(HomeTopBarHeight))
-            if (isTopAreaVisible) {
-                Box(
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .collapsingTopArea(topAreaOffset),
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clipToBounds()
-                        .collapsingTopArea(topAreaOffset),
+                        .onSizeChanged { topAreaHeight = it.height },
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { topAreaHeight = it.height },
-                    ) {
-                        HomeTopic(
-                            dateLabel = uiState.dateLabel,
-                            topic = uiState.topic,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        ChalkakSortSelector(
-                            options = PostSort.entries,
-                            selectedOption = uiState.selectedSort,
-                            optionLabel = { it.label },
-                            onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                    Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                    Spacer(modifier = Modifier.height(HomeTopBarHeight))
+                    HomeTopic(
+                        dateLabel = uiState.dateLabel,
+                        topic = uiState.topic,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ChalkakSortSelector(
+                        options = PostSort.entries,
+                        selectedOption = uiState.selectedSort,
+                        optionLabel = { it.label },
+                        onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
             HomePhotoList(
@@ -235,7 +262,6 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
-private val BottomBarScrollThreshold = 56.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 
 private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
