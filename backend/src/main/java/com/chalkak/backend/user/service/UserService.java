@@ -4,10 +4,12 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
+import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
+import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.UUID;
@@ -22,7 +24,17 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final SignatureImageStorage signatureImageStorage;
+    private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
+
+    public SignatureImageUpload createSignatureUpload(UUID userId) {
+        userRepository.findActiveById(userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "사인을 업로드할 회원을 찾을 수 없습니다."));
+
+        return signatureImageUploadIssuer.issue(UUID.randomUUID());
+    }
 
     @Transactional
     public void withdraw(UUID userId) {

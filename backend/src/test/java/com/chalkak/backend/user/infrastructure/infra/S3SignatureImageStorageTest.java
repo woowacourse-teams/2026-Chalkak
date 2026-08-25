@@ -83,6 +83,8 @@ class S3SignatureImageStorageTest {
             .isEqualTo(ROOT_PREFIX + "/signatures/prod/original/" + uploadId + ".png");
         assertThat(storageKeys.thumbnailStorageKey())
             .isEqualTo(ROOT_PREFIX + "/signatures/prod/thumbnail/" + uploadId + ".png");
+        assertThat(prodStorage.toStagingStorageKey(uploadId))
+            .isEqualTo(ROOT_PREFIX + "/staging/prod/signatures/" + uploadId + ".png");
     }
 
     @Test

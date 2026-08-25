@@ -2,17 +2,21 @@ package com.chalkak.backend.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
+import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
+import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -39,6 +43,9 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
+
+    @MockitoBean
+    private SignatureImageUploadIssuer signatureImageUploadIssuer;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -105,6 +112,56 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> userService.withdraw(id))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("탈퇴할 회원을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("활성 회원이 사인 업로드를 요청하면 새 업로드 URL을 발급한다")
+    void createSignatureUpload_activeUser_issuesUploadUrl() {
+        // Given
+        UUID userId = userRepository.save(UserFixture.create()).getId();
+        flushAndClear();
+        String uploadUrl = "https://s3.example.com/presigned";
+        given(signatureImageUploadIssuer.issue(any(UUID.class)))
+                .willAnswer(invocation -> {
+                    UUID uploadId = invocation.getArgument(0);
+                    return new SignatureImageUpload(uploadId, uploadUrl, 300L);
+                });
+
+        // When
+        SignatureImageUpload upload = userService.createSignatureUpload(userId);
+
+        // Then
+        assertThat(upload.uploadId()).isNotNull();
+        assertThat(upload.uploadUrl()).isEqualTo(uploadUrl);
+        assertThat(upload.expiresInSeconds()).isEqualTo(300L);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원은 사인 업로드 URL을 발급받을 수 없다")
+    void createSignatureUpload_notExistingUser_throwsNotFoundException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.createSignatureUpload(userId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 사인 업로드 URL을 발급받을 수 없다")
+    void createSignatureUpload_withdrawnUser_throwsNotFoundException() {
+        // Given
+        UUID userId = userRepository.save(UserFixture.create()).getId();
+        userService.withdraw(userId);
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.createSignatureUpload(userId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+        verifyNoInteractions(signatureImageUploadIssuer);
     }
 
     @Test
