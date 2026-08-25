@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.core.legal
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
+import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -130,7 +132,7 @@ internal fun LegalDocumentWebViewDialog(
                                     WebView(context).apply {
                                         webView = this
                                         CookieManager.getInstance().setAcceptCookie(true)
-                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
                                         settings.javaScriptEnabled = true
                                         settings.domStorageEnabled = true
                                         settings.allowFileAccess = false
@@ -142,6 +144,22 @@ internal fun LegalDocumentWebViewDialog(
                                         isVerticalScrollBarEnabled = false
                                         setBackgroundColor(AndroidColor.TRANSPARENT)
                                         webViewClient = object : WebViewClient() {
+                                            override fun shouldOverrideUrlLoading(
+                                                view: WebView,
+                                                request: WebResourceRequest,
+                                            ): Boolean {
+                                                if (request.url.isAllowedLegalHost()) {
+                                                    return false
+                                                }
+                                                runCatching {
+                                                    context.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, request.url)
+                                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                                    )
+                                                }
+                                                return true
+                                            }
+
                                             override fun onPageStarted(
                                                 view: WebView,
                                                 url: String?,
@@ -216,6 +234,18 @@ internal fun LegalDocumentWebViewDialog(
         }
     }
 }
+
+/**
+ * Keeps top-level navigation inside the legal document's host family (Notion).
+ * Notion public pages may redirect the main frame across notion.com / notion.so / notion.site,
+ * so all of them are allowed; anything else is opened in an external browser instead.
+ */
+private fun Uri.isAllowedLegalHost(): Boolean {
+    val host = host ?: return false
+    return NOTION_ALLOWED_HOSTS.any { host == it || host.endsWith(".$it") }
+}
+
+private val NOTION_ALLOWED_HOSTS = listOf("notion.com", "notion.so", "notion.site")
 
 /** Notion's flex layout can have a zero-height scroll container in Android WebView. */
 private const val NOTION_WEB_VIEW_LAYOUT_FIX_SCRIPT = """
