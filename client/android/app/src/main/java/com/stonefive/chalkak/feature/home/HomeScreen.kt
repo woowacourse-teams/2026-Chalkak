@@ -37,7 +37,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,15 +97,7 @@ fun HomeScreen(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
-    val topBarHeightPx = with(LocalDensity.current) {
-        HomeTopBarHeight.toPx()
-    }
-    val statusBarHeightPx = WindowInsets.statusBars.getTop(LocalDensity.current)
-    val nestedScrollConnection = remember(
-        topAreaHeight,
-        topBarHeightPx,
-        statusBarHeightPx,
-    ) {
+    val nestedScrollConnection = remember(topAreaHeight) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -126,8 +117,7 @@ fun HomeScreen(
                                 val previousOffset = topAreaOffset
                                 val nextOffset = (topAreaOffset + available.y)
                                     .coerceAtLeast(-topAreaHeight.toFloat())
-                                val collapseThreshold =
-                                    -(topAreaHeight - statusBarHeightPx - topBarHeightPx) / 2f
+                                val collapseThreshold = -topAreaHeight / 2f
                                 if (nextOffset <= collapseThreshold) {
                                     isCollapsing = true
                                     collapseJob.value?.cancel()
@@ -187,7 +177,16 @@ fun HomeScreen(
             .background(ChalkakBackground)
             .nestedScroll(nestedScrollConnection),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        HomePhotoList(
+            photos = uiState.photos,
+            likedPhotoIds = uiState.likedPhotoIds,
+            onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+            modifier = Modifier.fillMaxSize(),
+            state = photoListState,
+        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(HomeTopBarHeight))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,10 +196,9 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(ChalkakBackground)
                         .onSizeChanged { topAreaHeight = it.height },
                 ) {
-                    Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-                    Spacer(modifier = Modifier.height(HomeTopBarHeight))
                     HomeTopic(
                         dateLabel = uiState.dateLabel,
                         topic = uiState.topic,
@@ -215,15 +213,6 @@ fun HomeScreen(
                     )
                 }
             }
-            HomePhotoList(
-                photos = uiState.photos,
-                likedPhotoIds = uiState.likedPhotoIds,
-                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                state = photoListState,
-            )
         }
         Box(
             modifier = Modifier
