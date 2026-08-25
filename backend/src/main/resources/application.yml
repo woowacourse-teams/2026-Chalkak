@@ -38,3 +38,10 @@ management:
     web:
       exposure:
         include: health,info
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    urls-primary-name: user-api

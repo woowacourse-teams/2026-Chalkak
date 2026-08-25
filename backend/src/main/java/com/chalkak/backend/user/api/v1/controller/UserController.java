@@ -2,6 +2,7 @@ package com.chalkak.backend.user.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
+import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
@@ -28,10 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")
 @Profile("!prod")
-public class UserController {
+public class UserController implements UserApiDocs {
 
     private final UserService userService;
 
+    @Override
     @DeleteMapping("/me")
     public ResponseEntity<Void> withdraw(@LoginUser AuthenticatedUser loginUser) {
         userService.withdraw(loginUser.userId());
@@ -39,6 +41,7 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @Override
     @PostMapping("/me/signature/uploads")
     public ResponseEntity<UserSignatureUploadResponse> createSignatureUpload(
             @LoginUser AuthenticatedUser loginUser
@@ -48,6 +51,7 @@ public class UserController {
         return ResponseEntity.ok(UserSignatureUploadResponse.from(upload));
     }
 
+    @Override
     @PutMapping("/me/signature")
     public ResponseEntity<UserSignatureResponse> updateSignature(
             @LoginUser AuthenticatedUser loginUser,

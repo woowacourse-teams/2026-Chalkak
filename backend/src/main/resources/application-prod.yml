@@ -21,3 +21,9 @@ management:
 chalkak:
   image:
     environment: prod
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

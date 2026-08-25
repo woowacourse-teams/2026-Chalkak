@@ -1,5 +1,6 @@
 package com.chalkak.backend.topic.api.v1.controller;
 
+import com.chalkak.backend.topic.api.v1.docs.TopicApiDocs;
 import com.chalkak.backend.topic.api.v1.dto.response.TopicDetailResponse;
 import com.chalkak.backend.topic.service.TopicDetail;
 import com.chalkak.backend.topic.service.TopicService;
@@ -15,10 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/topics")
-public class TopicController {
+public class TopicController implements TopicApiDocs {
 
     private final TopicService topicService;
 
+    @Override
     @GetMapping
     public ResponseEntity<TopicDetailResponse> getTopic(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date

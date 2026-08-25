@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.api.v1.dto.response;
 
 import com.chalkak.backend.post.service.PostListResult;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -9,6 +10,10 @@ public record PostListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
+        @Schema(
+                description = "랜덤 정렬 결과를 유지하는 값으로 다음 페이지 요청에도 동일하게 전달",
+                nullable = true
+        )
         String randomSeed,
         List<PostResponse> posts
 ) {
@@ -28,8 +33,10 @@ public record PostListResponse(
     public record PostResponse(
             UUID id,
             String originalImageUrl,
+            @Schema(description = "변환된 게시물 썸네일 URL", nullable = true)
             String thumbnailImageUrl,
             String signatureOriginalImageUrl,
+            @Schema(description = "변환된 사인 이미지 썸네일 URL", nullable = true)
             String signatureThumbnailImageUrl,
             String title,
             Instant submittedAt
