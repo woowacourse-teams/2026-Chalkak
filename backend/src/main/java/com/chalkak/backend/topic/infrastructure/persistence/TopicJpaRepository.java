@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface TopicJpaRepository extends JpaRepository<Topic, UUID> {
 
+    Optional<Topic> findByIdAndDeletedAtIsNull(UUID topicId);
+
     @Query("""
             SELECT topic
             FROM Topic topic

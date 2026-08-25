@@ -1,9 +1,15 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +24,9 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -39,6 +48,9 @@ class PostRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUp() {
@@ -335,6 +347,127 @@ class PostRepositoryTest {
 
         // Then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("동시 생성으로 사용자와 주제 유니크 제약을 위반하면 비즈니스 예외로 변환한다")
+    void save_duplicateUserAndTopic_throwsBusinessException() {
+        // Given
+        User author = entityManager.find(User.class, USER_ID);
+        Topic topic = entityManager.find(Topic.class, TOPIC_ID);
+        Photo photo = Photo.createPhoto("chalkak/dev/posts/concurrent-original.png");
+        Post duplicatePost = Post.createPost(author, topic, photo, null);
+
+        // When & Then
+        assertThatThrownBy(() -> postRepository.save(duplicatePost))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 사용된 게시물 생성 정보입니다.");
+    }
+
+    @Test
+    @DisplayName("동시 생성으로 사진 스토리지 키 유니크 제약을 위반하면 비즈니스 예외로 변환한다")
+    void save_duplicatePhotoStorageKey_throwsBusinessException() {
+        // Given
+        UUID secondUserId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
+        UUID secondTopicId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b3");
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key, created_at, updated_at
+                ) VALUES (
+                    ?, 'post-duplicate-photo@example.com', 'ACTIVE',
+                    'chalkak/dev/signatures/duplicate-photo.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, secondUserId);
+        jdbcTemplate.update("""
+                INSERT INTO topics (
+                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                ) VALUES (
+                    ?, '사진 중복 테스트 주제', '2026-08-13',
+                    '2026-08-13T00:00:00Z', '2026-08-14T00:00:00Z',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, secondTopicId);
+        User author = entityManager.find(User.class, secondUserId);
+        Topic topic = entityManager.find(Topic.class, secondTopicId);
+        Photo photo = Photo.createPhoto("chalkak/dev/posts/original.jpg");
+        Post duplicatePhotoPost = Post.createPost(author, topic, photo, null);
+
+        // When & Then
+        assertThatThrownBy(() -> postRepository.save(duplicatePhotoPost))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 사용된 게시물 생성 정보입니다.");
+    }
+
+    @Test
+    @DisplayName("게시물 저장 실패 시 cascade로 저장한 사진도 함께 롤백한다")
+    void save_postConstraintViolation_rollsBackCascadedPhoto() {
+        // Given
+        UUID authorId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b4");
+        UUID topicId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b5");
+        String orphanStorageKey = "chalkak/dev/posts/rolled-back-photo.png";
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> transactionTemplate.executeWithoutResult(status -> {
+                    insertPostCreationConflictFixtures(authorId, topicId);
+                    User author = entityManager.find(User.class, authorId);
+                    Topic topic = entityManager.find(Topic.class, topicId);
+                    Photo photo = Photo.createPhoto(orphanStorageKey);
+                    Post duplicatePost = Post.createPost(author, topic, photo, null);
+
+                    postRepository.save(duplicatePost);
+                })
+        );
+
+        // Then
+        assertThat(exception).hasMessage("이미 사용된 게시물 생성 정보입니다.");
+        Integer photoCount = transactionTemplate.execute(status -> jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM photos WHERE original_storage_key = ?",
+                Integer.class,
+                orphanStorageKey
+        ));
+        assertThat(photoCount).isZero();
+    }
+
+    private void insertPostCreationConflictFixtures(UUID authorId, UUID topicId) {
+        UUID photoId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b6");
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key, created_at, updated_at
+                ) VALUES (
+                    ?, 'post-rollback@example.com', 'ACTIVE',
+                    'chalkak/dev/signatures/rollback.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, authorId);
+        jdbcTemplate.update("""
+                INSERT INTO topics (
+                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                ) VALUES (
+                    ?, '롤백 테스트 주제', '2099-01-01',
+                    '2099-01-01T00:00:00Z', '2099-01-02T00:00:00Z',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, topicId);
+        jdbcTemplate.update("""
+                INSERT INTO photos (
+                    id, original_storage_key, created_at, updated_at
+                ) VALUES (
+                    ?, 'chalkak/dev/posts/rollback-existing.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, photoId);
+        jdbcTemplate.update("""
+                INSERT INTO posts (
+                    user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, authorId, topicId, photoId);
     }
 
     private void insertSecondVisiblePost() {

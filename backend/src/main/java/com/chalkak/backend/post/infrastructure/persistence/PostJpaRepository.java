@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface PostJpaRepository extends JpaRepository<Post, UUID> {
 
+    boolean existsByAuthorIdAndTopicIdAndDeletedAtIsNull(UUID authorId, UUID topicId);
+
     @Query("""
             SELECT post
             FROM Post post

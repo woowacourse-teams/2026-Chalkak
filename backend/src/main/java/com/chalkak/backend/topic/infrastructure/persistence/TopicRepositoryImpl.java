@@ -4,6 +4,7 @@ import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -12,6 +13,11 @@ import org.springframework.stereotype.Repository;
 public class TopicRepositoryImpl implements TopicRepository {
 
     private final TopicJpaRepository topicJpaRepository;
+
+    @Override
+    public Optional<Topic> findActiveById(UUID topicId) {
+        return topicJpaRepository.findByIdAndDeletedAtIsNull(topicId);
+    }
 
     @Override
     public Optional<Topic> findActiveByTopicDate(LocalDate topicDate) {

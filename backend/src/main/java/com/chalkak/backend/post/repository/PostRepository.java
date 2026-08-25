@@ -6,6 +6,10 @@ import java.util.UUID;
 
 public interface PostRepository {
 
+    Post save(Post post);
+
+    boolean existsActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId);
+
     Optional<Post> findVisibleById(UUID postId);
 
     PostSlice findVisibleRecentByTopicId(

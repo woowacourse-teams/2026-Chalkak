@@ -67,6 +67,37 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("탈퇴하지 않고 상태가 ACTIVE면 활성 회원이다")
+    void isActive_activeUser_returnsTrue() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThat(user.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("차단된 회원은 활성 회원이 아니다")
+    void isActive_bannedUser_returnsFalse() {
+        // Given
+        User user = UserFixture.createBanned(UUID.randomUUID());
+
+        // When & Then
+        assertThat(user.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 활성 회원이 아니다")
+    void isActive_withdrawnUser_returnsFalse() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.withdraw();
+
+        // When & Then
+        assertThat(user.isActive()).isFalse();
+    }
+
+    @Test
     @DisplayName("사인 처리를 시작해도 현재 활성 사인은 유지한다")
     void startSignatureProcessing_activeSignature_preservesActiveKeys() {
         // Given

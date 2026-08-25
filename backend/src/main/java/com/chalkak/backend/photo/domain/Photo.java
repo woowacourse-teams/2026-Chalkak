@@ -1,5 +1,7 @@
 package com.chalkak.backend.photo.domain;
 
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -49,4 +51,20 @@ public class Photo {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    private Photo(String originalStorageKey) {
+        this.originalStorageKey = originalStorageKey;
+        this.thumbnailStorageKey = null;
+        this.metadata = Map.of();
+    }
+
+    public static Photo createPhoto(String originalStorageKey) {
+        if (originalStorageKey == null || originalStorageKey.isBlank()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "사진 저장 정보가 올바르지 않습니다."
+            );
+        }
+        return new Photo(originalStorageKey);
+    }
 }

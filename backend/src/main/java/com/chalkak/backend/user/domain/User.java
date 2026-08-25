@@ -143,6 +143,13 @@ public class User {
         return deletedAt != null;
     }
 
+    /**
+     * 탈퇴하지 않았고 이용이 정지되지도 않아 서비스를 정상적으로 이용할 수 있는 상태인지 판단한다.
+     */
+    public boolean isActive() {
+        return !isDeleted() && status == UserStatus.ACTIVE;
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
