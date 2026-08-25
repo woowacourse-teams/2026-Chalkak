@@ -1,7 +1,6 @@
 package com.stonefive.chalkak.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -16,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -83,10 +84,6 @@ fun HomeScreen(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
-    val topBarContentOffset by animateDpAsState(
-        targetValue = if (isTopAreaVisible) HomeTopBarHeight else 0.dp,
-        label = "home_top_bar_content_offset",
-    )
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -127,21 +124,19 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding()
                 .nestedScroll(nestedScrollConnection),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(topBarContentOffset),
-                )
                 AnimatedVisibility(
                     visible = isTopAreaVisible,
                     enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
                     exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(
+                            modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars),
+                        )
+                        Spacer(modifier = Modifier.height(HomeTopBarHeight))
                         HomeTopic(
                             dateLabel = uiState.dateLabel,
                             topic = uiState.topic,
@@ -166,18 +161,24 @@ fun HomeScreen(
                     state = photoListState,
                 )
             }
-            HomeTopBar(
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha))
-                    .then(
-                        if (isTopAreaVisible) {
-                            Modifier.homeBottomDivider()
-                        } else {
-                            Modifier
-                        },
-                    ),
-            )
+                    .fillMaxWidth()
+                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
+            ) {
+                HomeTopBar(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .then(
+                            if (isTopAreaVisible) {
+                                Modifier.homeBottomDivider()
+                            } else {
+                                Modifier
+                            },
+                        ),
+                )
+            }
         }
     }
 }
