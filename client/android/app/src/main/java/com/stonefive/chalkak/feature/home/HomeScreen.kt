@@ -1,14 +1,20 @@
 package com.stonefive.chalkak.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -19,12 +25,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -71,6 +79,14 @@ fun HomeScreen(
 ) {
     val photoListState = rememberLazyListState()
     var isTopAreaVisible by remember { mutableStateOf(true) }
+    val topBarBackgroundAlpha by animateFloatAsState(
+        targetValue = if (isTopAreaVisible) 1f else 0f,
+        label = "home_top_bar_background_alpha",
+    )
+    val topBarContentOffset by animateDpAsState(
+        targetValue = if (isTopAreaVisible) HomeTopBarHeight else 0.dp,
+        label = "home_top_bar_content_offset",
+    )
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -107,46 +123,66 @@ fun HomeScreen(
             )
         },
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
                 .nestedScroll(nestedScrollConnection),
         ) {
-            HomeTopBar(modifier = Modifier.homeBottomDivider())
-            AnimatedVisibility(
-                visible = isTopAreaVisible,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    HomeTopic(
-                        dateLabel = uiState.dateLabel,
-                        topic = uiState.topic,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    ChalkakSortSelector(
-                        options = PostSort.entries,
-                        selectedOption = uiState.selectedSort,
-                        optionLabel = { it.label },
-                        onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+            Column(modifier = Modifier.fillMaxSize()) {
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(topBarContentOffset),
+                )
+                AnimatedVisibility(
+                    visible = isTopAreaVisible,
+                    enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+                    exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        HomeTopic(
+                            dateLabel = uiState.dateLabel,
+                            topic = uiState.topic,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        ChalkakSortSelector(
+                            options = PostSort.entries,
+                            selectedOption = uiState.selectedSort,
+                            optionLabel = { it.label },
+                            onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
+                HomePhotoList(
+                    photos = uiState.photos,
+                    likedPhotoIds = uiState.likedPhotoIds,
+                    onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    state = photoListState,
+                )
             }
-            HomePhotoList(
-                photos = uiState.photos,
-                likedPhotoIds = uiState.likedPhotoIds,
-                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+            HomeTopBar(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                state = photoListState,
+                    .align(Alignment.TopCenter)
+                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha))
+                    .then(
+                        if (isTopAreaVisible) {
+                            Modifier.homeBottomDivider()
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
     }
 }
+
+private val HomeTopBarHeight = 55.dp
 
 @Preview(
     showBackground = true,
