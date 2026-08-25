@@ -49,14 +49,19 @@ class SignatureImageProcessor:
             self._upload(event.bucket, original_key, original)
             self._upload(event.bucket, thumbnail_key, thumbnail)
         except RejectedImageError:
-            # 실패 콜백까지 영구 거부되면 재시도해도 같으므로 삼킨다. 여기서 예외가 새어 나가면
-            # 원래 거부 사유를 대체해, handler가 흡수해야 할 잘못된 이미지가 무한 재처리된다.
+            # 실패 콜백이 전달된 반려 이미지는 재처리하지 않으므로 staging을 삭제한다.
+            # 콜백이 실패하면 재시도에 필요하므로 staging을 유지한다.
             try:
                 self._callback_client.failed(environment, upload_id)
             except PermanentCallbackError:
                 LOGGER.error(
                     "failed callback permanently refused for %s",
                     upload_id,
+                )
+            else:
+                self._s3_client.delete_object(
+                    Bucket=event.bucket,
+                    Key=event.key,
                 )
             raise
 
