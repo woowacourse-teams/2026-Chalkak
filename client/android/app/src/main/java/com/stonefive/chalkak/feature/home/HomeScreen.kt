@@ -14,15 +14,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,6 +31,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -80,11 +80,16 @@ fun HomeScreen(
 ) {
     val photoListState = rememberLazyListState()
     var isTopAreaVisible by remember { mutableStateOf(true) }
+    var isBottomBarVisible by remember { mutableStateOf(true) }
+    var bottomBarScrollDistance by remember { mutableFloatStateOf(0f) }
     val topBarBackgroundAlpha by animateFloatAsState(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
-    val nestedScrollConnection = remember {
+    val bottomBarScrollThreshold = with(LocalDensity.current) {
+        BottomBarScrollThreshold.toPx()
+    }
+    val nestedScrollConnection = remember(bottomBarScrollThreshold) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -92,8 +97,23 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
                     when {
-                        available.y < 0f -> isTopAreaVisible = false
-                        available.y > 0f -> isTopAreaVisible = true
+                        available.y < 0f -> {
+                            isTopAreaVisible = false
+                            bottomBarScrollDistance -= available.y
+                            if (bottomBarScrollDistance >= bottomBarScrollThreshold) {
+                                isBottomBarVisible = false
+                                bottomBarScrollDistance = 0f
+                            }
+                        }
+
+                        available.y > 0f -> {
+                            isTopAreaVisible = true
+                            bottomBarScrollDistance -= available.y
+                            if (bottomBarScrollDistance <= -bottomBarScrollThreshold) {
+                                isBottomBarVisible = true
+                                bottomBarScrollDistance = 0f
+                            }
+                        }
                     }
                 }
                 return Offset.Zero
@@ -103,93 +123,90 @@ fun HomeScreen(
 
     LaunchedEffect(uiState.selectedSort) {
         isTopAreaVisible = true
+        isBottomBarVisible = true
+        bottomBarScrollDistance = 0f
         photoListState.scrollToItem(0)
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = ChalkakBackground,
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ChalkakBackground)
+            .nestedScroll(nestedScrollConnection),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(
                 visible = isTopAreaVisible,
-                modifier = Modifier.fillMaxWidth(),
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
+                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
             ) {
-                ChalkakBottomBar(
-                    selectedItem = ChalkakBottomBarItem.TODAY,
-                    onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                    onAddClick = { onAction(HomeUiAction.AddClicked) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(
+                        modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars),
+                    )
+                    Spacer(modifier = Modifier.height(HomeTopBarHeight))
+                    HomeTopic(
+                        dateLabel = uiState.dateLabel,
+                        topic = uiState.topic,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ChalkakSortSelector(
+                        options = PostSort.entries,
+                        selectedOption = uiState.selectedSort,
+                        optionLabel = { it.label },
+                        onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
-        },
-    ) { innerPadding ->
+            HomePhotoList(
+                photos = uiState.photos,
+                likedPhotoIds = uiState.likedPhotoIds,
+                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                state = photoListState,
+            )
+        }
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-                .nestedScroll(nestedScrollConnection),
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                AnimatedVisibility(
-                    visible = isTopAreaVisible,
-                    enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-                    exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Spacer(
-                            modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars),
-                        )
-                        Spacer(modifier = Modifier.height(HomeTopBarHeight))
-                        HomeTopic(
-                            dateLabel = uiState.dateLabel,
-                            topic = uiState.topic,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        ChalkakSortSelector(
-                            options = PostSort.entries,
-                            selectedOption = uiState.selectedSort,
-                            optionLabel = { it.label },
-                            onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                HomePhotoList(
-                    photos = uiState.photos,
-                    likedPhotoIds = uiState.likedPhotoIds,
-                    onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    state = photoListState,
-                )
-            }
-            Box(
+            HomeTopBar(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
-            ) {
-                HomeTopBar(
-                    modifier = Modifier
-                        .statusBarsPadding()
-                        .then(
-                            if (isTopAreaVisible) {
-                                Modifier.homeBottomDivider()
-                            } else {
-                                Modifier
-                            },
-                        ),
-                )
-            }
+                    .statusBarsPadding()
+                    .then(
+                        if (isTopAreaVisible) {
+                            Modifier.homeBottomDivider()
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+        }
+        AnimatedVisibility(
+            visible = isBottomBarVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+            enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
+            exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
+        ) {
+            ChalkakBottomBar(
+                selectedItem = ChalkakBottomBarItem.TODAY,
+                onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
+                onAddClick = { onAction(HomeUiAction.AddClicked) },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
 private val HomeTopBarHeight = 55.dp
+private val BottomBarScrollThreshold = 56.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 
 @Preview(

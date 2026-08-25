@@ -5,12 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,11 +22,11 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -94,9 +95,14 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     var isTopAreaVisible by remember { mutableStateOf(true) }
+    var isBottomBarVisible by remember { mutableStateOf(true) }
+    var bottomBarScrollDistance by remember { mutableFloatStateOf(0f) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
 
-    val nestedScrollConnection = remember {
+    val bottomBarScrollThreshold = with(LocalDensity.current) {
+        BottomBarScrollThreshold.toPx()
+    }
+    val nestedScrollConnection = remember(bottomBarScrollThreshold) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -104,8 +110,23 @@ fun DisplayScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
                     when {
-                        available.y < 0f -> isTopAreaVisible = false
-                        available.y > 0f -> isTopAreaVisible = true
+                        available.y < 0f -> {
+                            isTopAreaVisible = false
+                            bottomBarScrollDistance -= available.y
+                            if (bottomBarScrollDistance >= bottomBarScrollThreshold) {
+                                isBottomBarVisible = false
+                                bottomBarScrollDistance = 0f
+                            }
+                        }
+
+                        available.y > 0f -> {
+                            isTopAreaVisible = true
+                            bottomBarScrollDistance -= available.y
+                            if (bottomBarScrollDistance <= -bottomBarScrollThreshold) {
+                                isBottomBarVisible = true
+                                bottomBarScrollDistance = 0f
+                            }
+                        }
                     }
                 }
                 return Offset.Zero
@@ -115,34 +136,20 @@ fun DisplayScreen(
 
     LaunchedEffect(uiState.selectedDate, selectedSort) {
         isTopAreaVisible = true
+        isBottomBarVisible = true
+        bottomBarScrollDistance = 0f
     }
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = ChalkakBackground,
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isTopAreaVisible,
-                modifier = Modifier.fillMaxWidth(),
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
-            ) {
-                ChalkakBottomBar(
-                    selectedItem = ChalkakBottomBarItem.DISPLAY,
-                    onItemSelected = onNavigateToBottomBar,
-                    onAddClick = onOpenPhotoUpload,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-    ) { innerPadding ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ChalkakBackground)
+            .nestedScroll(nestedScrollConnection),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding()
-                .nestedScroll(nestedScrollConnection),
+                .statusBarsPadding(),
         ) {
             AnimatedVisibility(
                 visible = isTopAreaVisible,
@@ -192,8 +199,25 @@ fun DisplayScreen(
                     .fillMaxWidth(),
             )
         }
+        AnimatedVisibility(
+            visible = isBottomBarVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+            enter = slideInVertically(initialOffsetY = { it }) + expandVertically(),
+            exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(),
+        ) {
+            ChalkakBottomBar(
+                selectedItem = ChalkakBottomBarItem.DISPLAY,
+                onItemSelected = onNavigateToBottomBar,
+                onAddClick = onOpenPhotoUpload,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
+
+private val BottomBarScrollThreshold = 56.dp
 
 @Composable
 fun DisplayBody(
