@@ -128,6 +128,8 @@ private class LegalDocumentWebViewClient(
 }
 
 private fun Uri.isAllowedLegalHost(): Boolean {
+    if (!scheme.equals("https", ignoreCase = true)) return false
+
     val host = host ?: return false
     return NOTION_ALLOWED_HOSTS.any { host == it || host.endsWith(".$it") }
 }
