@@ -1,13 +1,12 @@
 package com.chalkak.backend.post.api.internal.v1.controller;
 
+import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.post.api.internal.v1.docs.PostImageProcessingCallbackApiDocs;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingCompleteRequest;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingFailRequest;
 import com.chalkak.backend.post.service.PostService;
-import com.chalkak.backend.user.infrastructure.infra.ProcessingCallbackAuthenticator;
-import tools.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 본문을 DTO가 아니라 원문 문자열로 받는 이유는 서명 검증 때문이다. 역직렬화 후 다시 직렬화한 문자열은 공백과

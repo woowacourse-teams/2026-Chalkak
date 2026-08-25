@@ -1,4 +1,4 @@
-package com.chalkak.backend.user.infrastructure.infra;
+package com.chalkak.backend.auth.api.support;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

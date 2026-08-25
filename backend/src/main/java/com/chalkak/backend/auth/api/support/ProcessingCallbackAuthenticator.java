@@ -1,4 +1,4 @@
-package com.chalkak.backend.user.infrastructure.infra;
+package com.chalkak.backend.auth.api.support;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;

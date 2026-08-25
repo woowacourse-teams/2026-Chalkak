@@ -6,10 +6,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.user.infrastructure.infra.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

@@ -1,7 +1,7 @@
 package com.chalkak.backend.user.api.internal.v1.controller;
 
+import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.user.api.internal.v1.docs.SignatureProcessingCallbackApiDocs;
-import com.chalkak.backend.user.infrastructure.infra.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
