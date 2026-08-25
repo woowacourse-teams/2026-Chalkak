@@ -106,11 +106,7 @@ fun HomeScreen(
     }
     val visibleTopAreaHeightPx =
         (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
-    val photoListTopPadding = if (isTopAreaVisible) {
-        with(density) { visibleTopAreaHeightPx.toDp() }
-    } else {
-        0.dp
-    }
+    val photoListTopPadding = with(density) { visibleTopAreaHeightPx.toDp() }
     val nestedScrollConnection = remember(topAreaHeight) {
         object : NestedScrollConnection {
             override fun onPreScroll(
