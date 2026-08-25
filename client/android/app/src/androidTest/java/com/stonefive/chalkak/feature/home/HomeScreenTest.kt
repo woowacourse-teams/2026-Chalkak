@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -27,6 +28,22 @@ import org.junit.Test
 class HomeScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `reverse scroll in list reveals only the quick filter`() {
+        setHomeContent(scrollableHomeUiState())
+
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onRoot().performTouchInput { swipeUp() }
+
+        composeRule.onAllNodesWithText("8\uC6D4 5\uC77C \u00B7 \uC624\uB298\uC758 \uC8FC\uC81C").assertCountEquals(0)
+        composeRule.onAllNodesWithText("\uCD5C\uC2E0\uC21C").assertCountEquals(0)
+
+        composeRule.onRoot().performTouchInput { swipeDown() }
+
+        composeRule.onAllNodesWithText("8\uC6D4 5\uC77C \u00B7 \uC624\uB298\uC758 \uC8FC\uC81C").assertCountEquals(0)
+        composeRule.onNodeWithText("\uCD5C\uC2E0\uC21C").assertIsDisplayed()
+    }
 
     @Test
     fun `홈 화면에서 위로 스크롤하면 상단 영역이 사라지고 아래로 스크롤하면 다시 표시된다`() {

@@ -5,6 +5,43 @@ import org.junit.Test
 
 class HomeScrollBehaviorTest {
     @Test
+    fun `reverse scroll reveals quick filter only after top area collapses`() {
+        assertEquals(
+            0.5f,
+            quickFilterRevealProgressAfterScroll(
+                currentProgress = 0f,
+                scrollDelta = 30f,
+                filterHeight = 60f,
+                canReveal = true,
+            ),
+        )
+        assertEquals(
+            0f,
+            quickFilterRevealProgressAfterScroll(
+                currentProgress = 0f,
+                scrollDelta = 30f,
+                filterHeight = 60f,
+                canReveal = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `forward scroll hides the revealed quick filter`() {
+        assertEquals(
+            0.5f,
+            quickFilterRevealProgressAfterScroll(
+                currentProgress = 1f,
+                scrollDelta = -30f,
+                filterHeight = 60f,
+                canReveal = true,
+            ),
+        )
+        assertEquals(1f, settleRevealProgress(currentProgress = 0.51f, restingVisible = false))
+        assertEquals(0f, settleRevealProgress(currentProgress = 0.49f, restingVisible = true))
+    }
+
+    @Test
     fun `로고 배경은 상단 영역이 거의 접힌 후에만 투명해진다`() {
         assertEquals(1f, topBarBackgroundAlpha(collapsedProgress = 0.8f))
         assertEquals(0.93f, topBarBackgroundAlpha(collapsedProgress = 0.9f), 0.001f)

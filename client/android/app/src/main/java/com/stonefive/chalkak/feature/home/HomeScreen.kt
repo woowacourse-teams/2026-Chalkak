@@ -87,6 +87,9 @@ fun HomeScreen(
     var topAreaOffset by remember { mutableFloatStateOf(0f) }
     var topAreaHeight by remember { mutableIntStateOf(0) }
     var isTopAreaTargetHidden by remember { mutableStateOf(false) }
+    var quickFilterRevealProgress by remember { mutableFloatStateOf(0f) }
+    var quickFilterHeight by remember { mutableIntStateOf(0) }
+    var isQuickFilterTargetVisible by remember { mutableStateOf(false) }
     var bottomBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomBarHeight by remember { mutableIntStateOf(0) }
     var isBottomBarTargetHidden by remember { mutableStateOf(false) }
@@ -123,10 +126,19 @@ fun HomeScreen(
             hiddenOffset = bottomBarHeight.toFloat(),
             restingOffset = if (isBottomBarTargetHidden) bottomBarHeight.toFloat() else 0f,
         )
+        val initialQuickFilterProgress = quickFilterRevealProgress
+        val targetQuickFilterProgress = settleRevealProgress(
+            currentProgress = initialQuickFilterProgress,
+            restingVisible = isQuickFilterTargetVisible,
+        )
         isTopAreaTargetHidden = targetTopOffset != 0f
         isBottomBarTargetHidden = targetBottomOffset != 0f
+        isQuickFilterTargetVisible = targetQuickFilterProgress != 0f
 
-        if (initialTopOffset == targetTopOffset && initialBottomOffset == targetBottomOffset) {
+        if (initialTopOffset == targetTopOffset &&
+            initialBottomOffset == targetBottomOffset &&
+            initialQuickFilterProgress == targetQuickFilterProgress
+        ) {
             return
         }
 
@@ -140,11 +152,13 @@ fun HomeScreen(
                     ((targetTopOffset - initialTopOffset) * progress)
                 bottomBarOffset = initialBottomOffset +
                     ((targetBottomOffset - initialBottomOffset) * progress)
+                quickFilterRevealProgress = initialQuickFilterProgress +
+                    ((targetQuickFilterProgress - initialQuickFilterProgress) * progress)
             }
         }
     }
 
-    val nestedScrollConnection = remember(topAreaHeight, bottomBarHeight) {
+    val nestedScrollConnection = remember(topAreaHeight, quickFilterHeight, bottomBarHeight) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -157,6 +171,13 @@ fun HomeScreen(
                             currentOffset = bottomBarOffset,
                             scrollDelta = available.y,
                             barHeight = bottomBarHeight.toFloat(),
+                        )
+                        quickFilterRevealProgress = quickFilterRevealProgressAfterScroll(
+                            currentProgress = quickFilterRevealProgress,
+                            scrollDelta = available.y,
+                            filterHeight = quickFilterHeight.toFloat(),
+                            canReveal = topAreaHeight > 0 &&
+                                topAreaOffset <= -topAreaHeight.toFloat(),
                         )
                     }
 
@@ -184,6 +205,8 @@ fun HomeScreen(
                     available.y > 0f &&
                     topAreaOffset < 0f
                 ) {
+                    quickFilterRevealProgress = 0f
+                    isQuickFilterTargetVisible = false
                     val previousOffset = topAreaOffset
                     topAreaOffset = topAreaOffsetAfterScroll(
                         currentOffset = topAreaOffset,
@@ -206,6 +229,8 @@ fun HomeScreen(
         settleJob.value?.cancel()
         topAreaOffset = 0f
         isTopAreaTargetHidden = false
+        quickFilterRevealProgress = 0f
+        isQuickFilterTargetVisible = false
         bottomBarOffset = 0f
         isBottomBarTargetHidden = false
         photoListState.scrollToItem(0)
@@ -253,6 +278,31 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
+        ) {
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(HomeTopBarHeight))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .revealingTopArea(quickFilterRevealProgress),
+            ) {
+                ChalkakSortSelector(
+                    options = PostSort.entries,
+                    selectedOption = uiState.selectedSort,
+                    optionLabel = { it.label },
+                    onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha))
+                        .onSizeChanged { quickFilterHeight = it.height },
+                )
             }
         }
         Box(
@@ -305,6 +355,28 @@ internal fun topAreaOffsetAfterScroll(
     areaHeight: Float,
 ): Float = (currentOffset + scrollDelta).coerceIn(-areaHeight, 0f)
 
+internal fun quickFilterRevealProgressAfterScroll(
+    currentProgress: Float,
+    scrollDelta: Float,
+    filterHeight: Float,
+    canReveal: Boolean,
+): Float {
+    if (filterHeight <= 0f) return currentProgress
+    if (scrollDelta > 0f && !canReveal) return 0f
+
+    return (currentProgress + scrollDelta / filterHeight).coerceIn(0f, 1f)
+}
+
+internal fun settleRevealProgress(
+    currentProgress: Float,
+    restingVisible: Boolean,
+): Float = when {
+    currentProgress > 0.5f -> 1f
+    currentProgress < 0.5f -> 0f
+    restingVisible -> 1f
+    else -> 0f
+}
+
 internal fun bottomBarOffsetAfterScroll(
     currentOffset: Float,
     scrollDelta: Float,
@@ -329,6 +401,17 @@ internal fun settleBarOffset(
 private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
+    val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
+
+    layout(placeable.width, visibleHeight) {
+        placeable.placeRelative(0, offsetPx)
+    }
+}
+
+private fun Modifier.revealingTopArea(progress: Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val visibleProgress = progress.coerceIn(0f, 1f)
+    val offsetPx = (-placeable.height * (1f - visibleProgress)).toInt()
     val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
 
     layout(placeable.width, visibleHeight) {
