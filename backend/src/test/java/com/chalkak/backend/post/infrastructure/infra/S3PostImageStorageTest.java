@@ -35,6 +35,7 @@ class S3PostImageStorageTest {
                     ROOT_PREFIX,
                     "dev",
                     new ImageProperties.Signature(1048576L, List.of("image/png")),
+                    new ImageProperties.Post(5_242_880L),
                     false
             )
     );

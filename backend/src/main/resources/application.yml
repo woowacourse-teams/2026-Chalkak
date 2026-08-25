@@ -32,6 +32,8 @@ chalkak:
       max-bytes: 1048576
       allowed-content-types:
         - image/png
+    post:
+      max-bytes: 5242880
 
 management:
   endpoints:

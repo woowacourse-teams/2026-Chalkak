@@ -25,9 +25,13 @@ public record ImageProperties(
         )
         String environment,
         Signature signature,
+        Post post,
         boolean anonymousAccess
 ) {
 
     public record Signature(long maxBytes, List<String> allowedContentTypes) {
+    }
+
+    public record Post(long maxBytes) {
     }
 }

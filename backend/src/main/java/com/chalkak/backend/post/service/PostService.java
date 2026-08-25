@@ -8,9 +8,13 @@ import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageStorage;
+import com.chalkak.backend.post.repository.PostImageUploadIssuer;
+import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
+import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.topic.repository.TopicRepository;
@@ -37,8 +41,32 @@ public class PostService {
     private final UserRepository userRepository;
     private final PhotoRepository photoRepository;
     private final PostImageStorage postImageStorage;
+    private final PostImageUploadRepository postImageUploadRepository;
+    private final PostImageUploadIssuer postImageUploadIssuer;
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
+
+    @Transactional
+    public PostImageUploadResult createPostImageUpload(UUID userId) {
+        User uploader = userRepository.findActiveById(userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "사진을 업로드할 회원을 찾을 수 없습니다."
+                ));
+
+        PostImageUpload upload = postImageUploadRepository.save(
+                PostImageUpload.createPostImageUpload(uploader, Instant.now())
+        );
+        PresignedPostImageUpload presigned = postImageUploadIssuer.issue(upload.getId());
+
+        return new PostImageUploadResult(
+                upload.getId(),
+                presigned.uploadUrl(),
+                presigned.expiresInSeconds(),
+                presigned.contentType(),
+                presigned.maxBytes()
+        );
+    }
 
     @Transactional
     public PostCreationResult createPost(
