@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -83,6 +85,13 @@ fun HomeScreen(
     val topBarBackgroundAlpha by animateFloatAsState(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
+    )
+    val topBarBackgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            ChalkakBackground.copy(alpha = topBarBackgroundAlpha),
+            ChalkakBackground.copy(alpha = topBarBackgroundAlpha * 0.72f),
+            Color.Transparent,
+        ),
     )
 
     val nestedScrollConnection = remember {
@@ -165,7 +174,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
+                    .background(topBarBackgroundBrush),
             ) {
                 HomeTopBar(
                     modifier = Modifier
