@@ -3,9 +3,7 @@ package com.chalkak.backend.user.domain;
 import java.lang.reflect.Field;
 import java.util.UUID;
 
-/**
- * 운영 코드에 테스트 전용 생성자나 setter를 뚫지 않기 위해 리플렉션으로 필드를 채운다. 회원가입 유스케이스가 생기면 정식 생성 경로로 교체한다.
- */
+/** 운영 코드에 테스트 전용 생성자나 setter를 뚫지 않기 위한 픽스처다. */
 public final class UserFixture {
 
     private UserFixture() {
@@ -21,12 +19,12 @@ public final class UserFixture {
     public static User create(UUID id) {
         String unique = (id == null) ? UUID.randomUUID().toString() : id.toString();
 
-        User user = new User();
+        User user = User.create(
+                "user-" + unique + "@chalkak.test",
+                new SignatureStorageKeys(
+                        "signatures/" + unique,
+                        "thumbnails/" + unique));
         setField(user, "id", id);
-        setField(user, "email", "user-" + unique + "@chalkak.test");
-        setField(user, "status", UserStatus.ACTIVE);
-        setField(user, "signatureOriginalStorageKey", "signatures/" + unique);
-        setField(user, "signatureThumbnailStorageKey", "thumbnails/" + unique);
         return user;
     }
 

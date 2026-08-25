@@ -12,6 +12,41 @@ import org.junit.jupiter.api.Test;
 class UserTest {
 
     @Test
+    @DisplayName("이메일 없이 처리 완료된 사인으로 활성 회원을 생성한다")
+    void create_withoutEmail_createsActiveUserWithSignature() {
+        // Given
+        SignatureStorageKeys storageKeys = new SignatureStorageKeys(
+                "chalkak/signatures/dev/original/signature.png",
+                "chalkak/signatures/dev/thumbnail/signature.png");
+
+        // When
+        User user = User.create(null, storageKeys);
+
+        // Then
+        assertThat(user.getEmail()).isNull();
+        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
+        assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(user.getPendingSignatureUploadId()).isNull();
+        assertThat(user.getSignatureProcessingStatus()).isNull();
+        assertThat(user.getSignatureProcessingStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("원본 사인 키가 없으면 회원을 생성할 수 없다")
+    void create_missingOriginalStorageKey_throwsException() {
+        // Given
+        SignatureStorageKeys storageKeys = new SignatureStorageKeys(
+                null,
+                "chalkak/signatures/dev/thumbnail/signature.png");
+
+        // When & Then
+        assertThatThrownBy(() -> User.create("user@chalkak.test", storageKeys))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("사인 이미지 업로드 정보가 올바르지 않습니다.");
+    }
+
+    @Test
     @DisplayName("탈퇴하면 개인 식별 정보가 비식별화된다")
     void withdraw_activeUser_anonymizesPersonalData() {
         // Given
