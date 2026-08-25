@@ -4,12 +4,15 @@ import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
+import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
+import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +37,15 @@ public class UserController {
         userService.withdraw(loginUser.userId());
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/me/signature/uploads")
+    public ResponseEntity<UserSignatureUploadResponse> createSignatureUpload(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        SignatureImageUpload upload = userService.createSignatureUpload(loginUser.userId());
+
+        return ResponseEntity.ok(UserSignatureUploadResponse.from(upload));
     }
 
     @PutMapping("/me/signature")

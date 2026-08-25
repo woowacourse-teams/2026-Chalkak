@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,6 +16,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -123,6 +125,57 @@ class UserControllerTest {
 
         verify(userService).withdraw(userId);
         verify(userService, never()).withdraw(victimId);
+    }
+
+    @Test
+    @DisplayName("사인 업로드 URL 발급에 성공하면 업로드 정보를 반환한다")
+    void createSignatureUpload_validRequest_returnsUploadInformation() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        UUID uploadId = UUID.randomUUID();
+        String uploadUrl = "https://s3.example.com/presigned";
+        given(userService.createSignatureUpload(userId))
+                .willReturn(new SignatureImageUpload(uploadId, uploadUrl, 300L));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/users/me/signature/uploads")
+                        .header(USER_ID_HEADER, userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
+                .andExpect(jsonPath("$.uploadUrl").value(uploadUrl))
+                .andExpect(jsonPath("$.expiresInSeconds").value(300L));
+
+        verify(userService).createSignatureUpload(userId);
+    }
+
+    @Test
+    @DisplayName("사인 업로드 URL 발급에 사용자 식별 헤더가 없으면 401을 반환한다")
+    void createSignatureUpload_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/users/me/signature/uploads"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verify(userService, never()).createSignatureUpload(any());
+    }
+
+    @Test
+    @DisplayName("사인을 업로드할 회원이 없으면 404를 반환한다")
+    void createSignatureUpload_notExistingUser_returnsNotFound() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        willThrow(new NotFoundException(
+                ErrorCode.BUSINESS_ERROR,
+                "사인을 업로드할 회원을 찾을 수 없습니다."))
+                .given(userService).createSignatureUpload(userId);
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/users/me/signature/uploads")
+                        .header(USER_ID_HEADER, userId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("사인을 업로드할 회원을 찾을 수 없습니다."));
     }
 
     @Test
