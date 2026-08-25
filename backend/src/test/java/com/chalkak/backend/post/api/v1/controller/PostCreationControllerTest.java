@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.service.PostCreationResult;
+import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostService;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -34,12 +35,66 @@ class PostCreationControllerTest {
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID POST_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID UPLOAD_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
+    private static final String UPLOAD_URL =
+            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/presigned";
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private PostService postService;
+
+    @Test
+    @DisplayName("인증된 사용자가 업로드 URL을 발급받으면 201과 발급 정보를 반환한다")
+    void createPostImageUpload_authenticatedUser_returnsIssuedUpload() throws Exception {
+        // Given
+        given(postService.createPostImageUpload(USER_ID)).willReturn(
+                new PostImageUploadResult(
+                        UPLOAD_ID,
+                        UPLOAD_URL,
+                        300L,
+                        "image/webp",
+                        5_242_880L
+                )
+        );
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads")
+                        .header(USER_ID_HEADER, USER_ID.toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.uploadId").value(UPLOAD_ID.toString()))
+                .andExpect(jsonPath("$.uploadUrl").value(UPLOAD_URL))
+                .andExpect(jsonPath("$.expiresInSeconds").value(300))
+                .andExpect(jsonPath("$.contentType").value("image/webp"))
+                .andExpect(jsonPath("$.maxBytes").value(5_242_880L));
+
+        then(postService).should().createPostImageUpload(USER_ID);
+    }
+
+    @Test
+    @DisplayName("인증 헤더가 없으면 업로드 URL을 발급하지 않고 401을 반환한다")
+    void createPostImageUpload_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("인증 헤더가 UUID 형식이 아니면 업로드 URL을 발급하지 않고 401을 반환한다")
+    void createPostImageUpload_malformedUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads")
+                        .header(USER_ID_HEADER, "not-a-uuid"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postService).shouldHaveNoInteractions();
+    }
 
     @Test
     @DisplayName("인증된 사용자가 게시물을 생성하면 201과 생성 정보를 반환한다")

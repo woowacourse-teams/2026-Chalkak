@@ -5,7 +5,9 @@ import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.post.api.v1.docs.PostCreationApiDocs;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.service.PostCreationResult;
+import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class PostCreationController implements PostCreationApiDocs {
 
     private final PostService postService;
+
+    @Override
+    @PostMapping("/uploads")
+    public ResponseEntity<PostImageUploadResponse> createPostImageUpload(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        PostImageUploadResult result = postService.createPostImageUpload(loginUser.userId());
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(PostImageUploadResponse.from(result));
+    }
 
     @Override
     @PostMapping
