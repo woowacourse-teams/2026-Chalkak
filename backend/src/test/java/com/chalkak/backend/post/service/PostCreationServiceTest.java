@@ -36,7 +36,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     private static final UUID SECOND_TOPIC_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b3");
     private static final String ORIGINAL_STORAGE_KEY =
-            "chalkak/posts/test/original/" + PHOTO_UPLOAD_ID + ".png";
+            "chalkak/posts/test/original/" + PHOTO_UPLOAD_ID + ".webp";
 
     @Autowired
     private PostService postService;
@@ -328,7 +328,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .willReturn(ORIGINAL_STORAGE_KEY);
         given(postImageStorage.existsUploadedImage(secondUploadId)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(secondUploadId))
-                .willReturn("chalkak/posts/test/original/" + secondUploadId + ".png");
+                .willReturn("chalkak/posts/test/original/" + secondUploadId + ".webp");
         postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
 
         // When

@@ -17,7 +17,7 @@ public class S3PostImageStorage implements PostImageStorage {
     private static final String STAGING_PATH = "staging";
     private static final String POST_PATH = "posts";
     private static final String ORIGINAL_PATH = "original";
-    private static final String IMAGE_EXTENSION = ".png";
+    private static final String IMAGE_EXTENSION = ".webp";
     private static final String PATH_DELIMITER = "/";
 
     private final S3Client s3Client;

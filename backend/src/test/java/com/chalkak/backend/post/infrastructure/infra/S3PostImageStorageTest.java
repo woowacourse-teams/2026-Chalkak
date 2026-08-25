@@ -50,7 +50,7 @@ class S3PostImageStorageTest {
 
         // Then
         assertThat(storageKey)
-                .isEqualTo(ROOT_PREFIX + "/staging/dev/posts/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/staging/dev/posts/" + uploadId + ".webp");
     }
 
     @Test
@@ -64,7 +64,7 @@ class S3PostImageStorageTest {
 
         // Then
         assertThat(storageKey)
-                .isEqualTo(ROOT_PREFIX + "/posts/dev/original/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/posts/dev/original/" + uploadId + ".webp");
     }
 
     @Test
@@ -88,7 +88,7 @@ class S3PostImageStorageTest {
         requestCaptor.getValue().accept(requestBuilder);
         assertThat(requestBuilder.build().bucket()).isEqualTo("test-bucket");
         assertThat(requestBuilder.build().key())
-                .isEqualTo(ROOT_PREFIX + "/staging/dev/posts/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/staging/dev/posts/" + uploadId + ".webp");
     }
 
     @Test

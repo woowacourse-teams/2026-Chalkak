@@ -101,11 +101,12 @@ startsAt <= now < endsAt
 문법으로 유도한다.
 
 ```text
-staging         : chalkak/staging/{environment}/posts/{photoUploadId}.png
-final original  : chalkak/posts/{environment}/original/{photoUploadId}.png
-future thumbnail: chalkak/posts/{environment}/thumbnail/{photoUploadId}.png
+staging         : chalkak/staging/{environment}/posts/{photoUploadId}.webp
+final original  : chalkak/posts/{environment}/original/{photoUploadId}.webp
+future thumbnail: chalkak/posts/{environment}/thumbnail/{photoUploadId}.webp
 ```
 
+- 포스트 이미지는 WebP 전용이므로 확장자는 `.webp`다.
 - root prefix는 `S3_PREFIX`이며 기본값은 `chalkak`이다.
 - `{environment}`는 백엔드의 `chalkak.image.environment` 설정을 사용한다.
 - 서버는 staging key로 `HeadObject`를 호출해 업로드 완료 여부를 확인한다.

@@ -217,23 +217,24 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 {bucket}/chalkak/
 ├── staging/{environment}/
 │   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 처리 대기
-│   └── posts/{uploadId}.png            포스트 업로드 직후. 처리·검수 대기
+│   └── posts/{uploadId}.webp           포스트 업로드 직후. 처리·검수 대기
 ├── signatures/{environment}/
 │   ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
 │   └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
 └── posts/{environment}/
-    ├── original/{uploadId}.png         포스트 처리 후 원본 경로
-    └── thumbnail/{uploadId}.png        포스트 처리 후 썸네일 경로
+    ├── original/{uploadId}.webp        포스트 처리 후 원본 경로
+    └── thumbnail/{uploadId}.webp       포스트 처리 후 썸네일 경로
 ```
 
 - `{environment}`는 `dev` 또는 `prod`다. 하나의 Lambda가 두 환경을 함께 처리하므로, **입력 키의 이 세그먼트가 어느 백엔드로 콜백할지를 결정한다.**
+- 확장자도 종류별 계약이다. 사인은 PNG, **포스트는 WebP 전용**이다.
 - 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)와 환경 세그먼트뿐이다.
 - CloudFront 오리진이 `{bucket}/chalkak`을 가리키므로 **공개 URL에는 `chalkak/`이 들어가지 않는다.** `CLOUDFRONT_ORIGIN_PATH`가 이 값을 잡는다.
 
 ### 포스트 생성 파이프라인
 
 ```text
-클라이언트가 staging에 PNG 업로드
+클라이언트가 staging에 WebP 업로드
   → POST /api/v1/posts                  백엔드가 staging 객체와 작성 조건 검증
   → Photo + Post 단일 트랜잭션 저장     final original key를 서버에서 유도
   → 201 Created, VALIDATING             공개 목록·상세에는 아직 노출하지 않음
