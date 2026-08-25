@@ -233,11 +233,23 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 
 ### 포스트 생성 파이프라인
 
+포스트 이미지도 사인처럼 Lambda 완료를 기다리지 않는다. 대신 **presigned URL을
+발급하는 시점에 `post_image_uploads` 행을 먼저 만든다.** 행이 항상 먼저
+존재하므로 완료 콜백과 게시물 생성 요청 중 어느 쪽이 먼저 도착해도 상대가 남긴
+상태를 읽는다. 순서 경쟁 자체가 사라진다.
+
 ```text
-클라이언트가 staging에 WebP 업로드
-  → POST /api/v1/posts                  백엔드가 staging 객체와 작성 조건 검증
-  → Photo + Post 단일 트랜잭션 저장     final original key를 서버에서 유도
-  → 201 Created, VALIDATING             공개 목록·상세에는 아직 노출하지 않음
+POST /api/v1/posts/uploads            ISSUED claim 행 생성, presigned URL 발급
+  → 클라이언트가 staging에 WebP PUT
+  → S3 ObjectCreated → SQS → Lambda    WebP 검증, 원본·썸네일 생성, EXIF 추출
+  → POST /internal/v1/post-image-processing/{uploadId}/complete
+                                       claim을 READY로 올리고 EXIF 보관
+  → Lambda가 staging 객체 삭제          콜백 2xx를 받은 뒤에만
+
+POST /api/v1/posts                    claim 상태에 따라 분기
+  READY   → APPROVED 게시물로 즉시 생성. 썸네일 키·메타데이터 반영
+  ISSUED  → VALIDATING 게시물로 생성. 완료 콜백이 APPROVED로 승격
+  REJECTED→ 400. 거절 사유별 메시지
 ```
 
 게시물 생성 요청은 `photoUploadId`만 받고 bucket, environment, storage key는
@@ -245,15 +257,17 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 `null`로 저장하고 최대 10자로 제한한다. 작성자는 삭제되지 않은 `ACTIVE`
 사용자여야 하며 주제 참여 구간은 `startsAt <= now < endsAt`인 `OPEN` 상태다.
 
-생성 시 `Photo`와 `Post`를 한 트랜잭션으로 저장하고 새 게시물은
-`VALIDATING`으로 시작한다. 기존 공개 조회는 `APPROVED` 게시물만 반환하므로
-처리 전 final URL이 노출되지 않는다. 사용자·주제와 photo key의 사전 중복
-검사 뒤에도 DB 유니크 제약을 최종 동시성 방어선으로 사용한다.
+claim은 `SELECT ... FOR UPDATE`로 잠그고 `claimed_at`을 기록해 소비한다.
+**다른 회원의 uploadId는 권한 없음이 아니라 `404`로 답한다.** 존재 여부를
+알려주지 않기 위해서다. 사전 중복 검사 뒤에도 DB 유니크 제약을 최종 동시성
+방어선으로 사용한다.
 
-현재는 포스트 업로드 발급 이력과 사용자별 claim이 없으므로 uploadId를
-소유자가 연결되지 않은 bearer capability로 취급한다. staging 객체 존재와
-중복 사용은 확인하지만, 유출된 uploadId가 로그인 사용자의 것인지는 검증할
-수 없다. 소유권 claim의 발급과 원자적 소비는 후속 범위다.
+EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다. 위치와 촬영
+시각, 기종 정보는 `photos.metadata`에만 남으며 **공개 조회 응답에는 포함하지
+않는다.**
+
+콜백이 유실되면 `VALIDATING` 게시물이 남는다. 정합성 보정 스윕은 후속
+범위다.
 
 ### 사인 처리 파이프라인
 

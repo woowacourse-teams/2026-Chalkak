@@ -115,7 +115,7 @@ future thumbnail: chalkak/posts/{environment}/thumbnail/{photoUploadId}.webp
 - 클라이언트가 임의의 storage key나 environment를 주입할 수 없다.
 
 이미지 변환, thumbnail 생성, staging 삭제와 처리 완료 콜백은 이 이슈의
-범위가 아니다.
+범위가 아니며 `post-image-pipeline-design.md`에서 이어진다.
 
 ## 5. 저장과 중복 처리
 
@@ -163,19 +163,14 @@ Swagger는 `springdoc-openapi` 3.1.0과 `*ApiDocs` interface 패턴을 따른다
 
 ## 8. 보안 제한
 
-현재 포스트 업로드 발급 이력이나 사용자별 upload claim을 저장하지 않는다.
-따라서 `photoUploadId`는 소유자가 연결된 권한이 아니라 **unowned bearer
-capability**로 취급한다. 서버는 staging 객체의 존재와 DB 중복 사용 여부는
-검증하지만, 유출된 uploadId가 로그인 사용자의 것인지는 증명하지 못한다.
-
-후속 업로드 발급 기능은 `(uploadId, userId, kind, expiresAt, claimedAt)`을
-저장하고 게시물 생성 트랜잭션에서 claim을 원자적으로 소비해야 한다. 충분히
-무작위인 UUID와 HTTPS는 이 소유권 검증을 대체하지 않는다.
+이 문서를 쓸 당시에는 업로드 발급 이력이 없어 `photoUploadId`를 소유자가
+연결되지 않은 **unowned bearer capability**로 취급했다. `post_image_uploads`
+claim 테이블이 들어오면서 이 제한은 해소되었다. 서버가 `user_id`를 대조하고
+`claimed_at`을 원자적으로 소비한다. 자세한 계약은
+`post-image-pipeline-design.md`를 따른다.
 
 ## 9. 제외 범위
 
-- 포스트 이미지 presigned URL 발급
-- 업로드 이력·소유권 claim 테이블
-- 포스트 이미지 변환·thumbnail 생성 Lambda
-- 처리 완료 콜백과 moderation 완료 처리
-- 클라이언트 구현
+이 이슈의 제외 범위였던 presigned URL 발급, 업로드 claim 테이블, 이미지
+변환 Lambda, 처리 완료 콜백은 `post-image-pipeline-design.md`에서 다룬다.
+moderation 완료 처리와 클라이언트 구현은 여전히 후속 범위다.

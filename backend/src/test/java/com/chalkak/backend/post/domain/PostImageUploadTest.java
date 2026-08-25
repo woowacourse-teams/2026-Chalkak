@@ -157,11 +157,24 @@ class PostImageUploadTest {
     }
 
     @Test
-    @DisplayName("처리 실패한 업로드는 claim할 수 없다")
-    void claim_rejectedUpload_throwsBusinessException() {
+    @DisplayName("처리 실패한 업로드는 거절 사유를 담아 claim을 막는다")
+    void claim_rejectedUpload_throwsBusinessExceptionWithReasonMessage() {
         // Given
         PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
         upload.failProcessing("UNSUPPORTED_FORMAT");
+
+        // When & Then
+        assertThatThrownBy(() -> upload.claim(ISSUED_AT.plusSeconds(60)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("WebP 이미지만 업로드할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("알 수 없는 거절 사유는 기본 안내 문구로 claim을 막는다")
+    void claim_unknownRejectionReason_throwsBusinessExceptionWithDefaultMessage() {
+        // Given
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
+        upload.failProcessing("SOMETHING_NEW");
 
         // When & Then
         assertThatThrownBy(() -> upload.claim(ISSUED_AT.plusSeconds(60)))

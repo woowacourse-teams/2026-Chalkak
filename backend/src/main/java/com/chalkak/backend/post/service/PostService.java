@@ -6,7 +6,6 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
-import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageStorage;
@@ -90,16 +89,28 @@ public class PostService {
                 ));
         validateTopicOpen(topic);
         validatePostNotCreated(userId, topicId);
-        validateUploadedImageExists(photoUploadId);
+
+        PostImageUpload upload = getClaimableUpload(userId, photoUploadId);
+        upload.claim(Instant.now());
+        if (!upload.isProcessed()) {
+            validateUploadedImageExists(photoUploadId);
+        }
 
         String originalStorageKey = postImageStorage.toOriginalStorageKey(photoUploadId);
         validatePhotoNotUsed(originalStorageKey);
 
         Photo photo = Photo.createPhoto(originalStorageKey);
         Post post = Post.createPost(author, topic, photo, title);
+        if (upload.isProcessed()) {
+            photo.completeProcessing(
+                    postImageStorage.toThumbnailStorageKey(photoUploadId),
+                    upload.getImageMetadata()
+            );
+            post.approve(Instant.now());
+        }
         Post savedPost = postRepository.save(post);
 
-        return new PostCreationResult(savedPost.getId(), ModerationStatus.VALIDATING);
+        return new PostCreationResult(savedPost.getId(), savedPost.getModerationStatus());
     }
 
     /**
@@ -258,6 +269,18 @@ public class PostService {
                     "이미 해당 주제에 게시물을 작성했습니다."
             );
         }
+    }
+
+    /**
+     * 다른 회원의 uploadId는 권한 없음이 아니라 없는 것으로 답한다. 존재 여부를 알려주지 않기 위해서다.
+     */
+    private PostImageUpload getClaimableUpload(UUID userId, UUID photoUploadId) {
+        return postImageUploadRepository.findByIdForUpdate(photoUploadId)
+                .filter(upload -> upload.isOwnedBy(userId))
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "업로드한 사진을 찾을 수 없습니다."
+                ));
     }
 
     private void validateUploadedImageExists(UUID photoUploadId) {

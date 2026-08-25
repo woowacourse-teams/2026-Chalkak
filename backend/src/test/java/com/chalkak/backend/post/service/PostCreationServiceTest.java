@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
@@ -12,6 +13,7 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b3");
     private static final String ORIGINAL_STORAGE_KEY =
             "chalkak/posts/test/original/" + PHOTO_UPLOAD_ID + ".webp";
+    private static final String THUMBNAIL_STORAGE_KEY =
+            "chalkak/posts/test/thumbnail/" + PHOTO_UPLOAD_ID + ".webp";
 
     @Autowired
     private PostService postService;
@@ -77,6 +81,19 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, TOPIC_ID);
+        insertUpload(PHOTO_UPLOAD_ID, USER_ID, "ISSUED");
+    }
+
+    private void insertUpload(UUID uploadId, UUID userId, String status) {
+        jdbcTemplate.update("""
+                INSERT INTO post_image_uploads (
+                    id, user_id, status, expires_at, created_at, updated_at
+                ) VALUES (
+                    ?, ?, CAST(? AS post_image_upload_status),
+                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, uploadId, userId, status);
     }
 
     @Test
@@ -323,6 +340,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     void createPost_duplicateUserAndTopic_throwsBusinessException() {
         // Given
         UUID secondUploadId = UUID.randomUUID();
+        insertUpload(secondUploadId, USER_ID, "ISSUED");
         given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
                 .willReturn(ORIGINAL_STORAGE_KEY);
@@ -364,7 +382,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
                 () -> postService.createPost(
-                        SECOND_USER_ID,
+                        USER_ID,
                         SECOND_TOPIC_ID,
                         PHOTO_UPLOAD_ID,
                         null
@@ -430,6 +448,145 @@ class PostCreationServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("이미지 처리가 끝난 업로드로 만든 게시물은 바로 공개 상태가 된다")
+    void createPost_readyUpload_savesApprovedPost() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE post_image_uploads
+                SET status = 'READY',
+                    image_metadata = '{"width": 4032, "height": 3024}'::jsonb
+                WHERE id = ?
+                """, PHOTO_UPLOAD_ID);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+        given(postImageStorage.toThumbnailStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(THUMBNAIL_STORAGE_KEY);
+
+        // When
+        PostCreationResult result = postService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.APPROVED);
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT p.moderation_status, p.moderated_at,
+                       ph.thumbnail_storage_key,
+                       ph.metadata ->> 'width' AS metadata_width
+                FROM posts p JOIN photos ph ON ph.id = p.photo_id
+                WHERE p.id = ?
+                """, result.postId());
+        assertThat(saved.get("moderation_status").toString()).isEqualTo("APPROVED");
+        assertThat(saved.get("moderated_at")).isNotNull();
+        assertThat(saved.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
+        assertThat(saved.get("metadata_width")).isEqualTo("4032");
+        then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
+    }
+
+    @Test
+    @DisplayName("게시물을 만들면 업로드 claim을 소비한다")
+    void createPost_validRequest_claimsUpload() {
+        // Given
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+
+        // When
+        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT claimed_at FROM post_image_uploads WHERE id = ?
+                """, Instant.class, PHOTO_UPLOAD_ID)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("발급받지 않은 업로드 ID로는 게시물을 생성할 수 없다")
+    void createPost_unknownUploadId_throwsNotFoundException() {
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postService.createPost(USER_ID, TOPIC_ID, UUID.randomUUID(), null)
+        );
+
+        // Then
+        assertThat(exception).hasMessage("업로드한 사진을 찾을 수 없습니다.");
+        assertNoCreatedRows();
+    }
+
+    @Test
+    @DisplayName("다른 회원이 발급받은 업로드 ID는 존재하지 않는 것과 같이 다룬다")
+    void createPost_otherUsersUploadId_throwsNotFoundException() {
+        // Given
+        insertSecondUserAndTopic();
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postService.createPost(
+                        SECOND_USER_ID,
+                        SECOND_TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        null
+                )
+        );
+
+        // Then
+        assertThat(exception).hasMessage("업로드한 사진을 찾을 수 없습니다.");
+        assertNoCreatedRows();
+    }
+
+    @Test
+    @DisplayName("이미지 처리에서 거절된 업로드는 사유를 담아 거부한다")
+    void createPost_rejectedUpload_throwsBusinessException() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE post_image_uploads
+                SET status = 'REJECTED', rejection_reason = 'UNSUPPORTED_FORMAT'
+                WHERE id = ?
+                """, PHOTO_UPLOAD_ID);
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
+        );
+
+        // Then
+        assertThat(exception).hasMessage("WebP 이미지만 업로드할 수 있습니다.");
+        assertNoCreatedRows();
+    }
+
+    @Test
+    @DisplayName("claim 유효 시간이 지난 업로드로는 게시물을 생성할 수 없다")
+    void createPost_expiredUpload_throwsBusinessException() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE post_image_uploads
+                SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
+                WHERE id = ?
+                """, PHOTO_UPLOAD_ID);
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
+        );
+
+        // Then
+        assertThat(exception).hasMessage("사진 업로드 유효 시간이 지났습니다.");
+        assertNoCreatedRows();
     }
 
     private void assertNoCreatedRows() {
