@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -151,7 +153,9 @@ class PhotoUploadScreenTest {
             .performClick()
             .assertIsFocused()
 
-        composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").performClick()
+        composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").performTouchInput {
+            click()
+        }
 
         composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertIsNotFocused()
     }
