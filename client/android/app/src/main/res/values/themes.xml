@@ -10,4 +10,8 @@
     </style>
 
     <style name="Theme.Chalkak" parent="Theme.Chalkak.Base" />
+
+    <style name="Theme.Chalkak.Splash" parent="Theme.Chalkak">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+    </style>
 </resources>

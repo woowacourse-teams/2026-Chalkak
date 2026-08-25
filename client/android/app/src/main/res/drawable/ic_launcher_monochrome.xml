@@ -3,4 +3,4 @@
     android:antialias="true"
     android:filter="true"
     android:gravity="fill"
-    android:src="@drawable/chalkak_logo_transparent" />
+    android:src="@drawable/chalkak_logo_monochrome" />
