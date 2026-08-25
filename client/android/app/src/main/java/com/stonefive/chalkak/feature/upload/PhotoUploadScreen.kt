@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.imeNestedScroll
 import androidx.compose.foundation.layout.imePadding
@@ -33,6 +34,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -127,7 +129,10 @@ fun PhotoUploadScreen(
 ) {
     val captionScrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
-    val imeTargetBottom = WindowInsets.imeAnimationTarget.getBottom(LocalDensity.current)
+    var isBackPending by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val imeTargetBottom = WindowInsets.imeAnimationTarget.getBottom(density)
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -135,6 +140,26 @@ fun PhotoUploadScreen(
         if (isCaptionFocused && imeTargetBottom > 0) {
             snapshotFlow { captionScrollState.maxValue }
                 .collectLatest(captionScrollState::scrollTo)
+        }
+    }
+
+    LaunchedEffect(isBackPending, imeTargetBottom) {
+        if (isBackPending && imeTargetBottom == 0) {
+            withFrameNanos { }
+            isBackPending = false
+            onAction(PhotoUploadUiAction.BackClicked)
+        }
+    }
+
+    fun requestBack() {
+        if (isBackPending) return
+
+        if (isCaptionFocused || imeBottom > 0) {
+            isBackPending = true
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        } else {
+            onAction(PhotoUploadUiAction.BackClicked)
         }
     }
 
@@ -151,7 +176,7 @@ fun PhotoUploadScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             PhotoUploadTopBar(
-                onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
+                onBackClick = ::requestBack,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
