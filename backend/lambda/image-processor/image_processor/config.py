@@ -10,8 +10,17 @@ class Settings:
     max_image_pixels: int
     thumbnail_max_size: int
     cache_control: str
+    post_max_bytes: int = 5_242_880
+    post_max_pixels: int = 25_000_000
+    post_thumbnail_max_size: int = 1080
+    post_webp_quality: int = 85
+    post_thumbnail_webp_quality: int = 80
+    post_metadata_max_bytes: int = 8192
+    post_cache_control: str = "public, max-age=86400"
     dev_callback_base_url: str = ""
     prod_callback_base_url: str = ""
+    dev_post_callback_base_url: str = ""
+    prod_post_callback_base_url: str = ""
     callback_secret: str = ""
     callback_timeout_seconds: float = 3.0
 
@@ -36,11 +45,36 @@ class Settings:
                 "SIGNATURE_CACHE_CONTROL",
                 "public, max-age=86400",
             ),
+            post_max_bytes=_positive_int("POST_MAX_BYTES", 5_242_880),
+            post_max_pixels=_positive_int("POST_MAX_PIXELS", 25_000_000),
+            post_thumbnail_max_size=_positive_int(
+                "POST_THUMBNAIL_MAX_SIZE",
+                1080,
+            ),
+            post_webp_quality=_positive_int("POST_WEBP_QUALITY", 85),
+            post_thumbnail_webp_quality=_positive_int(
+                "POST_THUMBNAIL_WEBP_QUALITY",
+                80,
+            ),
+            post_metadata_max_bytes=_positive_int(
+                "POST_METADATA_MAX_BYTES",
+                8192,
+            ),
+            post_cache_control=os.environ.get(
+                "POST_CACHE_CONTROL",
+                "public, max-age=86400",
+            ),
             dev_callback_base_url=_required(
                 "DEV_BACKEND_CALLBACK_URL"
             ).rstrip("/"),
             prod_callback_base_url=_required(
                 "PROD_BACKEND_CALLBACK_URL"
+            ).rstrip("/"),
+            dev_post_callback_base_url=_required(
+                "DEV_BACKEND_POST_CALLBACK_URL"
+            ).rstrip("/"),
+            prod_post_callback_base_url=_required(
+                "PROD_BACKEND_POST_CALLBACK_URL"
             ).rstrip("/"),
             callback_secret=_callback_secret(),
             callback_timeout_seconds=_positive_float(
