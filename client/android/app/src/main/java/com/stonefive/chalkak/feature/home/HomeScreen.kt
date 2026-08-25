@@ -70,7 +70,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
-    var isSortVisible by remember { mutableStateOf(true) }
+    var isTopAreaVisible by remember { mutableStateOf(true) }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -80,8 +80,8 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
                     when {
-                        available.y < 0f -> isSortVisible = false
-                        available.y > 0f -> isSortVisible = true
+                        available.y < 0f -> isTopAreaVisible = false
+                        available.y > 0f -> isTopAreaVisible = true
                     }
                 }
                 return Offset.Zero
@@ -90,7 +90,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(uiState.selectedSort) {
-        isSortVisible = true
+        isTopAreaVisible = true
         photoListState.scrollToItem(0)
     }
 
@@ -115,23 +115,25 @@ fun HomeScreen(
                 .nestedScroll(nestedScrollConnection),
         ) {
             HomeTopBar(modifier = Modifier.homeBottomDivider())
-            HomeTopic(
-                dateLabel = uiState.dateLabel,
-                topic = uiState.topic,
-                modifier = Modifier.fillMaxWidth(),
-            )
             AnimatedVisibility(
-                visible = isSortVisible,
+                visible = isTopAreaVisible,
                 enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
                 exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
             ) {
-                ChalkakSortSelector(
-                    options = PostSort.entries,
-                    selectedOption = uiState.selectedSort,
-                    optionLabel = { it.label },
-                    onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    HomeTopic(
+                        dateLabel = uiState.dateLabel,
+                        topic = uiState.topic,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ChalkakSortSelector(
+                        options = PostSort.entries,
+                        selectedOption = uiState.selectedSort,
+                        optionLabel = { it.label },
+                        onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             HomePhotoList(
                 photos = uiState.photos,

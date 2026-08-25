@@ -93,6 +93,30 @@ fun DisplayScreen(
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
+    var isTopAreaVisible by remember { mutableStateOf(true) }
+    val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput) {
+                    when {
+                        available.y < 0f -> isTopAreaVisible = false
+                        available.y > 0f -> isTopAreaVisible = true
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.selectedDate, selectedSort) {
+        isTopAreaVisible = true
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = ChalkakBackground,
@@ -110,26 +134,42 @@ fun DisplayScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .nestedScroll(nestedScrollConnection),
         ) {
-            DisplayDateHeader(
-                selectedDate = uiState.selectedDate,
-                topic = uiState.topic,
-                isArchiveDate = uiState.content is DisplayContentState.Archive,
-                canGoPrevious = uiState.canGoPrevious,
-                canGoNext = uiState.canGoNext,
-                onPreviousClick = onPreviousDateClick,
-                onNextClick = onNextDateClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            AnimatedVisibility(
+                visible = isTopAreaVisible,
+                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    DisplayDateHeader(
+                        selectedDate = uiState.selectedDate,
+                        topic = uiState.topic,
+                        isArchiveDate = uiState.content is DisplayContentState.Archive,
+                        canGoPrevious = uiState.canGoPrevious,
+                        canGoNext = uiState.canGoNext,
+                        onPreviousClick = onPreviousDateClick,
+                        onNextClick = onNextDateClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
-            if (uiState.content is DisplayContentState.Archive) {
-                Spacer(modifier = Modifier.height(15.dp))
+                    if (uiState.content is DisplayContentState.Archive) {
+                        Spacer(modifier = Modifier.height(15.dp))
+                    }
+
+                    if (uiState.content is DisplayContentState.Latest) {
+                        DisplaySortTabs(
+                            selectedSort = uiState.content.selectedSort,
+                            onSortSelected = onSortSelected,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
 
             DisplayBody(
                 content = uiState.content,
-                onSortSelected = onSortSelected,
                 onFeaturedPageChanged = onFeaturedPageChanged,
                 onPhotoClick = { photo ->
                     onOpenFeed(
@@ -151,7 +191,6 @@ fun DisplayScreen(
 @Composable
 fun DisplayBody(
     content: DisplayContentState,
-    onSortSelected: (PostSort) -> Unit,
     onFeaturedPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
@@ -161,7 +200,6 @@ fun DisplayBody(
 
         is DisplayContentState.Latest -> LatestDisplayContent(
             content = content,
-            onSortSelected = onSortSelected,
             onPhotoClick = onPhotoClick,
             modifier = modifier,
         )
@@ -196,50 +234,16 @@ fun DisplayLoadingContent(modifier: Modifier = Modifier) {
 @Composable
 fun LatestDisplayContent(
     content: DisplayContentState.Latest,
-    onSortSelected: (PostSort) -> Unit,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
 ) {
     val gridState = rememberLazyStaggeredGridState()
-    var isSortVisible by remember { mutableStateOf(true) }
-
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    when {
-                        available.y < 0f -> isSortVisible = false
-                        available.y > 0f -> isSortVisible = true
-                    }
-                }
-                return Offset.Zero
-            }
-        }
-    }
 
     LaunchedEffect(content.selectedSort) {
-        isSortVisible = true
         gridState.scrollToItem(0)
     }
 
-    Column(
-        modifier = modifier.nestedScroll(nestedScrollConnection),
-    ) {
-        AnimatedVisibility(
-            visible = isSortVisible,
-            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-        ) {
-            DisplaySortTabs(
-                selectedSort = content.selectedSort,
-                onSortSelected = onSortSelected,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
+    Column(modifier = modifier) {
         DisplayPhotoGrid(
             photos = content.photos,
             state = gridState,
@@ -353,7 +357,6 @@ private fun DisplayLoadingContentPreview() {
     ChalkakTheme {
         DisplayBody(
             content = DisplayContentState.Loading,
-            onSortSelected = {},
             onFeaturedPageChanged = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -366,7 +369,6 @@ private fun LatestDisplayContentPreview() {
     ChalkakTheme {
         LatestDisplayContent(
             content = previewLatestState.content as DisplayContentState.Latest,
-            onSortSelected = {},
             modifier = Modifier.fillMaxSize(),
         )
     }

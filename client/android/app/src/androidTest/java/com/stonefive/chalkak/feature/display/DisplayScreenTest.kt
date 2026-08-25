@@ -44,19 +44,34 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `최신 날짜에서 아래로 스크롤하면 정렬 필터가 사라지고 위로 스크롤하면 다시 표시된다`() {
+    fun `최신 날짜에서 위로 스크롤하면 상단 영역이 사라지고 아래로 스크롤하면 다시 표시된다`() {
         setDisplayContent(scrollableLatestUiState())
 
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeUp() }
+        composeRule.onAllNodesWithText("8월 5일").assertCountEquals(0)
+        composeRule.onAllNodesWithText("바다").assertCountEquals(0)
+        composeRule
+            .onAllNodesWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertCountEquals(0)
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
     }
 
@@ -121,6 +136,35 @@ class DisplayScreenTest {
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
         composeRule.onAllNodesWithText("인기순").assertCountEquals(0)
         composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
+    }
+
+    @Test
+    fun `과거 날짜에서 스크롤하면 날짜 헤더가 사라지고 다시 표시된다`() {
+        setDisplayContent(scrollableArchiveUiState())
+
+        composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
+        composeRule.onNodeWithText("다리").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithContentDescription("전시 사진 0")
+            .performTouchInput { swipeUp() }
+        composeRule.onAllNodesWithText("8월 4일").assertCountEquals(0)
+        composeRule.onAllNodesWithText("다리").assertCountEquals(0)
+        composeRule
+            .onAllNodesWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertCountEquals(0)
+
+        composeRule
+            .onNodeWithContentDescription("전시 사진 0")
+            .performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
+        composeRule.onNodeWithText("다리").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsDisplayed()
     }
 
     @Test
@@ -214,5 +258,22 @@ private fun archiveUiState() = DisplayUiState(
     content = DisplayContentState.Archive(
         photos = listOf(photo),
         featuredPhotos = listOf(photo),
+    ),
+)
+
+private fun scrollableArchiveUiState() = archiveUiState().copy(
+    content = DisplayContentState.Archive(
+        photos = List(20) { index ->
+            photo.copy(
+                id = "archive-photo-$index",
+                contentDescription = "전시 사진 $index",
+            )
+        },
+        featuredPhotos = listOf(
+            photo.copy(
+                id = "featured-photo",
+                contentDescription = "추천 사진",
+            ),
+        ),
     ),
 )

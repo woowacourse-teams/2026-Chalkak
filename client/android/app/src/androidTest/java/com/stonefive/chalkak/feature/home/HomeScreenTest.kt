@@ -28,19 +28,28 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `홈 화면에서 아래로 스크롤하면 정렬 필터가 사라지고 위로 스크롤하면 다시 표시된다`() {
+    fun `홈 화면에서 위로 스크롤하면 상단 영역이 사라지고 아래로 스크롤하면 다시 표시된다`() {
         setHomeContent(scrollableHomeUiState())
 
+        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
+        composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeUp() }
+        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
+        composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
+        composeRule.onAllNodesWithText("바다").assertCountEquals(0)
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
+        composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
     }
 
