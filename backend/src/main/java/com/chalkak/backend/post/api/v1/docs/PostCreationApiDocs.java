@@ -32,7 +32,7 @@ public interface PostCreationApiDocs {
     @SecurityRequirement(name = "userIdHeader")
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "201",
+                    responseCode = "200",
                     description = "업로드 URL 발급 성공",
                     useReturnTypeSchema = true
             ),

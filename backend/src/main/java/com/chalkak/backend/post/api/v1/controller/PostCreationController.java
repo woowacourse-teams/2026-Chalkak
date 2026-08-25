@@ -34,8 +34,7 @@ public class PostCreationController implements PostCreationApiDocs {
     ) {
         PostImageUploadResult result = postService.createPostImageUpload(loginUser.userId());
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(PostImageUploadResponse.from(result));
+        return ResponseEntity.ok(PostImageUploadResponse.from(result));
     }
 
     @Override

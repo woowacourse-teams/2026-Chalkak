@@ -47,7 +47,7 @@ class PostCreationControllerTest {
     private PostService postService;
 
     @Test
-    @DisplayName("인증된 사용자가 업로드 URL을 발급받으면 201과 발급 정보를 반환한다")
+    @DisplayName("인증된 사용자가 업로드 URL을 발급받으면 200과 발급 정보를 반환한다")
     void createPostImageUpload_authenticatedUser_returnsIssuedUpload() throws Exception {
         // Given
         given(postService.createPostImageUpload(USER_ID)).willReturn(
@@ -63,7 +63,7 @@ class PostCreationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/v1/posts/uploads")
                         .header(USER_ID_HEADER, USER_ID.toString()))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.uploadId").value(UPLOAD_ID.toString()))
                 .andExpect(jsonPath("$.uploadUrl").value(UPLOAD_URL))
                 .andExpect(jsonPath("$.expiresInSeconds").value(300))
