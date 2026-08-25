@@ -15,8 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.legal.LegalDocument
+import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
-import com.stonefive.chalkak.core.legal.LegalDocumentWebViewDialog
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.display.DisplayRoute
@@ -55,7 +55,7 @@ fun ChalkakNavHost(
     }
 
     selectedLegalDocument?.let { document ->
-        LegalDocumentWebViewDialog(
+        LegalDocumentDialog(
             document = document,
             closeContentDescription = "닫기",
             loadFailedText = "문서를 불러오지 못했어요",
