@@ -1,7 +1,9 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
 import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
+import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -70,4 +72,38 @@ public interface AuthApiDocs {
             createSocialSignupSignatureUpload(
                     SocialIdTokenRequest request
             );
+
+    @Operation(summary = "소셜 회원가입 완료")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "회원가입 완료 또는 기존 회원가입 결과 반환",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청, 처리 중인 서명 이미지 또는 사용할 수 없는 이미지",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 ID Token 또는 탈퇴 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "업로드한 서명 이미지를 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<SocialSignupResponse> socialSignup(SocialSignupRequest request);
 }

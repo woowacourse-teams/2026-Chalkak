@@ -2,7 +2,9 @@ package com.chalkak.backend.auth.api.v1.controller;
 
 import com.chalkak.backend.auth.api.v1.docs.AuthApiDocs;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
+import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
@@ -49,5 +51,17 @@ public class AuthController implements AuthApiDocs {
                 request.idToken());
 
         return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(upload));
+    }
+
+    @Override
+    @PostMapping("/social-signup")
+    public ResponseEntity<SocialSignupResponse> socialSignup(
+            @Valid @RequestBody SocialSignupRequest request
+    ) {
+        return ResponseEntity.ok(SocialSignupResponse.from(
+                socialSignupService.signup(
+                        request.provider(),
+                        request.idToken(),
+                        request.signatureOriginalUploadId())));
     }
 }
