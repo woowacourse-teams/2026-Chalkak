@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +37,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -95,6 +98,8 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     var isTopAreaVisible by remember { mutableStateOf(true) }
+    var topAreaOffset by remember { mutableFloatStateOf(0f) }
+    var topAreaHeight by remember { mutableIntStateOf(0) }
     var isBottomBarVisible by remember { mutableStateOf(true) }
     var bottomBarScrollDistance by remember { mutableFloatStateOf(0f) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
@@ -102,7 +107,7 @@ fun DisplayScreen(
     val bottomBarScrollThreshold = with(LocalDensity.current) {
         BottomBarScrollThreshold.toPx()
     }
-    val nestedScrollConnection = remember(bottomBarScrollThreshold) {
+    val nestedScrollConnection = remember(topAreaHeight, bottomBarScrollThreshold) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -111,7 +116,18 @@ fun DisplayScreen(
                 if (source == NestedScrollSource.UserInput) {
                     when {
                         available.y < 0f -> {
-                            isTopAreaVisible = false
+                            if (topAreaOffset > -topAreaHeight) {
+                                val previousOffset = topAreaOffset
+                                val nextOffset = (topAreaOffset + available.y)
+                                    .coerceAtLeast(-topAreaHeight.toFloat())
+                                if (nextOffset <= -topAreaHeight / 2f) {
+                                    topAreaOffset = -topAreaHeight.toFloat()
+                                    isTopAreaVisible = false
+                                    return Offset(0f, available.y)
+                                }
+                                topAreaOffset = nextOffset
+                                return Offset(0f, nextOffset - previousOffset)
+                            }
                             bottomBarScrollDistance -= available.y
                             if (bottomBarScrollDistance >= bottomBarScrollThreshold) {
                                 isBottomBarVisible = false
@@ -120,7 +136,13 @@ fun DisplayScreen(
                         }
 
                         available.y > 0f -> {
-                            isTopAreaVisible = true
+                            if (topAreaOffset < 0f) {
+                                val previousOffset = topAreaOffset
+                                val nextOffset = (topAreaOffset + available.y).coerceAtMost(0f)
+                                topAreaOffset = nextOffset
+                                isTopAreaVisible = true
+                                return Offset(0f, nextOffset - previousOffset)
+                            }
                             bottomBarScrollDistance -= available.y
                             if (bottomBarScrollDistance <= -bottomBarScrollThreshold) {
                                 isBottomBarVisible = true
@@ -136,6 +158,7 @@ fun DisplayScreen(
 
     LaunchedEffect(uiState.selectedDate, selectedSort) {
         isTopAreaVisible = true
+        topAreaOffset = 0f
         isBottomBarVisible = true
         bottomBarScrollDistance = 0f
     }
@@ -151,33 +174,39 @@ fun DisplayScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            AnimatedVisibility(
-                visible = isTopAreaVisible,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    DisplayDateHeader(
-                        selectedDate = uiState.selectedDate,
-                        topic = uiState.topic,
-                        isArchiveDate = uiState.content is DisplayContentState.Archive,
-                        canGoPrevious = uiState.canGoPrevious,
-                        canGoNext = uiState.canGoNext,
-                        onPreviousClick = onPreviousDateClick,
-                        onNextClick = onNextDateClick,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    if (uiState.content is DisplayContentState.Archive) {
-                        Spacer(modifier = Modifier.height(15.dp))
-                    }
-
-                    if (uiState.content is DisplayContentState.Latest) {
-                        DisplaySortTabs(
-                            selectedSort = uiState.content.selectedSort,
-                            onSortSelected = onSortSelected,
+            if (isTopAreaVisible) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .collapsingTopArea(topAreaOffset),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { topAreaHeight = it.height },
+                    ) {
+                        DisplayDateHeader(
+                            selectedDate = uiState.selectedDate,
+                            topic = uiState.topic,
+                            isArchiveDate = uiState.content is DisplayContentState.Archive,
+                            canGoPrevious = uiState.canGoPrevious,
+                            canGoNext = uiState.canGoNext,
+                            onPreviousClick = onPreviousDateClick,
+                            onNextClick = onNextDateClick,
                             modifier = Modifier.fillMaxWidth(),
                         )
+
+                        if (uiState.content is DisplayContentState.Archive) {
+                            Spacer(modifier = Modifier.height(15.dp))
+                        }
+
+                        if (uiState.content is DisplayContentState.Latest) {
+                            DisplaySortTabs(
+                                selectedSort = uiState.content.selectedSort,
+                                onSortSelected = onSortSelected,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
             }
@@ -218,6 +247,16 @@ fun DisplayScreen(
 }
 
 private val BottomBarScrollThreshold = 56.dp
+
+private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
+    val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
+
+    layout(placeable.width, visibleHeight) {
+        placeable.placeRelative(0, offsetPx)
+    }
+}
 
 @Composable
 fun DisplayBody(
