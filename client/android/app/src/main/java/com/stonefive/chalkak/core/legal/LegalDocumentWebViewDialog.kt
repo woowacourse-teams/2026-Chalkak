@@ -1,15 +1,6 @@
 package com.stonefive.chalkak.core.legal
 
-import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Color as AndroidColor
-import android.net.Uri
-import android.webkit.CookieManager
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -39,13 +30,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -53,14 +42,13 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-internal fun LegalDocumentWebViewDialog(
+fun LegalDocumentWebViewDialog(
     document: LegalDocument,
     closeContentDescription: String,
     loadFailedText: String,
     retryText: String,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     var isLoading by remember(document) { mutableStateOf(true) }
     var hasLoadError by remember(document) { mutableStateOf(false) }
     var webView by remember(document) { mutableStateOf<WebView?>(null) }
@@ -126,84 +114,20 @@ internal fun LegalDocumentWebViewDialog(
                                 .fillMaxWidth()
                                 .weight(1f),
                         ) {
-                            AndroidView(
+                            LegalDocumentWebView(
                                 modifier = Modifier.fillMaxSize(),
-                                factory = {
-                                    WebView(context).apply {
-                                        webView = this
-                                        CookieManager.getInstance().setAcceptCookie(true)
-                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.allowFileAccess = false
-                                        settings.allowContentAccess = false
-                                        settings.userAgentString = settings.userAgentString
-                                            .replace("; wv", "")
-                                            .replace(" Version/4.0", "")
-                                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                                        isVerticalScrollBarEnabled = false
-                                        setBackgroundColor(AndroidColor.TRANSPARENT)
-                                        webViewClient = object : WebViewClient() {
-                                            override fun shouldOverrideUrlLoading(
-                                                view: WebView,
-                                                request: WebResourceRequest,
-                                            ): Boolean {
-                                                if (request.url.isAllowedLegalHost()) {
-                                                    return false
-                                                }
-                                                runCatching {
-                                                    context.startActivity(
-                                                        Intent(Intent.ACTION_VIEW, request.url)
-                                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                                    )
-                                                }
-                                                return true
-                                            }
-
-                                            override fun onPageStarted(
-                                                view: WebView,
-                                                url: String?,
-                                                favicon: Bitmap?,
-                                            ) {
-                                                isLoading = true
-                                                hasLoadError = false
-                                            }
-
-                                            override fun onPageFinished(
-                                                view: WebView,
-                                                url: String?,
-                                            ) {
-                                                isLoading = false
-                                                view.post {
-                                                    view.evaluateJavascript(
-                                                        NOTION_WEB_VIEW_LAYOUT_FIX_SCRIPT,
-                                                        null,
-                                                    )
-                                                }
-                                            }
-
-                                            override fun onReceivedError(
-                                                view: WebView,
-                                                request: WebResourceRequest,
-                                                error: WebResourceError,
-                                            ) {
-                                                if (request.isForMainFrame) {
-                                                    isLoading = false
-                                                    hasLoadError = true
-                                                }
-                                            }
-                                        }
-                                        loadUrl(document.url)
-                                    }
+                                document = document,
+                                onWebViewChanged = { webView = it },
+                                onPageStarted = {
+                                    isLoading = true
+                                    hasLoadError = false
                                 },
-                                update = { view ->
-                                    if (view.url != document.url) {
-                                        view.loadUrl(document.url)
-                                    }
+                                onPageFinished = {
+                                    isLoading = false
                                 },
-                                onRelease = { view ->
-                                    view.stopLoading()
-                                    view.destroy()
+                                onMainFrameError = {
+                                    isLoading = false
+                                    hasLoadError = true
                                 },
                             )
 
@@ -234,54 +158,6 @@ internal fun LegalDocumentWebViewDialog(
         }
     }
 }
-
-/**
- * Keeps top-level navigation inside the legal document's host family (Notion).
- * Notion public pages may redirect the main frame across notion.com / notion.so / notion.site,
- * so all of them are allowed; anything else is opened in an external browser instead.
- */
-private fun Uri.isAllowedLegalHost(): Boolean {
-    val host = host ?: return false
-    return NOTION_ALLOWED_HOSTS.any { host == it || host.endsWith(".$it") }
-}
-
-private val NOTION_ALLOWED_HOSTS = listOf("notion.com", "notion.so", "notion.site")
-
-/** Notion's flex layout can have a zero-height scroll container in Android WebView. */
-private const val NOTION_WEB_VIEW_LAYOUT_FIX_SCRIPT = """
-    (() => {
-        let attempts = 0;
-
-        const fixLayout = () => {
-            attempts += 1;
-
-            const main = document.getElementById('main');
-            const scroller = main?.querySelector('.notion-scroller');
-            if (!main || !scroller) {
-                if (attempts < 50) setTimeout(fixLayout, 100);
-                return;
-            }
-
-            const viewportHeight = window.innerHeight;
-            main.style.height = viewportHeight + 'px';
-            main.style.minHeight = viewportHeight + 'px';
-            main.style.maxHeight = 'none';
-            main.style.flexShrink = '0';
-
-            const mainRect = main.getBoundingClientRect();
-            const scrollerRect = scroller.getBoundingClientRect();
-            const topInset = Math.max(scrollerRect.top - mainRect.top, 0);
-            scroller.style.height = Math.max(viewportHeight - topInset, 0) + 'px';
-            scroller.style.minHeight = '0px';
-            scroller.style.maxHeight = 'none';
-            scroller.style.flex = '1 1 auto';
-
-            if (attempts < 50) setTimeout(fixLayout, 100);
-        };
-
-        fixLayout();
-    })();
-"""
 
 @Composable
 private fun LegalDocumentLoadError(
@@ -315,13 +191,11 @@ private fun LegalDocumentLoadError(
     }
 }
 
-/** Design-time shell preview; the real WebView is intentionally replaced with fake content. */
 @Preview(
     name = "법률 문서 로딩 완료",
     showBackground = true,
     showSystemUi = true,
-    widthDp = 432,
-    heightDp = 840,
+    device = "spec:width=432dp,height=840dp",
 )
 @Composable
 private fun LegalDocumentWebViewDialogPreview() {
@@ -343,8 +217,7 @@ private fun LegalDocumentWebViewDialogPreview() {
     name = "법률 문서 로딩 실패",
     showBackground = true,
     showSystemUi = true,
-    widthDp = 432,
-    heightDp = 840,
+    device = "spec:width=432dp,height=840dp",
 )
 @Composable
 private fun LegalDocumentLoadErrorPreview() {

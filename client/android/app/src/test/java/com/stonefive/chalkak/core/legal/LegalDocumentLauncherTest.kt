@@ -6,18 +6,15 @@ import org.junit.Test
 
 class LegalDocumentLauncherTest {
     @Test
-    fun `invalid legal document uri invokes failure callback without launching activity`() {
-        var launchCount = 0
+    fun `display failure invokes failure callback`() {
         var failureCount = 0
         val launcher = LegalDocumentLauncher(
-            showLegalDocument = { launchCount++ },
+            showLegalDocument = { error("display failed") },
             onOpenFailed = { failureCount++ },
         )
 
-        assertFalse(launcher.open("http://app.notion.com/legal"))
-        assertFalse(launcher.open("https://app.notion.com.evil.example/legal"))
+        assertFalse(launcher.open(LegalDocument.PRIVACY_POLICY))
 
-        assertEquals(2, failureCount)
-        assertEquals(0, launchCount)
+        assertEquals(1, failureCount)
     }
 }

@@ -7,7 +7,7 @@ import org.junit.Test
 
 class LegalDocumentLauncherTest {
     @Test
-    fun `법률 문서 enum은 제공된 Notion URL을 매핑한다`() {
+    fun `legal documents map to the provided Notion URLs`() {
         assertEquals(
             "https://app.notion.com/p/3b56b8e8e36780af8ec8ea0bf92b97a9?source=copy_link",
             LegalDocument.PRIVACY_POLICY.url,
@@ -19,7 +19,7 @@ class LegalDocumentLauncherTest {
     }
 
     @Test
-    fun `법률 문서를 열 때 정확한 문서를 표시하도록 요청한다`() {
+    fun `opening a legal document requests the expected document`() {
         var launchedDocument: LegalDocument? = null
         val launcher = LegalDocumentLauncher(showLegalDocument = { launchedDocument = it })
 
@@ -30,14 +30,14 @@ class LegalDocumentLauncherTest {
     }
 
     @Test
-    fun `허용되지 않은 문서 URL이면 실패 콜백을 호출하고 false를 반환한다`() {
+    fun `display failure invokes failure callback and returns false`() {
         var failureCalled = false
         val launcher = LegalDocumentLauncher(
-            showLegalDocument = {},
+            showLegalDocument = { error("display failed") },
             onOpenFailed = { failureCalled = true },
         )
 
-        val opened = launcher.open("http://app.notion.com/legal")
+        val opened = launcher.open(LegalDocument.PRIVACY_POLICY)
 
         assertFalse(opened)
         assertTrue(failureCalled)

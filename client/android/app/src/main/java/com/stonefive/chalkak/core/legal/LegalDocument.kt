@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.core.legal
 
-/** Public legal documents shown by the app. */
 enum class LegalDocument(val url: String) {
     PRIVACY_POLICY(
         "https://app.notion.com/p/3b56b8e8e36780af8ec8ea0bf92b97a9?source=copy_link",
