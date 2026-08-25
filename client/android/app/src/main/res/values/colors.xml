@@ -2,4 +2,5 @@
 <resources>
     <!-- Used before Compose draws its first frame. Compose colors live in Color.kt. -->
     <color name="chalkak_background">#F7F6F3</color>
+    <color name="chalkak_logo_background">#FCFAF6</color>
 </resources>
