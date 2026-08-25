@@ -2,6 +2,8 @@ package com.chalkak.backend.post.infrastructure.persistence;
 
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -14,5 +16,10 @@ public class PostImageUploadRepositoryImpl implements PostImageUploadRepository 
     @Override
     public PostImageUpload save(PostImageUpload postImageUpload) {
         return postImageUploadJpaRepository.save(postImageUpload);
+    }
+
+    @Override
+    public Optional<PostImageUpload> findByIdForUpdate(UUID uploadId) {
+        return postImageUploadJpaRepository.findByIdForUpdate(uploadId);
     }
 }

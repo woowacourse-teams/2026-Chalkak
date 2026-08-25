@@ -58,6 +58,14 @@ public class Photo {
         this.metadata = Map.of();
     }
 
+    /**
+     * 이미지 처리가 끝난 뒤에만 썸네일 키를 채운다. 존재하지 않는 객체의 URL이 공개 응답에 나가면 안 된다.
+     */
+    public void completeProcessing(String thumbnailStorageKey, Map<String, Object> metadata) {
+        this.thumbnailStorageKey = thumbnailStorageKey;
+        this.metadata = (metadata == null) ? Map.of() : metadata;
+    }
+
     public static Photo createPhoto(String originalStorageKey) {
         if (originalStorageKey == null || originalStorageKey.isBlank()) {
             throw new BusinessException(

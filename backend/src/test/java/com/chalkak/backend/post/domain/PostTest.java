@@ -8,6 +8,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -90,5 +91,50 @@ class PostTest {
         assertThatThrownBy(() -> Post.createPost(author, topic, photo, title))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
+    }
+    @Test
+    @DisplayName("검수를 통과하면 APPROVED가 되고 검수 시각을 기록한다")
+    void approve_validatingPost_becomesApproved() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, "제목");
+        Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
+
+        // When
+        post.approve(moderatedAt);
+
+        // Then
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.APPROVED);
+        assertThat(post.getModeratedAt()).isEqualTo(moderatedAt);
+    }
+
+    @Test
+    @DisplayName("검수에서 걸러지면 REJECTED가 되고 검수 시각을 기록한다")
+    void reject_validatingPost_becomesRejected() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, "제목");
+        Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
+
+        // When
+        post.reject(moderatedAt);
+
+        // Then
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.REJECTED);
+        assertThat(post.getModeratedAt()).isEqualTo(moderatedAt);
+    }
+
+    @Test
+    @DisplayName("이미 검수가 끝난 게시물은 다시 승인하지 않는다")
+    void approve_rejectedPost_keepsRejected() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, "제목");
+        Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
+        post.reject(moderatedAt);
+
+        // When
+        post.approve(moderatedAt.plusSeconds(60));
+
+        // Then
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.REJECTED);
+        assertThat(post.getModeratedAt()).isEqualTo(moderatedAt);
     }
 }

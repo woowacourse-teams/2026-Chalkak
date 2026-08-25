@@ -89,4 +89,55 @@ public class PostImageUpload {
         }
         return new PostImageUpload(user, issuedAt);
     }
+
+    /**
+     * 중복·역순 콜백은 상태를 바꾸지 않는다. SQS가 같은 메시지를 다시 전달할 수 있고, 처리 실패 뒤에 도착한
+     * 완료 콜백이 거절된 이미지를 되살리면 안 되기 때문이다.
+     */
+    public void completeProcessing(Map<String, Object> imageMetadata) {
+        if (status != PostImageUploadStatus.ISSUED) {
+            return;
+        }
+        this.status = PostImageUploadStatus.READY;
+        this.imageMetadata = imageMetadata;
+    }
+
+    public void failProcessing(String rejectionReason) {
+        if (status != PostImageUploadStatus.ISSUED) {
+            return;
+        }
+        this.status = PostImageUploadStatus.REJECTED;
+        this.rejectionReason = rejectionReason;
+    }
+
+    public void claim(Instant claimedAt) {
+        if (this.claimedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 사용된 사진입니다.");
+        }
+        if (status == PostImageUploadStatus.REJECTED) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "처리할 수 없는 사진입니다. 다시 업로드해 주세요."
+            );
+        }
+        if (!claimedAt.isBefore(expiresAt)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "사진 업로드 유효 시간이 지났습니다."
+            );
+        }
+        this.claimedAt = claimedAt;
+    }
+
+    public boolean isProcessed() {
+        return status == PostImageUploadStatus.READY;
+    }
+
+    public boolean isRejected() {
+        return status == PostImageUploadStatus.REJECTED;
+    }
+
+    public boolean isOwnedBy(UUID userId) {
+        return user.getId().equals(userId);
+    }
 }

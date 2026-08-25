@@ -68,6 +68,14 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findValidatingByOriginalStorageKey(String originalStorageKey) {
+        return postJpaRepository.findByOriginalStorageKey(
+                originalStorageKey,
+                ModerationStatus.VALIDATING
+        );
+    }
+
+    @Override
     public PostSlice findVisibleRecentByTopicId(
             UUID topicId,
             int page,

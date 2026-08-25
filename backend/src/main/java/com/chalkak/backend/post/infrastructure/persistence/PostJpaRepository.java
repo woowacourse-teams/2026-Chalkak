@@ -35,6 +35,20 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     @Query("""
             SELECT post
             FROM Post post
+            JOIN FETCH post.photo photo
+            WHERE photo.originalStorageKey = :originalStorageKey
+              AND post.moderationStatus = :moderationStatus
+              AND post.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+            """)
+    Optional<Post> findByOriginalStorageKey(
+            @Param("originalStorageKey") String originalStorageKey,
+            @Param("moderationStatus") ModerationStatus moderationStatus
+    );
+
+    @Query("""
+            SELECT post
+            FROM Post post
             JOIN post.topic topic
             JOIN FETCH post.photo photo
             JOIN FETCH post.author author

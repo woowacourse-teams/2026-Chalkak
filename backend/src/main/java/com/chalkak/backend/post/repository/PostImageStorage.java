@@ -9,4 +9,6 @@ public interface PostImageStorage {
     String toStagingStorageKey(UUID uploadId);
 
     String toOriginalStorageKey(UUID uploadId);
+
+    String toThumbnailStorageKey(UUID uploadId);
 }

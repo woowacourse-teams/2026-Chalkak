@@ -17,6 +17,7 @@ public class S3PostImageStorage implements PostImageStorage {
     private static final String STAGING_PATH = "staging";
     private static final String POST_PATH = "posts";
     private static final String ORIGINAL_PATH = "original";
+    private static final String THUMBNAIL_PATH = "thumbnail";
     private static final String IMAGE_EXTENSION = ".webp";
     private static final String PATH_DELIMITER = "/";
 
@@ -49,6 +50,11 @@ public class S3PostImageStorage implements PostImageStorage {
     @Override
     public String toOriginalStorageKey(UUID uploadId) {
         return createKey(POST_PATH, imageProperties.environment(), ORIGINAL_PATH, uploadId);
+    }
+
+    @Override
+    public String toThumbnailStorageKey(UUID uploadId) {
+        return createKey(POST_PATH, imageProperties.environment(), THUMBNAIL_PATH, uploadId);
     }
 
     private String createKey(

@@ -99,6 +99,26 @@ public class Post {
         return new Post(author, topic, photo, title);
     }
 
+    /**
+     * 검수 결과는 한 번만 정해진다. SQS 재전달로 같은 콜백이 다시 오거나 실패 뒤에 완료 콜백이 도착해도
+     * 이미 공개 여부가 결정된 게시물을 되돌리지 않는다.
+     */
+    public void approve(Instant moderatedAt) {
+        updateModerationStatus(ModerationStatus.APPROVED, moderatedAt);
+    }
+
+    public void reject(Instant moderatedAt) {
+        updateModerationStatus(ModerationStatus.REJECTED, moderatedAt);
+    }
+
+    private void updateModerationStatus(ModerationStatus moderationStatus, Instant moderatedAt) {
+        if (this.moderationStatus != ModerationStatus.VALIDATING) {
+            return;
+        }
+        this.moderationStatus = moderationStatus;
+        this.moderatedAt = moderatedAt;
+    }
+
     private static void validateRelations(User author, Topic topic, Photo photo) {
         if (author == null || topic == null || photo == null) {
             throw new BusinessException(
