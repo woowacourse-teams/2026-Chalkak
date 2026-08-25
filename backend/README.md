@@ -172,6 +172,12 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 운영 환경에서는 API 문서 JSON과 Swagger UI를 모두 비활성화한다.
 
+게시물 생성 API는 임시 인증을 사용하는 동안 로컬·개발 환경의 `user-api`
+그룹에만 표시한다. 생성 전용 `PostCreationApiDocs`를 기존 공개 조회용
+`PostApiDocs`와 분리하므로 `prod`에서 생성 API를 제외해도 게시물 목록·상세
+조회는 유지된다. 요청·응답과 이미지 키 계약은
+[`docs/post-create-api-design.md`](docs/post-create-api-design.md)를 참고한다.
+
 Spring Boot 4 지원과 최신 기능을 위해 `springdoc-openapi` 3.1.0을 유지한다. 다만 이 버전은 Bean Validation 제약이 붙은 숫자 파라미터를 문서화할 때 경고 로그를 출력하는 [알려진 회귀 문제](https://github.com/springdoc/springdoc-openapi/issues/3314)가 있다. 현재 문서 응답과 스키마 생성에는 문제가 없으므로 하위 버전으로 내리지 않고, [수정 PR](https://github.com/springdoc/springdoc-openapi/pull/3315)이 반영된 정식 버전이 나오면 업그레이드한다.
 
 ## 임시 인증
@@ -211,15 +217,42 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 {bucket}/chalkak/
 ├── staging/{environment}/
 │   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 처리 대기
-│   └── posts/                          포스트 이미지 임시 경로 (처리기 미구현)
-└── signatures/{environment}/
-    ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
-    └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
+│   └── posts/{uploadId}.png            포스트 업로드 직후. 처리·검수 대기
+├── signatures/{environment}/
+│   ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
+│   └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
+└── posts/{environment}/
+    ├── original/{uploadId}.png         포스트 처리 후 원본 경로
+    └── thumbnail/{uploadId}.png        포스트 처리 후 썸네일 경로
 ```
 
 - `{environment}`는 `dev` 또는 `prod`다. 하나의 Lambda가 두 환경을 함께 처리하므로, **입력 키의 이 세그먼트가 어느 백엔드로 콜백할지를 결정한다.**
 - 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)와 환경 세그먼트뿐이다.
 - CloudFront 오리진이 `{bucket}/chalkak`을 가리키므로 **공개 URL에는 `chalkak/`이 들어가지 않는다.** `CLOUDFRONT_ORIGIN_PATH`가 이 값을 잡는다.
+
+### 포스트 생성 파이프라인
+
+```text
+클라이언트가 staging에 PNG 업로드
+  → POST /api/v1/posts                  백엔드가 staging 객체와 작성 조건 검증
+  → Photo + Post 단일 트랜잭션 저장     final original key를 서버에서 유도
+  → 201 Created, VALIDATING             공개 목록·상세에는 아직 노출하지 않음
+```
+
+게시물 생성 요청은 `photoUploadId`만 받고 bucket, environment, storage key는
+받지 않는다. 제목은 선택값이며 생략, `null`, 빈 문자열, 공백 문자열을 모두
+`null`로 저장하고 최대 10자로 제한한다. 작성자는 삭제되지 않은 `ACTIVE`
+사용자여야 하며 주제 참여 구간은 `startsAt <= now < endsAt`인 `OPEN` 상태다.
+
+생성 시 `Photo`와 `Post`를 한 트랜잭션으로 저장하고 새 게시물은
+`VALIDATING`으로 시작한다. 기존 공개 조회는 `APPROVED` 게시물만 반환하므로
+처리 전 final URL이 노출되지 않는다. 사용자·주제와 photo key의 사전 중복
+검사 뒤에도 DB 유니크 제약을 최종 동시성 방어선으로 사용한다.
+
+현재는 포스트 업로드 발급 이력과 사용자별 claim이 없으므로 uploadId를
+소유자가 연결되지 않은 bearer capability로 취급한다. staging 객체 존재와
+중복 사용은 확인하지만, 유출된 uploadId가 로그인 사용자의 것인지는 검증할
+수 없다. 소유권 claim의 발급과 원자적 소비는 후속 범위다.
 
 ### 사인 처리 파이프라인
 
