@@ -183,7 +183,7 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
-private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.72f
+private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 
 @Preview(
     showBackground = true,
