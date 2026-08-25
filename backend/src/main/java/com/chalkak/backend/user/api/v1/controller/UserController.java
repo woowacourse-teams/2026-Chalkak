@@ -5,7 +5,7 @@ import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
-import com.chalkak.backend.user.domain.SignatureImageUpload;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

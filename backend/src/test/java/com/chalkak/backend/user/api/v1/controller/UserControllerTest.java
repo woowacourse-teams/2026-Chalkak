@@ -16,7 +16,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.user.domain.SignatureImageUpload;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

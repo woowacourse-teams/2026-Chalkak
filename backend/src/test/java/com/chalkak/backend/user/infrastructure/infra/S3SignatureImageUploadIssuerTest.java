@@ -6,8 +6,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;

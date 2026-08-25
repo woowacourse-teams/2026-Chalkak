@@ -1,4 +1,4 @@
-package com.chalkak.backend.user.domain;
+package com.chalkak.backend.user.repository;
 
 import java.util.UUID;
 

@@ -1,6 +1,6 @@
 package com.chalkak.backend.user.api.v1.dto.response;
 
-import com.chalkak.backend.user.domain.SignatureImageUpload;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import java.util.UUID;
 
 public record UserSignatureUploadResponse(

@@ -1,7 +1,7 @@
 package com.chalkak.backend.user.infrastructure.infra;
 
-import com.chalkak.backend.user.domain.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import java.time.Duration;
 import java.util.UUID;
