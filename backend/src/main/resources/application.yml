@@ -23,6 +23,11 @@ spring:
     validate-migration-naming: true
 
 chalkak:
+  auth:
+    oidc:
+      google:
+        issuer: https://accounts.google.com
+        jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
   image:
     bucket: ${S3_BUCKET}
     region: ${AWS_REGION:ap-northeast-2}
