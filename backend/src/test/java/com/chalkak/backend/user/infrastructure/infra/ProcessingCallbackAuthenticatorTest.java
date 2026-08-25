@@ -14,12 +14,16 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class SignatureProcessingCallbackAuthenticatorTest {
+class ProcessingCallbackAuthenticatorTest {
 
     private static final String SECRET = "test-callback-secret-with-enough-length";
 
-    private final SignatureProcessingCallbackAuthenticator authenticator =
-            new SignatureProcessingCallbackAuthenticator(SECRET);
+    private final ProcessingCallbackAuthenticator authenticator =
+            new ProcessingCallbackAuthenticator(SECRET);
+
+    private static String signaturePath(UUID uploadId, String result) {
+        return "/internal/v1/signature-processing/" + uploadId + "/" + result;
+    }
 
     @Test
     @DisplayName("현재 시각의 올바른 HMAC 서명은 허용한다")
@@ -30,7 +34,7 @@ class SignatureProcessingCallbackAuthenticatorTest {
         String signature = sign(uploadId, "complete", timestamp);
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(uploadId, "complete", timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
                 .doesNotThrowAnyException();
     }
 
@@ -42,7 +46,7 @@ class SignatureProcessingCallbackAuthenticatorTest {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", timestamp, "invalid"))
+        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, "invalid"))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -55,7 +59,7 @@ class SignatureProcessingCallbackAuthenticatorTest {
         String signature = sign(uploadId, "complete", timestamp);
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", timestamp, signature))
+        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -66,7 +70,7 @@ class SignatureProcessingCallbackAuthenticatorTest {
         UUID uploadId = UUID.randomUUID();
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", null, "v1=00"))
+        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, null, "v1=00"))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -78,7 +82,7 @@ class SignatureProcessingCallbackAuthenticatorTest {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(uploadId, "complete", timestamp, null))
+        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, null))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -91,17 +95,70 @@ class SignatureProcessingCallbackAuthenticatorTest {
         String signature = sign(uploadId, "complete", timestamp);
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(uploadId, "complete", timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("본문이 있는 콜백은 수신 원문의 해시로 검증한다")
+    void authenticate_jsonBody_succeeds() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String path = "/internal/v1/post-image-processing/" + uploadId + "/complete";
+        String rawBody = "{\"width\":4032,\"height\":3024}";
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String signature = sign(path, rawBody, timestamp);
+
+        // When & Then
+        assertThatCode(() -> authenticator.authenticate(path, rawBody, timestamp, signature))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("같은 값이어도 직렬화가 다른 본문의 서명은 거부한다")
+    void authenticate_reserializedBody_throwsUnauthorizedException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String path = "/internal/v1/post-image-processing/" + uploadId + "/complete";
+        String sentBody = "{\"width\":4032,\"height\":3024}";
+        String reserializedBody = "{\"width\": 4032, \"height\": 3024}";
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String signature = sign(path, sentBody, timestamp);
+
+        // When & Then
+        assertThatThrownBy(() ->
+                authenticator.authenticate(path, reserializedBody, timestamp, signature))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("종류가 다른 경로로 만든 서명은 거부한다")
+    void authenticate_otherKindPath_throwsUnauthorizedException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String signature = sign(signaturePath(uploadId, "complete"), null, timestamp);
+        String postPath = "/internal/v1/post-image-processing/" + uploadId + "/complete";
+
+        // When & Then
+        assertThatThrownBy(() ->
+                authenticator.authenticate(postPath, null, timestamp, signature))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
     private String sign(UUID uploadId, String result, String timestamp) {
+        return sign(signaturePath(uploadId, result), null, timestamp);
+    }
+
+    private String sign(String path, String rawBody, String timestamp) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            String path = "/internal/v1/signature-processing/" + uploadId + "/" + result;
+            byte[] body = rawBody == null
+                    ? new byte[0]
+                    : rawBody.getBytes(StandardCharsets.UTF_8);
             String bodyHash = HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(new byte[0]));
+                    MessageDigest.getInstance("SHA-256").digest(body));
             byte[] digest = mac.doFinal((timestamp + "\nPOST\n" + path + "\n" + bodyHash)
                     .getBytes(StandardCharsets.UTF_8));
             return "v1=" + HexFormat.of().formatHex(digest);

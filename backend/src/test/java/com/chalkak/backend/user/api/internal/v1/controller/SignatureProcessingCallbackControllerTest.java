@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.user.infrastructure.infra.SignatureProcessingCallbackAuthenticator;
+import com.chalkak.backend.user.infrastructure.infra.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +34,7 @@ class SignatureProcessingCallbackControllerTest {
     private UserService userService;
 
     @MockitoBean
-    private SignatureProcessingCallbackAuthenticator authenticator;
+    private ProcessingCallbackAuthenticator authenticator;
 
     @Test
     @DisplayName("인증된 성공 콜백은 pending 사인을 승격하고 204를 반환한다")
@@ -48,7 +48,7 @@ class SignatureProcessingCallbackControllerTest {
                         .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isNoContent());
 
-        verify(authenticator).authenticate(uploadId, "complete", "1787562000", "signature");
+        verify(authenticator).authenticate(callbackPath(uploadId, "complete"), null, "1787562000", "signature");
         verify(userService).completeSignatureProcessing(uploadId);
     }
 
@@ -64,7 +64,7 @@ class SignatureProcessingCallbackControllerTest {
                         .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isNoContent());
 
-        verify(authenticator).authenticate(uploadId, "failed", "1787562000", "signature");
+        verify(authenticator).authenticate(callbackPath(uploadId, "failed"), null, "1787562000", "signature");
         verify(userService).failSignatureProcessing(uploadId);
     }
 
@@ -75,7 +75,7 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(uploadId, "complete", "1787562000", "invalid");
+                .authenticate(callbackPath(uploadId, "complete"), null, "1787562000", "invalid");
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
@@ -93,7 +93,7 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(uploadId, "complete", "1787562000", null);
+                .authenticate(callbackPath(uploadId, "complete"), null, "1787562000", null);
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
@@ -110,7 +110,7 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(uploadId, "complete", null, "signature");
+                .authenticate(callbackPath(uploadId, "complete"), null, null, "signature");
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
@@ -118,5 +118,8 @@ class SignatureProcessingCallbackControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).completeSignatureProcessing(uploadId);
+    }
+    private static String callbackPath(UUID uploadId, String result) {
+        return "/internal/v1/signature-processing/" + uploadId + "/" + result;
     }
 }

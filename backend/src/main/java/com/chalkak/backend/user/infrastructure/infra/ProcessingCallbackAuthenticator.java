@@ -8,24 +8,29 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
-import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+/**
+ * 이미지 처리 Lambda 콜백의 HMAC 인증기. 서명 대상 경로에 콜백 종류가 들어가므로 사인 콜백 서명을 포스트
+ * 콜백에 재사용할 수 없다.
+ *
+ * <p>본문 해시는 <b>수신 원문</b>으로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져
+ * 서명이 어긋난다.
+ */
 @Component
-public class SignatureProcessingCallbackAuthenticator {
+public class ProcessingCallbackAuthenticator {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final String SHA_256_ALGORITHM = "SHA-256";
     private static final String SIGNATURE_PREFIX = "v1=";
-    private static final String EMPTY_BODY_SHA256 =
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     private static final long MAX_CLOCK_SKEW_SECONDS = 300L;
 
     private final byte[] secret;
 
-    public SignatureProcessingCallbackAuthenticator(
+    public ProcessingCallbackAuthenticator(
             @Value("${IMAGE_PROCESSOR_CALLBACK_SECRET}") String secret
     ) {
         if (secret == null || secret.length() < 32) {
@@ -35,8 +40,8 @@ public class SignatureProcessingCallbackAuthenticator {
     }
 
     public void authenticate(
-            UUID uploadId,
-            String result,
+            String path,
+            String rawBody,
             String timestamp,
             String signature
     ) {
@@ -45,7 +50,7 @@ public class SignatureProcessingCallbackAuthenticator {
             throw unauthorized();
         }
 
-        byte[] expected = sign(timestamp, callbackPath(uploadId, result));
+        byte[] expected = sign(timestamp, path, rawBody);
         byte[] provided = decodeSignature(signature);
         if (!MessageDigest.isEqual(expected, provided)) {
             throw unauthorized();
@@ -60,15 +65,25 @@ public class SignatureProcessingCallbackAuthenticator {
         }
     }
 
-    private byte[] sign(String timestamp, String path) {
+    private byte[] sign(String timestamp, String path, String rawBody) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secret, HMAC_ALGORITHM));
-            String payload = timestamp + "\nPOST\n" + path + "\n" + EMPTY_BODY_SHA256;
+            String payload = timestamp + "\nPOST\n" + path + "\n" + bodyHash(rawBody);
             return mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
             throw new IllegalStateException("이미지 처리 콜백 서명을 생성할 수 없습니다.", exception);
         }
+    }
+
+    private String bodyHash(String rawBody) throws NoSuchAlgorithmException {
+        byte[] body = rawBody == null
+                ? new byte[0]
+                : rawBody.getBytes(StandardCharsets.UTF_8);
+
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance(SHA_256_ALGORITHM).digest(body)
+        );
     }
 
     private byte[] decodeSignature(String signature) {
@@ -80,10 +95,6 @@ public class SignatureProcessingCallbackAuthenticator {
         } catch (IllegalArgumentException exception) {
             throw unauthorized();
         }
-    }
-
-    private String callbackPath(UUID uploadId, String result) {
-        return "/internal/v1/signature-processing/" + uploadId + "/" + result;
     }
 
     private UnauthorizedException unauthorized() {
