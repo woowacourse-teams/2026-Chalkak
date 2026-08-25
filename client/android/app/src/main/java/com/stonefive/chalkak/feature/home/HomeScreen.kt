@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -37,6 +38,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,6 +99,18 @@ fun HomeScreen(
         targetValue = if (isTopAreaVisible) 1f else COLLAPSED_TOP_BAR_BACKGROUND_ALPHA,
         label = "home_top_bar_background_alpha",
     )
+    val density = LocalDensity.current
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
+    val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
+        HomeTopBarHeight.toPx()
+    }
+    val visibleTopAreaHeightPx =
+        (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
+    val photoListTopPadding = if (isTopAreaVisible) {
+        with(density) { visibleTopAreaHeightPx.toDp() }
+    } else {
+        0.dp
+    }
     val nestedScrollConnection = remember(topAreaHeight) {
         object : NestedScrollConnection {
             override fun onPreScroll(
@@ -181,7 +195,9 @@ fun HomeScreen(
             photos = uiState.photos,
             likedPhotoIds = uiState.likedPhotoIds,
             onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = photoListTopPadding),
             state = photoListState,
         )
         Column(modifier = Modifier.fillMaxWidth()) {
