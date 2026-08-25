@@ -9,6 +9,8 @@ public interface SignatureImageStorage {
 
     Optional<StoredImageMetadata> findUploadedImage(UUID uploadId);
 
+    String toStagingStorageKey(UUID uploadId);
+
     SignatureStorageKeys toStorageKeys(UUID uploadId);
 
     boolean isProcessingCompleted(UUID uploadId);

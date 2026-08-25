@@ -96,7 +96,8 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
         return storageKey.substring(rootPrefix.length() + PATH_DELIMITER.length());
     }
 
-    private String toStagingStorageKey(UUID uploadId) {
+    @Override
+    public String toStagingStorageKey(UUID uploadId) {
         return createKey(STAGING_PATH, imageProperties.environment(), SIGNATURE_PATH, uploadId);
     }
 

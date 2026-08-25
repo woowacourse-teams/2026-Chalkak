@@ -194,21 +194,63 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 
 ```text
 {bucket}/chalkak/
-├── staging/
-│   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 검증 대기
-│   └── posts/                          포스트 이미지 임시 경로
-└── signatures/
-    ├── original/{uploadId}.png         검증 통과한 원본
-    └── thumbnail/{uploadId}.png        Lambda가 생성
+├── staging/{environment}/
+│   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 처리 대기
+│   └── posts/                          포스트 이미지 임시 경로 (처리기 미구현)
+└── signatures/{environment}/
+    ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
+    └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
 ```
 
-- 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)뿐이다.
+- `{environment}`는 `dev` 또는 `prod`다. 하나의 Lambda가 두 환경을 함께 처리하므로, **입력 키의 이 세그먼트가 어느 백엔드로 콜백할지를 결정한다.**
+- 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)와 환경 세그먼트뿐이다.
 - CloudFront 오리진이 `{bucket}/chalkak`을 가리키므로 **공개 URL에는 `chalkak/`이 들어가지 않는다.** `CLOUDFRONT_ORIGIN_PATH`가 이 값을 잡는다.
-- DB에는 항상 최종 경로를 저장한다. Lambda가 옮기기 전에는 그 URL이 비어 있다.
+
+### 사인 처리 파이프라인
+
+사인 등록은 Lambda 처리를 기다리지 않는다. DB가 **active(현재 보여줄 사인)** 와 **pending(처리 중인 사인)** 을 분리해 들고 있다가, Lambda의 완료 콜백을 받은 뒤에만 active를 교체한다.
+
+```text
+클라이언트가 staging에 PNG 업로드
+  → PUT /api/v1/users/me/signature      백엔드가 staging 객체 검증 후 pending 기록, 즉시 응답
+  → S3 ObjectCreated → SQS → Lambda     원본·썸네일 생성
+  → POST /internal/v1/signature-processing/{uploadId}/complete
+                                        백엔드가 pending 일치를 확인하고 active로 승격
+  → Lambda가 staging 객체 삭제           콜백 2xx를 받은 뒤에만
+```
+
+핵심은 **존재하지 않는 URL을 active로 노출하지 않는 것**이다. 새 사인 처리가 실패해도 기존 active 사인은 그대로 유지되고, 다른 사용자의 게시물 목록은 active 썸네일만 사용한다.
+
+상태 불변 규칙:
+
+1. active 키는 해당 S3 출력 객체가 저장된 뒤에만 바꾼다.
+2. 새 pending을 등록해도 기존 active는 바꾸지 않는다.
+3. 콜백의 `uploadId`가 현재 pending과 같고 `PROCESSING`일 때만 상태를 바꾼다.
+4. 성공 승격은 원본·썸네일을 한 트랜잭션에서 함께 바꾼다.
+5. 영구 실패와 타임아웃은 active를 바꾸지 않는다.
+6. 모든 콜백은 멱등하다. 중복·역순 콜백은 상태를 바꾸지 않고 `204`로 끝난다.
+
+백엔드는 콜백 본문에서 저장소 키를 받지 않고 `uploadId`로 직접 유도한다. 사인을 연속 등록하면 마지막 `uploadId`가 pending을 덮어쓰고, 먼저 보낸 작업의 완료 콜백은 pending 불일치로 무시된다.
+
+### 환경 변수
+
+| 변수 | 사용처 | 설명 |
+|---|---|---|
+| `S3_PREFIX` | 백엔드·Lambda | 루트 prefix. 전 환경 `chalkak` |
+| `chalkak.image.environment` | 백엔드 | 경로의 `{environment}` 세그먼트. 프로필별로 `local`·`dev`·`prod`·`test` |
+| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 백엔드·Lambda | 콜백 HMAC 서명 키. **32자 이상**이어야 기동한다 |
+| `DEV_BACKEND_CALLBACK_URL` | Lambda | dev 백엔드 콜백 URL. **`/internal/v1/signature-processing`까지 포함**해야 한다 |
+| `PROD_BACKEND_CALLBACK_URL` | Lambda | prod 백엔드 콜백 URL. **`/internal/v1/signature-processing`까지 포함**해야 한다 |
+
+백엔드와 Lambda가 같은 secret을 공유한다. 값이 어긋나면 콜백이 전부 `401`로 떨어지고 사인이 영원히 `PROCESSING`에 남으므로, 서명 실패는 즉시 알람 대상이다.
+
+> **콜백 URL의 경로를 빠뜨리면 조용히 실패한다.** Lambda는 서명 대상 경로를 `/internal/v1/signature-processing/{uploadId}/{result}`로 **고정**해 계산하고, 실제 요청 URL은 `{base_url}/{uploadId}/{result}`로 만든다. 둘은 `base_url`이 정확히 그 경로로 끝날 때만 일치한다. 경로를 빼고 호스트만 넣으면 서명은 유효한데 요청이 `404`로 떨어지고 SQS가 무한 재시도한다.
 
 ### 로컬 실행
 
-개인 IAM 자격증명 없이도 조회가 동작한다. 버킷에 익명 공개 읽기 권한이 있어 `application-local.yml`의 `chalkak.image.anonymous-access: true`가 익명 호출로 전환하기 때문이다. 기본값은 `false`이므로 배포 환경은 EC2 인스턴스 역할을 그대로 사용한다.
+**로컬에서는 사인 처리가 완료되지 않는다.** Lambda 라우터가 `staging/dev/`와 `staging/prod/`만 인식하고 콜백 URL도 두 환경만 설정돼 있어서, `environment: local`로 올라간 객체는 `unsupported staging path`로 반려된다. 로컬은 등록 API의 pending 기록까지만 확인할 수 있다.
+
+조회 자체는 개인 IAM 자격증명 없이도 동작한다. 버킷에 익명 공개 읽기 권한이 있어 `application-local.yml`의 `chalkak.image.anonymous-access: true`가 익명 호출로 전환하기 때문이다. 기본값은 `false`이므로 배포 환경은 EC2 인스턴스 역할을 그대로 사용한다.
 
 > 업로드는 여전히 자격증명이 필요하다. 로컬에서 검증하려면 권한이 있는 팀원이 콘솔로 `{uuid}.png`(확장자 소문자)를 한 번 올려두면 된다.
 >
