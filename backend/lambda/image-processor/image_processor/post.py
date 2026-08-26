@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+import math
 import re
 import warnings
 from dataclasses import dataclass
@@ -25,6 +26,8 @@ GPS_LATITUDE_REF = 1
 GPS_LATITUDE = 2
 GPS_LONGITUDE_REF = 3
 GPS_LONGITUDE = 4
+MAX_LATITUDE = 90.0
+MAX_LONGITUDE = 180.0
 
 # 별도 필드로 싣거나 출력 이미지에 이미 반영한 태그는 metaAttributes에서 뺀다. IFD 포인터는 바이트 오프셋일
 # 뿐이라 값으로서 의미가 없고, Orientation은 exif_transpose가 픽셀에 적용한 뒤라 그대로 두면 이중 회전을 부른다.
@@ -351,23 +354,43 @@ def _location(exif: Image.Exif) -> dict[str, float] | None:
     if not gps:
         return None
 
-    latitude = _coordinate(gps.get(GPS_LATITUDE), gps.get(GPS_LATITUDE_REF), "S")
-    longitude = _coordinate(gps.get(GPS_LONGITUDE), gps.get(GPS_LONGITUDE_REF), "W")
+    latitude = _coordinate(
+        gps.get(GPS_LATITUDE),
+        gps.get(GPS_LATITUDE_REF),
+        "S",
+        MAX_LATITUDE,
+    )
+    longitude = _coordinate(
+        gps.get(GPS_LONGITUDE),
+        gps.get(GPS_LONGITUDE_REF),
+        "W",
+        MAX_LONGITUDE,
+    )
     if latitude is None or longitude is None:
         return None
 
     return {"latitude": latitude, "longitude": longitude}
 
 
-def _coordinate(value: Any, reference: Any, negative_reference: str) -> float | None:
-    if value is None or len(value) != 3:
-        return None
+def _coordinate(
+    value: Any,
+    reference: Any,
+    negative_reference: str,
+    limit: float,
+) -> float | None:
+    """
+    조작되거나 손상된 GPS 태그는 좌표가 없는 것으로 다룬다. 여기서 예외가 새어 나가면 실패 콜백조차
+    보내지 못한 채 SQS가 같은 메시지를 계속 재전달한다. 3-rational이 아닌 값(스칼라 등)은 언패킹에서
+    걸러지므로 길이를 따로 세지 않는다.
+    """
     try:
         degrees, minutes, seconds = (float(part) for part in value)
     except (TypeError, ValueError, ZeroDivisionError):
         return None
 
     decimal = degrees + minutes / 60 + seconds / 3600
+    if not math.isfinite(decimal) or abs(decimal) > limit:
+        return None
     if isinstance(reference, str) and reference.strip().upper() == negative_reference:
         return -decimal
     return decimal

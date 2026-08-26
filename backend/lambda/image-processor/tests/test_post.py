@@ -373,6 +373,66 @@ class PostImageProcessorTest(unittest.TestCase):
         body = self.callback_client.complete.call_args.args[2]
         self.assertEqual("2026-08-20T11:02:31", body["capturedAt"])
 
+    def test_process_extracts_location_from_gps_ifd(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {},
+                    gps={1: "N", 2: (37.0, 33.0, 59.4), 3: "E", 4: (126.0, 58.0, 40.8)},
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        location = self.callback_client.complete.call_args.args[2]["location"]
+        self.assertAlmostEqual(37.5665, location["latitude"], places=4)
+        self.assertAlmostEqual(126.978, location["longitude"], places=4)
+
+    def test_process_negates_southern_and_western_coordinates(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {},
+                    gps={1: "S", 2: (37.0, 33.0, 59.4), 3: "W", 4: (126.0, 58.0, 40.8)},
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        location = self.callback_client.complete.call_args.args[2]["location"]
+        self.assertAlmostEqual(-37.5665, location["latitude"], places=4)
+        self.assertAlmostEqual(-126.978, location["longitude"], places=4)
+
+    def test_process_ignores_gps_tag_that_is_not_three_rationals(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {},
+                    gps={1: "N", 2: (37.0, 33.0), 3: "E", 4: (126.0, 58.0, 40.8)},
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        self.assertIsNone(self.callback_client.complete.call_args.args[2]["location"])
+
+    def test_process_ignores_out_of_range_coordinates(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {},
+                    gps={1: "N", 2: (91.0, 0.0, 0.0), 3: "E", 4: (126.0, 58.0, 40.8)},
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        self.assertIsNone(self.callback_client.complete.call_args.args[2]["location"])
+
     def test_process_strips_exif_from_uploaded_objects(self) -> None:
         self.given_object(
             webp_bytes(exif=exif_bytes({0x010F: "Apple", 0x0110: "iPhone 15 Pro"}))
