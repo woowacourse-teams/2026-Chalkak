@@ -29,7 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-class PostServiceTest extends IntegrationTestSupport {
+class PostQueryServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID SECOND_USER_ID =
@@ -55,7 +55,7 @@ class PostServiceTest extends IntegrationTestSupport {
             "https://cdn.example.com/dev/signatures/signature-thumbnail.png";
 
     @Autowired
-    private PostService postService;
+    private PostQueryService postQueryService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -133,7 +133,7 @@ class PostServiceTest extends IntegrationTestSupport {
                 .willReturn(SIGNATURE_THUMBNAIL_IMAGE_URL);
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RECENT,
                 null,
@@ -169,7 +169,7 @@ class PostServiceTest extends IntegrationTestSupport {
         insertPostLike();
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RECENT,
                 null,
@@ -192,7 +192,7 @@ class PostServiceTest extends IntegrationTestSupport {
         insertPostLike();
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RECENT,
                 null,
@@ -215,7 +215,7 @@ class PostServiceTest extends IntegrationTestSupport {
         given(randomSeedGenerator.generateRandomSeed()).willReturn("f4c3a091");
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RANDOM,
                 null,
@@ -234,7 +234,7 @@ class PostServiceTest extends IntegrationTestSupport {
     @DisplayName("랜덤 시드를 전달하면 새 시드를 생성하지 않고 기존 시드를 사용한다")
     void getPosts_randomSortWithSeed_reusesRandomSeed() {
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RANDOM,
                 "f4c3a091",
@@ -262,7 +262,7 @@ class PostServiceTest extends IntegrationTestSupport {
         );
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.POPULAR,
                 null,
@@ -289,7 +289,7 @@ class PostServiceTest extends IntegrationTestSupport {
         );
 
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RECENT,
                 null,
@@ -312,7 +312,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPosts(
+                () -> postQueryService.getPosts(
                         unknownTopicDate,
                         PostSort.RECENT,
                         null,
@@ -338,7 +338,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(
+                () -> postQueryService.getPosts(
                         TOPIC_DATE,
                         sort,
                         randomSeed,
@@ -362,7 +362,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(
+                () -> postQueryService.getPosts(
                         futureTopicDate,
                         PostSort.RECENT,
                         null,
@@ -388,7 +388,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         insertPostLike();
 
-        PostDetail result = postService.getPost(POST_ID, USER_ID);
+        PostDetail result = postQueryService.getPost(POST_ID, USER_ID);
 
         // Then
         assertThat(result).isEqualTo(new PostDetail(
@@ -413,7 +413,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPost(UNKNOWN_POST_ID, USER_ID)
+                () -> postQueryService.getPost(UNKNOWN_POST_ID, USER_ID)
         );
 
         // Then
@@ -427,7 +427,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
-                () -> postService.getPost(POST_ID, UNKNOWN_USER_ID)
+                () -> postQueryService.getPost(POST_ID, UNKNOWN_USER_ID)
         );
 
         // Then

@@ -1,60 +1,105 @@
 import hashlib
 import hmac
+import json
 import time
 from collections.abc import Mapping
+from typing import Any
 from urllib import request
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 from image_processor.errors import PermanentCallbackError
 
-
-# 같은 요청을 다시 보내도 결과가 바뀌지 않는 상태들이다. 우리 코드나 설정이 잘못 만든 요청이므로
-# SQS 재시도는 인보케이션만 소모한다. 401·403은 secret 롤링 교체 중 잠깐 날 수 있고 429·408은
-# 명시적으로 재시도 대상이라 제외한다.
 NON_RETRYABLE_STATUSES = frozenset({400, 404, 405, 413, 414, 415})
 
 
-class SignatureProcessingCallbackClient:
+class ProcessingCallbackClient:
+    """
+    이미지 종류별 백엔드 완료·실패 콜백 클라이언트.
+
+    서명 payload가 본문 해시를 포함하므로 본문이 없는 사인 콜백과 EXIF를 싣는 포스트 콜백이 같은 계약을
+    쓴다. 서명한 바이트와 전송하는 바이트가 반드시 같아야 하므로 직렬화는 한 번만 한다.
+    """
+
     def __init__(
         self,
+        kind: str,
         base_urls: Mapping[str, str],
         secret: str,
         timeout_seconds: float,
     ):
+        self._kind = kind
+        self._path_prefix = f"/internal/v1/{kind}"
         self._base_urls = {
             environment: base_url.rstrip("/")
             for environment, base_url in base_urls.items()
         }
+        self._validate_base_urls()
         self._secret = secret.encode()
         self._timeout_seconds = timeout_seconds
 
-    def complete(self, environment: str, upload_id: str) -> None:
-        self._post(environment, upload_id, "complete")
+    def _validate_base_urls(self) -> None:
+        """
+        백엔드는 서명 대상 경로를 자기 컨트롤러 상수로 재구성한다. base URL 경로가 그와 다르면 모든 콜백이
+        401을 받는데, 401은 시크릿 롤링을 고려해 재시도 대상이라 배포 오타 하나가 무한 재시도로 나타난다.
+        기동 시점에 걸러 낸다.
+        """
+        for environment, base_url in self._base_urls.items():
+            if urlsplit(base_url).path != self._path_prefix:
+                raise ValueError(
+                    f"{environment} {self._kind} callback URL path must be "
+                    f"{self._path_prefix}"
+                )
 
-    def failed(self, environment: str, upload_id: str) -> None:
-        self._post(environment, upload_id, "failed")
+    def complete(
+        self,
+        environment: str,
+        upload_id: str,
+        body: Mapping[str, Any] | None = None,
+    ) -> None:
+        self._post(environment, upload_id, "complete", body)
 
-    def _post(self, environment: str, upload_id: str, result: str) -> None:
+    def failed(
+        self,
+        environment: str,
+        upload_id: str,
+        body: Mapping[str, Any] | None = None,
+    ) -> None:
+        self._post(environment, upload_id, "failed", body)
+
+    def _post(
+        self,
+        environment: str,
+        upload_id: str,
+        result: str,
+        body: Mapping[str, Any] | None,
+    ) -> None:
         base_url = self._base_urls.get(environment)
         if base_url is None:
             raise ValueError(f"unsupported image environment: {environment}")
         timestamp = str(int(time.time()))
-        path = f"/internal/v1/signature-processing/{upload_id}/{result}"
-        body = b""
-        body_hash = hashlib.sha256(body).hexdigest()
-        payload = f"{timestamp}\nPOST\n{path}\n{body_hash}".encode()
+        # 서명하는 경로와 요청하는 URL이 같은 출처에서 나와야 둘이 어긋나지 않는다.
+        path = f"{urlsplit(base_url).path}/{upload_id}/{result}"
+        encoded_body = _encode(body)
+        body_hash = hashlib.sha256(encoded_body).hexdigest()
+        # 서명 대상에 대상 환경을 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면
+        # dev용으로 만든 서명이 prod 백엔드에서도 그대로 유효하다.
+        payload = f"{timestamp}\nPOST\n{path}\n{body_hash}\n{environment}".encode()
         signature = "v1=" + hmac.new(
             self._secret,
             payload,
             hashlib.sha256,
         ).hexdigest()
+        headers = {
+            "X-Chalkak-Callback-Timestamp": timestamp,
+            "X-Chalkak-Callback-Signature": signature,
+        }
+        if body is not None:
+            headers["Content-Type"] = "application/json; charset=utf-8"
         callback_request = request.Request(
             url=f"{base_url}/{upload_id}/{result}",
-            data=body,
-            headers={
-                "X-Chalkak-Callback-Timestamp": timestamp,
-                "X-Chalkak-Callback-Signature": signature,
-            },
+            data=encoded_body,
+            headers=headers,
             method="POST",
         )
 
@@ -70,3 +115,14 @@ class SignatureProcessingCallbackClient:
                     f"backend callback rejected with HTTP {error.code}"
                 ) from error
             raise
+
+
+def _encode(body: Mapping[str, Any] | None) -> bytes:
+    """
+    본문을 순수 ASCII로 직렬화한다. 서명은 바이트에 걸리는데 백엔드는 컨버터가 디코딩한 문자열을 다시
+    UTF-8로 인코딩해 해시하므로, non-ASCII가 섞이면 charset 설정에 따라 서명이 어긋난다. 한국어 렌즈명
+    같은 EXIF가 401 무한 재시도를 부르지 않도록 charset에 의존하지 않는 표현으로 보낸다.
+    """
+    if body is None:
+        return b""
+    return json.dumps(body, separators=(",", ":")).encode("ascii")

@@ -8,6 +8,9 @@ spring:
     url: jdbc:postgresql://localhost:${TEST_POSTGRES_PORT:5433}/${TEST_POSTGRES_DB:chalkak_test}
     username: ${TEST_POSTGRES_USER:chalkak}
     password: ${TEST_POSTGRES_PASSWORD:test-password}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
 
   jpa:
     show-sql: false

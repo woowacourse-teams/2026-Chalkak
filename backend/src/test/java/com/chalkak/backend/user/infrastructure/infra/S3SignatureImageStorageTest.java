@@ -37,6 +37,7 @@ class S3SignatureImageStorageTest {
             ROOT_PREFIX,
             ENVIRONMENT,
             new ImageProperties.Signature(1048576L, List.of("image/png")),
+            null,
             false
         )
     );
@@ -71,6 +72,7 @@ class S3SignatureImageStorageTest {
                 ROOT_PREFIX,
                 "prod",
                 new ImageProperties.Signature(1048576L, List.of("image/png")),
+                null,
                 false
             )
         );

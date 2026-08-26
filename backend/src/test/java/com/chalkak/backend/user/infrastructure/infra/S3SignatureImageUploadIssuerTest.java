@@ -74,6 +74,7 @@ class S3SignatureImageUploadIssuerTest {
                 ROOT_PREFIX,
                 environment,
                 null,
+                null,
                 false
         );
     }

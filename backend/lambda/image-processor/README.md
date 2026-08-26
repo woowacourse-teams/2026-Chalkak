@@ -1,6 +1,6 @@
 # Chalkak image processor Lambda
 
-이 디렉터리는 이슈 #101의 사인 이미지 검증·변환 Lambda와 배포 패키지용
+이 디렉터리는 사인·포스트 이미지 검증·변환 Lambda와 배포 패키지용
 CodeBuild 설정을 관리한다. 컨테이너와 ECR은 사용하지 않으며, CodeBuild의 Linux
 환경에서 네이티브 의존성이 포함된 Lambda ZIP을 만든다.
 
@@ -11,21 +11,75 @@ S3 ObjectCreated
   → SQS chalkak-image-processing
   → Lambda chalkak-image-processor
   → staging 하위 디렉터리로 processor 라우팅
-  → PNG 실제 디코딩 및 검증
-  → 메타데이터를 제거한 PNG 재인코딩
+  → 실제 디코딩 및 검증
+  → 메타데이터를 제거한 재인코딩
   → 원본과 썸네일 저장
   → 백엔드 성공·실패 콜백
   → staging 객체 삭제
 ```
 
-현재 Spring 애플리케이션과 공유하는 S3 키 계약은 다음과 같다.
+Spring 애플리케이션과 공유하는 S3 키 계약은 종류마다 다르다.
 
 ```text
-입력(dev)   chalkak/staging/dev/signatures/{uploadId}.png
-입력(prod)  chalkak/staging/prod/signatures/{uploadId}.png
-원본         chalkak/signatures/{environment}/original/{uploadId}.png
-썸네일       chalkak/signatures/{environment}/thumbnail/{uploadId}.png
+사인 입력    chalkak/staging/{environment}/signatures/{uploadId}.png
+사인 원본    chalkak/signatures/{environment}/original/{uploadId}.png
+사인 썸네일  chalkak/signatures/{environment}/thumbnail/{uploadId}.png
+
+포스트 입력   chalkak/staging/{environment}/posts/{uploadId}.webp
+포스트 원본   chalkak/posts/{environment}/original/{uploadId}.webp
+포스트 썸네일 chalkak/posts/{environment}/thumbnail/{uploadId}.webp
 ```
+
+`{environment}`는 `dev` 또는 `prod`이며 어느 백엔드로 콜백할지를 결정한다.
+
+## 종류별 검증 규칙
+
+| 항목 | 사인 | 포스트 |
+| --- | --- | --- |
+| 허용 포맷 | PNG | WebP 전용 |
+| 최대 용량 | 1 MiB | 5 MiB |
+| 해상도 | 제한 | 자유. 디코딩 픽셀 상한만 유지 |
+| 애니메이션 | 해당 없음 | 거절 |
+| 썸네일 최대 변 | 512px | 1080px |
+| 콜백 경로 | `/internal/v1/signature-processing` | `/internal/v1/post-image-processing` |
+| 콜백 본문 | 없음 | EXIF 메타데이터 JSON |
+
+해상도가 자유라는 것은 종횡비와 크기를 제한하지 않겠다는 뜻이지 압축 폭탄으로
+Lambda 메모리를 넘겨도 된다는 뜻이 아니다. `POST_MAX_PIXELS`는 유지한다.
+
+출력은 항상 손실 WebP로 다시 인코딩한다(`POST_WEBP_QUALITY`). 무손실로 올린 이미지도
+손실로 바뀌고, 이미 손실 압축된 이미지는 세대 손실이 한 번 더 누적된다. EXIF를 제거하고
+방향을 픽셀에 반영하려면 어차피 다시 인코딩해야 하므로 감수하는 트레이드오프다.
+
+## 포스트 이미지 메타데이터
+
+포스트 원본은 EXIF를 **읽어서 백엔드로 보내고 출력 객체에서는 제거한다.**
+위치와 기종 정보가 공개 이미지에 남으면 안 되지만 서비스에는 필요하기 때문이다.
+회전 방향은 `ImageOps.exif_transpose()`로 픽셀에 적용한 뒤 EXIF를 버린다.
+
+완료 콜백 본문은 다음과 같다.
+
+```json
+{
+  "width": 4032,
+  "height": 3024,
+  "byteSize": 812345,
+  "location": { "latitude": 37.5665, "longitude": 126.9780 },
+  "capturedAt": "2026-08-20T11:02:31+09:00",
+  "metaAttributes": { "Make": "Apple", "Model": "iPhone 15 Pro" }
+}
+```
+
+`metaAttributes`는 나머지 EXIF 태그의 평평한 map이며 직렬화 결과가
+`POST_METADATA_MAX_BYTES`를 넘으면 절단하고 `_truncated`를 넣는다.
+
+> **클라이언트가 WebP로 변환하면서 EXIF를 지울 수 있다.** 브라우저의
+> `canvas.toBlob('image/webp')`는 EXIF chunk를 쓰지 않으므로, 촬영 원본을
+> 캔버스로 변환해 올리면 추출할 메타데이터가 존재하지 않는다. 이때 세 필드는
+> 각각 `null`, `null`, `{}`가 되고 나머지 처리는 정상 동작한다.
+
+실패 콜백 본문은 `{"reason": "..."}`이며 값은 `UNSUPPORTED_FORMAT`,
+`ANIMATED_IMAGE`, `TOO_LARGE`, `TOO_MANY_PIXELS`, `MISSING_OBJECT`다.
 
 S3 이벤트 알림의 prefix는 기존 `chalkak/staging/`를 그대로 유지한다.
 Lambda는 입력 키의 `environment`를 읽어 같은 환경의 결과 경로와 백엔드
@@ -63,17 +117,14 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 게시물 목록에서 깨진 이미지로 노출된다. 그래서 출력 객체 저장이 끝난
 뒤에만 콜백으로 승격한다.
 
-이슈 #101은 사인 처리만 포함한다. 포스트 이미지 처리를 추가할 때는
-`image_processor` 아래에 별도 프로세서를 추가하고 handler에서 staging 경로에 따라
-라우팅한다. 현재도 `staging/{environment}/signatures/`와
-`staging/{environment}/posts/`를 라우터가
-구분하며, posts는 processor가 아직 없어 반려한다. 같은 SQS 큐에 소비
-Lambda를 하나 더 연결해서 메시지를 나누면 안 된다.
+사인과 포스트는 하나의 Lambda가 처리하고 `ImageProcessorRouter`가 staging 경로로
+프로세서를 고른다. 같은 SQS 큐에 소비 Lambda를 하나 더 연결해서 메시지를 나누면
+안 된다.
 
 ## 실패 정책
 
-- 크기 초과, 손상 파일, PNG가 아닌 파일은 실패 콜백 2xx 확인 후 staging 객체를
-  삭제하고 메시지를 정상 종료한다.
+- 크기 초과, 손상 파일, 종류별 허용 포맷이 아닌 파일은 실패 콜백 2xx 확인 후 staging 객체를 지우고
+  메시지를 정상 종료한다.
 - 잘못된 버킷·키처럼 신뢰할 업로드 ID를 추출할 수 없는 이벤트는 콜백 없이 반려한다.
 - S3 timeout과 5xx처럼 복구 가능한 실패는 예외를 전파해 SQS가 다시 전달하게 한다.
 - 원본과 썸네일 저장과 성공 콜백이 모두 성공한 뒤에만 staging 객체를 삭제한다.
@@ -83,6 +134,25 @@ Lambda를 하나 더 연결해서 메시지를 나누면 안 된다.
   요청이라는 뜻이므로 CloudWatch 오류 로그가 유일한 단서다.
 - `401`, `403`은 secret 롤링 교체 중 잠깐 날 수 있고 `408`, `429`는 명시적 재시도 대상이라
   재시도한다.
+- 출력 키는 한 번만 쓴다. presigned URL은 만료 전까지 재사용할 수 있어, 게시물이 승인된 뒤에도
+  같은 staging 키에 다른 이미지를 올리면 공개 이미지가 바뀐다. 조건부 쓰기가 걸리면 기존 객체를
+  그대로 두고 완료 콜백만 이어 간다.
+- 완료 콜백이 영구 거부되면 이미 처리된 이미지가 어디에도 연결되지 않는다. 실패 콜백으로 상태를
+  닫아 사용자가 다시 올릴 수 있게 하고, 원본 staging은 수동 복구를 위해 남긴다.
+- DLQ 없이 운영한다. 대신 `SQS_MAX_RECEIVE_COUNT`를 애플리케이션에서 확인해, 수신 횟수가 상한에
+  도달한 메시지는 실패 콜백으로 상태를 닫고 staging을 정리한 뒤 정상 종료한다. 이 자리가 없으면
+  복구 불가능한 예외 하나가 메시지 보존 기간이 끝날 때까지 같은 이미지를 재처리한다.
+- 포기한 메시지는 `image_processing_abandoned` 이벤트로 남는다. DLQ가 없으므로 이 로그가 유일한
+  단서이며, CloudWatch 알람 대상으로 삼아야 한다.
+
+검증에서 반려된 staging 객체는 실패 콜백을 보낸 뒤 삭제한다. EXIF를 제거하기 전 사용자
+원본이라 위치·촬영 시각·기종이 그대로 남아 있어, 아무도 참조하지 않는 개인정보를 버킷에
+방치하지 않기 위함이다.
+
+그래도 `chalkak/staging/` prefix에 1~2일짜리 lifecycle 만료 규칙은 필요하다. 발급만 받고
+업로드하지 않은 claim, 삭제에 실패한 객체, 라우팅 단계에서 반려돼 업로드 ID를 알 수 없는
+객체는 여전히 남는다. 거절된 업로드의 staging 키에 유효한 presigned URL로 다시 PUT하면
+아무도 참조하지 않는 결과 객체가 생기므로 `chalkak/posts/` prefix에도 정리 규칙을 고려한다.
 - 출력 키가 결정적이므로 같은 메시지가 다시 전달돼도 동일한 객체를 덮어쓴다.
 - 현재 DLQ를 사용하지 않으므로 CloudWatch에서 Lambda 오류와 SQS 적체를 확인해야 한다.
 
@@ -101,11 +171,22 @@ lifecycle 만료 규칙은 사용자가 업로드 후 이탈하거나 오류가 
 | `SIGNATURE_MAX_BYTES` | `1048576` | 사인 입력 최대 크기 1 MiB |
 | `SIGNATURE_MAX_PIXELS` | `25000000` | 압축 폭탄 방지용 최대 픽셀 수 |
 | `SIGNATURE_THUMBNAIL_MAX_SIZE` | `512` | 썸네일 가로·세로 최대 길이 |
-| `SIGNATURE_CACHE_CONTROL` | `public, max-age=86400` | 결과 객체 Cache-Control |
+| `SIGNATURE_CACHE_CONTROL` | `public, max-age=86400` | 사인 결과 객체 Cache-Control |
+| `POST_MAX_BYTES` | `5242880` | 포스트 입력 최대 크기 5 MiB |
+| `POST_MAX_PIXELS` | `25000000` | 압축 폭탄 방지용 최대 픽셀 수 |
+| `POST_THUMBNAIL_MAX_SIZE` | `1080` | 포스트 썸네일 가로·세로 최대 길이 |
+| `POST_WEBP_QUALITY` | `85` | 포스트 원본 WebP 품질 |
+| `POST_THUMBNAIL_WEBP_QUALITY` | `80` | 포스트 썸네일 WebP 품질 |
+| `POST_METADATA_MAX_BYTES` | `8192` | 콜백에 싣는 `metaAttributes` 직렬화 상한 |
+| `POST_CACHE_CONTROL` | `public, max-age=86400` | 포스트 결과 객체 Cache-Control |
 | `DEV_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 dev 백엔드 HTTPS URL |
 | `PROD_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 prod 백엔드 HTTPS URL |
-| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키 |
+| `DEV_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 dev 백엔드 HTTPS URL |
+| `PROD_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 prod 백엔드 HTTPS URL |
+| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키. 서명 대상에 대상 환경이 들어가므로 dev용 서명이 prod에 통하지는 않지만, 환경별로 다른 값을 두는 편이 더 안전하다 |
 | `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
+| `SQS_PARTIAL_BATCH_RESPONSE` | `false` | 실패한 메시지만 큐에 되돌린다. 이벤트 소스 매핑에 `ReportBatchItemFailures`를 켠 뒤에만 `true`로 둔다 |
+| `SQS_MAX_RECEIVE_COUNT` | `5` | 이 횟수만큼 다시 받은 메시지는 포기하고 실패 콜백으로 닫는다. DLQ의 `maxReceiveCount`를 대신한다 |
 
 ### 배포 순서
 
@@ -115,6 +196,9 @@ lifecycle 만료 규칙은 사용자가 업로드 후 이탈하거나 오류가 
 3. Lambda에 `DEV_BACKEND_CALLBACK_URL`, `PROD_BACKEND_CALLBACK_URL`, 같은
    `IMAGE_PROCESSOR_CALLBACK_SECRET`, `BACKEND_CALLBACK_TIMEOUT_SECONDS`를 설정한다.
 4. Lambda 코드를 배포하고 성공·실패 콜백이 204를 받는지 확인한다.
+
+서명 대상 문자열은 백엔드와 Lambda가 함께 바뀌어야 한다. 한쪽만 배포하면 모든 콜백이 401을
+받고, 401은 재시도 대상이라 큐가 계속 회전한다.
 
 Lambda를 먼저 배포하면 필수 환경 변수 누락 또는 콜백 API 미배포로
 SQS 재시도가 반복될 수 있다. HTTP 콜백은 추가 IAM 권한을 필요로

@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import Mock, patch
 
@@ -6,12 +7,17 @@ import handler
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 
 
-def sqs_event(body: dict, message_id: str = "message-1") -> dict:
+def sqs_event(
+    body: dict,
+    message_id: str = "message-1",
+    receive_count: int = 1,
+) -> dict:
     return {
         "Records": [
             {
                 "messageId": message_id,
                 "body": json.dumps(body),
+                "attributes": {"ApproximateReceiveCount": str(receive_count)},
             }
         ]
     }
@@ -109,6 +115,98 @@ class LambdaHandlerTest(unittest.TestCase):
         with patch.object(handler.LOGGER, "exception"):
             with self.assertRaises(TimeoutError):
                 handler.lambda_handler(sqs_event(s3_body()), None)
+
+
+    def test_handler_reports_failed_message_when_partial_batch_is_enabled(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            with patch.object(handler.LOGGER, "exception"):
+                result = handler.lambda_handler(sqs_event(s3_body()), None)
+
+        self.assertEqual(
+            {"batchItemFailures": [{"itemIdentifier": "message-1"}]},
+            result,
+        )
+
+    def test_handler_reports_no_failures_when_partial_batch_is_enabled(self) -> None:
+        handler._processor = Mock()
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            result = handler.lambda_handler(sqs_event(s3_body()), None)
+
+        self.assertEqual({"batchItemFailures": []}, result)
+
+    def test_handler_keeps_only_failed_message_in_batch(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = [None, TimeoutError("S3 timeout")]
+        handler._processor = processor
+        event = sqs_event(s3_body())
+        second = {"messageId": "message-2", "body": event["Records"][0]["body"]}
+        event["Records"].append(second)
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            with patch.object(handler.LOGGER, "exception"):
+                result = handler.lambda_handler(event, None)
+
+        self.assertEqual(
+            {"batchItemFailures": [{"itemIdentifier": "message-2"}]},
+            result,
+        )
+
+
+    def test_handler_abandons_message_at_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with patch.object(handler.LOGGER, "error"):
+                result = handler.lambda_handler(
+                    sqs_event(s3_body(), receive_count=5), None
+                )
+
+        self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
+        processor.abandon.assert_called_once()
+
+    def test_handler_retries_below_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with self.assertRaises(TimeoutError):
+                handler.lambda_handler(sqs_event(s3_body(), receive_count=4), None)
+
+        processor.abandon.assert_not_called()
+
+    def test_handler_honours_configured_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.dict(os.environ, {"SQS_MAX_RECEIVE_COUNT": "2"}):
+            with patch.object(handler.LOGGER, "exception"):
+                with patch.object(handler.LOGGER, "error"):
+                    handler.lambda_handler(sqs_event(s3_body(), receive_count=2), None)
+
+        processor.abandon.assert_called_once()
+
+    def test_handler_does_not_revive_message_when_abandon_fails(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        processor.abandon.side_effect = RuntimeError("callback down")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with patch.object(handler.LOGGER, "error"):
+                result = handler.lambda_handler(
+                    sqs_event(s3_body(), receive_count=9), None
+                )
+
+        self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
 
 
 if __name__ == "__main__":

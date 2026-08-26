@@ -172,6 +172,12 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 운영 환경에서는 API 문서 JSON과 Swagger UI를 모두 비활성화한다.
 
+게시물 생성 API는 임시 인증을 사용하는 동안 로컬·개발 환경의 `user-api`
+그룹에만 표시한다. 생성 전용 `PostCreationApiDocs`를 기존 공개 조회용
+`PostApiDocs`와 분리하므로 `prod`에서 생성 API를 제외해도 게시물 목록·상세
+조회는 유지된다. 요청·응답과 이미지 키 계약은
+[`docs/post-create-api-design.md`](docs/post-create-api-design.md)를 참고한다.
+
 Spring Boot 4 지원과 최신 기능을 위해 `springdoc-openapi` 3.1.0을 유지한다. 다만 이 버전은 Bean Validation 제약이 붙은 숫자 파라미터를 문서화할 때 경고 로그를 출력하는 [알려진 회귀 문제](https://github.com/springdoc/springdoc-openapi/issues/3314)가 있다. 현재 문서 응답과 스키마 생성에는 문제가 없으므로 하위 버전으로 내리지 않고, [수정 PR](https://github.com/springdoc/springdoc-openapi/pull/3315)이 반영된 정식 버전이 나오면 업그레이드한다.
 
 ## 임시 인증
@@ -214,15 +220,57 @@ Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도�
 {bucket}/chalkak/
 ├── staging/{environment}/
 │   ├── signatures/{uploadId}.png       사인 업로드 직후. Lambda 처리 대기
-│   └── posts/                          포스트 이미지 임시 경로 (처리기 미구현)
-└── signatures/{environment}/
-    ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
-    └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
+│   └── posts/{uploadId}.webp           포스트 업로드 직후. 처리·검수 대기
+├── signatures/{environment}/
+│   ├── original/{uploadId}.png         Lambda가 만든 검증 통과 원본
+│   └── thumbnail/{uploadId}.png        Lambda가 만든 썸네일
+└── posts/{environment}/
+    ├── original/{uploadId}.webp        포스트 처리 후 원본 경로
+    └── thumbnail/{uploadId}.webp       포스트 처리 후 썸네일 경로
 ```
 
 - `{environment}`는 `dev` 또는 `prod`다. 하나의 Lambda가 두 환경을 함께 처리하므로, **입력 키의 이 세그먼트가 어느 백엔드로 콜백할지를 결정한다.**
+- 확장자도 종류별 계약이다. 사인은 PNG, **포스트는 WebP 전용**이다.
 - 하위 폴더 구조는 Lambda와 공유하는 약속이라 코드 상수다. 설정으로 두는 것은 `S3_PREFIX`(전 환경 `chalkak`)와 환경 세그먼트뿐이다.
 - CloudFront 오리진이 `{bucket}/chalkak`을 가리키므로 **공개 URL에는 `chalkak/`이 들어가지 않는다.** `CLOUDFRONT_ORIGIN_PATH`가 이 값을 잡는다.
+
+### 포스트 생성 파이프라인
+
+포스트 이미지도 사인처럼 Lambda 완료를 기다리지 않는다. 대신 **presigned URL을
+발급하는 시점에 `post_image_uploads` 행을 먼저 만든다.** 행이 항상 먼저
+존재하므로 완료 콜백과 게시물 생성 요청 중 어느 쪽이 먼저 도착해도 상대가 남긴
+상태를 읽는다. 순서 경쟁 자체가 사라진다.
+
+```text
+POST /api/v1/posts/uploads            ISSUED claim 행 생성, presigned URL 발급
+  → 클라이언트가 staging에 WebP PUT
+  → S3 ObjectCreated → SQS → Lambda    WebP 검증, 원본·썸네일 생성, EXIF 추출
+  → POST /internal/v1/post-image-processing/{uploadId}/complete
+                                       claim을 READY로 올리고 EXIF 보관
+  → Lambda가 staging 객체 삭제          콜백 2xx를 받은 뒤에만
+
+POST /api/v1/posts                    claim 상태에 따라 분기
+  READY   → APPROVED 게시물로 즉시 생성. 썸네일 키·메타데이터 반영
+  ISSUED  → VALIDATING 게시물로 생성. 완료 콜백이 APPROVED로 승격
+  REJECTED→ 400. 거절 사유별 메시지
+```
+
+게시물 생성 요청은 `photoUploadId`만 받고 bucket, environment, storage key는
+받지 않는다. 제목은 선택값이며 생략, `null`, 빈 문자열, 공백 문자열을 모두
+`null`로 저장하고 최대 10자로 제한한다. 작성자는 삭제되지 않은 `ACTIVE`
+사용자여야 하며 주제 참여 구간은 `startsAt <= now < endsAt`인 `OPEN` 상태다.
+
+claim은 `SELECT ... FOR UPDATE`로 잠그고 `claimed_at`을 기록해 소비한다.
+**다른 회원의 uploadId는 권한 없음이 아니라 `404`로 답한다.** 존재 여부를
+알려주지 않기 위해서다. 사전 중복 검사 뒤에도 DB 유니크 제약을 최종 동시성
+방어선으로 사용한다.
+
+EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다. 위치와 촬영
+시각, 기종 정보는 `photos.metadata`에만 남으며 **공개 조회 응답에는 포함하지
+않는다.**
+
+콜백이 유실되면 `VALIDATING` 게시물이 남는다. 정합성 보정 스윕은 후속
+범위다.
 
 ### 사인 처리 파이프라인
 

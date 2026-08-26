@@ -11,8 +11,10 @@ UPLOAD_ID = "0198d999-ff00-7000-8000-000000000001"
 class ImageProcessorRouterTest(unittest.TestCase):
     def setUp(self) -> None:
         self.signature_processor = Mock()
+        self.post_processor = Mock()
         self.router = ImageProcessorRouter(
             signature_processor=self.signature_processor,
+            post_processor=self.post_processor,
             root_prefix="chalkak",
         )
 
@@ -23,12 +25,12 @@ class ImageProcessorRouterTest(unittest.TestCase):
 
         self.signature_processor.process.assert_called_once_with(event)
 
-    def test_process_rejects_posts_until_post_processor_is_implemented(self) -> None:
+    def test_process_routes_post_directory_to_post_processor(self) -> None:
         event = created_event(f"chalkak/staging/prod/posts/{UPLOAD_ID}.webp")
 
-        with self.assertRaisesRegex(RejectedImageError, "not implemented"):
-            self.router.process(event)
+        self.router.process(event)
 
+        self.post_processor.process.assert_called_once_with(event)
         self.signature_processor.process.assert_not_called()
 
     def test_process_rejects_unknown_staging_directory(self) -> None:
@@ -38,6 +40,7 @@ class ImageProcessorRouterTest(unittest.TestCase):
             self.router.process(event)
 
         self.signature_processor.process.assert_not_called()
+        self.post_processor.process.assert_not_called()
 
     def test_process_rejects_unsupported_environment(self) -> None:
         event = created_event(f"chalkak/staging/test/signatures/{UPLOAD_ID}.png")

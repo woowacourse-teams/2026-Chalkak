@@ -12,7 +12,7 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostListResult;
-import com.chalkak.backend.post.service.PostService;
+import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostSort;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -42,7 +42,7 @@ class PostControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PostService postService;
+    private PostQueryService postQueryService;
 
     @Test
     @DisplayName("특정 날짜의 게시물 목록을 기본 조회 조건으로 조회한다")
@@ -66,7 +66,7 @@ class PostControllerTest {
                         false
                 ))
         );
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
@@ -125,7 +125,7 @@ class PostControllerTest {
                         true
                 ))
         );
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
@@ -154,7 +154,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -169,7 +169,7 @@ class PostControllerTest {
                 "f4c3a091",
                 List.of()
         );
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 null,
@@ -193,7 +193,7 @@ class PostControllerTest {
         // Given
         LocalDate topicDate = LocalDate.of(2026, 8, 12);
         PostListResult result = new PostListResult(1, 20, false, null, List.of());
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.POPULAR,
                 null,
@@ -222,7 +222,7 @@ class PostControllerTest {
                 "f4c3a091",
                 List.of()
         );
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 "f4c3a091",
@@ -263,7 +263,7 @@ class PostControllerTest {
                         .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
@@ -271,7 +271,7 @@ class PostControllerTest {
             delimiter = '|',
             value = {
                     "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
-                    "randomSeed | seed! | randomSeed: 조회 조건이 올바르지 않습니다."
+                    "randomSeed | seed! | 조회 조건이 올바르지 않습니다."
             }
     )
     @DisplayName("목록 조회 파라미터 형식이 올바르지 않으면 잘못된 요청을 반환한다")
@@ -287,7 +287,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(expectedMessage));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -304,8 +304,8 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
-                        .value("randomSeed: 조회 조건이 올바르지 않습니다."));
-        then(postService).shouldHaveNoInteractions();
+                        .value("조회 조건이 올바르지 않습니다."));
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -318,7 +318,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
                         .value("topicDate: 요청 값의 형식이 올바르지 않습니다."));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -328,7 +328,7 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -349,7 +349,7 @@ class PostControllerTest {
                 43L,
                 true
         );
-        given(postService.getPost(POST_ID, USER_ID)).willReturn(detail);
+        given(postQueryService.getPost(POST_ID, USER_ID)).willReturn(detail);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID)
@@ -379,7 +379,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -391,7 +391,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -403,14 +403,14 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postService).shouldHaveNoInteractions();
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("공개 가능한 게시물이 없으면 404 응답을 반환한다")
     void getPost_invisiblePost_returnsNotFound() throws Exception {
         // Given
-        given(postService.getPost(POST_ID, USER_ID)).willThrow(new NotFoundException(
+        given(postQueryService.getPost(POST_ID, USER_ID)).willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR,
                 "게시물을 찾을 수 없습니다."
         ));

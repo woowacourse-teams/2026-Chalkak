@@ -36,7 +36,15 @@ class GlobalExceptionHandlerTest {
                         .content("{\"name\":\"\",\"type\":\"POST\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("name: 이름은 비어 있을 수 없습니다."));
+                .andExpect(jsonPath("$.message").value("이름은 비어 있을 수 없습니다."));
+    }
+
+    @Test
+    void typeMismatchFailureKeepsFieldName() throws Exception {
+        mockMvc.perform(get("/test/count").queryParam("count", "한글"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("count: 요청 값의 형식이 올바르지 않습니다."));
     }
 
     @Test

@@ -26,17 +26,21 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 게시물 단건·목록 조회. 공개된 게시물만 다루므로 상태를 바꾸지 않고, 잠금도 필요 없다. 상태를 바꾸는 흐름은
+ * {@link PostCommandService}가 맡는다.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class PostService {
+public class PostQueryService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final PostRepository postRepository;
     private final TopicRepository topicRepository;
-    private final PostLikeRepository postLikeRepository;
     private final UserRepository userRepository;
+    private final PostLikeRepository postLikeRepository;
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
 
