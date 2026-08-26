@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,9 @@ class Settings:
     prod_callback_base_url: str = ""
     dev_post_callback_base_url: str = ""
     prod_post_callback_base_url: str = ""
-    callback_secret: str = ""
+    # dataclass가 자동 생성하는 __repr__은 모든 필드를 값째로 찍는다. 디버그 로그 한 줄이나
+    # 이 객체를 담은 traceback 하나로 HMAC 시크릿이 CloudWatch에 평문으로 남지 않게 제외한다.
+    callback_secret: str = field(default="", repr=False)
     callback_timeout_seconds: float = 3.0
 
     @classmethod

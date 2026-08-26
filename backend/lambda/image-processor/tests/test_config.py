@@ -6,6 +6,19 @@ from image_processor.config import Settings
 
 
 class SettingsTest(unittest.TestCase):
+    def test_repr_hides_callback_secret(self) -> None:
+        settings = Settings(
+            expected_bucket="bucket",
+            root_prefix="chalkak",
+            max_input_bytes=1,
+            max_image_pixels=1,
+            thumbnail_max_size=1,
+            cache_control="no-cache",
+            callback_secret="super-secret-value-that-must-not-leak",
+        )
+
+        self.assertNotIn("super-secret-value-that-must-not-leak", repr(settings))
+
     def test_from_environment_uses_backend_s3_variable_names(self) -> None:
         environment = {
             "S3_BUCKET": "chalkak-test-bucket",
