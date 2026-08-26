@@ -39,7 +39,9 @@ public record PostListResponse(
             @Schema(description = "변환된 사인 이미지 썸네일 URL", nullable = true)
             String signatureThumbnailImageUrl,
             String title,
-            Instant submittedAt
+            Instant submittedAt,
+            long likeCount,
+            boolean isLiked
     ) {
 
         private static PostResponse fromPostListResult(PostListResult.PostSummary post) {
@@ -50,7 +52,9 @@ public record PostListResponse(
                     post.signatureOriginalImageUrl(),
                     post.signatureThumbnailImageUrl(),
                     post.title(),
-                    post.submittedAt()
+                    post.submittedAt(),
+                    post.likeCount(),
+                    post.isLiked()
             );
         }
     }
