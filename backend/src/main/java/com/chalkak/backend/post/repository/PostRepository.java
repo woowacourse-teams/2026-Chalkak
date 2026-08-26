@@ -20,4 +20,10 @@ public interface PostRepository {
             int page,
             int pageSize
     );
+
+    PostSlice findVisiblePopularByTopicId(
+            UUID topicId,
+            int page,
+            int pageSize
+    );
 }

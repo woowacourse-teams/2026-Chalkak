@@ -32,9 +32,13 @@ import org.springframework.transaction.annotation.Transactional;
 class PostServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID SECOND_USER_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID SECOND_POST_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final UUID UNKNOWN_POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID UNKNOWN_POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f7");
     private static final UUID UNKNOWN_USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
     private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
 
@@ -245,6 +249,37 @@ class PostServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("공개 게시물을 좋아요 개수가 많은 순서로 조회한다")
+    void getPosts_popularSort_returnsPopularPostList() {
+        // Given
+        insertSecondVisiblePost();
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?), (?, ?)",
+                POST_ID,
+                USER_ID,
+                POST_ID,
+                SECOND_USER_ID
+        );
+
+        // When
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.POPULAR,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
+
+        // Then
+        assertThat(result.posts()).extracting(PostListResult.PostSummary::id)
+                .containsExactly(POST_ID, SECOND_POST_ID);
+        assertThat(result.posts()).extracting(PostListResult.PostSummary::likeCount)
+                .containsExactly(2L, 0L);
+        assertThat(result.randomSeed()).isNull();
+    }
+
+    @Test
     @DisplayName("주제는 있지만 공개 게시물이 없으면 빈 목록을 반환한다")
     void getPosts_withoutVisiblePosts_returnsEmptyList() {
         // Given
@@ -408,10 +443,54 @@ class PostServiceTest extends IntegrationTestSupport {
         );
     }
 
+    private void insertSecondVisiblePost() {
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key,
+                    signature_thumbnail_storage_key, created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                    'post-service-2@example.com',
+                    'ACTIVE',
+                    'chalkak/dev/signatures/signature-2.png',
+                    'chalkak/dev/signatures/signature-thumbnail-2.png',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO photos (
+                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                    'chalkak/dev/posts/original-2.jpg',
+                    'chalkak/dev/posts/thumbnail-2.jpg',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO posts (
+                    id, user_id, topic_id, photo_id, title, moderation_status,
+                    created_at, updated_at
+                ) VALUES (
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                    '두 번째 순간',
+                    'APPROVED',
+                    '2026-08-12T04:00:00Z',
+                    CURRENT_TIMESTAMP
+                )
+                """);
+    }
+
     private static Stream<Arguments> invalidRandomSeedCombinations() {
         return Stream.of(
                 Arguments.of(PostSort.RECENT, "f4c3a091", 1),
-                Arguments.of(PostSort.RANDOM, null, 2)
+                Arguments.of(PostSort.RANDOM, null, 2),
+                Arguments.of(PostSort.POPULAR, "f4c3a091", 1)
         );
     }
 }

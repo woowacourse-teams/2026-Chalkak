@@ -68,6 +68,9 @@ public class PostService {
         if (sort == PostSort.RANDOM) {
             return getRandomPosts(topic, randomSeed, page, pageSize, userId);
         }
+        if (sort == PostSort.POPULAR) {
+            return getPopularPosts(topic, page, pageSize, userId);
+        }
 
         return getRecentPosts(topic, page, pageSize, userId);
     }
@@ -95,6 +98,27 @@ public class PostService {
                 page,
                 pageSize,
                 effectiveRandomSeed,
+                userId
+        );
+    }
+
+    private PostListResult getPopularPosts(
+            Topic topic,
+            int page,
+            int pageSize,
+            Optional<UUID> userId
+    ) {
+        PostSlice postSlice = postRepository.findVisiblePopularByTopicId(
+                topic.getId(),
+                page - 1,
+                pageSize
+        );
+
+        return createPostListResult(
+                postSlice,
+                page,
+                pageSize,
+                null,
                 userId
         );
     }
@@ -191,12 +215,12 @@ public class PostService {
             String randomSeed,
             int page
     ) {
-        boolean hasSeedWithRecentSort = sort == PostSort.RECENT && randomSeed != null;
+        boolean hasSeedWithoutRandomSort = sort != PostSort.RANDOM && randomSeed != null;
         boolean isSeedMissingAfterFirstRandomPage = sort == PostSort.RANDOM
                 && page > 1
                 && randomSeed == null;
 
-        if (hasSeedWithRecentSort
+        if (hasSeedWithoutRandomSort
                 || isSeedMissingAfterFirstRandomPage) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,

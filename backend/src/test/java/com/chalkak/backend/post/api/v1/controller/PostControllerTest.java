@@ -188,6 +188,29 @@ class PostControllerTest {
     }
 
     @Test
+    @DisplayName("소문자 인기순 정렬 파라미터를 enum으로 변환한다")
+    void getPosts_popularSort_bindsPostSortEnum() throws Exception {
+        // Given
+        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        PostListResult result = new PostListResult(1, 20, false, null, List.of());
+        given(postService.getPosts(
+                topicDate,
+                PostSort.POPULAR,
+                null,
+                1,
+                20,
+                Optional.empty()
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .queryParam("topicDate", "2026-08-12")
+                        .queryParam("sort", "popular"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts").isEmpty());
+    }
+
+    @Test
     @DisplayName("랜덤 다음 페이지 조회 조건을 서비스에 전달한다")
     void getPosts_randomNextPage_passesQueryParameters() throws Exception {
         // Given
@@ -247,7 +270,6 @@ class PostControllerTest {
     @CsvSource(
             delimiter = '|',
             value = {
-                    "sort | popular | sort: 요청 값의 형식이 올바르지 않습니다.",
                     "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
                     "randomSeed | seed! | randomSeed: 조회 조건이 올바르지 않습니다."
             }
