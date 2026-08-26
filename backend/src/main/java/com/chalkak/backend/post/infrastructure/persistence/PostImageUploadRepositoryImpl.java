@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
 import com.chalkak.backend.post.domain.PostImageUpload;
+import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,5 +22,10 @@ public class PostImageUploadRepositoryImpl implements PostImageUploadRepository 
     @Override
     public Optional<PostImageUpload> findByIdForUpdate(UUID uploadId) {
         return postImageUploadJpaRepository.findByIdForUpdate(uploadId);
+    }
+
+    @Override
+    public Optional<PostImageUploadStatus> findStatusByIdAndUserId(UUID uploadId, UUID userId) {
+        return postImageUploadJpaRepository.findStatusByIdAndUserId(uploadId, userId);
     }
 }

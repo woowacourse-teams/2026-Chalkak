@@ -8,6 +8,7 @@ import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
+import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
@@ -91,10 +92,19 @@ public class PostService {
         validateTopicOpen(topic);
         validatePostNotCreated(userId, topicId, Instant.now());
 
+        // S3 확인은 왕복이 길 수 있다. 업로드 행에 비관적 락을 잡은 채 기다리면 같은 업로드의 처리 콜백이
+        // 그동안 락 대기에 묶이므로 락 밖에서 먼저 확인한다.
+        boolean stagingImageExists = needsStagingImageCheck(userId, photoUploadId)
+                && postImageStorage.existsUploadedImage(photoUploadId);
+
         PostImageUpload upload = getClaimableUpload(userId, photoUploadId);
         upload.claim(Instant.now());
-        if (!upload.isProcessed()) {
-            validateUploadedImageExists(photoUploadId);
+        // 확인한 뒤에 처리가 끝나 staging이 지워졌을 수 있으므로 최종 판정은 락 안에서 읽은 상태로 한다.
+        if (!upload.isProcessed() && !stagingImageExists) {
+            throw new NotFoundException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "업로드한 사진을 찾을 수 없습니다."
+            );
         }
 
         String originalStorageKey = postImageStorage.toOriginalStorageKey(photoUploadId);
@@ -304,13 +314,14 @@ public class PostService {
                 ));
     }
 
-    private void validateUploadedImageExists(UUID photoUploadId) {
-        if (!postImageStorage.existsUploadedImage(photoUploadId)) {
-            throw new NotFoundException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "업로드한 사진을 찾을 수 없습니다."
-            );
-        }
+    /**
+     * 이미 처리가 끝났으면 staging 객체는 지워진 뒤라 확인할 필요가 없고, 없거나 남의 업로드면 어차피
+     * {@link #getClaimableUpload}가 없는 것으로 답하므로 S3까지 갈 이유가 없다.
+     */
+    private boolean needsStagingImageCheck(UUID userId, UUID photoUploadId) {
+        return postImageUploadRepository.findStatusByIdAndUserId(photoUploadId, userId)
+                .filter(status -> status != PostImageUploadStatus.READY)
+                .isPresent();
     }
 
     private void validatePhotoNotUsed(String originalStorageKey) {
