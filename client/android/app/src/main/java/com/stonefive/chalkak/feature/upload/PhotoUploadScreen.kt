@@ -5,16 +5,24 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.imeNestedScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,8 +33,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +56,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
 import java.io.File
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun PhotoUploadRoute(
@@ -103,19 +120,63 @@ private class PhotoPickerState(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PhotoUploadScreen(
     uiState: PhotoUploadUiState,
     onAction: (PhotoUploadUiAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val captionScrollState = rememberScrollState()
+    var isCaptionFocused by remember { mutableStateOf(false) }
+    var isBackPending by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val imeTargetBottom = WindowInsets.imeAnimationTarget.getBottom(density)
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isCaptionFocused, imeTargetBottom) {
+        if (isCaptionFocused && imeTargetBottom > 0) {
+            snapshotFlow { captionScrollState.maxValue }
+                .collectLatest(captionScrollState::scrollTo)
+        }
+    }
+
+    LaunchedEffect(isBackPending, imeTargetBottom) {
+        if (isBackPending && imeTargetBottom == 0) {
+            withFrameNanos { }
+            isBackPending = false
+            onAction(PhotoUploadUiAction.BackClicked)
+        }
+    }
+
+    fun requestBack() {
+        if (isBackPending) return
+
+        if (isCaptionFocused || imeBottom > 0) {
+            isBackPending = true
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        } else {
+            onAction(PhotoUploadUiAction.BackClicked)
+        }
+    }
+
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(focusManager, keyboardController) {
+                detectTapGestures {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }
+            },
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             PhotoUploadTopBar(
-                onBackClick = { onAction(PhotoUploadUiAction.BackClicked) },
+                onBackClick = ::requestBack,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
@@ -128,41 +189,56 @@ fun PhotoUploadScreen(
             )
         },
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            PhotoUploadImageArea(
-                selectedImage = uiState.selectedImage,
-                signatureModel = uiState.signatureModel,
-                isCameraAvailable = uiState.isCameraAvailable,
-                onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
-                onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(modifier = Modifier.height(34.dp))
-
-            ChalkakTextField(
-                value = uiState.caption,
-                onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 22.dp)
-                    .testTag(PHOTO_UPLOAD_CAPTION_TAG),
-                placeholder = "작품 제목은 선택이에요.",
-                textStyle = ChalkakTheme.typography.subheadline,
-                minLines = 3,
-                maxLength = CAPTION_MAX_LENGTH,
-            )
+                    .fillMaxSize()
+                    .padding(bottom = 104.dp)
+                    .imePadding()
+                    .verticalScroll(captionScrollState)
+                    .imeNestedScroll(),
+            ) {
+                PhotoUploadImageArea(
+                    selectedImage = uiState.selectedImage,
+                    signatureModel = uiState.signatureModel,
+                    isCameraAvailable = uiState.isCameraAvailable,
+                    onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
+                    onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
-            Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(34.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    ChalkakTextField(
+                        value = uiState.caption,
+                        onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 22.dp)
+                            .onFocusChanged { isCaptionFocused = it.isFocused }
+                            .testTag(PHOTO_UPLOAD_CAPTION_TAG),
+                        placeholder = "작품 제목은 선택이에요.",
+                        textStyle = ChalkakTheme.typography.subheadline,
+                        minLines = 3,
+                        maxLength = CAPTION_MAX_LENGTH,
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
 
             ChalkakButton(
                 text = "전시하기",
                 onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 26.dp)
                     .navigationBarsPadding()
