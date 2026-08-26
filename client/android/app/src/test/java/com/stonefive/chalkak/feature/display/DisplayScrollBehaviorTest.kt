@@ -5,11 +5,11 @@ import org.junit.Test
 
 class DisplayScrollBehaviorTest {
     @Test
-    fun `절반 미만 이동하면 원래 표시 상태로 돌아간다`() {
+    fun `임계값 이하로만 움직이면 원래 위치로 돌아간다`() {
         assertEquals(
             0f,
             settleDisplayAreaOffset(
-                currentOffset = -49f,
+                currentOffset = -3f,
                 hiddenOffset = -100f,
                 restingOffset = 0f,
             ),
@@ -17,19 +17,23 @@ class DisplayScrollBehaviorTest {
     }
 
     @Test
-    fun `절반을 넘겨 이동하면 진행 방향의 끝까지 이동한다`() {
+    fun `임계값만 넘겨도 진행 방향 끝까지 이동한다`() {
         assertEquals(
             -100f,
             settleDisplayAreaOffset(
-                currentOffset = -51f,
+                currentOffset = -6f,
                 hiddenOffset = -100f,
                 restingOffset = 0f,
             ),
         )
+    }
+
+    @Test
+    fun `숨김 상태에서 임계값 이하로만 되돌리면 다시 숨김 위치로 돌아간다`() {
         assertEquals(
-            0f,
+            -100f,
             settleDisplayAreaOffset(
-                currentOffset = -49f,
+                currentOffset = -97f,
                 hiddenOffset = -100f,
                 restingOffset = -100f,
             ),
@@ -37,22 +41,57 @@ class DisplayScrollBehaviorTest {
     }
 
     @Test
-    fun `정확히 절반이면 직전 정착 상태를 유지한다`() {
+    fun `숨김 상태에서 임계값만 넘겨 되돌리면 다시 나타난다`() {
         assertEquals(
             0f,
             settleDisplayAreaOffset(
-                currentOffset = -50f,
-                hiddenOffset = -100f,
-                restingOffset = 0f,
-            ),
-        )
-        assertEquals(
-            -100f,
-            settleDisplayAreaOffset(
-                currentOffset = -50f,
+                currentOffset = -94f,
                 hiddenOffset = -100f,
                 restingOffset = -100f,
             ),
         )
+    }
+
+    @Test
+    fun `아래로 스크롤하면 하단 바가 내려가고 위로 스크롤하면 올라온다`() {
+        assertEquals(
+            20f,
+            bottomBarOffsetAfterScroll(
+                currentOffset = 0f,
+                scrollDelta = -20f,
+                barHeight = 80f,
+            ),
+        )
+        assertEquals(
+            0f,
+            bottomBarOffsetAfterScroll(
+                currentOffset = 20f,
+                scrollDelta = 40f,
+                barHeight = 80f,
+            ),
+        )
+    }
+
+    @Test
+    fun `같은 방향 누적 스크롤이 임계값을 넘어야 플로팅 버튼이 토글된다`() {
+        val hidden = ScrollToTopButtonState(accumulated = 0f, visible = false)
+
+        val small = scrollToTopButtonStateAfterScroll(hidden, scrollDelta = 5f, threshold = 12f)
+        assertEquals(false, small.visible)
+
+        val shown = scrollToTopButtonStateAfterScroll(small, scrollDelta = 8f, threshold = 12f)
+        assertEquals(true, shown.visible)
+    }
+
+    @Test
+    fun `반대 방향으로 임계값을 넘으면 숨겨지고 방향 전환 시 누적이 리셋된다`() {
+        val shown = ScrollToTopButtonState(accumulated = 13f, visible = true)
+
+        val stillShown = scrollToTopButtonStateAfterScroll(shown, scrollDelta = -5f, threshold = 12f)
+        assertEquals(true, stillShown.visible)
+        assertEquals(-5f, stillShown.accumulated)
+
+        val hidden = scrollToTopButtonStateAfterScroll(stillShown, scrollDelta = -8f, threshold = 12f)
+        assertEquals(false, hidden.visible)
     }
 }

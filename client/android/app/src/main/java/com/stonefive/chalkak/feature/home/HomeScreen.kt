@@ -196,16 +196,24 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
                     bottomBarRestoreJob.value?.cancel()
-                    val nextButtonState = scrollToTopButtonStateAfterScroll(
-                        state = ScrollToTopButtonState(
-                            accumulated = scrollToTopAccumulated,
-                            visible = isScrollToTopButtonVisible,
-                        ),
-                        scrollDelta = available.y,
-                        threshold = scrollToTopToggleThresholdPx,
-                    )
-                    scrollToTopAccumulated = nextButtonState.accumulated
-                    isScrollToTopButtonVisible = nextButtonState.visible
+                    // 최상단(더 위로 스크롤할 게 없음)에서는 오버스크롤로도 버튼이
+                    // 다시 켜지지 않게 강제로 끄고 누적을 리셋한다.
+                    val atTop = !photoListState.canScrollBackward && topAreaOffset == 0f
+                    if (atTop) {
+                        scrollToTopAccumulated = 0f
+                        isScrollToTopButtonVisible = false
+                    } else {
+                        val nextButtonState = scrollToTopButtonStateAfterScroll(
+                            state = ScrollToTopButtonState(
+                                accumulated = scrollToTopAccumulated,
+                                visible = isScrollToTopButtonVisible,
+                            ),
+                            scrollDelta = available.y,
+                            threshold = scrollToTopToggleThresholdPx,
+                        )
+                        scrollToTopAccumulated = nextButtonState.accumulated
+                        isScrollToTopButtonVisible = nextButtonState.visible
+                    }
                     bottomBarOffset = bottomBarOffsetAfterScroll(
                         currentOffset = bottomBarOffset,
                         scrollDelta = available.y,
