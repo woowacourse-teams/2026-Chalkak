@@ -44,7 +44,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `최신 날짜에서 헤더는 접히고 정렬 필터는 역스크롤에 먼저 표시된다`() {
+    fun `최신 날짜에서 역스크롤을 이어가면 필터와 헤더가 연속으로 표시된다`() {
         setDisplayContent(scrollableLatestUiState())
 
         composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
@@ -65,17 +65,6 @@ class DisplayScreenTest {
             .assertCountEquals(0)
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
         composeRule.onNodeWithText("전시").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput {
-                swipe(
-                    start = center,
-                    end = center.copy(y = center.y + 120f),
-                )
-            }
-        composeRule.onAllNodesWithText("8월 5일").assertCountEquals(0)
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")

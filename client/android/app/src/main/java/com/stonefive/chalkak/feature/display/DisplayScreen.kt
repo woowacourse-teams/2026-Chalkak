@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
@@ -42,7 +44,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,6 +118,14 @@ fun DisplayScreen(
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
+    val density = LocalDensity.current
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
+    val visibleTopAreaHeightPx = (
+        statusBarHeightPx +
+            headerHeight + headerOffset +
+            filterHeight + filterOffset
+        ).coerceAtLeast(0f)
+    val bodyTopContentPadding = with(density) { visibleTopAreaHeightPx.toDp() }
 
     fun settleTopAreas() {
         settleJob.value?.cancel()
@@ -196,34 +208,31 @@ fun DisplayScreen(
                         }
                     }
 
-                    if (available.y > 0f &&
-                        uiState.content is DisplayContentState.Latest &&
-                        filterHeight > 0
-                    ) {
+                    if (available.y > 0f) {
                         settleJob.value?.cancel()
-                        val previousOffset = filterOffset
-                        filterOffset = (filterOffset + available.y).coerceAtMost(0f)
-                        if (filterOffset != previousOffset) {
-                            return Offset(0f, filterOffset - previousOffset)
+                        var remainingScroll = available.y
+                        var consumedScroll = 0f
+
+                        if (uiState.content is DisplayContentState.Latest &&
+                            filterHeight > 0
+                        ) {
+                            val previousOffset = filterOffset
+                            filterOffset = (filterOffset + remainingScroll).coerceAtMost(0f)
+                            val consumedByFilter = filterOffset - previousOffset
+                            consumedScroll += consumedByFilter
+                            remainingScroll -= consumedByFilter
+                        }
+
+                        if (remainingScroll > 0f && headerHeight > 0) {
+                            val previousOffset = headerOffset
+                            headerOffset = (headerOffset + remainingScroll).coerceAtMost(0f)
+                            consumedScroll += headerOffset - previousOffset
+                        }
+
+                        if (consumedScroll != 0f) {
+                            return Offset(0f, consumedScroll)
                         }
                     }
-                }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput &&
-                    available.y > 0f &&
-                    headerOffset < 0f
-                ) {
-                    settleJob.value?.cancel()
-                    val previousOffset = headerOffset
-                    headerOffset = (headerOffset + available.y).coerceAtMost(0f)
-                    return Offset(0f, headerOffset - previousOffset)
                 }
                 return Offset.Zero
             }
@@ -256,11 +265,34 @@ fun DisplayScreen(
             .background(ChalkakBackground)
             .nestedScroll(nestedScrollConnection),
     ) {
+        DisplayBody(
+            content = uiState.content,
+            onFeaturedPageChanged = onFeaturedPageChanged,
+            onPhotoClick = { photo ->
+                onOpenFeed(
+                    photo,
+                    uiState.selectedDate
+                        ?.toFeedDateLabel()
+                        .orEmpty(),
+                    uiState.topic,
+                )
+            },
+            topContentPadding = bodyTopContentPadding,
+            modifier = Modifier.fillMaxSize(),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
         ) {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(
+                        ChalkakBackground.copy(alpha = DISPLAY_FLOATING_BACKGROUND_ALPHA),
+                    ),
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -270,6 +302,7 @@ fun DisplayScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(ChalkakBackground)
                         .onSizeChanged { headerHeight = it.height },
                 ) {
                     DisplayDateHeader(
@@ -293,7 +326,9 @@ fun DisplayScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clipToBounds()
+                        .background(
+                            ChalkakBackground.copy(alpha = DISPLAY_FLOATING_BACKGROUND_ALPHA),
+                        ).clipToBounds()
                         .collapsingArea(filterOffset),
                 ) {
                     DisplaySortTabs(
@@ -305,23 +340,6 @@ fun DisplayScreen(
                     )
                 }
             }
-
-            DisplayBody(
-                content = uiState.content,
-                onFeaturedPageChanged = onFeaturedPageChanged,
-                onPhotoClick = { photo ->
-                    onOpenFeed(
-                        photo,
-                        uiState.selectedDate
-                            ?.toFeedDateLabel()
-                            .orEmpty(),
-                        uiState.topic,
-                    )
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            )
         }
         AnimatedVisibility(
             visible = isBottomBarVisible,
@@ -367,6 +385,7 @@ internal fun settleDisplayAreaOffset(
 }
 
 private const val BOTTOM_BAR_RESTORE_DELAY_MILLIS = 500L
+private const val DISPLAY_FLOATING_BACKGROUND_ALPHA = 0.86f
 
 @Composable
 fun DisplayBody(
@@ -374,13 +393,17 @@ fun DisplayBody(
     onFeaturedPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
+    topContentPadding: Dp = 0.dp,
 ) {
     when (content) {
-        DisplayContentState.Loading -> DisplayLoadingContent(modifier = modifier)
+        DisplayContentState.Loading -> DisplayLoadingContent(
+            modifier = modifier.padding(top = topContentPadding),
+        )
 
         is DisplayContentState.Latest -> LatestDisplayContent(
             content = content,
             onPhotoClick = onPhotoClick,
+            topContentPadding = topContentPadding,
             modifier = modifier,
         )
 
@@ -388,12 +411,13 @@ fun DisplayBody(
             content = content,
             onFeaturedPageChanged = onFeaturedPageChanged,
             onPhotoClick = onPhotoClick,
+            topContentPadding = topContentPadding,
             modifier = modifier,
         )
 
         is DisplayContentState.Error -> DisplayErrorContent(
             message = content.message,
-            modifier = modifier,
+            modifier = modifier.padding(top = topContentPadding),
         )
     }
 }
@@ -416,6 +440,7 @@ fun LatestDisplayContent(
     content: DisplayContentState.Latest,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
+    topContentPadding: Dp = 0.dp,
 ) {
     val gridState = rememberLazyStaggeredGridState()
 
@@ -428,6 +453,7 @@ fun LatestDisplayContent(
             photos = content.photos,
             state = gridState,
             onPhotoClick = onPhotoClick,
+            topContentPadding = topContentPadding,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
@@ -441,13 +467,14 @@ fun ArchiveDisplayContent(
     onFeaturedPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
+    topContentPadding: Dp = 0.dp,
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
         modifier = modifier,
         contentPadding = PaddingValues(
             start = 22.dp,
-            top = 4.dp,
+            top = topContentPadding + 4.dp,
             end = 22.dp,
             bottom = 36.dp,
         ),

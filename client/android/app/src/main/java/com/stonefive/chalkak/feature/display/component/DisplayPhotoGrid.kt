@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -20,6 +21,7 @@ fun DisplayPhotoGrid(
     modifier: Modifier = Modifier,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     onPhotoClick: (Post) -> Unit = {},
+    topContentPadding: Dp = 0.dp,
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
@@ -27,7 +29,7 @@ fun DisplayPhotoGrid(
         state = state,
         contentPadding = PaddingValues(
             start = 21.dp,
-            top = 4.dp,
+            top = topContentPadding + 4.dp,
             end = 21.dp,
             bottom = 36.dp,
         ),
