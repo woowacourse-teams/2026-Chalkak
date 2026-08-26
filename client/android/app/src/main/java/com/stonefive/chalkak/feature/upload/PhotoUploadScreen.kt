@@ -181,7 +181,7 @@ fun PhotoUploadScreen(
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(
-                        start = 4.dp,
+                        start = 8.dp,
                         end = 12.dp,
                         top = 10.dp,
                         bottom = 8.dp,

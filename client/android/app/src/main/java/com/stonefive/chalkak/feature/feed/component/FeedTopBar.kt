@@ -87,7 +87,7 @@ private fun FeedTopBarPreview() {
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(
-                    start = 4.dp,
+                    start = 8.dp,
                     top = 26.dp,
                     end = 12.dp,
                     bottom = 26.dp,

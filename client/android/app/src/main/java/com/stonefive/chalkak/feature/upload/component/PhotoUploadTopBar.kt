@@ -72,7 +72,7 @@ private fun PhotoUploadTopBarPreview() {
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(
-                    start = 4.dp,
+                    start = 8.dp,
                     end = 12.dp,
                     bottom = 8.dp,
                 ),
