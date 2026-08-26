@@ -12,13 +12,15 @@ from image_processor.errors import (
     RejectedEventError,
     RejectedImageError,
 )
-from image_processor.events import parse_s3_records
+from image_processor.events import S3ObjectCreated, parse_s3_records
 from image_processor.post import PostImageProcessor
 from image_processor.router import ImageProcessorRouter
 from image_processor.signature import SignatureImageProcessor
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
+
+DEFAULT_MAX_RECEIVE_COUNT = 5
 
 _processor: ImageProcessorRouter | None = None
 
@@ -106,9 +108,63 @@ def _process_message(
                     }
                 )
             )
-            raise
+            if _receive_count(sqs_record) < _max_receive_count():
+                raise
+            _abandon(processor, s3_record, message_id)
+            rejected_count += 1
 
     return processed_count, rejected_count
+
+
+def _abandon(
+    processor: ImageProcessorRouter,
+    s3_record: S3ObjectCreated,
+    message_id: str,
+) -> None:
+    """
+    재시도 상한에 도달한 메시지를 포기한다. DLQ 없이 운영하므로 이 자리가 없으면 같은 이미지를 메시지
+    보존 기간이 끝날 때까지 계속 재처리한다.
+    """
+    LOGGER.error(
+        json.dumps(
+            {
+                "event": "image_processing_abandoned",
+                "messageId": message_id,
+                "bucket": s3_record.bucket,
+                "key": s3_record.key,
+                "receiveCount": _max_receive_count(),
+            }
+        )
+    )
+    try:
+        processor.abandon(s3_record)
+    except Exception:
+        # 포기 처리에서 다시 예외가 나도 메시지를 되살리지 않는다. 그러면 상한이 무의미해진다.
+        LOGGER.exception(
+            json.dumps(
+                {
+                    "event": "image_processing_abandon_failed",
+                    "messageId": message_id,
+                    "key": s3_record.key,
+                }
+            )
+        )
+
+
+def _receive_count(sqs_record: dict[str, Any]) -> int:
+    attributes = sqs_record.get("attributes", {})
+    try:
+        return int(attributes.get("ApproximateReceiveCount", 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _max_receive_count() -> int:
+    try:
+        value = int(os.environ.get("SQS_MAX_RECEIVE_COUNT", "5"))
+    except ValueError:
+        return DEFAULT_MAX_RECEIVE_COUNT
+    return value if value > 0 else DEFAULT_MAX_RECEIVE_COUNT
 
 
 def _partial_batch_response_enabled() -> bool:

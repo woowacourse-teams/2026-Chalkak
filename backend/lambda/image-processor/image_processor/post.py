@@ -117,6 +117,15 @@ class PostImageProcessor:
             thumbnail_key=thumbnail_key,
         )
 
+    def abandon(self, event: S3ObjectCreated) -> None:
+        """
+        재시도 상한에 도달한 메시지를 포기한다. DLQ 없이 운영하므로 여기서 상태를 닫지 않으면 업로드가
+        ISSUED로 남고 원본은 버킷에 방치된다. 거절 경로와 같은 처리를 해 사용자가 다시 올릴 수 있게 한다.
+        """
+        environment, upload_id = self._extract_staging_identity(event.key)
+        self._report_failure(environment, upload_id, "PROCESSING_ERROR")
+        self._discard_staging(event)
+
     def _report_failure(self, environment: str, upload_id: str, reason: str) -> None:
         try:
             self._callback_client.failed(environment, upload_id, {"reason": reason})

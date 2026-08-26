@@ -213,6 +213,16 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.callback_client.complete.assert_not_called()
 
+    def test_abandon_closes_upload_and_removes_staging(self) -> None:
+        self.processor.abandon(self.event())
+
+        self.callback_client.failed.assert_called_once_with(
+            "dev", UPLOAD_ID, {"reason": "PROCESSING_ERROR"}
+        )
+        self.s3_client.delete_object.assert_called_once_with(
+            Bucket=BUCKET, Key=STAGING_KEY
+        )
+
     def test_process_routes_prod_key_to_prod_destination(self) -> None:
         self.given_object(webp_bytes())
 

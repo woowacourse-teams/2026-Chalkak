@@ -68,6 +68,14 @@ class SignatureImageProcessor:
             thumbnail_key=thumbnail_key,
         )
 
+    def abandon(self, event: S3ObjectCreated) -> None:
+        """재시도 상한에 도달한 메시지를 포기한다. 상태를 닫지 않으면 사인 처리가 끝나지 않은 채 남는다."""
+        environment, upload_id = self._extract_staging_identity(event.key)
+        try:
+            self._callback_client.failed(environment, upload_id)
+        except PermanentCallbackError:
+            LOGGER.error("failed callback permanently refused for %s", upload_id)
+
     def _validate_bucket(self, event: S3ObjectCreated) -> None:
         if event.bucket != self._settings.expected_bucket:
             raise RejectedImageError("image was uploaded to an unexpected bucket")

@@ -7,12 +7,17 @@ import handler
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 
 
-def sqs_event(body: dict, message_id: str = "message-1") -> dict:
+def sqs_event(
+    body: dict,
+    message_id: str = "message-1",
+    receive_count: int = 1,
+) -> dict:
     return {
         "Records": [
             {
                 "messageId": message_id,
                 "body": json.dumps(body),
+                "attributes": {"ApproximateReceiveCount": str(receive_count)},
             }
         ]
     }
@@ -150,6 +155,58 @@ class LambdaHandlerTest(unittest.TestCase):
             {"batchItemFailures": [{"itemIdentifier": "message-2"}]},
             result,
         )
+
+
+    def test_handler_abandons_message_at_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with patch.object(handler.LOGGER, "error"):
+                result = handler.lambda_handler(
+                    sqs_event(s3_body(), receive_count=5), None
+                )
+
+        self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
+        processor.abandon.assert_called_once()
+
+    def test_handler_retries_below_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with self.assertRaises(TimeoutError):
+                handler.lambda_handler(sqs_event(s3_body(), receive_count=4), None)
+
+        processor.abandon.assert_not_called()
+
+    def test_handler_honours_configured_receive_limit(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.dict(os.environ, {"SQS_MAX_RECEIVE_COUNT": "2"}):
+            with patch.object(handler.LOGGER, "exception"):
+                with patch.object(handler.LOGGER, "error"):
+                    handler.lambda_handler(sqs_event(s3_body(), receive_count=2), None)
+
+        processor.abandon.assert_called_once()
+
+    def test_handler_does_not_revive_message_when_abandon_fails(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        processor.abandon.side_effect = RuntimeError("callback down")
+        handler._processor = processor
+
+        with patch.object(handler.LOGGER, "exception"):
+            with patch.object(handler.LOGGER, "error"):
+                result = handler.lambda_handler(
+                    sqs_event(s3_body(), receive_count=9), None
+                )
+
+        self.assertEqual({"processedCount": 0, "rejectedCount": 1}, result)
 
 
 if __name__ == "__main__":

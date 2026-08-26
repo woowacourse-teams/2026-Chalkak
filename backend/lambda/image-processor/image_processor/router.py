@@ -24,8 +24,14 @@ class ImageProcessorRouter:
         self._post_processor = post_processor
 
     def process(self, event: S3ObjectCreated) -> object:
+        return self._route(event).process(event)
+
+    def abandon(self, event: S3ObjectCreated) -> None:
+        self._route(event).abandon(event)
+
+    def _route(self, event: S3ObjectCreated):
         if event.key.startswith(self._signature_prefixes):
-            return self._signature_processor.process(event)
+            return self._signature_processor
         if event.key.startswith(self._post_prefixes):
-            return self._post_processor.process(event)
+            return self._post_processor
         raise RejectedImageError("unsupported staging path")

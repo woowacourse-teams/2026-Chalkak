@@ -139,7 +139,11 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
   그대로 두고 완료 콜백만 이어 간다.
 - 완료 콜백이 영구 거부되면 이미 처리된 이미지가 어디에도 연결되지 않는다. 실패 콜백으로 상태를
   닫아 사용자가 다시 올릴 수 있게 하고, 원본 staging은 수동 복구를 위해 남긴다.
-- 현재 DLQ를 사용하지 않으므로 CloudWatch에서 Lambda 오류와 SQS 적체를 확인해야 한다.
+- DLQ 없이 운영한다. 대신 `SQS_MAX_RECEIVE_COUNT`를 애플리케이션에서 확인해, 수신 횟수가 상한에
+  도달한 메시지는 실패 콜백으로 상태를 닫고 staging을 정리한 뒤 정상 종료한다. 이 자리가 없으면
+  복구 불가능한 예외 하나가 메시지 보존 기간이 끝날 때까지 같은 이미지를 재처리한다.
+- 포기한 메시지는 `image_processing_abandoned` 이벤트로 남는다. DLQ가 없으므로 이 로그가 유일한
+  단서이며, CloudWatch 알람 대상으로 삼아야 한다.
 
 검증에서 반려된 staging 객체는 실패 콜백을 보낸 뒤 삭제한다. EXIF를 제거하기 전 사용자
 원본이라 위치·촬영 시각·기종이 그대로 남아 있어, 아무도 참조하지 않는 개인정보를 버킷에
@@ -174,6 +178,7 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 | `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키. 서명 대상에 대상 환경이 들어가므로 dev용 서명이 prod에 통하지는 않지만, 환경별로 다른 값을 두는 편이 더 안전하다 |
 | `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
 | `SQS_PARTIAL_BATCH_RESPONSE` | `false` | 실패한 메시지만 큐에 되돌린다. 이벤트 소스 매핑에 `ReportBatchItemFailures`를 켠 뒤에만 `true`로 둔다 |
+| `SQS_MAX_RECEIVE_COUNT` | `5` | 이 횟수만큼 다시 받은 메시지는 포기하고 실패 콜백으로 닫는다. DLQ의 `maxReceiveCount`를 대신한다 |
 
 ### 배포 순서
 
