@@ -6,11 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
 import com.chalkak.backend.auth.service.SocialLoginStatus;
 import com.chalkak.backend.auth.service.SocialSignupService;
+import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -129,10 +131,14 @@ class AuthControllerTest {
         given(socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 "google-id-token"))
-                .willReturn(new SignatureImageUpload(
-                        uploadId,
-                        "https://s3.example.com/presigned",
-                        300L));
+                .willReturn(new SocialSignupSignatureUploadResult(
+                        new SignatureImageUpload(
+                                uploadId,
+                                "https://s3.example.com/presigned",
+                                300L),
+                        new IssuedSocialSignupToken(
+                                "social-signup-token",
+                                1_800L)));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
@@ -147,7 +153,11 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
                 .andExpect(jsonPath("$.uploadUrl")
                         .value("https://s3.example.com/presigned"))
-                .andExpect(jsonPath("$.expiresInSeconds").value(300L));
+                .andExpect(jsonPath("$.expiresInSeconds").value(300L))
+                .andExpect(jsonPath("$.signupToken")
+                        .value("social-signup-token"))
+                .andExpect(jsonPath("$.signupTokenExpiresInSeconds")
+                        .value(1_800L));
     }
 
     @Test

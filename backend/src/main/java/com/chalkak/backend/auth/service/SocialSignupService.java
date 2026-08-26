@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.service;
 
+import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
@@ -29,11 +30,12 @@ public class SocialSignupService {
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
+    private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImagePolicy signatureImagePolicy;
     private final UserRepository userRepository;
 
-    public SignatureImageUpload createSignatureUpload(
+    public SocialSignupSignatureUploadResult createSignatureUpload(
             SocialProvider provider,
             String idToken
     ) {
@@ -42,7 +44,13 @@ public class SocialSignupService {
                 idToken);
         validateNewSocialAccount(identity);
 
-        return signatureImageUploadIssuer.issue(UUID.randomUUID());
+        UUID uploadId = UUID.randomUUID();
+        SignatureImageUpload upload = signatureImageUploadIssuer.issue(uploadId);
+        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
+                identity,
+                uploadId);
+
+        return new SocialSignupSignatureUploadResult(upload, signupToken);
     }
 
     @Transactional

@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
+import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
@@ -54,6 +56,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @MockitoBean
     private SignatureImageUploadIssuer signatureImageUploadIssuer;
+
+    @MockitoBean
+    private SocialSignupTokenIssuer socialSignupTokenIssuer;
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
@@ -278,16 +283,28 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                         invocation.getArgument(0),
                         "https://s3.example.com/presigned",
                         300L));
+        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
+                .willReturn(new IssuedSocialSignupToken(
+                        "social-signup-token",
+                        1_800L));
 
         // When
-        SignatureImageUpload upload = socialSignupService.createSignatureUpload(
+        SocialSignupSignatureUploadResult result =
+                socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN);
 
         // Then
-        assertThat(upload.uploadId()).isNotNull();
-        assertThat(upload.uploadUrl()).isEqualTo("https://s3.example.com/presigned");
-        assertThat(upload.expiresInSeconds()).isEqualTo(300L);
+        assertThat(result.upload().uploadId()).isNotNull();
+        assertThat(result.upload().uploadUrl())
+                .isEqualTo("https://s3.example.com/presigned");
+        assertThat(result.upload().expiresInSeconds()).isEqualTo(300L);
+        assertThat(result.signupToken().value())
+                .isEqualTo("social-signup-token");
+        assertThat(result.signupToken().expiresInSeconds()).isEqualTo(1_800L);
+        verify(socialSignupTokenIssuer).issue(
+                identity(),
+                result.upload().uploadId());
     }
 
     @Test

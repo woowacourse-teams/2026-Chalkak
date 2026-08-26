@@ -1,20 +1,24 @@
 package com.chalkak.backend.auth.api.v1.dto.response;
 
-import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
 import java.util.UUID;
 
 public record SocialSignupSignatureUploadResponse(
         UUID uploadId,
         String uploadUrl,
-        long expiresInSeconds
+        long expiresInSeconds,
+        String signupToken,
+        long signupTokenExpiresInSeconds
 ) {
 
     public static SocialSignupSignatureUploadResponse from(
-            SignatureImageUpload upload
+            SocialSignupSignatureUploadResult result
     ) {
         return new SocialSignupSignatureUploadResponse(
-                upload.uploadId(),
-                upload.uploadUrl(),
-                upload.expiresInSeconds());
+                result.upload().uploadId(),
+                result.upload().uploadUrl(),
+                result.upload().expiresInSeconds(),
+                result.signupToken().value(),
+                result.signupToken().expiresInSeconds());
     }
 }

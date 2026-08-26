@@ -9,7 +9,7 @@ import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadR
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
 import com.chalkak.backend.auth.service.SocialSignupService;
-import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -46,11 +46,12 @@ public class AuthController implements AuthApiDocs {
             createSocialSignupSignatureUpload(
                     @Valid @RequestBody SocialIdTokenRequest request
             ) {
-        SignatureImageUpload upload = socialSignupService.createSignatureUpload(
-                request.provider(),
-                request.idToken());
+        SocialSignupSignatureUploadResult result =
+                socialSignupService.createSignatureUpload(
+                        request.provider(),
+                        request.idToken());
 
-        return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(upload));
+        return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(result));
     }
 
     @Override
