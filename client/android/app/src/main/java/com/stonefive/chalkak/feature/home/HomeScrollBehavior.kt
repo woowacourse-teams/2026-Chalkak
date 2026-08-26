@@ -27,7 +27,7 @@ private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
 
 @Stable
-internal class HomeScrollBehaviorState(
+class HomeScrollBehaviorState(
     private val photoListState: LazyListState,
     private val interactionScope: CoroutineScope,
     private val scrollToTopToggleThresholdPx: Float,
@@ -151,7 +151,7 @@ internal class HomeScrollBehaviorState(
 }
 
 @Composable
-internal fun rememberHomeScrollBehaviorState(
+fun rememberHomeScrollBehaviorState(
     photoListState: LazyListState,
     interactionScope: CoroutineScope,
     scrollToTopToggleThresholdPx: Float,
@@ -167,7 +167,7 @@ internal fun rememberHomeScrollBehaviorState(
     }
 }
 
-internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
+fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
     val fadeProgress = (
         (collapsedProgress - TOP_BAR_FADE_START_PROGRESS) /
             (1f - TOP_BAR_FADE_START_PROGRESS)
@@ -175,7 +175,7 @@ internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
     return 1f - ((1f - COLLAPSED_TOP_BAR_BACKGROUND_ALPHA) * fadeProgress)
 }
 
-internal fun topAreaOffsetAfterScroll(
+fun topAreaOffsetAfterScroll(
     currentOffset: Float,
     scrollDelta: Float,
     areaHeight: Float,

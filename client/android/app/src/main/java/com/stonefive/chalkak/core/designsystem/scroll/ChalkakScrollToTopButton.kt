@@ -16,7 +16,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 
 @Composable
-internal fun ChalkakScrollToTopButton(
+fun ChalkakScrollToTopButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {

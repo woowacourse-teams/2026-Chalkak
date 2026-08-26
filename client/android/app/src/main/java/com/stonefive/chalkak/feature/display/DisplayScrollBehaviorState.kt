@@ -22,7 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Stable
-internal class DisplayScrollBehaviorState(
+class DisplayScrollBehaviorState(
     private val gridState: LazyStaggeredGridState,
     private val settleScope: CoroutineScope,
     private val scrollToTopToggleThresholdPx: Float,
@@ -174,7 +174,7 @@ internal class DisplayScrollBehaviorState(
 }
 
 @Composable
-internal fun rememberDisplayScrollBehaviorState(
+fun rememberDisplayScrollBehaviorState(
     gridState: LazyStaggeredGridState,
     settleScope: CoroutineScope,
     scrollToTopToggleThresholdPx: Float,

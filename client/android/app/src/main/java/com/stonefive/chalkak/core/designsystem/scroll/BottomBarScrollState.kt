@@ -15,7 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Stable
-internal class BottomBarScrollState {
+class BottomBarScrollState {
     var offset by mutableFloatStateOf(0f)
     var height by mutableIntStateOf(0)
     var isScrollToTopButtonVisible by mutableStateOf(false)
@@ -90,4 +90,4 @@ internal class BottomBarScrollState {
 }
 
 @Composable
-internal fun rememberBottomBarScrollState(): BottomBarScrollState = remember { BottomBarScrollState() }
+fun rememberBottomBarScrollState(): BottomBarScrollState = remember { BottomBarScrollState() }

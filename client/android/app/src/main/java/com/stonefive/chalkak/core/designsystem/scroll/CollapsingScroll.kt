@@ -5,13 +5,13 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
-internal const val COLLAPSING_SETTLE_DURATION_MILLIS = 220
-internal val CollapsingScrollToTopThreshold = 12.dp
-internal const val COLLAPSING_FLOATING_BACKGROUND_ALPHA = 0.86f
+const val COLLAPSING_SETTLE_DURATION_MILLIS = 220
+val CollapsingScrollToTopThreshold = 12.dp
+const val COLLAPSING_FLOATING_BACKGROUND_ALPHA = 0.86f
 
 private const val SETTLE_BREAK_THRESHOLD = 0.05f
 
-internal fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurable, constraints ->
+fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
     val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
@@ -21,7 +21,7 @@ internal fun Modifier.collapsingArea(offset: Float): Modifier = layout { measura
     }
 }
 
-internal fun settleCollapsingOffset(
+fun settleCollapsingOffset(
     currentOffset: Float,
     hiddenOffset: Float,
     restingOffset: Float,
@@ -35,18 +35,18 @@ internal fun settleCollapsingOffset(
     return if (restingProgress == 0f) hiddenOffset else 0f
 }
 
-internal fun bottomBarOffsetAfterScroll(
+fun bottomBarOffsetAfterScroll(
     currentOffset: Float,
     scrollDelta: Float,
     barHeight: Float,
 ): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
 
-internal data class ScrollToTopButtonState(
+data class ScrollToTopButtonState(
     val accumulated: Float,
     val visible: Boolean,
 )
 
-internal fun scrollToTopButtonStateAfterScroll(
+fun scrollToTopButtonStateAfterScroll(
     state: ScrollToTopButtonState,
     scrollDelta: Float,
     threshold: Float,
