@@ -94,9 +94,7 @@ public class JwtSocialSignupTokenProvider implements
         String value = jwtEncoder.encode(JwtEncoderParameters.from(header, claims))
                 .getTokenValue();
 
-        return new IssuedSocialSignupToken(
-                value,
-                properties.expiration().toSeconds());
+        return new IssuedSocialSignupToken(value);
     }
 
     @Override

@@ -55,7 +55,6 @@ class JwtSocialSignupTokenProviderTest {
 
         // Then
         assertThat(issuedToken.value()).isNotBlank();
-        assertThat(issuedToken.expiresInSeconds()).isEqualTo(1_800L);
         assertThat(verifiedToken.provider()).isEqualTo(SocialProvider.GOOGLE);
         assertThat(verifiedToken.subject()).isEqualTo(SUBJECT);
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
@@ -87,7 +86,7 @@ class JwtSocialSignupTokenProviderTest {
                 ZoneOffset.UTC));
         String token = issuer.issue(identity(), UUID.randomUUID()).value();
         JwtSocialSignupTokenProvider verifier = createProvider(Clock.fixed(
-                NOW.plus(Duration.ofMinutes(31)),
+                NOW.plus(Duration.ofMinutes(5)).plusSeconds(31),
                 ZoneOffset.UTC));
 
         // When & Then
@@ -223,7 +222,7 @@ class JwtSocialSignupTokenProviderTest {
                 new SocialSignupTokenProperties(
                         issuer,
                         audience,
-                        Duration.ofMinutes(30),
+                        Duration.ofMinutes(5),
                         secret),
                 clock);
     }

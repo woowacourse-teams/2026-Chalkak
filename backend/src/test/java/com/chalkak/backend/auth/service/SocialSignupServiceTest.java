@@ -284,9 +284,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                         "https://s3.example.com/presigned",
                         300L));
         given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
-                .willReturn(new IssuedSocialSignupToken(
-                        "social-signup-token",
-                        1_800L));
+                .willReturn(new IssuedSocialSignupToken("social-signup-token"));
 
         // When
         SocialSignupSignatureUploadResult result =
@@ -301,7 +299,6 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThat(result.upload().expiresInSeconds()).isEqualTo(300L);
         assertThat(result.signupToken().value())
                 .isEqualTo("social-signup-token");
-        assertThat(result.signupToken().expiresInSeconds()).isEqualTo(1_800L);
         verify(socialSignupTokenIssuer).issue(
                 identity(),
                 result.upload().uploadId());

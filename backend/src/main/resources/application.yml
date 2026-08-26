@@ -27,7 +27,7 @@ chalkak:
     social-signup-token:
       issuer: chalkak-backend
       audience: chalkak-social-signup
-      expiration: 30m
+      expiration: 5m
       secret: ${SOCIAL_SIGNUP_TOKEN_SECRET}
     oidc:
       google:

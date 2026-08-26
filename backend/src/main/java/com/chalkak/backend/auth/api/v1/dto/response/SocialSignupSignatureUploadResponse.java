@@ -7,8 +7,7 @@ public record SocialSignupSignatureUploadResponse(
         UUID uploadId,
         String uploadUrl,
         long expiresInSeconds,
-        String signupToken,
-        long signupTokenExpiresInSeconds
+        String signupToken
 ) {
 
     public static SocialSignupSignatureUploadResponse from(
@@ -18,7 +17,6 @@ public record SocialSignupSignatureUploadResponse(
                 result.upload().uploadId(),
                 result.upload().uploadUrl(),
                 result.upload().expiresInSeconds(),
-                result.signupToken().value(),
-                result.signupToken().expiresInSeconds());
+                result.signupToken().value());
     }
 }

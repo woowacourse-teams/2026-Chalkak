@@ -136,9 +136,7 @@ class AuthControllerTest {
                                 uploadId,
                                 "https://s3.example.com/presigned",
                                 300L),
-                        new IssuedSocialSignupToken(
-                                "social-signup-token",
-                                1_800L)));
+                        new IssuedSocialSignupToken("social-signup-token")));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
@@ -157,7 +155,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.signupToken")
                         .value("social-signup-token"))
                 .andExpect(jsonPath("$.signupTokenExpiresInSeconds")
-                        .value(1_800L));
+                        .doesNotExist());
     }
 
     @Test
