@@ -189,4 +189,30 @@ class PostImageUploadTest {
         assertThatThrownBy(() -> PostImageUpload.createPostImageUpload(null, ISSUED_AT))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("거절 사유가 없는 업로드를 claim하면 기본 안내 문구로 실패한다")
+    void claim_rejectedWithoutReason_throwsWithDefaultMessage() {
+        // Given
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
+        upload.failProcessing(null);
+
+        // When & Then
+        assertThatThrownBy(() -> upload.claim(ISSUED_AT))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("처리할 수 없는 사진입니다.");
+    }
+
+    @Test
+    @DisplayName("모르는 거절 사유는 기본 안내 문구로 실패한다")
+    void claim_unknownReason_throwsWithDefaultMessage() {
+        // Given
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
+        upload.failProcessing("SOMETHING_NEW");
+
+        // When & Then
+        assertThatThrownBy(() -> upload.claim(ISSUED_AT))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("처리할 수 없는 사진입니다.");
+    }
 }

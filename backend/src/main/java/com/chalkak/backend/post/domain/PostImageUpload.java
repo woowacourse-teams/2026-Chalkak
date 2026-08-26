@@ -127,10 +127,7 @@ public class PostImageUpload {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 사용된 사진입니다.");
         }
         if (status == PostImageUploadStatus.REJECTED) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    REJECTION_MESSAGES.getOrDefault(rejectionReason, DEFAULT_REJECTION_MESSAGE)
-            );
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, rejectionMessage());
         }
         if (!claimedAt.isBefore(expiresAt)) {
             throw new BusinessException(
@@ -139,6 +136,17 @@ public class PostImageUpload {
             );
         }
         this.claimedAt = claimedAt;
+    }
+
+    /**
+     * {@code Map.of}가 만드는 불변 맵은 null 키로 조회하면 기본값이 아니라 NPE를 던진다. 콜백 본문에 사유가
+     * 없으면 사유 없는 REJECTED 행이 저장될 수 있으므로 조회 전에 null을 걸러 낸다.
+     */
+    private String rejectionMessage() {
+        if (rejectionReason == null) {
+            return DEFAULT_REJECTION_MESSAGE;
+        }
+        return REJECTION_MESSAGES.getOrDefault(rejectionReason, DEFAULT_REJECTION_MESSAGE);
     }
 
     public boolean isProcessed() {
