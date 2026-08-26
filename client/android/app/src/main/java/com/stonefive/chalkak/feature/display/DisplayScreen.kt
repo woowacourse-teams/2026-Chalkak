@@ -177,12 +177,12 @@ fun DisplayScreen(
                     when {
                         available.y < 0f -> {
                             bottomBarRestoreJob.value?.cancel()
-                            isBottomBarVisible = true
+                            isBottomBarVisible = false
                         }
 
                         available.y > 0f -> {
                             bottomBarRestoreJob.value?.cancel()
-                            isBottomBarVisible = false
+                            isBottomBarVisible = true
                         }
                     }
 

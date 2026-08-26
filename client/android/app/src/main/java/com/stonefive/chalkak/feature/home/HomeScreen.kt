@@ -212,12 +212,10 @@ fun HomeScreen(
                     if (available.y != 0f) {
                         bottomBarRestoreJob.value?.cancel()
                         settleJob.value?.cancel()
-                        if (available.y < 0f) {
-                            isScrollToTopButtonVisible = true
-                        }
+                        isScrollToTopButtonVisible = shouldShowScrollToTopButton(available.y)
                         bottomBarOffset = bottomBarOffsetAfterScroll(
                             currentOffset = bottomBarOffset,
-                            scrollDelta = -available.y,
+                            scrollDelta = available.y,
                             barHeight = bottomBarHeight.toFloat(),
                         )
                     }
@@ -258,6 +256,7 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
+                isScrollToTopButtonVisible = false
                 settleTopArea()
                 settleBottomBar()
                 return Velocity.Zero
@@ -418,6 +417,8 @@ internal fun bottomBarOffsetAfterScroll(
     scrollDelta: Float,
     barHeight: Float,
 ): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
+
+internal fun shouldShowScrollToTopButton(scrollDelta: Float): Boolean = scrollDelta < 0f
 
 internal fun settleBarOffset(
     currentOffset: Float,

@@ -32,6 +32,32 @@ class HomeScrollBehaviorTest {
     }
 
     @Test
+    fun `손가락을 위로 올리면 하단 바는 내려가고 플로팅 버튼은 표시된다`() {
+        assertEquals(
+            60f,
+            bottomBarOffsetAfterScroll(
+                currentOffset = 40f,
+                scrollDelta = -20f,
+                barHeight = 80f,
+            ),
+        )
+        assertEquals(true, shouldShowScrollToTopButton(scrollDelta = -20f))
+    }
+
+    @Test
+    fun `손가락을 아래로 내리면 하단 바는 올라오고 플로팅 버튼은 숨겨진다`() {
+        assertEquals(
+            20f,
+            bottomBarOffsetAfterScroll(
+                currentOffset = 40f,
+                scrollDelta = 20f,
+                barHeight = 80f,
+            ),
+        )
+        assertEquals(false, shouldShowScrollToTopButton(scrollDelta = 20f))
+    }
+
+    @Test
     fun `절반 이하에서 손을 떼면 원래 위치로 돌아간다`() {
         assertEquals(
             0f,
