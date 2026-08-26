@@ -3,10 +3,8 @@ package com.stonefive.chalkak.feature.display
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,17 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,12 +35,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,13 +51,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
-import com.stonefive.chalkak.feature.display.component.DisplayFeaturedPager
-import com.stonefive.chalkak.feature.display.component.DisplayPhotoCard
-import com.stonefive.chalkak.feature.display.component.DisplayPhotoGrid
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
-import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
-import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -131,8 +114,6 @@ fun DisplayScreen(
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val scrollToTopToggleThresholdPx = with(density) { ScrollToTopToggleThreshold.toPx() }
-    // 필터는 Latest에서만 존재한다. Archive로 넘어가면 측정된 filterHeight가 남아
-    // 유령 패딩을 만들 수 있으므로 Latest일 때만 높이에 반영한다.
     val filterContributionPx = if (uiState.content is DisplayContentState.Latest) {
         filterHeight + filterOffset
     } else {
@@ -186,7 +167,6 @@ fun DisplayScreen(
         val initialOffset = bottomBarOffset
         val hiddenOffset = bottomBarHeight.toFloat()
 
-        // 멈추면 가까운 쪽으로 정착하고 그대로 둔다. (자동 원복 없음)
         val targetOffset = settleDisplayAreaOffset(
             currentOffset = initialOffset,
             hiddenOffset = hiddenOffset,
@@ -231,8 +211,6 @@ fun DisplayScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
                     bottomBarRestoreJob.value?.cancel()
-                    // 최상단(더 위로 스크롤할 게 없음)에서는 오버스크롤로도 버튼이
-                    // 다시 켜지지 않게 강제로 끄고 누적을 리셋한다.
                     val atTop = !gridState.canScrollBackward &&
                         headerOffset == 0f &&
                         filterOffset == 0f
@@ -258,7 +236,6 @@ fun DisplayScreen(
                     )
                 }
 
-                // 아래로 스크롤: 헤더 → 필터 순차 접힘 (드래그·플링 모두)
                 if (available.y < 0f) {
                     settleJob.value?.cancel()
                     var remainingScroll = available.y
@@ -288,7 +265,6 @@ fun DisplayScreen(
                     }
                 }
 
-                // 위로 스크롤: 필터만 즉시 펼친다. (헤더는 리스트가 최상단에 닿았을 때만)
                 if (available.y > 0f &&
                     uiState.content is DisplayContentState.Latest &&
                     filterHeight > 0 &&
@@ -309,7 +285,6 @@ fun DisplayScreen(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                // 리스트가 최상단에 닿아 남는 위쪽 스크롤로만 헤더(날짜·토픽·설명)를 펼친다.
                 if (available.y > 0f && headerHeight > 0 && headerOffset < 0f) {
                     settleJob.value?.cancel()
                     val previousOffset = headerOffset
@@ -320,7 +295,6 @@ fun DisplayScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                // 하단 바는 플링 중 움직이지 않으므로 여기서 바로 정착시킨다.
                 settleBottomBar()
                 return Velocity.Zero
             }
@@ -329,7 +303,6 @@ fun DisplayScreen(
                 consumed: Velocity,
                 available: Velocity,
             ): Velocity {
-                // 상단 영역은 플링까지 접힘·펼침이 이어지므로, 제스처가 끝난 뒤 한 번만 정착시킨다.
                 settleTopAreas()
                 return Velocity.Zero
             }
@@ -467,303 +440,6 @@ fun DisplayScreen(
                 .fillMaxWidth()
                 .onSizeChanged { bottomBarHeight = it.height }
                 .graphicsLayer { translationY = bottomBarOffset },
-        )
-    }
-}
-
-private fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints)
-    val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
-    val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
-
-    layout(placeable.width, visibleHeight) {
-        placeable.placeRelative(0, offsetPx)
-    }
-}
-
-internal fun settleDisplayAreaOffset(
-    currentOffset: Float,
-    hiddenOffset: Float,
-    restingOffset: Float,
-): Float {
-    if (hiddenOffset == 0f) return 0f
-
-    // 직전 정착 위치에서 조금(임계값)이라도 벗어나면 반대편 끝까지 확정한다.
-    val restingProgress = restingOffset / hiddenOffset
-    val currentProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
-    val movedFromResting = abs(currentProgress - restingProgress)
-    if (movedFromResting <= BAR_SETTLE_BREAK_THRESHOLD) return restingOffset
-    return if (restingProgress == 0f) hiddenOffset else 0f
-}
-
-internal fun bottomBarOffsetAfterScroll(
-    currentOffset: Float,
-    scrollDelta: Float,
-    barHeight: Float,
-): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
-
-internal data class ScrollToTopButtonState(
-    val accumulated: Float,
-    val visible: Boolean,
-)
-
-/**
- * 매 프레임의 순간 방향 대신, 같은 방향으로 누적된 스크롤 거리가 임계값을 넘을 때만
- * 노출/숨김을 토글해 미세한 손가락 떨림으로 인한 깜빡임을 막는다.
- */
-internal fun scrollToTopButtonStateAfterScroll(
-    state: ScrollToTopButtonState,
-    scrollDelta: Float,
-    threshold: Float,
-): ScrollToTopButtonState {
-    val base = when {
-        scrollDelta > 0f && state.accumulated < 0f -> 0f
-        scrollDelta < 0f && state.accumulated > 0f -> 0f
-        else -> state.accumulated
-    }
-    val accumulated = base + scrollDelta
-    val visible = when {
-        accumulated >= threshold -> true
-        accumulated <= -threshold -> false
-        else -> state.visible
-    }
-    return ScrollToTopButtonState(accumulated = accumulated, visible = visible)
-}
-
-private const val BAR_SETTLE_DURATION_MILLIS = 220
-private const val BAR_SETTLE_BREAK_THRESHOLD = 0.05f
-private val ScrollToTopToggleThreshold = 12.dp
-private const val DISPLAY_FLOATING_BACKGROUND_ALPHA = 0.86f
-
-@Composable
-fun DisplayBody(
-    content: DisplayContentState,
-    onFeaturedPageChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
-    onPhotoClick: (Post) -> Unit = {},
-    topContentPadding: Dp = 0.dp,
-) {
-    when (content) {
-        DisplayContentState.Loading -> DisplayLoadingContent(
-            modifier = modifier.padding(top = topContentPadding),
-        )
-
-        is DisplayContentState.Latest -> LatestDisplayContent(
-            content = content,
-            gridState = gridState,
-            onPhotoClick = onPhotoClick,
-            topContentPadding = topContentPadding,
-            modifier = modifier,
-        )
-
-        is DisplayContentState.Archive -> ArchiveDisplayContent(
-            content = content,
-            onFeaturedPageChanged = onFeaturedPageChanged,
-            gridState = gridState,
-            onPhotoClick = onPhotoClick,
-            topContentPadding = topContentPadding,
-            modifier = modifier,
-        )
-
-        is DisplayContentState.Error -> DisplayErrorContent(
-            message = content.message,
-            modifier = modifier.padding(top = topContentPadding),
-        )
-    }
-}
-
-@Composable
-fun DisplayLoadingContent(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        CircularProgressIndicator(
-            color = ChalkakTheme.colors.actionPrimary,
-            modifier = Modifier.padding(top = 64.dp),
-        )
-    }
-}
-
-@Composable
-fun LatestDisplayContent(
-    content: DisplayContentState.Latest,
-    modifier: Modifier = Modifier,
-    gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
-    onPhotoClick: (Post) -> Unit = {},
-    topContentPadding: Dp = 0.dp,
-) {
-    Column(modifier = modifier) {
-        DisplayPhotoGrid(
-            photos = content.photos,
-            state = gridState,
-            onPhotoClick = onPhotoClick,
-            topContentPadding = topContentPadding,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-fun ArchiveDisplayContent(
-    content: DisplayContentState.Archive,
-    onFeaturedPageChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
-    onPhotoClick: (Post) -> Unit = {},
-    topContentPadding: Dp = 0.dp,
-) {
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(2),
-        state = gridState,
-        modifier = modifier,
-        contentPadding = PaddingValues(
-            start = 22.dp,
-            top = topContentPadding + 4.dp,
-            end = 22.dp,
-            bottom = 36.dp,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalItemSpacing = 12.dp,
-    ) {
-        item(
-            key = "featured",
-            span = StaggeredGridItemSpan.FullLine,
-        ) {
-            DisplayFeaturedPager(
-                photos = content.featuredPhotos,
-                selectedPage = content.featuredPage,
-                onPageChanged = onFeaturedPageChanged,
-                onPhotoClick = onPhotoClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-            )
-        }
-        items(
-            items = content.photos,
-            key = Post::id,
-        ) { photo ->
-            DisplayPhotoCard(
-                photo = photo,
-                onClick = { onPhotoClick(photo) },
-            )
-        }
-    }
-}
-
-@Composable
-fun DisplayErrorContent(
-    message: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-        )
-    }
-}
-
-private val previewLatestState = DisplayUiState(
-    selectedDate = LocalDate.of(2026, 8, 5),
-    latestDate = LocalDate.of(2026, 8, 5),
-    earliestDate = LocalDate.of(2026, 8, 1),
-    topic = "바다",
-    content = DisplayContentState.Latest(
-        photos = previewDisplayPhotos,
-        selectedSort = PostSort.LATEST,
-    ),
-)
-
-private val previewArchiveState = DisplayUiState(
-    selectedDate = LocalDate.of(2026, 8, 4),
-    latestDate = LocalDate.of(2026, 8, 5),
-    earliestDate = LocalDate.of(2026, 8, 1),
-    topic = "다리",
-    content = DisplayContentState.Archive(
-        photos = previewDisplayPhotos,
-        featuredPhotos = previewDisplayPhotos,
-    ),
-)
-
-@Preview(name = "최신 전시", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun LatestDisplayScreenPreview() {
-    DisplayScreenPreviewContent(uiState = previewLatestState)
-}
-
-@Preview(name = "과거 전시", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun ArchiveDisplayScreenPreview() {
-    DisplayScreenPreviewContent(uiState = previewArchiveState)
-}
-
-@Preview(name = "본문 로딩", showBackground = true, widthDp = 390, heightDp = 560)
-@Composable
-private fun DisplayLoadingContentPreview() {
-    ChalkakTheme {
-        DisplayBody(
-            content = DisplayContentState.Loading,
-            onFeaturedPageChanged = {},
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Preview(name = "최신 본문", showBackground = true, widthDp = 390, heightDp = 640)
-@Composable
-private fun LatestDisplayContentPreview() {
-    ChalkakTheme {
-        LatestDisplayContent(
-            content = previewLatestState.content as DisplayContentState.Latest,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Preview(name = "과거 본문", showBackground = true, widthDp = 390, heightDp = 720)
-@Composable
-private fun ArchiveDisplayContentPreview() {
-    ChalkakTheme {
-        ArchiveDisplayContent(
-            content = previewArchiveState.content as DisplayContentState.Archive,
-            onFeaturedPageChanged = {},
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Preview(name = "오류 본문", showBackground = true, widthDp = 390, heightDp = 560)
-@Composable
-private fun DisplayErrorContentPreview() {
-    ChalkakTheme {
-        DisplayErrorContent(
-            message = "전시를 불러오지 못했어요",
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-@Composable
-private fun DisplayScreenPreviewContent(uiState: DisplayUiState) {
-    ChalkakTheme {
-        DisplayScreen(
-            uiState = uiState,
-            onPreviousDateClick = {},
-            onNextDateClick = {},
-            onSortSelected = {},
-            onFeaturedPageChanged = {},
-            onOpenPhotoUpload = {},
-            onNavigateToBottomBar = {},
-            modifier = Modifier.fillMaxSize(),
         )
     }
 }

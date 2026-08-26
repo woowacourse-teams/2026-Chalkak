@@ -36,11 +36,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,12 +49,10 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
-import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
-import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -169,7 +165,6 @@ fun HomeScreen(
         val initialOffset = bottomBarOffset
         val hiddenOffset = bottomBarHeight.toFloat()
 
-        // 멈추면 가까운 쪽으로 정착하고 그대로 둔다. (절반 이상 내려갔으면 숨긴 채 유지)
         val targetOffset = settleBarOffset(
             currentOffset = initialOffset,
             hiddenOffset = hiddenOffset,
@@ -196,8 +191,6 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
                     bottomBarRestoreJob.value?.cancel()
-                    // 최상단(더 위로 스크롤할 게 없음)에서는 오버스크롤로도 버튼이
-                    // 다시 켜지지 않게 강제로 끄고 누적을 리셋한다.
                     val atTop = !photoListState.canScrollBackward && topAreaOffset == 0f
                     if (atTop) {
                         scrollToTopAccumulated = 0f
@@ -221,7 +214,6 @@ fun HomeScreen(
                     )
                 }
 
-                // 아래로 스크롤하면 드래그·플링 모두 리스트보다 먼저 상단 영역을 접는다.
                 if (available.y < 0f &&
                     topAreaHeight > 0 &&
                     topAreaOffset > -topAreaHeight.toFloat()
@@ -259,7 +251,6 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                // 하단 바는 플링 중 움직이지 않으므로 여기서 바로 정착시킨다.
                 settleBottomBar()
                 return Velocity.Zero
             }
@@ -268,8 +259,6 @@ fun HomeScreen(
                 consumed: Velocity,
                 available: Velocity,
             ): Velocity {
-                // 상단 영역은 플링(관성)까지 접힘·펼침이 이어지므로,
-                // 제스처가 완전히 끝난 뒤 한 번만 정착시켜 기준점이 도중에 뒤집히지 않게 한다.
                 settleTopArea()
                 return Velocity.Zero
             }
@@ -405,121 +394,3 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
-private val ScrollToTopToggleThreshold = 12.dp
-private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
-private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
-private const val BAR_SETTLE_DURATION_MILLIS = 220
-private const val BAR_SETTLE_BREAK_THRESHOLD = 0.05f
-
-internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
-    val fadeProgress = (
-        (collapsedProgress - TOP_BAR_FADE_START_PROGRESS) /
-            (1f - TOP_BAR_FADE_START_PROGRESS)
-        ).coerceIn(0f, 1f)
-    return 1f - ((1f - COLLAPSED_TOP_BAR_BACKGROUND_ALPHA) * fadeProgress)
-}
-
-internal fun topAreaOffsetAfterScroll(
-    currentOffset: Float,
-    scrollDelta: Float,
-    areaHeight: Float,
-): Float = (currentOffset + scrollDelta).coerceIn(-areaHeight, 0f)
-
-internal fun bottomBarOffsetAfterScroll(
-    currentOffset: Float,
-    scrollDelta: Float,
-    barHeight: Float,
-): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
-
-internal data class ScrollToTopButtonState(
-    val accumulated: Float,
-    val visible: Boolean,
-)
-
-/**
- * 매 프레임의 순간 방향 대신, 같은 방향으로 누적된 스크롤 거리가 임계값을 넘을 때만
- * 노출/숨김을 토글한다. 미세한 손가락 떨림이나 프레임 단위 부호 흔들림으로 인한
- * 깜빡임을 막기 위한 히스테리시스.
- */
-internal fun scrollToTopButtonStateAfterScroll(
-    state: ScrollToTopButtonState,
-    scrollDelta: Float,
-    threshold: Float,
-): ScrollToTopButtonState {
-    // 방향이 바뀌면 누적값을 리셋한다.
-    val base = when {
-        scrollDelta > 0f && state.accumulated < 0f -> 0f
-        scrollDelta < 0f && state.accumulated > 0f -> 0f
-        else -> state.accumulated
-    }
-    val accumulated = base + scrollDelta
-    val visible = when {
-        accumulated >= threshold -> true
-        accumulated <= -threshold -> false
-        else -> state.visible
-    }
-    return ScrollToTopButtonState(accumulated = accumulated, visible = visible)
-}
-
-internal fun settleBarOffset(
-    currentOffset: Float,
-    hiddenOffset: Float,
-    restingOffset: Float,
-): Float {
-    if (hiddenOffset == 0f) return 0f
-
-    val restingProgress = restingOffset / hiddenOffset
-    val currentProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
-    val movedFromResting = abs(currentProgress - restingProgress)
-    if (movedFromResting <= BAR_SETTLE_BREAK_THRESHOLD) return restingOffset
-    return if (restingProgress == 0f) hiddenOffset else 0f
-}
-
-private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints)
-    val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
-    val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
-
-    layout(placeable.width, visibleHeight) {
-        placeable.placeRelative(0, offsetPx)
-    }
-}
-
-@Preview(
-    showBackground = true,
-    widthDp = 402,
-    heightDp = 874,
-)
-@Composable
-private fun HomeScreenPreview() {
-    ChalkakTheme {
-        HomeScreen(
-            uiState = HomeUiState(
-                isLoading = false,
-                dateLabel = "8월 3일 · 오늘의 주제",
-                topic = "하늘하늘하늘",
-                photos = listOf(
-                    Post(
-                        id = "preview-1",
-                        imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        contentDescription = "노을이 진 하늘과 전신주",
-                        title = "안녕하세요 찰캌입니다.",
-                        likeCount = 24,
-                    ),
-                    Post(
-                        id = "preview-2",
-                        imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        contentDescription = "두 번째 사진",
-                        title = null,
-                        likeCount = 12,
-                    ),
-                ),
-            ),
-            onAction = {},
-        )
-    }
-}
-
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
