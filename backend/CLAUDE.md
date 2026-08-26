@@ -3,6 +3,8 @@
 - 작업 범위는 현재 `backend/` 디렉터리로 제한한다.
 - `../client/**`는 참조를 위해 읽을 수 있지만 수정하지 않는다.
 - `src/main/java`의 동작을 추가·변경하거나 버그를 수정할 때는 `tdd-workflow` Skill을 사용한다.
+- springdoc-openapi 설정, Swagger/OpenAPI 어노테이션, API 문서 인터페이스 또는 생성된 OpenAPI 계약을 생성·수정·리뷰할 때는 `swagger-docs` Skill을 사용한다.
+- Swagger/OpenAPI 문서와 설정만 변경하는 작업에는 `tdd-workflow` Skill을 사용하지 않는다. 실제 API 동작도 변경하면 그 동작 변경에만 `tdd-workflow` Skill을 사용한다.
 - `src/main/java`에서 클래스·패키지를 생성·이동하거나 배치 위치를 검토할 때는 `package-structure` Skill도 함께 사용한다.
 - API Endpoint, Controller, Request·Response 계약을 추가·변경·삭제하거나 API 버전을 검토할 때는 `api-versioning` Skill도 함께 사용한다.
 - API JSON 필드·Parameter·URI, Java 변수·필드·매개변수, DB 식별자 또는 ErrorCode 이름을 생성·변경·리뷰할 때는 `naming-conventions` Skill도 함께 사용한다. 테스트 클래스·메서드와 패키지 이름에는 사용하지 않는다.
