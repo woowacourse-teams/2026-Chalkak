@@ -33,7 +33,7 @@ class Settings:
                 "S3_BUCKET",
                 "techcourse-project-2026",
             ),
-            root_prefix=os.environ.get("S3_PREFIX", "chalkak").strip("/"),
+            root_prefix=_root_prefix(),
             max_input_bytes=_positive_int("SIGNATURE_MAX_BYTES", 1_048_576),
             max_image_pixels=_positive_int(
                 "SIGNATURE_MAX_PIXELS",
@@ -87,17 +87,36 @@ class Settings:
 
 
 def _positive_int(name: str, default: int) -> int:
-    value = int(os.environ.get(name, str(default)))
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError as exception:
+        raise ValueError(f"{name} must be an integer") from exception
     if value <= 0:
         raise ValueError(f"{name} must be greater than zero")
     return value
 
 
 def _positive_float(name: str, default: float) -> float:
-    value = float(os.environ.get(name, str(default)))
+    raw = os.environ.get(name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as exception:
+        raise ValueError(f"{name} must be a number") from exception
     if value <= 0:
         raise ValueError(f"{name} must be greater than zero")
     return value
+
+
+def _root_prefix() -> str:
+    """
+    빈 prefix는 staging 키가 슬래시로 시작하게 만들어 어떤 객체와도 매칭되지 않는다. 숫자 설정과 달리
+    조용히 통과하던 자리라 기동 시점에 막는다.
+    """
+    prefix = os.environ.get("S3_PREFIX", "chalkak").strip("/")
+    if not prefix:
+        raise ValueError("S3_PREFIX must not be blank")
+    return prefix
 
 
 def _required(name: str) -> str:
