@@ -148,10 +148,24 @@ class PostImageProcessingCallbackClientTest(unittest.TestCase):
             request_value.headers["X-chalkak-callback-signature"],
         )
         self.assertEqual(
-            "application/json",
+            "application/json; charset=utf-8",
             request_value.headers["Content-type"],
         )
         self.assertEqual(body, json.loads(request_value.data))
+
+    @patch("image_processor.callback.time.time", return_value=1_787_562_000)
+    @patch("image_processor.callback.request.urlopen")
+    def test_complete_escapes_non_ascii_body(self, urlopen, _time) -> None:
+        response = MagicMock()
+        response.status = 204
+        urlopen.return_value.__enter__.return_value = response
+        body = {"metaAttributes": {"LensModel": "표준 줌 렌즈"}}
+
+        self.client.complete("dev", UPLOAD_ID, body)
+
+        sent = urlopen.call_args.args[0].data
+        sent.decode("ascii")
+        self.assertEqual(body, json.loads(sent))
 
     @patch("image_processor.callback.time.time", return_value=1_787_562_000)
     @patch("image_processor.callback.request.urlopen")

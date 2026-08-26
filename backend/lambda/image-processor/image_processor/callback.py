@@ -76,7 +76,7 @@ class ProcessingCallbackClient:
             "X-Chalkak-Callback-Signature": signature,
         }
         if body is not None:
-            headers["Content-Type"] = "application/json"
+            headers["Content-Type"] = "application/json; charset=utf-8"
         callback_request = request.Request(
             url=f"{base_url}/{upload_id}/{result}",
             data=encoded_body,
@@ -99,6 +99,11 @@ class ProcessingCallbackClient:
 
 
 def _encode(body: Mapping[str, Any] | None) -> bytes:
+    """
+    본문을 순수 ASCII로 직렬화한다. 서명은 바이트에 걸리는데 백엔드는 컨버터가 디코딩한 문자열을 다시
+    UTF-8로 인코딩해 해시하므로, non-ASCII가 섞이면 charset 설정에 따라 서명이 어긋난다. 한국어 렌즈명
+    같은 EXIF가 401 무한 재시도를 부르지 않도록 charset에 의존하지 않는 표현으로 보낸다.
+    """
     if body is None:
         return b""
-    return json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+    return json.dumps(body, separators=(",", ":")).encode("ascii")

@@ -39,6 +39,9 @@ EXCLUDED_META_TAGS = frozenset({
     OFFSET_TIME_ORIGINAL_TAG,
 })
 
+# 잘림 표시가 차지하는 바이트. 한도 검사에 미리 반영해 결과가 한도를 넘지 않게 한다.
+_TRUNCATED_MARKER_BYTES = len(b',"_truncated":true')
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -312,11 +315,15 @@ class PostImageProcessor:
         return self._truncate(attributes)
 
     def _truncate(self, attributes: dict[str, Any]) -> dict[str, Any]:
-        limit = self._settings.post_metadata_max_bytes
+        """
+        한도는 콜백이 실제로 보내는 바이트로 재야 한다. 잘림 표시를 검사 뒤에 얹으면 그만큼 한도를
+        넘기므로 자리를 미리 확보해 둔다.
+        """
+        limit = self._settings.post_metadata_max_bytes - _TRUNCATED_MARKER_BYTES
         truncated: dict[str, Any] = {}
         for key, value in sorted(attributes.items()):
             candidate = {**truncated, key: value}
-            if len(json.dumps(candidate, ensure_ascii=False).encode()) > limit:
+            if _encoded_size(candidate) > limit:
                 truncated["_truncated"] = True
                 return truncated
             truncated = candidate
@@ -353,6 +360,10 @@ class PostImageProcessor:
             ContentType=WEBP_CONTENT_TYPE,
             CacheControl=self._settings.post_cache_control,
         )
+
+
+def _encoded_size(attributes: dict[str, Any]) -> int:
+    return len(json.dumps(attributes, separators=(",", ":")).encode("ascii"))
 
 
 def _serializable(value: Any) -> Any:
