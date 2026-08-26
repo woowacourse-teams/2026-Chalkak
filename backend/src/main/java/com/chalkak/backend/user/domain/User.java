@@ -35,7 +35,7 @@ public class User {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "email", nullable = false, length = 320)
+    @Column(name = "email", length = 320)
     private String email;
 
     @Enumerated(EnumType.STRING)
@@ -73,6 +73,16 @@ public class User {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    public static User create(String email, SignatureStorageKeys storageKeys) {
+        User user = new User();
+        user.validateStorageKeys(storageKeys);
+        user.email = email;
+        user.status = UserStatus.ACTIVE;
+        user.signatureOriginalStorageKey = storageKeys.originalStorageKey();
+        user.signatureThumbnailStorageKey = storageKeys.thumbnailStorageKey();
+        return user;
+    }
 
     public void withdraw() {
         if (isDeleted()) {
