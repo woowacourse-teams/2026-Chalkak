@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -13,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
@@ -26,6 +28,7 @@ import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
+import com.stonefive.chalkak.feature.signature.SignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
@@ -40,6 +43,7 @@ fun ChalkakNavHost(
 ) {
     val context = LocalContext.current
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
+    var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
     val legalDocumentLauncher = remember {
         LegalDocumentLauncher(
             showLegalDocument = { selectedLegalDocument = it },
@@ -95,14 +99,33 @@ fun ChalkakNavHost(
             val signature = backStackEntry.toRoute<Signature>()
 
             SignatureRoute(
-                onSignatureSaved = {
+                onSignatureSaved = { signaturePng ->
                     when (signature.origin) {
-                        SignatureOrigin.ONBOARDING -> navController.navigate(Today) {
-                            popUpTo<Login> { inclusive = true }
+                        SignatureOrigin.ONBOARDING -> {
+                            signaturePreviewPng = signaturePng
+                            navController.navigate(SignaturePreview)
                         }
 
                         SignatureOrigin.SETTINGS -> navController.popBackStack()
                     }
+                },
+            )
+        }
+
+        composable<SignaturePreview> {
+            SignaturePreviewRoute(
+                imageModel = R.drawable.preview_photo,
+                signatureModel = signaturePreviewPng
+                    ?: R.drawable.preview_signature,
+                onRedrawClick = {
+                    navController.popBackStack()
+                    signaturePreviewPng = null
+                },
+                onStartClick = {
+                    navController.navigate(Today) {
+                        popUpTo<Login> { inclusive = true }
+                    }
+                    signaturePreviewPng = null
                 },
             )
         }

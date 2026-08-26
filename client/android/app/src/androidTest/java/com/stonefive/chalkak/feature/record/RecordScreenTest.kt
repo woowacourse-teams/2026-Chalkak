@@ -100,6 +100,10 @@ class RecordScreenTest {
                         isLoading = false,
                         photos = listOf(recordPhoto(day = 2)),
                         selectedDate = LocalDate.of(2026, 8, 2),
+                        availableMonths = setOf(
+                            RecordTestMonth.minusMonths(1),
+                            RecordTestMonth.plusMonths(1),
+                        ),
                     ),
                     onPreviousMonthClick = { previousMonthClicked = true },
                     onNextMonthClick = { nextMonthClicked = true },

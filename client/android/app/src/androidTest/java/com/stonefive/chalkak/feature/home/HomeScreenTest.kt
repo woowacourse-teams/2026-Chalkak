@@ -6,12 +6,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
@@ -32,15 +34,12 @@ class HomeScreenTest {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        val photoList = composeRule.onNode(hasScrollAction())
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
+        photoList.performTouchInput { swipeUp() }
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeDown() }
+        photoList.performTouchInput { swipeDown() }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
     }
 
@@ -52,19 +51,18 @@ class HomeScreenTest {
             onSortSelected = { selectedSort = it },
         )
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
+        val photoList = composeRule.onNode(hasScrollAction())
+        photoList.performTouchInput { swipeUp() }
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        photoList.performScrollToIndex(10)
+        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput {
-                swipe(
-                    start = center,
-                    end = center.copy(y = center.y + 40f),
-                )
-            }
+        photoList.performTouchInput {
+            swipe(
+                start = center,
+                end = center.copy(y = center.y + 40f),
+            )
+        }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 

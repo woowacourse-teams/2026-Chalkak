@@ -39,9 +39,11 @@ class PhotoUploadScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("전시하기").assertIsDisplayed()
+        composeRule
+            .onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG)
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
         composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").assertIsDisplayed()
-        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsNotEnabled()
     }
 
     @Test

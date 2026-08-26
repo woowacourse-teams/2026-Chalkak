@@ -7,12 +7,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
@@ -48,15 +50,12 @@ class DisplayScreenTest {
         setDisplayContent(scrollableLatestUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        val photoGrid = composeRule.onNode(hasScrollAction())
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
+        photoGrid.performTouchInput { swipeUp() }
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeDown() }
+        photoGrid.performTouchInput { swipeDown() }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
     }
 
@@ -68,19 +67,18 @@ class DisplayScreenTest {
             onSortSelected = { selectedSort = it },
         )
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
+        val photoGrid = composeRule.onNode(hasScrollAction())
+        photoGrid.performTouchInput { swipeUp() }
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        photoGrid.performScrollToIndex(30)
+        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput {
-                swipe(
-                    start = center,
-                    end = center.copy(y = center.y + 40f),
-                )
-            }
+        photoGrid.performTouchInput {
+            swipe(
+                start = center,
+                end = center.copy(y = center.y + 40f),
+            )
+        }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 
@@ -196,7 +194,7 @@ private fun latestUiState() = DisplayUiState(
 
 private fun scrollableLatestUiState() = latestUiState().copy(
     content = DisplayContentState.Latest(
-        photos = List(12) { index ->
+        photos = List(40) { index ->
             photo.copy(
                 id = "photo-$index",
                 contentDescription = "사진 $index",
