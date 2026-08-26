@@ -125,4 +125,54 @@ class PostImageProcessingCallbackControllerTest {
 
         verify(postService, never()).completePostImageProcessing(any(), any());
     }
+
+    @Test
+    @DisplayName("거절 사유가 비어 있는 실패 콜백은 400을 반환하고 상태를 바꾸지 않는다")
+    void fail_blankReason_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/failed", UPLOAD_ID)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verify(postService, never()).failPostImageProcessing(any(), any());
+    }
+
+    @Test
+    @DisplayName("범위를 벗어난 좌표가 담긴 완료 콜백은 400을 반환한다")
+    void complete_coordinateOutOfRange_returnsBadRequest() throws Exception {
+        // Given
+        String body = """
+                {"width":4032,"height":3024,"byteSize":812345,\
+                "location":{"latitude":91.0,"longitude":126.978}}""";
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        verify(postService, never()).completePostImageProcessing(any(), any());
+    }
+
+    @Test
+    @DisplayName("한도를 넘는 촬영 시각이 담긴 완료 콜백은 400을 반환한다")
+    void complete_oversizedCapturedAt_returnsBadRequest() throws Exception {
+        // Given
+        String body = "{\"capturedAt\":\"" + "A".repeat(65) + "\"}";
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        verify(postService, never()).completePostImageProcessing(any(), any());
+    }
 }
