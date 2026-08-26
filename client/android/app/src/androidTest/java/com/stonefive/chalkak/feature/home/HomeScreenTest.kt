@@ -1,14 +1,17 @@
 package com.stonefive.chalkak.feature.home
 
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeUp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -31,28 +34,59 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `홈 사진을 스크롤하면 주제가 사라지고 맨 위에서 다시 표시된다`() {
+    fun `주제가 접힌 뒤 로고는 스크롤 방향과 무관하게 고정된다`() {
         setHomeContent(scrollableHomeUiState())
 
-        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
-        composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
-        composeRule.onNodeWithText("오늘").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onRoot().performTouchInput { swipeUp() }
 
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
         composeRule.onNodeWithText("오늘").assertIsNotDisplayed()
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeDown() }
+        composeRule.onRoot().performTouchInput {
+            swipe(
+                start = center,
+                end = center.copy(y = center.y + 40f),
+            )
+        }
+        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
+        composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
+
+        composeRule.onRoot().performTouchInput {
+            swipe(
+                start = center,
+                end = center.copy(y = center.y - 40f),
+            )
+        }
+        composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
+        composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
+    }
+
+    @Test
+    fun `홈 재선택 신호는 로고와 주제를 유지하며 첫 사진으로 돌아간다`() {
+        val resetSignal = mutableIntStateOf(0)
+
+        composeRule.setContent {
+            ChalkakTheme {
+                HomeScreen(
+                    uiState = scrollableHomeUiState(),
+                    onAction = {},
+                    resetSignal = resetSignal.intValue,
+                )
+            }
+        }
+
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
+
+        composeRule.runOnIdle { resetSignal.intValue++ }
 
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
-        composeRule.onNodeWithText("오늘").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
     }
 
     private fun setHomeContent(uiState: HomeUiState) {

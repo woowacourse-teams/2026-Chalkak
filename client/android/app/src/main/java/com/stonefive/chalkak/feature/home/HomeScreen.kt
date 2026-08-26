@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.home
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -79,6 +79,7 @@ fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
+        resetSignal = selectionSignal,
     )
 }
 
@@ -87,8 +88,10 @@ fun HomeScreen(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    resetSignal: Int = 0,
 ) {
     val photoListState = rememberLazyListState()
+    var localResetSignal by remember { mutableIntStateOf(0) }
     var topAreaOffset by remember { mutableFloatStateOf(0f) }
     var topAreaHeight by remember { mutableIntStateOf(0) }
     var isTopAreaTargetHidden by remember { mutableStateOf(false) }
@@ -112,6 +115,14 @@ fun HomeScreen(
         (-topAreaOffset / topAreaHeight).coerceIn(0f, 1f)
     }
     val topBarBackgroundAlpha = topBarBackgroundAlpha(collapsedTopAreaProgress)
+
+    fun resetHomePosition() {
+        settleJob.value?.cancel()
+        topAreaOffset = 0f
+        isTopAreaTargetHidden = false
+        bottomBarOffset = 0f
+        isBottomBarTargetHidden = false
+    }
 
     fun settleBars() {
         settleJob.value?.cancel()
@@ -210,12 +221,15 @@ fun HomeScreen(
     }
 
     LaunchedEffect(uiState.selectedSort) {
-        settleJob.value?.cancel()
-        topAreaOffset = 0f
-        isTopAreaTargetHidden = false
-        bottomBarOffset = 0f
-        isBottomBarTargetHidden = false
+        resetHomePosition()
         photoListState.scrollToItem(0)
+    }
+
+    LaunchedEffect(resetSignal, localResetSignal) {
+        if (resetSignal == 0 && localResetSignal == 0) return@LaunchedEffect
+
+        resetHomePosition()
+        photoListState.animateScrollToItem(0)
     }
 
     Box(
@@ -255,15 +269,24 @@ fun HomeScreen(
                 }
             }
         }
-        Box(
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
         ) {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .clickable(
+                        interactionSource = null,
+                        indication = null,
+                        onClick = { localResetSignal++ },
+                    ),
+            )
             HomeTopBar(
                 modifier = Modifier
-                    .statusBarsPadding()
                     .then(
                         if (isTopAreaVisible) {
                             Modifier.homeBottomDivider()
@@ -275,7 +298,12 @@ fun HomeScreen(
         }
         ChalkakBottomBar(
             selectedItem = ChalkakBottomBarItem.TODAY,
-            onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
+            onItemSelected = { item ->
+                if (item == ChalkakBottomBarItem.TODAY) {
+                    localResetSignal++
+                }
+                onAction(HomeUiAction.BottomBarSelected(item))
+            },
             onAddClick = { onAction(HomeUiAction.AddClicked) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
