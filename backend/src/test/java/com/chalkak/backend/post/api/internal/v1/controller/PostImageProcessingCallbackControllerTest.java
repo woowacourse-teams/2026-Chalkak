@@ -12,7 +12,7 @@ import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.post.service.PostService;
+import com.chalkak.backend.post.service.PostCommandService;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
@@ -43,7 +43,7 @@ class PostImageProcessingCallbackControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PostService postService;
+    private PostCommandService postCommandService;
 
     @MockitoBean
     private ProcessingCallbackAuthenticator authenticator;
@@ -65,7 +65,7 @@ class PostImageProcessingCallbackControllerTest {
                 "1787562000",
                 "signature"
         );
-        verify(postService).completePostImageProcessing(eq(UPLOAD_ID), any(Map.class));
+        verify(postCommandService).completePostImageProcessing(eq(UPLOAD_ID), any(Map.class));
     }
 
     @Test
@@ -88,7 +88,7 @@ class PostImageProcessingCallbackControllerTest {
                 "1787562000",
                 "signature"
         );
-        verify(postService).failPostImageProcessing(UPLOAD_ID, "UNSUPPORTED_FORMAT");
+        verify(postCommandService).failPostImageProcessing(UPLOAD_ID, "UNSUPPORTED_FORMAT");
     }
 
     @Test
@@ -107,7 +107,7 @@ class PostImageProcessingCallbackControllerTest {
                         .content(COMPLETE_BODY))
                 .andExpect(status().isUnauthorized());
 
-        verify(postService, never()).completePostImageProcessing(any(), any());
+        verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 
     @Test
@@ -124,7 +124,7 @@ class PostImageProcessingCallbackControllerTest {
                         .content(COMPLETE_BODY))
                 .andExpect(status().isUnauthorized());
 
-        verify(postService, never()).completePostImageProcessing(any(), any());
+        verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 
     @Test
@@ -138,7 +138,7 @@ class PostImageProcessingCallbackControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).failPostImageProcessing(any(), any());
+        verify(postCommandService, never()).failPostImageProcessing(any(), any());
     }
 
     @Test
@@ -157,7 +157,7 @@ class PostImageProcessingCallbackControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).completePostImageProcessing(any(), any());
+        verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 
     @Test
@@ -174,7 +174,7 @@ class PostImageProcessingCallbackControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).completePostImageProcessing(any(), any());
+        verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 
     @Test
@@ -189,6 +189,6 @@ class PostImageProcessingCallbackControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(authenticator, never()).authenticate(any(), any(), any(), any());
-        verify(postService, never()).completePostImageProcessing(any(), any());
+        verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 }

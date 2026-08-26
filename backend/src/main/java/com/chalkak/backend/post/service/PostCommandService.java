@@ -3,12 +3,8 @@ package com.chalkak.backend.post.service;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.like.repository.PostLikeCount;
-import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
-import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
@@ -16,7 +12,6 @@ import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
-import com.chalkak.backend.post.repository.PostSlice;
 import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.domain.TopicPhase;
@@ -24,39 +19,31 @@ import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 게시물과 이미지 업로드의 상태를 바꾸는 흐름. 업로드 권한 발급, 게시물 생성, 이미지 처리 결과 반영이 모두
+ * 같은 업로드 행을 잠그고 겨루므로 한자리에 둔다. 읽기 전용 조회는 {@link PostQueryService}가 맡는다.
+ */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class PostService {
-
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+@Transactional
+public class PostCommandService {
 
     private final PostRepository postRepository;
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
     private final PhotoRepository photoRepository;
-    private final PostLikeRepository postLikeRepository;
     private final PostImageStorage postImageStorage;
     private final PostImageUploadRepository postImageUploadRepository;
     private final PostImageUploadIssuer postImageUploadIssuer;
-    private final ImageUrlProvider imageUrlProvider;
-    private final RandomSeedGenerator randomSeedGenerator;
     private final PostProcessingPolicy postProcessingPolicy;
 
-    @Transactional
     public PostImageUploadResult createPostImageUpload(UUID userId) {
         User uploader = userRepository.findActiveById(userId)
                 .orElseThrow(() -> new NotFoundException(
@@ -78,7 +65,6 @@ public class PostService {
         );
     }
 
-    @Transactional
     public PostCreationResult createPost(
             UUID userId,
             UUID topicId,
@@ -135,51 +121,14 @@ public class PostService {
      * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
      * 요청이 READY를 보고 곧바로 공개 상태로 만든다.
      */
-    @Transactional
     public void completePostImageProcessing(UUID uploadId, Map<String, Object> imageMetadata) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
                 .ifPresent(upload -> completeProcessedUpload(upload, uploadId, imageMetadata));
     }
 
-    @Transactional
     public void failPostImageProcessing(UUID uploadId, String rejectionReason) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
                 .ifPresent(upload -> failProcessedUpload(upload, uploadId, rejectionReason));
-    }
-
-    public PostDetail getPost(UUID postId, UUID userId) {
-        validateUser(userId);
-        Post post = getVisiblePost(postId);
-
-        return PostDetail.from(
-                post,
-                imageUrlProvider,
-                postLikeRepository.countByPostId(postId),
-                postLikeRepository.existsByPostIdAndUserId(postId, userId)
-        );
-    }
-
-    public PostListResult getPosts(
-            LocalDate topicDate,
-            PostSort sort,
-            String randomSeed,
-            int page,
-            int pageSize,
-            Optional<UUID> userId
-    ) {
-        validateRandomSeedCombination(sort, randomSeed, page);
-        validateTopicDate(topicDate);
-        userId.ifPresent(this::validateUser);
-
-        Topic topic = getActiveTopic(topicDate);
-        if (sort == PostSort.RANDOM) {
-            return getRandomPosts(topic, randomSeed, page, pageSize, userId);
-        }
-        if (sort == PostSort.POPULAR) {
-            return getPopularPosts(topic, page, pageSize, userId);
-        }
-
-        return getRecentPosts(topic, page, pageSize, userId);
     }
 
     private void completeProcessedUpload(
@@ -214,169 +163,6 @@ public class PostService {
 
     private Optional<Post> findValidatingPost(UUID uploadId) {
         return postRepository.findValidatingByPostImageUploadId(uploadId);
-    }
-
-    private PostListResult getRandomPosts(
-            Topic topic,
-            String randomSeed,
-            int page,
-            int pageSize,
-            Optional<UUID> userId
-    ) {
-        String effectiveRandomSeed = Objects.requireNonNullElseGet(
-                randomSeed,
-                randomSeedGenerator::generateRandomSeed
-        );
-        PostSlice postSlice = postRepository.findVisibleRandomByTopicId(
-                topic.getId(),
-                effectiveRandomSeed,
-                page - 1,
-                pageSize
-        );
-
-        return createPostListResult(
-                postSlice,
-                page,
-                pageSize,
-                effectiveRandomSeed,
-                userId
-        );
-    }
-
-    private PostListResult getPopularPosts(
-            Topic topic,
-            int page,
-            int pageSize,
-            Optional<UUID> userId
-    ) {
-        PostSlice postSlice = postRepository.findVisiblePopularByTopicId(
-                topic.getId(),
-                page - 1,
-                pageSize
-        );
-
-        return createPostListResult(
-                postSlice,
-                page,
-                pageSize,
-                null,
-                userId
-        );
-    }
-
-    private PostListResult getRecentPosts(
-            Topic topic,
-            int page,
-            int pageSize,
-            Optional<UUID> userId
-    ) {
-        PostSlice postSlice = postRepository.findVisibleRecentByTopicId(
-                topic.getId(),
-                page - 1,
-                pageSize
-        );
-
-        return createPostListResult(
-                postSlice,
-                page,
-                pageSize,
-                null,
-                userId
-        );
-    }
-
-    private PostListResult createPostListResult(
-            PostSlice postSlice,
-            int page,
-            int pageSize,
-            String randomSeed,
-            Optional<UUID> userId
-    ) {
-        List<UUID> postIds = postSlice.posts().stream()
-                .map(Post::getId)
-                .toList();
-        if (postIds.isEmpty()) {
-            return PostListResult.from(
-                    postSlice,
-                    page,
-                    pageSize,
-                    randomSeed,
-                    imageUrlProvider,
-                    Map.of(),
-                    Set.of()
-            );
-        }
-
-        Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
-                .collect(Collectors.toMap(
-                        PostLikeCount::postId,
-                        PostLikeCount::likeCount
-                ));
-        Set<UUID> likedPostIds = userId
-                .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
-                .orElseGet(Set::of);
-
-        return PostListResult.from(
-                postSlice,
-                page,
-                pageSize,
-                randomSeed,
-                imageUrlProvider,
-                likeCounts,
-                likedPostIds
-        );
-    }
-
-    private Post getVisiblePost(UUID postId) {
-        return postRepository.findVisibleById(postId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "게시물을 찾을 수 없습니다."
-                ));
-    }
-
-    private Topic getActiveTopic(LocalDate topicDate) {
-        return topicRepository.findActiveByTopicDate(topicDate)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "해당 날짜의 주제를 찾을 수 없습니다."
-                ));
-    }
-
-    private void validateUser(UUID userId) {
-        userRepository.findActiveById(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."
-                ));
-    }
-
-    private void validateRandomSeedCombination(
-            PostSort sort,
-            String randomSeed,
-            int page
-    ) {
-        boolean hasSeedWithoutRandomSort = sort != PostSort.RANDOM && randomSeed != null;
-        boolean isSeedMissingAfterFirstRandomPage = sort == PostSort.RANDOM
-                && page > 1
-                && randomSeed == null;
-
-        if (hasSeedWithoutRandomSort
-                || isSeedMissingAfterFirstRandomPage) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "조회 조건이 올바르지 않습니다."
-            );
-        }
-    }
-
-    private void validateTopicDate(LocalDate topicDate) {
-        if (topicDate.isAfter(LocalDate.now(KST))) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "미래 날짜의 게시물은 조회할 수 없습니다."
-            );
-        }
     }
 
     private void validateTopicOpen(Topic topic) {

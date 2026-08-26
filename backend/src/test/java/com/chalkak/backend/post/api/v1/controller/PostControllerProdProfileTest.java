@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.post.service.PostListResult;
-import com.chalkak.backend.post.service.PostService;
+import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostSort;
 import java.time.LocalDate;
 import java.util.List;
@@ -37,7 +37,7 @@ class PostControllerProdProfileTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PostService postService;
+    private PostQueryService postQueryService;
 
     @Test
     @DisplayName("운영 환경에서도 게시물 목록은 비로그인으로 조회할 수 있다")
@@ -45,7 +45,7 @@ class PostControllerProdProfileTest {
         // Given
         LocalDate topicDate = LocalDate.of(2026, 8, 12);
         PostListResult result = new PostListResult(1, 20, false, null, List.of());
-        given(postService.getPosts(
+        given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
@@ -72,6 +72,6 @@ class PostControllerProdProfileTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
-        verify(postService, never()).getPost(any(), any());
+        verify(postQueryService, never()).getPost(any(), any());
     }
 }

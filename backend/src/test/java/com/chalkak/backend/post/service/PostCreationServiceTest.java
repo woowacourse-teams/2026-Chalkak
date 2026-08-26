@@ -43,7 +43,10 @@ class PostCreationServiceTest extends IntegrationTestSupport {
             "chalkak/posts/test/thumbnail/" + PHOTO_UPLOAD_ID + ".webp";
 
     @Autowired
-    private PostService postService;
+    private PostCommandService postCommandService;
+
+    @Autowired
+    private PostQueryService postQueryService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -105,7 +108,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .willReturn(ORIGINAL_STORAGE_KEY);
 
         // When
-        PostCreationResult result = postService.createPost(
+        PostCreationResult result = postCommandService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -144,7 +147,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .willReturn(ORIGINAL_STORAGE_KEY);
 
         // When
-        PostCreationResult result = postService.createPost(
+        PostCreationResult result = postCommandService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -172,7 +175,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -194,7 +197,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         unknownUserId,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -217,7 +220,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -243,7 +246,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -271,7 +274,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -299,7 +302,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -322,7 +325,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -347,12 +350,12 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         given(postImageStorage.existsUploadedImage(secondUploadId)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(secondUploadId))
                 .willReturn("chalkak/posts/test/original/" + secondUploadId + ".webp");
-        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
 
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
@@ -407,12 +410,12 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // Given
         UUID secondUploadId = givenSecondUpload();
         PostCreationResult stalled =
-                postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+                postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
         backdatePost(stalled.postId(), 31);
 
         // When
         PostCreationResult result =
-                postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
+                postCommandService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
 
         // Then
         assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
@@ -425,13 +428,13 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // Given
         UUID secondUploadId = givenSecondUpload();
         PostCreationResult pending =
-                postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+                postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
         backdatePost(pending.postId(), 29);
 
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null)
+                () -> postCommandService.createPost(USER_ID, TOPIC_ID, secondUploadId, null)
         );
 
         // Then
@@ -452,12 +455,12 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         given(postImageStorage.existsUploadedImage(secondUploadId)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(secondUploadId))
                 .willReturn(secondStorageKey);
-        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
-        postService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
+        postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        postCommandService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
 
         // When
         PostCreationResult result =
-                postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
+                postCommandService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
 
         // Then
         assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
@@ -473,12 +476,12 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
                 .willReturn(ORIGINAL_STORAGE_KEY);
-        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
 
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         SECOND_TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -510,7 +513,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -529,7 +532,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
                 .willReturn(ORIGINAL_STORAGE_KEY);
-        PostCreationResult created = postService.createPost(
+        PostCreationResult created = postCommandService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -540,7 +543,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPost(created.postId(), USER_ID)
+                () -> postQueryService.getPost(created.postId(), USER_ID)
         );
 
         // Then
@@ -563,7 +566,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .willReturn(THUMBNAIL_STORAGE_KEY);
 
         // When
-        PostCreationResult result = postService.createPost(
+        PostCreationResult result = postCommandService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -597,7 +600,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .willReturn(ORIGINAL_STORAGE_KEY);
 
         // When
-        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
         entityManager.flush();
         entityManager.clear();
 
@@ -613,7 +616,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(USER_ID, TOPIC_ID, UUID.randomUUID(), null)
+                () -> postCommandService.createPost(USER_ID, TOPIC_ID, UUID.randomUUID(), null)
         );
 
         // Then
@@ -630,7 +633,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.createPost(
+                () -> postCommandService.createPost(
                         SECOND_USER_ID,
                         SECOND_TOPIC_ID,
                         PHOTO_UPLOAD_ID,
@@ -656,7 +659,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
+                () -> postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
         );
 
         // Then
@@ -678,7 +681,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
+                () -> postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null)
         );
 
         // Then

@@ -38,7 +38,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     );
 
     @Autowired
-    private PostService postService;
+    private PostCommandService postCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -101,7 +101,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     }
 
     private UUID createValidatingPost() {
-        PostCreationResult result = postService.createPost(
+        PostCreationResult result = postCommandService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
@@ -134,7 +134,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     @DisplayName("완료 콜백은 업로드를 READY로 올리고 메타데이터를 기록한다")
     void completePostImageProcessing_issuedUpload_marksReady() {
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
 
@@ -151,7 +151,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         UUID postId = createValidatingPost();
 
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
 
@@ -174,7 +174,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
                 .willReturn("chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".avif");
 
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
 
@@ -187,7 +187,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     @DisplayName("실패 콜백은 업로드를 REJECTED로 내리고 사유를 기록한다")
     void failPostImageProcessing_issuedUpload_marksRejected() {
         // When
-        postService.failPostImageProcessing(UPLOAD_ID, "UNSUPPORTED_FORMAT");
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "UNSUPPORTED_FORMAT");
         entityManager.flush();
         entityManager.clear();
 
@@ -204,7 +204,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         UUID postId = createValidatingPost();
 
         // When
-        postService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
         entityManager.flush();
         entityManager.clear();
 
@@ -220,12 +220,12 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     void completePostImageProcessing_rejectedUpload_keepsPostRejected() {
         // Given
         UUID postId = createValidatingPost();
-        postService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
         entityManager.flush();
         entityManager.clear();
 
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
 
@@ -240,13 +240,13 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     void completePostImageProcessing_duplicateCallback_staysApproved() {
         // Given
         UUID postId = createValidatingPost();
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
         Object firstModeratedAt = findPost(postId).get("moderated_at");
 
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, Map.of("width", 1));
+        postCommandService.completePostImageProcessing(UPLOAD_ID, Map.of("width", 1));
         entityManager.flush();
         entityManager.clear();
 
@@ -261,7 +261,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     @DisplayName("게시물이 아직 없어도 완료 콜백은 업로드 상태만 바꾸고 끝난다")
     void completePostImageProcessing_withoutPost_marksReadyOnly() {
         // When
-        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
 
@@ -275,7 +275,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     @DisplayName("존재하지 않는 업로드 ID의 콜백은 아무것도 바꾸지 않는다")
     void completePostImageProcessing_unknownUploadId_doesNothing() {
         // When
-        postService.completePostImageProcessing(UUID.randomUUID(), METADATA);
+        postCommandService.completePostImageProcessing(UUID.randomUUID(), METADATA);
         entityManager.flush();
         entityManager.clear();
 
