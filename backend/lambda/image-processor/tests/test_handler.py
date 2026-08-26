@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import Mock, patch
 
@@ -109,6 +110,46 @@ class LambdaHandlerTest(unittest.TestCase):
         with patch.object(handler.LOGGER, "exception"):
             with self.assertRaises(TimeoutError):
                 handler.lambda_handler(sqs_event(s3_body()), None)
+
+
+    def test_handler_reports_failed_message_when_partial_batch_is_enabled(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = TimeoutError("S3 timeout")
+        handler._processor = processor
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            with patch.object(handler.LOGGER, "exception"):
+                result = handler.lambda_handler(sqs_event(s3_body()), None)
+
+        self.assertEqual(
+            {"batchItemFailures": [{"itemIdentifier": "message-1"}]},
+            result,
+        )
+
+    def test_handler_reports_no_failures_when_partial_batch_is_enabled(self) -> None:
+        handler._processor = Mock()
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            result = handler.lambda_handler(sqs_event(s3_body()), None)
+
+        self.assertEqual({"batchItemFailures": []}, result)
+
+    def test_handler_keeps_only_failed_message_in_batch(self) -> None:
+        processor = Mock()
+        processor.process.side_effect = [None, TimeoutError("S3 timeout")]
+        handler._processor = processor
+        event = sqs_event(s3_body())
+        second = {"messageId": "message-2", "body": event["Records"][0]["body"]}
+        event["Records"].append(second)
+
+        with patch.dict(os.environ, {"SQS_PARTIAL_BATCH_RESPONSE": "true"}):
+            with patch.object(handler.LOGGER, "exception"):
+                result = handler.lambda_handler(event, None)
+
+        self.assertEqual(
+            {"batchItemFailures": [{"itemIdentifier": "message-2"}]},
+            result,
+        )
 
 
 if __name__ == "__main__":

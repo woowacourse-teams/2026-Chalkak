@@ -160,6 +160,7 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 | `PROD_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 prod 백엔드 HTTPS URL |
 | `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키 |
 | `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
+| `SQS_PARTIAL_BATCH_RESPONSE` | `false` | 실패한 메시지만 큐에 되돌린다. 이벤트 소스 매핑에 `ReportBatchItemFailures`를 켠 뒤에만 `true`로 둔다 |
 
 ### 배포 순서
 
