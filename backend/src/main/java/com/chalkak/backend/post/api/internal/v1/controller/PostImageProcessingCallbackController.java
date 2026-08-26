@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.api.internal.v1.controller;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.post.api.internal.v1.docs.PostImageProcessingCallbackApiDocs;
@@ -51,20 +52,21 @@ public class PostImageProcessingCallbackController
     @Override
     @PostMapping("/{uploadId}/complete")
     public ResponseEntity<Void> complete(
-            @PathVariable UUID uploadId,
+            @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature,
             @RequestBody(required = false) String rawBody
     ) {
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
         authenticator.authenticate(
-                callbackPath(uploadId, "complete"),
+                callbackPath(parsedUploadId, "complete"),
                 rawBody,
                 timestamp,
                 signature
         );
         PostImageProcessingCompleteRequest request =
                 readBody(rawBody, PostImageProcessingCompleteRequest.class);
-        postService.completePostImageProcessing(uploadId, request.toMetadata());
+        postService.completePostImageProcessing(parsedUploadId, request.toMetadata());
 
         return ResponseEntity.noContent().build();
     }
@@ -72,20 +74,21 @@ public class PostImageProcessingCallbackController
     @Override
     @PostMapping("/{uploadId}/failed")
     public ResponseEntity<Void> fail(
-            @PathVariable UUID uploadId,
+            @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature,
             @RequestBody(required = false) String rawBody
     ) {
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
         authenticator.authenticate(
-                callbackPath(uploadId, "failed"),
+                callbackPath(parsedUploadId, "failed"),
                 rawBody,
                 timestamp,
                 signature
         );
         PostImageProcessingFailRequest request =
                 readBody(rawBody, PostImageProcessingFailRequest.class);
-        postService.failPostImageProcessing(uploadId, request.reason());
+        postService.failPostImageProcessing(parsedUploadId, request.reason());
 
         return ResponseEntity.noContent().build();
     }

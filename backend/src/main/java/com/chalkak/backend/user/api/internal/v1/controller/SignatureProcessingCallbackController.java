@@ -1,6 +1,7 @@
 package com.chalkak.backend.user.api.internal.v1.controller;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.user.api.internal.v1.docs.SignatureProcessingCallbackApiDocs;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
@@ -33,12 +34,18 @@ public class SignatureProcessingCallbackController
     @Override
     @PostMapping("/{uploadId}/complete")
     public ResponseEntity<Void> complete(
-            @PathVariable UUID uploadId,
+            @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature
     ) {
-        authenticator.authenticate(callbackPath(uploadId, "complete"), null, timestamp, signature);
-        userService.completeSignatureProcessing(uploadId);
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
+        authenticator.authenticate(
+                callbackPath(parsedUploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        );
+        userService.completeSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();
     }
@@ -46,12 +53,18 @@ public class SignatureProcessingCallbackController
     @Override
     @PostMapping("/{uploadId}/failed")
     public ResponseEntity<Void> fail(
-            @PathVariable UUID uploadId,
+            @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature
     ) {
-        authenticator.authenticate(callbackPath(uploadId, "failed"), null, timestamp, signature);
-        userService.failSignatureProcessing(uploadId);
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
+        authenticator.authenticate(
+                callbackPath(parsedUploadId, "failed"),
+                null,
+                timestamp,
+                signature
+        );
+        userService.failSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();
     }

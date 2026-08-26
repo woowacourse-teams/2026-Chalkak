@@ -175,4 +175,19 @@ class PostImageProcessingCallbackControllerTest {
 
         verify(postService, never()).completePostImageProcessing(any(), any());
     }
+
+    @Test
+    @DisplayName("정규 형식이 아닌 uploadId는 400을 반환하고 인증까지 가지 않는다")
+    void complete_nonCanonicalUploadId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", "1-1-1-1-1")
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(COMPLETE_BODY))
+                .andExpect(status().isBadRequest());
+
+        verify(authenticator, never()).authenticate(any(), any(), any(), any());
+        verify(postService, never()).completePostImageProcessing(any(), any());
+    }
 }

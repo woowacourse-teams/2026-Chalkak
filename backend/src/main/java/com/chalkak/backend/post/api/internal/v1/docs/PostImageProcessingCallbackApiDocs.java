@@ -46,9 +46,10 @@ public interface PostImageProcessingCallbackApiDocs {
     ResponseEntity<Void> complete(
             @Parameter(
                     description = "처리한 게시물 이미지 업로드 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
+                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                    schema = @Schema(type = "string", format = "uuid")
             )
-            UUID uploadId,
+            String uploadId,
             @Parameter(
                     name = "X-Chalkak-Callback-Timestamp",
                     description = "요청 시각의 Unix epoch 초. 서버 시각과 5분 이내여야 합니다.",
@@ -109,9 +110,10 @@ public interface PostImageProcessingCallbackApiDocs {
     ResponseEntity<Void> fail(
             @Parameter(
                     description = "처리한 게시물 이미지 업로드 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
+                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                    schema = @Schema(type = "string", format = "uuid")
             )
-            UUID uploadId,
+            String uploadId,
             @Parameter(
                     name = "X-Chalkak-Callback-Timestamp",
                     description = "요청 시각의 Unix epoch 초. 서버 시각과 5분 이내여야 합니다.",
