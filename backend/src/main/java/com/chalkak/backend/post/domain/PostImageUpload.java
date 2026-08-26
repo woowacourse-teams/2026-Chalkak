@@ -40,10 +40,12 @@ public class PostImageUpload {
 
     private static final Map<String, String> REJECTION_MESSAGES = Map.of(
             "UNSUPPORTED_FORMAT", "WebP 이미지만 업로드할 수 있습니다.",
+            "CORRUPTED_IMAGE", "사진 파일이 손상되었습니다. 다시 업로드해 주세요.",
             "ANIMATED_IMAGE", "움직이는 이미지는 업로드할 수 없습니다.",
             "TOO_LARGE", "더 작은 용량의 이미지를 업로드해 주세요.",
             "TOO_MANY_PIXELS", "해상도가 너무 큰 이미지입니다. 크기를 줄여 다시 업로드해 주세요.",
-            "MISSING_OBJECT", "업로드한 사진을 찾을 수 없습니다. 다시 업로드해 주세요."
+            "MISSING_OBJECT", "업로드한 사진을 찾을 수 없습니다. 다시 업로드해 주세요.",
+            "PROCESSING_ERROR", "사진을 처리하지 못했습니다. 다시 업로드해 주세요."
     );
     private static final String DEFAULT_REJECTION_MESSAGE =
             "처리할 수 없는 사진입니다. 다시 업로드해 주세요.";

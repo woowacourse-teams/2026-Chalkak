@@ -8,10 +8,12 @@ public record PostImageProcessingFailRequest(
                 example = "UNSUPPORTED_FORMAT",
                 allowableValues = {
                         "UNSUPPORTED_FORMAT",
+                        "CORRUPTED_IMAGE",
                         "ANIMATED_IMAGE",
                         "TOO_LARGE",
                         "TOO_MANY_PIXELS",
-                        "MISSING_OBJECT"
+                        "MISSING_OBJECT",
+                        "PROCESSING_ERROR"
                 }
         )
         String reason

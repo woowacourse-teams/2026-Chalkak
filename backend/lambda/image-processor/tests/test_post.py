@@ -272,7 +272,7 @@ class PostImageProcessorTest(unittest.TestCase):
             self.processor.process(self.event())
 
         self.callback_client.failed.assert_called_once_with(
-            "dev", UPLOAD_ID, {"reason": "UNSUPPORTED_FORMAT"}
+            "dev", UPLOAD_ID, {"reason": "CORRUPTED_IMAGE"}
         )
 
     def test_process_rejects_animated_webp(self) -> None:
@@ -336,7 +336,7 @@ class PostImageProcessorTest(unittest.TestCase):
             self.processor.process(self.event())
 
         self.callback_client.failed.assert_called_once_with(
-            "dev", UPLOAD_ID, {"reason": "UNSUPPORTED_FORMAT"}
+            "dev", UPLOAD_ID, {"reason": "CORRUPTED_IMAGE"}
         )
 
     def test_process_closes_upload_when_complete_callback_is_refused(self) -> None:

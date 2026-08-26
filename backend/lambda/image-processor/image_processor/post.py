@@ -270,10 +270,11 @@ class PostImageProcessor:
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
                 Image.MAX_IMAGE_PIXELS = self._settings.post_max_pixels
 
+                # verify()는 WebP에서 사실상 아무것도 하지 않는다. 실제 디코딩 검증은 아래 load()가
+                # 맡고, 여기서는 포맷과 프레임 수만 읽는다.
                 with Image.open(io.BytesIO(source)) as candidate:
                     image_format = candidate.format
                     frame_count = getattr(candidate, "n_frames", 1)
-                    candidate.verify()
 
                 if image_format != "WEBP":
                     raise RejectedPostImageError(
@@ -305,8 +306,10 @@ class PostImageProcessor:
             SyntaxError,
             ValueError,
         ) as exception:
+            # 포맷이 아니라 파일이 깨진 경우다. UNSUPPORTED_FORMAT으로 묶으면 사용자에게
+            # "WebP만 업로드할 수 있습니다"라는 틀린 안내가 나간다.
             raise RejectedPostImageError(
-                "UNSUPPORTED_FORMAT",
+                "CORRUPTED_IMAGE",
                 "post image cannot be decoded safely",
             ) from exception
         finally:
