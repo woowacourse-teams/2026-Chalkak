@@ -102,30 +102,48 @@ fun DisplayScreen(
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
+    var headerOffset by remember { mutableFloatStateOf(0f) }
+    var headerHeight by remember { mutableIntStateOf(0) }
+    var isHeaderTargetHidden by remember { mutableStateOf(false) }
     var filterOffset by remember { mutableFloatStateOf(0f) }
     var filterHeight by remember { mutableIntStateOf(0) }
     var isFilterTargetHidden by remember { mutableStateOf(false) }
     var isBottomBarVisible by remember { mutableStateOf(true) }
-    val filterScope = rememberCoroutineScope()
-    val filterJob = remember { mutableStateOf<Job?>(null) }
+    val settleScope = rememberCoroutineScope()
+    val settleJob = remember { mutableStateOf<Job?>(null) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
 
-    fun settleFilter() {
-        filterJob.value?.cancel()
-        val initialOffset = filterOffset
-        val targetOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f
+    fun settleTopAreas() {
+        settleJob.value?.cancel()
+        val initialHeaderOffset = headerOffset
+        val targetHeaderOffset = if (isHeaderTargetHidden) -headerHeight.toFloat() else 0f
+        val initialFilterOffset = filterOffset
+        val targetFilterOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f
 
-        if (initialOffset == targetOffset) return
+        if (initialHeaderOffset == targetHeaderOffset &&
+            initialFilterOffset == targetFilterOffset
+        ) {
+            return
+        }
 
-        filterJob.value = filterScope.launch {
+        settleJob.value = settleScope.launch {
             animate(
-                initialValue = initialOffset,
-                targetValue = targetOffset,
-            ) { value, _ -> filterOffset = value }
+                initialValue = 0f,
+                targetValue = 1f,
+            ) { progress, _ ->
+                headerOffset = initialHeaderOffset +
+                    ((targetHeaderOffset - initialHeaderOffset) * progress)
+                filterOffset = initialFilterOffset +
+                    ((targetFilterOffset - initialFilterOffset) * progress)
+            }
         }
     }
 
-    val nestedScrollConnection = remember(filterHeight, uiState.content is DisplayContentState.Latest) {
+    val nestedScrollConnection = remember(
+        headerHeight,
+        filterHeight,
+        uiState.content is DisplayContentState.Latest,
+    ) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -137,17 +155,45 @@ fun DisplayScreen(
                         available.y > 0f -> isBottomBarVisible = true
                     }
 
-                    if (available.y != 0f &&
+                    if (available.y < 0f) {
+                        settleJob.value?.cancel()
+                        var remainingScroll = available.y
+                        var consumedScroll = 0f
+
+                        if (headerHeight > 0) {
+                            isHeaderTargetHidden = true
+                            val previousOffset = headerOffset
+                            headerOffset = (headerOffset + remainingScroll)
+                                .coerceAtLeast(-headerHeight.toFloat())
+                            val consumedByHeader = headerOffset - previousOffset
+                            consumedScroll += consumedByHeader
+                            remainingScroll -= consumedByHeader
+                        }
+
+                        if (remainingScroll < 0f &&
+                            uiState.content is DisplayContentState.Latest &&
+                            filterHeight > 0
+                        ) {
+                            isFilterTargetHidden = true
+                            val previousOffset = filterOffset
+                            filterOffset = (filterOffset + remainingScroll)
+                                .coerceAtLeast(-filterHeight.toFloat())
+                            consumedScroll += filterOffset - previousOffset
+                        }
+
+                        if (consumedScroll != 0f) {
+                            return Offset(0f, consumedScroll)
+                        }
+                    }
+
+                    if (available.y > 0f &&
                         uiState.content is DisplayContentState.Latest &&
                         filterHeight > 0
                     ) {
-                        filterJob.value?.cancel()
-                        isFilterTargetHidden = available.y < 0f
+                        settleJob.value?.cancel()
+                        isFilterTargetHidden = false
                         val previousOffset = filterOffset
-                        filterOffset = (filterOffset + available.y).coerceIn(
-                            minimumValue = -filterHeight.toFloat(),
-                            maximumValue = 0f,
-                        )
+                        filterOffset = (filterOffset + available.y).coerceAtMost(0f)
                         if (filterOffset != previousOffset) {
                             return Offset(0f, filterOffset - previousOffset)
                         }
@@ -156,16 +202,36 @@ fun DisplayScreen(
                 return Offset.Zero
             }
 
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput &&
+                    available.y > 0f &&
+                    headerOffset < 0f
+                ) {
+                    settleJob.value?.cancel()
+                    isHeaderTargetHidden = false
+                    val previousOffset = headerOffset
+                    headerOffset = (headerOffset + available.y).coerceAtMost(0f)
+                    return Offset(0f, headerOffset - previousOffset)
+                }
+                return Offset.Zero
+            }
+
             override suspend fun onPreFling(available: Velocity): Velocity {
                 isBottomBarVisible = true
-                settleFilter()
+                settleTopAreas()
                 return Velocity.Zero
             }
         }
     }
 
     LaunchedEffect(uiState.selectedDate, selectedSort) {
-        filterJob.value?.cancel()
+        settleJob.value?.cancel()
+        headerOffset = 0f
+        isHeaderTargetHidden = false
         filterOffset = 0f
         isFilterTargetHidden = false
         isBottomBarVisible = true
@@ -182,19 +248,32 @@ fun DisplayScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            DisplayDateHeader(
-                selectedDate = uiState.selectedDate,
-                topic = uiState.topic,
-                isArchiveDate = uiState.content is DisplayContentState.Archive,
-                canGoPrevious = uiState.canGoPrevious,
-                canGoNext = uiState.canGoNext,
-                onPreviousClick = onPreviousDateClick,
-                onNextClick = onNextDateClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .collapsingArea(headerOffset),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { headerHeight = it.height },
+                ) {
+                    DisplayDateHeader(
+                        selectedDate = uiState.selectedDate,
+                        topic = uiState.topic,
+                        isArchiveDate = uiState.content is DisplayContentState.Archive,
+                        canGoPrevious = uiState.canGoPrevious,
+                        canGoNext = uiState.canGoNext,
+                        onPreviousClick = onPreviousDateClick,
+                        onNextClick = onNextDateClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
-            if (uiState.content is DisplayContentState.Archive) {
-                Spacer(modifier = Modifier.height(15.dp))
+                    if (uiState.content is DisplayContentState.Archive) {
+                        Spacer(modifier = Modifier.height(15.dp))
+                    }
+                }
             }
 
             if (uiState.content is DisplayContentState.Latest) {
