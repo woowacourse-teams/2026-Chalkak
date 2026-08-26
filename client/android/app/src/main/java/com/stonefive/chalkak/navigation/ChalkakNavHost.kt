@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -66,10 +68,15 @@ fun ChalkakNavHost(
             )
         }
 
-        composable<Today> {
+        composable<Today> { backStackEntry ->
+            val homeSelectionSignal by backStackEntry.savedStateHandle
+                .getStateFlow(HOME_SELECTION_REQUEST_KEY, 0)
+                .collectAsStateWithLifecycle()
+
             HomeRoute(
                 onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
                 onNavigateToBottomBar = navController::navigateToBottomBar,
+                selectionSignal = homeSelectionSignal,
             )
         }
 
@@ -193,6 +200,12 @@ fun ChalkakNavHost(
 }
 
 private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
+    if (item == ChalkakBottomBarItem.TODAY) {
+        val todayEntry = getBackStackEntry<Today>()
+        val currentSelectionSignal = todayEntry.savedStateHandle[HOME_SELECTION_REQUEST_KEY] ?: 0
+        todayEntry.savedStateHandle[HOME_SELECTION_REQUEST_KEY] = currentSelectionSignal + 1
+    }
+
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -208,6 +221,8 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
         }
     }
 }
+
+private const val HOME_SELECTION_REQUEST_KEY = "home_selection_request"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))

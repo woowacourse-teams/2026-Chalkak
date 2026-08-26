@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.remote.home
 import com.stonefive.chalkak.domain.model.PostSort
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,6 +23,21 @@ class MockHomeRemoteDataSourceTest {
                 .size,
         )
         assertEquals("하늘하늘하늘", response.topic)
+    }
+
+    @Test
+    fun `랜덤순 요청은 같은 사진을 다른 순서로 제공한다`() = runTest {
+        val latestPhotoIds = dataSource
+            .getHome(PostSort.LATEST)
+            .photos
+            .map { it.id }
+        val randomPhotoIds = dataSource
+            .getHome(PostSort.RANDOM)
+            .photos
+            .map { it.id }
+
+        assertEquals(latestPhotoIds.toSet(), randomPhotoIds.toSet())
+        assertNotEquals(latestPhotoIds, randomPhotoIds)
     }
 
     @Test

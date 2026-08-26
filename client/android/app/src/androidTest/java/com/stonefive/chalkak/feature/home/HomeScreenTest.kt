@@ -1,27 +1,17 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostSort
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -30,97 +20,47 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `reverse scroll in list reveals only the quick filter`() {
+    fun `홈에서는 정렬 옵션을 표시하지 않는다`() {
         setHomeContent(scrollableHomeUiState())
 
-        composeRule.onRoot().performTouchInput { swipeUp() }
-        composeRule.onRoot().performTouchInput { swipeUp() }
-
-        composeRule.onAllNodesWithText("8\uC6D4 5\uC77C \u00B7 \uC624\uB298\uC758 \uC8FC\uC81C").assertCountEquals(0)
-        composeRule.onAllNodesWithText("\uCD5C\uC2E0\uC21C").assertCountEquals(0)
-
-        composeRule.onRoot().performTouchInput { swipeDown() }
-
-        composeRule.onAllNodesWithText("8\uC6D4 5\uC77C \u00B7 \uC624\uB298\uC758 \uC8FC\uC81C").assertCountEquals(0)
-        composeRule.onNodeWithText("\uCD5C\uC2E0\uC21C").assertIsDisplayed()
+        composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        composeRule.onAllNodesWithText("인기순").assertCountEquals(0)
+        composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
     }
 
     @Test
-    fun `홈 화면에서 위로 스크롤하면 상단 영역이 사라지고 아래로 스크롤하면 다시 표시된다`() {
+    fun `홈 사진을 스크롤하면 주제가 사라지고 맨 위에서 다시 표시된다`() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
-        composeRule.onNodeWithText("바다").assertIsDisplayed()
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onNodeWithText("오늘").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeUp() }
+
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
-        composeRule.onAllNodesWithText("바다").assertCountEquals(0)
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
         composeRule.onNodeWithText("오늘").assertIsNotDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")
             .performTouchInput { swipeDown() }
+
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
-        composeRule.onNodeWithText("바다").assertIsDisplayed()
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onNodeWithText("오늘").assertIsDisplayed()
     }
 
-    @Test
-    fun `정렬을 변경하면 필터가 다시 표시되고 사진 목록이 첫 항목으로 이동한다`() {
-        var selectedSort: PostSort? = null
-        setHomeContent(
-            uiState = scrollableHomeUiState(),
-            onSortSelected = { selectedSort = it },
-        )
-
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
-
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput {
-                swipe(
-                    start = center,
-                    end = center.copy(y = center.y + 40f),
-                )
-            }
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
-
-        composeRule.onNodeWithText("인기순").performClick()
-
-        assertEquals(PostSort.POPULAR, selectedSort)
-        composeRule.onNodeWithText("인기순").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
-    }
-
-    private fun setHomeContent(
-        uiState: HomeUiState,
-        onSortSelected: (PostSort) -> Unit = {},
-    ) {
+    private fun setHomeContent(uiState: HomeUiState) {
         composeRule.setContent {
             ChalkakTheme {
-                var currentUiState by remember { mutableStateOf(uiState) }
-
                 HomeScreen(
-                    uiState = currentUiState,
-                    onAction = { action ->
-                        if (action is HomeUiAction.SortSelected) {
-                            currentUiState = currentUiState.copy(selectedSort = action.sort)
-                            onSortSelected(action.sort)
-                        }
-                    },
+                    uiState = uiState,
+                    onAction = {},
                 )
             }
         }
@@ -141,5 +81,4 @@ private fun scrollableHomeUiState() = HomeUiState(
             likeCount = 17,
         )
     },
-    selectedSort = PostSort.LATEST,
 )

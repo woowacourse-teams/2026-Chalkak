@@ -6,43 +6,51 @@ import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
 import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
 import com.stonefive.chalkak.data.remote.home.model.HomeResponse
 import com.stonefive.chalkak.domain.model.PostSort
+import kotlin.random.Random
 import kotlinx.coroutines.delay
 
 class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : HomeRemoteDataSource {
     private val likedPhotoIds = mutableSetOf<String>()
+    private var randomRequestCount = 0
 
-    @Suppress("UNUSED_PARAMETER")
     override suspend fun getHome(sort: PostSort): HomeResponse {
         delay(responseDelayMillis)
+        val photos = listOf(
+            HomePhotoResponse(
+                id = FIRST_PHOTO_ID,
+                imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                contentDescription = "노을이 진 하늘과 전신주",
+                title = "안녕하세요 찰캌입니다",
+                likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT),
+            ),
+            HomePhotoResponse(
+                id = SECOND_PHOTO_ID,
+                imageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                contentDescription = "오늘의 주제를 담은 두 번째 사진",
+                title = null,
+                likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT),
+            ),
+            HomePhotoResponse(
+                id = THIRD_PHOTO_ID,
+                imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                contentDescription = "저녁 하늘을 담은 세 번째 사진",
+                title = "저녁 하늘",
+                likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT),
+            ),
+        ) + (ADDITIONAL_PHOTO_START..ADDITIONAL_PHOTO_END).map(::additionalHomePhoto)
+        val sortedPhotos = when (sort) {
+            PostSort.LATEST -> photos
+            PostSort.POPULAR -> photos.sortedByDescending(HomePhotoResponse::likeCount)
+            PostSort.RANDOM -> photos.shuffled(Random(randomRequestCount++))
+        }
+
         return HomeResponse(
             dateLabel = "8월 3일 · 오늘의 주제",
             topic = "하늘하늘하늘",
-            photos = listOf(
-                HomePhotoResponse(
-                    id = FIRST_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "노을이 진 하늘과 전신주",
-                    title = "안녕하세요 찰캌입니다",
-                    likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT),
-                ),
-                HomePhotoResponse(
-                    id = SECOND_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "오늘의 주제를 담은 두 번째 사진",
-                    title = null,
-                    likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT),
-                ),
-                HomePhotoResponse(
-                    id = THIRD_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "저녁 하늘을 담은 세 번째 사진",
-                    title = "저녁 하늘",
-                    likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT),
-                ),
-            ) + (ADDITIONAL_PHOTO_START..ADDITIONAL_PHOTO_END).map(::additionalHomePhoto),
+            photos = sortedPhotos,
             likedPhotoIds = likedPhotoIds.toSet(),
         )
     }
