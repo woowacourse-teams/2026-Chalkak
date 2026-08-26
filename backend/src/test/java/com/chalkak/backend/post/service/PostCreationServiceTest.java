@@ -369,6 +369,32 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("거절된 게시물이 있으면 같은 주제에 다시 작성할 수 있다")
+    void createPost_afterRejection_createsNewPost() {
+        // Given
+        UUID secondUploadId = UUID.randomUUID();
+        insertUpload(secondUploadId, USER_ID, "ISSUED");
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+        String secondStorageKey = "chalkak/posts/test/original/" + secondUploadId + ".webp";
+        given(postImageStorage.existsUploadedImage(secondUploadId)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(secondUploadId))
+                .willReturn(secondStorageKey);
+        postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        postService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
+
+        // When
+        PostCreationResult result =
+                postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
+
+        // Then
+        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM posts", Integer.class))
+                .isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("같은 사진 업로드는 다른 게시물에도 다시 사용할 수 없다")
     void createPost_reusedPhotoUpload_throwsBusinessException() {
         // Given

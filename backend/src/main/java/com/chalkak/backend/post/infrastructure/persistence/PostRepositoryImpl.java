@@ -57,9 +57,17 @@ public class PostRepositoryImpl implements PostRepository {
         return false;
     }
 
+    /**
+     * 거절된 게시물은 중복으로 세지 않는다. 이미지 처리에서 거절당한 사용자가 올바른 사진으로 다시 올릴
+     * 수 있어야 하는데, 게시물 삭제 API가 없어 한 번 거절되면 복구할 방법이 없기 때문이다.
+     */
     @Override
     public boolean existsActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId) {
-        return postJpaRepository.existsByAuthorIdAndTopicIdAndDeletedAtIsNull(authorId, topicId);
+        return postJpaRepository.existsByAuthorIdAndTopicId(
+                authorId,
+                topicId,
+                ModerationStatus.REJECTED
+        );
     }
 
     @Override
