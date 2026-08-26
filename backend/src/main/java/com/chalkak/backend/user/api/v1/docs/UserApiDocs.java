@@ -72,6 +72,42 @@ public interface UserApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
+    @Operation(summary = "내 사인 조회")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "사인 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "사인 이미지 처리 실패 또는 15분 타임아웃",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "회원을 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<UserSignatureResponse> getSignature(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
     @Operation(summary = "사인 이미지 수정")
     @ApiResponses({
             @ApiResponse(
