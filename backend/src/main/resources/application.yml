@@ -35,6 +35,12 @@ chalkak:
     post:
       max-bytes: 5242880
 
+  post:
+    # 이미지 처리 완료 콜백을 언제까지 기다릴지. 이 시간을 넘긴 검수 대기 게시물은 다음 게시물 생성
+    # 시점에 거절 처리해, 콜백이 유실돼도 작성자가 같은 주제에 다시 올릴 수 있게 한다.
+    # 30m, 1h, PT30M 형식을 모두 받는다.
+    image-processing-timeout: ${POST_IMAGE_PROCESSING_TIMEOUT:30m}
+
 management:
   endpoints:
     web:

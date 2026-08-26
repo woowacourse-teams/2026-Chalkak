@@ -107,6 +107,10 @@ public class Post {
         updateModerationStatus(ModerationStatus.APPROVED, moderatedAt);
     }
 
+    public boolean isValidating() {
+        return moderationStatus == ModerationStatus.VALIDATING;
+    }
+
     public void reject(Instant moderatedAt) {
         updateModerationStatus(ModerationStatus.REJECTED, moderatedAt);
     }

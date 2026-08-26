@@ -368,6 +368,77 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .isEqualTo(1);
     }
 
+    private void backdatePost(UUID postId, int minutes) {
+        entityManager.flush();
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = CURRENT_TIMESTAMP - MAKE_INTERVAL(mins => ?)"
+                        + " WHERE id = ?",
+                minutes,
+                postId
+        );
+        entityManager.clear();
+    }
+
+    private String moderationStatusOf(UUID postId) {
+        entityManager.flush();
+        return jdbcTemplate.queryForObject(
+                "SELECT CAST(moderation_status AS TEXT) FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+    }
+
+    private UUID givenSecondUpload() {
+        UUID secondUploadId = UUID.randomUUID();
+        insertUpload(secondUploadId, USER_ID, "ISSUED");
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+        given(postImageStorage.existsUploadedImage(secondUploadId)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(secondUploadId))
+                .willReturn("chalkak/posts/test/original/" + secondUploadId + ".webp");
+
+        return secondUploadId;
+    }
+
+    @Test
+    @DisplayName("처리 대기 시간을 넘긴 검수 대기 게시물은 거절되고 같은 주제에 다시 작성할 수 있다")
+    void createPost_stalledValidatingPost_rejectsItAndAllowsNewPost() {
+        // Given
+        UUID secondUploadId = givenSecondUpload();
+        PostCreationResult stalled =
+                postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        backdatePost(stalled.postId(), 31);
+
+        // When
+        PostCreationResult result =
+                postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null);
+
+        // Then
+        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+        assertThat(moderationStatusOf(stalled.postId())).isEqualTo("REJECTED");
+    }
+
+    @Test
+    @DisplayName("처리 대기 시간 안의 검수 대기 게시물은 여전히 중복으로 막는다")
+    void createPost_recentValidatingPost_throwsBusinessException() {
+        // Given
+        UUID secondUploadId = givenSecondUpload();
+        PostCreationResult pending =
+                postService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
+        backdatePost(pending.postId(), 29);
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> postService.createPost(USER_ID, TOPIC_ID, secondUploadId, null)
+        );
+
+        // Then
+        assertThat(exception).hasMessage("이미 해당 주제에 게시물을 작성했습니다.");
+        assertThat(moderationStatusOf(pending.postId())).isEqualTo("VALIDATING");
+    }
+
     @Test
     @DisplayName("거절된 게시물이 있으면 같은 주제에 다시 작성할 수 있다")
     void createPost_afterRejection_createsNewPost() {

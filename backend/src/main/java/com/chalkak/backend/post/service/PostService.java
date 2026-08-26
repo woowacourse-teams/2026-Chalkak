@@ -46,6 +46,7 @@ public class PostService {
     private final PostImageUploadIssuer postImageUploadIssuer;
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
+    private final PostProcessingPolicy postProcessingPolicy;
 
     @Transactional
     public PostImageUploadResult createPostImageUpload(UUID userId) {
@@ -88,7 +89,7 @@ public class PostService {
                         "게시물을 작성할 주제를 찾을 수 없습니다."
                 ));
         validateTopicOpen(topic);
-        validatePostNotCreated(userId, topicId);
+        validatePostNotCreated(userId, topicId, Instant.now());
 
         PostImageUpload upload = getClaimableUpload(userId, photoUploadId);
         upload.claim(Instant.now());
@@ -262,13 +263,33 @@ public class PostService {
         }
     }
 
-    private void validatePostNotCreated(UUID userId, UUID topicId) {
-        if (postRepository.existsActiveByAuthorIdAndTopicId(userId, topicId)) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "이미 해당 주제에 게시물을 작성했습니다."
-            );
+    /**
+     * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 검수 대기 상태로 남는다. 작성자에게는 보이지도
+     * 않으면서 같은 주제 재작성만 막으므로, 처리 대기 시간을 넘긴 게시물은 여기서 거절 처리하고 길을 터 준다.
+     */
+    private void validatePostNotCreated(UUID userId, UUID topicId, Instant now) {
+        Optional<Post> activePost =
+                postRepository.findActiveByAuthorIdAndTopicId(userId, topicId);
+        if (activePost.isEmpty()) {
+            return;
         }
+
+        Post post = activePost.get();
+        if (isProcessingTimedOut(post, now)) {
+            post.reject(now);
+            // 부분 유니크 인덱스가 REJECTED만 제외하므로, 새 게시물 INSERT보다 이 거절이 먼저 반영돼야 한다.
+            postRepository.flush();
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "이미 해당 주제에 게시물을 작성했습니다."
+        );
+    }
+
+    private boolean isProcessingTimedOut(Post post, Instant now) {
+        return post.isValidating()
+                && postProcessingPolicy.isProcessingTimedOut(post.getCreatedAt(), now);
     }
 
     /**

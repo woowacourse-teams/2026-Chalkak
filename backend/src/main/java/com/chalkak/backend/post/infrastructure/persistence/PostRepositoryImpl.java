@@ -62,8 +62,13 @@ public class PostRepositoryImpl implements PostRepository {
      * 수 있어야 하는데, 게시물 삭제 API가 없어 한 번 거절되면 복구할 방법이 없기 때문이다.
      */
     @Override
-    public boolean existsActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId) {
-        return postJpaRepository.existsByAuthorIdAndTopicId(
+    public void flush() {
+        postJpaRepository.flush();
+    }
+
+    @Override
+    public Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId) {
+        return postJpaRepository.findByAuthorIdAndTopicId(
                 authorId,
                 topicId,
                 ModerationStatus.REJECTED
