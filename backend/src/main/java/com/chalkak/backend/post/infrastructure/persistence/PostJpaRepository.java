@@ -48,13 +48,13 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             SELECT post
             FROM Post post
             JOIN FETCH post.photo photo
-            WHERE photo.originalStorageKey = :originalStorageKey
+            WHERE post.postImageUploadId = :postImageUploadId
               AND post.moderationStatus = :moderationStatus
               AND post.deletedAt IS NULL
               AND photo.deletedAt IS NULL
             """)
-    Optional<Post> findByOriginalStorageKey(
-            @Param("originalStorageKey") String originalStorageKey,
+    Optional<Post> findByPostImageUploadId(
+            @Param("postImageUploadId") UUID postImageUploadId,
             @Param("moderationStatus") ModerationStatus moderationStatus
     );
 

@@ -81,9 +81,9 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
-    public Optional<Post> findValidatingByOriginalStorageKey(String originalStorageKey) {
-        return postJpaRepository.findByOriginalStorageKey(
-                originalStorageKey,
+    public Optional<Post> findValidatingByPostImageUploadId(UUID postImageUploadId) {
+        return postJpaRepository.findByPostImageUploadId(
+                postImageUploadId,
                 ModerationStatus.VALIDATING
         );
     }

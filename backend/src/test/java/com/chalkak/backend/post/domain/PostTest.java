@@ -9,10 +9,14 @@ import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class PostTest {
+
+    private static final UUID UPLOAD_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
 
     private final User author = mock(User.class);
     private final Topic topic = mock(Topic.class);
@@ -22,7 +26,7 @@ class PostTest {
     @DisplayName("작성자와 주제와 사진으로 검수 중인 게시물을 생성한다")
     void createPost_validValues_createsValidatingPost() {
         // When
-        Post post = Post.createPost(author, topic, photo, "오늘의 기록");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "오늘의 기록");
 
         // Then
         assertThat(post.getAuthor()).isSameAs(author);
@@ -36,7 +40,7 @@ class PostTest {
     @DisplayName("제목이 공백이면 제목 없는 게시물로 생성한다")
     void createPost_blankTitle_normalizesTitleToNull() {
         // When
-        Post post = Post.createPost(author, topic, photo, "   ");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "   ");
 
         // Then
         assertThat(post.getTitle()).isNull();
@@ -49,7 +53,7 @@ class PostTest {
         String title = "1234567890";
 
         // When
-        Post post = Post.createPost(author, topic, photo, title);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
         assertThat(post.getTitle()).isEqualTo(title);
@@ -62,7 +66,7 @@ class PostTest {
         String title = "　".repeat(11);
 
         // When
-        Post post = Post.createPost(author, topic, photo, title);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
         assertThat(post.getTitle()).isNull();
@@ -75,7 +79,7 @@ class PostTest {
         String title = "📸".repeat(10);
 
         // When
-        Post post = Post.createPost(author, topic, photo, title);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
         assertThat(post.getTitle()).isEqualTo(title);
@@ -88,7 +92,7 @@ class PostTest {
         String title = "12345678901";
 
         // When & Then
-        assertThatThrownBy(() -> Post.createPost(author, topic, photo, title))
+        assertThatThrownBy(() -> Post.createPost(author, topic, photo, UPLOAD_ID, title))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
     }
@@ -96,7 +100,7 @@ class PostTest {
     @DisplayName("검수를 통과하면 APPROVED가 되고 검수 시각을 기록한다")
     void approve_validatingPost_becomesApproved() {
         // Given
-        Post post = Post.createPost(author, topic, photo, "제목");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
 
         // When
@@ -111,7 +115,7 @@ class PostTest {
     @DisplayName("검수에서 걸러지면 REJECTED가 되고 검수 시각을 기록한다")
     void reject_validatingPost_becomesRejected() {
         // Given
-        Post post = Post.createPost(author, topic, photo, "제목");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
 
         // When
@@ -126,7 +130,7 @@ class PostTest {
     @DisplayName("이미 검수가 끝난 게시물은 다시 승인하지 않는다")
     void approve_rejectedPost_keepsRejected() {
         // Given
-        Post post = Post.createPost(author, topic, photo, "제목");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
         post.reject(moderatedAt);
 

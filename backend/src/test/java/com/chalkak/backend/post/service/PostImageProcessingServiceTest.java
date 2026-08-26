@@ -164,6 +164,26 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("스토리지 키 규칙이 바뀌어도 완료 콜백이 게시물을 찾는다")
+    void completePostImageProcessing_changedStorageKeyRule_stillApprovesPost() {
+        // Given
+        UUID postId = createValidatingPost();
+        given(postImageStorage.toOriginalStorageKey(UPLOAD_ID))
+                .willReturn("chalkak/posts/test/original/" + UPLOAD_ID + ".avif");
+        given(postImageStorage.toThumbnailStorageKey(UPLOAD_ID))
+                .willReturn("chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".avif");
+
+        // When
+        postService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> post = findPost(postId);
+        assertThat(post.get("moderation_status").toString()).isEqualTo("APPROVED");
+    }
+
+    @Test
     @DisplayName("실패 콜백은 업로드를 REJECTED로 내리고 사유를 기록한다")
     void failPostImageProcessing_issuedUpload_marksRejected() {
         // When

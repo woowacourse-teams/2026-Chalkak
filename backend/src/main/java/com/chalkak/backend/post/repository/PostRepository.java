@@ -18,7 +18,7 @@ public interface PostRepository {
 
     Optional<Post> findVisibleById(UUID postId);
 
-    Optional<Post> findValidatingByOriginalStorageKey(String originalStorageKey);
+    Optional<Post> findValidatingByPostImageUploadId(UUID postImageUploadId);
 
     PostSlice findVisibleRecentByTopicId(
             UUID topicId,

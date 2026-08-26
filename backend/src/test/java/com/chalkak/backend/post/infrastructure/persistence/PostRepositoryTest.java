@@ -356,7 +356,7 @@ class PostRepositoryTest {
         User author = entityManager.find(User.class, USER_ID);
         Topic topic = entityManager.find(Topic.class, TOPIC_ID);
         Photo photo = Photo.createPhoto("chalkak/dev/posts/concurrent-original.png");
-        Post duplicatePost = Post.createPost(author, topic, photo, null);
+        Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
 
         // When & Then
         assertThatThrownBy(() -> postRepository.save(duplicatePost))
@@ -391,7 +391,7 @@ class PostRepositoryTest {
         User author = entityManager.find(User.class, secondUserId);
         Topic topic = entityManager.find(Topic.class, secondTopicId);
         Photo photo = Photo.createPhoto("chalkak/dev/posts/original.jpg");
-        Post duplicatePhotoPost = Post.createPost(author, topic, photo, null);
+        Post duplicatePhotoPost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
 
         // When & Then
         assertThatThrownBy(() -> postRepository.save(duplicatePhotoPost))
@@ -417,7 +417,7 @@ class PostRepositoryTest {
                     User author = entityManager.find(User.class, authorId);
                     Topic topic = entityManager.find(Topic.class, topicId);
                     Photo photo = Photo.createPhoto(orphanStorageKey);
-                    Post duplicatePost = Post.createPost(author, topic, photo, null);
+                    Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
 
                     postRepository.save(duplicatePost);
                 })

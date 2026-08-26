@@ -111,7 +111,7 @@ public class PostService {
         validatePhotoNotUsed(originalStorageKey);
 
         Photo photo = Photo.createPhoto(originalStorageKey);
-        Post post = Post.createPost(author, topic, photo, title);
+        Post post = Post.createPost(author, topic, photo, photoUploadId, title);
         if (upload.isProcessed()) {
             photo.completeProcessing(
                     postImageStorage.toThumbnailStorageKey(photoUploadId),
@@ -231,9 +231,7 @@ public class PostService {
     }
 
     private Optional<Post> findValidatingPost(UUID uploadId) {
-        return postRepository.findValidatingByOriginalStorageKey(
-                postImageStorage.toOriginalStorageKey(uploadId)
-        );
+        return postRepository.findValidatingByPostImageUploadId(uploadId);
     }
 
     private void validateRandomSeedCombination(

@@ -54,6 +54,13 @@ public class Post {
     @JoinColumn(name = "photo_id", nullable = false, unique = true)
     private Photo photo;
 
+    /**
+     * 소비한 이미지 업로드. 다른 애그리게이트라 연관관계가 아니라 식별자로 들고 있다. 처리 콜백이 스토리지 키
+     * 규칙을 되짚지 않고 게시물을 찾을 수 있어, 키 규칙이 바뀌어도 조용히 매칭에 실패하지 않는다.
+     */
+    @Column(name = "post_image_upload_id")
+    private UUID postImageUploadId;
+
     @Column(name = "title", length = MAX_TITLE_LENGTH)
     private String title;
 
@@ -80,11 +87,13 @@ public class Post {
         User author,
         Topic topic,
         Photo photo,
+        UUID postImageUploadId,
         String title
     ) {
         this.author = author;
         this.topic = topic;
         this.photo = photo;
+        this.postImageUploadId = postImageUploadId;
         this.title = normalizeTitle(title);
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
@@ -93,10 +102,17 @@ public class Post {
         User author,
         Topic topic,
         Photo photo,
+        UUID postImageUploadId,
         String title
     ) {
         validateRelations(author, topic, photo);
-        return new Post(author, topic, photo, title);
+        if (postImageUploadId == null) {
+            throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "게시물 생성 정보가 올바르지 않습니다."
+            );
+        }
+        return new Post(author, topic, photo, postImageUploadId, title);
     }
 
     /**
