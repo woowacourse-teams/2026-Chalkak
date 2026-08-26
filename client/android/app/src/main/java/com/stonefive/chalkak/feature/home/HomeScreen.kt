@@ -56,8 +56,8 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import kotlin.math.abs
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -107,6 +107,7 @@ fun HomeScreen(
     var bottomBarHeight by remember { mutableIntStateOf(0) }
     var isBottomBarTargetHidden by remember { mutableStateOf(false) }
     var isScrollToTopButtonVisible by remember { mutableStateOf(false) }
+    var scrollToTopAccumulated by remember { mutableFloatStateOf(0f) }
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
@@ -115,6 +116,7 @@ fun HomeScreen(
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
         HomeTopBarHeight.toPx()
     }
+    val scrollToTopToggleThresholdPx = with(density) { ScrollToTopToggleThreshold.toPx() }
     val visibleTopAreaHeightPx =
         (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
     val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
@@ -134,6 +136,7 @@ fun HomeScreen(
         bottomBarOffset = 0f
         isBottomBarTargetHidden = false
         isScrollToTopButtonVisible = false
+        scrollToTopAccumulated = 0f
     }
 
     fun settleTopArea() {
@@ -166,33 +169,16 @@ fun HomeScreen(
         val initialOffset = bottomBarOffset
         val hiddenOffset = bottomBarHeight.toFloat()
 
-        when {
-            initialOffset <= 0f -> {
-                isBottomBarTargetHidden = false
-                return
-            }
-
-            initialOffset >= hiddenOffset -> {
-                isBottomBarTargetHidden = true
-                bottomBarRestoreJob.value = interactionScope.launch {
-                    delay(BOTTOM_BAR_RESTORE_DELAY_MILLIS)
-                    animate(
-                        initialValue = bottomBarOffset,
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
-                    ) { value, _ -> bottomBarOffset = value }
-                    isBottomBarTargetHidden = false
-                }
-                return
-            }
-        }
-
+        // 멈추면 가까운 쪽으로 정착하고 그대로 둔다. (절반 이상 내려갔으면 숨긴 채 유지)
         val targetOffset = settleBarOffset(
             currentOffset = initialOffset,
             hiddenOffset = hiddenOffset,
             restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
         )
         isBottomBarTargetHidden = targetOffset != 0f
+
+        if (initialOffset == targetOffset) return
+
         bottomBarRestoreJob.value = interactionScope.launch {
             animate(
                 initialValue = initialOffset,
@@ -212,7 +198,16 @@ fun HomeScreen(
                     if (available.y != 0f) {
                         bottomBarRestoreJob.value?.cancel()
                         settleJob.value?.cancel()
-                        isScrollToTopButtonVisible = shouldShowScrollToTopButton(available.y)
+                        val nextButtonState = scrollToTopButtonStateAfterScroll(
+                            state = ScrollToTopButtonState(
+                                accumulated = scrollToTopAccumulated,
+                                visible = isScrollToTopButtonVisible,
+                            ),
+                            scrollDelta = available.y,
+                            threshold = scrollToTopToggleThresholdPx,
+                        )
+                        scrollToTopAccumulated = nextButtonState.accumulated
+                        isScrollToTopButtonVisible = nextButtonState.visible
                         bottomBarOffset = bottomBarOffsetAfterScroll(
                             currentOffset = bottomBarOffset,
                             scrollDelta = available.y,
@@ -392,10 +387,11 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
+private val ScrollToTopToggleThreshold = 12.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
 private const val BAR_SETTLE_DURATION_MILLIS = 220
-private const val BOTTOM_BAR_RESTORE_DELAY_MILLIS = 500L
+private const val BAR_SETTLE_BREAK_THRESHOLD = 0.05f
 
 internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
     val fadeProgress = (
@@ -417,7 +413,35 @@ internal fun bottomBarOffsetAfterScroll(
     barHeight: Float,
 ): Float = (currentOffset - scrollDelta).coerceIn(0f, barHeight)
 
-internal fun shouldShowScrollToTopButton(scrollDelta: Float): Boolean = scrollDelta < 0f
+internal data class ScrollToTopButtonState(
+    val accumulated: Float,
+    val visible: Boolean,
+)
+
+/**
+ * 매 프레임의 순간 방향 대신, 같은 방향으로 누적된 스크롤 거리가 임계값을 넘을 때만
+ * 노출/숨김을 토글한다. 미세한 손가락 떨림이나 프레임 단위 부호 흔들림으로 인한
+ * 깜빡임을 막기 위한 히스테리시스.
+ */
+internal fun scrollToTopButtonStateAfterScroll(
+    state: ScrollToTopButtonState,
+    scrollDelta: Float,
+    threshold: Float,
+): ScrollToTopButtonState {
+    // 방향이 바뀌면 누적값을 리셋한다.
+    val base = when {
+        scrollDelta > 0f && state.accumulated < 0f -> 0f
+        scrollDelta < 0f && state.accumulated > 0f -> 0f
+        else -> state.accumulated
+    }
+    val accumulated = base + scrollDelta
+    val visible = when {
+        accumulated >= threshold -> true
+        accumulated <= -threshold -> false
+        else -> state.visible
+    }
+    return ScrollToTopButtonState(accumulated = accumulated, visible = visible)
+}
 
 internal fun settleBarOffset(
     currentOffset: Float,
@@ -426,12 +450,11 @@ internal fun settleBarOffset(
 ): Float {
     if (hiddenOffset == 0f) return 0f
 
-    val hiddenProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
-    return when {
-        hiddenProgress > 0.5f -> hiddenOffset
-        hiddenProgress < 0.5f -> 0f
-        else -> restingOffset
-    }
+    val restingProgress = restingOffset / hiddenOffset
+    val currentProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
+    val movedFromResting = abs(currentProgress - restingProgress)
+    if (movedFromResting <= BAR_SETTLE_BREAK_THRESHOLD) return restingOffset
+    return if (restingProgress == 0f) hiddenOffset else 0f
 }
 
 private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
