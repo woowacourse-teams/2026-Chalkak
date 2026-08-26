@@ -20,7 +20,7 @@ class TermsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `약관 동의 화면의 필수 항목과 다음 버튼이 표시된다`() {
+    fun termsScreenShowsRequiredAgreementsAndNextButton() {
         composeRule.setContent {
             ChalkakTheme {
                 TermsRoute(onNextClick = {})
@@ -37,7 +37,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `전체 동의하면 다음 버튼이 활성화된다`() {
+    fun agreeingToAllTermsEnablesNextButton() {
         var nextClicked = false
         composeRule.setContent {
             ChalkakTheme {
@@ -55,7 +55,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `필수 약관을 모두 동의해야 다음 버튼을 누를 수 있다`() {
+    fun nextButtonRequiresAllMandatoryAgreements() {
         var nextClicked = false
         composeRule.setContent {
             ChalkakTheme {
@@ -79,7 +79,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `첫 번째 보기 버튼은 서비스 이용약관 콜백만 호출하고 동의 상태를 바꾸지 않는다`() {
+    fun firstViewButtonOpensTermsWithoutChangingAgreementState() {
         var serviceTermsViewCount = 0
         var privacyPolicyViewCount = 0
         composeRule.setContent {
@@ -104,7 +104,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `두 번째 보기 버튼은 개인정보 처리방침 콜백만 호출하고 동의 상태를 바꾸지 않는다`() {
+    fun secondViewButtonOpensPrivacyPolicyWithoutChangingAgreementState() {
         var serviceTermsViewCount = 0
         var privacyPolicyViewCount = 0
         composeRule.setContent {

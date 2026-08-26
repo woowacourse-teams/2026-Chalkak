@@ -20,7 +20,7 @@ class SettingsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `회원은 사인과 계정 관리 메뉴를 본다`() {
+    fun memberSeesSignatureAndAccountManagementOptions() {
         setSettingsContent(
             SettingsUiState(
                 isLoggedIn = true,
@@ -36,7 +36,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `비회원은 로그인 버튼만 본다`() {
+    fun guestSeesOnlyLoginButton() {
         var loginClicked = false
         setSettingsContent(
             uiState = SettingsUiState(
@@ -54,7 +54,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `개인정보처리방침 행을 누르면 개인정보처리방침 콜백을 호출한다`() {
+    fun tappingPrivacyPolicyRowInvokesPrivacyPolicyCallback() {
         var privacyPolicyClickCount = 0
         setSettingsContent(
             uiState = SettingsUiState(versionName = "1.0"),
@@ -67,7 +67,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `이용약관 행을 누르면 이용약관 콜백을 호출한다`() {
+    fun tappingTermsRowInvokesTermsCallback() {
         var termsClickCount = 0
         setSettingsContent(
             uiState = SettingsUiState(versionName = "1.0"),
@@ -80,7 +80,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `로그아웃 확인 다이얼로그를 표시하고 확인할 수 있다`() {
+    fun logoutConfirmationDialogCanBeConfirmed() {
         var confirmed = false
         setSettingsContent(
             uiState = SettingsUiState(
@@ -98,7 +98,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `회원탈퇴 확인 다이얼로그를 취소할 수 있다`() {
+    fun accountDeletionConfirmationDialogCanBeDismissed() {
         var dismissed = false
         setSettingsContent(
             uiState = SettingsUiState(

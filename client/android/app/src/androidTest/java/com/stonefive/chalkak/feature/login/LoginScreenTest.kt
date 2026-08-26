@@ -15,7 +15,7 @@ class LoginScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `로그인 선택지가 모두 표시된다`() {
+    fun allLoginOptionsAreDisplayed() {
         composeRule.setContent {
             ChalkakTheme {
                 LoginScreen(
@@ -31,7 +31,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `구글 버튼을 누르면 구글 제공자를 전달한다`() {
+    fun tappingGoogleButtonPassesGoogleProvider() {
         var selectedProvider: SocialLoginProvider? = null
         composeRule.setContent {
             ChalkakTheme {

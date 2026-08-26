@@ -30,7 +30,7 @@ import com.stonefive.chalkak.feature.signature.component.SignaturePad
 
 @Composable
 fun SignatureRoute(
-    onSignatureSaved: () -> Unit,
+    onSignatureSaved: (ByteArray) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignatureViewModel = viewModel(factory = SignatureViewModel.Factory),
 ) {
@@ -39,7 +39,7 @@ fun SignatureRoute(
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
             when (event) {
-                SignatureUiEvent.SignatureSaved -> onSignatureSaved()
+                is SignatureUiEvent.SignatureSaved -> onSignatureSaved(event.signaturePng)
             }
         }
     }

@@ -16,7 +16,7 @@ class SignaturePreviewScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun showsSignedPhotoAndGuideText() {
+    fun signaturePreviewShowsSignedPhotoAndGuideText() {
         composeRule.setContent {
             ChalkakTheme {
                 SignaturePreviewScreen(
@@ -35,7 +35,7 @@ class SignaturePreviewScreenTest {
     }
 
     @Test
-    fun invokesCallbacksWhenBottomButtonsAreClicked() {
+    fun tappingBottomButtonsInvokesCorrespondingCallbacks() {
         var redrawClicked = false
         var startClicked = false
 

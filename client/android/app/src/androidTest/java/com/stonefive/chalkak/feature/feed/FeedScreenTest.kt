@@ -20,7 +20,7 @@ class FeedScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `피드 화면은 주제와 게시물 정보를 표시한다`() {
+    fun feedScreenShowsTopicAndPostDetails() {
         setFeedContent()
 
         composeRule.onNodeWithText("8월 3일의 주제").assertIsDisplayed()
@@ -32,7 +32,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun `뒤로 가기 버튼을 누르면 콜백을 호출한다`() {
+    fun tappingBackButtonInvokesCallback() {
         var backClicked = false
         setFeedContent(onNavigateBack = { backClicked = true })
 
@@ -45,7 +45,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun `삭제 버튼을 누르면 콜백을 호출한다`() {
+    fun tappingDeleteButtonInvokesCallback() {
         var deleteClicked = false
         setFeedContent(onDeleteClick = { deleteClicked = true })
 
@@ -58,7 +58,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun `다른 사용자의 게시물에는 삭제 버튼을 표시하지 않는다`() {
+    fun deleteButtonIsHiddenForAnotherUsersPost() {
         setFeedContent(
             uiState = feedUiState.copy(
                 content = feedUiState.content?.copy(
@@ -72,7 +72,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun `좋아요 영역을 누르면 콜백을 호출한다`() {
+    fun tappingLikeAreaInvokesCallback() {
         var likeClicked = false
         setFeedContent(onLikeClick = { likeClicked = true })
 
