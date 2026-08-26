@@ -194,37 +194,39 @@ fun HomeScreen(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    if (available.y != 0f) {
-                        bottomBarRestoreJob.value?.cancel()
-                        settleJob.value?.cancel()
-                        val nextButtonState = scrollToTopButtonStateAfterScroll(
-                            state = ScrollToTopButtonState(
-                                accumulated = scrollToTopAccumulated,
-                                visible = isScrollToTopButtonVisible,
-                            ),
-                            scrollDelta = available.y,
-                            threshold = scrollToTopToggleThresholdPx,
-                        )
-                        scrollToTopAccumulated = nextButtonState.accumulated
-                        isScrollToTopButtonVisible = nextButtonState.visible
-                        bottomBarOffset = bottomBarOffsetAfterScroll(
-                            currentOffset = bottomBarOffset,
-                            scrollDelta = available.y,
-                            barHeight = bottomBarHeight.toFloat(),
-                        )
-                    }
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    bottomBarRestoreJob.value?.cancel()
+                    val nextButtonState = scrollToTopButtonStateAfterScroll(
+                        state = ScrollToTopButtonState(
+                            accumulated = scrollToTopAccumulated,
+                            visible = isScrollToTopButtonVisible,
+                        ),
+                        scrollDelta = available.y,
+                        threshold = scrollToTopToggleThresholdPx,
+                    )
+                    scrollToTopAccumulated = nextButtonState.accumulated
+                    isScrollToTopButtonVisible = nextButtonState.visible
+                    bottomBarOffset = bottomBarOffsetAfterScroll(
+                        currentOffset = bottomBarOffset,
+                        scrollDelta = available.y,
+                        barHeight = bottomBarHeight.toFloat(),
+                    )
+                }
 
-                    if (available.y < 0f && topAreaHeight > 0) {
-                        val previousOffset = topAreaOffset
-                        topAreaOffset = topAreaOffsetAfterScroll(
-                            currentOffset = topAreaOffset,
-                            scrollDelta = available.y,
-                            areaHeight = topAreaHeight.toFloat(),
-                        )
-                        if (topAreaOffset != previousOffset) {
-                            return Offset(0f, topAreaOffset - previousOffset)
-                        }
+                // 아래로 스크롤하면 드래그·플링 모두 리스트보다 먼저 상단 영역을 접는다.
+                if (available.y < 0f &&
+                    topAreaHeight > 0 &&
+                    topAreaOffset > -topAreaHeight.toFloat()
+                ) {
+                    settleJob.value?.cancel()
+                    val previousOffset = topAreaOffset
+                    topAreaOffset = topAreaOffsetAfterScroll(
+                        currentOffset = topAreaOffset,
+                        scrollDelta = available.y,
+                        areaHeight = topAreaHeight.toFloat(),
+                    )
+                    if (topAreaOffset != previousOffset) {
+                        return Offset(0f, topAreaOffset - previousOffset)
                     }
                 }
                 return Offset.Zero
@@ -235,10 +237,8 @@ fun HomeScreen(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                if (source == NestedScrollSource.UserInput &&
-                    available.y > 0f &&
-                    topAreaOffset < 0f
-                ) {
+                if (available.y > 0f && topAreaOffset < 0f) {
+                    settleJob.value?.cancel()
                     val previousOffset = topAreaOffset
                     topAreaOffset = topAreaOffsetAfterScroll(
                         currentOffset = topAreaOffset,
@@ -251,8 +251,18 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                settleTopArea()
+                // 하단 바는 플링 중 움직이지 않으므로 여기서 바로 정착시킨다.
                 settleBottomBar()
+                return Velocity.Zero
+            }
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity,
+            ): Velocity {
+                // 상단 영역은 플링(관성)까지 접힘·펼침이 이어지므로,
+                // 제스처가 완전히 끝난 뒤 한 번만 정착시켜 기준점이 도중에 뒤집히지 않게 한다.
+                settleTopArea()
                 return Velocity.Zero
             }
         }
