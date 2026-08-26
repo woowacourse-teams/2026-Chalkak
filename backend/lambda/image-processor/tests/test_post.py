@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import Mock
 
 from PIL import Image
+from PIL.TiffImagePlugin import IFDRational
 
 from image_processor.config import Settings
 from image_processor.errors import RejectedImageError
@@ -67,10 +68,34 @@ def animated_webp_bytes() -> bytes:
     return output.getvalue()
 
 
-def exif_bytes(tags: dict[int, str]) -> bytes:
+EXIF_IFD_TAG = 0x8769
+GPS_IFD_TAG = 0x8825
+
+# 실제 카메라가 Exif sub-IFD에 기록하는 태그들. IFD0에 직접 심으면 규격에 없는 구조가 되어
+# 프로덕션에서는 결코 재현되지 않는 픽스처가 된다.
+SUB_IFD_TAGS = frozenset({
+    0x829A,  # ExposureTime
+    0x829D,  # FNumber
+    0x8827,  # ISOSpeedRatings
+    0x9003,  # DateTimeOriginal
+    0x9011,  # OffsetTimeOriginal
+    0xA434,  # LensModel
+})
+
+
+def exif_bytes(
+    tags: dict[int, object],
+    gps: dict[int, object] | None = None,
+) -> bytes:
     exif = Image.Exif()
+    sub_ifd = exif.get_ifd(EXIF_IFD_TAG)
     for tag, value in tags.items():
+        if tag in SUB_IFD_TAGS:
+            sub_ifd[tag] = value
+            continue
         exif[tag] = value
+    if gps is not None:
+        exif.get_ifd(GPS_IFD_TAG).update(gps)
     return exif.tobytes()
 
 
@@ -296,6 +321,49 @@ class PostImageProcessorTest(unittest.TestCase):
         self.assertEqual("2026-08-20T11:02:31+09:00", body["capturedAt"])
         self.assertEqual("Apple", body["metaAttributes"]["Make"])
         self.assertEqual("iPhone 15 Pro", body["metaAttributes"]["Model"])
+
+    def test_process_extracts_camera_settings_from_exif_sub_ifd(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {
+                        0x010F: "Apple",
+                        0x829A: IFDRational(1, 200),
+                        0x8827: 400,
+                        0xA434: "iPhone 15 Pro back camera",
+                    }
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        attributes = self.callback_client.complete.call_args.args[2]["metaAttributes"]
+        self.assertEqual("Apple", attributes["Make"])
+        self.assertEqual("0.005", attributes["ExposureTime"])
+        self.assertEqual(400, attributes["ISOSpeedRatings"])
+        self.assertEqual("iPhone 15 Pro back camera", attributes["LensModel"])
+
+    def test_process_excludes_ifd_pointers_and_orientation_from_meta_attributes(
+        self,
+    ) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes(
+                    {0x010F: "Apple", 0x0112: 6, 0x9003: "2026:08:20 11:02:31"},
+                    gps={1: "N", 2: (37.0, 33.0, 59.4), 3: "E", 4: (126.0, 58.0, 40.8)},
+                )
+            )
+        )
+
+        self.processor.process(self.event())
+
+        attributes = self.callback_client.complete.call_args.args[2]["metaAttributes"]
+        self.assertEqual("Apple", attributes["Make"])
+        self.assertNotIn("ExifOffset", attributes)
+        self.assertNotIn("GPSInfo", attributes)
+        self.assertNotIn("Orientation", attributes)
+        self.assertNotIn("DateTimeOriginal", attributes)
 
     def test_process_keeps_captured_at_without_offset_when_absent(self) -> None:
         self.given_object(webp_bytes(exif=exif_bytes({0x9003: "2026:08:20 11:02:31"})))

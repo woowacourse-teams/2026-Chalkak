@@ -17,12 +17,24 @@ from image_processor.events import S3ObjectCreated
 WEBP_CONTENT_TYPE = "image/webp"
 
 GPS_IFD_TAG = 0x8825
+EXIF_IFD_TAG = 0x8769
+ORIENTATION_TAG = 0x0112
 DATE_TIME_ORIGINAL_TAG = 0x9003
 OFFSET_TIME_ORIGINAL_TAG = 0x9011
 GPS_LATITUDE_REF = 1
 GPS_LATITUDE = 2
 GPS_LONGITUDE_REF = 3
 GPS_LONGITUDE = 4
+
+# 별도 필드로 싣거나 출력 이미지에 이미 반영한 태그는 metaAttributes에서 뺀다. IFD 포인터는 바이트 오프셋일
+# 뿐이라 값으로서 의미가 없고, Orientation은 exif_transpose가 픽셀에 적용한 뒤라 그대로 두면 이중 회전을 부른다.
+EXCLUDED_META_TAGS = frozenset({
+    GPS_IFD_TAG,
+    EXIF_IFD_TAG,
+    ORIENTATION_TAG,
+    DATE_TIME_ORIGINAL_TAG,
+    OFFSET_TIME_ORIGINAL_TAG,
+})
 
 LOGGER = logging.getLogger(__name__)
 
@@ -241,8 +253,8 @@ class PostImageProcessor:
 
     def _meta_attributes(self, exif: Image.Exif) -> dict[str, Any]:
         attributes: dict[str, Any] = {}
-        for tag, value in exif.items():
-            if tag in {GPS_IFD_TAG, DATE_TIME_ORIGINAL_TAG, OFFSET_TIME_ORIGINAL_TAG}:
+        for tag, value in {**dict(exif), **_exif_ifd(exif)}.items():
+            if tag in EXCLUDED_META_TAGS:
                 continue
             serialized = _serializable(value)
             if serialized is None:
@@ -303,8 +315,20 @@ def _serializable(value: Any) -> Any:
     return str(value)
 
 
+def _exif_ifd(exif: Image.Exif) -> dict[int, Any]:
+    """
+    DateTimeOriginal을 비롯한 촬영 정보는 EXIF 규격상 IFD0이 아니라 Exif sub-IFD에 들어간다. 최상위만
+    훑으면 실제 카메라 사진에서 촬영 시각과 노출 정보를 통째로 놓친다.
+    """
+    try:
+        return dict(exif.get_ifd(EXIF_IFD_TAG))
+    except (KeyError, OSError, ValueError):
+        return {}
+
+
 def _captured_at(exif: Image.Exif) -> str | None:
-    captured = exif.get(DATE_TIME_ORIGINAL_TAG)
+    tags = {**dict(exif), **_exif_ifd(exif)}
+    captured = tags.get(DATE_TIME_ORIGINAL_TAG)
     if not isinstance(captured, str) or not captured.strip():
         return None
 
@@ -313,7 +337,7 @@ def _captured_at(exif: Image.Exif) -> str | None:
         return None
     timestamp = f"{date.replace(':', '-')}T{clock}"
 
-    offset = exif.get(OFFSET_TIME_ORIGINAL_TAG)
+    offset = tags.get(OFFSET_TIME_ORIGINAL_TAG)
     if isinstance(offset, str) and offset.strip():
         return timestamp + offset.strip()
     return timestamp
