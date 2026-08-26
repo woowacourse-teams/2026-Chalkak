@@ -104,7 +104,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
         )
         self.callback_client.complete.assert_called_once_with("prod", UPLOAD_ID)
 
-    def test_process_rejects_jpeg_disguised_as_png(self) -> None:
+    def test_process_deletes_staging_after_rejection_callback_succeeds(self) -> None:
         source = jpeg_image()
         self.s3_client.get_object.return_value = {
             "ContentLength": len(source),
@@ -116,7 +116,10 @@ class SignatureImageProcessorTest(unittest.TestCase):
 
         self.callback_client.failed.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.s3_client.put_object.assert_not_called()
-        self.s3_client.delete_object.assert_not_called()
+        self.s3_client.delete_object.assert_called_once_with(
+            Bucket=BUCKET,
+            Key=STAGING_KEY,
+        )
 
     def test_process_keeps_rejection_when_failed_callback_is_permanently_refused(
         self,
@@ -131,11 +134,19 @@ class SignatureImageProcessorTest(unittest.TestCase):
         )
 
         # 실패 콜백이 영구 거부돼도 원래 거부 사유가 살아남아야 재처리 루프에 빠지지 않는다.
-        with self.assertRaisesRegex(RejectedImageError, "not a PNG"):
-            self.processor.process(created_event(len(source)))
+        with self.assertLogs("image_processor.signature", level="ERROR") as logs:
+            with self.assertRaisesRegex(RejectedImageError, "not a PNG"):
+                self.processor.process(created_event(len(source)))
 
         self.s3_client.delete_object.assert_not_called()
-
+        self.assertEqual(
+            [
+                "ERROR:image_processor.signature:failed callback permanently "
+                f"refused for {UPLOAD_ID} (bucket={BUCKET}, key={STAGING_KEY}): "
+                "backend callback rejected with HTTP 400"
+            ],
+            logs.output,
+        )
 
     def test_process_rejects_size_from_event_before_download(self) -> None:
         event = created_event(self.settings.max_input_bytes + 1)
