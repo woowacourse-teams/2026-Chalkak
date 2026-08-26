@@ -18,7 +18,7 @@ class SignatureFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun `로그인부터 사인 미리보기를 거쳐 홈과 전시 화면으로 이동한다`() {
+    fun navigatesFromLoginThroughSignaturePreviewToHomeAndDisplay() {
         composeRule.onNodeWithText("Google로 계속하기").performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {

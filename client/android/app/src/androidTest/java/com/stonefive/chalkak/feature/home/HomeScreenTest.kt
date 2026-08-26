@@ -28,7 +28,7 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `홈 화면에서 아래로 스크롤하면 정렬 필터가 사라지고 위로 스크롤하면 다시 표시된다`() {
+    fun sortingFilterHidesOnDownwardScrollAndReappearsOnUpwardScroll() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
@@ -45,7 +45,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `정렬을 변경하면 필터가 다시 표시되고 사진 목록이 첫 항목으로 이동한다`() {
+    fun changingSortRestoresFilterAndMovesPhotoListToFirstItem() {
         var selectedSort: PostSort? = null
         setHomeContent(
             uiState = scrollableHomeUiState(),

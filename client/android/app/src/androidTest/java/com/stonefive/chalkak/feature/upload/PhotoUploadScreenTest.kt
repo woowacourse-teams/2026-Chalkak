@@ -80,7 +80,7 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun cameraActionIsHiddenWithoutCamera() {
+    fun cameraActionIsHiddenWhenCameraIsUnavailable() {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(

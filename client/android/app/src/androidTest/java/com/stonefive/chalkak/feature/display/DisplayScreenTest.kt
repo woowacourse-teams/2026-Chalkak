@@ -30,7 +30,7 @@ class DisplayScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `최신 날짜는 정렬과 사진 목록을 표시한다`() {
+    fun latestDateShowsSortingOptionsAndPhotoList() {
         setDisplayContent(latestUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
@@ -44,7 +44,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `최신 날짜에서 아래로 스크롤하면 정렬 필터가 사라지고 위로 스크롤하면 다시 표시된다`() {
+    fun sortingFilterHidesOnDownwardScrollAndReappearsOnUpwardScrollForLatestDate() {
         setDisplayContent(scrollableLatestUiState())
 
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
@@ -61,7 +61,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `정렬을 변경하면 필터가 다시 표시되고 사진 그리드가 첫 항목으로 이동한다`() {
+    fun changingSortRestoresFilterAndMovesPhotoGridToFirstItem() {
         var selectedSort: PostSort? = null
         setDisplayContent(
             uiState = scrollableLatestUiState(),
@@ -92,7 +92,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `전시 사진을 누르면 선택한 사진과 전시 정보로 피드 이동 콜백을 호출한다`() {
+    fun tappingDisplayPhotoOpensFeedWithSelectedPhotoAndDisplayDetails() {
         var selected: Triple<Post, String, String>? = null
         setDisplayContent(
             uiState = latestUiState(),
@@ -113,7 +113,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `과거 날짜는 인기 사진 영역만 표시하고 정렬 옵션은 제공하지 않는다`() {
+    fun pastDateShowsOnlyPopularPhotosWithoutSortingOptions() {
         setDisplayContent(archiveUiState())
 
         composeRule.onNodeWithText("가장 사람들이 좋아했던 사진들이에요").assertIsDisplayed()
@@ -124,7 +124,7 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun `날짜 이동 헤더는 이전 다음 콜백을 유지한다`() {
+    fun dateNavigationHeaderInvokesPreviousAndNextCallbacks() {
         var previousDateClicked = false
         var nextDateClicked = false
         setDisplayContent(

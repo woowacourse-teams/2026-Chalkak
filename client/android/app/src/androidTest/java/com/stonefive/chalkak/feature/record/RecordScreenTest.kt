@@ -21,7 +21,7 @@ class RecordScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun rendersCalendarContent() {
+    fun recordScreenRendersCalendarContent() {
         val selectedPhoto = recordPhoto(day = 2)
 
         composeRule.setContent {
@@ -60,7 +60,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun passesClickedPhotoDate() {
+    fun tappingPhotoPassesSelectedDate() {
         val photo = recordPhoto(day = 5)
         var selectedDate: LocalDate? = null
 
@@ -88,7 +88,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun keepsMonthNavigationCallbacks() {
+    fun monthNavigationInvokesPreviousAndNextCallbacks() {
         var previousMonthClicked = false
         var nextMonthClicked = false
 
@@ -118,7 +118,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun showsRecordBottomBarSelection() {
+    fun recordDestinationIsSelectedInBottomBar() {
         var selectedItem: ChalkakBottomBarItem? = null
 
         composeRule.setContent {
@@ -141,7 +141,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun opensSelectedPhotoInFeed() {
+    fun selectedPhotoOpensInFeed() {
         val photo = recordPhoto(day = 2)
         var openedPhoto: RecordPhoto? = null
 
@@ -170,7 +170,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun opensSelectedPhotoInDisplay() {
+    fun selectedPhotoOpensInDisplay() {
         val photo = recordPhoto(day = 2)
         var selectedItem: ChalkakBottomBarItem? = null
 
@@ -198,7 +198,7 @@ class RecordScreenTest {
     }
 
     @Test
-    fun opensSelectedPhotoDateInDisplay() {
+    fun selectedPhotoDateOpensInDisplay() {
         val photo = recordPhoto(day = 2)
         var openedDate: LocalDate? = null
 
