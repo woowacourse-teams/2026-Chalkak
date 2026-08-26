@@ -89,27 +89,72 @@ class PostImageProcessor:
             self._upload(event.bucket, original_key, original)
             self._upload(event.bucket, thumbnail_key, thumbnail)
         except RejectedPostImageError as exception:
-            try:
-                self._callback_client.failed(
-                    environment,
-                    upload_id,
-                    {"reason": exception.reason},
-                )
-            except PermanentCallbackError:
-                LOGGER.error(
-                    "failed callback permanently refused for %s",
-                    upload_id,
-                )
+            self._report_failure(environment, upload_id, exception.reason)
+            self._discard_staging(event)
             raise
 
         metadata["byteSize"] = len(original)
-        self._callback_client.complete(environment, upload_id, metadata)
+        try:
+            self._callback_client.complete(environment, upload_id, metadata)
+        except PermanentCallbackError:
+            self._abandon_completed_image(environment, upload_id, event)
+            raise
         self._s3_client.delete_object(Bucket=event.bucket, Key=event.key)
 
         return ProcessedPostImage(
             original_key=original_key,
             thumbnail_key=thumbnail_key,
         )
+
+    def _report_failure(self, environment: str, upload_id: str, reason: str) -> None:
+        try:
+            self._callback_client.failed(environment, upload_id, {"reason": reason})
+        except PermanentCallbackError:
+            LOGGER.error(
+                "failed callback permanently refused for %s",
+                upload_id,
+            )
+
+    def _abandon_completed_image(
+        self,
+        environment: str,
+        upload_id: str,
+        event: S3ObjectCreated,
+    ) -> None:
+        """
+        완료 콜백이 4xx로 영구 거부되면 재시도해도 달라지지 않는다. 그대로 두면 백엔드는 업로드를 ISSUED로
+        믿어 게시물이 VALIDATING에 영원히 갇히므로, 실패 콜백으로 상태를 닫아 사용자가 다시 올릴 수 있게 한다.
+        원본 staging은 남겨 수동 복구 여지를 둔다.
+        """
+        LOGGER.error(
+            json.dumps(
+                {
+                    "event": "post_image_complete_callback_refused",
+                    "uploadId": upload_id,
+                    "bucket": event.bucket,
+                    "key": event.key,
+                }
+            )
+        )
+        self._report_failure(environment, upload_id, "PROCESSING_ERROR")
+
+    def _discard_staging(self, event: S3ObjectCreated) -> None:
+        """
+        거절된 원본은 EXIF를 제거하기 전 사용자 파일이라 위치·촬영 시각·기종이 그대로 남아 있다. 아무도
+        참조하지 않는 개인정보를 버킷에 방치하지 않는다.
+        """
+        try:
+            self._s3_client.delete_object(Bucket=event.bucket, Key=event.key)
+        except ClientError:
+            LOGGER.exception(
+                json.dumps(
+                    {
+                        "event": "rejected_staging_delete_failed",
+                        "bucket": event.bucket,
+                        "key": event.key,
+                    }
+                )
+            )
 
     def _validate_bucket(self, event: S3ObjectCreated) -> None:
         if event.bucket != self._settings.expected_bucket:
