@@ -100,4 +100,26 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             @Param("randomSeed") String randomSeed,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT post
+            FROM Post post
+            JOIN post.topic topic
+            JOIN FETCH post.photo photo
+            JOIN FETCH post.author author
+            LEFT JOIN PostLike postLike ON postLike.postId = post.id
+            WHERE topic.id = :topicId
+              AND post.moderationStatus = :moderationStatus
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+              AND author.deletedAt IS NULL
+            GROUP BY post, photo, author
+            ORDER BY COUNT(postLike) DESC, post.createdAt DESC, post.id ASC
+            """)
+    Slice<Post> findVisiblePopularByTopicId(
+            @Param("topicId") UUID topicId,
+            @Param("moderationStatus") ModerationStatus moderationStatus,
+            Pageable pageable
+    );
 }

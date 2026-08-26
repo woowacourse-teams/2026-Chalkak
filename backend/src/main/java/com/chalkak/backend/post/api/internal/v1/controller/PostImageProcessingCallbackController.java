@@ -7,7 +7,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.post.api.internal.v1.docs.PostImageProcessingCallbackApiDocs;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingCompleteRequest;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingFailRequest;
-import com.chalkak.backend.post.service.PostImageProcessingService;
+import com.chalkak.backend.post.service.PostService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.util.Set;
@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 본문을 DTO가 아니라 원문 문자열로 받는 이유는 서명 검증 때문이다. 역직렬화 후 다시 직렬화한 문자열은 공백과
+ * 본문을 DTO가 아니라 원문 바이트로 받는 이유는 서명 검증 때문이다. 역직렬화 후 다시 직렬화한 문자열은 공백과
  * 키 순서가 달라져 Lambda가 계산한 해시와 어긋난다. 인증을 통과한 뒤에만 파싱한다.
  *
  * <p>인증 헤더를 {@code required = false}로 받는 이유는 누락을 400이 아니라 401로 다루기 위해서다.
@@ -44,7 +44,7 @@ public class PostImageProcessingCallbackController
     private static final String TIMESTAMP_HEADER = "X-Chalkak-Callback-Timestamp";
     private static final String SIGNATURE_HEADER = "X-Chalkak-Callback-Signature";
 
-    private final PostImageProcessingService postImageProcessingService;
+    private final PostService postService;
     private final ProcessingCallbackAuthenticator authenticator;
     private final ObjectMapper objectMapper;
     private final Validator validator;
@@ -66,7 +66,7 @@ public class PostImageProcessingCallbackController
         );
         PostImageProcessingCompleteRequest request =
                 readBody(rawBody, PostImageProcessingCompleteRequest.class);
-        postImageProcessingService.completePostImageProcessing(parsedUploadId, request.toMetadata());
+        postService.completePostImageProcessing(parsedUploadId, request.toMetadata());
 
         return ResponseEntity.noContent().build();
     }
@@ -88,7 +88,7 @@ public class PostImageProcessingCallbackController
         );
         PostImageProcessingFailRequest request =
                 readBody(rawBody, PostImageProcessingFailRequest.class);
-        postImageProcessingService.failPostImageProcessing(parsedUploadId, request.reason());
+        postService.failPostImageProcessing(parsedUploadId, request.reason());
 
         return ResponseEntity.noContent().build();
     }

@@ -10,8 +10,7 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.service.PostCreationResult;
 import com.chalkak.backend.post.service.PostImageUploadResult;
-import com.chalkak.backend.post.service.PostCreationService;
-import com.chalkak.backend.post.service.PostImageUploadService;
+import com.chalkak.backend.post.service.PostService;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -45,16 +44,13 @@ class PostCreationControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PostCreationService postCreationService;
-
-    @MockitoBean
-    private PostImageUploadService postImageUploadService;
+    private PostService postService;
 
     @Test
     @DisplayName("인증된 사용자가 업로드 URL을 발급받으면 200과 발급 정보를 반환한다")
     void createPostImageUpload_authenticatedUser_returnsIssuedUpload() throws Exception {
         // Given
-        given(postImageUploadService.createPostImageUpload(USER_ID)).willReturn(
+        given(postService.createPostImageUpload(USER_ID)).willReturn(
                 new PostImageUploadResult(
                         UPLOAD_ID,
                         UPLOAD_URL,
@@ -74,7 +70,7 @@ class PostCreationControllerTest {
                 .andExpect(jsonPath("$.contentType").value("image/webp"))
                 .andExpect(jsonPath("$.maxBytes").value(5_242_880L));
 
-        then(postImageUploadService).should().createPostImageUpload(USER_ID);
+        then(postService).should().createPostImageUpload(USER_ID);
     }
 
     @Test
@@ -85,8 +81,8 @@ class PostCreationControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -98,15 +94,15 @@ class PostCreationControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("인증된 사용자가 게시물을 생성하면 201과 생성 정보를 반환한다")
     void createPost_validRequest_returnsCreatedPost() throws Exception {
         // Given
-        given(postCreationService.createPost(
+        given(postService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -128,7 +124,7 @@ class PostCreationControllerTest {
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.moderationStatus").value("VALIDATING"));
 
-        then(postCreationService).should().createPost(
+        then(postService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -151,8 +147,8 @@ class PostCreationControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -172,8 +168,8 @@ class PostCreationControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value("주제 정보가 올바르지 않습니다."));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -193,8 +189,8 @@ class PostCreationControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value("사진 업로드 정보가 올바르지 않습니다."));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -216,8 +212,8 @@ class PostCreationControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value("제목은 10자 이하여야 합니다."));
 
-        then(postCreationService).shouldHaveNoInteractions();
-        then(postImageUploadService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -225,7 +221,7 @@ class PostCreationControllerTest {
     void createPost_tenCodePointEmojiTitle_returnsCreatedPost() throws Exception {
         // Given
         String emojiTitle = "📸".repeat(10);
-        given(postCreationService.createPost(
+        given(postService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -246,7 +242,7 @@ class PostCreationControllerTest {
                                 """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, emojiTitle)))
                 .andExpect(status().isCreated());
 
-        then(postCreationService).should().createPost(
+        then(postService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -259,7 +255,7 @@ class PostCreationControllerTest {
     void createPost_longBlankTitle_passesRequestValidation() throws Exception {
         // Given
         String blankTitle = "\u3000".repeat(11);
-        given(postCreationService.createPost(
+        given(postService.createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
@@ -279,7 +275,7 @@ class PostCreationControllerTest {
                                 """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, blankTitle)))
                 .andExpect(status().isCreated());
 
-        then(postCreationService).should().createPost(
+        then(postService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,

@@ -12,12 +12,16 @@ public record PostDetail(
         String originalImageUrl,
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
-        String title
+        String title,
+        long likeCount,
+        boolean isLiked
 ) {
 
     public static PostDetail from(
             Post post,
-            ImageUrlProvider imageUrlProvider
+            ImageUrlProvider imageUrlProvider,
+            long likeCount,
+            boolean isLiked
     ) {
         return new PostDetail(
                 post.getId(),
@@ -25,7 +29,9 @@ public record PostDetail(
                 imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                 imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                 imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
-                post.getTitle()
+                post.getTitle(),
+                likeCount,
+                isLiked
         );
     }
 

@@ -200,12 +200,15 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 | `LoginUserArgumentResolver` | `X-User-Id`를 `AuthenticatedUser`로 변환. 없거나 UUID가 아니면 401 |
 | `WebMvcConfig` | 리졸버를 필수 생성자 파라미터로 주입받아 등록 |
 | `UserController` 등 임시 인증 사용 컨트롤러 | prod에서 미등록 → 404 |
+| `OptionalLoginUserArgumentResolver` | 공개 API에서 헤더가 없으면 비로그인, 있으면 로그인 사용자로 변환. prod에서는 헤더를 무시 |
+| `OptionalLoginUserWebMvcConfig` | 선택 인증 리졸버를 모든 프로필에 등록 |
 
 규칙:
 
 - **`@LoginUser`를 쓰는 컨트롤러에는 반드시 `@Profile("!prod")`를 붙인다.** 빠뜨리면 prod에 리졸버가 없어 `AuthenticatedUser`가 `@ModelAttribute`로 바인딩되고 userId가 null인 채 동작할 수 있다.
 - `WebMvcConfig`의 생성자 파라미터를 `Optional`이나 `ObjectProvider`로 바꾸지 않는다. 비운영 프로파일에서 리졸버가 사라지면 기동 단계에서 드러나야 한다.
 - 컨트롤러는 헤더를 직접 읽지 않고 `@LoginUser AuthenticatedUser`를 받는다.
+- 로그인 여부에 따라 응답만 개인화하는 공개 API는 `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다. 헤더가 없으면 비로그인으로 처리하고, 임시 헤더를 신뢰하지 않는 prod에서는 항상 비로그인으로 처리한다.
 
 Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도록 바꾸고 `@Profile`을 제거한다. **컨트롤러 시그니처와 Service는 바뀌지 않는다.** 도입 이슈는 아직 생성되지 않았다.
 

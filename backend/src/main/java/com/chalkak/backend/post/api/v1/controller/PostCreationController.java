@@ -8,8 +8,7 @@ import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.service.PostCreationResult;
 import com.chalkak.backend.post.service.PostImageUploadResult;
-import com.chalkak.backend.post.service.PostCreationService;
-import com.chalkak.backend.post.service.PostImageUploadService;
+import com.chalkak.backend.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -26,15 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("!prod")
 public class PostCreationController implements PostCreationApiDocs {
 
-    private final PostCreationService postCreationService;
-    private final PostImageUploadService postImageUploadService;
+    private final PostService postService;
 
     @Override
     @PostMapping("/uploads")
     public ResponseEntity<PostImageUploadResponse> createPostImageUpload(
             @LoginUser AuthenticatedUser loginUser
     ) {
-        PostImageUploadResult result = postImageUploadService.createPostImageUpload(loginUser.userId());
+        PostImageUploadResult result = postService.createPostImageUpload(loginUser.userId());
 
         return ResponseEntity.ok(PostImageUploadResponse.from(result));
     }
@@ -45,7 +43,7 @@ public class PostCreationController implements PostCreationApiDocs {
             @LoginUser AuthenticatedUser loginUser,
             @Valid @RequestBody PostCreateRequest request
     ) {
-        PostCreationResult result = postCreationService.createPost(
+        PostCreationResult result = postService.createPost(
                 loginUser.userId(),
                 request.topicId(),
                 request.photoUploadId(),

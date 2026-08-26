@@ -134,4 +134,22 @@ public class PostRepositoryImpl implements PostRepository {
                 result.hasNext()
         );
     }
+
+    @Override
+    public PostSlice findVisiblePopularByTopicId(
+            UUID topicId,
+            int page,
+            int pageSize
+    ) {
+        Slice<Post> result = postJpaRepository.findVisiblePopularByTopicId(
+                topicId,
+                ModerationStatus.APPROVED,
+                PageRequest.of(page, pageSize)
+        );
+
+        return new PostSlice(
+                result.getContent(),
+                result.hasNext()
+        );
+    }
 }

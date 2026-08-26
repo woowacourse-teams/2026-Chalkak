@@ -12,11 +12,12 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostListResult;
-import com.chalkak.backend.post.service.PostQueryService;
+import com.chalkak.backend.post.service.PostService;
 import com.chalkak.backend.post.service.PostSort;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(GlobalExceptionHandler.class)
 class PostControllerTest {
 
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
 
@@ -39,7 +42,7 @@ class PostControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PostQueryService postQueryService;
+    private PostService postService;
 
     @Test
     @DisplayName("특정 날짜의 게시물 목록을 기본 조회 조건으로 조회한다")
@@ -58,10 +61,19 @@ class PostControllerTest {
                         "https://cdn.example.com/dev/signatures/signature.png",
                         "https://cdn.example.com/dev/signatures/signature-thumbnail.png",
                         "오늘의 순간",
-                        Instant.parse("2026-08-12T03:30:00Z")
+                        Instant.parse("2026-08-12T03:30:00Z"),
+                        43L,
+                        false
                 ))
         );
-        given(postQueryService.getPosts(topicDate, PostSort.RECENT, null, 1, 20))
+        given(postService.getPosts(
+                topicDate,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        ))
                 .willReturn(result);
 
         // When & Then
@@ -87,8 +99,62 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts[0].title").value("오늘의 순간"))
                 .andExpect(jsonPath("$.posts[0].submittedAt")
                         .value("2026-08-12T03:30:00Z"))
-                .andExpect(jsonPath("$.posts[0].likeCount").doesNotExist())
-                .andExpect(jsonPath("$.posts[0].isLiked").doesNotExist());
+                .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
+                .andExpect(jsonPath("$.posts[0].isLiked").value(false));
+    }
+
+    @Test
+    @DisplayName("로그인 사용자는 게시물 목록에서 자신의 좋아요 여부를 조회한다")
+    void getPosts_authenticatedUser_returnsPersonalLikeStatus() throws Exception {
+        // Given
+        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        PostListResult result = new PostListResult(
+                1,
+                20,
+                false,
+                null,
+                List.of(new PostListResult.PostSummary(
+                        POST_ID,
+                        "https://cdn.example.com/dev/posts/original.jpg",
+                        "https://cdn.example.com/dev/posts/thumbnail.jpg",
+                        "https://cdn.example.com/dev/signatures/signature.png",
+                        "https://cdn.example.com/dev/signatures/signature-thumbnail.png",
+                        "오늘의 순간",
+                        Instant.parse("2026-08-12T03:30:00Z"),
+                        43L,
+                        true
+                ))
+        );
+        given(postService.getPosts(
+                topicDate,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.of(USER_ID)
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .queryParam("topicDate", "2026-08-12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
+                .andExpect(jsonPath("$.posts[0].isLiked").value(true));
+    }
+
+    @Test
+    @DisplayName("목록 조회의 사용자 식별 헤더가 올바르지 않으면 401을 반환한다")
+    void getPosts_invalidUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .header(USER_ID_HEADER, "invalid-user-id")
+                        .queryParam("topicDate", "2026-08-12"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -103,7 +169,14 @@ class PostControllerTest {
                 "f4c3a091",
                 List.of()
         );
-        given(postQueryService.getPosts(topicDate, PostSort.RANDOM, null, 1, 20))
+        given(postService.getPosts(
+                topicDate,
+                PostSort.RANDOM,
+                null,
+                1,
+                20,
+                Optional.empty()
+        ))
                 .willReturn(result);
 
         // When & Then
@@ -112,6 +185,29 @@ class PostControllerTest {
                         .queryParam("sort", "random"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.randomSeed").value("f4c3a091"));
+    }
+
+    @Test
+    @DisplayName("소문자 인기순 정렬 파라미터를 enum으로 변환한다")
+    void getPosts_popularSort_bindsPostSortEnum() throws Exception {
+        // Given
+        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        PostListResult result = new PostListResult(1, 20, false, null, List.of());
+        given(postService.getPosts(
+                topicDate,
+                PostSort.POPULAR,
+                null,
+                1,
+                20,
+                Optional.empty()
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .queryParam("topicDate", "2026-08-12")
+                        .queryParam("sort", "popular"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts").isEmpty());
     }
 
     @Test
@@ -126,12 +222,13 @@ class PostControllerTest {
                 "f4c3a091",
                 List.of()
         );
-        given(postQueryService.getPosts(
+        given(postService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 "f4c3a091",
                 2,
-                100
+                100,
+                Optional.empty()
         )).willReturn(result);
 
         // When & Then
@@ -166,14 +263,13 @@ class PostControllerTest {
                         .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
     @CsvSource(
             delimiter = '|',
             value = {
-                    "sort | popular | sort: 요청 값의 형식이 올바르지 않습니다.",
                     "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
                     "randomSeed | seed! | 조회 조건이 올바르지 않습니다."
             }
@@ -191,7 +287,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(expectedMessage));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -209,7 +305,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
                         .value("조회 조건이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -222,7 +318,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
                         .value("topicDate: 요청 값의 형식이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -232,7 +328,7 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -249,12 +345,15 @@ class PostControllerTest {
                 "https://cdn.example.com/dev/posts/original.jpg",
                 "https://cdn.example.com/dev/posts/thumbnail.jpg",
                 "https://cdn.example.com/dev/signatures/signature.png",
-                "오늘의 순간"
+                "오늘의 순간",
+                43L,
+                true
         );
-        given(postQueryService.getPost(POST_ID)).willReturn(detail);
+        given(postService.getPost(POST_ID, USER_ID)).willReturn(detail);
 
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
+        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID)
+                        .header(USER_ID_HEADER, USER_ID.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.topic.id").value(TOPIC_ID.toString()))
@@ -266,42 +365,59 @@ class PostControllerTest {
                         .value("https://cdn.example.com/dev/posts/thumbnail.jpg"))
                 .andExpect(jsonPath("$.signatureOriginalImageUrl")
                         .value("https://cdn.example.com/dev/signatures/signature.png"))
-                .andExpect(jsonPath("$.title").value("오늘의 순간"));
+                .andExpect(jsonPath("$.title").value("오늘의 순간"))
+                .andExpect(jsonPath("$.likeCount").value(43L))
+                .andExpect(jsonPath("$.isLiked").value(true));
+    }
+
+    @Test
+    @DisplayName("게시물 상세 조회에 사용자 식별 헤더가 없으면 401을 반환한다")
+    void getPost_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("ID 형식이 올바르지 않으면 400 응답을 반환한다")
     void getPost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "invalid-post-id"))
+        mockMvc.perform(get("/api/v1/posts/{postId}", "invalid-post-id")
+                        .header(USER_ID_HEADER, USER_ID.toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("표준 형식이 아닌 UUID이면 400 응답을 반환한다")
     void getPost_nonCanonicalUuid_returnsBadRequest() throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "1-1-1-1-1"))
+        mockMvc.perform(get("/api/v1/posts/{postId}", "1-1-1-1-1")
+                        .header(USER_ID_HEADER, USER_ID.toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
+        then(postService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("공개 가능한 게시물이 없으면 404 응답을 반환한다")
     void getPost_invisiblePost_returnsNotFound() throws Exception {
         // Given
-        given(postQueryService.getPost(POST_ID)).willThrow(new NotFoundException(
+        given(postService.getPost(POST_ID, USER_ID)).willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR,
                 "게시물을 찾을 수 없습니다."
         ));
 
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
+        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID)
+                        .header(USER_ID_HEADER, USER_ID.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));

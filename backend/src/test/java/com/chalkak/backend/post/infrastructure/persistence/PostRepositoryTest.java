@@ -34,6 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID SECOND_USER_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
@@ -168,6 +170,80 @@ class PostRepositoryTest {
         assertThat(result.hasNext()).isFalse();
     }
 
+    @Test
+    @DisplayName("공개 게시물을 좋아요 개수 내림차순으로 조회한다")
+    void findVisiblePopularByTopicId_visiblePosts_returnsLikeCountDescendingSlice() {
+        // Given
+        insertSecondVisiblePost();
+        insertPostLikesForPopularOrder();
+
+        // When
+        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+
+        // Then
+        assertThat(result.posts()).extracting(Post::getId)
+                .containsExactly(POST_ID, SECOND_POST_ID);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getTopic())).isFalse();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getPhoto())).isTrue();
+        assertThat(Hibernate.isInitialized(result.posts().getFirst().getAuthor())).isTrue();
+    }
+
+    @Test
+    @DisplayName("좋아요 개수가 같으면 생성 시각 내림차순으로 조회한다")
+    void findVisiblePopularByTopicId_sameLikeCount_returnsCreatedAtDescendingSlice() {
+        // Given
+        insertSecondVisiblePost();
+
+        // When
+        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+
+        // Then
+        assertThat(result.posts()).extracting(Post::getId)
+                .containsExactly(SECOND_POST_ID, POST_ID);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("인기순 조회를 페이지로 나누면 정렬 순서가 이어진다")
+    void findVisiblePopularByTopicId_multiplePages_returnsStablePages() {
+        // Given
+        insertSecondVisiblePost();
+        insertPostLikesForPopularOrder();
+
+        // When
+        var firstPage = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 1);
+        var secondPage = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 1, 1);
+
+        // Then
+        assertThat(firstPage.posts()).extracting(Post::getId).containsExactly(POST_ID);
+        assertThat(secondPage.posts()).extracting(Post::getId).containsExactly(SECOND_POST_ID);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("좋아요 개수와 생성 시각이 같으면 게시물 ID 오름차순으로 조회한다")
+    void findVisiblePopularByTopicId_sameLikeCountAndCreatedAt_returnsIdAscendingSlice() {
+        // Given
+        insertSecondVisiblePost();
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
+                POST_ID,
+                SECOND_POST_ID
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+
+        // Then
+        assertThat(result.posts()).extracting(Post::getId)
+                .containsExactly(POST_ID, SECOND_POST_ID);
+        assertThat(result.hasNext()).isFalse();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "UPDATE posts SET moderation_status = 'REJECTED'",
@@ -191,12 +267,15 @@ class PostRepositoryTest {
                 0,
                 20
         );
+        var popularResult = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
 
         // Then
         assertThat(recentResult.posts()).isEmpty();
         assertThat(recentResult.hasNext()).isFalse();
         assertThat(randomResult.posts()).isEmpty();
         assertThat(randomResult.hasNext()).isFalse();
+        assertThat(popularResult.posts()).isEmpty();
+        assertThat(popularResult.hasNext()).isFalse();
     }
 
     @Test
@@ -512,6 +591,20 @@ class PostRepositoryTest {
                     CURRENT_TIMESTAMP
                 )
                 """);
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private void insertPostLikesForPopularOrder() {
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?), (?, ?), (?, ?)",
+                POST_ID,
+                USER_ID,
+                POST_ID,
+                SECOND_USER_ID,
+                SECOND_POST_ID,
+                USER_ID
+        );
         entityManager.flush();
         entityManager.clear();
     }
