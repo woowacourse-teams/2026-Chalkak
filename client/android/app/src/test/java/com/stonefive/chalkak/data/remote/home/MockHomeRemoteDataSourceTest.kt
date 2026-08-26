@@ -10,10 +10,17 @@ class MockHomeRemoteDataSourceTest {
     private val dataSource = MockHomeRemoteDataSource()
 
     @Test
-    fun `홈 목 응답은 스크롤 가능한 세 장의 사진을 제공한다`() = runTest {
+    fun `홈 목 응답은 충분한 스크롤을 위해 열두 장의 사진을 제공한다`() = runTest {
         val response = dataSource.getHome(PostSort.LATEST)
 
-        assertEquals(3, response.photos.size)
+        assertEquals(12, response.photos.size)
+        assertEquals(
+            12,
+            response.photos
+                .map { it.id }
+                .toSet()
+                .size,
+        )
         assertEquals("하늘하늘하늘", response.topic)
     }
 
