@@ -2,8 +2,11 @@ package com.chalkak.backend.like.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeRepository;
 import jakarta.persistence.EntityManager;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -141,5 +144,57 @@ class PostLikeRepositoryTest {
         // Then
         assertThat(deletedCount).isZero();
         assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("여러 게시물의 좋아요 개수를 한 번에 조회한다")
+    void countByPostIds_postIds_returnsLikeCounts() {
+        // Given
+        UUID postWithoutLikeId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+        postLikeRepository.createIfAbsent(POST_ID, USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<PostLikeCount> result = postLikeRepository.countByPostIds(
+                List.of(POST_ID, postWithoutLikeId)
+        );
+
+        // Then
+        assertThat(result).containsExactly(new PostLikeCount(POST_ID, 1L));
+    }
+
+    @Test
+    @DisplayName("사용자가 좋아요한 게시물 ID를 여러 게시물에서 한 번에 조회한다")
+    void findLikedPostIds_postIdsAndUserId_returnsLikedPostIds() {
+        // Given
+        UUID postWithoutLikeId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+        postLikeRepository.createIfAbsent(POST_ID, USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        Set<UUID> result = postLikeRepository.findLikedPostIds(
+                List.of(POST_ID, postWithoutLikeId),
+                USER_ID
+        );
+
+        // Then
+        assertThat(result).containsExactly(POST_ID);
+    }
+
+    @Test
+    @DisplayName("사용자가 게시물에 좋아요했는지 확인한다")
+    void existsByPostIdAndUserId_existingPostLike_returnsTrue() {
+        // Given
+        postLikeRepository.createIfAbsent(POST_ID, USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        boolean result = postLikeRepository.existsByPostIdAndUserId(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isTrue();
     }
 }

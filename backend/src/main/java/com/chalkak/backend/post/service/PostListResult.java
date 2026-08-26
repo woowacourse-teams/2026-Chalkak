@@ -5,6 +5,8 @@ import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostSlice;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public record PostListResult(
@@ -20,7 +22,9 @@ public record PostListResult(
             int currentPage,
             int pageSize,
             String randomSeed,
-            ImageUrlProvider imageUrlProvider
+            ImageUrlProvider imageUrlProvider,
+            Map<UUID, Long> likeCounts,
+            Set<UUID> likedPostIds
     ) {
         return new PostListResult(
                 currentPage,
@@ -28,7 +32,12 @@ public record PostListResult(
                 postSlice.hasNext(),
                 randomSeed,
                 postSlice.posts().stream()
-                        .map(post -> PostSummary.fromPost(post, imageUrlProvider))
+                        .map(post -> PostSummary.fromPost(
+                                post,
+                                imageUrlProvider,
+                                likeCounts.getOrDefault(post.getId(), 0L),
+                                likedPostIds.contains(post.getId())
+                        ))
                         .toList()
         );
     }
@@ -40,12 +49,16 @@ public record PostListResult(
             String signatureOriginalImageUrl,
             String signatureThumbnailImageUrl,
             String title,
-            Instant submittedAt
+            Instant submittedAt,
+            long likeCount,
+            boolean isLiked
     ) {
 
         private static PostSummary fromPost(
                 Post post,
-                ImageUrlProvider imageUrlProvider
+                ImageUrlProvider imageUrlProvider,
+                long likeCount,
+                boolean isLiked
         ) {
             return new PostSummary(
                     post.getId(),
@@ -54,7 +67,9 @@ public record PostListResult(
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureThumbnailStorageKey()),
                     post.getTitle(),
-                    post.getCreatedAt()
+                    post.getCreatedAt(),
+                    likeCount,
+                    isLiked
             );
         }
     }

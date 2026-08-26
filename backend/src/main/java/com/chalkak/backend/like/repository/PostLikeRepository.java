@@ -1,5 +1,7 @@
 package com.chalkak.backend.like.repository;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public interface PostLikeRepository {
@@ -9,4 +11,10 @@ public interface PostLikeRepository {
     int deleteByPostIdAndUserId(UUID postId, UUID userId);
 
     long countByPostId(UUID postId);
+
+    List<PostLikeCount> countByPostIds(List<UUID> postIds);
+
+    Set<UUID> findLikedPostIds(List<UUID> postIds, UUID userId);
+
+    boolean existsByPostIdAndUserId(UUID postId, UUID userId);
 }

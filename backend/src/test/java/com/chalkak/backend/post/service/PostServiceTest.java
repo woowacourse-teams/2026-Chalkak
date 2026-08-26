@@ -8,11 +8,13 @@ import static org.mockito.BDDMockito.then;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,9 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostServiceTest extends IntegrationTestSupport {
 
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID UNKNOWN_POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID UNKNOWN_USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
     private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
 
     private static final String ORIGINAL_STORAGE_KEY = "chalkak/dev/posts/original.jpg";
@@ -125,7 +129,14 @@ class PostServiceTest extends IntegrationTestSupport {
                 .willReturn(SIGNATURE_THUMBNAIL_IMAGE_URL);
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
 
         // Then
         assertThat(result).isEqualTo(new PostListResult(
@@ -140,9 +151,57 @@ class PostServiceTest extends IntegrationTestSupport {
                         SIGNATURE_IMAGE_URL,
                         SIGNATURE_THUMBNAIL_IMAGE_URL,
                         "오늘의 순간",
-                        Instant.parse("2026-08-12T03:30:00Z")
+                        Instant.parse("2026-08-12T03:30:00Z"),
+                        0L,
+                        false
                 ))
         ));
+    }
+
+    @Test
+    @DisplayName("로그인 사용자의 게시물 목록에 좋아요 개수와 여부를 반환한다")
+    void getPosts_authenticatedUser_returnsLikeInformation() {
+        // Given
+        insertPostLike();
+
+        // When
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.of(USER_ID)
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement().satisfies(post -> {
+            assertThat(post.likeCount()).isEqualTo(1L);
+            assertThat(post.isLiked()).isTrue();
+        });
+    }
+
+    @Test
+    @DisplayName("비로그인 사용자의 게시물 목록에는 좋아요 개수와 false 상태를 반환한다")
+    void getPosts_anonymousUser_returnsLikeCountAndUnlikedStatus() {
+        // Given
+        insertPostLike();
+
+        // When
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement().satisfies(post -> {
+            assertThat(post.likeCount()).isEqualTo(1L);
+            assertThat(post.isLiked()).isFalse();
+        });
     }
 
     @Test
@@ -152,7 +211,14 @@ class PostServiceTest extends IntegrationTestSupport {
         given(randomSeedGenerator.generateRandomSeed()).willReturn("f4c3a091");
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RANDOM, null, 1, 20);
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.RANDOM,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -169,7 +235,8 @@ class PostServiceTest extends IntegrationTestSupport {
                 PostSort.RANDOM,
                 "f4c3a091",
                 1,
-                20
+                20,
+                Optional.empty()
         );
 
         // Then
@@ -187,7 +254,14 @@ class PostServiceTest extends IntegrationTestSupport {
         );
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
+        PostListResult result = postService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.hasNext()).isFalse();
@@ -203,7 +277,14 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPosts(unknownTopicDate, PostSort.RECENT, null, 1, 20)
+                () -> postService.getPosts(
+                        unknownTopicDate,
+                        PostSort.RECENT,
+                        null,
+                        1,
+                        20,
+                        Optional.empty()
+                )
         );
 
         // Then
@@ -222,7 +303,14 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(TOPIC_DATE, sort, randomSeed, page, 20)
+                () -> postService.getPosts(
+                        TOPIC_DATE,
+                        sort,
+                        randomSeed,
+                        page,
+                        20,
+                        Optional.empty()
+                )
         );
 
         // Then
@@ -239,7 +327,14 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(futureTopicDate, PostSort.RECENT, null, 1, 20)
+                () -> postService.getPosts(
+                        futureTopicDate,
+                        PostSort.RECENT,
+                        null,
+                        1,
+                        20,
+                        Optional.empty()
+                )
         );
 
         // Then
@@ -256,7 +351,9 @@ class PostServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
 
         // When
-        PostDetail result = postService.getPost(POST_ID);
+        insertPostLike();
+
+        PostDetail result = postService.getPost(POST_ID, USER_ID);
 
         // Then
         assertThat(result).isEqualTo(new PostDetail(
@@ -269,7 +366,9 @@ class PostServiceTest extends IntegrationTestSupport {
                 ORIGINAL_IMAGE_URL,
                 THUMBNAIL_IMAGE_URL,
                 SIGNATURE_IMAGE_URL,
-                "오늘의 순간"
+                "오늘의 순간",
+                1L,
+                true
         ));
     }
 
@@ -279,12 +378,34 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPost(UNKNOWN_POST_ID)
+                () -> postService.getPost(UNKNOWN_POST_ID, USER_ID)
         );
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("상세 조회 사용자를 찾을 수 없으면 인증 예외를 발생시킨다")
+    void getPost_unknownUser_throwsUnauthorizedException() {
+        // When
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
+                () -> postService.getPost(POST_ID, UNKNOWN_USER_ID)
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
+    }
+
+    private void insertPostLike() {
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                POST_ID,
+                USER_ID
+        );
     }
 
     private static Stream<Arguments> invalidRandomSeedCombinations() {

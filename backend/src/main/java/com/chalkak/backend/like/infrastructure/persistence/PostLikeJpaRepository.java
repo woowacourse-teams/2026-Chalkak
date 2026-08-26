@@ -1,6 +1,9 @@
 package com.chalkak.backend.like.infrastructure.persistence;
 
 import com.chalkak.backend.like.domain.PostLike;
+import com.chalkak.backend.like.repository.PostLikeCount;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -35,4 +38,28 @@ public interface PostLikeJpaRepository extends JpaRepository<PostLike, UUID> {
     );
 
     long countByPostId(UUID postId);
+
+    @Query("""
+            SELECT new com.chalkak.backend.like.repository.PostLikeCount(
+                postLike.postId,
+                COUNT(postLike)
+            )
+            FROM PostLike postLike
+            WHERE postLike.postId IN :postIds
+            GROUP BY postLike.postId
+            """)
+    List<PostLikeCount> countByPostIds(@Param("postIds") List<UUID> postIds);
+
+    @Query("""
+            SELECT postLike.postId
+            FROM PostLike postLike
+            WHERE postLike.postId IN :postIds
+              AND postLike.userId = :userId
+            """)
+    Set<UUID> findLikedPostIds(
+            @Param("postIds") List<UUID> postIds,
+            @Param("userId") UUID userId
+    );
+
+    boolean existsByPostIdAndUserId(UUID postId, UUID userId);
 }
