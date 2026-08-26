@@ -18,6 +18,7 @@ required_keys=(
   SPRING_PROFILES_ACTIVE
   SERVER_PORT
   GOOGLE_OIDC_CLIENT_ID
+  SOCIAL_SIGNUP_TOKEN_SECRET
   DB_HOST
   DB_PORT
   DB_NAME
@@ -50,6 +51,7 @@ server_port="$(read_value SERVER_PORT)"
 aws_region="$(read_value AWS_REGION)"
 db_password="$(read_value DB_PASSWORD)"
 callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
+social_signup_token_secret="$(read_value SOCIAL_SIGNUP_TOKEN_SECRET)"
 
 if [[ "${server_port}" != 8080 ]]; then
   echo "SERVER_PORT must be 8080 for the configured health check." >&2
@@ -68,6 +70,11 @@ fi
 
 if [[ ! "${callback_secret}" =~ ^[A-Za-z0-9._~@%+=,-]{32,}$ ]]; then
   echo "IMAGE_PROCESSOR_CALLBACK_SECRET must be at least 32 URL-safe characters without spaces, quotes, #, or $." >&2
+  exit 1
+fi
+
+if [[ ! "${social_signup_token_secret}" =~ ^[0-9A-Fa-f]{64}$ ]]; then
+  echo "SOCIAL_SIGNUP_TOKEN_SECRET must be exactly 64 hexadecimal characters." >&2
   exit 1
 fi
 
