@@ -47,6 +47,24 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
                 timeout_seconds=3.0,
             )
 
+    @patch("image_processor.callback.time.time", return_value=1_787_562_000)
+    @patch("image_processor.callback.request.urlopen")
+    def test_signature_differs_between_environments(self, urlopen, _time) -> None:
+        response = MagicMock()
+        response.status = 204
+        urlopen.return_value.__enter__.return_value = response
+
+        self.client.complete("dev", UPLOAD_ID)
+        dev_signature = urlopen.call_args.args[0].headers[
+            "X-chalkak-callback-signature"
+        ]
+        self.client.complete("prod", UPLOAD_ID)
+        prod_signature = urlopen.call_args.args[0].headers[
+            "X-chalkak-callback-signature"
+        ]
+
+        self.assertNotEqual(dev_signature, prod_signature)
+
     def _http_error(self, status: int) -> HTTPError:
         return HTTPError(
             url="https://dev-api.test.chalkak/internal/v1/signature-processing",
@@ -92,7 +110,7 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
         body_hash = hashlib.sha256(b"").hexdigest()
         expected_signature = "v1=" + hmac.new(
             SECRET.encode(),
-            f"{timestamp}\nPOST\n{path}\n{body_hash}".encode(),
+            f"{timestamp}\nPOST\n{path}\n{body_hash}\ndev".encode(),
             hashlib.sha256,
         ).hexdigest()
         self.assertEqual(
@@ -162,7 +180,7 @@ class PostImageProcessingCallbackClientTest(unittest.TestCase):
         body_hash = hashlib.sha256(request_value.data).hexdigest()
         expected_signature = "v1=" + hmac.new(
             SECRET.encode(),
-            f"{timestamp}\nPOST\n{path}\n{body_hash}".encode(),
+            f"{timestamp}\nPOST\n{path}\n{body_hash}\ndev".encode(),
             hashlib.sha256,
         ).hexdigest()
         self.assertEqual(

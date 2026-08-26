@@ -17,6 +17,9 @@ import org.springframework.stereotype.Component;
  * 이미지 처리 Lambda 콜백의 HMAC 인증기. 서명 대상 경로에 콜백 종류가 들어가므로 사인 콜백 서명을 포스트
  * 콜백에 재사용할 수 없다.
  *
+ * <p>서명 대상에 이 서버의 환경도 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면
+ * dev용으로 만든 서명이 바이트 단위로 prod에서도 그대로 유효하다.
+ *
  * <p>본문 해시는 <b>수신 바이트</b>로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져
  * 서명이 어긋나고, 문자열로 디코딩했다 다시 인코딩한 바이트도 원문과 같다는 보장이 없다.
  */
@@ -32,14 +35,20 @@ public class ProcessingCallbackAuthenticator {
     private static final long MAX_FUTURE_SKEW_SECONDS = 30L;
 
     private final byte[] secret;
+    private final String audience;
 
     public ProcessingCallbackAuthenticator(
-            @Value("${IMAGE_PROCESSOR_CALLBACK_SECRET}") String secret
+            @Value("${IMAGE_PROCESSOR_CALLBACK_SECRET}") String secret,
+            @Value("${chalkak.image.environment}") String audience
     ) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("IMAGE_PROCESSOR_CALLBACK_SECRET은 32자 이상이어야 합니다.");
         }
+        if (audience == null || audience.isBlank()) {
+            throw new IllegalArgumentException("chalkak.image.environment는 비어 있을 수 없습니다.");
+        }
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
+        this.audience = audience;
     }
 
     public void authenticate(
@@ -73,7 +82,8 @@ public class ProcessingCallbackAuthenticator {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secret, HMAC_ALGORITHM));
-            String payload = timestamp + "\nPOST\n" + path + "\n" + bodyHash(rawBody);
+            String payload = timestamp + "\nPOST\n" + path
+                    + "\n" + bodyHash(rawBody) + "\n" + audience;
             return mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
             throw new IllegalStateException("이미지 처리 콜백 서명을 생성할 수 없습니다.", exception);

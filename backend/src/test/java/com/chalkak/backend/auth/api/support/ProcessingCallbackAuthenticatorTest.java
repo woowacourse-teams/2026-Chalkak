@@ -16,10 +16,11 @@ import org.junit.jupiter.api.Test;
 
 class ProcessingCallbackAuthenticatorTest {
 
+    private static final String AUDIENCE = "dev";
     private static final String SECRET = "test-callback-secret-with-enough-length";
 
     private final ProcessingCallbackAuthenticator authenticator =
-            new ProcessingCallbackAuthenticator(SECRET);
+            new ProcessingCallbackAuthenticator(SECRET, AUDIENCE);
 
     private static String signaturePath(UUID uploadId, String result) {
         return "/internal/v1/signature-processing/" + uploadId + "/" + result;
@@ -175,8 +176,9 @@ class ProcessingCallbackAuthenticatorTest {
             byte[] body = (rawBody == null) ? new byte[0] : rawBody;
             String bodyHash = HexFormat.of().formatHex(
                     MessageDigest.getInstance("SHA-256").digest(body));
-            byte[] digest = mac.doFinal((timestamp + "\nPOST\n" + path + "\n" + bodyHash)
-                    .getBytes(StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal(
+                    (timestamp + "\nPOST\n" + path + "\n" + bodyHash + "\n" + AUDIENCE)
+                            .getBytes(StandardCharsets.UTF_8));
             return "v1=" + HexFormat.of().formatHex(digest);
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
@@ -245,5 +247,24 @@ class ProcessingCallbackAuthenticatorTest {
                 timestamp,
                 signature
         )).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("다른 환경을 대상으로 만든 서명은 거부한다")
+    void authenticate_signatureForAnotherEnvironment_throwsUnauthorizedException() {
+        // Given
+        ProcessingCallbackAuthenticator prodAuthenticator =
+                new ProcessingCallbackAuthenticator(SECRET, "prod");
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String devSignature = sign(uploadId, "complete", timestamp);
+
+        // When & Then
+        assertThatThrownBy(() -> prodAuthenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                devSignature
+        )).isInstanceOf(UnauthorizedException.class);
     }
 }

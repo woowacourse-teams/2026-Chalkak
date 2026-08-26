@@ -82,7 +82,9 @@ class ProcessingCallbackClient:
         path = f"{urlsplit(base_url).path}/{upload_id}/{result}"
         encoded_body = _encode(body)
         body_hash = hashlib.sha256(encoded_body).hexdigest()
-        payload = f"{timestamp}\nPOST\n{path}\n{body_hash}".encode()
+        # 서명 대상에 대상 환경을 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면
+        # dev용으로 만든 서명이 prod 백엔드에서도 그대로 유효하다.
+        payload = f"{timestamp}\nPOST\n{path}\n{body_hash}\n{environment}".encode()
         signature = "v1=" + hmac.new(
             self._secret,
             payload,

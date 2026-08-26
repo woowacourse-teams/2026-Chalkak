@@ -158,7 +158,7 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 | `PROD_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 prod 백엔드 HTTPS URL |
 | `DEV_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 dev 백엔드 HTTPS URL |
 | `PROD_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 prod 백엔드 HTTPS URL |
-| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키 |
+| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키. 서명 대상에 대상 환경이 들어가므로 dev용 서명이 prod에 통하지는 않지만, 환경별로 다른 값을 두는 편이 더 안전하다 |
 | `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
 | `SQS_PARTIAL_BATCH_RESPONSE` | `false` | 실패한 메시지만 큐에 되돌린다. 이벤트 소스 매핑에 `ReportBatchItemFailures`를 켠 뒤에만 `true`로 둔다 |
 
@@ -170,6 +170,9 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 3. Lambda에 `DEV_BACKEND_CALLBACK_URL`, `PROD_BACKEND_CALLBACK_URL`, 같은
    `IMAGE_PROCESSOR_CALLBACK_SECRET`, `BACKEND_CALLBACK_TIMEOUT_SECONDS`를 설정한다.
 4. Lambda 코드를 배포하고 성공·실패 콜백이 204를 받는지 확인한다.
+
+서명 대상 문자열은 백엔드와 Lambda가 함께 바뀌어야 한다. 한쪽만 배포하면 모든 콜백이 401을
+받고, 401은 재시도 대상이라 큐가 계속 회전한다.
 
 Lambda를 먼저 배포하면 필수 환경 변수 누락 또는 콜백 API 미배포로
 SQS 재시도가 반복될 수 있다. HTTP 콜백은 추가 IAM 권한을 필요로
