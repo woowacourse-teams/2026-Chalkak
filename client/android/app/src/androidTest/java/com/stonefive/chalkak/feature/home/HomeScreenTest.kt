@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeUp
@@ -89,13 +90,18 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `스크롤 최상단 버튼은 스크롤이 멈추면 숨겨진다`() {
+    fun `위로 스크롤하면 최상단 버튼이 표시되고 누르면 첫 사진으로 돌아간다`() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
 
         composeRule.onRoot().performTouchInput { swipeUp() }
         composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onNodeWithContentDescription("맨 위로").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("맨 위로").performClick()
+
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
     }
 

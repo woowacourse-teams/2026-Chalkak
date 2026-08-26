@@ -256,7 +256,6 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                isScrollToTopButtonVisible = false
                 settleTopArea()
                 settleBottomBar()
                 return Velocity.Zero
