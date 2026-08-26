@@ -71,7 +71,7 @@ class DisplayScreenTest {
             .performTouchInput {
                 swipe(
                     start = center,
-                    end = center.copy(y = center.y + 40f),
+                    end = center.copy(y = center.y + 120f),
                 )
             }
         composeRule.onAllNodesWithText("8월 5일").assertCountEquals(0)
@@ -107,7 +107,7 @@ class DisplayScreenTest {
             .performTouchInput {
                 swipe(
                     start = center,
-                    end = center.copy(y = center.y + 40f),
+                    end = center.copy(y = center.y + 120f),
                 )
             }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()

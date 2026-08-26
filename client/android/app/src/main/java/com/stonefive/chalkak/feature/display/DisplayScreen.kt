@@ -116,9 +116,19 @@ fun DisplayScreen(
     fun settleTopAreas() {
         settleJob.value?.cancel()
         val initialHeaderOffset = headerOffset
-        val targetHeaderOffset = if (isHeaderTargetHidden) -headerHeight.toFloat() else 0f
+        val targetHeaderOffset = settleDisplayAreaOffset(
+            currentOffset = initialHeaderOffset,
+            hiddenOffset = -headerHeight.toFloat(),
+            restingOffset = if (isHeaderTargetHidden) -headerHeight.toFloat() else 0f,
+        )
         val initialFilterOffset = filterOffset
-        val targetFilterOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f
+        val targetFilterOffset = settleDisplayAreaOffset(
+            currentOffset = initialFilterOffset,
+            hiddenOffset = -filterHeight.toFloat(),
+            restingOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f,
+        )
+        isHeaderTargetHidden = targetHeaderOffset != 0f
+        isFilterTargetHidden = targetFilterOffset != 0f
 
         if (initialHeaderOffset == targetHeaderOffset &&
             initialFilterOffset == targetFilterOffset
@@ -161,7 +171,6 @@ fun DisplayScreen(
                         var consumedScroll = 0f
 
                         if (headerHeight > 0) {
-                            isHeaderTargetHidden = true
                             val previousOffset = headerOffset
                             headerOffset = (headerOffset + remainingScroll)
                                 .coerceAtLeast(-headerHeight.toFloat())
@@ -174,7 +183,6 @@ fun DisplayScreen(
                             uiState.content is DisplayContentState.Latest &&
                             filterHeight > 0
                         ) {
-                            isFilterTargetHidden = true
                             val previousOffset = filterOffset
                             filterOffset = (filterOffset + remainingScroll)
                                 .coerceAtLeast(-filterHeight.toFloat())
@@ -191,7 +199,6 @@ fun DisplayScreen(
                         filterHeight > 0
                     ) {
                         settleJob.value?.cancel()
-                        isFilterTargetHidden = false
                         val previousOffset = filterOffset
                         filterOffset = (filterOffset + available.y).coerceAtMost(0f)
                         if (filterOffset != previousOffset) {
@@ -212,7 +219,6 @@ fun DisplayScreen(
                     headerOffset < 0f
                 ) {
                     settleJob.value?.cancel()
-                    isHeaderTargetHidden = false
                     val previousOffset = headerOffset
                     headerOffset = (headerOffset + available.y).coerceAtMost(0f)
                     return Offset(0f, headerOffset - previousOffset)
@@ -335,6 +341,21 @@ private fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurab
 
     layout(placeable.width, visibleHeight) {
         placeable.placeRelative(0, offsetPx)
+    }
+}
+
+internal fun settleDisplayAreaOffset(
+    currentOffset: Float,
+    hiddenOffset: Float,
+    restingOffset: Float,
+): Float {
+    if (hiddenOffset == 0f) return 0f
+
+    val hiddenProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
+    return when {
+        hiddenProgress > 0.5f -> hiddenOffset
+        hiddenProgress < 0.5f -> 0f
+        else -> restingOffset
     }
 }
 
