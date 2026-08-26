@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 from image_processor.errors import PermanentCallbackError
 
@@ -28,12 +29,27 @@ class ProcessingCallbackClient:
         timeout_seconds: float,
     ):
         self._kind = kind
+        self._path_prefix = f"/internal/v1/{kind}"
         self._base_urls = {
             environment: base_url.rstrip("/")
             for environment, base_url in base_urls.items()
         }
+        self._validate_base_urls()
         self._secret = secret.encode()
         self._timeout_seconds = timeout_seconds
+
+    def _validate_base_urls(self) -> None:
+        """
+        백엔드는 서명 대상 경로를 자기 컨트롤러 상수로 재구성한다. base URL 경로가 그와 다르면 모든 콜백이
+        401을 받는데, 401은 시크릿 롤링을 고려해 재시도 대상이라 배포 오타 하나가 무한 재시도로 나타난다.
+        기동 시점에 걸러 낸다.
+        """
+        for environment, base_url in self._base_urls.items():
+            if urlsplit(base_url).path != self._path_prefix:
+                raise ValueError(
+                    f"{environment} {self._kind} callback URL path must be "
+                    f"{self._path_prefix}"
+                )
 
     def complete(
         self,
@@ -62,7 +78,8 @@ class ProcessingCallbackClient:
         if base_url is None:
             raise ValueError(f"unsupported image environment: {environment}")
         timestamp = str(int(time.time()))
-        path = f"/internal/v1/{self._kind}/{upload_id}/{result}"
+        # 서명하는 경로와 요청하는 URL이 같은 출처에서 나와야 둘이 어긋나지 않는다.
+        path = f"{urlsplit(base_url).path}/{upload_id}/{result}"
         encoded_body = _encode(body)
         body_hash = hashlib.sha256(encoded_body).hexdigest()
         payload = f"{timestamp}\nPOST\n{path}\n{body_hash}".encode()

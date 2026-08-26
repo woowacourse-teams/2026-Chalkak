@@ -25,6 +25,28 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
             timeout_seconds=3.0,
         )
 
+    def test_rejects_base_url_whose_path_does_not_match_kind(self) -> None:
+        with self.assertRaises(ValueError):
+            ProcessingCallbackClient(
+                kind="signature-processing",
+                base_urls={
+                    "dev": "https://dev-api.test.chalkak/internal/v1/post-image-processing",
+                },
+                secret=SECRET,
+                timeout_seconds=3.0,
+            )
+
+    def test_rejects_base_url_with_extra_stage_prefix(self) -> None:
+        with self.assertRaises(ValueError):
+            ProcessingCallbackClient(
+                kind="signature-processing",
+                base_urls={
+                    "dev": "https://dev-api.test.chalkak/stage/internal/v1/signature-processing",
+                },
+                secret=SECRET,
+                timeout_seconds=3.0,
+            )
+
     def _http_error(self, status: int) -> HTTPError:
         return HTTPError(
             url="https://dev-api.test.chalkak/internal/v1/signature-processing",
