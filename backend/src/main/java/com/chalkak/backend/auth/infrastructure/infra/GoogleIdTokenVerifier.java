@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.infrastructure.infra;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.repository.IdTokenVerifier;
+import com.chalkak.backend.auth.service.IdTokenVerifier;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import org.springframework.security.oauth2.jwt.Jwt;

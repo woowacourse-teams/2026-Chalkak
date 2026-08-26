@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.repository;
+package com.chalkak.backend.auth.service;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;

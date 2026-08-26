@@ -2,7 +2,6 @@ package com.chalkak.backend.auth.service;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.repository.IdTokenVerifier;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import java.util.List;

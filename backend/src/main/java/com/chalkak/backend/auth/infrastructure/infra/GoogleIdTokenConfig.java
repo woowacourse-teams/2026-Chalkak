@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra;
 
-import com.chalkak.backend.auth.repository.IdTokenVerifier;
+import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
