@@ -49,7 +49,9 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import kotlin.math.abs
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -99,6 +101,7 @@ fun HomeScreen(
     var bottomBarHeight by remember { mutableIntStateOf(0) }
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
+    val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
@@ -117,12 +120,13 @@ fun HomeScreen(
 
     fun resetHomePosition() {
         settleJob.value?.cancel()
+        bottomBarRestoreJob.value?.cancel()
         topAreaOffset = 0f
         isTopAreaTargetHidden = false
         bottomBarOffset = 0f
     }
 
-    fun settleBars() {
+    fun settleTopArea() {
         settleJob.value?.cancel()
 
         val initialTopOffset = topAreaOffset
@@ -131,15 +135,9 @@ fun HomeScreen(
             hiddenOffset = -topAreaHeight.toFloat(),
             restingOffset = if (isTopAreaTargetHidden) -topAreaHeight.toFloat() else 0f,
         )
-        val initialBottomOffset = bottomBarOffset
-        val targetBottomOffset = 0f
         isTopAreaTargetHidden = targetTopOffset != 0f
 
-        if (initialTopOffset == targetTopOffset &&
-            initialBottomOffset == targetBottomOffset
-        ) {
-            return
-        }
+        if (initialTopOffset == targetTopOffset) return
 
         settleJob.value = interactionScope.launch {
             animate(
@@ -149,9 +147,20 @@ fun HomeScreen(
             ) { progress, _ ->
                 topAreaOffset = initialTopOffset +
                     ((targetTopOffset - initialTopOffset) * progress)
-                bottomBarOffset = initialBottomOffset +
-                    ((targetBottomOffset - initialBottomOffset) * progress)
             }
+        }
+    }
+
+    fun scheduleBottomBarRestore() {
+        bottomBarRestoreJob.value?.cancel()
+        bottomBarRestoreJob.value = interactionScope.launch {
+            delay(BOTTOM_BAR_RESTORE_DELAY_MILLIS)
+            val initialOffset = bottomBarOffset
+            animate(
+                initialValue = initialOffset,
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+            ) { value, _ -> bottomBarOffset = value }
         }
     }
 
@@ -163,10 +172,11 @@ fun HomeScreen(
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
                     if (available.y != 0f) {
+                        bottomBarRestoreJob.value?.cancel()
                         settleJob.value?.cancel()
                         bottomBarOffset = bottomBarOffsetAfterScroll(
                             currentOffset = bottomBarOffset,
-                            scrollDelta = available.y,
+                            scrollDelta = -abs(available.y),
                             barHeight = bottomBarHeight.toFloat(),
                         )
                     }
@@ -207,7 +217,8 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                settleBars()
+                settleTopArea()
+                scheduleBottomBarRestore()
                 return Velocity.Zero
             }
         }
@@ -311,6 +322,7 @@ private val HomeTopBarHeight = 55.dp
 private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
 private const val BAR_SETTLE_DURATION_MILLIS = 220
+private const val BOTTOM_BAR_RESTORE_DELAY_MILLIS = 500L
 
 internal fun topBarBackgroundAlpha(collapsedProgress: Float): Float {
     val fadeProgress = (

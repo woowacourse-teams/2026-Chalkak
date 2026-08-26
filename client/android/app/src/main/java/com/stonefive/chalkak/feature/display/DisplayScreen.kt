@@ -61,6 +61,7 @@ import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -111,6 +112,7 @@ fun DisplayScreen(
     var isBottomBarVisible by remember { mutableStateOf(true) }
     val settleScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
+    val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
 
     fun settleTopAreas() {
@@ -160,9 +162,9 @@ fun DisplayScreen(
                 source: NestedScrollSource,
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
-                    when {
-                        available.y < 0f -> isBottomBarVisible = false
-                        available.y > 0f -> isBottomBarVisible = true
+                    if (available.y != 0f) {
+                        bottomBarRestoreJob.value?.cancel()
+                        isBottomBarVisible = false
                     }
 
                     if (available.y < 0f) {
@@ -227,8 +229,12 @@ fun DisplayScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                isBottomBarVisible = true
                 settleTopAreas()
+                bottomBarRestoreJob.value?.cancel()
+                bottomBarRestoreJob.value = settleScope.launch {
+                    delay(BOTTOM_BAR_RESTORE_DELAY_MILLIS)
+                    isBottomBarVisible = true
+                }
                 return Velocity.Zero
             }
         }
@@ -236,6 +242,7 @@ fun DisplayScreen(
 
     LaunchedEffect(uiState.selectedDate, selectedSort) {
         settleJob.value?.cancel()
+        bottomBarRestoreJob.value?.cancel()
         headerOffset = 0f
         isHeaderTargetHidden = false
         filterOffset = 0f
@@ -358,6 +365,8 @@ internal fun settleDisplayAreaOffset(
         else -> restingOffset
     }
 }
+
+private const val BOTTOM_BAR_RESTORE_DELAY_MILLIS = 500L
 
 @Composable
 fun DisplayBody(
