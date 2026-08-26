@@ -3,7 +3,6 @@ package com.stonefive.chalkak.feature.home
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -42,7 +41,7 @@ class HomeScreenTest {
 
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onAllNodesWithText("8월 5일 · 오늘의 주제").assertCountEquals(0)
-        composeRule.onNodeWithText("오늘").assertIsNotDisplayed()
+        composeRule.onNodeWithText("오늘").assertIsDisplayed()
 
         composeRule.onRoot().performTouchInput {
             swipe(

@@ -64,7 +64,7 @@ class DisplayScreenTest {
             .onAllNodesWithText("같은 주제에서 다른 시선을 느껴보세요")
             .assertCountEquals(0)
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
-        composeRule.onAllNodesWithText("전시").assertCountEquals(0)
+        composeRule.onNodeWithText("전시").assertIsDisplayed()
 
         composeRule
             .onNodeWithContentDescription("사진 1")

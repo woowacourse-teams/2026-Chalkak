@@ -97,7 +97,6 @@ fun HomeScreen(
     var isTopAreaTargetHidden by remember { mutableStateOf(false) }
     var bottomBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomBarHeight by remember { mutableIntStateOf(0) }
-    var isBottomBarTargetHidden by remember { mutableStateOf(false) }
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val density = LocalDensity.current
@@ -121,7 +120,6 @@ fun HomeScreen(
         topAreaOffset = 0f
         isTopAreaTargetHidden = false
         bottomBarOffset = 0f
-        isBottomBarTargetHidden = false
     }
 
     fun settleBars() {
@@ -134,13 +132,8 @@ fun HomeScreen(
             restingOffset = if (isTopAreaTargetHidden) -topAreaHeight.toFloat() else 0f,
         )
         val initialBottomOffset = bottomBarOffset
-        val targetBottomOffset = settleBarOffset(
-            currentOffset = initialBottomOffset,
-            hiddenOffset = bottomBarHeight.toFloat(),
-            restingOffset = if (isBottomBarTargetHidden) bottomBarHeight.toFloat() else 0f,
-        )
+        val targetBottomOffset = 0f
         isTopAreaTargetHidden = targetTopOffset != 0f
-        isBottomBarTargetHidden = targetBottomOffset != 0f
 
         if (initialTopOffset == targetTopOffset &&
             initialBottomOffset == targetBottomOffset
