@@ -212,4 +212,38 @@ class ProcessingCallbackAuthenticatorTest {
                 authenticator.authenticate(path, tamperedBody, timestamp, signature))
                 .isInstanceOf(UnauthorizedException.class);
     }
+
+    @Test
+    @DisplayName("허용 폭을 넘어 미래로 앞선 타임스탬프는 거부한다")
+    void authenticate_farFutureTimestamp_throwsUnauthorizedException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().getEpochSecond() + 60);
+        String signature = sign(uploadId, "complete", timestamp);
+
+        // When & Then
+        assertThatThrownBy(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        )).isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("작은 시계 오차만큼 앞선 타임스탬프는 허용한다")
+    void authenticate_slightlyFutureTimestamp_succeeds() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        String timestamp = String.valueOf(Instant.now().getEpochSecond() + 10);
+        String signature = sign(uploadId, "complete", timestamp);
+
+        // When & Then
+        assertThatCode(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        )).doesNotThrowAnyException();
+    }
 }

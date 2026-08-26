@@ -26,7 +26,10 @@ public class ProcessingCallbackAuthenticator {
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final String SHA_256_ALGORITHM = "SHA-256";
     private static final String SIGNATURE_PREFIX = "v1=";
-    private static final long MAX_CLOCK_SKEW_SECONDS = 300L;
+    private static final long MAX_AGE_SECONDS = 300L;
+    // 미래 타임스탬프는 시계 오차로만 설명되므로 과거만큼 넉넉히 받을 이유가 없다. 양방향을 같은 폭으로
+    // 열어 두면 캡처한 서명의 유효창이 두 배로 넓어진다.
+    private static final long MAX_FUTURE_SKEW_SECONDS = 30L;
 
     private final byte[] secret;
 
@@ -46,7 +49,8 @@ public class ProcessingCallbackAuthenticator {
             String signature
     ) {
         long requestedAt = parseTimestamp(timestamp);
-        if (Math.abs(Instant.now().getEpochSecond() - requestedAt) > MAX_CLOCK_SKEW_SECONDS) {
+        long age = Instant.now().getEpochSecond() - requestedAt;
+        if (age > MAX_AGE_SECONDS || age < -MAX_FUTURE_SKEW_SECONDS) {
             throw unauthorized();
         }
 
