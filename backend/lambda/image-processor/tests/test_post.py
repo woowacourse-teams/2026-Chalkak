@@ -1,5 +1,6 @@
 import io
 import unittest
+from dataclasses import replace
 from unittest.mock import Mock
 
 from PIL import Image
@@ -140,6 +141,38 @@ class PostImageProcessorTest(unittest.TestCase):
         thumbnail = self.uploaded(THUMBNAIL_KEY)
         self.assertEqual("WEBP", Image.open(io.BytesIO(thumbnail["Body"])).format)
 
+    def test_process_restores_global_pixel_limit(self) -> None:
+        previous = Image.MAX_IMAGE_PIXELS
+        self.given_object(webp_bytes())
+
+        self.processor.process(self.event())
+
+        self.assertEqual(previous, Image.MAX_IMAGE_PIXELS)
+
+    def test_process_restores_global_pixel_limit_after_rejection(self) -> None:
+        previous = Image.MAX_IMAGE_PIXELS
+        self.given_object(b"not an image at all")
+
+        with self.assertRaises(RejectedImageError):
+            self.processor.process(self.event())
+
+        self.assertEqual(previous, Image.MAX_IMAGE_PIXELS)
+
+    def test_process_downscales_thumbnail_within_max_size(self) -> None:
+        processor = PostImageProcessor(
+            s3_client=self.s3_client,
+            settings=replace(settings(), post_thumbnail_max_size=32),
+            callback_client=self.callback_client,
+        )
+        self.given_object(webp_bytes(size=(400, 300)))
+
+        processor.process(self.event())
+
+        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_KEY)["Body"]))
+        self.assertLessEqual(max(thumbnail.size), 32)
+        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_KEY)["Body"]))
+        self.assertEqual((400, 300), original.size)
+
     def test_process_routes_prod_key_to_prod_destination(self) -> None:
         self.given_object(webp_bytes())
 
@@ -255,9 +288,7 @@ class PostImageProcessorTest(unittest.TestCase):
     def test_process_rejects_image_over_pixel_limit(self) -> None:
         processor = PostImageProcessor(
             s3_client=self.s3_client,
-            settings=settings().__class__(
-                **{**settings().__dict__, "post_max_pixels": 100}
-            ),
+            settings=replace(settings(), post_max_pixels=100),
             callback_client=self.callback_client,
         )
         self.given_object(webp_bytes(size=(40, 30)))
@@ -524,9 +555,7 @@ class PostImageProcessorTest(unittest.TestCase):
     def test_process_truncates_oversized_metadata(self) -> None:
         processor = PostImageProcessor(
             s3_client=self.s3_client,
-            settings=settings().__class__(
-                **{**settings().__dict__, "post_metadata_max_bytes": 40}
-            ),
+            settings=replace(settings(), post_metadata_max_bytes=40),
             callback_client=self.callback_client,
         )
         self.given_object(

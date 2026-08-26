@@ -227,6 +227,8 @@ class PostImageProcessor:
         source: bytes,
     ) -> tuple[bytes, bytes, dict[str, Any]]:
         decoded = self._decode(source)
+        oriented = None
+        sanitized = None
         try:
             metadata = self._extract_metadata(decoded)
             oriented = ImageOps.exif_transpose(decoded)
@@ -238,24 +240,31 @@ class PostImageProcessor:
                 sanitized,
                 self._settings.post_webp_quality,
             )
-            thumbnail_image = sanitized.copy()
-            thumbnail_image.thumbnail(
+            # 원본 인코딩이 끝나면 sanitized를 더 쓰지 않는다. 풀사이즈 사본을 따로 뜨면 최대 픽셀
+            # 기준으로 수십 MB가 더 얹히므로 제자리에서 줄인다.
+            sanitized.thumbnail(
                 (
                     self._settings.post_thumbnail_max_size,
                     self._settings.post_thumbnail_max_size,
                 ),
                 Image.Resampling.LANCZOS,
+                reducing_gap=2.0,
             )
             thumbnail = self._encode_webp(
-                thumbnail_image,
+                sanitized,
                 self._settings.post_thumbnail_webp_quality,
             )
         finally:
-            decoded.close()
+            for image in (sanitized, oriented, decoded):
+                if image is not None:
+                    image.close()
 
         return original, thumbnail, metadata
 
     def _decode(self, source: bytes) -> Image.Image:
+        # MAX_IMAGE_PIXELS는 PIL 전역이라 warm 컨테이너에서 다른 프로세서와 공유된다. 이 호출이
+        # 끝난 뒤에도 값이 남아 있으면 옆 프로세서의 상한을 조용히 바꾼다.
+        previous_pixel_limit = Image.MAX_IMAGE_PIXELS
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -300,6 +309,8 @@ class PostImageProcessor:
                 "UNSUPPORTED_FORMAT",
                 "post image cannot be decoded safely",
             ) from exception
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_pixel_limit
 
     def _extract_metadata(self, image: Image.Image) -> dict[str, Any]:
         exif = image.getexif()
