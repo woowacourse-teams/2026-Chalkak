@@ -6,8 +6,13 @@ UPDATE posts
 SET post_image_upload_id = extracted.upload_id
 FROM (
     SELECT posts.id AS post_id,
-           substring(photos.original_storage_key from '([0-9a-fA-F-]{36})\.webp$')::uuid
-               AS upload_id
+           -- UUID 모양을 그대로 강제한다. 느슨하게 열어 두면 하이픈 36개 같은 문자열도 통과해
+           -- ::uuid 캐스트에서 터지고, 그러면 이 마이그레이션 전체가 실패해 배포가 멈춘다.
+           -- 이미지 처리 Lambda의 staging 키 정규식과 같은 기준이다.
+           substring(
+               photos.original_storage_key
+               from '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.webp$'
+           )::uuid AS upload_id
     FROM posts
     JOIN photos ON photos.id = posts.photo_id
 ) AS extracted
