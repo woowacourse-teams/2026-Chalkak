@@ -4,6 +4,7 @@ import logging
 import math
 import re
 import warnings
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,6 +29,13 @@ GPS_LONGITUDE_REF = 3
 GPS_LONGITUDE = 4
 MAX_LATITUDE = 90.0
 MAX_LONGITUDE = 180.0
+
+# EXIF 문자열은 공격자가 만든 파일에서 그대로 온다. metaAttributes와 달리 촬영 시각에는 길이 제한이
+# 없었으므로, 형식을 만족하는 값만 통과시켜 임의 길이 문자열이 콜백과 DB로 새지 않게 한다.
+MAX_CAPTURED_AT_INPUT_LENGTH = 64
+CAPTURED_AT_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2})?$"
+)
 
 # 별도 필드로 싣거나 출력 이미지에 이미 반영한 태그는 metaAttributes에서 뺀다. IFD 포인터는 바이트 오프셋일
 # 뿐이라 값으로서 의미가 없고, Orientation은 exif_transpose가 픽셀에 적용한 뒤라 그대로 두면 이중 회전을 부른다.
@@ -388,18 +396,35 @@ def _exif_ifd(exif: Image.Exif) -> dict[int, Any]:
 def _captured_at(exif: Image.Exif) -> str | None:
     tags = {**dict(exif), **_exif_ifd(exif)}
     captured = tags.get(DATE_TIME_ORIGINAL_TAG)
-    if not isinstance(captured, str) or not captured.strip():
+    if not isinstance(captured, str):
+        return None
+    captured = captured.strip()
+    if not captured or len(captured) > MAX_CAPTURED_AT_INPUT_LENGTH:
         return None
 
-    date, _, clock = captured.strip().partition(" ")
+    date, _, clock = captured.partition(" ")
     if not clock:
         return None
     timestamp = f"{date.replace(':', '-')}T{clock}"
 
     offset = tags.get(OFFSET_TIME_ORIGINAL_TAG)
     if isinstance(offset, str) and offset.strip():
-        return timestamp + offset.strip()
-    return timestamp
+        offset = offset.strip()
+        if len(offset) > MAX_CAPTURED_AT_INPUT_LENGTH:
+            return None
+        timestamp += offset
+
+    return timestamp if _is_valid_timestamp(timestamp) else None
+
+
+def _is_valid_timestamp(timestamp: str) -> bool:
+    if CAPTURED_AT_PATTERN.fullmatch(timestamp) is None:
+        return False
+    try:
+        datetime.fromisoformat(timestamp)
+    except ValueError:
+        return False
+    return True
 
 
 def _location(exif: Image.Exif) -> dict[str, float] | None:

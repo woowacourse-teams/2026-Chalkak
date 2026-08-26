@@ -474,6 +474,41 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.assertIsNone(self.callback_client.complete.call_args.args[2]["location"])
 
+    def test_process_ignores_oversized_captured_at(self) -> None:
+        self.given_object(
+            webp_bytes(exif=exif_bytes({0x9003: "A " + "B" * 5_000}))
+        )
+
+        self.processor.process(self.event())
+
+        self.assertIsNone(self.callback_client.complete.call_args.args[2]["capturedAt"])
+
+    def test_process_ignores_malformed_captured_at(self) -> None:
+        for captured in (
+            "2026:13:40 11:02:31",
+            "not a timestamp at all",
+            "2026:08:20 25:02:31",
+        ):
+            with self.subTest(captured=captured):
+                self.callback_client.reset_mock()
+                self.given_object(webp_bytes(exif=exif_bytes({0x9003: captured})))
+
+                self.processor.process(self.event())
+
+                body = self.callback_client.complete.call_args.args[2]
+                self.assertIsNone(body["capturedAt"])
+
+    def test_process_ignores_malformed_captured_at_offset(self) -> None:
+        self.given_object(
+            webp_bytes(
+                exif=exif_bytes({0x9003: "2026:08:20 11:02:31", 0x9011: "nine hours"})
+            )
+        )
+
+        self.processor.process(self.event())
+
+        self.assertIsNone(self.callback_client.complete.call_args.args[2]["capturedAt"])
+
     def test_process_strips_exif_from_uploaded_objects(self) -> None:
         self.given_object(
             webp_bytes(exif=exif_bytes({0x010F: "Apple", 0x0110: "iPhone 15 Pro"}))
