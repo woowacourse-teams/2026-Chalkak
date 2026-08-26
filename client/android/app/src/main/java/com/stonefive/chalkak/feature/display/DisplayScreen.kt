@@ -49,10 +49,8 @@ import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGR
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_SETTLE_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
-import com.stonefive.chalkak.core.designsystem.scroll.ScrollToTopButtonState
-import com.stonefive.chalkak.core.designsystem.scroll.bottomBarOffsetAfterScroll
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
-import com.stonefive.chalkak.core.designsystem.scroll.scrollToTopButtonStateAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.domain.model.Post
@@ -109,14 +107,9 @@ fun DisplayScreen(
     var filterOffset by remember { mutableFloatStateOf(0f) }
     var filterHeight by remember { mutableIntStateOf(0) }
     var isFilterTargetHidden by remember { mutableStateOf(false) }
-    var bottomBarOffset by remember { mutableFloatStateOf(0f) }
-    var bottomBarHeight by remember { mutableIntStateOf(0) }
-    var isBottomBarTargetHidden by remember { mutableStateOf(false) }
-    var isScrollToTopButtonVisible by remember { mutableStateOf(false) }
-    var scrollToTopAccumulated by remember { mutableFloatStateOf(0f) }
+    val bottomBarState = rememberBottomBarScrollState()
     val settleScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
-    val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
@@ -169,46 +162,19 @@ fun DisplayScreen(
         }
     }
 
-    fun settleBottomBar() {
-        bottomBarRestoreJob.value?.cancel()
-        val initialOffset = bottomBarOffset
-        val hiddenOffset = bottomBarHeight.toFloat()
-
-        val targetOffset = settleCollapsingOffset(
-            currentOffset = initialOffset,
-            hiddenOffset = hiddenOffset,
-            restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
-        )
-        isBottomBarTargetHidden = targetOffset != 0f
-
-        if (initialOffset == targetOffset) return
-
-        bottomBarRestoreJob.value = settleScope.launch {
-            animate(
-                initialValue = initialOffset,
-                targetValue = targetOffset,
-                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
-            ) { value, _ -> bottomBarOffset = value }
-        }
-    }
-
     fun resetScrollState() {
         settleJob.value?.cancel()
-        bottomBarRestoreJob.value?.cancel()
+        bottomBarState.reset()
         headerOffset = 0f
         isHeaderTargetHidden = false
         filterOffset = 0f
         isFilterTargetHidden = false
-        bottomBarOffset = 0f
-        isBottomBarTargetHidden = false
-        isScrollToTopButtonVisible = false
-        scrollToTopAccumulated = 0f
     }
 
     val nestedScrollConnection = remember(
         headerHeight,
         filterHeight,
-        bottomBarHeight,
+        bottomBarState.height,
         uiState.content is DisplayContentState.Latest,
     ) {
         object : NestedScrollConnection {
@@ -217,29 +183,13 @@ fun DisplayScreen(
                 source: NestedScrollSource,
             ): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    bottomBarRestoreJob.value?.cancel()
                     val atTop = !gridState.canScrollBackward &&
                         headerOffset == 0f &&
                         filterOffset == 0f
-                    if (atTop) {
-                        scrollToTopAccumulated = 0f
-                        isScrollToTopButtonVisible = false
-                    } else {
-                        val nextButtonState = scrollToTopButtonStateAfterScroll(
-                            state = ScrollToTopButtonState(
-                                accumulated = scrollToTopAccumulated,
-                                visible = isScrollToTopButtonVisible,
-                            ),
-                            scrollDelta = available.y,
-                            threshold = scrollToTopToggleThresholdPx,
-                        )
-                        scrollToTopAccumulated = nextButtonState.accumulated
-                        isScrollToTopButtonVisible = nextButtonState.visible
-                    }
-                    bottomBarOffset = bottomBarOffsetAfterScroll(
-                        currentOffset = bottomBarOffset,
-                        scrollDelta = available.y,
-                        barHeight = bottomBarHeight.toFloat(),
+                    bottomBarState.onScroll(
+                        scrollDeltaY = available.y,
+                        atTop = atTop,
+                        toggleThresholdPx = scrollToTopToggleThresholdPx,
                     )
                 }
 
@@ -302,7 +252,7 @@ fun DisplayScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                settleBottomBar()
+                bottomBarState.settle(settleScope)
                 return Velocity.Zero
             }
 
@@ -323,7 +273,7 @@ fun DisplayScreen(
 
     LaunchedEffect(gridState.canScrollBackward, headerOffset, filterOffset) {
         if (!gridState.canScrollBackward && headerOffset == 0f && filterOffset == 0f) {
-            isScrollToTopButtonVisible = false
+            bottomBarState.hideScrollToTopButton()
         }
     }
 
@@ -410,7 +360,7 @@ fun DisplayScreen(
                 }
             }
         }
-        if (isScrollToTopButtonVisible) {
+        if (bottomBarState.isScrollToTopButtonVisible) {
             ChalkakScrollToTopButton(
                 onClick = {
                     settleScope.launch {
@@ -422,7 +372,7 @@ fun DisplayScreen(
                     .align(Alignment.BottomEnd)
                     .padding(
                         end = 24.dp,
-                        bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
+                        bottom = with(density) { bottomBarState.height.toDp() } + 18.dp,
                     ),
             )
         }
@@ -433,8 +383,8 @@ fun DisplayScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .onSizeChanged { bottomBarHeight = it.height }
-                .graphicsLayer { translationY = bottomBarOffset },
+                .onSizeChanged { bottomBarState.height = it.height }
+                .graphicsLayer { translationY = bottomBarState.offset },
         )
     }
 }

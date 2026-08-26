@@ -49,10 +49,8 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_SETTLE_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
-import com.stonefive.chalkak.core.designsystem.scroll.ScrollToTopButtonState
-import com.stonefive.chalkak.core.designsystem.scroll.bottomBarOffsetAfterScroll
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
-import com.stonefive.chalkak.core.designsystem.scroll.scrollToTopButtonStateAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
@@ -105,14 +103,9 @@ fun HomeScreen(
     var topAreaOffset by remember { mutableFloatStateOf(0f) }
     var topAreaHeight by remember { mutableIntStateOf(0) }
     var isTopAreaTargetHidden by remember { mutableStateOf(false) }
-    var bottomBarOffset by remember { mutableFloatStateOf(0f) }
-    var bottomBarHeight by remember { mutableIntStateOf(0) }
-    var isBottomBarTargetHidden by remember { mutableStateOf(false) }
-    var isScrollToTopButtonVisible by remember { mutableStateOf(false) }
-    var scrollToTopAccumulated by remember { mutableFloatStateOf(0f) }
+    val bottomBarState = rememberBottomBarScrollState()
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
-    val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
@@ -132,13 +125,9 @@ fun HomeScreen(
 
     fun resetHomePosition() {
         settleJob.value?.cancel()
-        bottomBarRestoreJob.value?.cancel()
+        bottomBarState.reset()
         topAreaOffset = 0f
         isTopAreaTargetHidden = false
-        bottomBarOffset = 0f
-        isBottomBarTargetHidden = false
-        isScrollToTopButtonVisible = false
-        scrollToTopAccumulated = 0f
     }
 
     fun settleTopArea() {
@@ -166,57 +155,18 @@ fun HomeScreen(
         }
     }
 
-    fun settleBottomBar() {
-        bottomBarRestoreJob.value?.cancel()
-        val initialOffset = bottomBarOffset
-        val hiddenOffset = bottomBarHeight.toFloat()
-
-        val targetOffset = settleCollapsingOffset(
-            currentOffset = initialOffset,
-            hiddenOffset = hiddenOffset,
-            restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
-        )
-        isBottomBarTargetHidden = targetOffset != 0f
-
-        if (initialOffset == targetOffset) return
-
-        bottomBarRestoreJob.value = interactionScope.launch {
-            animate(
-                initialValue = initialOffset,
-                targetValue = targetOffset,
-                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
-            ) { value, _ -> bottomBarOffset = value }
-        }
-    }
-
-    val nestedScrollConnection = remember(topAreaHeight, bottomBarHeight) {
+    val nestedScrollConnection = remember(topAreaHeight, bottomBarState.height) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    bottomBarRestoreJob.value?.cancel()
                     val atTop = !photoListState.canScrollBackward && topAreaOffset == 0f
-                    if (atTop) {
-                        scrollToTopAccumulated = 0f
-                        isScrollToTopButtonVisible = false
-                    } else {
-                        val nextButtonState = scrollToTopButtonStateAfterScroll(
-                            state = ScrollToTopButtonState(
-                                accumulated = scrollToTopAccumulated,
-                                visible = isScrollToTopButtonVisible,
-                            ),
-                            scrollDelta = available.y,
-                            threshold = scrollToTopToggleThresholdPx,
-                        )
-                        scrollToTopAccumulated = nextButtonState.accumulated
-                        isScrollToTopButtonVisible = nextButtonState.visible
-                    }
-                    bottomBarOffset = bottomBarOffsetAfterScroll(
-                        currentOffset = bottomBarOffset,
-                        scrollDelta = available.y,
-                        barHeight = bottomBarHeight.toFloat(),
+                    bottomBarState.onScroll(
+                        scrollDeltaY = available.y,
+                        atTop = atTop,
+                        toggleThresholdPx = scrollToTopToggleThresholdPx,
                     )
                 }
 
@@ -257,7 +207,7 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                settleBottomBar()
+                bottomBarState.settle(interactionScope)
                 return Velocity.Zero
             }
 
@@ -285,7 +235,7 @@ fun HomeScreen(
 
     LaunchedEffect(photoListState.canScrollBackward, topAreaOffset) {
         if (!photoListState.canScrollBackward && topAreaOffset == 0f) {
-            isScrollToTopButtonVisible = false
+            bottomBarState.hideScrollToTopButton()
         }
     }
 
@@ -353,7 +303,7 @@ fun HomeScreen(
                     ),
             )
         }
-        if (isScrollToTopButtonVisible) {
+        if (bottomBarState.isScrollToTopButtonVisible) {
             ChalkakScrollToTopButton(
                 onClick = {
                     interactionScope.launch {
@@ -365,7 +315,7 @@ fun HomeScreen(
                     .align(Alignment.BottomEnd)
                     .padding(
                         end = 24.dp,
-                        bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
+                        bottom = with(density) { bottomBarState.height.toDp() } + 18.dp,
                     ),
             )
         }
@@ -381,8 +331,8 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .onSizeChanged { bottomBarHeight = it.height }
-                .graphicsLayer { translationY = bottomBarOffset },
+                .onSizeChanged { bottomBarState.height = it.height }
+                .graphicsLayer { translationY = bottomBarState.offset },
         )
     }
 }
