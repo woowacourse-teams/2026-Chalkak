@@ -18,6 +18,7 @@ public record PostListRequest(
         @Schema(
                 description = "정렬 방식",
                 defaultValue = "recent",
+                implementation = String.class,
                 allowableValues = {"recent", "popular", "random"}
         )
         PostSort sort,
