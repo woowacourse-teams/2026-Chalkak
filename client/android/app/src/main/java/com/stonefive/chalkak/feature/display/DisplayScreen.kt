@@ -174,9 +174,16 @@ fun DisplayScreen(
                 source: NestedScrollSource,
             ): Offset {
                 if (source == NestedScrollSource.UserInput) {
-                    if (available.y != 0f) {
-                        bottomBarRestoreJob.value?.cancel()
-                        isBottomBarVisible = false
+                    when {
+                        available.y < 0f -> {
+                            bottomBarRestoreJob.value?.cancel()
+                            isBottomBarVisible = true
+                        }
+
+                        available.y > 0f -> {
+                            bottomBarRestoreJob.value?.cancel()
+                            isBottomBarVisible = false
+                        }
                     }
 
                     if (available.y < 0f) {

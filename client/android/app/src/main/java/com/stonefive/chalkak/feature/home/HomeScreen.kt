@@ -58,7 +58,6 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
-import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -108,6 +107,7 @@ fun HomeScreen(
     var isTopAreaTargetHidden by remember { mutableStateOf(false) }
     var bottomBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomBarHeight by remember { mutableIntStateOf(0) }
+    var isBottomBarTargetHidden by remember { mutableStateOf(false) }
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
@@ -133,6 +133,7 @@ fun HomeScreen(
         topAreaOffset = 0f
         isTopAreaTargetHidden = false
         bottomBarOffset = 0f
+        isBottomBarTargetHidden = false
     }
 
     fun settleTopArea() {
@@ -160,14 +161,42 @@ fun HomeScreen(
         }
     }
 
-    fun scheduleBottomBarRestore() {
+    fun settleBottomBar() {
         bottomBarRestoreJob.value?.cancel()
+        val initialOffset = bottomBarOffset
+        val hiddenOffset = bottomBarHeight.toFloat()
+
+        when {
+            initialOffset <= 0f -> {
+                isBottomBarTargetHidden = false
+                return
+            }
+
+            initialOffset >= hiddenOffset -> {
+                isBottomBarTargetHidden = true
+                bottomBarRestoreJob.value = interactionScope.launch {
+                    delay(BOTTOM_BAR_RESTORE_DELAY_MILLIS)
+                    animate(
+                        initialValue = bottomBarOffset,
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+                    ) { value, _ -> bottomBarOffset = value }
+                    isBottomBarTargetHidden = false
+                }
+                return
+            }
+        }
+
+        val targetOffset = settleBarOffset(
+            currentOffset = initialOffset,
+            hiddenOffset = hiddenOffset,
+            restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
+        )
+        isBottomBarTargetHidden = targetOffset != 0f
         bottomBarRestoreJob.value = interactionScope.launch {
-            delay(BOTTOM_BAR_RESTORE_DELAY_MILLIS)
-            val initialOffset = bottomBarOffset
             animate(
                 initialValue = initialOffset,
-                targetValue = 0f,
+                targetValue = targetOffset,
                 animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
             ) { value, _ -> bottomBarOffset = value }
         }
@@ -185,7 +214,7 @@ fun HomeScreen(
                         settleJob.value?.cancel()
                         bottomBarOffset = bottomBarOffsetAfterScroll(
                             currentOffset = bottomBarOffset,
-                            scrollDelta = -abs(available.y),
+                            scrollDelta = -available.y,
                             barHeight = bottomBarHeight.toFloat(),
                         )
                     }
@@ -227,7 +256,7 @@ fun HomeScreen(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 settleTopArea()
-                scheduleBottomBarRestore()
+                settleBottomBar()
                 return Velocity.Zero
             }
         }
