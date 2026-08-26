@@ -45,11 +45,7 @@ public class PostCommandService {
     private final PostProcessingPolicy postProcessingPolicy;
 
     public PostImageUploadResult createPostImageUpload(UUID userId) {
-        User uploader = userRepository.findActiveById(userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "사진을 업로드할 회원을 찾을 수 없습니다."
-                ));
+        User uploader = getPostableUser(userId, "사진을 업로드할 회원을 찾을 수 없습니다.");
 
         PostImageUpload upload = postImageUploadRepository.save(
                 PostImageUpload.createPostImageUpload(uploader, Instant.now())
@@ -71,12 +67,7 @@ public class PostCommandService {
             UUID photoUploadId,
             String title
     ) {
-        User author = userRepository.findById(userId)
-                .filter(User::isActive)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "게시물을 작성할 회원을 찾을 수 없습니다."
-                ));
+        User author = getPostableUser(userId, "게시물을 작성할 회원을 찾을 수 없습니다.");
         Topic topic = topicRepository.findActiveById(topicId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -163,6 +154,18 @@ public class PostCommandService {
 
     private Optional<Post> findValidatingPost(UUID uploadId) {
         return postRepository.findValidatingByPostImageUploadId(uploadId);
+    }
+
+    /**
+     * 업로드 발급과 게시물 생성이 같은 기준을 써야 한다. 발급만 느슨하면 정지된 회원이 claim과 staging 객체를
+     * 만든 뒤 마지막 단계에서야 막혀, 아무도 쓰지 않을 행과 파일을 서버가 스스로 남기게 된다.
+     *
+     * <p>{@code findActiveById}는 탈퇴만 거르므로 정지 여부는 {@link User#isActive()}로 함께 판정한다.
+     */
+    private User getPostableUser(UUID userId, String message) {
+        return userRepository.findActiveById(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR, message));
     }
 
     private void validateTopicOpen(Topic topic) {
