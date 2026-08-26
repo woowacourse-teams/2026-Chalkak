@@ -53,10 +53,14 @@ class SignatureImageProcessor:
             # 콜백이 실패하면 재시도에 필요하므로 staging을 유지한다.
             try:
                 self._callback_client.failed(environment, upload_id)
-            except PermanentCallbackError:
+            except PermanentCallbackError as exception:
                 LOGGER.error(
-                    "failed callback permanently refused for %s",
+                    "failed callback permanently refused for %s "
+                    "(bucket=%s, key=%s): %s",
                     upload_id,
+                    event.bucket,
+                    event.key,
+                    exception,
                 )
             else:
                 self._s3_client.delete_object(
