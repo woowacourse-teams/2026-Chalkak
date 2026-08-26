@@ -110,7 +110,12 @@ class ProcessingCallbackAuthenticatorTest {
         String signature = sign(path, rawBody, timestamp);
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(path, rawBody, timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(
+                path,
+                rawBody.getBytes(StandardCharsets.UTF_8),
+                timestamp,
+                signature
+        ))
                 .doesNotThrowAnyException();
     }
 
@@ -127,7 +132,12 @@ class ProcessingCallbackAuthenticatorTest {
 
         // When & Then
         assertThatThrownBy(() ->
-                authenticator.authenticate(path, reserializedBody, timestamp, signature))
+                authenticator.authenticate(
+                        path,
+                        reserializedBody.getBytes(StandardCharsets.UTF_8),
+                        timestamp,
+                        signature
+                ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -151,12 +161,18 @@ class ProcessingCallbackAuthenticatorTest {
     }
 
     private String sign(String path, String rawBody, String timestamp) {
+        return signBytes(
+                path,
+                (rawBody == null) ? null : rawBody.getBytes(StandardCharsets.UTF_8),
+                timestamp
+        );
+    }
+
+    private String signBytes(String path, byte[] rawBody, String timestamp) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] body = rawBody == null
-                    ? new byte[0]
-                    : rawBody.getBytes(StandardCharsets.UTF_8);
+            byte[] body = (rawBody == null) ? new byte[0] : rawBody;
             String bodyHash = HexFormat.of().formatHex(
                     MessageDigest.getInstance("SHA-256").digest(body));
             byte[] digest = mac.doFinal((timestamp + "\nPOST\n" + path + "\n" + bodyHash)
@@ -165,5 +181,35 @@ class ProcessingCallbackAuthenticatorTest {
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    @Test
+    @DisplayName("유효한 UTF-8이 아닌 본문도 수신 바이트 그대로 검증한다")
+    void authenticate_invalidUtf8Body_succeeds() {
+        // Given
+        String path = "/internal/v1/post-image-processing/" + UUID.randomUUID() + "/complete";
+        byte[] rawBody = {(byte) 0xC3, 0x28};
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String signature = signBytes(path, rawBody, timestamp);
+
+        // When & Then
+        assertThatCode(() -> authenticator.authenticate(path, rawBody, timestamp, signature))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("깨진 바이트가 서로 다르면 서명도 달라진다")
+    void authenticate_differentInvalidUtf8Body_throwsUnauthorizedException() {
+        // Given
+        String path = "/internal/v1/post-image-processing/" + UUID.randomUUID() + "/complete";
+        byte[] sentBody = {(byte) 0xC3, 0x28};
+        byte[] tamperedBody = {(byte) 0xE0, 0x28};
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String signature = signBytes(path, sentBody, timestamp);
+
+        // When & Then
+        assertThatThrownBy(() ->
+                authenticator.authenticate(path, tamperedBody, timestamp, signature))
+                .isInstanceOf(UnauthorizedException.class);
     }
 }

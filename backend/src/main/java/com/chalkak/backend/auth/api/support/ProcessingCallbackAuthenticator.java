@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * 이미지 처리 Lambda 콜백의 HMAC 인증기. 서명 대상 경로에 콜백 종류가 들어가므로 사인 콜백 서명을 포스트
  * 콜백에 재사용할 수 없다.
  *
- * <p>본문 해시는 <b>수신 원문</b>으로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져
- * 서명이 어긋난다.
+ * <p>본문 해시는 <b>수신 바이트</b>로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져
+ * 서명이 어긋나고, 문자열로 디코딩했다 다시 인코딩한 바이트도 원문과 같다는 보장이 없다.
  */
 @Component
 public class ProcessingCallbackAuthenticator {
@@ -41,7 +41,7 @@ public class ProcessingCallbackAuthenticator {
 
     public void authenticate(
             String path,
-            String rawBody,
+            byte[] rawBody,
             String timestamp,
             String signature
     ) {
@@ -65,7 +65,7 @@ public class ProcessingCallbackAuthenticator {
         }
     }
 
-    private byte[] sign(String timestamp, String path, String rawBody) {
+    private byte[] sign(String timestamp, String path, byte[] rawBody) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secret, HMAC_ALGORITHM));
@@ -76,10 +76,8 @@ public class ProcessingCallbackAuthenticator {
         }
     }
 
-    private String bodyHash(String rawBody) throws NoSuchAlgorithmException {
-        byte[] body = rawBody == null
-                ? new byte[0]
-                : rawBody.getBytes(StandardCharsets.UTF_8);
+    private String bodyHash(byte[] rawBody) throws NoSuchAlgorithmException {
+        byte[] body = (rawBody == null) ? new byte[0] : rawBody;
 
         return HexFormat.of().formatHex(
                 MessageDigest.getInstance(SHA_256_ALGORITHM).digest(body)

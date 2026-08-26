@@ -13,6 +13,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.post.service.PostService;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +61,7 @@ class PostImageProcessingCallbackControllerTest {
 
         verify(authenticator).authenticate(
                 "/internal/v1/post-image-processing/" + UPLOAD_ID + "/complete",
-                COMPLETE_BODY,
+                COMPLETE_BODY.getBytes(StandardCharsets.UTF_8),
                 "1787562000",
                 "signature"
         );
@@ -83,7 +84,7 @@ class PostImageProcessingCallbackControllerTest {
 
         verify(authenticator).authenticate(
                 "/internal/v1/post-image-processing/" + UPLOAD_ID + "/failed",
-                body,
+                body.getBytes(StandardCharsets.UTF_8),
                 "1787562000",
                 "signature"
         );

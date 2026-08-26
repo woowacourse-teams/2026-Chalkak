@@ -55,7 +55,7 @@ public class PostImageProcessingCallbackController
             @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature,
-            @RequestBody(required = false) String rawBody
+            @RequestBody(required = false) byte[] rawBody
     ) {
         UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
         authenticator.authenticate(
@@ -77,7 +77,7 @@ public class PostImageProcessingCallbackController
             @PathVariable String uploadId,
             @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
             @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature,
-            @RequestBody(required = false) String rawBody
+            @RequestBody(required = false) byte[] rawBody
     ) {
         UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
         authenticator.authenticate(
@@ -93,14 +93,14 @@ public class PostImageProcessingCallbackController
         return ResponseEntity.noContent().build();
     }
 
-    private <T> T readBody(String rawBody, Class<T> type) {
+    private <T> T readBody(byte[] rawBody, Class<T> type) {
         T request = parseBody(rawBody, type);
         validate(request);
 
         return request;
     }
 
-    private <T> T parseBody(String rawBody, Class<T> type) {
+    private <T> T parseBody(byte[] rawBody, Class<T> type) {
         try {
             return objectMapper.readValue(rawBody, type);
         } catch (Exception exception) {

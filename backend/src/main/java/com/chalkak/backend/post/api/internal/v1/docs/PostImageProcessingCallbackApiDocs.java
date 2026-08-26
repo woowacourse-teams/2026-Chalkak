@@ -78,7 +78,7 @@ public interface PostImageProcessingCallbackApiDocs {
                             )
                     )
             )
-            String rawBody
+            byte[] rawBody
     );
 
     @Operation(
@@ -142,6 +142,6 @@ public interface PostImageProcessingCallbackApiDocs {
                             )
                     )
             )
-            String rawBody
+            byte[] rawBody
     );
 }
