@@ -11,10 +11,6 @@ spring:
         format_sql: true
 
 chalkak:
-  auth:
-    oidc:
-      google:
-        client-id: 494523834439-4cada9kqqfcg7gtl01d8eil5ueuaee8i.apps.googleusercontent.com
   image:
     environment: local
     bucket: ${S3_BUCKET:chalkak-local-images}

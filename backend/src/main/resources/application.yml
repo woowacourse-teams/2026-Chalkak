@@ -28,6 +28,7 @@ chalkak:
       google:
         issuer: https://accounts.google.com
         jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+        client-id: ${GOOGLE_OIDC_CLIENT_ID}
   image:
     bucket: ${S3_BUCKET}
     region: ${AWS_REGION:ap-northeast-2}

@@ -211,6 +211,7 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - 운영: `backend/deploy/examples/application.prod.env.example`
 
 개발 환경의 `DB_HOST`는 `127.0.0.1`, 운영 환경은 RDS endpoint여야 한다. 배포 script가 이 값을 검증한다.
+`GOOGLE_OIDC_CLIENT_ID`에는 모바일이 ID Token 발급 시 사용하는 백엔드용 Google Web Client ID를 설정한다.
 
 `DB_PASSWORD`는 Docker Compose와 systemd가 같은 파일을 안전하게 읽을 수 있도록 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
 `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고,
