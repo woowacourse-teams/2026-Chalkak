@@ -1,6 +1,7 @@
 CLOUDFRONT_BASE_URL: https://cdn.example.com
 CLOUDFRONT_ORIGIN_PATH: /chalkak
 IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
+SOCIAL_SIGNUP_TOKEN_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
 spring:
   datasource:

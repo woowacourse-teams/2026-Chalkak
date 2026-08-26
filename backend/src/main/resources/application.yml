@@ -24,6 +24,11 @@ spring:
 
 chalkak:
   auth:
+    social-signup-token:
+      issuer: chalkak-backend
+      audience: chalkak-social-signup
+      expiration: 30m
+      secret: ${SOCIAL_SIGNUP_TOKEN_SECRET}
     oidc:
       google:
         issuer: https://accounts.google.com
