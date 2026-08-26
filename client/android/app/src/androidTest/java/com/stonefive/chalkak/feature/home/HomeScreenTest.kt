@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeUp
@@ -86,6 +87,20 @@ class HomeScreenTest {
         composeRule.onNodeWithText("Chalkak").assertIsDisplayed()
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+    }
+
+    @Test
+    fun `스크롤 최상단 버튼을 누르면 첫 사진으로 돌아간다`() {
+        setHomeContent(scrollableHomeUiState())
+
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onNodeWithContentDescription("맨 위로").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("맨 위로").performClick()
+
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
     }
 
     private fun setHomeContent(uiState: HomeUiState) {

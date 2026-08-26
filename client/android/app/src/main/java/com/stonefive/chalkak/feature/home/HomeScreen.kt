@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,8 +29,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -34,6 +41,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -44,6 +52,7 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
@@ -299,6 +308,42 @@ fun HomeScreen(
                         },
                     ),
             )
+        }
+        if (photoListState.canScrollBackward) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 24.dp,
+                        bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
+                    ).size(44.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        ambientColor = Color.Black.copy(alpha = 0.16f),
+                        spotColor = Color.Black.copy(alpha = 0.24f),
+                    ).clip(CircleShape)
+                    .background(ChalkakWhite)
+                    .clickable(
+                        interactionSource = null,
+                        indication = null,
+                        onClick = {
+                            interactionScope.launch {
+                                resetHomePosition()
+                                photoListState.animateScrollToItem(0)
+                            }
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_arrow_up),
+                    contentDescription = "맨 위로",
+                    tint = ChalkakTheme.colors.iconPrimary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
         ChalkakBottomBar(
             selectedItem = ChalkakBottomBarItem.TODAY,
