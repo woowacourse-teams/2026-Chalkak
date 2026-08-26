@@ -102,15 +102,30 @@ fun DisplayScreen(
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
-    var isTopAreaVisible by remember { mutableStateOf(true) }
-    var topAreaOffset by remember { mutableFloatStateOf(0f) }
-    var topAreaHeight by remember { mutableIntStateOf(0) }
+    var filterOffset by remember { mutableFloatStateOf(0f) }
+    var filterHeight by remember { mutableIntStateOf(0) }
+    var isFilterTargetHidden by remember { mutableStateOf(false) }
     var isBottomBarVisible by remember { mutableStateOf(true) }
-    val collapseScope = rememberCoroutineScope()
-    val collapseJob = remember { mutableStateOf<Job?>(null) }
+    val filterScope = rememberCoroutineScope()
+    val filterJob = remember { mutableStateOf<Job?>(null) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
 
-    val nestedScrollConnection = remember(topAreaHeight) {
+    fun settleFilter() {
+        filterJob.value?.cancel()
+        val initialOffset = filterOffset
+        val targetOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f
+
+        if (initialOffset == targetOffset) return
+
+        filterJob.value = filterScope.launch {
+            animate(
+                initialValue = initialOffset,
+                targetValue = targetOffset,
+            ) { value, _ -> filterOffset = value }
+        }
+    }
+
+    val nestedScrollConnection = remember(filterHeight, uiState.content is DisplayContentState.Latest) {
         object : NestedScrollConnection {
             override fun onPreScroll(
                 available: Offset,
@@ -121,62 +136,38 @@ fun DisplayScreen(
                         available.y < 0f -> isBottomBarVisible = false
                         available.y > 0f -> isBottomBarVisible = true
                     }
-                    when {
-                        available.y < 0f -> {
-                            if (isTopAreaVisible && topAreaHeight > 0) {
-                                val previousOffset = topAreaOffset
-                                val nextOffset = (topAreaOffset + available.y)
-                                    .coerceAtLeast(-topAreaHeight.toFloat())
-                                if (nextOffset <= -topAreaHeight / 2f) {
-                                    isTopAreaVisible = false
-                                    collapseJob.value?.cancel()
-                                    collapseJob.value = collapseScope.launch {
-                                        animate(
-                                            initialValue = previousOffset,
-                                            targetValue = -topAreaHeight.toFloat(),
-                                        ) { value, _ -> topAreaOffset = value }
-                                    }
-                                    return Offset(0f, available.y)
-                                }
-                                topAreaOffset = nextOffset
-                                return Offset(0f, nextOffset - previousOffset)
-                            }
+
+                    if (available.y != 0f &&
+                        uiState.content is DisplayContentState.Latest &&
+                        filterHeight > 0
+                    ) {
+                        filterJob.value?.cancel()
+                        isFilterTargetHidden = available.y < 0f
+                        val previousOffset = filterOffset
+                        filterOffset = (filterOffset + available.y).coerceIn(
+                            minimumValue = -filterHeight.toFloat(),
+                            maximumValue = 0f,
+                        )
+                        if (filterOffset != previousOffset) {
+                            return Offset(0f, filterOffset - previousOffset)
                         }
                     }
                 }
                 return Offset.Zero
             }
 
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput &&
-                    available.y > 0f &&
-                    topAreaOffset < 0f
-                ) {
-                    collapseJob.value?.cancel()
-                    isTopAreaVisible = true
-                    val previousOffset = topAreaOffset
-                    val nextOffset = (topAreaOffset + available.y).coerceAtMost(0f)
-                    topAreaOffset = nextOffset
-                    return Offset(0f, nextOffset - previousOffset)
-                }
-                return Offset.Zero
-            }
-
             override suspend fun onPreFling(available: Velocity): Velocity {
                 isBottomBarVisible = true
+                settleFilter()
                 return Velocity.Zero
             }
         }
     }
 
     LaunchedEffect(uiState.selectedDate, selectedSort) {
-        collapseJob.value?.cancel()
-        isTopAreaVisible = true
-        topAreaOffset = 0f
+        filterJob.value?.cancel()
+        filterOffset = 0f
+        isFilterTargetHidden = false
         isBottomBarVisible = true
     }
 
@@ -191,39 +182,35 @@ fun DisplayScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clipToBounds()
-                    .collapsingTopArea(topAreaOffset),
-            ) {
-                Column(
+            DisplayDateHeader(
+                selectedDate = uiState.selectedDate,
+                topic = uiState.topic,
+                isArchiveDate = uiState.content is DisplayContentState.Archive,
+                canGoPrevious = uiState.canGoPrevious,
+                canGoNext = uiState.canGoNext,
+                onPreviousClick = onPreviousDateClick,
+                onNextClick = onNextDateClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (uiState.content is DisplayContentState.Archive) {
+                Spacer(modifier = Modifier.height(15.dp))
+            }
+
+            if (uiState.content is DisplayContentState.Latest) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onSizeChanged { topAreaHeight = it.height },
+                        .clipToBounds()
+                        .collapsingArea(filterOffset),
                 ) {
-                    DisplayDateHeader(
-                        selectedDate = uiState.selectedDate,
-                        topic = uiState.topic,
-                        isArchiveDate = uiState.content is DisplayContentState.Archive,
-                        canGoPrevious = uiState.canGoPrevious,
-                        canGoNext = uiState.canGoNext,
-                        onPreviousClick = onPreviousDateClick,
-                        onNextClick = onNextDateClick,
-                        modifier = Modifier.fillMaxWidth(),
+                    DisplaySortTabs(
+                        selectedSort = uiState.content.selectedSort,
+                        onSortSelected = onSortSelected,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { filterHeight = it.height },
                     )
-
-                    if (uiState.content is DisplayContentState.Archive) {
-                        Spacer(modifier = Modifier.height(15.dp))
-                    }
-
-                    if (uiState.content is DisplayContentState.Latest) {
-                        DisplaySortTabs(
-                            selectedSort = uiState.content.selectedSort,
-                            onSortSelected = onSortSelected,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
                 }
             }
 
@@ -262,7 +249,7 @@ fun DisplayScreen(
     }
 }
 
-private fun Modifier.collapsingTopArea(offset: Float): Modifier = layout { measurable, constraints ->
+private fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     val offsetPx = offset.toInt().coerceIn(-placeable.height, 0)
     val visibleHeight = (placeable.height + offsetPx).coerceAtLeast(0)
