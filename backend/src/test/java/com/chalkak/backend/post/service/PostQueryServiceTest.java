@@ -27,7 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-class PostServiceTest extends IntegrationTestSupport {
+class PostQueryServiceTest extends IntegrationTestSupport {
 
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
@@ -47,7 +47,7 @@ class PostServiceTest extends IntegrationTestSupport {
             "https://cdn.example.com/dev/signatures/signature-thumbnail.png";
 
     @Autowired
-    private PostService postService;
+    private PostQueryService postQueryService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -125,7 +125,7 @@ class PostServiceTest extends IntegrationTestSupport {
                 .willReturn(SIGNATURE_THUMBNAIL_IMAGE_URL);
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
+        PostListResult result = postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
 
         // Then
         assertThat(result).isEqualTo(new PostListResult(
@@ -152,7 +152,7 @@ class PostServiceTest extends IntegrationTestSupport {
         given(randomSeedGenerator.generateRandomSeed()).willReturn("f4c3a091");
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RANDOM, null, 1, 20);
+        PostListResult result = postQueryService.getPosts(TOPIC_DATE, PostSort.RANDOM, null, 1, 20);
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -164,7 +164,7 @@ class PostServiceTest extends IntegrationTestSupport {
     @DisplayName("랜덤 시드를 전달하면 새 시드를 생성하지 않고 기존 시드를 사용한다")
     void getPosts_randomSortWithSeed_reusesRandomSeed() {
         // When
-        PostListResult result = postService.getPosts(
+        PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
                 PostSort.RANDOM,
                 "f4c3a091",
@@ -187,7 +187,7 @@ class PostServiceTest extends IntegrationTestSupport {
         );
 
         // When
-        PostListResult result = postService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
+        PostListResult result = postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20);
 
         // Then
         assertThat(result.hasNext()).isFalse();
@@ -203,7 +203,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPosts(unknownTopicDate, PostSort.RECENT, null, 1, 20)
+                () -> postQueryService.getPosts(unknownTopicDate, PostSort.RECENT, null, 1, 20)
         );
 
         // Then
@@ -222,7 +222,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(TOPIC_DATE, sort, randomSeed, page, 20)
+                () -> postQueryService.getPosts(TOPIC_DATE, sort, randomSeed, page, 20)
         );
 
         // Then
@@ -239,7 +239,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> postService.getPosts(futureTopicDate, PostSort.RECENT, null, 1, 20)
+                () -> postQueryService.getPosts(futureTopicDate, PostSort.RECENT, null, 1, 20)
         );
 
         // Then
@@ -256,7 +256,7 @@ class PostServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
 
         // When
-        PostDetail result = postService.getPost(POST_ID);
+        PostDetail result = postQueryService.getPost(POST_ID);
 
         // Then
         assertThat(result).isEqualTo(new PostDetail(
@@ -279,7 +279,7 @@ class PostServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postService.getPost(UNKNOWN_POST_ID)
+                () -> postQueryService.getPost(UNKNOWN_POST_ID)
         );
 
         // Then

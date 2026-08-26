@@ -37,7 +37,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     private static final String UPLOAD_URL = "https://test-bucket.s3.amazonaws.com/upload";
 
     @Autowired
-    private PostService postService;
+    private PostImageUploadService postImageUploadService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -87,7 +87,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     @DisplayName("활성 사용자에게 발급하면 ISSUED 업로드를 저장하고 발급 결과를 반환한다")
     void createPostImageUpload_activeUser_savesIssuedUpload() {
         // When
-        PostImageUploadResult result = postService.createPostImageUpload(USER_ID);
+        PostImageUploadResult result = postImageUploadService.createPostImageUpload(USER_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -118,7 +118,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
         Instant issuedAt = Instant.now();
 
         // When
-        PostImageUploadResult result = postService.createPostImageUpload(USER_ID);
+        PostImageUploadResult result = postImageUploadService.createPostImageUpload(USER_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -136,7 +136,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     @DisplayName("저장한 업로드 ID로 presigned URL을 발급한다")
     void createPostImageUpload_activeUser_issuesUrlForSavedUploadId() {
         // When
-        PostImageUploadResult result = postService.createPostImageUpload(USER_ID);
+        PostImageUploadResult result = postImageUploadService.createPostImageUpload(USER_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -148,7 +148,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     @DisplayName("존재하지 않는 회원은 업로드를 발급받을 수 없다")
     void createPostImageUpload_unknownUser_throwsNotFound() {
         // When & Then
-        assertThatThrownBy(() -> postService.createPostImageUpload(UUID.randomUUID()))
+        assertThatThrownBy(() -> postImageUploadService.createPostImageUpload(UUID.randomUUID()))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
     }
@@ -157,7 +157,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴한 회원은 업로드를 발급받을 수 없다")
     void createPostImageUpload_withdrawnUser_throwsNotFound() {
         // When & Then
-        assertThatThrownBy(() -> postService.createPostImageUpload(WITHDRAWN_USER_ID))
+        assertThatThrownBy(() -> postImageUploadService.createPostImageUpload(WITHDRAWN_USER_ID))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
     }

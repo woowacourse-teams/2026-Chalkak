@@ -6,7 +6,7 @@ import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
 import com.chalkak.backend.post.service.PostDetail;
-import com.chalkak.backend.post.service.PostService;
+import com.chalkak.backend.post.service.PostQueryService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/posts")
 public class PostController implements PostApiDocs {
 
-    private final PostService postService;
+    private final PostQueryService postQueryService;
 
     @Override
     @GetMapping
@@ -31,7 +31,7 @@ public class PostController implements PostApiDocs {
     ) {
         return ResponseEntity.ok(
                 PostListResponse.fromPostListResult(
-                        postService.getPosts(
+                        postQueryService.getPosts(
                                 request.topicDate(),
                                 request.sort(),
                                 request.randomSeed(),
@@ -46,7 +46,7 @@ public class PostController implements PostApiDocs {
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPost(@PathVariable String postId) {
         UUID parsedPostId = CanonicalUuidParser.parse(postId);
-        PostDetail detail = postService.getPost(parsedPostId);
+        PostDetail detail = postQueryService.getPost(parsedPostId);
 
         return ResponseEntity.ok(PostDetailResponse.fromPostDetail(detail));
     }

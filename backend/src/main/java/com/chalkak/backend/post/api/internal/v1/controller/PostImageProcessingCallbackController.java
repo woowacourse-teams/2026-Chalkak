@@ -7,7 +7,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.post.api.internal.v1.docs.PostImageProcessingCallbackApiDocs;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingCompleteRequest;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingFailRequest;
-import com.chalkak.backend.post.service.PostService;
+import com.chalkak.backend.post.service.PostImageProcessingService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.util.Set;
@@ -44,7 +44,7 @@ public class PostImageProcessingCallbackController
     private static final String TIMESTAMP_HEADER = "X-Chalkak-Callback-Timestamp";
     private static final String SIGNATURE_HEADER = "X-Chalkak-Callback-Signature";
 
-    private final PostService postService;
+    private final PostImageProcessingService postImageProcessingService;
     private final ProcessingCallbackAuthenticator authenticator;
     private final ObjectMapper objectMapper;
     private final Validator validator;
@@ -66,7 +66,7 @@ public class PostImageProcessingCallbackController
         );
         PostImageProcessingCompleteRequest request =
                 readBody(rawBody, PostImageProcessingCompleteRequest.class);
-        postService.completePostImageProcessing(parsedUploadId, request.toMetadata());
+        postImageProcessingService.completePostImageProcessing(parsedUploadId, request.toMetadata());
 
         return ResponseEntity.noContent().build();
     }
@@ -88,7 +88,7 @@ public class PostImageProcessingCallbackController
         );
         PostImageProcessingFailRequest request =
                 readBody(rawBody, PostImageProcessingFailRequest.class);
-        postService.failPostImageProcessing(parsedUploadId, request.reason());
+        postImageProcessingService.failPostImageProcessing(parsedUploadId, request.reason());
 
         return ResponseEntity.noContent().build();
     }

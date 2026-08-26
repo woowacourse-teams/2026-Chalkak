@@ -41,7 +41,10 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
             "chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".webp";
 
     @Autowired
-    private PostService postService;
+    private PostCreationService postCreationService;
+
+    @Autowired
+    private PostImageProcessingService postImageProcessingService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -113,7 +116,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     void createPost_concurrentSameUpload_createsSinglePost() throws Exception {
         // Given
         Callable<Void> createPost = () -> {
-            postService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            postCreationService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
             return null;
         };
 
@@ -133,11 +136,11 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     void createPost_concurrentWithCompleteCallback_keepsStateConsistent() throws Exception {
         // Given
         Callable<Void> createPost = () -> {
-            postService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            postCreationService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
             return null;
         };
         Callable<Void> completeCallback = () -> {
-            postService.completePostImageProcessing(
+            postImageProcessingService.completePostImageProcessing(
                     UPLOAD_ID,
                     Map.of("width", 4032, "height", 3024)
             );

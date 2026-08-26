@@ -5,38 +5,28 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
-import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
-import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
-import com.chalkak.backend.post.repository.PostSlice;
-import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** 발급된 업로드를 소비해 게시물을 만든다. */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class PostService {
-
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+public class PostCreationService {
 
     private final PostRepository postRepository;
     private final TopicRepository topicRepository;
@@ -44,32 +34,7 @@ public class PostService {
     private final PhotoRepository photoRepository;
     private final PostImageStorage postImageStorage;
     private final PostImageUploadRepository postImageUploadRepository;
-    private final PostImageUploadIssuer postImageUploadIssuer;
-    private final ImageUrlProvider imageUrlProvider;
-    private final RandomSeedGenerator randomSeedGenerator;
     private final PostProcessingPolicy postProcessingPolicy;
-
-    @Transactional
-    public PostImageUploadResult createPostImageUpload(UUID userId) {
-        User uploader = userRepository.findActiveById(userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "사진을 업로드할 회원을 찾을 수 없습니다."
-                ));
-
-        PostImageUpload upload = postImageUploadRepository.save(
-                PostImageUpload.createPostImageUpload(uploader, Instant.now())
-        );
-        PresignedPostImageUpload presigned = postImageUploadIssuer.issue(upload.getId());
-
-        return new PostImageUploadResult(
-                upload.getId(),
-                presigned.uploadUrl(),
-                presigned.expiresInSeconds(),
-                presigned.contentType(),
-                presigned.maxBytes()
-        );
-    }
 
     @Transactional
     public PostCreationResult createPost(
@@ -122,144 +87,6 @@ public class PostService {
         Post savedPost = postRepository.save(post);
 
         return new PostCreationResult(savedPost.getId(), savedPost.getModerationStatus());
-    }
-
-    /**
-     * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
-     * 요청이 READY를 보고 곧바로 공개 상태로 만든다.
-     */
-    @Transactional
-    public void completePostImageProcessing(UUID uploadId, Map<String, Object> imageMetadata) {
-        postImageUploadRepository.findByIdForUpdate(uploadId)
-                .ifPresent(upload -> completeProcessedUpload(upload, uploadId, imageMetadata));
-    }
-
-    @Transactional
-    public void failPostImageProcessing(UUID uploadId, String rejectionReason) {
-        postImageUploadRepository.findByIdForUpdate(uploadId)
-                .ifPresent(upload -> failProcessedUpload(upload, uploadId, rejectionReason));
-    }
-
-    public PostDetail getPost(UUID postId) {
-        Post post = postRepository.findVisibleById(postId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "게시물을 찾을 수 없습니다."
-                ));
-
-        return PostDetail.from(post, imageUrlProvider);
-    }
-
-    public PostListResult getPosts(
-            LocalDate topicDate,
-            PostSort sort,
-            String randomSeed,
-            int page,
-            int pageSize
-    ) {
-        validateRandomSeedCombination(sort, randomSeed, page);
-        validateTopicDate(topicDate);
-
-        Topic topic = topicRepository.findActiveByTopicDate(topicDate)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "해당 날짜의 주제를 찾을 수 없습니다."
-                ));
-        if (sort == PostSort.RANDOM) {
-            String effectiveRandomSeed = Objects.requireNonNullElseGet(
-                    randomSeed,
-                    randomSeedGenerator::generateRandomSeed
-            );
-            PostSlice postSlice = postRepository.findVisibleRandomByTopicId(
-                    topic.getId(),
-                    effectiveRandomSeed,
-                    page - 1,
-                    pageSize
-            );
-            return PostListResult.from(
-                    postSlice,
-                    page,
-                    pageSize,
-                    effectiveRandomSeed,
-                    imageUrlProvider
-            );
-        }
-
-        PostSlice postSlice = postRepository.findVisibleRecentByTopicId(
-                topic.getId(),
-                page - 1,
-                pageSize
-        );
-
-        return PostListResult.from(
-                postSlice,
-                page,
-                pageSize,
-                randomSeed,
-                imageUrlProvider
-        );
-    }
-
-    private void completeProcessedUpload(
-            PostImageUpload upload,
-            UUID uploadId,
-            Map<String, Object> imageMetadata
-    ) {
-        upload.completeProcessing(imageMetadata);
-        if (!upload.isProcessed()) {
-            return;
-        }
-        findValidatingPost(uploadId).ifPresent(post -> {
-            post.getPhoto().completeProcessing(
-                    postImageStorage.toThumbnailStorageKey(uploadId),
-                    upload.getImageMetadata()
-            );
-            post.approve(Instant.now());
-        });
-    }
-
-    private void failProcessedUpload(
-            PostImageUpload upload,
-            UUID uploadId,
-            String rejectionReason
-    ) {
-        upload.failProcessing(rejectionReason);
-        if (!upload.isRejected()) {
-            return;
-        }
-        findValidatingPost(uploadId).ifPresent(post -> post.reject(Instant.now()));
-    }
-
-    private Optional<Post> findValidatingPost(UUID uploadId) {
-        return postRepository.findValidatingByPostImageUploadId(uploadId);
-    }
-
-    private void validateRandomSeedCombination(
-            PostSort sort,
-            String randomSeed,
-            int page
-    ) {
-        boolean hasSeedWithRecentSort = sort == PostSort.RECENT && randomSeed != null;
-        boolean isSeedMissingAfterFirstRandomPage = sort == PostSort.RANDOM
-                && page > 1
-                && randomSeed == null;
-
-        if (hasSeedWithRecentSort
-                || isSeedMissingAfterFirstRandomPage) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "조회 조건이 올바르지 않습니다."
-            );
-        }
-    }
-
-    private void validateTopicDate(LocalDate topicDate) {
-        if (topicDate.isAfter(LocalDate.now(KST))) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "미래 날짜의 게시물은 조회할 수 없습니다."
-            );
-        }
     }
 
     private void validateTopicOpen(Topic topic) {
