@@ -1,7 +1,5 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -19,36 +17,27 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_SETTLE_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
-import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
-import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -56,7 +45,6 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
@@ -99,150 +87,48 @@ fun HomeScreen(
 ) {
     val photoListState = rememberLazyListState()
     var localResetSignal by remember { mutableIntStateOf(0) }
-    var topAreaOffset by remember { mutableFloatStateOf(0f) }
-    var topAreaHeight by remember { mutableIntStateOf(0) }
-    var isTopAreaTargetHidden by remember { mutableStateOf(false) }
-    val bottomBarState = rememberBottomBarScrollState()
     val interactionScope = rememberCoroutineScope()
-    val settleJob = remember { mutableStateOf<Job?>(null) }
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
         HomeTopBarHeight.toPx()
     }
-    val scrollToTopToggleThresholdPx = with(density) { CollapsingScrollToTopThreshold.toPx() }
-    val visibleTopAreaHeightPx =
-        (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
-    val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
-    val photoListTopPadding = with(density) { visibleTopAreaHeightPx.toDp() }
-    val collapsedTopAreaProgress = if (topAreaHeight == 0) {
-        0f
-    } else {
-        (-topAreaOffset / topAreaHeight).coerceIn(0f, 1f)
+    val scrollState = rememberHomeScrollBehaviorState(
+        photoListState = photoListState,
+        interactionScope = interactionScope,
+        scrollToTopToggleThresholdPx = with(density) {
+            CollapsingScrollToTopThreshold.toPx()
+        },
+    )
+    val photoListTopPadding = with(density) {
+        scrollState.visibleTopAreaHeight(fixedTopAreaHeightPx).toDp()
     }
-    val topBarBackgroundAlpha = topBarBackgroundAlpha(collapsedTopAreaProgress)
-
-    fun resetHomePosition() {
-        settleJob.value?.cancel()
-        bottomBarState.reset()
-        topAreaOffset = 0f
-        isTopAreaTargetHidden = false
+    val bottomBarHeight = with(density) {
+        scrollState.bottomBarState.height
+            .toDp()
     }
-
-    fun settleTopArea() {
-        settleJob.value?.cancel()
-
-        val initialTopOffset = topAreaOffset
-        val targetTopOffset = settleCollapsingOffset(
-            currentOffset = initialTopOffset,
-            hiddenOffset = -topAreaHeight.toFloat(),
-            restingOffset = if (isTopAreaTargetHidden) -topAreaHeight.toFloat() else 0f,
-        )
-        isTopAreaTargetHidden = targetTopOffset != 0f
-
-        if (initialTopOffset == targetTopOffset) return
-
-        settleJob.value = interactionScope.launch {
-            animate(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
-            ) { progress, _ ->
-                topAreaOffset = initialTopOffset +
-                    ((targetTopOffset - initialTopOffset) * progress)
-            }
-        }
-    }
-
-    val nestedScrollConnection = remember(topAreaHeight, bottomBarState.height) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    val atTop = !photoListState.canScrollBackward && topAreaOffset == 0f
-                    bottomBarState.onScroll(
-                        scrollDeltaY = available.y,
-                        atTop = atTop,
-                        toggleThresholdPx = scrollToTopToggleThresholdPx,
-                    )
-                }
-
-                if (available.y < 0f &&
-                    topAreaHeight > 0 &&
-                    topAreaOffset > -topAreaHeight.toFloat()
-                ) {
-                    settleJob.value?.cancel()
-                    val previousOffset = topAreaOffset
-                    topAreaOffset = topAreaOffsetAfterScroll(
-                        currentOffset = topAreaOffset,
-                        scrollDelta = available.y,
-                        areaHeight = topAreaHeight.toFloat(),
-                    )
-                    if (topAreaOffset != previousOffset) {
-                        return Offset(0f, topAreaOffset - previousOffset)
-                    }
-                }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (available.y > 0f && topAreaOffset < 0f) {
-                    settleJob.value?.cancel()
-                    val previousOffset = topAreaOffset
-                    topAreaOffset = topAreaOffsetAfterScroll(
-                        currentOffset = topAreaOffset,
-                        scrollDelta = available.y,
-                        areaHeight = topAreaHeight.toFloat(),
-                    )
-                    return Offset(0f, topAreaOffset - previousOffset)
-                }
-                return Offset.Zero
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                bottomBarState.settle(interactionScope)
-                return Velocity.Zero
-            }
-
-            override suspend fun onPostFling(
-                consumed: Velocity,
-                available: Velocity,
-            ): Velocity {
-                settleTopArea()
-                return Velocity.Zero
-            }
-        }
-    }
+    val topBarBackgroundAlpha = topBarBackgroundAlpha(scrollState.collapsedTopAreaProgress)
 
     LaunchedEffect(uiState.selectedSort) {
-        resetHomePosition()
+        scrollState.reset()
         photoListState.scrollToItem(0)
     }
 
     LaunchedEffect(resetSignal, localResetSignal) {
         if (resetSignal == 0 && localResetSignal == 0) return@LaunchedEffect
-
-        resetHomePosition()
+        scrollState.reset()
         photoListState.animateScrollToItem(0)
     }
 
-    LaunchedEffect(photoListState.canScrollBackward, topAreaOffset) {
-        if (!photoListState.canScrollBackward && topAreaOffset == 0f) {
-            bottomBarState.hideScrollToTopButton()
-        }
+    LaunchedEffect(photoListState.canScrollBackward, scrollState.topAreaOffset) {
+        scrollState.updateScrollToTopVisibility()
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(ChalkakBackground)
-            .nestedScroll(nestedScrollConnection),
+            .nestedScroll(scrollState.nestedScrollConnection),
     ) {
         HomePhotoList(
             photos = uiState.photos,
@@ -259,13 +145,13 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clipToBounds()
-                    .collapsingArea(topAreaOffset),
+                    .collapsingArea(scrollState.topAreaOffset),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(ChalkakBackground)
-                        .onSizeChanged { topAreaHeight = it.height },
+                        .onSizeChanged { scrollState.topAreaHeight = it.height },
                 ) {
                     HomeTopic(
                         dateLabel = uiState.dateLabel,
@@ -294,7 +180,7 @@ fun HomeScreen(
             HomeTopBar(
                 modifier = Modifier
                     .then(
-                        if (isTopAreaVisible) {
+                        if (scrollState.isTopAreaVisible) {
                             Modifier.homeBottomDivider()
                         } else {
                             Modifier
@@ -302,11 +188,11 @@ fun HomeScreen(
                     ),
             )
         }
-        if (bottomBarState.isScrollToTopButtonVisible) {
+        if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
             ChalkakScrollToTopButton(
                 onClick = {
                     interactionScope.launch {
-                        resetHomePosition()
+                        scrollState.reset()
                         photoListState.animateScrollToItem(0)
                     }
                 },
@@ -314,7 +200,7 @@ fun HomeScreen(
                     .align(Alignment.BottomEnd)
                     .padding(
                         end = 24.dp,
-                        bottom = with(density) { bottomBarState.height.toDp() } + 18.dp,
+                        bottom = bottomBarHeight + 18.dp,
                     ),
             )
         }
@@ -330,8 +216,8 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .onSizeChanged { bottomBarState.height = it.height }
-                .graphicsLayer { translationY = bottomBarState.offset },
+                .onSizeChanged { scrollState.bottomBarState.height = it.height }
+                .graphicsLayer { translationY = scrollState.bottomBarState.offset },
         )
     }
 }
