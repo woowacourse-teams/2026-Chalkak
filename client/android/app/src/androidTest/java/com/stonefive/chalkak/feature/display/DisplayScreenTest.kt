@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -54,21 +56,18 @@ class DisplayScreenTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onNodeWithText("전시").assertIsDisplayed()
+        val photoGrid = composeRule.onNode(hasScrollAction())
 
+        photoGrid.performTouchInput { swipeUp() }
+        composeRule.onNodeWithText("8월 5일").assertIsNotDisplayed()
+        composeRule.onNodeWithText("바다").assertIsNotDisplayed()
         composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("8월 5일").assertCountEquals(0)
-        composeRule.onAllNodesWithText("바다").assertCountEquals(0)
-        composeRule
-            .onAllNodesWithText("같은 주제에서 다른 시선을 느껴보세요")
-            .assertCountEquals(0)
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsNotDisplayed()
+        composeRule.onNodeWithText("최신순").assertIsNotDisplayed()
         composeRule.onNodeWithText("전시").assertIsDisplayed()
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeDown() }
+        photoGrid.performTouchInput { swipeDown() }
         composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
         composeRule.onNodeWithText("바다").assertIsDisplayed()
         composeRule
@@ -85,20 +84,17 @@ class DisplayScreenTest {
             uiState = scrollableLatestUiState(),
             onSortSelected = { selectedSort = it },
         )
+        val photoGrid = composeRule.onNode(hasScrollAction())
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        photoGrid.performTouchInput { swipeUp() }
+        composeRule.onNodeWithText("최신순").assertIsNotDisplayed()
 
-        composeRule
-            .onNodeWithContentDescription("사진 1")
-            .performTouchInput {
-                swipe(
-                    start = center,
-                    end = center.copy(y = center.y + 120f),
-                )
-            }
+        photoGrid.performTouchInput {
+            swipe(
+                start = center,
+                end = center.copy(y = center.y + 120f),
+            )
+        }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
 
@@ -145,24 +141,21 @@ class DisplayScreenTest {
     fun `과거 날짜의 헤더는 스크롤하면 접히고 맨 위에서 다시 표시된다`() {
         setDisplayContent(scrollableArchiveUiState())
 
-        composeRule.onAllNodesWithText("8월 4일").assertCountEquals(0)
-        composeRule.onAllNodesWithText("다리").assertCountEquals(0)
-        composeRule
-            .onAllNodesWithText("가장 사람들이 좋아했던 사진들이에요")
-            .assertCountEquals(0)
-
-        composeRule
-            .onNodeWithContentDescription("전시 사진 0")
-            .performTouchInput { swipeUp() }
         composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
         composeRule.onNodeWithText("다리").assertIsDisplayed()
         composeRule
             .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
             .assertIsDisplayed()
+        val photoGrid = composeRule.onNode(hasScrollAction())
 
+        photoGrid.performTouchInput { swipeUp() }
+        composeRule.onNodeWithText("8월 4일").assertIsNotDisplayed()
+        composeRule.onNodeWithText("다리").assertIsNotDisplayed()
         composeRule
-            .onNodeWithContentDescription("전시 사진 0")
-            .performTouchInput { swipeDown() }
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsNotDisplayed()
+
+        photoGrid.performTouchInput { swipeDown() }
         composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
         composeRule.onNodeWithText("다리").assertIsDisplayed()
         composeRule
