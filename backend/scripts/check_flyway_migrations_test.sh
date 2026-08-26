@@ -158,4 +158,19 @@ base_sha="$(git -C "${repository}" rev-parse HEAD)"
 expect_failure "대상 브랜치보다 오래된 PR" "마지막 버전보다 오래되었습니다" \
   "${repository}" "${base_sha}" "${head_sha}"
 
+repository="$(create_repository non-ascii-filename)"
+base_sha="$(git -C "${repository}" rev-parse HEAD)"
+printf '%s\n' 'ALTER TABLE base_table ADD COLUMN signature TEXT;' \
+  > "${repository}/backend/src/main/resources/db/migration/V202608271200__사인_추가.sql"
+commit_all "${repository}" "migration with non-ASCII filename"
+head_sha="$(git -C "${repository}" rev-parse HEAD)"
+expect_success "한글 설명 migration 추가" "${repository}" "${base_sha}" "${head_sha}"
+
+repository="$(create_repository unrelated-history)"
+base_sha="$(git -C "${repository}" rev-parse HEAD)"
+unrelated_tree="$(printf '' | git -C "${repository}" mktree)"
+head_sha="$(printf '%s\n' 'unrelated history' | git -C "${repository}" commit-tree "${unrelated_tree}")"
+expect_failure "공통 커밋 없음" "공통 커밋을 찾을 수 없습니다" \
+  "${repository}" "${base_sha}" "${head_sha}"
+
 echo "All ${TEST_COUNT} Flyway migration contract tests passed."

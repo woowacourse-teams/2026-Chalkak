@@ -43,7 +43,10 @@ extract_version() {
 assert_commit_exists "${BASE_SHA}" "대상 브랜치"
 assert_commit_exists "${HEAD_SHA}" "PR"
 
-MERGE_BASE="$(git -C "${REPOSITORY_ROOT}" merge-base "${BASE_SHA}" "${HEAD_SHA}")"
+MERGE_BASE="$(git -C "${REPOSITORY_ROOT}" merge-base "${BASE_SHA}" "${HEAD_SHA}")" || {
+  echo "대상 브랜치와 PR의 공통 커밋을 찾을 수 없습니다." >&2
+  exit 2
+}
 if [[ -z "${MERGE_BASE}" ]]; then
   echo "대상 브랜치와 PR의 공통 커밋을 찾을 수 없습니다." >&2
   exit 2
@@ -58,13 +61,16 @@ while IFS= read -r path; do
       BASE_MAX_VERSION="${version}"
     fi
   fi
-done < <(git -C "${REPOSITORY_ROOT}" ls-tree -r --name-only "${BASE_SHA}" -- "${MIGRATION_DIR}")
+done < <(
+  git -C "${REPOSITORY_ROOT}" -c core.quotePath=false \
+    ls-tree -r --name-only "${BASE_SHA}" -- "${MIGRATION_DIR}"
+)
 
 CHANGES_FILE="${TEMP_DIR}/changes"
 ADDED_MIGRATIONS_FILE="${TEMP_DIR}/added-migrations"
 ADDED_VERSIONS_FILE="${TEMP_DIR}/added-versions"
 
-git -C "${REPOSITORY_ROOT}" diff \
+git -C "${REPOSITORY_ROOT}" -c core.quotePath=false diff \
   --name-status \
   --find-renames \
   "${MERGE_BASE}" \

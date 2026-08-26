@@ -110,6 +110,16 @@ Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검�
 
 대상 branch에 더 높은 버전이 먼저 병합되어 검사가 실패하면, 아직 공유 DB에 적용되지 않은 PR의 새 migration 파일명만 현재 시각 기준으로 변경하고 다시 push한다.
 
+### 병합됐지만 공유 DB에 적용되지 않은 migration 복구
+
+대상 branch에 이미 병합된 migration의 이름 변경은 CI가 차단한다. 다만 배포가 Flyway 실행 전에 실패하여 해당 migration이 개발·운영을 포함한 모든 공유 DB에 적용되지 않았음이 확인된 경우에만 예외적으로 이름을 바로잡을 수 있다.
+
+1. 개발·운영 DB의 `flyway_schema_history`에서 대상 version과 script가 모두 없는지 확인한다.
+2. 하나의 공유 DB라도 적용 이력이 있으면 기존 파일을 변경하지 않고 새 migration으로 roll forward한다.
+3. 적용 이력이 없다면 복구 PR에 확인 결과와 이름 변경 사유를 남기고 백엔드 팀원의 확인을 받는다.
+4. ruleset bypass 권한이 있는 저장소 관리자가 해당 복구 PR에 한해서 실패한 Flyway check를 bypass한다. 검사를 끄거나 ruleset을 변경하지 않는다.
+5. 병합 후 개발·운영 배포에서 `flyway_schema_history`와 애플리케이션 health를 다시 확인한다.
+
 개발 배포는 Flyway 실행 전에 `/opt/chalkak/backups`에 `pg_dump`를 만들고 7일이 지난 자동 백업을 삭제한다. 개발 DB와 백업이 같은 EC2 disk에 있으므로 중요한 데이터는 별도로 백업한다.
 
 운영은 RDS automated backup과 point-in-time recovery를 활성화하고 위험한 migration 전에는 별도 snapshot을 만든다.

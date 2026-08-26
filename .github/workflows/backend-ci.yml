@@ -86,9 +86,11 @@ jobs:
       - name: Validate Flyway migrations
         if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./scripts/check_flyway_migrations.sh "${BASE_SHA}" "${HEAD_SHA}"
+        run: |
+          git fetch --no-tags origin "${BASE_REF}"
+          ./scripts/check_flyway_migrations.sh "$(git rev-parse FETCH_HEAD)" "${HEAD_SHA}"
 
       - name: Set up Java
         uses: actions/setup-java@v4
