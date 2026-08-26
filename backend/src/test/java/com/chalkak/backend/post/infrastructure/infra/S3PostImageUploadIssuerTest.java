@@ -15,6 +15,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -100,5 +103,32 @@ class S3PostImageUploadIssuerTest {
                         false
                 )
         );
+    }
+
+    @Test
+    @DisplayName("발급한 URL은 Content-Type을 서명 대상에 포함해 강제한다")
+    void issue_presignedUrl_signsContentType() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        S3Presigner realPresigner = S3Presigner.builder()
+                .region(Region.AP_NORTHEAST_2)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("test-access-key", "test-secret-key")))
+                .build();
+
+        // When
+        PresignedPutObjectRequest presigned = realPresigner.presignPutObject(
+                PutObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofMinutes(5))
+                        .putObjectRequest(PutObjectRequest.builder()
+                                .bucket(BUCKET)
+                                .key("chalkak/staging/dev/posts/" + uploadId + ".webp")
+                                .contentType("image/webp")
+                                .build())
+                        .build());
+
+        // Then
+        assertThat(presigned.signedHeaders()).containsKey("content-type");
+        assertThat(presigned.url().getQuery()).contains("content-type");
     }
 }

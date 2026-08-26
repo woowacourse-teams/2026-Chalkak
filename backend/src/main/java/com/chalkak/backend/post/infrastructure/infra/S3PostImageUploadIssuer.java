@@ -13,9 +13,11 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 /**
- * presigned PUT은 용량을 강제하지 못한다. SigV4 query presigning이 host 외의 헤더를 서명하지 않으므로
- * {@code maxBytes}는 클라이언트가 전송 전에 거를 수 있게 알려주는 값이고, 실제 상한은 이미지 처리 Lambda가
- * 최종 판정한다.
+ * presigned PUT은 용량을 강제하지 못한다. {@code contentType}은 {@code X-Amz-SignedHeaders}에 포함돼 실제로
+ * 강제되지만 {@code content-length}는 서명 대상이 아니라서, {@code maxBytes}는 클라이언트가 전송 전에 거를 수
+ * 있게 알려주는 값이고 실제 상한은 이미지 처리 Lambda가 최종 판정한다.
+ *
+ * <p>용량까지 강제하려면 {@code content-length-range} 조건을 담을 수 있는 POST policy로 바꿔야 한다.
  */
 @Component
 @RequiredArgsConstructor
