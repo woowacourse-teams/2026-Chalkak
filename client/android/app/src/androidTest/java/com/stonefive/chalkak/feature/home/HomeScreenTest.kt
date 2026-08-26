@@ -93,6 +93,8 @@ class HomeScreenTest {
     fun `스크롤 최상단 버튼을 누르면 첫 사진으로 돌아간다`() {
         setHomeContent(scrollableHomeUiState())
 
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+
         composeRule.onRoot().performTouchInput { swipeUp() }
         composeRule.onRoot().performTouchInput { swipeUp() }
         composeRule.onNodeWithContentDescription("맨 위로").assertIsDisplayed()

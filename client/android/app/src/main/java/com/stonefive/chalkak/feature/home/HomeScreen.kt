@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,11 +30,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -108,6 +106,7 @@ fun HomeScreen(
     var bottomBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomBarHeight by remember { mutableIntStateOf(0) }
     var isBottomBarTargetHidden by remember { mutableStateOf(false) }
+    var isScrollToTopButtonVisible by remember { mutableStateOf(false) }
     val interactionScope = rememberCoroutineScope()
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val bottomBarRestoreJob = remember { mutableStateOf<Job?>(null) }
@@ -134,6 +133,7 @@ fun HomeScreen(
         isTopAreaTargetHidden = false
         bottomBarOffset = 0f
         isBottomBarTargetHidden = false
+        isScrollToTopButtonVisible = false
     }
 
     fun settleTopArea() {
@@ -212,6 +212,9 @@ fun HomeScreen(
                     if (available.y != 0f) {
                         bottomBarRestoreJob.value?.cancel()
                         settleJob.value?.cancel()
+                        if (available.y < 0f) {
+                            isScrollToTopButtonVisible = true
+                        }
                         bottomBarOffset = bottomBarOffsetAfterScroll(
                             currentOffset = bottomBarOffset,
                             scrollDelta = -available.y,
@@ -272,6 +275,12 @@ fun HomeScreen(
 
         resetHomePosition()
         photoListState.animateScrollToItem(0)
+    }
+
+    LaunchedEffect(photoListState.canScrollBackward, topAreaOffset) {
+        if (!photoListState.canScrollBackward && topAreaOffset == 0f) {
+            isScrollToTopButtonVisible = false
+        }
     }
 
     Box(
@@ -338,40 +347,32 @@ fun HomeScreen(
                     ),
             )
         }
-        if (photoListState.canScrollBackward) {
-            Box(
+        if (isScrollToTopButtonVisible) {
+            Surface(
+                onClick = {
+                    interactionScope.launch {
+                        resetHomePosition()
+                        photoListState.animateScrollToItem(0)
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(
                         end = 24.dp,
                         bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
-                    ).size(44.dp)
-                    .shadow(
-                        elevation = 8.dp,
-                        shape = CircleShape,
-                        clip = false,
-                        ambientColor = Color.Black.copy(alpha = 0.16f),
-                        spotColor = Color.Black.copy(alpha = 0.24f),
-                    ).clip(CircleShape)
-                    .background(ChalkakWhite)
-                    .clickable(
-                        interactionSource = null,
-                        indication = null,
-                        onClick = {
-                            interactionScope.launch {
-                                resetHomePosition()
-                                photoListState.animateScrollToItem(0)
-                            }
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
+                    ).size(44.dp),
+                shape = CircleShape,
+                color = ChalkakWhite,
+                shadowElevation = 12.dp,
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_arrow_up),
-                    contentDescription = "맨 위로",
-                    tint = ChalkakTheme.colors.iconPrimary,
-                    modifier = Modifier.size(24.dp),
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_up),
+                        contentDescription = "맨 위로",
+                        tint = ChalkakTheme.colors.iconPrimary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
         ChalkakBottomBar(
