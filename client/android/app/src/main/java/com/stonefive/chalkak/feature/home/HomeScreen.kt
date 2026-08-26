@@ -16,9 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,7 +35,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +50,8 @@ import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
@@ -338,3 +337,42 @@ fun HomeScreen(
 }
 
 private val HomeTopBarHeight = 55.dp
+
+@Preview(
+    showBackground = true,
+    widthDp = 402,
+    heightDp = 874,
+)
+@Composable
+private fun HomeScreenPreview() {
+    ChalkakTheme {
+        HomeScreen(
+            uiState = HomeUiState(
+                isLoading = false,
+                dateLabel = "8월 3일 · 오늘의 주제",
+                topic = "하늘하늘하늘",
+                photos = listOf(
+                    Post(
+                        id = "preview-1",
+                        imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        contentDescription = "노을이 진 하늘과 전신주",
+                        title = "안녕하세요 찰캌입니다.",
+                        likeCount = 24,
+                    ),
+                    Post(
+                        id = "preview-2",
+                        imageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        contentDescription = "두 번째 사진",
+                        title = null,
+                        likeCount = 12,
+                    ),
+                ),
+            ),
+            onAction = {},
+        )
+    }
+}
+
+private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"

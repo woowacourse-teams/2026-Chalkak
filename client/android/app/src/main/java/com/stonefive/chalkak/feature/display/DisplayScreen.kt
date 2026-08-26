@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,12 +34,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
@@ -53,10 +49,12 @@ import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
+import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -390,3 +388,99 @@ fun DisplayScreen(
 }
 
 private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
+
+private val previewLatestState = DisplayUiState(
+    selectedDate = LocalDate.of(2026, 8, 5),
+    latestDate = LocalDate.of(2026, 8, 5),
+    earliestDate = LocalDate.of(2026, 8, 1),
+    topic = "바다",
+    content = DisplayContentState.Latest(
+        photos = previewDisplayPhotos,
+        selectedSort = PostSort.LATEST,
+    ),
+)
+
+private val previewArchiveState = DisplayUiState(
+    selectedDate = LocalDate.of(2026, 8, 4),
+    latestDate = LocalDate.of(2026, 8, 5),
+    earliestDate = LocalDate.of(2026, 8, 1),
+    topic = "다리",
+    content = DisplayContentState.Archive(
+        photos = previewDisplayPhotos,
+        featuredPhotos = previewDisplayPhotos,
+    ),
+)
+
+@Preview(name = "최신 전시", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun LatestDisplayScreenPreview() {
+    DisplayScreenPreviewContent(uiState = previewLatestState)
+}
+
+@Preview(name = "과거 전시", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun ArchiveDisplayScreenPreview() {
+    DisplayScreenPreviewContent(uiState = previewArchiveState)
+}
+
+@Preview(name = "본문 로딩", showBackground = true, widthDp = 390, heightDp = 560)
+@Composable
+private fun DisplayLoadingContentPreview() {
+    ChalkakTheme {
+        DisplayBody(
+            content = DisplayContentState.Loading,
+            onFeaturedPageChanged = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(name = "최신 본문", showBackground = true, widthDp = 390, heightDp = 640)
+@Composable
+private fun LatestDisplayContentPreview() {
+    ChalkakTheme {
+        LatestDisplayContent(
+            content = previewLatestState.content as DisplayContentState.Latest,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(name = "과거 본문", showBackground = true, widthDp = 390, heightDp = 720)
+@Composable
+private fun ArchiveDisplayContentPreview() {
+    ChalkakTheme {
+        ArchiveDisplayContent(
+            content = previewArchiveState.content as DisplayContentState.Archive,
+            onFeaturedPageChanged = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Preview(name = "오류 본문", showBackground = true, widthDp = 390, heightDp = 560)
+@Composable
+private fun DisplayErrorContentPreview() {
+    ChalkakTheme {
+        DisplayErrorContent(
+            message = "전시를 불러오지 못했어요",
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun DisplayScreenPreviewContent(uiState: DisplayUiState) {
+    ChalkakTheme {
+        DisplayScreen(
+            uiState = uiState,
+            onPreviousDateClick = {},
+            onNextDateClick = {},
+            onSortSelected = {},
+            onFeaturedPageChanged = {},
+            onOpenPhotoUpload = {},
+            onNavigateToBottomBar = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
