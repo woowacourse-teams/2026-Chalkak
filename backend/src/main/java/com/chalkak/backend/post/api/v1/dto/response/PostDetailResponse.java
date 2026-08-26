@@ -12,7 +12,9 @@ public record PostDetailResponse(
         @Schema(description = "변환된 게시물 썸네일 URL", nullable = true)
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
-        String title
+        String title,
+        long likeCount,
+        boolean isLiked
 ) {
 
     public static PostDetailResponse fromPostDetail(PostDetail detail) {
@@ -22,7 +24,9 @@ public record PostDetailResponse(
                 detail.originalImageUrl(),
                 detail.thumbnailImageUrl(),
                 detail.signatureOriginalImageUrl(),
-                detail.title()
+                detail.title(),
+                detail.likeCount(),
+                detail.isLiked()
         );
     }
 
