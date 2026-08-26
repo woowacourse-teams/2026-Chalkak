@@ -207,7 +207,7 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
-                        "signupToken: 회원가입 토큰은 필수입니다."));
+                        "회원가입 토큰은 필수입니다."));
 
         verifyNoInteractions(socialSignupService);
     }
@@ -226,7 +226,7 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
-                        "signupToken: 회원가입 토큰은 필수입니다."));
+                        "회원가입 토큰은 필수입니다."));
 
         verifyNoInteractions(socialSignupService);
     }
