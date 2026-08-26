@@ -5,6 +5,7 @@ import java.util.UUID;
 public record VerifiedSocialSignupToken(
         SocialProvider provider,
         String subject,
-        UUID uploadId
+        UUID uploadId,
+        String email
 ) {
 }

@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -31,6 +32,7 @@ public class SocialSignupService {
     private final SocialAccountRepository socialAccountRepository;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
+    private final SocialSignupTokenVerifier socialSignupTokenVerifier;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImagePolicy signatureImagePolicy;
     private final UserRepository userRepository;
@@ -54,33 +56,28 @@ public class SocialSignupService {
     }
 
     @Transactional
-    public UUID signup(
-            SocialProvider provider,
-            String idToken,
-            UUID signatureOriginalUploadId
-    ) {
-        VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
-                provider,
-                idToken);
+    public UUID signup(String signupToken) {
+        VerifiedSocialSignupToken verifiedToken =
+                socialSignupTokenVerifier.verify(signupToken);
         Optional<SocialAccount> existingSocialAccount = socialAccountRepository
                 .findByProviderAndSubject(
-                        identity.provider(),
-                        identity.subject());
+                        verifiedToken.provider(),
+                        verifiedToken.subject());
         if (existingSocialAccount.isPresent()) {
             return getExistingUserId(existingSocialAccount.get());
         }
 
         SignatureStorageKeys storageKeys = signatureImageStorage
-                .toStorageKeys(signatureOriginalUploadId);
+                .toStorageKeys(verifiedToken.uploadId());
         validateUnusedSignature(storageKeys);
 
         StoredImageMetadata image = signatureImageStorage
-                .findUploadedImage(signatureOriginalUploadId)
+                .findUploadedImage(verifiedToken.uploadId())
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "업로드한 사인 이미지를 찾을 수 없습니다."));
         if (!signatureImageStorage.isProcessingCompleted(
-                signatureOriginalUploadId)) {
+                verifiedToken.uploadId())) {
             // TODO: HTTP 예외 컨벤션이 확장되면 409 Conflict로 매핑할지 검토한다.
             throw new BusinessException(
                     ErrorCode.SIGNATURE_PROCESSING_PENDING,
@@ -88,11 +85,13 @@ public class SocialSignupService {
         }
         signatureImagePolicy.validate(image);
 
-        User user = userRepository.save(User.create(identity.email(), storageKeys));
+        User user = userRepository.save(User.create(
+                verifiedToken.email(),
+                storageKeys));
         socialAccountRepository.save(SocialAccount.create(
                 user,
-                identity.provider(),
-                identity.subject()));
+                verifiedToken.provider(),
+                verifiedToken.subject()));
 
         return user.getId();
     }

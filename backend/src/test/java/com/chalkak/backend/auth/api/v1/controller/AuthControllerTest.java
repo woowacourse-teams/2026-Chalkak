@@ -181,12 +181,8 @@ class AuthControllerTest {
     @DisplayName("서명 이미지 처리가 완료된 신규 회원은 소셜 회원가입을 완료한다")
     void socialSignup_validRequest_returnsUserId() throws Exception {
         // Given
-        UUID uploadId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        given(socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                "google-id-token",
-                uploadId))
+        given(socialSignupService.signup("social-signup-token"))
                 .willReturn(userId);
 
         // When & Then
@@ -194,52 +190,43 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "signatureOriginalUploadId": "%s"
+                                  "signupToken": "social-signup-token"
                                 }
-                                """.formatted(uploadId)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()));
     }
 
     @Test
-    @DisplayName("소셜 회원가입 요청에 서명 업로드 ID가 없으면 400을 반환한다")
-    void socialSignup_missingSignatureUploadId_returnsBadRequest() throws Exception {
+    @DisplayName("소셜 회원가입 요청에 회원가입 토큰이 없으면 400을 반환한다")
+    void socialSignup_missingSignupToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
-                                }
-                                """))
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
-                        "signatureOriginalUploadId: 사인 이미지 업로드 정보가 올바르지 않습니다."));
+                        "signupToken: 회원가입 토큰은 필수입니다."));
 
         verifyNoInteractions(socialSignupService);
     }
 
     @Test
-    @DisplayName("소셜 회원가입 요청의 ID Token이 비어 있으면 400을 반환한다")
-    void socialSignup_blankIdToken_returnsBadRequest() throws Exception {
+    @DisplayName("소셜 회원가입 요청의 회원가입 토큰이 비어 있으면 400을 반환한다")
+    void socialSignup_blankSignupToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "provider": "GOOGLE",
-                                  "idToken": " ",
-                                  "signatureOriginalUploadId": "%s"
+                                  "signupToken": " "
                                 }
-                                """.formatted(UUID.randomUUID())))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
-                        "idToken: ID Token은 필수입니다."));
+                        "signupToken: 회원가입 토큰은 필수입니다."));
 
         verifyNoInteractions(socialSignupService);
     }
@@ -249,11 +236,7 @@ class AuthControllerTest {
     void socialSignup_processingSignature_returnsProcessingPendingError()
             throws Exception {
         // Given
-        UUID uploadId = UUID.randomUUID();
-        given(socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                "google-id-token",
-                uploadId))
+        given(socialSignupService.signup("social-signup-token"))
                 .willThrow(new BusinessException(
                         ErrorCode.SIGNATURE_PROCESSING_PENDING,
                         "사인 이미지 처리 중입니다."));
@@ -263,11 +246,9 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "signatureOriginalUploadId": "%s"
+                                  "signupToken": "social-signup-token"
                                 }
-                                """.formatted(uploadId)))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
                         .value("SIGNATURE_PROCESSING_PENDING"))

@@ -10,6 +10,7 @@ import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.repository.IdTokenVerifier;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
@@ -39,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 class SocialSignupServiceTest extends IntegrationTestSupport {
 
     private static final String ID_TOKEN = "google-id-token";
+    private static final String SIGNUP_TOKEN = "social-signup-token";
     private static final String SUBJECT = "google-subject";
     private static final String EMAIL = "user@chalkak.test";
 
@@ -61,6 +63,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private SocialSignupTokenIssuer socialSignupTokenIssuer;
 
     @MockitoBean
+    private SocialSignupTokenVerifier socialSignupTokenVerifier;
+
+    @MockitoBean
     private SignatureImageStorage signatureImageStorage;
 
     @PersistenceContext
@@ -74,18 +79,15 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         SignatureStorageKeys storageKeys = new SignatureStorageKeys(
                 "signatures/original/" + uploadId + ".png",
                 "signatures/thumbnail/" + uploadId + ".png");
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
         given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
 
         // When
-        UUID userId = socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
         entityManager.flush();
         entityManager.clear();
 
@@ -109,17 +111,14 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         UUID uploadId = UUID.randomUUID();
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys(uploadId));
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(false);
 
         // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId))
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue(
                         "errorCode",
@@ -131,8 +130,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     @DisplayName("이미 가입된 활성 소셜 계정이 회원가입을 재요청하면 기존 회원 식별자를 반환한다")
     void signup_existingActiveSocialAccount_returnsExistingUserId() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         User existingUser = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 existingUser,
@@ -142,10 +142,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        UUID userId = socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                UUID.randomUUID());
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
 
         // Then
         assertThat(userId).isEqualTo(existingUser.getId());
@@ -155,8 +152,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴 회원에 연결된 소셜 계정은 회원가입을 재요청할 수 없다")
     void signup_withdrawnSocialAccount_throwsUnauthorizedException() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         User withdrawnUser = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 withdrawnUser,
@@ -167,10 +165,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                UUID.randomUUID()))
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("탈퇴한 회원은 회원가입할 수 없습니다.");
     }
@@ -184,18 +179,15 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 "signatures/original/" + uploadId + ".png",
                 "signatures/thumbnail/" + uploadId + ".png");
         userRepository.save(User.create("existing@chalkak.test", storageKeys));
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
         given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
 
         // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId))
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("업로드한 사인 이미지를 찾을 수 없습니다.");
     }
@@ -205,18 +197,15 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_missingSignatureImage_throwsNotFoundException() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId))
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("업로드한 사인 이미지를 찾을 수 없습니다.");
     }
@@ -226,8 +215,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_invalidSignatureImage_throwsBusinessException() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId))
@@ -235,10 +224,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
 
         // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId))
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("사용할 수 없는 사인 이미지입니다.");
     }
@@ -248,11 +234,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_nullEmail_savesUserWithoutEmail() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(new VerifiedSocialIdentity(
-                SocialProvider.GOOGLE,
-                SUBJECT,
-                null));
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, null));
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys(uploadId));
         given(signatureImageStorage.findUploadedImage(uploadId))
@@ -260,10 +243,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
 
         // When
-        UUID userId = socialSignupService.signup(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                uploadId);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
         entityManager.flush();
         entityManager.clear();
 
@@ -329,6 +309,17 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 EMAIL);
+    }
+
+    private VerifiedSocialSignupToken verifiedSignupToken(
+            UUID uploadId,
+            String email
+    ) {
+        return new VerifiedSocialSignupToken(
+                SocialProvider.GOOGLE,
+                SUBJECT,
+                uploadId,
+                email);
     }
 
     private SignatureStorageKeys storageKeys(UUID uploadId) {

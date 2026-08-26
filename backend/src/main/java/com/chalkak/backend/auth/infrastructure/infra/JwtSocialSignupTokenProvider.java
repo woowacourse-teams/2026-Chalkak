@@ -39,7 +39,9 @@ public class JwtSocialSignupTokenProvider implements
         SocialSignupTokenVerifier {
 
     private static final int SUBJECT_MAX_LENGTH = 255;
+    private static final int EMAIL_MAX_LENGTH = 320;
     private static final String PURPOSE = "SOCIAL_SIGNUP";
+    private static final String EMAIL_CLAIM = "email";
     private static final String PROVIDER_CLAIM = "provider";
     private static final String PURPOSE_CLAIM = "purpose";
     private static final String UPLOAD_ID_CLAIM = "uploadId";
@@ -77,7 +79,7 @@ public class JwtSocialSignupTokenProvider implements
     ) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.expiration());
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .audience(List.of(properties.audience()))
                 .subject(identity.subject())
@@ -86,12 +88,16 @@ public class JwtSocialSignupTokenProvider implements
                 .id(UUID.randomUUID().toString())
                 .claim(PURPOSE_CLAIM, PURPOSE)
                 .claim(PROVIDER_CLAIM, identity.provider().name())
-                .claim(UPLOAD_ID_CLAIM, uploadId.toString())
-                .build();
+                .claim(UPLOAD_ID_CLAIM, uploadId.toString());
+        if (identity.email() != null) {
+            claims.claim(EMAIL_CLAIM, identity.email());
+        }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
                 .type("JWT")
                 .build();
-        String value = jwtEncoder.encode(JwtEncoderParameters.from(header, claims))
+        String value = jwtEncoder.encode(JwtEncoderParameters.from(
+                        header,
+                        claims.build()))
                 .getTokenValue();
 
         return new IssuedSocialSignupToken(value);
@@ -104,7 +110,8 @@ public class JwtSocialSignupTokenProvider implements
             return new VerifiedSocialSignupToken(
                     getProvider(jwt),
                     getSubject(jwt),
-                    getUploadId(jwt));
+                    getUploadId(jwt),
+                    getEmail(jwt));
         } catch (JwtException | IllegalArgumentException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
@@ -189,5 +196,16 @@ public class JwtSocialSignupTokenProvider implements
             throw new IllegalArgumentException("Missing signature upload ID");
         }
         return UUID.fromString(uploadId);
+    }
+
+    private String getEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString(EMAIL_CLAIM);
+        if (email == null) {
+            return null;
+        }
+        if (email.isBlank() || email.length() > EMAIL_MAX_LENGTH) {
+            throw new IllegalArgumentException("Invalid social email");
+        }
+        return email;
     }
 }

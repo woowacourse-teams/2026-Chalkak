@@ -60,9 +60,6 @@ public class AuthController implements AuthApiDocs {
             @Valid @RequestBody SocialSignupRequest request
     ) {
         return ResponseEntity.ok(SocialSignupResponse.from(
-                socialSignupService.signup(
-                        request.provider(),
-                        request.idToken(),
-                        request.signatureOriginalUploadId())));
+                socialSignupService.signup(request.signupToken())));
     }
 }

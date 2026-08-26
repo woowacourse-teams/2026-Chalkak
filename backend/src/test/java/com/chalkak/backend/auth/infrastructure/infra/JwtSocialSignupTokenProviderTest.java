@@ -58,6 +58,30 @@ class JwtSocialSignupTokenProviderTest {
         assertThat(verifiedToken.provider()).isEqualTo(SocialProvider.GOOGLE);
         assertThat(verifiedToken.subject()).isEqualTo(SUBJECT);
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
+        assertThat(verifiedToken.email()).isEqualTo("user@chalkak.test");
+    }
+
+    @Test
+    @DisplayName("소셜 제공자가 이메일을 제공하지 않아도 회원가입 토큰을 발급하고 검증한다")
+    void issue_nullEmail_verifiesSignupTokenWithoutEmail() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+        VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
+                SocialProvider.GOOGLE,
+                SUBJECT,
+                null);
+
+        // When
+        IssuedSocialSignupToken issuedToken = provider.issue(
+                identity,
+                UUID.randomUUID());
+        VerifiedSocialSignupToken verifiedToken = provider.verify(
+                issuedToken.value());
+
+        // Then
+        assertThat(verifiedToken.email()).isNull();
     }
 
     @Test
