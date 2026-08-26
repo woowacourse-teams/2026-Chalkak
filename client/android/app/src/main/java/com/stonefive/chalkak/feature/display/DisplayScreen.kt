@@ -40,8 +40,8 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
-import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 @Composable
 fun DisplayRoute(

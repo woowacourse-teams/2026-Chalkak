@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -19,7 +20,7 @@ class SettingsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `회원은 사인과 계정 관리 메뉴를 본다`() {
+    fun memberSeesSignatureAndAccountManagementOptions() {
         setSettingsContent(
             SettingsUiState(
                 isLoggedIn = true,
@@ -35,7 +36,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `비회원은 로그인 버튼만 본다`() {
+    fun guestSeesOnlyLoginButton() {
         var loginClicked = false
         setSettingsContent(
             uiState = SettingsUiState(
@@ -53,7 +54,33 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `로그아웃 확인 다이얼로그를 표시하고 확인할 수 있다`() {
+    fun tappingPrivacyPolicyRowInvokesPrivacyPolicyCallback() {
+        var privacyPolicyClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(versionName = "1.0"),
+            onPrivacyPolicyClick = { privacyPolicyClickCount++ },
+        )
+
+        composeRule.onNodeWithText("개인정보처리방침").performClick()
+
+        assertEquals(1, privacyPolicyClickCount)
+    }
+
+    @Test
+    fun tappingTermsRowInvokesTermsCallback() {
+        var termsClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(versionName = "1.0"),
+            onTermsClick = { termsClickCount++ },
+        )
+
+        composeRule.onNodeWithText("이용약관").performClick()
+
+        assertEquals(1, termsClickCount)
+    }
+
+    @Test
+    fun logoutConfirmationDialogCanBeConfirmed() {
         var confirmed = false
         setSettingsContent(
             uiState = SettingsUiState(
@@ -71,7 +98,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `회원탈퇴 확인 다이얼로그를 취소할 수 있다`() {
+    fun accountDeletionConfirmationDialogCanBeDismissed() {
         var dismissed = false
         setSettingsContent(
             uiState = SettingsUiState(
@@ -91,6 +118,8 @@ class SettingsScreenTest {
     private fun setSettingsContent(
         uiState: SettingsUiState,
         onLoginClick: () -> Unit = {},
+        onPrivacyPolicyClick: () -> Unit = {},
+        onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
     ) {
@@ -100,8 +129,8 @@ class SettingsScreenTest {
                     uiState = uiState,
                     onLoginClick = onLoginClick,
                     onChangeSignatureClick = {},
-                    onPrivacyPolicyClick = {},
-                    onTermsClick = {},
+                    onPrivacyPolicyClick = onPrivacyPolicyClick,
+                    onTermsClick = onTermsClick,
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,

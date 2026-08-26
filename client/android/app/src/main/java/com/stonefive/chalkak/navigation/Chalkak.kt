@@ -13,6 +13,9 @@ data object Terms
 data class Signature(val origin: SignatureOrigin)
 
 @Serializable
+data object SignaturePreview
+
+@Serializable
 @Keep
 enum class SignatureOrigin {
     ONBOARDING,

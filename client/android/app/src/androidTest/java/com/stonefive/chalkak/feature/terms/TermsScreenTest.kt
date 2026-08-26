@@ -1,12 +1,15 @@
 package com.stonefive.chalkak.feature.terms
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -17,7 +20,7 @@ class TermsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `약관 동의 화면의 필수 항목과 다음 버튼이 표시된다`() {
+    fun termsScreenShowsRequiredAgreementsAndNextButton() {
         composeRule.setContent {
             ChalkakTheme {
                 TermsRoute(onNextClick = {})
@@ -34,7 +37,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `전체 동의하면 다음 버튼이 활성화된다`() {
+    fun agreeingToAllTermsEnablesNextButton() {
         var nextClicked = false
         composeRule.setContent {
             ChalkakTheme {
@@ -52,7 +55,7 @@ class TermsScreenTest {
     }
 
     @Test
-    fun `필수 약관을 모두 동의해야 다음 버튼을 누를 수 있다`() {
+    fun nextButtonRequiresAllMandatoryAgreements() {
         var nextClicked = false
         composeRule.setContent {
             ChalkakTheme {
@@ -73,5 +76,55 @@ class TermsScreenTest {
             .assertIsEnabled()
             .performClick()
         assertTrue(nextClicked)
+    }
+
+    @Test
+    fun firstViewButtonOpensTermsWithoutChangingAgreementState() {
+        var serviceTermsViewCount = 0
+        var privacyPolicyViewCount = 0
+        composeRule.setContent {
+            ChalkakTheme {
+                TermsRoute(
+                    onNextClick = {},
+                    onServiceTermsViewClick = { serviceTermsViewCount++ },
+                    onPrivacyPolicyViewClick = { privacyPolicyViewCount++ },
+                )
+            }
+        }
+
+        composeRule
+            .onAllNodesWithText("보기")
+            .assertCountEquals(2)
+            .get(0)
+            .performClick()
+
+        assertEquals(1, serviceTermsViewCount)
+        assertEquals(0, privacyPolicyViewCount)
+        composeRule.onNodeWithText("다음").assertIsNotEnabled()
+    }
+
+    @Test
+    fun secondViewButtonOpensPrivacyPolicyWithoutChangingAgreementState() {
+        var serviceTermsViewCount = 0
+        var privacyPolicyViewCount = 0
+        composeRule.setContent {
+            ChalkakTheme {
+                TermsRoute(
+                    onNextClick = {},
+                    onServiceTermsViewClick = { serviceTermsViewCount++ },
+                    onPrivacyPolicyViewClick = { privacyPolicyViewCount++ },
+                )
+            }
+        }
+
+        composeRule
+            .onAllNodesWithText("보기")
+            .assertCountEquals(2)
+            .get(1)
+            .performClick()
+
+        assertEquals(0, serviceTermsViewCount)
+        assertEquals(1, privacyPolicyViewCount)
+        composeRule.onNodeWithText("다음").assertIsNotEnabled()
     }
 }

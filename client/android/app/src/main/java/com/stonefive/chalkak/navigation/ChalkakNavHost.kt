@@ -1,15 +1,25 @@
 package com.stonefive.chalkak.navigation
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.legal.LegalDocument
+import com.stonefive.chalkak.core.legal.LegalDocumentDialog
+import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.display.DisplayRoute
@@ -19,6 +29,7 @@ import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
+import com.stonefive.chalkak.feature.signature.SignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
@@ -31,6 +42,33 @@ fun ChalkakNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
+    val context = LocalContext.current
+    var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
+    var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
+    val legalDocumentLauncher = remember {
+        LegalDocumentLauncher(
+            showLegalDocument = { selectedLegalDocument = it },
+            onOpenFailed = {
+                Toast
+                    .makeText(
+                        context,
+                        "문서를 열 수 없어요",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+            },
+        )
+    }
+
+    selectedLegalDocument?.let { document ->
+        LegalDocumentDialog(
+            document = document,
+            closeContentDescription = "닫기",
+            loadFailedText = "문서를 불러오지 못했어요",
+            retryText = "다시 시도",
+            onDismiss = { selectedLegalDocument = null },
+        )
+    }
+
     NavHost(
         navController = navController,
         startDestination = Login,
@@ -49,6 +87,12 @@ fun ChalkakNavHost(
                 onNextClick = {
                     navController.navigate(Signature(SignatureOrigin.ONBOARDING))
                 },
+                onServiceTermsViewClick = {
+                    legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
+                },
+                onPrivacyPolicyViewClick = {
+                    legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
+                },
             )
         }
 
@@ -56,14 +100,33 @@ fun ChalkakNavHost(
             val signature = backStackEntry.toRoute<Signature>()
 
             SignatureRoute(
-                onSignatureSaved = {
+                onSignatureSaved = { signaturePng ->
                     when (signature.origin) {
-                        SignatureOrigin.ONBOARDING -> navController.navigate(Today) {
-                            popUpTo<Login> { inclusive = true }
+                        SignatureOrigin.ONBOARDING -> {
+                            signaturePreviewPng = signaturePng
+                            navController.navigate(SignaturePreview)
                         }
 
                         SignatureOrigin.SETTINGS -> navController.popBackStack()
                     }
+                },
+            )
+        }
+
+        composable<SignaturePreview> {
+            SignaturePreviewRoute(
+                imageModel = R.drawable.preview_photo,
+                signatureModel = signaturePreviewPng
+                    ?: R.drawable.preview_signature,
+                onRedrawClick = {
+                    navController.popBackStack()
+                    signaturePreviewPng = null
+                },
+                onStartClick = {
+                    navController.navigate(Today) {
+                        popUpTo<Login> { inclusive = true }
+                    }
+                    signaturePreviewPng = null
                 },
             )
         }
@@ -151,8 +214,12 @@ fun ChalkakNavHost(
                 onNavigateToSignature = {
                     navController.navigate(Signature(SignatureOrigin.SETTINGS))
                 },
-                onOpenPrivacyPolicy = {},
-                onOpenTerms = {},
+                onOpenPrivacyPolicy = {
+                    legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
+                },
+                onOpenTerms = {
+                    legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
+                },
                 onNavigateToBottomBar = navController::navigateToBottomBar,
                 onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
             )

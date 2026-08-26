@@ -93,7 +93,7 @@ class SignatureViewModel(
             try {
                 val signaturePng = pngEncoder.encode(state.strokes)
                 signatureRepository.uploadSignature(signaturePng)
-                _uiEvent.send(SignatureUiEvent.SignatureSaved)
+                _uiEvent.send(SignatureUiEvent.SignatureSaved(signaturePng))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {

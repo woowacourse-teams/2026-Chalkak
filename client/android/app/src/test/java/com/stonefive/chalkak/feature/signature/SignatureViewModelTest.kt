@@ -65,7 +65,8 @@ class SignatureViewModelTest {
 
         assertArrayEquals(encodedPng, repository.uploadedPng)
         assertEquals(1, encoder.encodeCount)
-        assertEquals(SignatureUiEvent.SignatureSaved, viewModel.uiEvent.first())
+        val event = viewModel.uiEvent.first() as SignatureUiEvent.SignatureSaved
+        assertArrayEquals(encodedPng, event.signaturePng)
         assertFalse(viewModel.uiState.value.isSubmitting)
     }
 
