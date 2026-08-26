@@ -45,9 +45,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
+import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_SETTLE_DURATION_MILLIS
+import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
+import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
+import com.stonefive.chalkak.core.designsystem.scroll.ScrollToTopButtonState
+import com.stonefive.chalkak.core.designsystem.scroll.bottomBarOffsetAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
+import com.stonefive.chalkak.core.designsystem.scroll.scrollToTopButtonStateAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
@@ -113,7 +120,7 @@ fun DisplayScreen(
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
-    val scrollToTopToggleThresholdPx = with(density) { ScrollToTopToggleThreshold.toPx() }
+    val scrollToTopToggleThresholdPx = with(density) { CollapsingScrollToTopThreshold.toPx() }
     val filterContributionPx = if (uiState.content is DisplayContentState.Latest) {
         filterHeight + filterOffset
     } else {
@@ -129,13 +136,13 @@ fun DisplayScreen(
     fun settleTopAreas() {
         settleJob.value?.cancel()
         val initialHeaderOffset = headerOffset
-        val targetHeaderOffset = settleDisplayAreaOffset(
+        val targetHeaderOffset = settleCollapsingOffset(
             currentOffset = initialHeaderOffset,
             hiddenOffset = -headerHeight.toFloat(),
             restingOffset = if (isHeaderTargetHidden) -headerHeight.toFloat() else 0f,
         )
         val initialFilterOffset = filterOffset
-        val targetFilterOffset = settleDisplayAreaOffset(
+        val targetFilterOffset = settleCollapsingOffset(
             currentOffset = initialFilterOffset,
             hiddenOffset = -filterHeight.toFloat(),
             restingOffset = if (isFilterTargetHidden) -filterHeight.toFloat() else 0f,
@@ -167,7 +174,7 @@ fun DisplayScreen(
         val initialOffset = bottomBarOffset
         val hiddenOffset = bottomBarHeight.toFloat()
 
-        val targetOffset = settleDisplayAreaOffset(
+        val targetOffset = settleCollapsingOffset(
             currentOffset = initialOffset,
             hiddenOffset = hiddenOffset,
             restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
@@ -180,7 +187,7 @@ fun DisplayScreen(
             animate(
                 initialValue = initialOffset,
                 targetValue = targetOffset,
-                animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
             ) { value, _ -> bottomBarOffset = value }
         }
     }
@@ -352,7 +359,7 @@ fun DisplayScreen(
                     .fillMaxWidth()
                     .windowInsetsTopHeight(WindowInsets.statusBars)
                     .background(
-                        ChalkakBackground.copy(alpha = DISPLAY_FLOATING_BACKGROUND_ALPHA),
+                        ChalkakBackground.copy(alpha = COLLAPSING_FLOATING_BACKGROUND_ALPHA),
                     ),
             )
             Box(
@@ -389,7 +396,7 @@ fun DisplayScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            ChalkakBackground.copy(alpha = DISPLAY_FLOATING_BACKGROUND_ALPHA),
+                            ChalkakBackground.copy(alpha = COLLAPSING_FLOATING_BACKGROUND_ALPHA),
                         ).clipToBounds()
                         .collapsingArea(filterOffset),
                 ) {
@@ -404,7 +411,7 @@ fun DisplayScreen(
             }
         }
         if (isScrollToTopButtonVisible) {
-            Surface(
+            ChalkakScrollToTopButton(
                 onClick = {
                     settleScope.launch {
                         resetScrollState()
@@ -416,20 +423,8 @@ fun DisplayScreen(
                     .padding(
                         end = 24.dp,
                         bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
-                    ).size(44.dp),
-                shape = CircleShape,
-                color = ChalkakWhite,
-                shadowElevation = 12.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_up),
-                        contentDescription = "맨 위로",
-                        tint = ChalkakTheme.colors.iconPrimary,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
+                    ),
+            )
         }
         ChalkakBottomBar(
             selectedItem = ChalkakBottomBarItem.DISPLAY,

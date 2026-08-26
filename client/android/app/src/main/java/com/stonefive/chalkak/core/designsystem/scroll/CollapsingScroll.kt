@@ -1,14 +1,15 @@
-package com.stonefive.chalkak.feature.display
+package com.stonefive.chalkak.core.designsystem.scroll
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
-internal const val BAR_SETTLE_DURATION_MILLIS = 220
-internal const val BAR_SETTLE_BREAK_THRESHOLD = 0.05f
-internal val ScrollToTopToggleThreshold = 12.dp
-internal const val DISPLAY_FLOATING_BACKGROUND_ALPHA = 0.86f
+internal const val COLLAPSING_SETTLE_DURATION_MILLIS = 220
+internal val CollapsingScrollToTopThreshold = 12.dp
+internal const val COLLAPSING_FLOATING_BACKGROUND_ALPHA = 0.86f
+
+private const val SETTLE_BREAK_THRESHOLD = 0.05f
 
 internal fun Modifier.collapsingArea(offset: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
@@ -20,7 +21,7 @@ internal fun Modifier.collapsingArea(offset: Float): Modifier = layout { measura
     }
 }
 
-internal fun settleDisplayAreaOffset(
+internal fun settleCollapsingOffset(
     currentOffset: Float,
     hiddenOffset: Float,
     restingOffset: Float,
@@ -30,7 +31,7 @@ internal fun settleDisplayAreaOffset(
     val restingProgress = restingOffset / hiddenOffset
     val currentProgress = (currentOffset / hiddenOffset).coerceIn(0f, 1f)
     val movedFromResting = abs(currentProgress - restingProgress)
-    if (movedFromResting <= BAR_SETTLE_BREAK_THRESHOLD) return restingOffset
+    if (movedFromResting <= SETTLE_BREAK_THRESHOLD) return restingOffset
     return if (restingProgress == 0f) hiddenOffset else 0f
 }
 

@@ -46,9 +46,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_SETTLE_DURATION_MILLIS
+import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
+import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
+import com.stonefive.chalkak.core.designsystem.scroll.ScrollToTopButtonState
+import com.stonefive.chalkak.core.designsystem.scroll.bottomBarOffsetAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
+import com.stonefive.chalkak.core.designsystem.scroll.scrollToTopButtonStateAfterScroll
+import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
@@ -112,7 +118,7 @@ fun HomeScreen(
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
         HomeTopBarHeight.toPx()
     }
-    val scrollToTopToggleThresholdPx = with(density) { ScrollToTopToggleThreshold.toPx() }
+    val scrollToTopToggleThresholdPx = with(density) { CollapsingScrollToTopThreshold.toPx() }
     val visibleTopAreaHeightPx =
         (fixedTopAreaHeightPx + topAreaHeight + topAreaOffset).coerceAtLeast(0f)
     val isTopAreaVisible = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
@@ -139,7 +145,7 @@ fun HomeScreen(
         settleJob.value?.cancel()
 
         val initialTopOffset = topAreaOffset
-        val targetTopOffset = settleBarOffset(
+        val targetTopOffset = settleCollapsingOffset(
             currentOffset = initialTopOffset,
             hiddenOffset = -topAreaHeight.toFloat(),
             restingOffset = if (isTopAreaTargetHidden) -topAreaHeight.toFloat() else 0f,
@@ -152,7 +158,7 @@ fun HomeScreen(
             animate(
                 initialValue = 0f,
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
             ) { progress, _ ->
                 topAreaOffset = initialTopOffset +
                     ((targetTopOffset - initialTopOffset) * progress)
@@ -165,7 +171,7 @@ fun HomeScreen(
         val initialOffset = bottomBarOffset
         val hiddenOffset = bottomBarHeight.toFloat()
 
-        val targetOffset = settleBarOffset(
+        val targetOffset = settleCollapsingOffset(
             currentOffset = initialOffset,
             hiddenOffset = hiddenOffset,
             restingOffset = if (isBottomBarTargetHidden) hiddenOffset else 0f,
@@ -178,7 +184,7 @@ fun HomeScreen(
             animate(
                 initialValue = initialOffset,
                 targetValue = targetOffset,
-                animationSpec = tween(durationMillis = BAR_SETTLE_DURATION_MILLIS),
+                animationSpec = tween(durationMillis = COLLAPSING_SETTLE_DURATION_MILLIS),
             ) { value, _ -> bottomBarOffset = value }
         }
     }
@@ -304,7 +310,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clipToBounds()
-                    .collapsingTopArea(topAreaOffset),
+                    .collapsingArea(topAreaOffset),
             ) {
                 Column(
                     modifier = Modifier
@@ -348,7 +354,7 @@ fun HomeScreen(
             )
         }
         if (isScrollToTopButtonVisible) {
-            Surface(
+            ChalkakScrollToTopButton(
                 onClick = {
                     interactionScope.launch {
                         resetHomePosition()
@@ -360,20 +366,8 @@ fun HomeScreen(
                     .padding(
                         end = 24.dp,
                         bottom = with(density) { bottomBarHeight.toDp() } + 18.dp,
-                    ).size(44.dp),
-                shape = CircleShape,
-                color = ChalkakWhite,
-                shadowElevation = 12.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_up),
-                        contentDescription = "맨 위로",
-                        tint = ChalkakTheme.colors.iconPrimary,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
+                    ),
+            )
         }
         ChalkakBottomBar(
             selectedItem = ChalkakBottomBarItem.TODAY,
