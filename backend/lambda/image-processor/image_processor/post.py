@@ -375,13 +375,35 @@ class PostImageProcessor:
         )
 
     def _upload(self, bucket: str, key: str, body: bytes) -> None:
-        self._s3_client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=body,
-            ContentType=WEBP_CONTENT_TYPE,
-            CacheControl=self._settings.post_cache_control,
-        )
+        """
+        목적지 키는 한 번만 쓴다. presigned URL은 만료 전까지 횟수 제한 없이 재사용할 수 있어서, 게시물이
+        승인된 뒤에도 같은 staging 키에 다른 이미지를 올리면 이 함수가 공개 이미지를 덮어쓴다.
+
+        조건부 쓰기가 실패하면 이미 올라간 객체를 그대로 두고 진행한다. 완료 콜백을 보내기 전에 죽었다가
+        재시도된 정상 경로에서는 그 콜백이 이어져야 하고, 덮어쓰기 시도였다면 백엔드가 ISSUED가 아닌
+        업로드의 콜백을 무시하므로 어느 쪽도 상태를 망가뜨리지 않는다.
+        """
+        try:
+            self._s3_client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=body,
+                ContentType=WEBP_CONTENT_TYPE,
+                CacheControl=self._settings.post_cache_control,
+                IfNoneMatch="*",
+            )
+        except ClientError as exception:
+            if not _is_precondition_failed(exception):
+                raise
+            LOGGER.warning(
+                json.dumps(
+                    {
+                        "event": "post_image_destination_already_exists",
+                        "bucket": bucket,
+                        "key": key,
+                    }
+                )
+            )
 
 
 def _encoded_size(attributes: dict[str, Any]) -> int:
@@ -394,6 +416,14 @@ def _serializable(value: Any) -> Any:
     if isinstance(value, bytes):
         return None
     return str(value)
+
+
+def _is_precondition_failed(exception: ClientError) -> bool:
+    error = exception.response.get("Error", {})
+    if error.get("Code") in {"PreconditionFailed", "412"}:
+        return True
+    metadata = exception.response.get("ResponseMetadata", {})
+    return metadata.get("HTTPStatusCode") == 412
 
 
 def _exif_ifd(exif: Image.Exif) -> dict[int, Any]:

@@ -173,6 +173,46 @@ class PostImageProcessorTest(unittest.TestCase):
         original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_KEY)["Body"]))
         self.assertEqual((400, 300), original.size)
 
+    def test_process_writes_destination_only_when_absent(self) -> None:
+        self.given_object(webp_bytes())
+
+        self.processor.process(self.event())
+
+        for key in (ORIGINAL_KEY, THUMBNAIL_KEY):
+            self.assertEqual("*", self.uploaded(key)["IfNoneMatch"])
+
+    def test_process_keeps_existing_destination_and_still_completes(self) -> None:
+        from botocore.exceptions import ClientError
+
+        self.s3_client.put_object.side_effect = ClientError(
+            {
+                "Error": {"Code": "PreconditionFailed"},
+                "ResponseMetadata": {"HTTPStatusCode": 412},
+            },
+            "PutObject",
+        )
+        self.given_object(webp_bytes())
+
+        self.processor.process(self.event())
+
+        self.callback_client.complete.assert_called_once()
+        self.s3_client.delete_object.assert_called_once_with(
+            Bucket=BUCKET, Key=STAGING_KEY
+        )
+
+    def test_process_propagates_other_put_errors(self) -> None:
+        from botocore.exceptions import ClientError
+
+        self.s3_client.put_object.side_effect = ClientError(
+            {"Error": {"Code": "AccessDenied"}}, "PutObject"
+        )
+        self.given_object(webp_bytes())
+
+        with self.assertRaises(ClientError):
+            self.processor.process(self.event())
+
+        self.callback_client.complete.assert_not_called()
+
     def test_process_routes_prod_key_to_prod_destination(self) -> None:
         self.given_object(webp_bytes())
 
