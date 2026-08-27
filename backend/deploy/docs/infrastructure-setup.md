@@ -138,6 +138,8 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - `GOOGLE_OIDC_CLIENT_ID`에는 모바일이 ID Token 발급 시 사용하는 백엔드용 Google Web Client ID를 설정한다.
 - `KAKAO_OIDC_APP_KEY`에는 Android와 iOS Kakao SDK가 공통으로 사용하는 네이티브 앱 키를 설정한다.
 - `SOCIAL_SIGNUP_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. 값을 바꾸면 기존 회원가입 토큰이 무효화된다.
+- `ACCESS_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. `SOCIAL_SIGNUP_TOKEN_SECRET`와도 반드시 다른 값을 쓴다. 값을 바꾸면 발급된 액세스 토큰이 모두 무효화되어 사용자가 다시 로그인해야 한다.
+- `ACCESS_TOKEN_EXPIRATION`은 생략하면 `1h`를 사용한다. `30m`, `PT1H` 형식을 모두 받는다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
 - `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성한다. Lambda의
   `IMAGE_PROCESSING_API_SECRET`에는 이 값과 동일한 값을 설정한다.
