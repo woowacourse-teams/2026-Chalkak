@@ -232,8 +232,8 @@ class UserControllerTest {
         // Given
         UUID userId = UUID.randomUUID();
         willThrow(new BusinessException(
-                ErrorCode.SIGNATURE_PROCESSING_FAILED,
-                "사인 이미지 처리에 실패했습니다. 새 이미지를 등록해 주세요."))
+                ErrorCode.SIGNATURE_REGISTRATION_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요."))
                 .given(userService).getSignature(userId);
 
         // When & Then
@@ -241,9 +241,9 @@ class UserControllerTest {
                         .header(USER_ID_HEADER, userId.toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
-                        .value("SIGNATURE_PROCESSING_FAILED"))
+                        .value("SIGNATURE_REGISTRATION_REQUIRED"))
                 .andExpect(jsonPath("$.message")
-                        .value("사인 이미지 처리에 실패했습니다. 새 이미지를 등록해 주세요."));
+                        .value("사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요."));
     }
 
     @Test
@@ -262,6 +262,31 @@ class UserControllerTest {
                         .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.signatureOriginalImageUrl").value(imageUrl));
+    }
+
+    @Test
+    @DisplayName("실패한 사인 업로드를 다시 요청하면 이미지 재업로드 오류를 반환한다")
+    void updateSignature_failedUpload_returnsReuploadRequired() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        UUID uploadId = UUID.randomUUID();
+        willThrow(new BusinessException(
+                ErrorCode.SIGNATURE_REUPLOAD_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요."))
+                .given(userService).updateSignature(userId, uploadId);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/users/me/signature")
+                        .header(USER_ID_HEADER, userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("SIGNATURE_REUPLOAD_REQUIRED"))
+                .andExpect(jsonPath("$.message")
+                        .value("사인 이미지 처리에 실패했습니다. "
+                                + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요."));
     }
 
     @Test

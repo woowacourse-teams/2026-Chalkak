@@ -72,7 +72,7 @@ public class UserService {
             return getSignatureImageUrl(user);
         }
 
-        validateSignatureProcessingNotFailed(user, uploadId);
+        validateSignatureUploadNotFailed(user, uploadId);
 
         // 동일한 비동기 작업의 재요청이면 처리 시각과 상태를 초기화하지 않는다.
         if (user.isSignatureProcessing(uploadId)) {
@@ -127,19 +127,20 @@ public class UserService {
         }
 
         throw new BusinessException(
-                ErrorCode.SIGNATURE_PROCESSING_FAILED,
-                "사인 이미지 처리에 실패했습니다. 새 이미지를 등록해 주세요.");
+                ErrorCode.SIGNATURE_REGISTRATION_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요.");
     }
 
-    private void validateSignatureProcessingNotFailed(User user, UUID uploadId) {
-        // 영구 실패한 업로드는 같은 바이트를 다시 처리해도 실패하므로 재등록만이 탈출구다.
+    private void validateSignatureUploadNotFailed(User user, UUID uploadId) {
+        // 실패가 확정된 업로드 ID는 종료된 작업이므로 새로운 업로드 ID로 다시 시작해야 한다.
         if (!user.isSignatureProcessingFailed(uploadId)) {
             return;
         }
 
         throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "처리할 수 없는 사인 이미지입니다. 새 이미지를 업로드해 주세요.");
+                ErrorCode.SIGNATURE_REUPLOAD_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요.");
     }
 
     private void validateSignatureImage(

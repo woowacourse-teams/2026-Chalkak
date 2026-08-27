@@ -81,7 +81,8 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "사인 이미지 처리 실패 또는 15분 타임아웃",
+                    description = "사인 재등록 필요(SIGNATURE_REGISTRATION_REQUIRED): "
+                            + "사인 이미지 처리 실패 또는 15분 타임아웃",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -117,7 +118,8 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 이미지 업로드 정보",
+                    description = "잘못된 이미지 업로드 정보 또는 이미지 재업로드 필요"
+                            + "(SIGNATURE_REUPLOAD_REQUIRED)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

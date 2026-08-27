@@ -201,9 +201,9 @@ class UserServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> userService.getSignature(userId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("사인 이미지 처리에 실패했습니다. 새 이미지를 등록해 주세요.")
+                .hasMessage("사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요.")
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.SIGNATURE_PROCESSING_FAILED));
+                        .isEqualTo(ErrorCode.SIGNATURE_REGISTRATION_REQUIRED));
 
         flushAndClear();
         User updated = userRepository.findById(userId).orElseThrow();
@@ -256,7 +256,7 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> userService.getSignature(userId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.SIGNATURE_PROCESSING_FAILED));
+                        .isEqualTo(ErrorCode.SIGNATURE_REGISTRATION_REQUIRED));
     }
 
     @Test
@@ -507,8 +507,8 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("영구 실패한 사인 업로드를 다시 요청하면 재등록하도록 거부한다")
-    void updateSignature_sameFailedUploadId_throwsBusinessException() {
+    @DisplayName("실패한 사인 업로드를 다시 요청하면 새 업로드가 필요하다고 안내한다")
+    void updateSignature_sameFailedUploadId_throwsReuploadRequiredException() {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
@@ -534,7 +534,10 @@ class UserServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("처리할 수 없는 사인 이미지입니다. 새 이미지를 업로드해 주세요.");
+                .hasMessage("사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요.")
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.SIGNATURE_REUPLOAD_REQUIRED));
 
         User updated = userRepository.findById(id).orElseThrow();
         assertThat(updated.getSignatureOriginalStorageKey())
