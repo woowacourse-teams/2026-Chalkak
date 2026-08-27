@@ -1,7 +1,7 @@
 package com.stonefive.chalkak
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -10,6 +10,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.navigation.ChalkakNavHost
+import com.stonefive.chalkak.navigation.Terms
 import org.junit.Rule
 import org.junit.Test
 
@@ -18,8 +21,12 @@ class SignatureFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun navigatesFromLoginThroughSignaturePreviewToHomeAndDisplay() {
-        composeRule.onNodeWithText("Google로 계속하기").performClick()
+    fun navigatesFromTermsToSignaturePreview() {
+        composeRule.activity.setContent {
+            ChalkakTheme {
+                ChalkakNavHost(startDestination = Terms)
+            }
+        }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
@@ -57,23 +64,6 @@ class SignatureFlowTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithText("시작하기").performClick()
-
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule
-                .onAllNodesWithText("하늘하늘하늘")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
-        }
-        composeRule.onNodeWithText("하늘하늘하늘").assertIsDisplayed()
-
-        composeRule.onNodeWithText("전시").performClick()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule
-                .onAllNodesWithText("바다")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
-        }
-        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule.onNodeWithText("시작하기").assertIsEnabled()
     }
 }

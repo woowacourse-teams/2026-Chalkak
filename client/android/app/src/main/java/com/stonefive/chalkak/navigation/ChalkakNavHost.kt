@@ -40,6 +40,7 @@ import java.time.LocalDate
 fun ChalkakNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    startDestination: Any = Login,
 ) {
     val context = LocalContext.current
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
@@ -70,12 +71,12 @@ fun ChalkakNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = Login,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
         composable<Login> {
             LoginRoute(
-                onLoginSuccess = {
+                onSignUpRequired = {
                     navController.navigate(Terms)
                 },
             )
@@ -113,21 +114,22 @@ fun ChalkakNavHost(
         }
 
         composable<SignaturePreview> {
-            SignaturePreviewRoute(
-                imageModel = R.drawable.preview_photo,
-                signatureModel = signaturePreviewPng
-                    ?: R.drawable.preview_signature,
-                onRedrawClick = {
-                    navController.popBackStack()
-                    signaturePreviewPng = null
-                },
-                onStartClick = {
-                    navController.navigate(Today) {
-                        popUpTo<Login> { inclusive = true }
-                    }
-                    signaturePreviewPng = null
-                },
-            )
+            signaturePreviewPng?.let { signaturePng ->
+                SignaturePreviewRoute(
+                    imageModel = R.drawable.preview_photo,
+                    signaturePng = signaturePng,
+                    onRedrawClick = {
+                        navController.popBackStack()
+                        signaturePreviewPng = null
+                    },
+                    onReauthenticationRequired = {
+                        navController.navigate(Login) {
+                            popUpTo<Login> { inclusive = true }
+                        }
+                        signaturePreviewPng = null
+                    },
+                )
+            }
         }
 
         composable<Today> {

@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.domain.repository.SignatureRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-class SignatureViewModel(
-    private val signatureRepository: SignatureRepository,
-    private val pngEncoder: SignaturePngEncoder,
-) : ViewModel() {
+class SignatureViewModel(private val pngEncoder: SignaturePngEncoder) : ViewModel() {
     private val _uiState = MutableStateFlow(SignatureUiState())
     val uiState: StateFlow<SignatureUiState> = _uiState.asStateFlow()
 
@@ -92,7 +87,6 @@ class SignatureViewModel(
             _uiState.value = state.copy(isSubmitting = true, error = null)
             try {
                 val signaturePng = pngEncoder.encode(state.strokes)
-                signatureRepository.uploadSignature(signaturePng)
                 _uiEvent.send(SignatureUiEvent.SignatureSaved(signaturePng))
             } catch (error: CancellationException) {
                 throw error
@@ -114,9 +108,7 @@ class SignatureViewModel(
     companion object {
         val Factory = viewModelFactory {
             initializer {
-                val application = this[APPLICATION_KEY] as ChalkakApplication
                 SignatureViewModel(
-                    signatureRepository = application.appContainer.signatureRepository,
                     pngEncoder = AndroidSignaturePngEncoder(),
                 )
             }

@@ -1,68 +1,180 @@
 package com.stonefive.chalkak.data.repository
 
-import com.stonefive.chalkak.data.remote.auth.AuthRemoteDataSource
-import com.stonefive.chalkak.data.remote.auth.model.AuthResponse
-import com.stonefive.chalkak.data.remote.auth.model.ProfileResponse
-import com.stonefive.chalkak.domain.model.AuthSession
+import com.stonefive.chalkak.data.local.auth.SessionStore
+import com.stonefive.chalkak.data.remote.ApiError
+import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.auth.AuthDataSource
+import com.stonefive.chalkak.data.remote.auth.model.response.SignatureUploadResponse
+import com.stonefive.chalkak.data.remote.auth.model.response.SocialLoginResponse
+import com.stonefive.chalkak.data.remote.auth.model.response.SocialSignUpResponse
+import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
+import com.stonefive.chalkak.data.remote.signature.SignatureUploader
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
-import kotlinx.coroutines.runBlocking
+import com.stonefive.chalkak.domain.model.SocialLoginResult
+import com.stonefive.chalkak.domain.model.SocialSignUpFailure
+import com.stonefive.chalkak.domain.model.SocialSignUpResult
+import com.stonefive.chalkak.domain.model.UserSessionState
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AuthRepositoryImplTest {
-    private val dataSource = RecordingAuthRemoteDataSource()
-    private val repository = AuthRepositoryImpl(dataSource)
+    private val authDataSource = FakeAuthDataSource()
+    private val uploader = FakeSignatureUploader()
+    private val sessionStore = FakeSessionStore()
+    private val retryDelays = mutableListOf<Long>()
+    private val repository = AuthRepositoryImpl(
+        authDataSource = authDataSource,
+        signatureUploader = uploader,
+        sessionStore = sessionStore,
+        retryDelay = retryDelays::add,
+    )
 
     @Test
-    fun `소셜 로그인 시 선택한 제공자를 원격 데이터 소스에 전달한다`() = runBlocking {
-        val result = repository.login(SocialLoginProvider.GOOGLE)
+    fun `기존 회원 로그인 성공 시 userId를 저장한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(
+                status = "LOGIN_SUCCESS",
+                userId = "user-id",
+            ),
+        )
 
-        assertEquals(SocialLoginProvider.GOOGLE, dataSource.requestedProvider)
-        assertEquals(AuthSession.Authenticated(SocialLoginProvider.GOOGLE), result)
+        val result = repository.login(SocialLoginProvider.GOOGLE, "id-token")
+
+        assertEquals(SocialLoginResult.LoginSuccess("user-id"), result)
+        assertEquals(SocialLoginProvider.GOOGLE, authDataSource.loginProvider)
+        assertEquals("id-token", authDataSource.loginIdToken)
+        assertEquals(UserSessionState.Authenticated("user-id"), sessionStore.sessionState.value)
     }
 
     @Test
-    fun `비회원으로 계속하면 원격 데이터 소스에 비회원 진입을 요청한다`() = runBlocking {
-        val result = repository.continueAsGuest()
+    fun `신규 회원은 사인을 한 번 업로드하고 처리 중 응답에는 가입 완료만 재시도한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+        )
+        authDataSource.signUpResults += ApiResult.Failure(
+            ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
+        )
+        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        val signaturePng = byteArrayOf(1, 2, 3)
 
-        assertEquals(1, dataSource.guestRequestCount)
-        assertEquals(AuthSession.Guest, result)
+        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        val result = repository.completeSocialSignUp(signaturePng)
+
+        assertEquals(SocialSignUpResult.Success("new-user-id"), result)
+        assertEquals(1, authDataSource.createUploadCount)
+        assertEquals(1, uploader.uploadCount)
+        assertArrayEquals(signaturePng, uploader.uploadedPng)
+        assertEquals(2, authDataSource.signUpCount)
+        assertEquals(listOf(1_000L), retryDelays)
+        assertEquals(listOf("signup-token", "signup-token"), authDataSource.signupTokens)
+        assertEquals(UserSessionState.Authenticated("new-user-id"), sessionStore.sessionState.value)
     }
 
     @Test
-    fun `내 프로필 응답을 도메인 모델로 변환한다`() = runBlocking {
-        dataSource.profileResponse = ProfileResponse(signatureUrl = "https://example.com/signature.png")
+    fun `처리 중 응답이 열 번 계속되면 타임아웃을 반환한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+        )
+        repeat(10) {
+            authDataSource.signUpResults += ApiResult.Failure(
+                ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
+            )
+        }
 
-        val result = repository.getMyProfile()
+        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        val result = repository.completeSocialSignUp(byteArrayOf(1))
 
-        assertEquals("https://example.com/signature.png", result?.signatureUrl)
+        assertEquals(
+            SocialSignUpResult.Failure(SocialSignUpFailure.SIGNATURE_PROCESSING_TIMEOUT),
+            result,
+        )
+        assertEquals(1, uploader.uploadCount)
+        assertEquals(10, authDataSource.signUpCount)
+        assertEquals(9, retryDelays.size)
+    }
+
+    @Test
+    fun `비회원으로 계속하면 게스트 세션으로 전환한다`() = runTest {
+        repository.continueAsGuest()
+
+        assertEquals(UserSessionState.Guest, repository.sessionState.value)
     }
 }
 
-private class RecordingAuthRemoteDataSource : AuthRemoteDataSource {
-    var requestedProvider: SocialLoginProvider? = null
-    var guestRequestCount: Int = 0
-    var profileResponse: ProfileResponse? = null
+private class FakeAuthDataSource : AuthDataSource {
+    var loginResult: ApiResult<SocialLoginResponse> =
+        ApiResult.Success(SocialLoginResponse(status = "SIGN_UP_REQUIRED"))
+    var loginProvider: SocialLoginProvider? = null
+    var loginIdToken: String? = null
+    var createUploadCount = 0
+    var signUpCount = 0
+    val signupTokens = mutableListOf<String>()
+    val signUpResults = ArrayDeque<ApiResult<SocialSignUpResponse>>()
 
-    override suspend fun login(provider: SocialLoginProvider): AuthResponse {
-        requestedProvider = provider
-        return AuthResponse(
-            provider = provider.name,
-            isGuest = false,
+    override suspend fun socialLogin(
+        provider: SocialLoginProvider,
+        idToken: String,
+    ): ApiResult<SocialLoginResponse> {
+        loginProvider = provider
+        loginIdToken = idToken
+        return loginResult
+    }
+
+    override suspend fun createSignatureUpload(
+        provider: SocialLoginProvider,
+        idToken: String,
+    ): ApiResult<SignatureUploadResponse> {
+        createUploadCount += 1
+        return ApiResult.Success(
+            SignatureUploadResponse(
+                uploadId = "upload-id",
+                uploadUrl = "https://example.com/upload",
+                expiresInSeconds = 300,
+                signupToken = "signup-token",
+                signupTokenExpiresInSeconds = 1_800,
+            ),
         )
     }
 
-    override suspend fun continueAsGuest(): AuthResponse {
-        guestRequestCount += 1
-        return AuthResponse(
-            provider = null,
-            isGuest = true,
-        )
+    override suspend fun socialSignUp(signupToken: String): ApiResult<SocialSignUpResponse> {
+        signUpCount += 1
+        signupTokens += signupToken
+        return signUpResults.removeFirst()
+    }
+}
+
+private class FakeSignatureUploader : SignatureUploader {
+    var uploadCount = 0
+    var uploadedPng = ByteArray(0)
+
+    override suspend fun upload(
+        uploadUrl: String,
+        signaturePng: ByteArray,
+    ): SignatureUploadResult {
+        uploadCount += 1
+        uploadedPng = signaturePng
+        return SignatureUploadResult.Success
+    }
+}
+
+private class FakeSessionStore : SessionStore {
+    private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+
+    override val sessionState: StateFlow<UserSessionState> = mutableSessionState
+
+    override suspend fun continueAsGuest() {
+        mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun getMyProfile(): ProfileResponse? = profileResponse
+    override suspend fun saveUserId(userId: String) {
+        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    }
 
-    override suspend fun logout() = Unit
-
-    override suspend fun withdraw() = Unit
+    override suspend fun clear() {
+        mutableSessionState.value = UserSessionState.SignedOut
+    }
 }
