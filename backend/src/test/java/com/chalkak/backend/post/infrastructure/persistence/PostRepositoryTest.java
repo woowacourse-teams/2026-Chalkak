@@ -246,6 +246,8 @@ class PostRepositoryTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "UPDATE posts SET moderation_status = 'VALIDATING'",
+            "UPDATE posts SET moderation_status = 'PENDING'",
             "UPDATE posts SET moderation_status = 'REJECTED'",
             "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP",
             "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP",
@@ -338,12 +340,14 @@ class PostRepositoryTest {
         assertThat(result).isEmpty();
     }
 
-    @Test
-    @DisplayName("미승인 게시물은 조회하지 않는다")
-    void findVisibleById_rejectedPost_returnsEmpty() {
+    @ParameterizedTest
+    @ValueSource(strings = {"VALIDATING", "PENDING", "REJECTED"})
+    @DisplayName("승인되지 않은 게시물은 상세 조회하지 않는다")
+    void findVisibleById_unapprovedPost_returnsEmpty(String moderationStatus) {
         // Given
         jdbcTemplate.update(
-                "UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
+                "UPDATE posts SET moderation_status = ?::moderation_status WHERE id = ?",
+                moderationStatus,
                 POST_ID
         );
         entityManager.flush();

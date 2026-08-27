@@ -29,8 +29,7 @@ public class PostRepositoryImpl implements PostRepository {
             "ux_photos_original_storage_key"
     );
     private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
-            ModerationStatus.APPROVED,
-            ModerationStatus.PENDING
+            ModerationStatus.APPROVED
     );
 
     private final PostJpaRepository postJpaRepository;
@@ -56,8 +55,8 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
-    public Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId) {
-        return postJpaRepository.findByAuthorIdAndTopicId(
+    public Optional<Post> findActiveByAuthorIdAndTopicIdForUpdate(UUID authorId, UUID topicId) {
+        return postJpaRepository.findByAuthorIdAndTopicIdForUpdate(
                 authorId,
                 topicId,
                 ModerationStatus.REJECTED
@@ -70,8 +69,8 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
-    public Optional<Post> findValidatingByPostImageUploadId(UUID postImageUploadId) {
-        return postJpaRepository.findByPostImageUploadId(
+    public Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId) {
+        return postJpaRepository.findByPostImageUploadIdForUpdate(
                 postImageUploadId,
                 ModerationStatus.VALIDATING
         );

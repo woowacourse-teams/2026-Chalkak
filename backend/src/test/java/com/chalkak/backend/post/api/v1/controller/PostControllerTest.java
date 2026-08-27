@@ -54,8 +54,6 @@ class PostControllerTest {
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID UPLOAD_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
-    private static final UUID PENDING_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
     private static final String UPLOAD_URL =
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/presigned";
 
@@ -692,12 +690,6 @@ class PostControllerTest {
                                         POST_ID,
                                         "https://cdn.example.com/posts/approved.webp",
                                         ModerationStatus.APPROVED
-                                ),
-                                new PostCalendarResult.PostSummary(
-                                        LocalDate.of(2026, 8, 13),
-                                        PENDING_POST_ID,
-                                        "https://cdn.example.com/posts/pending.webp",
-                                        ModerationStatus.PENDING
                                 )
                         )
                 ));
@@ -716,7 +708,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
                         .value("https://cdn.example.com/posts/approved.webp"))
                 .andExpect(jsonPath("$.posts[0].status").value("APPROVED"))
-                .andExpect(jsonPath("$.posts[1].status").value("PENDING"));
+                .andExpect(jsonPath("$.posts.length()").value(1));
     }
 
     @Test

@@ -145,8 +145,8 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("검수 중인 게시물이 있으면 완료 콜백이 APPROVED로 승격한다")
-    void completePostImageProcessing_validatingPost_approvesPost() {
+    @DisplayName("검수 중인 게시물이 있으면 완료 콜백이 관리자 검수 대기로 전환한다")
+    void completePostImageProcessing_validatingPost_requestsModeration() {
         // Given
         UUID postId = createValidatingPost();
 
@@ -157,15 +157,15 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
         // Then
         Map<String, Object> post = findPost(postId);
-        assertThat(post.get("moderation_status").toString()).isEqualTo("APPROVED");
-        assertThat(post.get("moderated_at")).isNotNull();
+        assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
+        assertThat(post.get("moderated_at")).isNull();
         assertThat(post.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(post.get("metadata_height")).isEqualTo("3024");
     }
 
     @Test
     @DisplayName("스토리지 키 규칙이 바뀌어도 완료 콜백이 게시물을 찾는다")
-    void completePostImageProcessing_changedStorageKeyRule_stillApprovesPost() {
+    void completePostImageProcessing_changedStorageKeyRule_stillRequestsModeration() {
         // Given
         UUID postId = createValidatingPost();
         given(postImageStorage.toOriginalStorageKey(UPLOAD_ID))
@@ -180,7 +180,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
         // Then
         Map<String, Object> post = findPost(postId);
-        assertThat(post.get("moderation_status").toString()).isEqualTo("APPROVED");
+        assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
     }
 
     @Test
@@ -211,7 +211,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         // Then
         Map<String, Object> post = findPost(postId);
         assertThat(post.get("moderation_status").toString()).isEqualTo("REJECTED");
-        assertThat(post.get("moderated_at")).isNotNull();
+        assertThat(post.get("moderated_at")).isNull();
         assertThat(post.get("thumbnail_storage_key")).isNull();
     }
 
@@ -236,15 +236,13 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("완료 콜백을 중복으로 받아도 상태가 그대로다")
-    void completePostImageProcessing_duplicateCallback_staysApproved() {
+    @DisplayName("완료 콜백을 중복으로 받아도 최초 메타데이터와 검수 대기 상태를 유지한다")
+    void completePostImageProcessing_duplicateCallback_staysPending() {
         // Given
         UUID postId = createValidatingPost();
         postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
         entityManager.flush();
         entityManager.clear();
-        Object firstModeratedAt = findPost(postId).get("moderated_at");
-
         // When
         postCommandService.completePostImageProcessing(UPLOAD_ID, Map.of("width", 1));
         entityManager.flush();
@@ -252,9 +250,50 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
         // Then
         Map<String, Object> post = findPost(postId);
-        assertThat(post.get("moderation_status").toString()).isEqualTo("APPROVED");
-        assertThat(post.get("moderated_at")).isEqualTo(firstModeratedAt);
+        assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
+        assertThat(post.get("moderated_at")).isNull();
         assertThat(findUpload().get("metadata_width")).isEqualTo("4032");
+    }
+
+    @Test
+    @DisplayName("완료 뒤 실패 콜백이 와도 업로드와 게시물은 검수 대기 상태를 유지한다")
+    void failPostImageProcessing_readyUpload_keepsPostPending() {
+        // Given
+        UUID postId = createValidatingPost();
+        postCommandService.completePostImageProcessing(UPLOAD_ID, METADATA);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(findUpload().get("status").toString()).isEqualTo("READY");
+        assertThat(findPost(postId).get("moderation_status").toString())
+                .isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("실패 콜백을 중복으로 받아도 이미지 실패 거절 상태를 유지한다")
+    void failPostImageProcessing_duplicateCallback_staysImageRejected() {
+        // Given
+        UUID postId = createValidatingPost();
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "TOO_LARGE");
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        postCommandService.failPostImageProcessing(UPLOAD_ID, "PROCESSING_ERROR");
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> post = findPost(postId);
+        assertThat(findUpload().get("rejection_reason")).isEqualTo("TOO_LARGE");
+        assertThat(post.get("moderation_status").toString()).isEqualTo("REJECTED");
+        assertThat(post.get("moderated_at")).isNull();
     }
 
     @Test

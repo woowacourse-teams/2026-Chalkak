@@ -79,7 +79,6 @@ public class PostCommandService {
                         "게시물을 작성할 주제를 찾을 수 없습니다."
                 ));
         validateTopicOpen(topic);
-        validatePostNotCreated(userId, topicId, Instant.now());
 
         // S3 확인은 왕복이 길 수 있다. 업로드 행에 비관적 락을 잡은 채 기다리면 같은 업로드의 처리 콜백이
         // 그동안 락 대기에 묶이므로 락 밖에서 먼저 확인한다.
@@ -88,6 +87,9 @@ public class PostCommandService {
 
         PostImageUpload upload = getClaimableUpload(userId, photoUploadId);
         upload.claim(Instant.now());
+        // 이미지 처리 콜백도 업로드 다음 게시물 순서로 잠근다. 모든 경로의 순서를 통일해야 처리 시간 초과
+        // 게시물 재작성과 콜백이 겹쳐도 순환 대기가 생기지 않는다.
+        validatePostNotCreated(userId, topicId, Instant.now());
         // 확인한 뒤에 처리가 끝나 staging이 지워졌을 수 있으므로 최종 판정은 락 안에서 읽은 상태로 한다.
         if (!upload.isProcessed() && !stagingImageExists) {
             throw new NotFoundException(
@@ -106,7 +108,7 @@ public class PostCommandService {
                     postImageStorage.toThumbnailStorageKey(photoUploadId),
                     upload.getImageMetadata()
             );
-            post.approve(Instant.now());
+            post.requestModeration();
         }
         Post savedPost = postRepository.save(post);
 
@@ -115,7 +117,7 @@ public class PostCommandService {
 
     /**
      * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
-     * 요청이 READY를 보고 곧바로 공개 상태로 만든다.
+     * 요청이 READY를 보고 사진 처리를 반영한 뒤 관리자 검수 대기 상태로 만든다.
      */
     public void completePostImageProcessing(UUID uploadId, Map<String, Object> imageMetadata) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
@@ -141,7 +143,7 @@ public class PostCommandService {
                     postImageStorage.toThumbnailStorageKey(uploadId),
                     upload.getImageMetadata()
             );
-            post.approve(Instant.now());
+            post.requestModeration();
         });
     }
 
@@ -154,11 +156,11 @@ public class PostCommandService {
         if (!upload.isRejected()) {
             return;
         }
-        findValidatingPost(uploadId).ifPresent(post -> post.reject(Instant.now()));
+        findValidatingPost(uploadId).ifPresent(Post::failImageProcessing);
     }
 
     private Optional<Post> findValidatingPost(UUID uploadId) {
-        return postRepository.findValidatingByPostImageUploadId(uploadId);
+        return postRepository.findValidatingByPostImageUploadIdForUpdate(uploadId);
     }
 
     /**
@@ -183,19 +185,19 @@ public class PostCommandService {
     }
 
     /**
-     * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 검수 대기 상태로 남는다. 작성자에게는 보이지도
+     * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 이미지 처리 대기 상태로 남는다. 작성자에게는 보이지도
      * 않으면서 같은 주제 재작성만 막으므로, 처리 대기 시간을 넘긴 게시물은 여기서 거절 처리하고 길을 터 준다.
      */
     private void validatePostNotCreated(UUID userId, UUID topicId, Instant now) {
         Optional<Post> activePost =
-                postRepository.findActiveByAuthorIdAndTopicId(userId, topicId);
+                postRepository.findActiveByAuthorIdAndTopicIdForUpdate(userId, topicId);
         if (activePost.isEmpty()) {
             return;
         }
 
         Post post = activePost.get();
         if (isProcessingTimedOut(post, now)) {
-            post.reject(now);
+            post.failImageProcessing();
             // 부분 유니크 인덱스가 REJECTED만 제외하므로, 새 게시물 INSERT보다 이 거절이 먼저 반영돼야 한다.
             postRepository.flush();
             return;

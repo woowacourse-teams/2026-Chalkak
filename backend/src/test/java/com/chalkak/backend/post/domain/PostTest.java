@@ -97,10 +97,25 @@ class PostTest {
                 .hasMessage("제목은 10자 이하여야 합니다.");
     }
     @Test
-    @DisplayName("검수를 통과하면 APPROVED가 되고 검수 시각을 기록한다")
-    void approve_validatingPost_becomesApproved() {
+    @DisplayName("이미지 처리가 끝나면 관리자 검수 대기 상태가 된다")
+    void requestModeration_validatingPost_becomesPending() {
         // Given
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+
+        // When
+        post.requestModeration();
+
+        // Then
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+        assertThat(post.getModeratedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("관리자 검수 대기 게시물을 승인하면 APPROVED가 되고 검수 시각을 기록한다")
+    void approve_pendingPost_becomesApproved() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
 
         // When
@@ -112,10 +127,11 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("검수에서 걸러지면 REJECTED가 되고 검수 시각을 기록한다")
-    void reject_validatingPost_becomesRejected() {
+    @DisplayName("관리자 검수 대기 게시물을 거절하면 REJECTED가 되고 검수 시각을 기록한다")
+    void reject_pendingPost_becomesRejected() {
         // Given
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
 
         // When
@@ -127,18 +143,111 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("이미 검수가 끝난 게시물은 다시 승인하지 않는다")
-    void approve_rejectedPost_keepsRejected() {
+    @DisplayName("이미지 처리에 실패하면 관리자 결정 시각 없이 REJECTED가 된다")
+    void failImageProcessing_validatingPost_becomesRejectedWithoutModerationTime() {
         // Given
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
-        Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
-        post.reject(moderatedAt);
 
         // When
-        post.approve(moderatedAt.plusSeconds(60));
+        post.failImageProcessing();
 
         // Then
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.REJECTED);
-        assertThat(post.getModeratedAt()).isEqualTo(moderatedAt);
+        assertThat(post.getModeratedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("이미지 처리 중인 게시물은 관리자가 승인할 수 없다")
+    void approve_validatingPost_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.approve(Instant.parse("2026-08-20T00:00:00Z")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 상태를 변경할 수 없습니다.");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+    }
+
+    @Test
+    @DisplayName("이미지 처리 중인 게시물은 관리자가 거절할 수 없다")
+    void reject_validatingPost_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.reject(Instant.parse("2026-08-20T00:00:00Z")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 상태를 변경할 수 없습니다.");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+    }
+
+    @Test
+    @DisplayName("관리자 검수 대기 이후에는 이미지 실패 상태로 바꿀 수 없다")
+    void failImageProcessing_pendingPost_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(post::failImageProcessing)
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 상태를 변경할 수 없습니다.");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("이미 관리자 검수 대기인 게시물은 검수 요청을 반복할 수 없다")
+    void requestModeration_pendingPost_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(post::requestModeration)
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 상태를 변경할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("이미 검수가 끝난 게시물은 상태를 다시 변경할 수 없다")
+    void approve_rejectedPost_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+        post.reject(Instant.parse("2026-08-20T00:00:00Z"));
+
+        // When & Then
+        assertThatThrownBy(() -> post.approve(Instant.parse("2026-08-20T00:01:00Z")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 상태를 변경할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("관리자 검수 시각이 없으면 승인할 수 없다")
+    void approve_withoutModeratedAt_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(() -> post.approve(null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 시각이 필요합니다.");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("관리자 검수 시각이 없으면 거절할 수 없다")
+    void reject_withoutModeratedAt_throwsBusinessException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(() -> post.reject(null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("게시물 검수 시각이 필요합니다.");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
     }
 }

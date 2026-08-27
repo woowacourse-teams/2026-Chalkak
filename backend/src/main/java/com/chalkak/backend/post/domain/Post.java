@@ -115,12 +115,13 @@ public class Post {
         return new Post(author, topic, photo, postImageUploadId, title);
     }
 
-    /**
-     * 검수 결과는 한 번만 정해진다. SQS 재전달로 같은 콜백이 다시 오거나 실패 뒤에 완료 콜백이 도착해도
-     * 이미 공개 여부가 결정된 게시물을 되돌리지 않는다.
-     */
+    public void requestModeration() {
+        validateModerationStatus(ModerationStatus.VALIDATING);
+        this.moderationStatus = ModerationStatus.PENDING;
+    }
+
     public void approve(Instant moderatedAt) {
-        updateModerationStatus(ModerationStatus.APPROVED, moderatedAt);
+        decideModeration(ModerationStatus.APPROVED, moderatedAt);
     }
 
     public boolean isValidating() {
@@ -128,15 +129,34 @@ public class Post {
     }
 
     public void reject(Instant moderatedAt) {
-        updateModerationStatus(ModerationStatus.REJECTED, moderatedAt);
+        decideModeration(ModerationStatus.REJECTED, moderatedAt);
     }
 
-    private void updateModerationStatus(ModerationStatus moderationStatus, Instant moderatedAt) {
-        if (this.moderationStatus != ModerationStatus.VALIDATING) {
-            return;
+    public void failImageProcessing() {
+        validateModerationStatus(ModerationStatus.VALIDATING);
+        this.moderationStatus = ModerationStatus.REJECTED;
+        this.moderatedAt = null;
+    }
+
+    private void decideModeration(ModerationStatus moderationStatus, Instant moderatedAt) {
+        validateModerationStatus(ModerationStatus.PENDING);
+        if (moderatedAt == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "게시물 검수 시각이 필요합니다."
+            );
         }
         this.moderationStatus = moderationStatus;
         this.moderatedAt = moderatedAt;
+    }
+
+    private void validateModerationStatus(ModerationStatus expectedStatus) {
+        if (moderationStatus != expectedStatus) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "게시물 검수 상태를 변경할 수 없습니다."
+            );
+        }
     }
 
     private static void validateRelations(User author, Topic topic, Photo photo) {

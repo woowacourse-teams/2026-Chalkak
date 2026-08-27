@@ -67,7 +67,7 @@ public interface PostApiDocs {
 
     @Operation(
             summary = "게시물 생성",
-            description = "업로드된 사진과 선택 제목을 주제에 연결하고 검수를 시작합니다."
+            description = "업로드된 사진과 선택 제목을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다."
     )
     @SecurityRequirement(name = "userIdHeader")
     @ApiResponses({
@@ -148,7 +148,7 @@ public interface PostApiDocs {
 
     @Operation(
             summary = "내 게시물 캘린더 조회",
-            description = "조회 연월에 작성한 APPROVED, PENDING 상태의 게시물을 주제 날짜순으로 반환합니다."
+            description = "조회 연월에 작성한 APPROVED 상태의 게시물만 주제 날짜순으로 반환합니다."
     )
     @SecurityRequirement(name = "userIdHeader")
     @ApiResponses({

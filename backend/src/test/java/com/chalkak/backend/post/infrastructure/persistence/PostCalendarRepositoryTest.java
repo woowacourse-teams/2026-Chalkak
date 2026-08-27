@@ -91,7 +91,7 @@ class PostCalendarRepositoryTest {
     }
 
     @Test
-    @DisplayName("본인의 해당 월 승인 및 검수 대기 게시물을 주제 날짜순으로 조회한다")
+    @DisplayName("본인의 해당 월 승인 게시물만 주제 날짜순으로 조회한다")
     void findCalendarPostsByAuthorIdAndTopicDateBetween_matchingPosts_returnsOrderedPosts() {
         // When
         List<Post> result = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
@@ -102,9 +102,9 @@ class PostCalendarRepositoryTest {
 
         // Then
         assertThat(result).extracting(Post::getId)
-                .containsExactly(APPROVED_POST_ID, PENDING_POST_ID);
+                .containsExactly(APPROVED_POST_ID);
         assertThat(result).extracting(Post::getModerationStatus)
-                .containsExactly(ModerationStatus.APPROVED, ModerationStatus.PENDING);
+                .containsExactly(ModerationStatus.APPROVED);
         assertThat(result).allSatisfy(post -> {
             assertThat(Hibernate.isInitialized(post.getTopic())).isTrue();
             assertThat(Hibernate.isInitialized(post.getPhoto())).isTrue();

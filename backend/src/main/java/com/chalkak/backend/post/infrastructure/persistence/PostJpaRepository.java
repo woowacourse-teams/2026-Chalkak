@@ -2,6 +2,7 @@ package com.chalkak.backend.post.infrastructure.persistence;
 
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -10,11 +11,13 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PostJpaRepository extends JpaRepository<Post, UUID> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT post
             FROM Post post
@@ -23,7 +26,7 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
               AND post.moderationStatus <> :excludedStatus
               AND post.deletedAt IS NULL
             """)
-    Optional<Post> findByAuthorIdAndTopicId(
+    Optional<Post> findByAuthorIdAndTopicIdForUpdate(
             @Param("authorId") UUID authorId,
             @Param("topicId") UUID topicId,
             @Param("excludedStatus") ModerationStatus excludedStatus
@@ -47,6 +50,7 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             @Param("moderationStatus") ModerationStatus moderationStatus
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT post
             FROM Post post
@@ -56,7 +60,7 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
               AND post.deletedAt IS NULL
               AND photo.deletedAt IS NULL
             """)
-    Optional<Post> findByPostImageUploadId(
+    Optional<Post> findByPostImageUploadIdForUpdate(
             @Param("postImageUploadId") UUID postImageUploadId,
             @Param("moderationStatus") ModerationStatus moderationStatus
     );

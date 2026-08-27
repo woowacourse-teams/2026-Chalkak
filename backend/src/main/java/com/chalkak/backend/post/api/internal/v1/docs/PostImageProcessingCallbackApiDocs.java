@@ -69,7 +69,7 @@ public interface PostImageProcessingCallbackApiDocs {
             summary = "게시물 이미지 처리 완료 콜백",
             description = """
                     Lambda의 게시물 이미지 변환 완료 결과를 멱등하게 반영합니다.
-                    업로드를 READY로 올리고, 이미 만들어진 검수 중 게시물이 있으면 공개 상태로 승격합니다.
+                    업로드를 READY로 올리고, 이미 만들어진 게시물이 있으면 관리자 검수 대기 상태로 전환합니다.
                     본문의 EXIF는 S3 객체에서 제거되고 DB에만 남습니다.
                     """
     )
@@ -134,7 +134,7 @@ public interface PostImageProcessingCallbackApiDocs {
             summary = "게시물 이미지 처리 실패 콜백",
             description = """
                     Lambda의 게시물 이미지 변환 실패 결과를 멱등하게 반영합니다.
-                    업로드를 REJECTED로 내리고, 이미 만들어진 검수 중 게시물이 있으면 함께 반려합니다.
+                    업로드를 REJECTED로 내리고, 이미 만들어진 게시물이 있으면 이미지 처리 실패로 거절합니다.
                     """
     )
     @ApiResponses({
