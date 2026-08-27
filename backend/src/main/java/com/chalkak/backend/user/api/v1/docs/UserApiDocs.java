@@ -72,6 +72,43 @@ public interface UserApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
+    @Operation(summary = "내 사인 조회")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "사인 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "사인 재등록 필요(SIGNATURE_REGISTRATION_REQUIRED): "
+                            + "사인 이미지 처리 실패 또는 설정된 처리 제한 시간 초과",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "회원을 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<UserSignatureResponse> getSignature(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
     @Operation(summary = "사인 이미지 수정")
     @ApiResponses({
             @ApiResponse(
@@ -81,7 +118,8 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 이미지 업로드 정보",
+                    description = "잘못된 이미지 업로드 정보 또는 이미지 재업로드 필요"
+                            + "(SIGNATURE_REUPLOAD_REQUIRED)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

@@ -411,7 +411,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         UUID secondUploadId = givenSecondUpload();
         PostCreationResult stalled =
                 postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
-        backdatePost(stalled.postId(), 31);
+        backdatePost(stalled.postId(), 8);
 
         // When
         PostCreationResult result =
@@ -429,7 +429,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         UUID secondUploadId = givenSecondUpload();
         PostCreationResult pending =
                 postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, null);
-        backdatePost(pending.postId(), 29);
+        backdatePost(pending.postId(), 6);
 
         // When
         BusinessException exception = catchThrowableOfType(

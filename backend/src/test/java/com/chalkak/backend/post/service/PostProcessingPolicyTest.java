@@ -16,10 +16,10 @@ class PostProcessingPolicyTest {
     @DisplayName("대기 시간을 넘기면 처리가 끝나지 않은 것으로 본다")
     void isProcessingTimedOut_afterTimeout_returnsTrue() {
         // Given
-        PostProcessingPolicy policy = new PostProcessingPolicy(Duration.ofMinutes(30));
+        PostProcessingPolicy policy = new PostProcessingPolicy(Duration.ofMinutes(7));
 
         // When & Then
-        assertThat(policy.isProcessingTimedOut(STARTED_AT, STARTED_AT.plusSeconds(1801)))
+        assertThat(policy.isProcessingTimedOut(STARTED_AT, STARTED_AT.plusSeconds(421)))
                 .isTrue();
     }
 
@@ -27,10 +27,10 @@ class PostProcessingPolicyTest {
     @DisplayName("대기 시간 경계에서는 아직 기다린다")
     void isProcessingTimedOut_atTimeout_returnsFalse() {
         // Given
-        PostProcessingPolicy policy = new PostProcessingPolicy(Duration.ofMinutes(30));
+        PostProcessingPolicy policy = new PostProcessingPolicy(Duration.ofMinutes(7));
 
         // When & Then
-        assertThat(policy.isProcessingTimedOut(STARTED_AT, STARTED_AT.plusSeconds(1800)))
+        assertThat(policy.isProcessingTimedOut(STARTED_AT, STARTED_AT.plusSeconds(420)))
                 .isFalse();
     }
 

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +50,16 @@ public class UserController implements UserApiDocs {
         SignatureImageUpload upload = userService.createSignatureUpload(loginUser.userId());
 
         return ResponseEntity.ok(UserSignatureUploadResponse.from(upload));
+    }
+
+    @Override
+    @GetMapping("/me/signature")
+    public ResponseEntity<UserSignatureResponse> getSignature(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        String imageUrl = userService.getSignature(loginUser.userId());
+
+        return ResponseEntity.ok(new UserSignatureResponse(imageUrl));
     }
 
     @Override

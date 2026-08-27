@@ -26,3 +26,12 @@ chalkak:
     bucket: test-bucket
     base-url: https://cdn.test.chalkak
     root-prefix: chalkak
+
+  callback:
+    max-body-bytes: 65536
+
+  post:
+    image-processing-timeout: 7m
+
+  user:
+    signature-processing-timeout: 7m
