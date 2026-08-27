@@ -32,17 +32,18 @@ fun SignaturePreviewRoute(
     imageModel: Any?,
     signaturePng: ByteArray,
     onRedrawClick: () -> Unit,
+    onSignUpSuccess: () -> Unit,
     onReauthenticationRequired: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignUpViewModel = viewModel(factory = SignUpViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(viewModel) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                SignUpUiEvent.NavigateToLogin -> onReauthenticationRequired()
-            }
+    LaunchedEffect(uiState.status) {
+        when (uiState.status) {
+            SignUpStatus.Completed -> onSignUpSuccess()
+            SignUpStatus.ReauthenticationRequired -> onReauthenticationRequired()
+            else -> Unit
         }
     }
 

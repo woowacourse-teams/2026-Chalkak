@@ -10,29 +10,24 @@ import com.stonefive.chalkak.domain.model.SocialSignUpFailure
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(SignUpUiState())
     val uiState: StateFlow<SignUpUiState> = _uiState.asStateFlow()
 
-    private val _uiEvent = Channel<SignUpUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
-
     fun completeSignUp(signaturePng: ByteArray) {
         if (_uiState.value.isSubmitting) return
 
         viewModelScope.launch {
-            _uiState.value = SignUpUiState(isSubmitting = true)
+            _uiState.value = SignUpUiState(status = SignUpStatus.Submitting)
             try {
                 when (val result = authRepository.completeSocialSignUp(signaturePng)) {
                     is SocialSignUpResult.Success -> {
-                        _uiState.value = SignUpUiState()
+                        _uiState.value = SignUpUiState(status = SignUpStatus.Completed)
                     }
 
                     is SocialSignUpResult.Failure -> handleFailure(result.reason)
@@ -41,7 +36,9 @@ class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() 
                 throw error
             } catch (error: Throwable) {
                 _uiState.value = SignUpUiState(
-                    errorMessage = "회원가입을 완료하지 못했어요. 다시 시도해 주세요.",
+                    status = SignUpStatus.Failed(
+                        "회원가입을 완료하지 못했어요. 다시 시도해 주세요.",
+                    ),
                 )
             }
         }
@@ -52,12 +49,11 @@ class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() 
             failure == SocialSignUpFailure.REAUTHENTICATION_REQUIRED ||
             failure == SocialSignUpFailure.MISSING_LOGIN_CONTEXT
         ) {
-            _uiState.value = SignUpUiState()
-            _uiEvent.send(SignUpUiEvent.NavigateToLogin)
+            _uiState.value = SignUpUiState(status = SignUpStatus.ReauthenticationRequired)
             return
         }
 
-        _uiState.value = SignUpUiState(errorMessage = failure.toMessage())
+        _uiState.value = SignUpUiState(status = SignUpStatus.Failed(failure.toMessage()))
     }
 
     private fun SocialSignUpFailure.toMessage(): String = when (this) {
