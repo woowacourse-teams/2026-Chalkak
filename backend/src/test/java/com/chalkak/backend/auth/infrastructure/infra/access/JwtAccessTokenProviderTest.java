@@ -137,8 +137,7 @@ class JwtAccessTokenProviderTest {
         // Given
         JwtAccessTokenProvider provider = createProvider(NOW);
         String token = provider.issue(UUID.randomUUID()).value();
-        String tamperedToken = token.substring(0, token.length() - 1)
-                + (token.endsWith("A") ? "B" : "A");
+        String tamperedToken = tamperSignature(token);
 
         // When & Then
         assertThatThrownBy(() -> provider.jwtDecoder().decode(tamperedToken))
@@ -171,6 +170,19 @@ class JwtAccessTokenProviderTest {
         // When & Then
         assertThatThrownBy(() -> verifier.jwtDecoder().decode(token))
                 .isInstanceOf(JwtException.class);
+    }
+
+    /**
+     * 서명의 첫 글자를 바꾼다. base64url 마지막 글자는 32바이트 서명에서 유효 비트가 4개뿐이라
+     * 글자를 바꿔도 디코딩된 서명 바이트가 그대로일 수 있다. 첫 글자는 6비트가 모두 유효하다.
+     */
+    private String tamperSignature(String token) {
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char original = token.charAt(signatureStart);
+        char replacement = original == 'A' ? 'B' : 'A';
+        return token.substring(0, signatureStart)
+                + replacement
+                + token.substring(signatureStart + 1);
     }
 
     private JwtClaimsSet.Builder claims() {
