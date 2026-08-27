@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from PIL import Image
 from PIL.TiffImagePlugin import IFDRational
 
+from image_processor.callback import ProcessingUploadUrls
 from image_processor.config import Settings
 from image_processor.errors import RejectedImageError
 from image_processor.events import S3ObjectCreated
@@ -16,6 +17,8 @@ BUCKET = "test-bucket"
 STAGING_KEY = f"chalkak/staging/dev/posts/{UPLOAD_ID}.webp"
 ORIGINAL_KEY = f"chalkak/posts/dev/original/{UPLOAD_ID}.webp"
 THUMBNAIL_KEY = f"chalkak/posts/dev/thumbnail/{UPLOAD_ID}.webp"
+ORIGINAL_URL = "https://s3.test/original"
+THUMBNAIL_URL = "https://s3.test/thumbnail"
 
 
 def settings() -> Settings:
@@ -25,20 +28,12 @@ def settings() -> Settings:
         max_input_bytes=1_048_576,
         max_image_pixels=25_000_000,
         thumbnail_max_size=512,
-        cache_control="public, max-age=86400",
         post_max_bytes=5_242_880,
         post_max_pixels=25_000_000,
         post_thumbnail_max_size=1080,
         post_webp_quality=85,
         post_thumbnail_webp_quality=80,
         post_metadata_max_bytes=8192,
-        post_cache_control="public, max-age=86400",
-        dev_callback_base_url="https://dev.test/internal/v1/signature-processing",
-        prod_callback_base_url="https://prod.test/internal/v1/signature-processing",
-        dev_post_callback_base_url="https://dev.test/internal/v1/post-image-processing",
-        prod_post_callback_base_url="https://prod.test/internal/v1/post-image-processing",
-        callback_secret="test-callback-secret-with-enough-length",
-        callback_timeout_seconds=3.0,
     )
 
 
@@ -104,10 +99,19 @@ class PostImageProcessorTest(unittest.TestCase):
     def setUp(self) -> None:
         self.s3_client = Mock()
         self.callback_client = Mock()
+        self.callback_client.issue_upload_urls.return_value = ProcessingUploadUrls(
+            original_upload_url=ORIGINAL_URL,
+            thumbnail_upload_url=THUMBNAIL_URL,
+            content_type="image/webp",
+            cache_control="public, max-age=86400",
+        )
+        self.upload_client = Mock()
+        self.upload_client.upload.return_value = True
         self.processor = PostImageProcessor(
             s3_client=self.s3_client,
             settings=settings(),
             callback_client=self.callback_client,
+            upload_client=self.upload_client,
         )
 
     def given_object(self, body: bytes) -> None:
@@ -120,11 +124,11 @@ class PostImageProcessorTest(unittest.TestCase):
     def event(self, size: int | None = 100, key: str = STAGING_KEY) -> S3ObjectCreated:
         return S3ObjectCreated(bucket=BUCKET, key=key, size=size)
 
-    def uploaded(self, key: str) -> dict:
-        for call in self.s3_client.put_object.call_args_list:
-            if call.kwargs["Key"] == key:
+    def uploaded(self, url: str) -> dict:
+        for call in self.upload_client.upload.call_args_list:
+            if call.kwargs["url"] == url:
                 return call.kwargs
-        raise AssertionError(f"{key} was not uploaded")
+        raise AssertionError(f"{url} was not uploaded")
 
     def test_process_uploads_original_and_thumbnail_as_webp(self) -> None:
         self.given_object(webp_bytes())
@@ -133,13 +137,13 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.assertEqual(ORIGINAL_KEY, result.original_key)
         self.assertEqual(THUMBNAIL_KEY, result.thumbnail_key)
-        original = self.uploaded(ORIGINAL_KEY)
-        self.assertEqual(BUCKET, original["Bucket"])
-        self.assertEqual("image/webp", original["ContentType"])
-        self.assertEqual("public, max-age=86400", original["CacheControl"])
-        self.assertEqual("WEBP", Image.open(io.BytesIO(original["Body"])).format)
-        thumbnail = self.uploaded(THUMBNAIL_KEY)
-        self.assertEqual("WEBP", Image.open(io.BytesIO(thumbnail["Body"])).format)
+        original = self.uploaded(ORIGINAL_URL)
+        self.assertEqual("image/webp", original["content_type"])
+        self.assertEqual("public, max-age=86400", original["cache_control"])
+        self.assertEqual("WEBP", Image.open(io.BytesIO(original["body"])).format)
+        thumbnail = self.uploaded(THUMBNAIL_URL)
+        self.assertEqual("WEBP", Image.open(io.BytesIO(thumbnail["body"])).format)
+        self.s3_client.put_object.assert_not_called()
 
     def test_process_restores_global_pixel_limit(self) -> None:
         previous = Image.MAX_IMAGE_PIXELS
@@ -163,55 +167,93 @@ class PostImageProcessorTest(unittest.TestCase):
             s3_client=self.s3_client,
             settings=replace(settings(), post_thumbnail_max_size=32),
             callback_client=self.callback_client,
+            upload_client=self.upload_client,
         )
         self.given_object(webp_bytes(size=(400, 300)))
 
         processor.process(self.event())
 
-        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_KEY)["Body"]))
+        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_URL)["body"]))
         self.assertLessEqual(max(thumbnail.size), 32)
-        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_KEY)["Body"]))
+        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_URL)["body"]))
         self.assertEqual((400, 300), original.size)
 
-    def test_process_writes_destination_only_when_absent(self) -> None:
+    def test_process_uses_backend_issued_upload_urls(self) -> None:
         self.given_object(webp_bytes())
 
         self.processor.process(self.event())
 
-        for key in (ORIGINAL_KEY, THUMBNAIL_KEY):
-            self.assertEqual("*", self.uploaded(key)["IfNoneMatch"])
+        self.callback_client.issue_upload_urls.assert_called_once_with("dev", UPLOAD_ID)
+        self.assertEqual(2, self.upload_client.upload.call_count)
 
-    def test_process_keeps_existing_destination_and_still_completes(self) -> None:
-        from botocore.exceptions import ClientError
+    def test_process_verifies_existing_destinations_before_completing(self) -> None:
+        self.upload_client.upload.return_value = False
+        source = webp_bytes()
 
-        self.s3_client.put_object.side_effect = ClientError(
-            {
-                "Error": {"Code": "PreconditionFailed"},
-                "ResponseMetadata": {"HTTPStatusCode": 412},
-            },
-            "PutObject",
-        )
-        self.given_object(webp_bytes())
+        def get_object(**kwargs):
+            if kwargs["Key"] == STAGING_KEY:
+                body = source
+            else:
+                call_index = 0 if "/original/" in kwargs["Key"] else 1
+                body = self.upload_client.upload.call_args_list[call_index].kwargs[
+                    "body"
+                ]
+            return {
+                "ContentLength": len(body),
+                "Body": io.BytesIO(body),
+            }
+
+        self.s3_client.get_object.side_effect = get_object
 
         self.processor.process(self.event())
 
+        self.assertEqual(3, self.s3_client.get_object.call_count)
         self.callback_client.complete.assert_called_once()
         self.s3_client.delete_object.assert_called_once_with(
             Bucket=BUCKET, Key=STAGING_KEY
         )
 
-    def test_process_propagates_other_put_errors(self) -> None:
-        from botocore.exceptions import ClientError
+    def test_process_does_not_complete_when_existing_destination_differs(self) -> None:
+        self.upload_client.upload.return_value = False
+        source = webp_bytes()
+        self.s3_client.get_object.side_effect = [
+            {
+                "ContentLength": len(source),
+                "Body": io.BytesIO(source),
+            },
+            {
+                "ContentLength": len(b"different-image"),
+                "Body": io.BytesIO(b"different-image"),
+            },
+        ]
 
-        self.s3_client.put_object.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied"}}, "PutObject"
-        )
-        self.given_object(webp_bytes())
-
-        with self.assertRaises(ClientError):
+        with self.assertRaisesRegex(RuntimeError, "does not match"):
             self.processor.process(self.event())
 
         self.callback_client.complete.assert_not_called()
+        self.s3_client.delete_object.assert_not_called()
+
+    def test_process_propagates_other_upload_errors(self) -> None:
+        self.upload_client.upload.side_effect = TimeoutError("upload timeout")
+        self.given_object(webp_bytes())
+
+        with self.assertRaises(TimeoutError):
+            self.processor.process(self.event())
+
+        self.callback_client.complete.assert_not_called()
+
+    def test_process_keeps_staging_when_upload_url_issuance_fails(self) -> None:
+        self.callback_client.issue_upload_urls.side_effect = TimeoutError(
+            "backend timeout"
+        )
+        self.given_object(webp_bytes())
+
+        with self.assertRaises(TimeoutError):
+            self.processor.process(self.event())
+
+        self.upload_client.upload.assert_not_called()
+        self.callback_client.complete.assert_not_called()
+        self.s3_client.delete_object.assert_not_called()
 
     def test_abandon_closes_upload_and_removes_staging(self) -> None:
         self.processor.abandon(self.event())
@@ -249,7 +291,7 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.processor.process(self.event())
 
-        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_KEY)["Body"]))
+        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_URL)["body"]))
         self.assertEqual((1080, 540), thumbnail.size)
 
     def test_process_keeps_original_resolution(self) -> None:
@@ -257,7 +299,7 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.processor.process(self.event())
 
-        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_KEY)["Body"]))
+        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_URL)["body"]))
         self.assertEqual((2160, 1080), original.size)
 
     def test_process_rejects_key_outside_post_staging(self) -> None:
@@ -340,6 +382,7 @@ class PostImageProcessorTest(unittest.TestCase):
             s3_client=self.s3_client,
             settings=replace(settings(), post_max_pixels=100),
             callback_client=self.callback_client,
+            upload_client=self.upload_client,
         )
         self.given_object(webp_bytes(size=(40, 30)))
 
@@ -411,7 +454,7 @@ class PostImageProcessorTest(unittest.TestCase):
         body = self.callback_client.complete.call_args.args[2]
         self.assertEqual(120, body["width"])
         self.assertEqual(90, body["height"])
-        self.assertEqual(len(self.uploaded(ORIGINAL_KEY)["Body"]), body["byteSize"])
+        self.assertEqual(len(self.uploaded(ORIGINAL_URL)["body"]), body["byteSize"])
 
     def test_process_sends_null_metadata_when_image_has_no_exif(self) -> None:
         self.given_object(webp_bytes())
@@ -597,9 +640,9 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.processor.process(self.event())
 
-        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_KEY)["Body"]))
+        original = Image.open(io.BytesIO(self.uploaded(ORIGINAL_URL)["body"]))
         self.assertEqual({}, dict(original.getexif()))
-        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_KEY)["Body"]))
+        thumbnail = Image.open(io.BytesIO(self.uploaded(THUMBNAIL_URL)["body"]))
         self.assertEqual({}, dict(thumbnail.getexif()))
 
     def test_process_truncates_oversized_metadata(self) -> None:
@@ -607,6 +650,7 @@ class PostImageProcessorTest(unittest.TestCase):
             s3_client=self.s3_client,
             settings=replace(settings(), post_metadata_max_bytes=40),
             callback_client=self.callback_client,
+            upload_client=self.upload_client,
         )
         self.given_object(
             webp_bytes(exif=exif_bytes({0x010F: "Apple", 0x0110: "iPhone 15 Pro"}))

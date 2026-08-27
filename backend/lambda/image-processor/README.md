@@ -13,7 +13,8 @@ S3 ObjectCreated
   → staging 하위 디렉터리로 processor 라우팅
   → 실제 디코딩 및 검증
   → 메타데이터를 제거한 재인코딩
-  → 원본과 썸네일 저장
+  → 백엔드에서 원본·썸네일 presigned PUT URL 발급
+  → presigned URL로 원본과 썸네일 저장
   → 백엔드 성공·실패 콜백
   → staging 객체 삭제
 ```
@@ -128,15 +129,17 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 - 잘못된 버킷·키처럼 신뢰할 업로드 ID를 추출할 수 없는 이벤트는 콜백 없이 반려한다.
 - S3 timeout과 5xx처럼 복구 가능한 실패는 예외를 전파해 SQS가 다시 전달하게 한다.
 - 원본과 썸네일 저장과 성공 콜백이 모두 성공한 뒤에만 staging 객체를 삭제한다.
+- 업로드 URL 발급 실패는 상태 코드와 관계없이 재시도한다. 이 요청을 영구 콜백 실패로 소비하면
+  staging과 처리 상태가 닫히지 않은 채 남기 때문이다.
 - 백엔드 콜백 timeout·5xx와 네트워크 오류는 예외를 전파해 SQS가 다시 전달하게 한다.
 - 백엔드 콜백이 `400`, `404`, `405`, `413`, `414`, `415`를 주면 같은 요청을 다시 보내도 결과가
   같으므로 재시도하지 않고 오류를 남긴 뒤 메시지를 종료한다. 우리 코드나 설정이 잘못 만든
   요청이라는 뜻이므로 CloudWatch 오류 로그가 유일한 단서다.
 - `401`, `403`은 secret 롤링 교체 중 잠깐 날 수 있고 `408`, `429`는 명시적 재시도 대상이라
   재시도한다.
-- 출력 키는 한 번만 쓴다. presigned URL은 만료 전까지 재사용할 수 있어, 게시물이 승인된 뒤에도
-  같은 staging 키에 다른 이미지를 올리면 공개 이미지가 바뀐다. 조건부 쓰기가 걸리면 기존 객체를
-  그대로 두고 완료 콜백만 이어 간다.
+- 출력 키는 한 번만 쓴다. 조건부 쓰기가 412를 반환하면 기존 객체를 읽어 현재 변환 결과와 바이트가
+  완전히 같은지 확인한 뒤에만 완료 콜백을 이어 간다. 다르면 재시도 오류로 처리하므로 서로 다른
+  원본과 썸네일이 정상 완료되지 않는다.
 - 완료 콜백이 영구 거부되면 이미 처리된 이미지가 어디에도 연결되지 않는다. 실패 콜백으로 상태를
   닫아 사용자가 다시 올릴 수 있게 하고, 원본 staging은 수동 복구를 위해 남긴다.
 - DLQ 없이 운영한다. 대신 `SQS_MAX_RECEIVE_COUNT`를 애플리케이션에서 확인해, 수신 횟수가 상한에
@@ -171,20 +174,16 @@ lifecycle 만료 규칙은 사용자가 업로드 후 이탈하거나 오류가 
 | `SIGNATURE_MAX_BYTES` | `1048576` | 사인 입력 최대 크기 1 MiB |
 | `SIGNATURE_MAX_PIXELS` | `25000000` | 압축 폭탄 방지용 최대 픽셀 수 |
 | `SIGNATURE_THUMBNAIL_MAX_SIZE` | `512` | 썸네일 가로·세로 최대 길이 |
-| `SIGNATURE_CACHE_CONTROL` | `public, max-age=86400` | 사인 결과 객체 Cache-Control |
 | `POST_MAX_BYTES` | `5242880` | 포스트 입력 최대 크기 5 MiB |
 | `POST_MAX_PIXELS` | `25000000` | 압축 폭탄 방지용 최대 픽셀 수 |
 | `POST_THUMBNAIL_MAX_SIZE` | `1080` | 포스트 썸네일 가로·세로 최대 길이 |
 | `POST_WEBP_QUALITY` | `85` | 포스트 원본 WebP 품질 |
 | `POST_THUMBNAIL_WEBP_QUALITY` | `80` | 포스트 썸네일 WebP 품질 |
 | `POST_METADATA_MAX_BYTES` | `8192` | 콜백에 싣는 `metaAttributes` 직렬화 상한 |
-| `POST_CACHE_CONTROL` | `public, max-age=86400` | 포스트 결과 객체 Cache-Control |
-| `DEV_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 dev 백엔드 HTTPS URL |
-| `PROD_BACKEND_CALLBACK_URL` | 없음(필수) | `/internal/v1/signature-processing`까지 포함한 prod 백엔드 HTTPS URL |
-| `DEV_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 dev 백엔드 HTTPS URL |
-| `PROD_BACKEND_POST_CALLBACK_URL` | 없음(필수) | `/internal/v1/post-image-processing`까지 포함한 prod 백엔드 HTTPS URL |
-| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 없음(필수) | dev·prod 백엔드와 공통으로 사용하는 HMAC 비밀키. 서명 대상에 대상 환경이 들어가므로 dev용 서명이 prod에 통하지는 않지만, 환경별로 다른 값을 두는 편이 더 안전하다 |
-| `BACKEND_CALLBACK_TIMEOUT_SECONDS` | `3` | 백엔드 콜백 HTTP timeout |
+| `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | 없음(필수) | `/internal/v1`까지 포함한 dev 백엔드 이미지 처리 API HTTPS base URL |
+| `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | 없음(필수) | `/internal/v1`까지 포함한 prod 백엔드 이미지 처리 API HTTPS base URL |
+| `IMAGE_PROCESSING_API_SECRET` | 없음(필수) | 백엔드의 `IMAGE_PROCESSOR_CALLBACK_SECRET`과 동일한 HMAC 비밀키 |
+| `IMAGE_PROCESSING_API_TIMEOUT_SECONDS` | `3` | presigned URL 발급과 완료·실패 요청의 백엔드 HTTP timeout |
 | `SQS_PARTIAL_BATCH_RESPONSE` | `false` | 실패한 메시지만 큐에 되돌린다. 이벤트 소스 매핑에 `ReportBatchItemFailures`를 켠 뒤에만 `true`로 둔다 |
 | `SQS_MAX_RECEIVE_COUNT` | `5` | 이 횟수만큼 다시 받은 메시지는 포기하고 실패 콜백으로 닫는다. DLQ의 `maxReceiveCount`를 대신한다 |
 
@@ -192,18 +191,21 @@ lifecycle 만료 규칙은 사용자가 업로드 후 이탈하거나 오류가 
 
 1. dev·prod EC2의 `/etc/chalkak/application.env`에 동일한 32자 이상의
    `IMAGE_PROCESSOR_CALLBACK_SECRET`를 설정한다.
-2. DB 마이그레이션과 내부 콜백 API가 포함된 dev·prod 백엔드를 먼저 배포한다.
-3. Lambda에 `DEV_BACKEND_CALLBACK_URL`, `PROD_BACKEND_CALLBACK_URL`, 같은
-   `IMAGE_PROCESSOR_CALLBACK_SECRET`, `BACKEND_CALLBACK_TIMEOUT_SECONDS`를 설정한다.
-4. Lambda 코드를 배포하고 성공·실패 콜백이 204를 받는지 확인한다.
+2. EC2 백엔드 역할에 환경별 사인·포스트 최종 경로의 `s3:PutObject` 권한을 추가한다.
+3. 내부 콜백과 결과 업로드 URL 발급 API가 포함된 dev·prod 백엔드를 먼저 배포한다.
+4. Lambda에 `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL`,
+   `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL`, 백엔드 시크릿과 같은 값의
+   `IMAGE_PROCESSING_API_SECRET`, `IMAGE_PROCESSING_API_TIMEOUT_SECONDS`를 설정한다.
+5. Lambda 코드를 배포하고 URL 발급 200, 결과 PUT 200 또는 412, 성공·실패 콜백 204를 확인한다.
+6. Lambda 역할에 기존 최종 경로 `s3:PutObject` 권한이 있다면 제거한다.
 
 서명 대상 문자열은 백엔드와 Lambda가 함께 바뀌어야 한다. 한쪽만 배포하면 모든 콜백이 401을
 받고, 401은 재시도 대상이라 큐가 계속 회전한다.
 
 Lambda를 먼저 배포하면 필수 환경 변수 누락 또는 콜백 API 미배포로
 SQS 재시도가 반복될 수 있다. HTTP 콜백은 추가 IAM 권한을 필요로
-하지 않지만, ALB가 `/internal/v1/signature-processing/*` 경로를 백엔드
-타겟 그룹으로 전달해야 한다.
+하지 않지만, ALB가 `/internal/v1/signature-processing/*`와
+`/internal/v1/post-image-processing/*` 경로를 백엔드 타겟 그룹으로 전달해야 한다.
 입력 키가 `chalkak/staging/dev/` 또는 `chalkak/staging/prod/`로 시작하므로
 공유 Lambda도 사인 등록을 소유한 백엔드 DB로만 콜백한다.
 
@@ -354,10 +356,10 @@ SQS
 S3 read
   s3:GetObject
   arn:aws:s3:::techcourse-project-2026/chalkak/staging/*
-
-S3 write/delete
-  s3:PutObject
   arn:aws:s3:::techcourse-project-2026/chalkak/signatures/*
+  arn:aws:s3:::techcourse-project-2026/chalkak/posts/*
+
+S3 delete
   s3:DeleteObject
   arn:aws:s3:::techcourse-project-2026/chalkak/staging/*
 

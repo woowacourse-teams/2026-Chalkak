@@ -3,6 +3,7 @@ import hmac
 import json
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError
@@ -11,6 +12,14 @@ from urllib.parse import urlsplit
 from image_processor.errors import PermanentCallbackError
 
 NON_RETRYABLE_STATUSES = frozenset({400, 404, 405, 413, 414, 415})
+
+
+@dataclass(frozen=True)
+class ProcessingUploadUrls:
+    original_upload_url: str
+    thumbnail_upload_url: str
+    content_type: str
+    cache_control: str
 
 
 class ProcessingCallbackClient:
@@ -30,25 +39,49 @@ class ProcessingCallbackClient:
     ):
         self._kind = kind
         self._path_prefix = f"/internal/v1/{kind}"
-        self._base_urls = {
+        api_base_urls = {
             environment: base_url.rstrip("/")
             for environment, base_url in base_urls.items()
         }
-        self._validate_base_urls()
+        self._validate_api_base_urls(api_base_urls)
+        self._base_urls = {
+            environment: f"{base_url}/{kind}"
+            for environment, base_url in api_base_urls.items()
+        }
         self._secret = secret.encode()
         self._timeout_seconds = timeout_seconds
 
-    def _validate_base_urls(self) -> None:
+    def _validate_api_base_urls(self, api_base_urls: Mapping[str, str]) -> None:
         """
         백엔드는 서명 대상 경로를 자기 컨트롤러 상수로 재구성한다. base URL 경로가 그와 다르면 모든 콜백이
         401을 받는데, 401은 시크릿 롤링을 고려해 재시도 대상이라 배포 오타 하나가 무한 재시도로 나타난다.
         기동 시점에 걸러 낸다.
         """
-        for environment, base_url in self._base_urls.items():
-            if urlsplit(base_url).path != self._path_prefix:
+        for environment, base_url in api_base_urls.items():
+            parsed = urlsplit(base_url)
+            try:
+                hostname = parsed.hostname
+                _ = parsed.port
+            except ValueError as exception:
                 raise ValueError(
-                    f"{environment} {self._kind} callback URL path must be "
-                    f"{self._path_prefix}"
+                    f"{environment} image processing API base URL is invalid"
+                ) from exception
+            if (
+                parsed.scheme != "https"
+                or not hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    f"{environment} image processing API base URL must be "
+                    "HTTPS without credentials, query, or fragment"
+                )
+            if parsed.path != "/internal/v1":
+                raise ValueError(
+                    f"{environment} image processing API base URL path must be "
+                    "/internal/v1"
                 )
 
     def complete(
@@ -67,13 +100,39 @@ class ProcessingCallbackClient:
     ) -> None:
         self._post(environment, upload_id, "failed", body)
 
+    def issue_upload_urls(
+        self,
+        environment: str,
+        upload_id: str,
+    ) -> ProcessingUploadUrls:
+        raw_response = self._post(
+            environment,
+            upload_id,
+            "upload-urls",
+            None,
+            permanent_rejection=False,
+        )
+        try:
+            payload = json.loads(raw_response)
+            upload_urls = ProcessingUploadUrls(
+                original_upload_url=payload["originalUploadUrl"],
+                thumbnail_upload_url=payload["thumbnailUploadUrl"],
+                content_type=payload["contentType"],
+                cache_control=payload["cacheControl"],
+            )
+        except (KeyError, TypeError, ValueError) as exception:
+            raise ValueError("backend returned invalid processing upload URLs") from exception
+        self._validate_upload_urls(upload_urls)
+        return upload_urls
+
     def _post(
         self,
         environment: str,
         upload_id: str,
         result: str,
         body: Mapping[str, Any] | None,
-    ) -> None:
+        permanent_rejection: bool = True,
+    ) -> bytes:
         base_url = self._base_urls.get(environment)
         if base_url is None:
             raise ValueError(f"unsupported image environment: {environment}")
@@ -107,14 +166,32 @@ class ProcessingCallbackClient:
             with request.urlopen(
                 callback_request,
                 timeout=self._timeout_seconds,
-            ):
-                return
+            ) as response:
+                return response.read()
         except HTTPError as error:
-            if error.code in NON_RETRYABLE_STATUSES:
+            if permanent_rejection and error.code in NON_RETRYABLE_STATUSES:
                 raise PermanentCallbackError(
                     f"backend callback rejected with HTTP {error.code}"
                 ) from error
             raise
+
+    @staticmethod
+    def _validate_upload_urls(upload_urls: ProcessingUploadUrls) -> None:
+        for value in (
+            upload_urls.original_upload_url,
+            upload_urls.thumbnail_upload_url,
+            upload_urls.content_type,
+            upload_urls.cache_control,
+        ):
+            if not isinstance(value, str) or not value:
+                raise ValueError("backend returned invalid processing upload URLs")
+        for url in (
+            upload_urls.original_upload_url,
+            upload_urls.thumbnail_upload_url,
+        ):
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or not parsed.netloc:
+                raise ValueError("processing upload URL must use HTTPS")
 
 
 def _encode(body: Mapping[str, Any] | None) -> bytes:

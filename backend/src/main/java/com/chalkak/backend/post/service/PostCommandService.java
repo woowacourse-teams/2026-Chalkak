@@ -12,6 +12,7 @@ import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.post.repository.PostProcessingImageUpload;
 import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.domain.TopicPhase;
@@ -59,6 +60,10 @@ public class PostCommandService {
                 presigned.contentType(),
                 presigned.maxBytes()
         );
+    }
+
+    public PostProcessingImageUpload issuePostImageProcessingUpload(UUID uploadId) {
+        return postImageUploadIssuer.issueProcessingUpload(uploadId);
     }
 
     public PostCreationResult createPost(

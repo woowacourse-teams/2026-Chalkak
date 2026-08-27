@@ -1,15 +1,19 @@
 package com.chalkak.backend.user.api.internal.v1.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.user.repository.SignatureProcessingImageUpload;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +39,53 @@ class SignatureProcessingCallbackControllerTest {
 
     @MockitoBean
     private ProcessingCallbackAuthenticator authenticator;
+
+    @Test
+    @DisplayName("인증된 Lambda에 사인 처리 결과용 presigned URL을 발급한다")
+    void issueUploadUrls_authenticatedRequest_returnsPresignedUrls() throws Exception {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(userService.issueSignatureProcessingUpload(uploadId))
+                .willReturn(new SignatureProcessingImageUpload(
+                        "https://s3.test/original",
+                        "https://s3.test/thumbnail",
+                        "image/png",
+                        "public, max-age=86400"
+                ));
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/upload-urls", uploadId)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalUploadUrl").value("https://s3.test/original"))
+                .andExpect(jsonPath("$.thumbnailUploadUrl").value("https://s3.test/thumbnail"))
+                .andExpect(jsonPath("$.contentType").value("image/png"))
+                .andExpect(jsonPath("$.cacheControl").value("public, max-age=86400"));
+
+        verify(authenticator).authenticate(
+                callbackPath(uploadId, "upload-urls"),
+                null,
+                "1787562000",
+                "signature"
+        );
+    }
+
+    @Test
+    @DisplayName("정규 형식이 아닌 업로드 ID에는 사인 처리 결과 URL을 발급하지 않는다")
+    void issueUploadUrls_nonCanonicalUploadId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post(
+                        "/internal/v1/signature-processing/{uploadId}/upload-urls",
+                        "1-1-1-1-1"
+                )
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature"))
+                .andExpect(status().isBadRequest());
+
+        verify(authenticator, never()).authenticate(any(), any(), any(), any());
+        verify(userService, never()).issueSignatureProcessingUpload(any());
+    }
 
     @Test
     @DisplayName("인증된 성공 콜백은 pending 사인을 승격하고 204를 반환한다")

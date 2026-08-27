@@ -11,6 +11,7 @@ import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
+import com.chalkak.backend.user.repository.SignatureProcessingImageUpload;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.UUID;
@@ -33,6 +34,10 @@ public class UserService {
         getActiveUser(userId, "사인을 업로드할 회원을 찾을 수 없습니다.");
 
         return signatureImageUploadIssuer.issue(UUID.randomUUID());
+    }
+
+    public SignatureProcessingImageUpload issueSignatureProcessingUpload(UUID uploadId) {
+        return signatureImageUploadIssuer.issueProcessingUpload(uploadId);
     }
 
     public String getSignature(UUID userId) {

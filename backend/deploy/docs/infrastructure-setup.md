@@ -138,8 +138,10 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - `GOOGLE_OIDC_CLIENT_ID`에는 모바일이 ID Token 발급 시 사용하는 백엔드용 Google Web Client ID를 설정한다.
 - `SOCIAL_SIGNUP_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. 값을 바꾸면 기존 회원가입 토큰이 무효화된다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
-- `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고 dev·prod 백엔드와 Lambda에 동일하게 설정한다.
-- Lambda의 `DEV_BACKEND_CALLBACK_URL`과 `PROD_BACKEND_CALLBACK_URL`에는 `/internal/v1/signature-processing`까지 포함한다.
+- `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성한다. Lambda의
+  `IMAGE_PROCESSING_API_SECRET`에는 이 값과 동일한 값을 설정한다.
+- Lambda의 `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL`과
+  `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL`에는 `/internal/v1`까지 포함한다.
 
 환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
 
@@ -156,6 +158,36 @@ sudo systemctl restart chalkak-backend.service
 ```text
 s3://techcourse-project-2026-artifacts
 ```
+
+백엔드는 이미지 처리 Lambda에 최종 결과용 presigned PUT URL을 발급한다. 따라서 각 환경의
+instance role에는 다음 경로에 대한 `s3:PutObject` 권한이 필요하다. dev 역할은 dev 경로만,
+prod 역할은 prod 경로만 허용하는 것이 원칙이다.
+
+```text
+arn:aws:s3:::techcourse-project-2026/chalkak/signatures/{environment}/original/*
+arn:aws:s3:::techcourse-project-2026/chalkak/signatures/{environment}/thumbnail/*
+arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/original/*
+arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/thumbnail/*
+```
+
+presigned URL 생성은 로컬 서명 연산이라 위 권한이 없어도 백엔드는 URL을 200으로 반환한다.
+권한 누락은 Lambda가 URL로 PUT할 때 S3의 403으로 처음 드러나므로, 백엔드 로그가 아니라
+Lambda의 `image_processing_failed` 로그와 SQS 재시도를 확인한다. 재시도 상한에 도달하면 Lambda가
+실패 콜백으로 처리 상태를 닫는다.
+
+배포 순서는 다음과 같이 고정한다.
+
+1. dev·prod EC2 instance role에 각 환경 최종 경로의 `s3:PutObject`를 부여한다.
+2. `upload-urls` 엔드포인트가 포함된 백엔드를 배포한다.
+3. 새 이미지 처리 API 환경 변수와 코드가 포함된 Lambda를 배포한다.
+
+Lambda를 먼저 배포하면 아직 없는 `upload-urls` 엔드포인트가 404를 반환해 모든 이미지 처리가
+SQS 재시도로 들어간다. 백엔드 배포 후 URL 발급 200, S3 PUT 200 또는 검증된 412, 완료 콜백
+204를 순서대로 확인한다.
+
+Lambda role에는 staging 객체의 `s3:GetObject`, `s3:DeleteObject`와 사인·포스트 최종 경로의
+`s3:GetObject`가 필요하다. 최종 경로 읽기는 조건부 PUT이 412를 반환했을 때 기존 객체가 현재
+변환 결과와 같은지 검증하는 용도다. 최종 경로의 `s3:PutObject`는 제거한다.
 
 EC2에서 identity를 확인한다.
 

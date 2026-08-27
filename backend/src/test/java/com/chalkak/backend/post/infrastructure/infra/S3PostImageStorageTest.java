@@ -34,8 +34,12 @@ class S3PostImageStorageTest {
                     "https://cdn.example.com",
                     ROOT_PREFIX,
                     "dev",
-                    new ImageProperties.Signature(1048576L, List.of("image/png")),
-                    new ImageProperties.Post(5_242_880L),
+                    new ImageProperties.Signature(
+                            1048576L,
+                            List.of("image/png"),
+                            "public, max-age=86400"
+                    ),
+                    new ImageProperties.Post(5_242_880L, "public, max-age=86400"),
                     false
             )
     );

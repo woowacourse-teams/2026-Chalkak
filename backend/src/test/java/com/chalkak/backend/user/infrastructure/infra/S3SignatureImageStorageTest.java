@@ -36,7 +36,11 @@ class S3SignatureImageStorageTest {
             BASE_URL,
             ROOT_PREFIX,
             ENVIRONMENT,
-            new ImageProperties.Signature(1048576L, List.of("image/png")),
+            new ImageProperties.Signature(
+                    1048576L,
+                    List.of("image/png"),
+                    "public, max-age=86400"
+            ),
             null,
             false
         )
@@ -71,7 +75,11 @@ class S3SignatureImageStorageTest {
                 BASE_URL,
                 ROOT_PREFIX,
                 "prod",
-                new ImageProperties.Signature(1048576L, List.of("image/png")),
+                new ImageProperties.Signature(
+                        1048576L,
+                        List.of("image/png"),
+                        "public, max-age=86400"
+                ),
                 null,
                 false
             )
