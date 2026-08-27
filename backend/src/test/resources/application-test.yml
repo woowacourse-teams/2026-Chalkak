@@ -21,6 +21,8 @@ chalkak:
     oidc:
       google:
         client-id: test-google-client-id
+      kakao:
+        app-key: test-kakao-app-key
   image:
     environment: test
     bucket: test-bucket

@@ -34,6 +34,10 @@ chalkak:
         issuer: https://accounts.google.com
         jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
         client-id: ${GOOGLE_OIDC_CLIENT_ID}
+      kakao:
+        issuer: https://kauth.kakao.com
+        jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+        app-key: ${KAKAO_OIDC_APP_KEY}
   image:
     bucket: ${S3_BUCKET}
     region: ${AWS_REGION:ap-northeast-2}

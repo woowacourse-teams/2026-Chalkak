@@ -136,6 +136,7 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 
 - 개발 `DB_HOST`는 `127.0.0.1`, 운영 `DB_HOST`는 RDS endpoint를 사용한다.
 - `GOOGLE_OIDC_CLIENT_ID`에는 모바일이 ID Token 발급 시 사용하는 백엔드용 Google Web Client ID를 설정한다.
+- `KAKAO_OIDC_APP_KEY`에는 Android와 iOS Kakao SDK가 공통으로 사용하는 네이티브 앱 키를 설정한다.
 - `SOCIAL_SIGNUP_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. 값을 바꾸면 기존 회원가입 토큰이 무효화된다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
 - `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고 dev·prod 백엔드와 Lambda에 동일하게 설정한다.
