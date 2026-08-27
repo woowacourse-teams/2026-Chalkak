@@ -88,6 +88,29 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("Kakao ID Token으로 소셜 로그인할 수 있다")
+    void socialLogin_kakaoProvider_returnsLoginResult() throws Exception {
+        // Given
+        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token"))
+                .willReturn(new SocialLoginResult(
+                        SocialLoginStatus.SIGN_UP_REQUIRED,
+                        null));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "KAKAO",
+                                  "idToken": "kakao-id-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
+                .andExpect(jsonPath("$.userId").doesNotExist());
+    }
+
+    @Test
     @DisplayName("ID Token이 비어 있으면 400을 반환한다")
     void socialLogin_blankIdToken_returnsBadRequest() throws Exception {
         // When & Then
