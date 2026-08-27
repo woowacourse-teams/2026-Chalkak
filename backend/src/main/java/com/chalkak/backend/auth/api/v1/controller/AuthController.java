@@ -8,6 +8,7 @@ import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
+import com.chalkak.backend.auth.service.SocialSignupResult;
 import com.chalkak.backend.auth.service.SocialSignupService;
 import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
 import jakarta.validation.Valid;
@@ -59,7 +60,9 @@ public class AuthController implements AuthApiDocs {
     public ResponseEntity<SocialSignupResponse> socialSignup(
             @Valid @RequestBody SocialSignupRequest request
     ) {
-        return ResponseEntity.ok(SocialSignupResponse.from(
-                socialSignupService.signup(request.signupToken())));
+        SocialSignupResult result = socialSignupService.signup(
+                request.signupToken());
+
+        return ResponseEntity.ok(SocialSignupResponse.from(result));
     }
 }
