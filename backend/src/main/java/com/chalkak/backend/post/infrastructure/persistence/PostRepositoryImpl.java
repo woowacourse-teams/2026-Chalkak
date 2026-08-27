@@ -6,6 +6,8 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,6 +28,10 @@ public class PostRepositoryImpl implements PostRepository {
             "ux_posts_photo_id",
             "ux_photos_original_storage_key"
     );
+    private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
+            ModerationStatus.APPROVED,
+            ModerationStatus.PENDING
+    );
 
     private final PostJpaRepository postJpaRepository;
 
@@ -44,23 +50,6 @@ public class PostRepositoryImpl implements PostRepository {
         }
     }
 
-    private boolean isDuplicateConstraint(Throwable exception) {
-        Throwable cause = exception;
-        while (cause != null) {
-            if (cause instanceof ConstraintViolationException constraintViolationException
-                    && DUPLICATE_CONSTRAINT_NAMES.contains(
-                    constraintViolationException.getConstraintName())) {
-                return true;
-            }
-            cause = cause.getCause();
-        }
-        return false;
-    }
-
-    /**
-     * 거절된 게시물은 중복으로 세지 않는다. 이미지 처리에서 거절당한 사용자가 올바른 사진으로 다시 올릴
-     * 수 있어야 하는데, 게시물 삭제 API가 없어 한 번 거절되면 복구할 방법이 없기 때문이다.
-     */
     @Override
     public void flush() {
         postJpaRepository.flush();
@@ -85,6 +74,20 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByPostImageUploadId(
                 postImageUploadId,
                 ModerationStatus.VALIDATING
+        );
+    }
+
+    @Override
+    public List<Post> findCalendarPostsByAuthorIdAndTopicDateBetween(
+            UUID authorId,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        return postJpaRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
+                authorId,
+                startDate,
+                endDate,
+                CALENDAR_MODERATION_STATUSES
         );
     }
 
@@ -151,5 +154,18 @@ public class PostRepositoryImpl implements PostRepository {
                 result.getContent(),
                 result.hasNext()
         );
+    }
+
+    private boolean isDuplicateConstraint(Throwable exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolationException
+                    && DUPLICATE_CONSTRAINT_NAMES.contains(
+                    constraintViolationException.getConstraintName())) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }

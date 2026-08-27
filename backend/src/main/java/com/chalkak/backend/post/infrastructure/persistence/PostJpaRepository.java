@@ -2,7 +2,10 @@ package com.chalkak.backend.post.infrastructure.persistence;
 
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -56,6 +59,26 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     Optional<Post> findByPostImageUploadId(
             @Param("postImageUploadId") UUID postImageUploadId,
             @Param("moderationStatus") ModerationStatus moderationStatus
+    );
+
+    @Query("""
+            SELECT post
+            FROM Post post
+            JOIN FETCH post.topic topic
+            JOIN FETCH post.photo photo
+            WHERE post.author.id = :authorId
+              AND topic.topicDate BETWEEN :startDate AND :endDate
+              AND post.moderationStatus IN :moderationStatuses
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+            ORDER BY topic.topicDate ASC, post.id ASC
+            """)
+    List<Post> findCalendarPostsByAuthorIdAndTopicDateBetween(
+            @Param("authorId") UUID authorId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("moderationStatuses") Set<ModerationStatus> moderationStatuses
     );
 
     @Query("""
