@@ -7,18 +7,27 @@
 > 실제 목적지에 연결한다.
 
 ```text
-사용자 클릭
-  → Screen.onLoginClick
-  → ViewModel.login()
+기존 회원의 Google 로그인
+  → LoginScreen.onSocialLoginClick(GOOGLE)
+  → LoginRoute가 Google 자격 증명 획득
+  → LoginViewModel.login()
   → LoginUiState.status = Authenticated
-  → Route.onLoginSuccess()
-  → ChalkakNavHost가 목적지 결정
-  → NavController가 이동 수행
+  → AuthRepository.sessionState = Authenticated
+  → AuthGateViewModel.uiState = AppAccessible
+  → MainActivity가 Today를 시작 목적지로 하는 ChalkakNavHost 표시
+
+신규 회원의 Google 로그인
+  → LoginScreen.onSocialLoginClick(GOOGLE)
+  → LoginRoute가 Google 자격 증명 획득
+  → LoginViewModel.login()
+  → LoginUiState.status = SignUpRequired
+  → LoginRoute.onSignUpRequired()
+  → ChalkakNavHost가 Terms로 이동
 ```
 
 ## 의사결정 배경
 
-로그인 성공 후 Main으로 이동할 때 ViewModel의 일회성 이벤트를 다음 두 가지로 정의할 수 있다.
+로그인 결과를 내비게이션 이벤트로 직접 전달할 때 ViewModel의 일회성 이벤트를 다음처럼 정의할 수 있다.
 
 ```kotlin
 LoginUiEvent.LoginSucceeded
@@ -30,6 +39,12 @@ LoginUiEvent.NavigateToMain
 
 `LoginSucceeded`는 피처 결과만 표현하므로 목적지 결합은 줄어든다. 그러나 로그인 완료는 놓치면 안 되는
 현재 상태이므로 일회성 이벤트보다 `UiState`로 모델링한다.
+
+현재 구현에서는 로그인 결과에 따라 내비게이션 경계가 다르다. 기존 회원은 로그인 성공으로 갱신된
+`sessionState`를 `AuthGateViewModel`과 `MainActivity`가 관찰해 `Today` 화면을 표시한다. 신규 회원은
+`LoginUiState.SignUpRequired`를 `LoginRoute`가 관찰해 `onSignUpRequired` 콜백으로
+`ChalkakNavHost`에 전달하고 `Terms`로 이동한다. 회원가입 완료도 `SignUpStatus.Completed` 상태를
+`SignaturePreviewRoute`가 관찰해 `ChalkakNavHost`의 `onSignUpSuccess` 콜백으로 전달한다.
 
 ## 책임 분리
 
@@ -89,11 +104,17 @@ sealed interface LoginStatus {
     data object Idle : LoginStatus
     data object Loading : LoginStatus
     data object Authenticated : LoginStatus
+    data object GuestAccessGranted : LoginStatus
+    data object SignUpRequired : LoginStatus
     data class Failed(val message: String) : LoginStatus
 }
 ```
 
 ViewModel은 목적지를 지시하지 않고 현재 피처 상태만 갱신한다.
+
+`Authenticated`는 `LoginRoute`의 목적지 콜백이 아니라 세션 상태를 갱신하는 결과다. 세션 게이트가
+앱 진입을 결정한다. `SignUpRequired`처럼 가입 플로우를 시작해야 하는 결과만 Route가 의미 기반
+콜백으로 상위 계층에 전달한다.
 
 ```kotlin
 fun login() {
@@ -135,32 +156,34 @@ Route는 상태를 수집하고 피처 결과를 상위 계층에 알린다.
 ```kotlin
 @Composable
 fun LoginRoute(
-    onLoginSuccess: () -> Unit,
+    onSignUpRequired: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(uiState.status) {
-        if (uiState.status == LoginStatus.Authenticated) {
-            onLoginSuccess()
+        if (uiState.status == LoginStatus.SignUpRequired) {
+            onSignUpRequired()
+            viewModel.signUpRequiredHandled()
         }
     }
 
     LoginScreen(
-        uiState = uiState,
-        onLoginClick = viewModel::login,
+        enabled = uiState.canSubmit,
+        errorMessage = uiState.errorMessage,
         modifier = modifier,
     )
 }
 ```
 
-Route 콜백은 현재 목적지보다 피처의 의미를 표현한다.
+기존 회원의 `Authenticated` 결과는 `AuthGateViewModel`이 세션 상태를 통해 처리하므로
+`LoginRoute` 콜백을 거치지 않는다. Route 콜백은 현재 목적지보다 피처의 의미를 표현한다.
 
 | 권장 | 지양 |
 | --- | --- |
-| `onLoginSuccess` | `onNavigateToMain` |
-| `onRegistrationCompleted` | `onNavigateToOnboarding` |
+| `onSignUpRequired` | `onNavigateToTerms` |
+| `onSignUpSuccess` | `onNavigateToToday` |
 | `onTopicClick` | Screen에 `NavController` 전달 |
 
 사용자가 Settings나 Help처럼 명시적인 목적지를 직접 선택하는 클릭은 `onSettingsClick`,
@@ -172,24 +195,27 @@ NavHost는 피처 결과를 현재 앱 정책의 목적지에 연결한다.
 ```kotlin
 composable<Login> {
     LoginRoute(
-        onLoginSuccess = {
-            navController.navigate(Today) {
-                popUpTo<Login> { inclusive = true }
-            }
+        onSignUpRequired = {
+            navController.navigate(Terms)
         },
     )
 }
 ```
 
-로그인 후 Onboarding이 필요하도록 정책이 바뀌면 NavHost의 매핑을 바꾼다.
+기존 회원 로그인 후의 목적지는 `LoginRoute`가 아니라 `AuthGateViewModel`의 세션 상태 매핑이
+결정한다. 신규 회원의 가입 시작 목적지가 바뀌면 `onSignUpRequired`의 NavHost 매핑을 바꾼다.
 
 ```kotlin
 LoginRoute(
-    onLoginSuccess = {
-        navController.navigate(Terms)
+    onSignUpRequired = {
+        navController.navigate(Signature(SignatureOrigin.ONBOARDING))
     },
 )
 ```
+
+회원가입 완료는 `SignUpStatus.Completed`를 `SignaturePreviewRoute`가 관찰한 뒤
+`onSignUpSuccess`를 호출한다. `ChalkakNavHost`는 이 콜백에서 `Today`로 이동하고
+`Terms`까지의 가입 플로우를 백스택에서 제거한다.
 
 ## 반복 내비게이션
 
