@@ -58,7 +58,27 @@ class ProcessingCallbackClient:
         기동 시점에 걸러 낸다.
         """
         for environment, base_url in api_base_urls.items():
-            if urlsplit(base_url).path != "/internal/v1":
+            parsed = urlsplit(base_url)
+            try:
+                hostname = parsed.hostname
+                _ = parsed.port
+            except ValueError as exception:
+                raise ValueError(
+                    f"{environment} image processing API base URL is invalid"
+                ) from exception
+            if (
+                parsed.scheme != "https"
+                or not hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    f"{environment} image processing API base URL must be "
+                    "HTTPS without credentials, query, or fragment"
+                )
+            if parsed.path != "/internal/v1":
                 raise ValueError(
                     f"{environment} image processing API base URL path must be "
                     "/internal/v1"

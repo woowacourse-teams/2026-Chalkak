@@ -47,6 +47,24 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
                 timeout_seconds=3.0,
             )
 
+    def test_rejects_insecure_or_malformed_api_base_url(self) -> None:
+        invalid_urls = (
+            "http://dev-api.test.chalkak/internal/v1",
+            "https:///internal/v1",
+            "https://dev-api.test.chalkak/internal/v1?stage=dev",
+            "https://dev-api.test.chalkak/internal/v1#callbacks",
+        )
+
+        for base_url in invalid_urls:
+            with self.subTest(base_url=base_url):
+                with self.assertRaises(ValueError):
+                    ProcessingCallbackClient(
+                        kind="signature-processing",
+                        base_urls={"dev": base_url},
+                        secret=SECRET,
+                        timeout_seconds=3.0,
+                    )
+
     @patch("image_processor.callback.time.time", return_value=1_787_562_000)
     @patch("image_processor.callback.request.urlopen")
     def test_signature_differs_between_environments(self, urlopen, _time) -> None:
