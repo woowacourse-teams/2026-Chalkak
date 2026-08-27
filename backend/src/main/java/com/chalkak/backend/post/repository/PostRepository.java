@@ -1,6 +1,8 @@
 package com.chalkak.backend.post.repository;
 
 import com.chalkak.backend.post.domain.Post;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +21,12 @@ public interface PostRepository {
     Optional<Post> findVisibleById(UUID postId);
 
     Optional<Post> findValidatingByPostImageUploadId(UUID postImageUploadId);
+
+    List<Post> findCalendarPostsByAuthorIdAndTopicDateBetween(
+            UUID authorId,
+            LocalDate startDate,
+            LocalDate endDate
+    );
 
     PostSlice findVisibleRecentByTopicId(
             UUID topicId,

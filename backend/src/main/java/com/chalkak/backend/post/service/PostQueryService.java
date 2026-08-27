@@ -14,6 +14,7 @@ import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,17 @@ public class PostQueryService {
                 postLikeRepository.countByPostId(postId),
                 postLikeRepository.existsByPostIdAndUserId(postId, userId)
         );
+    }
+
+    public PostCalendarResult getMyPostCalendar(UUID userId, YearMonth yearMonth) {
+        validateUser(userId);
+        List<Post> posts = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
+                userId,
+                yearMonth.atDay(1),
+                yearMonth.atEndOfMonth()
+        );
+
+        return PostCalendarResult.from(yearMonth, posts, imageUrlProvider);
     }
 
     public PostListResult getPosts(

@@ -1,21 +1,32 @@
 package com.chalkak.backend.post.api.v1.controller;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.service.PostCalendarResult;
+import com.chalkak.backend.post.service.PostCommandService;
+import com.chalkak.backend.post.service.PostCreationResult;
 import com.chalkak.backend.post.service.PostDetail;
+import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostSort;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,9 +34,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -37,9 +50,20 @@ class PostControllerTest {
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
+    private static final UUID PHOTO_UPLOAD_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
+    private static final UUID UPLOAD_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
+    private static final UUID PENDING_POST_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
+    private static final String UPLOAD_URL =
+            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/presigned";
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private PostCommandService postCommandService;
 
     @MockitoBean
     private PostQueryService postQueryService;
@@ -421,5 +445,367 @@ class PostControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("인증된 사용자가 업로드 URL을 발급받으면 200과 발급 정보를 반환한다")
+    void createPostImageUpload_authenticatedUser_returnsIssuedUpload() throws Exception {
+        // Given
+        given(postCommandService.createPostImageUpload(USER_ID)).willReturn(
+                new PostImageUploadResult(
+                        UPLOAD_ID,
+                        UPLOAD_URL,
+                        300L,
+                        "image/webp",
+                        5_242_880L
+                )
+        );
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads")
+                        .header(USER_ID_HEADER, USER_ID.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadId").value(UPLOAD_ID.toString()))
+                .andExpect(jsonPath("$.uploadUrl").value(UPLOAD_URL))
+                .andExpect(jsonPath("$.expiresInSeconds").value(300))
+                .andExpect(jsonPath("$.contentType").value("image/webp"))
+                .andExpect(jsonPath("$.maxBytes").value(5_242_880L));
+
+        then(postCommandService).should().createPostImageUpload(USER_ID);
+    }
+
+    @Test
+    @DisplayName("인증 헤더가 없으면 업로드 URL을 발급하지 않고 401을 반환한다")
+    void createPostImageUpload_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("인증 헤더가 UUID 형식이 아니면 업로드 URL을 발급하지 않고 401을 반환한다")
+    void createPostImageUpload_malformedUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/uploads")
+                        .header(USER_ID_HEADER, "not-a-uuid"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("인증된 사용자가 게시물을 생성하면 201과 생성 정보를 반환한다")
+    void createPost_validRequest_returnsCreatedPost() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                "오늘의 기록"
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "오늘의 기록"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.moderationStatus").value("VALIDATING"));
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                "오늘의 기록"
+        );
+    }
+
+    @Test
+    @DisplayName("사용자 식별 헤더가 없으면 401을 반환한다")
+    void createPost_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("주제 ID가 없으면 400을 반환한다")
+    void createPost_missingTopicId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "photoUploadId": "%s"
+                                }
+                                """.formatted(PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("주제 정보가 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("사진 업로드 ID가 없으면 400을 반환한다")
+    void createPost_missingPhotoUploadId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s"
+                                }
+                                """.formatted(TOPIC_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("사진 업로드 정보가 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("제목이 10자를 초과하면 400을 반환한다")
+    void createPost_tooLongTitle_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "12345678901"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목은 10자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이모지 제목은 코드 포인트 기준 10자까지 서비스로 전달한다")
+    void createPost_tenCodePointEmojiTitle_returnsCreatedPost() throws Exception {
+        // Given
+        String emojiTitle = "📸".repeat(10);
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                emojiTitle
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "%s"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, emojiTitle)))
+                .andExpect(status().isCreated());
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                emojiTitle
+        );
+    }
+
+    @Test
+    @DisplayName("긴 유니코드 공백 제목은 제목 없음으로 처리할 수 있도록 서비스에 전달한다")
+    void createPost_longBlankTitle_passesRequestValidation() throws Exception {
+        // Given
+        String blankTitle = "\u3000".repeat(11);
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                blankTitle
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "%s"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, blankTitle)))
+                .andExpect(status().isCreated());
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                blankTitle
+        );
+    }
+
+    @Test
+    @DisplayName("내 게시물 캘린더 조회에 성공하면 월별 결과를 반환한다")
+    void getMyPostCalendar_validRequest_returnsCalendar() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendar(USER_ID, YearMonth.of(2026, 8)))
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of(
+                                new PostCalendarResult.PostSummary(
+                                        LocalDate.of(2026, 8, 12),
+                                        POST_ID,
+                                        "https://cdn.example.com/posts/approved.webp",
+                                        ModerationStatus.APPROVED
+                                ),
+                                new PostCalendarResult.PostSummary(
+                                        LocalDate.of(2026, 8, 13),
+                                        PENDING_POST_ID,
+                                        "https://cdn.example.com/posts/pending.webp",
+                                        ModerationStatus.PENDING
+                                )
+                        )
+                ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .param("year", "2026")
+                        .param("month", "8"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(2026))
+                .andExpect(jsonPath("$.month").value(8))
+                .andExpect(jsonPath("$.results").doesNotExist())
+                .andExpect(jsonPath("$.posts[0].topicDate").value("2026-08-12"))
+                .andExpect(jsonPath("$.posts[0].postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
+                        .value("https://cdn.example.com/posts/approved.webp"))
+                .andExpect(jsonPath("$.posts[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.posts[1].status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("게시물이 없으면 빈 캘린더 결과를 반환한다")
+    void getMyPostCalendar_noPosts_returnsEmptyResults() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendar(USER_ID, YearMonth.of(2026, 8)))
+                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .param("year", "2026")
+                        .param("month", "8"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts").isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "13"})
+    @DisplayName("조회 월이 1부터 12 사이가 아니면 400을 반환한다")
+    void getMyPostCalendar_invalidMonth_returnsBadRequest(String month) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .param("year", "2026")
+                        .param("month", month))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("조회 연월이 올바르지 않습니다."));
+
+        verify(postQueryService, never()).getMyPostCalendar(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "10000"})
+    @DisplayName("조회 연도가 지원 범위를 벗어나면 400을 반환한다")
+    void getMyPostCalendar_invalidYear_returnsBadRequest(String year) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, USER_ID.toString())
+                        .param("year", year)
+                        .param("month", "8"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("조회 연월이 올바르지 않습니다."));
+
+        verify(postQueryService, never()).getMyPostCalendar(any(), any());
+    }
+
+    @Test
+    @DisplayName("조회 연월이 누락되면 400을 반환한다")
+    void getMyPostCalendar_missingYearMonth_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, USER_ID.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("조회 연월이 올바르지 않습니다."));
+
+        verify(postQueryService, never()).getMyPostCalendar(any(), any());
+    }
+
+    @Test
+    @DisplayName("사용자 식별 헤더가 없으면 401을 반환한다")
+    void getMyPostCalendar_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .param("year", "2026")
+                        .param("month", "8"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        verify(postQueryService, never()).getMyPostCalendar(any(), any());
+    }
+
+    @Test
+    @DisplayName("사용자 식별 헤더가 UUID 형식이 아니면 401을 반환한다")
+    void getMyPostCalendar_invalidUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .header(USER_ID_HEADER, "not-a-uuid")
+                        .param("year", "2026")
+                        .param("month", "8"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        verify(postQueryService, never()).getMyPostCalendar(any(), any());
     }
 }
