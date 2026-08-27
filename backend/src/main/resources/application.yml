@@ -23,6 +23,10 @@ spring:
     validate-migration-naming: true
 
 chalkak:
+  admin:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
   auth:
     social-signup-token:
       issuer: chalkak-backend

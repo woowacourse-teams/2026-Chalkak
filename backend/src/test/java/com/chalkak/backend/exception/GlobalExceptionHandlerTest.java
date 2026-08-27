@@ -98,6 +98,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("대상을 찾을 수 없습니다."));
     }
 
+    @Test
+    void forbiddenException() throws Exception {
+        mockMvc.perform(get("/test/forbidden-error"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("관리자 API에 접근할 수 없습니다."));
+    }
+
     @RestController
     @RequestMapping("/test")
     public static class TestController {
@@ -118,6 +126,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/not-found-error")
         void notFoundError() {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "대상을 찾을 수 없습니다.");
+        }
+
+        @GetMapping("/forbidden-error")
+        void forbiddenError() {
+            throw new ForbiddenException(ErrorCode.FORBIDDEN, "관리자 API에 접근할 수 없습니다.");
         }
     }
 

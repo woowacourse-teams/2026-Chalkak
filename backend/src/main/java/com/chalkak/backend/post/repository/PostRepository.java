@@ -10,7 +10,7 @@ public interface PostRepository {
 
     Post save(Post post);
 
-    Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId);
+    Optional<Post> findActiveByAuthorIdAndTopicIdForUpdate(UUID authorId, UUID topicId);
 
     /**
      * 지금까지의 변경을 즉시 반영한다. 활성 게시물을 가리는 부분 유니크 인덱스가 있어, 새 게시물을 저장하기
@@ -20,7 +20,7 @@ public interface PostRepository {
 
     Optional<Post> findVisibleById(UUID postId);
 
-    Optional<Post> findValidatingByPostImageUploadId(UUID postImageUploadId);
+    Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId);
 
     List<Post> findCalendarPostsByAuthorIdAndTopicDateBetween(
             UUID authorId,

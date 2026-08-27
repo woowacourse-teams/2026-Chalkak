@@ -12,7 +12,11 @@ public record PostCreateResponse(
         )
         UUID postId,
 
-        @Schema(description = "초기 검수 상태", example = "VALIDATING")
+        @Schema(
+                description = "이미지 처리 전 VALIDATING, 처리 완료 후 관리자 검수 대기이면 PENDING",
+                allowableValues = {"VALIDATING", "PENDING"},
+                example = "VALIDATING"
+        )
         ModerationStatus moderationStatus
 ) {
 

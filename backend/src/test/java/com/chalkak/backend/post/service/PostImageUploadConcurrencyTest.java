@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -151,8 +153,82 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
         assertThat(results).contains(SUCCESS);
         assertThat(countPosts()).isEqualTo(1);
         assertThat(claimedCount()).isEqualTo(1);
-        // 어느 순서로 끝나든 게시물은 검수 중이거나 공개된 상태로 수렴하고, 되돌아가지 않는다.
-        assertThat(moderationStatus()).isIn("VALIDATING", "APPROVED");
+        // 어느 순서로 끝나든 이미지 처리가 끝난 게시물은 관리자 검수 대기 상태로 수렴한다.
+        assertThat(moderationStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("완료와 실패 콜백이 겹쳐도 업로드와 게시물 상태가 같은 결과로 수렴한다")
+    void processImage_concurrentCompleteAndFail_keepsStatesConsistent() throws Exception {
+        // Given
+        postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+        Callable<Void> completeCallback = () -> {
+            postCommandService.completePostImageProcessing(
+                    UPLOAD_ID,
+                    Map.of("width", 4032, "height", 3024)
+            );
+            return null;
+        };
+        Callable<Void> failCallback = () -> {
+            postCommandService.failPostImageProcessing(UPLOAD_ID, "PROCESSING_ERROR");
+            return null;
+        };
+
+        // When
+        List<String> results = runConcurrently(completeCallback, failCallback);
+
+        // Then
+        assertThat(results).containsExactly(SUCCESS, SUCCESS);
+        assertThat(uploadStatus() + "/" + moderationStatus())
+                .isIn("READY/PENDING", "REJECTED/REJECTED");
+    }
+
+    @Test
+    @DisplayName("시간 초과 게시물 재시도와 완료 콜백이 겹쳐도 잠금 교착 없이 끝난다")
+    void createPost_stalledRetryWithCompleteCallback_avoidsDeadlock() throws Exception {
+        // Given
+        postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 minutes'"
+                        + " WHERE user_id = ?",
+                USER_ID
+        );
+
+        CountDownLatch retryReachedStorage = new CountDownLatch(1);
+        CountDownLatch callbackAcquiredPost = new CountDownLatch(1);
+        given(postImageStorage.existsUploadedImage(UPLOAD_ID)).willAnswer(invocation -> {
+            retryReachedStorage.countDown();
+            if (!callbackAcquiredPost.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("완료 콜백이 게시물 잠금 뒤에서 대기했습니다.");
+            }
+            return true;
+        });
+        given(postImageStorage.toThumbnailStorageKey(UPLOAD_ID)).willAnswer(invocation -> {
+            callbackAcquiredPost.countDown();
+            return THUMBNAIL_STORAGE_KEY;
+        });
+
+        Callable<Void> retryCreate = () -> {
+            postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            return null;
+        };
+        Callable<Void> completeCallback = () -> {
+            if (!retryReachedStorage.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("재시도가 저장소 확인 지점에 도달하지 못했습니다.");
+            }
+            postCommandService.completePostImageProcessing(
+                    UPLOAD_ID,
+                    Map.of("width", 4032, "height", 3024)
+            );
+            return null;
+        };
+
+        // When
+        List<String> results = runConcurrently(retryCreate, completeCallback);
+
+        // Then
+        assertThat(results).containsExactlyInAnyOrder("이미 사용된 사진입니다.", SUCCESS);
+        assertThat(uploadStatus() + "/" + moderationStatus()).isEqualTo("READY/PENDING");
     }
 
     private List<String> runConcurrently(Callable<Void> first, Callable<Void> second)
@@ -162,7 +238,10 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
             Future<String> firstResult = executor.submit(() -> attempt(barrier, first));
             Future<String> secondResult = executor.submit(() -> attempt(barrier, second));
 
-            return List.of(firstResult.get(), secondResult.get());
+            return List.of(
+                    firstResult.get(10, TimeUnit.SECONDS),
+                    secondResult.get(10, TimeUnit.SECONDS)
+            );
         }
     }
 
@@ -202,6 +281,14 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                 "SELECT CAST(moderation_status AS TEXT) FROM posts WHERE user_id = ?",
                 String.class,
                 USER_ID
+        );
+    }
+
+    private String uploadStatus() {
+        return jdbcTemplate.queryForObject(
+                "SELECT CAST(status AS TEXT) FROM post_image_uploads WHERE id = ?",
+                String.class,
+                UPLOAD_ID
         );
     }
 }

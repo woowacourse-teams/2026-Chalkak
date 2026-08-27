@@ -78,8 +78,6 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
         // Given
         given(imageUrlProvider.getUrl(APPROVED_THUMBNAIL_KEY))
                 .willReturn("https://cdn.example.com/posts/approved.webp");
-        given(imageUrlProvider.getUrl(PENDING_THUMBNAIL_KEY))
-                .willReturn("https://cdn.example.com/posts/pending.webp");
 
         // When
         PostCalendarResult result = postQueryService.getMyPostCalendar(
@@ -97,12 +95,6 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
                                 ModerationStatus.APPROVED
-                        ),
-                        new PostCalendarResult.PostSummary(
-                                LocalDate.of(2026, 8, 31),
-                                PENDING_POST_ID,
-                                "https://cdn.example.com/posts/pending.webp",
-                                ModerationStatus.PENDING
                         )
                 )
         ));

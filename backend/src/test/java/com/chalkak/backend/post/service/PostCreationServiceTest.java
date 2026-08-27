@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -391,6 +392,15 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         );
     }
 
+    private Instant moderatedAtOf(UUID postId) {
+        entityManager.flush();
+        return jdbcTemplate.queryForObject(
+                "SELECT moderated_at FROM posts WHERE id = ?",
+                Instant.class,
+                postId
+        );
+    }
+
     private UUID givenSecondUpload() {
         UUID secondUploadId = UUID.randomUUID();
         insertUpload(secondUploadId, USER_ID, "ISSUED");
@@ -420,6 +430,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
         assertThat(moderationStatusOf(stalled.postId())).isEqualTo("REJECTED");
+        assertThat(moderatedAtOf(stalled.postId())).isNull();
     }
 
     @Test
@@ -551,8 +562,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("이미지 처리가 끝난 업로드로 만든 게시물은 바로 공개 상태가 된다")
-    void createPost_readyUpload_savesApprovedPost() {
+    @DisplayName("이미지 처리가 끝난 업로드로 만든 게시물도 관리자 검수 대기 상태가 된다")
+    void createPost_readyUpload_savesPendingPost() {
         // Given
         jdbcTemplate.update("""
                 UPDATE post_image_uploads
@@ -576,7 +587,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.APPROVED);
+        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.PENDING);
         Map<String, Object> saved = jdbcTemplate.queryForMap("""
                 SELECT p.moderation_status, p.moderated_at,
                        ph.thumbnail_storage_key,
@@ -584,11 +595,15 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 FROM posts p JOIN photos ph ON ph.id = p.photo_id
                 WHERE p.id = ?
                 """, result.postId());
-        assertThat(saved.get("moderation_status").toString()).isEqualTo("APPROVED");
-        assertThat(saved.get("moderated_at")).isNotNull();
+        assertThat(saved.get("moderation_status").toString()).isEqualTo("PENDING");
+        assertThat(saved.get("moderated_at")).isNull();
         assertThat(saved.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(saved.get("metadata_width")).isEqualTo("4032");
         then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
+
+        assertThatThrownBy(() -> postQueryService.getPost(result.postId(), USER_ID))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     @Test
