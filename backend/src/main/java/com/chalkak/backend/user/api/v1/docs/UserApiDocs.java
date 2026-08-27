@@ -82,7 +82,7 @@ public interface UserApiDocs {
             @ApiResponse(
                     responseCode = "400",
                     description = "사인 재등록 필요(SIGNATURE_REGISTRATION_REQUIRED): "
-                            + "사인 이미지 처리 실패 또는 15분 타임아웃",
+                            + "사인 이미지 처리 실패 또는 설정된 처리 제한 시간 초과",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

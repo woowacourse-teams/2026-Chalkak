@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -292,83 +291,6 @@ class UserTest {
         assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
         assertThat(user.getPendingSignatureUploadId()).isEqualTo(uploadId);
         assertThat(user.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.FAILED);
-    }
-
-    @Test
-    @DisplayName("사인 처리 시작 후 정확히 제한 시간이 지나면 실패로 바꾼다")
-    void failSignatureProcessingIfTimedOut_atTimeout_marksFailed() {
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-        UUID uploadId = UUID.randomUUID();
-        Instant startedAt = Instant.parse("2026-08-26T00:00:00Z");
-        Duration timeout = Duration.ofMinutes(15);
-        user.startSignatureProcessing(uploadId, startedAt);
-
-        // When
-        boolean failed = user.failSignatureProcessingIfTimedOut(
-                startedAt.plus(timeout),
-                timeout);
-
-        // Then
-        assertThat(failed).isTrue();
-        assertThat(user.getSignatureProcessingStatus())
-                .isEqualTo(SignatureProcessingStatus.FAILED);
-    }
-
-    @Test
-    @DisplayName("사인 처리 제한 시간 직전에는 처리 중 상태를 유지한다")
-    void failSignatureProcessingIfTimedOut_beforeTimeout_keepsProcessing() {
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-        Instant startedAt = Instant.parse("2026-08-26T00:00:00Z");
-        Duration timeout = Duration.ofMinutes(15);
-        user.startSignatureProcessing(UUID.randomUUID(), startedAt);
-
-        // When
-        boolean failed = user.failSignatureProcessingIfTimedOut(
-                startedAt.plus(timeout).minusNanos(1),
-                timeout);
-
-        // Then
-        assertThat(failed).isFalse();
-        assertThat(user.getSignatureProcessingStatus())
-                .isEqualTo(SignatureProcessingStatus.PROCESSING);
-    }
-
-    @Test
-    @DisplayName("사인 처리 제한 시간을 초과하면 실패로 바꾼다")
-    void failSignatureProcessingIfTimedOut_afterTimeout_marksFailed() {
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-        Instant startedAt = Instant.parse("2026-08-26T00:00:00Z");
-        Duration timeout = Duration.ofMinutes(15);
-        user.startSignatureProcessing(UUID.randomUUID(), startedAt);
-
-        // When
-        boolean failed = user.failSignatureProcessingIfTimedOut(
-                startedAt.plus(timeout).plusNanos(1),
-                timeout);
-
-        // Then
-        assertThat(failed).isTrue();
-        assertThat(user.getSignatureProcessingStatus())
-                .isEqualTo(SignatureProcessingStatus.FAILED);
-    }
-
-    @Test
-    @DisplayName("처리 중인 사인이 없으면 타임아웃 상태를 변경하지 않는다")
-    void failSignatureProcessingIfTimedOut_withoutPending_returnsFalse() {
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-
-        // When
-        boolean failed = user.failSignatureProcessingIfTimedOut(
-                Instant.parse("2026-08-26T00:15:00Z"),
-                Duration.ofMinutes(15));
-
-        // Then
-        assertThat(failed).isFalse();
-        assertThat(user.getSignatureProcessingStatus()).isNull();
     }
 
     @Test

@@ -8,7 +8,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -118,20 +117,6 @@ public class User {
 
     public boolean failSignatureProcessing(UUID uploadId) {
         if (!isProcessing(uploadId)) {
-            return false;
-        }
-        this.signatureProcessingStatus = SignatureProcessingStatus.FAILED;
-        return true;
-    }
-
-    public boolean failSignatureProcessingIfTimedOut(
-            Instant currentTime,
-            Duration timeout
-    ) {
-        if (signatureProcessingStatus != SignatureProcessingStatus.PROCESSING) {
-            return false;
-        }
-        if (currentTime.isBefore(signatureProcessingStartedAt.plus(timeout))) {
             return false;
         }
         this.signatureProcessingStatus = SignatureProcessingStatus.FAILED;
