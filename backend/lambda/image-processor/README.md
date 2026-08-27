@@ -137,9 +137,9 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
   요청이라는 뜻이므로 CloudWatch 오류 로그가 유일한 단서다.
 - `401`, `403`은 secret 롤링 교체 중 잠깐 날 수 있고 `408`, `429`는 명시적 재시도 대상이라
   재시도한다.
-- 출력 키는 한 번만 쓴다. presigned URL은 만료 전까지 재사용할 수 있어, 게시물이 승인된 뒤에도
-  같은 staging 키에 다른 이미지를 올리면 공개 이미지가 바뀐다. 조건부 쓰기가 걸리면 기존 객체를
-  그대로 두고 완료 콜백만 이어 간다.
+- 출력 키는 한 번만 쓴다. 조건부 쓰기가 412를 반환하면 기존 객체를 읽어 현재 변환 결과와 바이트가
+  완전히 같은지 확인한 뒤에만 완료 콜백을 이어 간다. 다르면 재시도 오류로 처리하므로 서로 다른
+  원본과 썸네일이 정상 완료되지 않는다.
 - 완료 콜백이 영구 거부되면 이미 처리된 이미지가 어디에도 연결되지 않는다. 실패 콜백으로 상태를
   닫아 사용자가 다시 올릴 수 있게 하고, 원본 staging은 수동 복구를 위해 남긴다.
 - DLQ 없이 운영한다. 대신 `SQS_MAX_RECEIVE_COUNT`를 애플리케이션에서 확인해, 수신 횟수가 상한에
@@ -356,6 +356,8 @@ SQS
 S3 read
   s3:GetObject
   arn:aws:s3:::techcourse-project-2026/chalkak/staging/*
+  arn:aws:s3:::techcourse-project-2026/chalkak/signatures/*
+  arn:aws:s3:::techcourse-project-2026/chalkak/posts/*
 
 S3 delete
   s3:DeleteObject

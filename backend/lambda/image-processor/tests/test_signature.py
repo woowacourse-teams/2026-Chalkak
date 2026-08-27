@@ -212,21 +212,53 @@ class SignatureImageProcessorTest(unittest.TestCase):
         self.callback_client.complete.assert_not_called()
         self.s3_client.delete_object.assert_not_called()
 
-    def test_process_keeps_existing_results_and_still_completes(self) -> None:
+    def test_process_verifies_existing_results_before_completing(self) -> None:
         source = png_image()
-        self.s3_client.get_object.return_value = {
-            "ContentLength": len(source),
-            "Body": StreamingBodyStub(source),
-        }
         self.upload_client.upload.return_value = False
+
+        def get_object(**kwargs):
+            if kwargs["Key"] == STAGING_KEY:
+                body = source
+            else:
+                call_index = 0 if "/original/" in kwargs["Key"] else 1
+                body = self.upload_client.upload.call_args_list[call_index].kwargs[
+                    "body"
+                ]
+            return {
+                "ContentLength": len(body),
+                "Body": StreamingBodyStub(body),
+            }
+
+        self.s3_client.get_object.side_effect = get_object
 
         self.processor.process(created_event(len(source)))
 
+        self.assertEqual(3, self.s3_client.get_object.call_count)
         self.callback_client.complete.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.s3_client.delete_object.assert_called_once_with(
             Bucket=BUCKET,
             Key=STAGING_KEY,
         )
+
+    def test_process_does_not_complete_when_existing_result_differs(self) -> None:
+        source = png_image()
+        self.upload_client.upload.return_value = False
+        self.s3_client.get_object.side_effect = [
+            {
+                "ContentLength": len(source),
+                "Body": StreamingBodyStub(source),
+            },
+            {
+                "ContentLength": len(b"different-image"),
+                "Body": StreamingBodyStub(b"different-image"),
+            },
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "does not match"):
+            self.processor.process(created_event(len(source)))
+
+        self.callback_client.complete.assert_not_called()
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_does_not_delete_staging_when_complete_callback_fails(
         self,

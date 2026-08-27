@@ -186,16 +186,52 @@ class PostImageProcessorTest(unittest.TestCase):
         self.callback_client.issue_upload_urls.assert_called_once_with("dev", UPLOAD_ID)
         self.assertEqual(2, self.upload_client.upload.call_count)
 
-    def test_process_keeps_existing_destination_and_still_completes(self) -> None:
+    def test_process_verifies_existing_destinations_before_completing(self) -> None:
         self.upload_client.upload.return_value = False
-        self.given_object(webp_bytes())
+        source = webp_bytes()
+
+        def get_object(**kwargs):
+            if kwargs["Key"] == STAGING_KEY:
+                body = source
+            else:
+                call_index = 0 if "/original/" in kwargs["Key"] else 1
+                body = self.upload_client.upload.call_args_list[call_index].kwargs[
+                    "body"
+                ]
+            return {
+                "ContentLength": len(body),
+                "Body": io.BytesIO(body),
+            }
+
+        self.s3_client.get_object.side_effect = get_object
 
         self.processor.process(self.event())
 
+        self.assertEqual(3, self.s3_client.get_object.call_count)
         self.callback_client.complete.assert_called_once()
         self.s3_client.delete_object.assert_called_once_with(
             Bucket=BUCKET, Key=STAGING_KEY
         )
+
+    def test_process_does_not_complete_when_existing_destination_differs(self) -> None:
+        self.upload_client.upload.return_value = False
+        source = webp_bytes()
+        self.s3_client.get_object.side_effect = [
+            {
+                "ContentLength": len(source),
+                "Body": io.BytesIO(source),
+            },
+            {
+                "ContentLength": len(b"different-image"),
+                "Body": io.BytesIO(b"different-image"),
+            },
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "does not match"):
+            self.processor.process(self.event())
+
+        self.callback_client.complete.assert_not_called()
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_propagates_other_upload_errors(self) -> None:
         self.upload_client.upload.side_effect = TimeoutError("upload timeout")

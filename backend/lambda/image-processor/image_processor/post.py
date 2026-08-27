@@ -15,6 +15,7 @@ from PIL.ExifTags import TAGS
 from image_processor.config import Settings
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
+from image_processor.upload import verify_existing_output
 
 WEBP_CONTENT_TYPE = "image/webp"
 
@@ -428,6 +429,12 @@ class PostImageProcessor:
             cache_control=cache_control,
         )
         if not uploaded:
+            verify_existing_output(
+                self._s3_client,
+                self._settings.expected_bucket,
+                key,
+                body,
+            )
             LOGGER.warning(
                 json.dumps(
                     {

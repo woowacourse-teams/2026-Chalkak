@@ -11,6 +11,7 @@ from PIL import Image, UnidentifiedImageError
 from image_processor.config import Settings
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
+from image_processor.upload import verify_existing_output
 
 @dataclass(frozen=True)
 class ProcessedSignature:
@@ -54,12 +55,14 @@ class SignatureImageProcessor:
                 upload_id,
             )
             self._upload(
+                original_key,
                 upload_urls.original_upload_url,
                 original,
                 upload_urls.content_type,
                 upload_urls.cache_control,
             )
             self._upload(
+                thumbnail_key,
                 upload_urls.thumbnail_upload_url,
                 thumbnail,
                 upload_urls.content_type,
@@ -213,14 +216,23 @@ class SignatureImageProcessor:
 
     def _upload(
         self,
+        key: str,
         url: str,
         body: bytes,
         content_type: str,
         cache_control: str,
     ) -> None:
-        self._upload_client.upload(
+        uploaded = self._upload_client.upload(
             url=url,
             body=body,
             content_type=content_type,
             cache_control=cache_control,
+        )
+        if uploaded:
+            return
+        verify_existing_output(
+            self._s3_client,
+            self._settings.expected_bucket,
+            key,
+            body,
         )
