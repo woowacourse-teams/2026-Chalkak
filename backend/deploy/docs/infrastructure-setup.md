@@ -170,6 +170,25 @@ arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/original/*
 arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/thumbnail/*
 ```
 
+presigned URL 생성은 로컬 서명 연산이라 위 권한이 없어도 백엔드는 URL을 200으로 반환한다.
+권한 누락은 Lambda가 URL로 PUT할 때 S3의 403으로 처음 드러나므로, 백엔드 로그가 아니라
+Lambda의 `image_processing_failed` 로그와 SQS 재시도를 확인한다. 재시도 상한에 도달하면 Lambda가
+실패 콜백으로 처리 상태를 닫는다.
+
+배포 순서는 다음과 같이 고정한다.
+
+1. dev·prod EC2 instance role에 각 환경 최종 경로의 `s3:PutObject`를 부여한다.
+2. `upload-urls` 엔드포인트가 포함된 백엔드를 배포한다.
+3. 새 이미지 처리 API 환경 변수와 코드가 포함된 Lambda를 배포한다.
+
+Lambda를 먼저 배포하면 아직 없는 `upload-urls` 엔드포인트가 404를 반환해 모든 이미지 처리가
+SQS 재시도로 들어간다. 백엔드 배포 후 URL 발급 200, S3 PUT 200 또는 검증된 412, 완료 콜백
+204를 순서대로 확인한다.
+
+Lambda role에는 staging 객체의 `s3:GetObject`, `s3:DeleteObject`와 사인·포스트 최종 경로의
+`s3:GetObject`가 필요하다. 최종 경로 읽기는 조건부 PUT이 412를 반환했을 때 기존 객체가 현재
+변환 결과와 같은지 검증하는 용도다. 최종 경로의 `s3:PutObject`는 제거한다.
+
 EC2에서 identity를 확인한다.
 
 ```bash

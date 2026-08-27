@@ -24,6 +24,14 @@ public interface SignatureProcessingCallbackApiDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 URL 발급 성공"),
             @ApiResponse(
+                    responseCode = "400",
+                    description = "비정규 업로드 ID",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 콜백 서명",
                     content = @Content(
