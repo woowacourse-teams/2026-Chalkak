@@ -23,7 +23,7 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `홈에서는 정렬 옵션을 표시하지 않는다`() {
+    fun homeDoesNotShowSortingOptions() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onNodeWithText("8월 5일 · 오늘의 주제").assertIsDisplayed()
@@ -34,7 +34,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `주제가 접힌 뒤 로고는 스크롤 방향과 무관하게 고정된다`() {
+    fun logoRemainsFixedAfterTopicCollapses() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onRoot().performTouchInput { swipeUp() }
@@ -64,7 +64,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `홈 재선택 신호는 로고와 주제를 유지하며 첫 사진으로 돌아간다`() {
+    fun homeReselectionRestoresHeaderAndMovesToFirstPhoto() {
         val resetSignal = mutableIntStateOf(0)
 
         composeRule.setContent {
@@ -90,7 +90,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `위로 스크롤하면 최상단 버튼이 표시되고 누르면 첫 사진으로 돌아간다`() {
+    fun scrollShowsScrollToTopButtonAndClickMovesToFirstPhoto() {
         setHomeContent(scrollableHomeUiState())
 
         composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
