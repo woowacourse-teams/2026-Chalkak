@@ -100,6 +100,25 @@ jobs:
           cache-provider: basic
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
+      - name: Create local.properties
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+        run: |
+          set -euo pipefail
+
+          : "${API_BASE_URL:?API_BASE_URL secret is required}"
+          : "${GOOGLE_SERVER_CLIENT_ID:?GOOGLE_SERVER_CLIENT_ID secret is required}"
+          : "${KAKAO_NATIVE_APP_KEY:?KAKAO_NATIVE_APP_KEY secret is required}"
+
+          {
+            printf 'sdk.dir=%s\n' "$ANDROID_HOME"
+            printf 'API_BASE_URL=%s\n' "$API_BASE_URL"
+            printf 'GOOGLE_SERVER_CLIENT_ID=%s\n' "$GOOGLE_SERVER_CLIENT_ID"
+            printf 'KAKAO_NATIVE_APP_KEY=%s\n' "$KAKAO_NATIVE_APP_KEY"
+          } > local.properties
+
       - name: Compile debug sources
         run: ./gradlew compileDebugKotlin --stacktrace
 
