@@ -1,5 +1,6 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.kakao;
 
+import com.chalkak.backend.auth.infrastructure.infra.oidc.OidcIdTokenClaimsValidator;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

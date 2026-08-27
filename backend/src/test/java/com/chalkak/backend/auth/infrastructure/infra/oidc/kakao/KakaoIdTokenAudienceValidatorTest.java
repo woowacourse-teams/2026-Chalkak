@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.kakao;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

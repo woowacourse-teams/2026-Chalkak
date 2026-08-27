@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.google;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
@@ -9,28 +9,28 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 
-public class KakaoIdTokenVerifier implements IdTokenVerifier {
+public class GoogleIdTokenVerifier implements IdTokenVerifier {
 
     private static final int SUBJECT_MAX_LENGTH = 255;
 
     private final JwtDecoder jwtDecoder;
 
-    public KakaoIdTokenVerifier(JwtDecoder jwtDecoder) {
+    public GoogleIdTokenVerifier(JwtDecoder jwtDecoder) {
         this.jwtDecoder = jwtDecoder;
     }
 
     @Override
     public SocialProvider getProvider() {
-        return SocialProvider.KAKAO;
+        return SocialProvider.GOOGLE;
     }
 
     @Override
     public VerifiedSocialIdentity verify(String idToken) {
         Jwt jwt = decode(idToken);
         return new VerifiedSocialIdentity(
-                SocialProvider.KAKAO,
+                SocialProvider.GOOGLE,
                 getSubject(jwt),
-                jwt.getClaimAsString("email"));
+                getVerifiedEmail(jwt));
     }
 
     private Jwt decode(String idToken) {
@@ -39,8 +39,15 @@ public class KakaoIdTokenVerifier implements IdTokenVerifier {
         } catch (JwtException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    "유효하지 않은 Kakao ID Token입니다.");
+                    "유효하지 않은 Google ID Token입니다.");
         }
+    }
+
+    private String getVerifiedEmail(Jwt jwt) {
+        if (!Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified"))) {
+            return null;
+        }
+        return jwt.getClaimAsString("email");
     }
 
     private String getSubject(Jwt jwt) {
@@ -48,12 +55,12 @@ public class KakaoIdTokenVerifier implements IdTokenVerifier {
         if (subject == null || subject.isBlank()) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    "Kakao ID Token에 사용자 식별 정보가 없습니다.");
+                    "Google ID Token에 사용자 식별 정보가 없습니다.");
         }
         if (subject.length() > SUBJECT_MAX_LENGTH) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    "Kakao ID Token의 사용자 식별 정보가 너무 깁니다.");
+                    "Google ID Token의 사용자 식별 정보가 너무 깁니다.");
         }
         return subject;
     }
