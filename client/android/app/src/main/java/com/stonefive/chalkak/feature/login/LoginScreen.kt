@@ -31,27 +31,38 @@ import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
 @Composable
 fun LoginRoute(
-    onLoginSuccess: () -> Unit,
+    onSignUpRequired: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val loginWithGoogle = rememberGoogleLoginAction(
+        onStart = viewModel::startCredentialRequest,
+        onSuccess = { idToken ->
+            viewModel.login(SocialLoginProvider.GOOGLE, idToken)
+        },
+        onCancelled = viewModel::credentialRequestCancelled,
+        onFailure = viewModel::credentialRequestFailed,
+    )
 
-    LaunchedEffect(viewModel) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                LoginUiEvent.NavigateToOnboarding -> {
-                    onLoginSuccess()
-                }
-            }
+    LaunchedEffect(uiState.status) {
+        if (uiState.status == LoginStatus.SignUpRequired) {
+            onSignUpRequired()
+            viewModel.signUpRequiredHandled()
         }
     }
 
     LoginScreen(
-        onSocialLoginClick = viewModel::login,
+        onSocialLoginClick = { provider ->
+            when (provider) {
+                SocialLoginProvider.GOOGLE -> loginWithGoogle()
+                SocialLoginProvider.KAKAO -> viewModel.showKakaoPreparing()
+            }
+        },
         onContinueAsGuestClick = viewModel::continueAsGuest,
         modifier = modifier,
-        enabled = !uiState.isLoading,
+        enabled = uiState.canSubmit,
+        errorMessage = uiState.errorMessage,
     )
 }
 
@@ -61,6 +72,7 @@ fun LoginScreen(
     onContinueAsGuestClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    errorMessage: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -73,6 +85,7 @@ fun LoginScreen(
             onSocialLoginClick = onSocialLoginClick,
             onContinueAsGuestClick = onContinueAsGuestClick,
             enabled = enabled,
+            errorMessage = errorMessage,
             modifier = Modifier.weight(1f),
         )
     }
@@ -112,6 +125,7 @@ private fun LoginActions(
     onSocialLoginClick: (SocialLoginProvider) -> Unit,
     onContinueAsGuestClick: () -> Unit,
     enabled: Boolean,
+    errorMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     val providers = remember { SocialLoginProvider.entries }
@@ -132,6 +146,14 @@ private fun LoginActions(
                 onClick = { onSocialLoginClick(provider) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = enabled,
+            )
+        }
+
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = ChalkakTheme.colors.error,
+                style = ChalkakTheme.typography.footnote,
             )
         }
 

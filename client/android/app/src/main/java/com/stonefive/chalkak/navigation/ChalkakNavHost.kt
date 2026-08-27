@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +30,7 @@ import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
+import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.feature.signature.SignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
@@ -41,6 +43,8 @@ import java.time.LocalDate
 fun ChalkakNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    startDestination: Any = Login,
+    signUpViewModel: SignUpViewModel? = null,
 ) {
     val context = LocalContext.current
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
@@ -71,12 +75,12 @@ fun ChalkakNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = Login,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
         composable<Login> {
             LoginRoute(
-                onLoginSuccess = {
+                onSignUpRequired = {
                     navController.navigate(Terms)
                 },
             )
@@ -114,21 +118,33 @@ fun ChalkakNavHost(
         }
 
         composable<SignaturePreview> {
-            SignaturePreviewRoute(
-                imageModel = R.drawable.preview_photo,
-                signatureModel = signaturePreviewPng
-                    ?: R.drawable.preview_signature,
-                onRedrawClick = {
-                    navController.popBackStack()
-                    signaturePreviewPng = null
-                },
-                onStartClick = {
-                    navController.navigate(Today) {
-                        popUpTo<Login> { inclusive = true }
-                    }
-                    signaturePreviewPng = null
-                },
-            )
+            signaturePreviewPng?.let { signaturePng ->
+                val previewSignUpViewModel = signUpViewModel
+                    ?: viewModel(factory = SignUpViewModel.Factory)
+
+                SignaturePreviewRoute(
+                    imageModel = R.drawable.preview_photo,
+                    signaturePng = signaturePng,
+                    onRedrawClick = {
+                        navController.popBackStack()
+                        signaturePreviewPng = null
+                    },
+                    onSignUpSuccess = {
+                        navController.navigate(Today) {
+                            popUpTo<Terms> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                        signaturePreviewPng = null
+                    },
+                    onReauthenticationRequired = {
+                        navController.navigate(Login) {
+                            popUpTo<Login> { inclusive = true }
+                        }
+                        signaturePreviewPng = null
+                    },
+                    viewModel = previewSignUpViewModel,
+                )
+            }
         }
 
         composable<Today> { backStackEntry ->

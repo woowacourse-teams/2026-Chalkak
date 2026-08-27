@@ -1,11 +1,14 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.AuthSession
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
+import com.stonefive.chalkak.domain.model.SocialLoginResult
+import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserProfile
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,9 +53,9 @@ class SettingsViewModelTest {
 
         viewModel.confirmAccountAction()
 
-        assertEquals(SettingsUiEvent.NavigateToLogin, viewModel.uiEvent.first())
         assertTrue(repository.logoutCalled)
         assertFalse(viewModel.uiState.value.isLoggedIn)
+        assertEquals(UserSessionState.SignedOut, repository.sessionState.value)
     }
 
     @Test
@@ -74,8 +77,8 @@ class SettingsViewModelTest {
         viewModel.showWithdrawDialog()
         viewModel.confirmAccountAction()
 
-        assertEquals(SettingsUiEvent.NavigateToLogin, viewModel.uiEvent.first())
         assertTrue(repository.withdrawCalled)
+        assertEquals(UserSessionState.SignedOut, repository.sessionState.value)
     }
 
     private fun createViewModel() = SettingsViewModel(
@@ -85,24 +88,43 @@ class SettingsViewModelTest {
 }
 
 private class FakeSettingsAuthRepository : AuthRepository {
+    private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.Guest)
+    override val sessionState: StateFlow<UserSessionState> = mutableSessionState
+
     var profile: UserProfile? = null
+        set(value) {
+            field = value
+            mutableSessionState.value = if (value == null) {
+                UserSessionState.Guest
+            } else {
+                UserSessionState.Authenticated("user-id")
+            }
+        }
     var logoutCalled: Boolean = false
     var withdrawCalled: Boolean = false
 
-    override suspend fun login(provider: SocialLoginProvider): AuthSession.Authenticated =
-        AuthSession.Authenticated(provider)
+    override suspend fun login(
+        provider: SocialLoginProvider,
+        idToken: String,
+    ): SocialLoginResult = SocialLoginResult.LoginSuccess("user-id")
 
-    override suspend fun continueAsGuest(): AuthSession.Guest = AuthSession.Guest
+    override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult = error("Not used")
+
+    override suspend fun continueAsGuest() {
+        mutableSessionState.value = UserSessionState.Guest
+    }
 
     override suspend fun getMyProfile(): UserProfile? = profile
 
     override suspend fun logout() {
         logoutCalled = true
         profile = null
+        mutableSessionState.value = UserSessionState.SignedOut
     }
 
     override suspend fun withdraw() {
         withdrawCalled = true
         profile = null
+        mutableSessionState.value = UserSessionState.SignedOut
     }
 }

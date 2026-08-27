@@ -13,10 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
@@ -26,17 +30,31 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun SignaturePreviewRoute(
     imageModel: Any?,
-    signatureModel: Any,
+    signaturePng: ByteArray,
     onRedrawClick: () -> Unit,
-    onStartClick: () -> Unit,
+    onSignUpSuccess: () -> Unit,
+    onReauthenticationRequired: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: SignUpViewModel = viewModel(factory = SignUpViewModel.Factory),
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(uiState.status) {
+        when (uiState.status) {
+            SignUpStatus.Completed -> onSignUpSuccess()
+            SignUpStatus.ReauthenticationRequired -> onReauthenticationRequired()
+            else -> Unit
+        }
+    }
+
     SignaturePreviewScreen(
         imageModel = imageModel,
-        signatureModel = signatureModel,
+        signatureModel = signaturePng,
         onRedrawClick = onRedrawClick,
-        onStartClick = onStartClick,
+        onStartClick = { viewModel.completeSignUp(signaturePng) },
         modifier = modifier,
+        isSubmitting = uiState.isSubmitting,
+        errorMessage = uiState.errorMessage,
     )
 }
 
@@ -47,6 +65,8 @@ fun SignaturePreviewScreen(
     onRedrawClick: () -> Unit,
     onStartClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isSubmitting: Boolean = false,
+    errorMessage: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -77,6 +97,17 @@ fun SignaturePreviewScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                modifier = Modifier.fillMaxWidth(),
+                color = ChalkakTheme.colors.error,
+                style = ChalkakTheme.typography.footnote,
+            )
+
+            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.md))
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -85,12 +116,14 @@ fun SignaturePreviewScreen(
                 text = "다시 그리기",
                 onClick = onRedrawClick,
                 modifier = Modifier.weight(1f),
+                enabled = !isSubmitting,
             )
 
             ChalkakButton(
                 text = "시작하기",
                 onClick = onStartClick,
                 modifier = Modifier.weight(1f),
+                enabled = !isSubmitting,
             )
         }
 
