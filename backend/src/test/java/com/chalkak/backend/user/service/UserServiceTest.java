@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
@@ -20,6 +21,7 @@ import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -165,6 +167,112 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("처리 중인 새 사인이 없으면 현재 활성 사인 URL을 반환한다")
+    void getSignature_withoutPending_returnsActiveSignatureUrl() {
+        // Given
+        User saved = userRepository.save(UserFixture.create());
+        UUID userId = saved.getId();
+        String storageKey = saved.getSignatureOriginalStorageKey();
+        String imageUrl = "https://cdn.test.chalkak/" + storageKey;
+        flushAndClear();
+
+        given(signatureImageStorage.toImageUrl(storageKey))
+                .willReturn(imageUrl);
+
+        // When
+        String result = userService.getSignature(userId);
+
+        // Then
+        assertThat(result).isEqualTo(imageUrl);
+    }
+
+    @Test
+    @DisplayName("사인 처리가 제한 시간을 넘으면 상태 변경 없이 재등록 오류를 발생시킨다")
+    void getSignature_timedOutPending_keepsProcessingAndThrowsBusinessException() {
+        // Given
+        User user = UserFixture.create();
+        UUID uploadId = UUID.randomUUID();
+        user.startSignatureProcessing(
+                uploadId,
+                Instant.now().minus(Duration.ofMinutes(8)));
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.getSignature(userId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요.")
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.SIGNATURE_REGISTRATION_REQUIRED));
+
+        flushAndClear();
+        User updated = userRepository.findById(userId).orElseThrow();
+
+        assertThat(updated.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(updated.getSignatureProcessingStartedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("사인 처리 시작 후 7분이 지나지 않았으면 현재 활성 사인 URL을 반환한다")
+    void getSignature_processingWithinTimeout_returnsActiveSignatureUrl() {
+        // Given
+        User user = UserFixture.create();
+        user.startSignatureProcessing(
+                UUID.randomUUID(),
+                Instant.now().minus(Duration.ofMinutes(6)));
+        UUID userId = userRepository.save(user).getId();
+        String storageKey = user.getSignatureOriginalStorageKey();
+        String imageUrl = "https://cdn.test.chalkak/" + storageKey;
+        flushAndClear();
+
+        given(signatureImageStorage.toImageUrl(storageKey))
+                .willReturn(imageUrl);
+
+        // When
+        String result = userService.getSignature(userId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(userId).orElseThrow();
+
+        assertThat(result).isEqualTo(imageUrl);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
+    }
+
+    @Test
+    @DisplayName("이미 실패한 사인을 조회하면 재등록 오류를 발생시킨다")
+    void getSignature_failedPending_throwsBusinessException() {
+        // Given
+        User user = UserFixture.create();
+        UUID uploadId = UUID.randomUUID();
+        user.startSignatureProcessing(uploadId, Instant.now());
+        user.failSignatureProcessing(uploadId);
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.getSignature(userId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.SIGNATURE_REGISTRATION_REQUIRED));
+    }
+
+    @Test
+    @DisplayName("사인을 조회할 회원이 없으면 조회를 거부한다")
+    void getSignature_notExistingUser_throwsNotFoundException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.getSignature(userId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("사인을 조회할 회원을 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("사인 수정을 요청하면 기존 활성 사인을 유지하고 pending 정보를 저장한다")
     void updateSignature_uploadedImage_startsProcessingAndPreservesActiveSignature() {
         // Given
@@ -280,6 +388,37 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThat(updated.getPendingSignatureUploadId()).isNull();
         assertThat(updated.getSignatureProcessingStatus()).isNull();
         assertThat(updated.getSignatureProcessingStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("제한 시간을 넘겨 도착한 성공 콜백은 무시한다")
+    void completeSignatureProcessing_timedOutPending_ignoresCallback() {
+        // Given
+        User user = UserFixture.create();
+        UUID uploadId = UUID.randomUUID();
+        String activeOriginalStorageKey = user.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = user.getSignatureThumbnailStorageKey();
+        user.startSignatureProcessing(
+                uploadId,
+                Instant.now().minus(Duration.ofMinutes(8)));
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When
+        userService.completeSignatureProcessing(uploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(userId).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getSignatureThumbnailStorageKey())
+                .isEqualTo(activeThumbnailStorageKey);
+        assertThat(updated.getPendingSignatureUploadId()).isEqualTo(uploadId);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(updated.getSignatureProcessingStartedAt()).isNotNull();
     }
 
     @Test
@@ -400,8 +539,75 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("영구 실패한 사인 업로드를 다시 요청하면 재등록하도록 거부한다")
-    void updateSignature_sameFailedUploadId_throwsBusinessException() {
+    @DisplayName("타임아웃된 같은 사인 업로드를 다시 요청하면 새 업로드가 필요하다고 안내한다")
+    void updateSignature_sameTimedOutUploadId_throwsReuploadRequiredException() {
+        // Given
+        User user = UserFixture.create();
+        UUID uploadId = UUID.randomUUID();
+        String activeOriginalStorageKey = user.getSignatureOriginalStorageKey();
+        user.startSignatureProcessing(
+                uploadId,
+                Instant.now().minus(Duration.ofMinutes(8)));
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.updateSignature(userId, uploadId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요.")
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.SIGNATURE_REUPLOAD_REQUIRED));
+
+        User updated = userRepository.findById(userId).orElseThrow();
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
+    }
+
+    @Test
+    @DisplayName("타임아웃 후 새로운 사인 업로드를 요청하면 새 처리를 시작한다")
+    void updateSignature_newUploadAfterTimeout_startsNewProcessing() {
+        // Given
+        User user = UserFixture.create();
+        UUID timedOutUploadId = UUID.randomUUID();
+        Instant timedOutStartedAt = Instant.now().minus(Duration.ofMinutes(8));
+        String activeOriginalStorageKey = user.getSignatureOriginalStorageKey();
+        user.startSignatureProcessing(timedOutUploadId, timedOutStartedAt);
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        UUID newUploadId = UUID.randomUUID();
+        given(signatureImageStorage.toStorageKeys(newUploadId))
+                .willReturn(storageKeys(newUploadId));
+        given(signatureImageStorage.findUploadedImage(newUploadId))
+                .willReturn(Optional.of(VALID_IMAGE));
+        given(signatureImageStorage.toImageUrl(activeOriginalStorageKey))
+                .willReturn("https://cdn.test.chalkak/" + activeOriginalStorageKey);
+
+        // When
+        userService.updateSignature(userId, newUploadId);
+        flushAndClear();
+
+        // Then
+        User updated = userRepository.findById(userId).orElseThrow();
+
+        assertThat(updated.getSignatureOriginalStorageKey())
+                .isEqualTo(activeOriginalStorageKey);
+        assertThat(updated.getPendingSignatureUploadId()).isEqualTo(newUploadId);
+        assertThat(updated.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(updated.getSignatureProcessingStartedAt())
+                .isAfter(timedOutStartedAt);
+    }
+
+    @Test
+    @DisplayName("실패한 사인 업로드를 다시 요청하면 새 업로드가 필요하다고 안내한다")
+    void updateSignature_sameFailedUploadId_throwsReuploadRequiredException() {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
@@ -427,7 +633,10 @@ class UserServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("처리할 수 없는 사인 이미지입니다. 새 이미지를 업로드해 주세요.");
+                .hasMessage("사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요.")
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.SIGNATURE_REUPLOAD_REQUIRED));
 
         User updated = userRepository.findById(id).orElseThrow();
         assertThat(updated.getSignatureOriginalStorageKey())

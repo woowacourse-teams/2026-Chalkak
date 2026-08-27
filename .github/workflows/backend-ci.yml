@@ -80,6 +80,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/lambda/image-processor/requirements.txt
+
+      - name: Test Lambda image processor
+        working-directory: backend/lambda/image-processor
+        run: |
+          python -m pip install --requirement requirements.txt
+          python -m unittest discover --start-directory tests --verbose
+
       - name: Test Flyway migration validation
         run: ./scripts/check_flyway_migrations_test.sh
 

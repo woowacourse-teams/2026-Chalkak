@@ -5,4 +5,6 @@ import java.util.UUID;
 public interface SignatureImageUploadIssuer {
 
     SignatureImageUpload issue(UUID uploadId);
+
+    SignatureProcessingImageUpload issueProcessingUpload(UUID uploadId);
 }

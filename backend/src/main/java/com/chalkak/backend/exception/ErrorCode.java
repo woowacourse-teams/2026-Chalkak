@@ -2,6 +2,8 @@ package com.chalkak.backend.exception;
 
 public enum ErrorCode {
     BUSINESS_ERROR,
+    SIGNATURE_REGISTRATION_REQUIRED,
+    SIGNATURE_REUPLOAD_REQUIRED,
     SIGNATURE_PROCESSING_PENDING,
     UNAUTHORIZED
 }

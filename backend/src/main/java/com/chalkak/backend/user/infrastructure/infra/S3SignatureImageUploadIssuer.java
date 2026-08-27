@@ -1,8 +1,10 @@
 package com.chalkak.backend.user.infrastructure.infra;
 
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
+import com.chalkak.backend.user.repository.SignatureProcessingImageUpload;
 import java.time.Duration;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -29,18 +31,51 @@ public class S3SignatureImageUploadIssuer implements SignatureImageUploadIssuer 
                 .key(signatureImageStorage.toStagingStorageKey(uploadId))
                 .contentType(CONTENT_TYPE)
                 .build();
-        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(SIGNATURE_DURATION)
-                .putObjectRequest(putObjectRequest)
-                .build();
-        String uploadUrl = s3Presigner.presignPutObject(presignRequest)
-                .url()
-                .toString();
+        String uploadUrl = presign(putObjectRequest);
 
         return new SignatureImageUpload(
                 uploadId,
                 uploadUrl,
                 SIGNATURE_DURATION.toSeconds()
         );
+    }
+
+    @Override
+    public SignatureProcessingImageUpload issueProcessingUpload(UUID uploadId) {
+        SignatureStorageKeys storageKeys = signatureImageStorage.toStorageKeys(uploadId);
+        String originalUploadUrl = presignProcessingUpload(
+                storageKeys.originalStorageKey()
+        );
+        String thumbnailUploadUrl = presignProcessingUpload(
+                storageKeys.thumbnailStorageKey()
+        );
+
+        return new SignatureProcessingImageUpload(
+                originalUploadUrl,
+                thumbnailUploadUrl,
+                CONTENT_TYPE,
+                imageProperties.signature().cacheControl()
+        );
+    }
+
+    private String presignProcessingUpload(String storageKey) {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(imageProperties.bucket())
+                .key(storageKey)
+                .contentType(CONTENT_TYPE)
+                .cacheControl(imageProperties.signature().cacheControl())
+                .ifNoneMatch("*")
+                .build();
+        return presign(putObjectRequest);
+    }
+
+    private String presign(PutObjectRequest putObjectRequest) {
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(SIGNATURE_DURATION)
+                .putObjectRequest(putObjectRequest)
+                .build();
+        return s3Presigner.presignPutObject(presignRequest)
+                .url()
+                .toString();
     }
 }

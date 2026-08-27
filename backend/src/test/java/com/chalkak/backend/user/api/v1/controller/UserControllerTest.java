@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -179,6 +180,73 @@ class UserControllerTest {
     }
 
     @Test
+    @DisplayName("내 사인 조회에 성공하면 현재 사인 이미지 URL을 반환한다")
+    void getSignature_validRequest_returnsImageUrl() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        String imageUrl = "https://cdn.example.com/signatures/current.png";
+        given(userService.getSignature(userId)).willReturn(imageUrl);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/me/signature")
+                        .header(USER_ID_HEADER, userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signatureOriginalImageUrl").value(imageUrl));
+
+        verify(userService).getSignature(userId);
+    }
+
+    @Test
+    @DisplayName("내 사인 조회에 사용자 식별 헤더가 없으면 401을 반환한다")
+    void getSignature_missingUserIdHeader_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/me/signature"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verify(userService, never()).getSignature(any());
+    }
+
+    @Test
+    @DisplayName("사인을 조회할 회원이 없으면 404를 반환한다")
+    void getSignature_notExistingUser_returnsNotFound() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        willThrow(new NotFoundException(
+                ErrorCode.BUSINESS_ERROR,
+                "사인을 조회할 회원을 찾을 수 없습니다."))
+                .given(userService).getSignature(userId);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/me/signature")
+                        .header(USER_ID_HEADER, userId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("사인을 조회할 회원을 찾을 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("사인 처리가 실패했으면 재등록용 오류를 반환한다")
+    void getSignature_processingFailed_returnsBadRequest() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        willThrow(new BusinessException(
+                ErrorCode.SIGNATURE_REGISTRATION_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요."))
+                .given(userService).getSignature(userId);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/me/signature")
+                        .header(USER_ID_HEADER, userId.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("SIGNATURE_REGISTRATION_REQUIRED"))
+                .andExpect(jsonPath("$.message")
+                        .value("사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요."));
+    }
+
+    @Test
     @DisplayName("사인 교체에 성공하면 이미지 URL을 반환한다")
     void updateSignature_validRequest_returnsImageUrl() throws Exception {
         // Given
@@ -194,6 +262,31 @@ class UserControllerTest {
                         .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.signatureOriginalImageUrl").value(imageUrl));
+    }
+
+    @Test
+    @DisplayName("실패한 사인 업로드를 다시 요청하면 이미지 재업로드 오류를 반환한다")
+    void updateSignature_failedUpload_returnsReuploadRequired() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        UUID uploadId = UUID.randomUUID();
+        willThrow(new BusinessException(
+                ErrorCode.SIGNATURE_REUPLOAD_REQUIRED,
+                "사인 이미지 처리에 실패했습니다. "
+                        + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요."))
+                .given(userService).updateSignature(userId, uploadId);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/users/me/signature")
+                        .header(USER_ID_HEADER, userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("SIGNATURE_REUPLOAD_REQUIRED"))
+                .andExpect(jsonPath("$.message")
+                        .value("사인 이미지 처리에 실패했습니다. "
+                                + "새로운 업로드 ID를 발급받아 이미지를 다시 업로드해 주세요."));
     }
 
     @Test

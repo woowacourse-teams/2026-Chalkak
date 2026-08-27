@@ -2,6 +2,7 @@ package com.chalkak.backend.post.infrastructure.infra;
 
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
+import com.chalkak.backend.post.repository.PostProcessingImageUpload;
 import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.user.infrastructure.infra.ImageProperties;
 import java.time.Duration;
@@ -37,13 +38,7 @@ public class S3PostImageUploadIssuer implements PostImageUploadIssuer {
                 .key(postImageStorage.toStagingStorageKey(uploadId))
                 .contentType(CONTENT_TYPE)
                 .build();
-        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(SIGNATURE_DURATION)
-                .putObjectRequest(putObjectRequest)
-                .build();
-        String uploadUrl = s3Presigner.presignPutObject(presignRequest)
-                .url()
-                .toString();
+        String uploadUrl = presign(putObjectRequest);
 
         return new PresignedPostImageUpload(
                 uploadUrl,
@@ -51,5 +46,43 @@ public class S3PostImageUploadIssuer implements PostImageUploadIssuer {
                 CONTENT_TYPE,
                 imageProperties.post().maxBytes()
         );
+    }
+
+    @Override
+    public PostProcessingImageUpload issueProcessingUpload(UUID uploadId) {
+        String originalUploadUrl = presignProcessingUpload(
+                postImageStorage.toOriginalStorageKey(uploadId)
+        );
+        String thumbnailUploadUrl = presignProcessingUpload(
+                postImageStorage.toThumbnailStorageKey(uploadId)
+        );
+
+        return new PostProcessingImageUpload(
+                originalUploadUrl,
+                thumbnailUploadUrl,
+                CONTENT_TYPE,
+                imageProperties.post().cacheControl()
+        );
+    }
+
+    private String presignProcessingUpload(String storageKey) {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(imageProperties.bucket())
+                .key(storageKey)
+                .contentType(CONTENT_TYPE)
+                .cacheControl(imageProperties.post().cacheControl())
+                .ifNoneMatch("*")
+                .build();
+        return presign(putObjectRequest);
+    }
+
+    private String presign(PutObjectRequest putObjectRequest) {
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(SIGNATURE_DURATION)
+                .putObjectRequest(putObjectRequest)
+                .build();
+        return s3Presigner.presignPutObject(presignRequest)
+                .url()
+                .toString();
     }
 }

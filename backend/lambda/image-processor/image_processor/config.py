@@ -9,22 +9,18 @@ class Settings:
     max_input_bytes: int
     max_image_pixels: int
     thumbnail_max_size: int
-    cache_control: str
     post_max_bytes: int = 5_242_880
     post_max_pixels: int = 25_000_000
     post_thumbnail_max_size: int = 1080
     post_webp_quality: int = 85
     post_thumbnail_webp_quality: int = 80
     post_metadata_max_bytes: int = 8192
-    post_cache_control: str = "public, max-age=86400"
-    dev_callback_base_url: str = ""
-    prod_callback_base_url: str = ""
-    dev_post_callback_base_url: str = ""
-    prod_post_callback_base_url: str = ""
+    dev_backend_image_processing_api_base_url: str = ""
+    prod_backend_image_processing_api_base_url: str = ""
     # dataclass가 자동 생성하는 __repr__은 모든 필드를 값째로 찍는다. 디버그 로그 한 줄이나
     # 이 객체를 담은 traceback 하나로 HMAC 시크릿이 CloudWatch에 평문으로 남지 않게 제외한다.
-    callback_secret: str = field(default="", repr=False)
-    callback_timeout_seconds: float = 3.0
+    image_processing_api_secret: str = field(default="", repr=False)
+    image_processing_api_timeout_seconds: float = 3.0
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -43,10 +39,6 @@ class Settings:
                 "SIGNATURE_THUMBNAIL_MAX_SIZE",
                 512,
             ),
-            cache_control=os.environ.get(
-                "SIGNATURE_CACHE_CONTROL",
-                "public, max-age=86400",
-            ),
             post_max_bytes=_positive_int("POST_MAX_BYTES", 5_242_880),
             post_max_pixels=_positive_int("POST_MAX_PIXELS", 25_000_000),
             post_thumbnail_max_size=_positive_int(
@@ -62,25 +54,15 @@ class Settings:
                 "POST_METADATA_MAX_BYTES",
                 8192,
             ),
-            post_cache_control=os.environ.get(
-                "POST_CACHE_CONTROL",
-                "public, max-age=86400",
-            ),
-            dev_callback_base_url=_required(
-                "DEV_BACKEND_CALLBACK_URL"
+            dev_backend_image_processing_api_base_url=_required(
+                "DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL"
             ).rstrip("/"),
-            prod_callback_base_url=_required(
-                "PROD_BACKEND_CALLBACK_URL"
+            prod_backend_image_processing_api_base_url=_required(
+                "PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL"
             ).rstrip("/"),
-            dev_post_callback_base_url=_required(
-                "DEV_BACKEND_POST_CALLBACK_URL"
-            ).rstrip("/"),
-            prod_post_callback_base_url=_required(
-                "PROD_BACKEND_POST_CALLBACK_URL"
-            ).rstrip("/"),
-            callback_secret=_callback_secret(),
-            callback_timeout_seconds=_positive_float(
-                "BACKEND_CALLBACK_TIMEOUT_SECONDS",
+            image_processing_api_secret=_image_processing_api_secret(),
+            image_processing_api_timeout_seconds=_positive_float(
+                "IMAGE_PROCESSING_API_TIMEOUT_SECONDS",
                 3.0,
             ),
         )
@@ -126,8 +108,8 @@ def _required(name: str) -> str:
     return value
 
 
-def _callback_secret() -> str:
-    secret = _required("IMAGE_PROCESSOR_CALLBACK_SECRET")
+def _image_processing_api_secret() -> str:
+    secret = _required("IMAGE_PROCESSING_API_SECRET")
     if len(secret) < 32:
-        raise ValueError("IMAGE_PROCESSOR_CALLBACK_SECRET must be at least 32 characters")
+        raise ValueError("IMAGE_PROCESSING_API_SECRET must be at least 32 characters")
     return secret

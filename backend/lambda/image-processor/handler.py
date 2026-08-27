@@ -16,11 +16,13 @@ from image_processor.events import S3ObjectCreated, parse_s3_records
 from image_processor.post import PostImageProcessor
 from image_processor.router import ImageProcessorRouter
 from image_processor.signature import SignatureImageProcessor
+from image_processor.upload import PresignedUploadClient
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
 DEFAULT_MAX_RECEIVE_COUNT = 5
+PRESIGNED_UPLOAD_TIMEOUT_SECONDS = 30.0
 
 _processor: ImageProcessorRouter | None = None
 
@@ -203,31 +205,34 @@ def _get_processor() -> ImageProcessorRouter:
         callback_client = ProcessingCallbackClient(
             kind="signature-processing",
             base_urls={
-                "dev": settings.dev_callback_base_url,
-                "prod": settings.prod_callback_base_url,
+                "dev": settings.dev_backend_image_processing_api_base_url,
+                "prod": settings.prod_backend_image_processing_api_base_url,
             },
-            secret=settings.callback_secret,
-            timeout_seconds=settings.callback_timeout_seconds,
+            secret=settings.image_processing_api_secret,
+            timeout_seconds=settings.image_processing_api_timeout_seconds,
         )
         post_callback_client = ProcessingCallbackClient(
             kind="post-image-processing",
             base_urls={
-                "dev": settings.dev_post_callback_base_url,
-                "prod": settings.prod_post_callback_base_url,
+                "dev": settings.dev_backend_image_processing_api_base_url,
+                "prod": settings.prod_backend_image_processing_api_base_url,
             },
-            secret=settings.callback_secret,
-            timeout_seconds=settings.callback_timeout_seconds,
+            secret=settings.image_processing_api_secret,
+            timeout_seconds=settings.image_processing_api_timeout_seconds,
         )
         s3_client = boto3.client("s3")
+        upload_client = PresignedUploadClient(PRESIGNED_UPLOAD_TIMEOUT_SECONDS)
         signature_processor = SignatureImageProcessor(
             s3_client=s3_client,
             settings=settings,
             callback_client=callback_client,
+            upload_client=upload_client,
         )
         post_processor = PostImageProcessor(
             s3_client=s3_client,
             settings=settings,
             callback_client=post_callback_client,
+            upload_client=upload_client,
         )
         _processor = ImageProcessorRouter(
             signature_processor=signature_processor,

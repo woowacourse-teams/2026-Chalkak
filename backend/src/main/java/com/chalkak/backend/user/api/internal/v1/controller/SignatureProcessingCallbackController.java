@@ -2,6 +2,7 @@ package com.chalkak.backend.user.api.internal.v1.controller;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
+import com.chalkak.backend.user.api.internal.v1.dto.response.SignatureProcessingUploadUrlsResponse;
 import com.chalkak.backend.user.api.internal.v1.docs.SignatureProcessingCallbackApiDocs;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
@@ -30,6 +31,25 @@ public class SignatureProcessingCallbackController
 
     private final UserService userService;
     private final ProcessingCallbackAuthenticator authenticator;
+
+    @Override
+    @PostMapping("/{uploadId}/upload-urls")
+    public ResponseEntity<SignatureProcessingUploadUrlsResponse> issueUploadUrls(
+            @PathVariable String uploadId,
+            @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
+            @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature
+    ) {
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
+        authenticator.authenticate(
+                callbackPath(parsedUploadId, "upload-urls"),
+                null,
+                timestamp,
+                signature
+        );
+        return ResponseEntity.ok(SignatureProcessingUploadUrlsResponse.from(
+                userService.issueSignatureProcessingUpload(parsedUploadId)
+        ));
+    }
 
     @Override
     @PostMapping("/{uploadId}/complete")

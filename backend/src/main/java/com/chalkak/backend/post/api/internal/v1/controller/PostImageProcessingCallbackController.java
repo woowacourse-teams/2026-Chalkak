@@ -7,6 +7,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.post.api.internal.v1.docs.PostImageProcessingCallbackApiDocs;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingCompleteRequest;
 import com.chalkak.backend.post.api.internal.v1.dto.request.PostImageProcessingFailRequest;
+import com.chalkak.backend.post.api.internal.v1.dto.response.PostProcessingUploadUrlsResponse;
 import com.chalkak.backend.post.service.PostCommandService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -48,6 +49,25 @@ public class PostImageProcessingCallbackController
     private final ProcessingCallbackAuthenticator authenticator;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+
+    @Override
+    @PostMapping("/{uploadId}/upload-urls")
+    public ResponseEntity<PostProcessingUploadUrlsResponse> issueUploadUrls(
+            @PathVariable String uploadId,
+            @RequestHeader(value = TIMESTAMP_HEADER, required = false) String timestamp,
+            @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature
+    ) {
+        UUID parsedUploadId = CanonicalUuidParser.parse(uploadId);
+        authenticator.authenticate(
+                callbackPath(parsedUploadId, "upload-urls"),
+                null,
+                timestamp,
+                signature
+        );
+        return ResponseEntity.ok(PostProcessingUploadUrlsResponse.from(
+                postCommandService.issuePostImageProcessingUpload(parsedUploadId)
+        ));
+    }
 
     @Override
     @PostMapping("/{uploadId}/complete")
