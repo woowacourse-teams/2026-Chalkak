@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -44,6 +45,17 @@ class LoginViewModelTest {
         viewModel.signUpRequiredHandled()
 
         assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
+    }
+
+    @Test
+    fun `Google 자격 증명 요청이 취소되면 재시도 가능한 상태로 돌아간다`() {
+        assertTrue(viewModel.startCredentialRequest())
+        assertEquals(LoginStatus.Loading, viewModel.uiState.value.status)
+
+        viewModel.credentialRequestCancelled()
+
+        assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.canSubmit)
     }
 
     @Test

@@ -36,6 +36,7 @@ import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.feature.login.component.SocialLoginButton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -68,18 +69,23 @@ fun LoginRoute(
                         viewModel.credentialRequestFailed("Google 로그인을 시작할 수 없어요.")
                     } else if (viewModel.startCredentialRequest()) {
                         coroutineScope.launch {
-                            when (val result = googleIdTokenClient.getIdToken(currentActivity)) {
-                                is GoogleCredentialResult.Success -> {
-                                    viewModel.login(provider, result.idToken)
-                                }
+                            try {
+                                when (val result = googleIdTokenClient.getIdToken(currentActivity)) {
+                                    is GoogleCredentialResult.Success -> {
+                                        viewModel.login(provider, result.idToken)
+                                    }
 
-                                GoogleCredentialResult.Cancelled -> {
-                                    viewModel.credentialRequestCancelled()
-                                }
+                                    GoogleCredentialResult.Cancelled -> {
+                                        viewModel.credentialRequestCancelled()
+                                    }
 
-                                is GoogleCredentialResult.Failure -> {
-                                    viewModel.credentialRequestFailed(result.reason.toMessage())
+                                    is GoogleCredentialResult.Failure -> {
+                                        viewModel.credentialRequestFailed(result.reason.toMessage())
+                                    }
                                 }
+                            } catch (error: CancellationException) {
+                                viewModel.credentialRequestCancelled()
+                                throw error
                             }
                         }
                     }
