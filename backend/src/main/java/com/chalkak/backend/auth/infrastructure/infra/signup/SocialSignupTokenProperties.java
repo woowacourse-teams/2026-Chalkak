@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.signup;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

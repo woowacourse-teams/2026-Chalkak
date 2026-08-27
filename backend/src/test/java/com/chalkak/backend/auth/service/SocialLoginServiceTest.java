@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
 
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
@@ -18,7 +18,7 @@ import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
@@ -36,7 +36,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     @Autowired
     private SocialAccountRepository socialAccountRepository;
 
-    @MockitoBean(name = "googleIdTokenVerifier")
+    @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
 
     @PersistenceContext
@@ -46,9 +46,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     @DisplayName("등록된 소셜 계정으로 로그인하면 기존 회원 식별자를 반환한다")
     void login_existingSocialAccount_returnsLoginSuccess() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN))
-                .willReturn(identity());
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -70,9 +70,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     @DisplayName("등록되지 않은 소셜 계정으로 로그인하면 회원가입 필요 상태를 반환한다")
     void login_newSocialAccount_returnsSignUpRequired() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN))
-                .willReturn(identity());
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
 
         // When
         SocialLoginResult result = socialLoginService.login(
@@ -88,9 +88,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴한 회원에 연결된 소셜 계정의 로그인은 거부한다")
     void login_withdrawnUser_throwsUnauthorizedException() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN))
-                .willReturn(identity());
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,

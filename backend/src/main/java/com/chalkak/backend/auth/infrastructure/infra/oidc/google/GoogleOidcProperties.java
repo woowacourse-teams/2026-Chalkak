@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.google;
 
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;

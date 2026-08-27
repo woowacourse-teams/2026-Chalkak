@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.verify;
 
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
@@ -52,7 +54,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     @Autowired
     private SocialAccountRepository socialAccountRepository;
 
-    @MockitoBean(name = "googleIdTokenVerifier")
+    @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
 
     @MockitoBean
@@ -255,8 +257,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     @DisplayName("신규 소셜 계정이 요청하면 서명 이미지 업로드 URL을 발급한다")
     void createSignatureUpload_newSocialAccount_issuesUploadUrl() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
         given(signatureImageUploadIssuer.issue(any(UUID.class)))
                 .willAnswer(invocation -> new SignatureImageUpload(
                         invocation.getArgument(0),
@@ -287,8 +290,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     @DisplayName("이미 가입된 소셜 계정은 회원가입용 서명 업로드 URL을 발급받을 수 없다")
     void createSignatureUpload_existingSocialAccount_throwsBusinessException() {
         // Given
-        given(googleIdTokenVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
-        given(googleIdTokenVerifier.verify(ID_TOKEN)).willReturn(identity());
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,

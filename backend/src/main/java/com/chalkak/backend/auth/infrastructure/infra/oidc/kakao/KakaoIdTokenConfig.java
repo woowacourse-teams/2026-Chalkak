@@ -1,5 +1,6 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.kakao;
 
+import com.chalkak.backend.auth.infrastructure.infra.oidc.OidcIdTokenClaimsValidator;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -13,18 +14,18 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 @Configuration
-@EnableConfigurationProperties(GoogleOidcProperties.class)
-public class GoogleIdTokenConfig {
+@EnableConfigurationProperties(KakaoOidcProperties.class)
+public class KakaoIdTokenConfig {
 
     @Bean
-    public JwtDecoder googleJwtDecoder(GoogleOidcProperties properties) {
+    public JwtDecoder kakaoJwtDecoder(KakaoOidcProperties properties) {
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder
                 .withJwkSetUri(properties.jwkSetUri())
                 .build();
         OAuth2TokenValidator<Jwt> issuerAndTimestampValidator =
                 JwtValidators.createDefaultWithIssuer(properties.issuer());
         OAuth2TokenValidator<Jwt> audienceValidator =
-                new GoogleIdTokenAudienceValidator(properties.clientId());
+                new KakaoIdTokenAudienceValidator(properties.appKey());
         OAuth2TokenValidator<Jwt> requiredClaimsValidator =
                 new OidcIdTokenClaimsValidator();
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
@@ -35,8 +36,8 @@ public class GoogleIdTokenConfig {
     }
 
     @Bean
-    public IdTokenVerifier googleIdTokenVerifier(
-            @Qualifier("googleJwtDecoder") JwtDecoder jwtDecoder) {
-        return new GoogleIdTokenVerifier(jwtDecoder);
+    public IdTokenVerifier kakaoIdTokenVerifier(
+            @Qualifier("kakaoJwtDecoder") JwtDecoder jwtDecoder) {
+        return new KakaoIdTokenVerifier(jwtDecoder);
     }
 }

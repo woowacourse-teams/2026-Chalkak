@@ -1,4 +1,4 @@
-package com.chalkak.backend.auth.infrastructure.infra;
+package com.chalkak.backend.auth.infrastructure.infra.oidc.google;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
