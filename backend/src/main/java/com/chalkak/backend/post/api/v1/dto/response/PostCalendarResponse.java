@@ -10,14 +10,14 @@ import java.util.UUID;
 public record PostCalendarResponse(
         int year,
         int month,
-        List<CalendarPostResponse> results
+        List<CalendarPostResponse> posts
 ) {
 
     public static PostCalendarResponse from(PostCalendarResult result) {
         return new PostCalendarResponse(
                 result.year(),
                 result.month(),
-                result.results().stream()
+                result.posts().stream()
                         .map(CalendarPostResponse::from)
                         .toList()
         );

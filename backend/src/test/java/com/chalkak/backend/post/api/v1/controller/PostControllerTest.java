@@ -710,12 +710,13 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.year").value(2026))
                 .andExpect(jsonPath("$.month").value(8))
-                .andExpect(jsonPath("$.results[0].topicDate").value("2026-08-12"))
-                .andExpect(jsonPath("$.results[0].postId").value(POST_ID.toString()))
-                .andExpect(jsonPath("$.results[0].thumbnailImageUrl")
+                .andExpect(jsonPath("$.results").doesNotExist())
+                .andExpect(jsonPath("$.posts[0].topicDate").value("2026-08-12"))
+                .andExpect(jsonPath("$.posts[0].postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
                         .value("https://cdn.example.com/posts/approved.webp"))
-                .andExpect(jsonPath("$.results[0].status").value("APPROVED"))
-                .andExpect(jsonPath("$.results[1].status").value("PENDING"));
+                .andExpect(jsonPath("$.posts[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.posts[1].status").value("PENDING"));
     }
 
     @Test
@@ -731,7 +732,7 @@ class PostControllerTest {
                         .param("year", "2026")
                         .param("month", "8"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.results").isEmpty());
+                .andExpect(jsonPath("$.posts").isEmpty());
     }
 
     @ParameterizedTest

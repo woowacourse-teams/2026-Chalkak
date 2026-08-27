@@ -11,7 +11,7 @@ import java.util.UUID;
 public record PostCalendarResult(
         int year,
         int month,
-        List<PostSummary> results
+        List<PostSummary> posts
 ) {
 
     public static PostCalendarResult from(
