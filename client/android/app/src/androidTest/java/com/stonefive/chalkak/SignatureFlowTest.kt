@@ -34,12 +34,13 @@ class SignatureFlowTest {
     @Test
     fun navigatesFromTermsThroughSignaturePreviewToHomeAndDisplay() {
         val signUpRepository = FakeSignUpRepository()
+        val signUpViewModel = SignUpViewModel(signUpRepository)
 
         composeRule.activity.setContent {
             ChalkakTheme {
                 ChalkakNavHost(
                     startDestination = Terms,
-                    signUpViewModel = SignUpViewModel(signUpRepository),
+                    signUpViewModel = signUpViewModel,
                 )
             }
         }
