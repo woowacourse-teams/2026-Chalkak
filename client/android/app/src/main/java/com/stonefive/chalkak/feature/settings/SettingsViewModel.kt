@@ -7,7 +7,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,37 +65,51 @@ class SettingsViewModel(
         _uiState.update { it.copy(isAccountActionInProgress = true) }
 
         viewModelScope.launch {
-            runCatching { block() }
-                .onSuccess {
-                    _uiState.update {
-                        it.copy(
-                            isLoggedIn = false,
-                            isAccountActionInProgress = false,
-                            signatureModel = null,
-                        )
-                    }
-                    _uiEvent.send(SettingsUiEvent.NavigateToLogin)
-                }.onFailure {
-                    _uiState.update { it.copy(isAccountActionInProgress = false) }
-                    _uiEvent.send(SettingsUiEvent.AccountActionFailed)
+            try {
+                block()
+                _uiState.update {
+                    it.copy(
+                        isLoggedIn = false,
+                        isAccountActionInProgress = false,
+                        signatureModel = null,
+                    )
                 }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _uiState.update { it.copy(isAccountActionInProgress = false) }
+                _uiEvent.send(SettingsUiEvent.AccountActionFailed)
+            }
         }
     }
 
     private fun loadProfile() {
         viewModelScope.launch {
-            runCatching { authRepository.getMyProfile() }
-                .onSuccess { profile ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isLoggedIn = profile != null,
-                            signatureModel = profile?.signatureUrl,
-                        )
-                    }
-                }.onFailure {
-                    _uiState.update { it.copy(isLoading = false) }
+            if (authRepository.sessionState.value !is UserSessionState.Authenticated) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isLoggedIn = false,
+                        signatureModel = null,
+                    )
                 }
+                return@launch
+            }
+
+            try {
+                val profile = authRepository.getMyProfile()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        signatureModel = profile?.signatureUrl,
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 

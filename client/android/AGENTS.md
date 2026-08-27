@@ -42,6 +42,27 @@
 - `LaunchedEffect`에는 실제 의존값을 key로 사용한다.
   - `LaunchedEffect(Unit)`은 리뷰에서 정당화가 필요하다.
 
+## MUST — UI 상태·내비게이션
+- 사용자 입력은 `onLoginClick = viewModel::login`처럼 의미가 드러나는 람다로 위로 전달한다.
+  - MVI/Reducer, 공통 middleware, 액션 기록·재생 요구가 없으면 단순 클릭을 위한
+    `UiAction.LoginClicked`/`onAction()` 계층을 추가하지 않는다.
+- ViewModel은 비즈니스 처리 결과를 재현 가능한 불변 `UiState`로 내보낸다.
+  - 로그인·결제·가입·저장 완료처럼 놓치면 상태 불일치가 생기는 결과를
+    `Channel`/`SharedFlow` 일회성 이벤트에만 의존하지 않는다.
+  - 상태로 표현할 수 없어 일회성 effect가 필요하면 유실·중복·Lifecycle 처리를
+    코드나 설계 문서에 정당화한다.
+- `XxxRoute`는 ViewModel 상태를 수집하고 `onLoginSuccess`, `onRegistrationCompleted`처럼
+  피처 결과를 표현하는 콜백을 호출한다.
+- `ChalkakNavHost`는 피처 결과를 실제 목적지에 매핑하고 `NavController`로 이동·백스택을 처리한다.
+  - ViewModel·Screen은 `NavController`, 내비게이션 route 타입, 로그인 이후 목적지를 알지 않는다.
+  - 목적지 정책이 Main에서 Onboarding으로 바뀌어도 피처 ViewModel·Screen은 수정하지 않는다.
+- `UiState`를 보고 이동할 때는 반복 수집을 고려한다.
+  - 완료된 화면이 더 이상 필요 없으면 `popUpTo(..., inclusive = true)` 등으로 백스택에서 제거한다.
+  - 화면을 유지해야 하면 자동 이동 여부는 UI/내비게이션 계층에서 관리한다.
+- 기존 코드가 이 규칙을 따르지 않더라도 관련 코드를 수정할 때 담당 범위를 이 구조로 수렴시킨다.
+  요청 범위 밖의 대규모 이벤트 구조 변경은 하지 않는다.
+- 상세한 근거·예제·예외는 [`docs/architecture/ui-state-navigation.md`](docs/architecture/ui-state-navigation.md)를 따른다.
+
 ## SMELL — Compose
 다음 조건은 즉시 위반으로 보지는 않지만, 컴포넌트 분리를 검토해야 하는 신호다.
 

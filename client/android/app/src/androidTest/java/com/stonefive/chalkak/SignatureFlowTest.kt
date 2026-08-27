@@ -1,5 +1,6 @@
 package com.stonefive.chalkak
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -10,6 +11,19 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.SocialLoginProvider
+import com.stonefive.chalkak.domain.model.SocialLoginResult
+import com.stonefive.chalkak.domain.model.SocialSignUpResult
+import com.stonefive.chalkak.domain.model.UserProfile
+import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.feature.signature.SignUpViewModel
+import com.stonefive.chalkak.navigation.ChalkakNavHost
+import com.stonefive.chalkak.navigation.Terms
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -18,8 +32,18 @@ class SignatureFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun navigatesFromLoginThroughSignaturePreviewToHomeAndDisplay() {
-        composeRule.onNodeWithText("Google로 계속하기").performClick()
+    fun navigatesFromTermsThroughSignaturePreviewToHomeAndDisplay() {
+        val signUpRepository = FakeSignUpRepository()
+        val signUpViewModel = SignUpViewModel(signUpRepository)
+
+        composeRule.activity.setContent {
+            ChalkakTheme {
+                ChalkakNavHost(
+                    startDestination = Terms,
+                    signUpViewModel = signUpViewModel,
+                )
+            }
+        }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
@@ -57,7 +81,10 @@ class SignatureFlowTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithText("시작하기").performClick()
+        composeRule
+            .onNodeWithText("시작하기")
+            .assertIsEnabled()
+            .performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
@@ -75,5 +102,30 @@ class SignatureFlowTest {
                 .isNotEmpty()
         }
         composeRule.onNodeWithText("바다").assertIsDisplayed()
+        assertTrue(signUpRepository.completedSignaturePng.isNotEmpty())
     }
+}
+
+private class FakeSignUpRepository : AuthRepository {
+    override val sessionState: StateFlow<UserSessionState> =
+        MutableStateFlow(UserSessionState.SignedOut)
+    var completedSignaturePng = ByteArray(0)
+
+    override suspend fun login(
+        provider: SocialLoginProvider,
+        idToken: String,
+    ): SocialLoginResult = error("Not used")
+
+    override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult {
+        completedSignaturePng = signaturePng
+        return SocialSignUpResult.Success("user-id")
+    }
+
+    override suspend fun continueAsGuest() = Unit
+
+    override suspend fun getMyProfile(): UserProfile? = null
+
+    override suspend fun logout() = Unit
+
+    override suspend fun withdraw() = Unit
 }

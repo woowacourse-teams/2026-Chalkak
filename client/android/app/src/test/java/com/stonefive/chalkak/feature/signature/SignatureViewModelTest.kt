@@ -1,15 +1,11 @@
 package com.stonefive.chalkak.feature.signature
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.repository.SignatureRepository
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -18,10 +14,9 @@ class SignatureViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val repository = FakeSignatureRepository()
     private val encodedPng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
     private val encoder = RecordingSignaturePngEncoder(encodedPng)
-    private val viewModel = SignatureViewModel(repository, encoder)
+    private val viewModel = SignatureViewModel(encoder)
 
     @Test
     fun `사인을 그리기 전에는 제출할 수 없다`() {
@@ -29,7 +24,6 @@ class SignatureViewModelTest {
 
         assertFalse(viewModel.uiState.value.canSubmit)
         assertEquals(0, encoder.encodeCount)
-        assertEquals(0, repository.uploadCount)
     }
 
     @Test
@@ -58,40 +52,14 @@ class SignatureViewModelTest {
     }
 
     @Test
-    fun `제출 성공 시 PNG를 업로드하고 완료 이벤트를 전달한다`() = runTest {
+    fun `제출하면 PNG를 생성하고 미리보기 이벤트를 전달한다`() = runTest {
         viewModel.drawSampleStroke()
 
         viewModel.onAction(SignatureUiAction.SubmitClicked)
 
-        assertArrayEquals(encodedPng, repository.uploadedPng)
         assertEquals(1, encoder.encodeCount)
         val event = viewModel.uiEvent.first() as SignatureUiEvent.SignatureSaved
         assertArrayEquals(encodedPng, event.signaturePng)
-        assertFalse(viewModel.uiState.value.isSubmitting)
-    }
-
-    @Test
-    fun `제출 실패 시 그린 사인을 유지하고 오류를 노출한다`() {
-        val failure = IllegalStateException("upload failed")
-        repository.failure = failure
-        viewModel.drawSampleStroke()
-
-        viewModel.onAction(SignatureUiAction.SubmitClicked)
-
-        assertTrue(viewModel.uiState.value.hasSignature)
-        assertSame(failure, viewModel.uiState.value.error)
-        assertFalse(viewModel.uiState.value.isSubmitting)
-    }
-
-    @Test
-    fun `제출 취소는 UI 오류로 노출하지 않는다`() {
-        repository.failure = CancellationException("upload cancelled")
-        viewModel.drawSampleStroke()
-
-        viewModel.onAction(SignatureUiAction.SubmitClicked)
-
-        assertTrue(viewModel.uiState.value.hasSignature)
-        assertNull(viewModel.uiState.value.error)
         assertFalse(viewModel.uiState.value.isSubmitting)
     }
 
@@ -108,17 +76,5 @@ private class RecordingSignaturePngEncoder(private val result: ByteArray) : Sign
     override fun encode(strokes: List<SignatureStroke>): ByteArray {
         encodeCount += 1
         return result
-    }
-}
-
-private class FakeSignatureRepository : SignatureRepository {
-    var failure: Throwable? = null
-    var uploadCount = 0
-    var uploadedPng = ByteArray(0)
-
-    override suspend fun uploadSignature(signaturePng: ByteArray) {
-        uploadCount += 1
-        uploadedPng = signaturePng
-        failure?.let { throw it }
     }
 }

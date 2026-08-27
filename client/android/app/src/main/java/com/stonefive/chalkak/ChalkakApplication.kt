@@ -3,5 +3,5 @@ package com.stonefive.chalkak
 import android.app.Application
 
 class ChalkakApplication : Application() {
-    val appContainer: AppContainer by lazy { AppContainer() }
+    val appContainer: AppContainer by lazy { AppContainer(this) }
 }
