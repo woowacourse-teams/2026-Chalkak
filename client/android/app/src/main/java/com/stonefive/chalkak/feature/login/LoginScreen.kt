@@ -1,8 +1,5 @@
 package com.stonefive.chalkak.feature.login
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,27 +14,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.auth.GoogleCredentialFailure
-import com.stonefive.chalkak.core.auth.GoogleCredentialResult
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.feature.login.component.SocialLoginButton
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoginRoute(
@@ -46,12 +36,14 @@ fun LoginRoute(
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() }
-    val googleIdTokenClient = remember(context) {
-        (context.applicationContext as ChalkakApplication).appContainer.googleIdTokenClient
-    }
-    val coroutineScope = rememberCoroutineScope()
+    val loginWithGoogle = rememberGoogleLoginAction(
+        onStart = viewModel::startCredentialRequest,
+        onSuccess = { idToken ->
+            viewModel.login(SocialLoginProvider.GOOGLE, idToken)
+        },
+        onCancelled = viewModel::credentialRequestCancelled,
+        onFailure = viewModel::credentialRequestFailed,
+    )
 
     LaunchedEffect(uiState.status) {
         if (uiState.status == LoginStatus.SignUpRequired) {
@@ -63,34 +55,7 @@ fun LoginRoute(
     LoginScreen(
         onSocialLoginClick = { provider ->
             when (provider) {
-                SocialLoginProvider.GOOGLE -> {
-                    val currentActivity = activity
-                    if (currentActivity == null) {
-                        viewModel.credentialRequestFailed("Google 로그인을 시작할 수 없어요.")
-                    } else if (viewModel.startCredentialRequest()) {
-                        coroutineScope.launch {
-                            try {
-                                when (val result = googleIdTokenClient.getIdToken(currentActivity)) {
-                                    is GoogleCredentialResult.Success -> {
-                                        viewModel.login(provider, result.idToken)
-                                    }
-
-                                    GoogleCredentialResult.Cancelled -> {
-                                        viewModel.credentialRequestCancelled()
-                                    }
-
-                                    is GoogleCredentialResult.Failure -> {
-                                        viewModel.credentialRequestFailed(result.reason.toMessage())
-                                    }
-                                }
-                            } catch (error: CancellationException) {
-                                viewModel.credentialRequestCancelled()
-                                throw error
-                            }
-                        }
-                    }
-                }
-
+                SocialLoginProvider.GOOGLE -> loginWithGoogle()
                 SocialLoginProvider.KAKAO -> viewModel.showKakaoPreparing()
             }
         },
@@ -202,27 +167,6 @@ private fun LoginActions(
             textDecoration = TextDecoration.Underline,
         )
     }
-}
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
-private fun GoogleCredentialFailure.toMessage(): String = when (this) {
-    GoogleCredentialFailure.NO_CREDENTIAL -> "사용 가능한 Google 계정이 없어요."
-
-    GoogleCredentialFailure.INTERRUPTED -> "Google 로그인이 중단됐어요. 다시 시도해 주세요."
-
-    GoogleCredentialFailure.CONFIGURATION -> "Google 로그인 설정을 확인해 주세요."
-
-    GoogleCredentialFailure.UNSUPPORTED -> "이 기기에서는 Google 로그인을 사용할 수 없어요."
-
-    GoogleCredentialFailure.UNEXPECTED_CREDENTIAL,
-    GoogleCredentialFailure.INVALID_CREDENTIAL,
-    GoogleCredentialFailure.UNKNOWN,
-    -> "Google 로그인에 실패했어요. 다시 시도해 주세요."
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
