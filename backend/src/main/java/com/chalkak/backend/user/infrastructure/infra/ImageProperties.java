@@ -29,9 +29,13 @@ public record ImageProperties(
         boolean anonymousAccess
 ) {
 
-    public record Signature(long maxBytes, List<String> allowedContentTypes) {
+    public record Signature(
+            long maxBytes,
+            List<String> allowedContentTypes,
+            String cacheControl
+    ) {
     }
 
-    public record Post(long maxBytes) {
+    public record Post(long maxBytes, String cacheControl) {
     }
 }

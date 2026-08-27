@@ -12,9 +12,6 @@ from image_processor.config import Settings
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
 
-PNG_CONTENT_TYPE = "image/png"
-
-
 @dataclass(frozen=True)
 class ProcessedSignature:
     original_key: str
@@ -24,10 +21,17 @@ class ProcessedSignature:
 LOGGER = logging.getLogger(__name__)
 
 class SignatureImageProcessor:
-    def __init__(self, s3_client: Any, settings: Settings, callback_client: Any):
+    def __init__(
+        self,
+        s3_client: Any,
+        settings: Settings,
+        callback_client: Any,
+        upload_client: Any,
+    ):
         self._s3_client = s3_client
         self._settings = settings
         self._callback_client = callback_client
+        self._upload_client = upload_client
         self._staging_key_pattern = re.compile(
             rf"^{re.escape(settings.root_prefix)}/staging/"
             r"(?P<environment>dev|prod)/signatures/"
@@ -45,9 +49,22 @@ class SignatureImageProcessor:
 
             original_key = self._destination_key(environment, "original", upload_id)
             thumbnail_key = self._destination_key(environment, "thumbnail", upload_id)
-
-            self._upload(event.bucket, original_key, original)
-            self._upload(event.bucket, thumbnail_key, thumbnail)
+            upload_urls = self._callback_client.issue_upload_urls(
+                environment,
+                upload_id,
+            )
+            self._upload(
+                upload_urls.original_upload_url,
+                original,
+                upload_urls.content_type,
+                upload_urls.cache_control,
+            )
+            self._upload(
+                upload_urls.thumbnail_upload_url,
+                thumbnail,
+                upload_urls.content_type,
+                upload_urls.cache_control,
+            )
         except RejectedImageError:
             # 실패 콜백이 전달된 반려 이미지는 재처리하지 않으므로 staging을 삭제한다.
             # 콜백이 실패하면 재시도에 필요하므로 staging을 유지한다.
@@ -194,11 +211,16 @@ class SignatureImageProcessor:
             f"{environment}/{variant}/{upload_id}.png"
         )
 
-    def _upload(self, bucket: str, key: str, body: bytes) -> None:
-        self._s3_client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=body,
-            ContentType=PNG_CONTENT_TYPE,
-            CacheControl=self._settings.cache_control,
+    def _upload(
+        self,
+        url: str,
+        body: bytes,
+        content_type: str,
+        cache_control: str,
+    ) -> None:
+        self._upload_client.upload(
+            url=url,
+            body=body,
+            content_type=content_type,
+            cache_control=cache_control,
         )

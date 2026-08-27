@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from PIL import Image
 
+from image_processor.callback import ProcessingUploadUrls
 from image_processor.config import Settings
 from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
@@ -13,6 +14,8 @@ BUCKET = "test-bucket"
 UPLOAD_ID = "0198d999-ff00-7000-8000-000000000001"
 ENVIRONMENT = "dev"
 STAGING_KEY = f"chalkak/staging/{ENVIRONMENT}/signatures/{UPLOAD_ID}.png"
+ORIGINAL_URL = "https://s3.test/original"
+THUMBNAIL_URL = "https://s3.test/thumbnail"
 
 
 class StreamingBodyStub(io.BytesIO):
@@ -28,13 +31,21 @@ class SignatureImageProcessorTest(unittest.TestCase):
             max_input_bytes=1_048_576,
             max_image_pixels=25_000_000,
             thumbnail_max_size=64,
-            cache_control="public, max-age=86400",
         )
         self.callback_client = Mock()
+        self.callback_client.issue_upload_urls.return_value = ProcessingUploadUrls(
+            original_upload_url=ORIGINAL_URL,
+            thumbnail_upload_url=THUMBNAIL_URL,
+            content_type="image/png",
+            cache_control="public, max-age=86400",
+        )
+        self.upload_client = Mock()
+        self.upload_client.upload.return_value = True
         self.processor = SignatureImageProcessor(
             self.s3_client,
             self.settings,
             self.callback_client,
+            self.upload_client,
         )
 
     def test_process_reencodes_original_creates_thumbnail_and_deletes_staging(
@@ -56,13 +67,17 @@ class SignatureImageProcessorTest(unittest.TestCase):
             f"chalkak/signatures/dev/thumbnail/{UPLOAD_ID}.png",
             result.thumbnail_key,
         )
-        self.assertEqual(2, self.s3_client.put_object.call_count)
+        self.assertEqual(2, self.upload_client.upload.call_count)
 
-        original_put = self.s3_client.put_object.call_args_list[0].kwargs
-        thumbnail_put = self.s3_client.put_object.call_args_list[1].kwargs
-        self.assertEqual("image/png", original_put["ContentType"])
-        self.assertEqual((200, 100), image_size(original_put["Body"]))
-        self.assertEqual((64, 32), image_size(thumbnail_put["Body"]))
+        original_put = self.upload_client.upload.call_args_list[0].kwargs
+        thumbnail_put = self.upload_client.upload.call_args_list[1].kwargs
+        self.assertEqual(ORIGINAL_URL, original_put["url"])
+        self.assertEqual("image/png", original_put["content_type"])
+        self.assertEqual("public, max-age=86400", original_put["cache_control"])
+        self.assertEqual((200, 100), image_size(original_put["body"]))
+        self.assertEqual(THUMBNAIL_URL, thumbnail_put["url"])
+        self.assertEqual((64, 32), image_size(thumbnail_put["body"]))
+        self.s3_client.put_object.assert_not_called()
         self.callback_client.complete.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.s3_client.delete_object.assert_called_once_with(
             Bucket=BUCKET,
@@ -78,7 +93,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
 
         self.processor.process(created_event(len(source)))
 
-        original = self.s3_client.put_object.call_args_list[0].kwargs["Body"]
+        original = self.upload_client.upload.call_args_list[0].kwargs["body"]
         with Image.open(io.BytesIO(original)) as image:
             self.assertEqual("RGBA", image.mode)
 
@@ -115,7 +130,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
             self.processor.process(created_event(len(source)))
 
         self.callback_client.failed.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
-        self.s3_client.put_object.assert_not_called()
+        self.upload_client.upload.assert_not_called()
         self.s3_client.delete_object.assert_called_once_with(
             Bucket=BUCKET,
             Key=STAGING_KEY,
@@ -189,13 +204,29 @@ class SignatureImageProcessorTest(unittest.TestCase):
             "ContentLength": len(source),
             "Body": StreamingBodyStub(source),
         }
-        self.s3_client.put_object.side_effect = [None, TimeoutError("S3 timeout")]
+        self.upload_client.upload.side_effect = [True, TimeoutError("S3 timeout")]
 
         with self.assertRaises(TimeoutError):
             self.processor.process(created_event(len(source)))
 
         self.callback_client.complete.assert_not_called()
         self.s3_client.delete_object.assert_not_called()
+
+    def test_process_keeps_existing_results_and_still_completes(self) -> None:
+        source = png_image()
+        self.s3_client.get_object.return_value = {
+            "ContentLength": len(source),
+            "Body": StreamingBodyStub(source),
+        }
+        self.upload_client.upload.return_value = False
+
+        self.processor.process(created_event(len(source)))
+
+        self.callback_client.complete.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
+        self.s3_client.delete_object.assert_called_once_with(
+            Bucket=BUCKET,
+            Key=STAGING_KEY,
+        )
 
     def test_process_does_not_delete_staging_when_complete_callback_fails(
         self,

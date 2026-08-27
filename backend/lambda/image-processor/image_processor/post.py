@@ -75,10 +75,17 @@ class PostImageProcessor:
     싣지 않는다. 위치와 기종 정보가 공개 이미지에 남으면 안 되기 때문이다.
     """
 
-    def __init__(self, s3_client: Any, settings: Settings, callback_client: Any):
+    def __init__(
+        self,
+        s3_client: Any,
+        settings: Settings,
+        callback_client: Any,
+        upload_client: Any,
+    ):
         self._s3_client = s3_client
         self._settings = settings
         self._callback_client = callback_client
+        self._upload_client = upload_client
         self._staging_key_pattern = re.compile(
             rf"^{re.escape(settings.root_prefix)}/staging/"
             r"(?P<environment>dev|prod)/posts/"
@@ -96,9 +103,24 @@ class PostImageProcessor:
 
             original_key = self._destination_key(environment, "original", upload_id)
             thumbnail_key = self._destination_key(environment, "thumbnail", upload_id)
-
-            self._upload(event.bucket, original_key, original)
-            self._upload(event.bucket, thumbnail_key, thumbnail)
+            upload_urls = self._callback_client.issue_upload_urls(
+                environment,
+                upload_id,
+            )
+            self._upload(
+                original_key,
+                upload_urls.original_upload_url,
+                original,
+                upload_urls.content_type,
+                upload_urls.cache_control,
+            )
+            self._upload(
+                thumbnail_key,
+                upload_urls.thumbnail_upload_url,
+                thumbnail,
+                upload_urls.content_type,
+                upload_urls.cache_control,
+            )
         except RejectedPostImageError as exception:
             self._report_failure(environment, upload_id, exception.reason)
             self._discard_staging(event)
@@ -383,7 +405,14 @@ class PostImageProcessor:
             f"{environment}/{variant}/{upload_id}.webp"
         )
 
-    def _upload(self, bucket: str, key: str, body: bytes) -> None:
+    def _upload(
+        self,
+        key: str,
+        url: str,
+        body: bytes,
+        content_type: str,
+        cache_control: str,
+    ) -> None:
         """
         목적지 키는 한 번만 쓴다. presigned URL은 만료 전까지 횟수 제한 없이 재사용할 수 있어서, 게시물이
         승인된 뒤에도 같은 staging 키에 다른 이미지를 올리면 이 함수가 공개 이미지를 덮어쓴다.
@@ -392,23 +421,17 @@ class PostImageProcessor:
         재시도된 정상 경로에서는 그 콜백이 이어져야 하고, 덮어쓰기 시도였다면 백엔드가 ISSUED가 아닌
         업로드의 콜백을 무시하므로 어느 쪽도 상태를 망가뜨리지 않는다.
         """
-        try:
-            self._s3_client.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=body,
-                ContentType=WEBP_CONTENT_TYPE,
-                CacheControl=self._settings.post_cache_control,
-                IfNoneMatch="*",
-            )
-        except ClientError as exception:
-            if not _is_precondition_failed(exception):
-                raise
+        uploaded = self._upload_client.upload(
+            url=url,
+            body=body,
+            content_type=content_type,
+            cache_control=cache_control,
+        )
+        if not uploaded:
             LOGGER.warning(
                 json.dumps(
                     {
                         "event": "post_image_destination_already_exists",
-                        "bucket": bucket,
                         "key": key,
                     }
                 )
@@ -425,14 +448,6 @@ def _serializable(value: Any) -> Any:
     if isinstance(value, bytes):
         return None
     return str(value)
-
-
-def _is_precondition_failed(exception: ClientError) -> bool:
-    error = exception.response.get("Error", {})
-    if error.get("Code") in {"PreconditionFailed", "412"}:
-        return True
-    metadata = exception.response.get("ResponseMetadata", {})
-    return metadata.get("HTTPStatusCode") == 412
 
 
 def _exif_ifd(exif: Image.Exif) -> dict[int, Any]:

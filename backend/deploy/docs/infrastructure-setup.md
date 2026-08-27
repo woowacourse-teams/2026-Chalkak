@@ -138,8 +138,10 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - `GOOGLE_OIDC_CLIENT_ID`에는 모바일이 ID Token 발급 시 사용하는 백엔드용 Google Web Client ID를 설정한다.
 - `SOCIAL_SIGNUP_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. 값을 바꾸면 기존 회원가입 토큰이 무효화된다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
-- `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성하고 dev·prod 백엔드와 Lambda에 동일하게 설정한다.
-- Lambda의 `DEV_BACKEND_CALLBACK_URL`과 `PROD_BACKEND_CALLBACK_URL`에는 `/internal/v1/signature-processing`까지 포함한다.
+- `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성한다. Lambda의
+  `IMAGE_PROCESSING_API_SECRET`에는 이 값과 동일한 값을 설정한다.
+- Lambda의 `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL`과
+  `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL`에는 `/internal/v1`까지 포함한다.
 
 환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
 
@@ -155,6 +157,17 @@ sudo systemctl restart chalkak-backend.service
 
 ```text
 s3://techcourse-project-2026-artifacts
+```
+
+백엔드는 이미지 처리 Lambda에 최종 결과용 presigned PUT URL을 발급한다. 따라서 각 환경의
+instance role에는 다음 경로에 대한 `s3:PutObject` 권한이 필요하다. dev 역할은 dev 경로만,
+prod 역할은 prod 경로만 허용하는 것이 원칙이다.
+
+```text
+arn:aws:s3:::techcourse-project-2026/chalkak/signatures/{environment}/original/*
+arn:aws:s3:::techcourse-project-2026/chalkak/signatures/{environment}/thumbnail/*
+arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/original/*
+arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/thumbnail/*
 ```
 
 EC2에서 identity를 확인한다.

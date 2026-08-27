@@ -2,16 +2,19 @@ package com.chalkak.backend.post.api.internal.v1.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.post.repository.PostProcessingImageUpload;
 import com.chalkak.backend.post.service.PostCommandService;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -47,6 +50,56 @@ class PostImageProcessingCallbackControllerTest {
 
     @MockitoBean
     private ProcessingCallbackAuthenticator authenticator;
+
+    @Test
+    @DisplayName("인증된 Lambda에 게시물 처리 결과용 presigned URL을 발급한다")
+    void issueUploadUrls_authenticatedRequest_returnsPresignedUrls() throws Exception {
+        // Given
+        given(postCommandService.issuePostImageProcessingUpload(UPLOAD_ID))
+                .willReturn(new PostProcessingImageUpload(
+                        "https://s3.test/original",
+                        "https://s3.test/thumbnail",
+                        "image/webp",
+                        "public, max-age=86400"
+                ));
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/upload-urls", UPLOAD_ID)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "signature"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalUploadUrl").value("https://s3.test/original"))
+                .andExpect(jsonPath("$.thumbnailUploadUrl").value("https://s3.test/thumbnail"))
+                .andExpect(jsonPath("$.contentType").value("image/webp"))
+                .andExpect(jsonPath("$.cacheControl").value("public, max-age=86400"));
+
+        verify(authenticator).authenticate(
+                "/internal/v1/post-image-processing/" + UPLOAD_ID + "/upload-urls",
+                null,
+                "1787562000",
+                "signature"
+        );
+    }
+
+    @Test
+    @DisplayName("업로드 URL 발급 서명이 유효하지 않으면 URL을 발급하지 않고 401을 반환한다")
+    void issueUploadUrls_invalidSignature_returnsUnauthorized() throws Exception {
+        // Given
+        doThrow(new UnauthorizedException(
+                ErrorCode.UNAUTHORIZED,
+                "유효하지 않은 이미지 처리 콜백입니다."
+        ))
+                .when(authenticator)
+                .authenticate(any(), any(), any(), any());
+
+        // When & Then
+        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/upload-urls", UPLOAD_ID)
+                        .header(TIMESTAMP_HEADER, "1787562000")
+                        .header(SIGNATURE_HEADER, "invalid"))
+                .andExpect(status().isUnauthorized());
+
+        verify(postCommandService, never()).issuePostImageProcessingUpload(any());
+    }
 
     @Test
     @DisplayName("인증된 완료 콜백은 이미지 메타데이터를 반영하고 204를 반환한다")

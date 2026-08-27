@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from urllib.error import HTTPError
 
-from image_processor.callback import ProcessingCallbackClient
+from image_processor.callback import ProcessingCallbackClient, ProcessingUploadUrls
 from image_processor.errors import PermanentCallbackError
 
 UPLOAD_ID = "0198d999-ff00-7000-8000-000000000001"
@@ -18,19 +18,19 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
         self.client = ProcessingCallbackClient(
             kind="signature-processing",
             base_urls={
-                "dev": "https://dev-api.test.chalkak/internal/v1/signature-processing",
-                "prod": "https://api.test.chalkak/internal/v1/signature-processing",
+                "dev": "https://dev-api.test.chalkak/internal/v1",
+                "prod": "https://api.test.chalkak/internal/v1",
             },
             secret=SECRET,
             timeout_seconds=3.0,
         )
 
-    def test_rejects_base_url_whose_path_does_not_match_kind(self) -> None:
+    def test_rejects_base_url_that_includes_processing_kind(self) -> None:
         with self.assertRaises(ValueError):
             ProcessingCallbackClient(
                 kind="signature-processing",
                 base_urls={
-                    "dev": "https://dev-api.test.chalkak/internal/v1/post-image-processing",
+                    "dev": "https://dev-api.test.chalkak/internal/v1/signature-processing",
                 },
                 secret=SECRET,
                 timeout_seconds=3.0,
@@ -41,7 +41,7 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
             ProcessingCallbackClient(
                 kind="signature-processing",
                 base_urls={
-                    "dev": "https://dev-api.test.chalkak/stage/internal/v1/signature-processing",
+                    "dev": "https://dev-api.test.chalkak/stage/internal/v1",
                 },
                 secret=SECRET,
                 timeout_seconds=3.0,
@@ -73,6 +73,49 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
             hdrs=None,
             fp=None,
         )
+
+    @patch("image_processor.callback.time.time", return_value=1_787_562_000)
+    @patch("image_processor.callback.request.urlopen")
+    def test_issue_upload_urls_returns_signed_backend_response(
+        self,
+        urlopen,
+        _time,
+    ) -> None:
+        response = MagicMock()
+        response.read.return_value = json.dumps(
+            {
+                "originalUploadUrl": "https://s3.test/original",
+                "thumbnailUploadUrl": "https://s3.test/thumbnail",
+                "contentType": "image/png",
+                "cacheControl": "public, max-age=86400",
+            }
+        ).encode()
+        urlopen.return_value.__enter__.return_value = response
+
+        result = self.client.issue_upload_urls("dev", UPLOAD_ID)
+
+        self.assertEqual(
+            ProcessingUploadUrls(
+                original_upload_url="https://s3.test/original",
+                thumbnail_upload_url="https://s3.test/thumbnail",
+                content_type="image/png",
+                cache_control="public, max-age=86400",
+            ),
+            result,
+        )
+        request_value = urlopen.call_args.args[0]
+        self.assertTrue(request_value.full_url.endswith(f"/{UPLOAD_ID}/upload-urls"))
+        self.assertEqual("POST", request_value.method)
+
+    @patch("image_processor.callback.request.urlopen")
+    def test_issue_upload_urls_keeps_http_400_retryable(self, urlopen) -> None:
+        error = self._http_error(400)
+        urlopen.side_effect = error
+
+        with self.assertRaises(HTTPError) as raised:
+            self.client.issue_upload_urls("dev", UPLOAD_ID)
+
+        self.assertIs(error, raised.exception)
 
     @patch("image_processor.callback.request.urlopen")
     def test_complete_raises_permanent_error_for_non_retryable_status(
@@ -150,8 +193,8 @@ class PostImageProcessingCallbackClientTest(unittest.TestCase):
         self.client = ProcessingCallbackClient(
             kind="post-image-processing",
             base_urls={
-                "dev": "https://dev-api.test.chalkak/internal/v1/post-image-processing",
-                "prod": "https://api.test.chalkak/internal/v1/post-image-processing",
+                "dev": "https://dev-api.test.chalkak/internal/v1",
+                "prod": "https://api.test.chalkak/internal/v1",
             },
             secret=SECRET,
             timeout_seconds=3.0,

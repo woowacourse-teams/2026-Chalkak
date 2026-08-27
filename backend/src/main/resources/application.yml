@@ -43,8 +43,10 @@ chalkak:
       max-bytes: 1048576
       allowed-content-types:
         - image/png
+      cache-control: public, max-age=86400
     post:
       max-bytes: 5242880
+      cache-control: public, max-age=86400
 
   callback:
     # 이미지 처리 콜백 본문 상한. @RequestBody는 컨트롤러보다 먼저 채워지므로 본문이 HMAC 검증보다

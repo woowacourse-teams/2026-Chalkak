@@ -304,13 +304,19 @@ EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다.
 |---|---|---|
 | `S3_PREFIX` | 백엔드·Lambda | 루트 prefix. 전 환경 `chalkak` |
 | `chalkak.image.environment` | 백엔드 | 경로의 `{environment}` 세그먼트. 프로필별로 `local`·`dev`·`prod`·`test` |
-| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 백엔드·Lambda | 콜백 HMAC 서명 키. **32자 이상**이어야 기동한다 |
-| `DEV_BACKEND_CALLBACK_URL` | Lambda | dev 백엔드 콜백 URL. **`/internal/v1/signature-processing`까지 포함**해야 한다 |
-| `PROD_BACKEND_CALLBACK_URL` | Lambda | prod 백엔드 콜백 URL. **`/internal/v1/signature-processing`까지 포함**해야 한다 |
+| `IMAGE_PROCESSOR_CALLBACK_SECRET` | 백엔드 | 이미지 처리 내부 API HMAC 검증 키. **32자 이상**이어야 기동한다 |
+| `IMAGE_PROCESSING_API_SECRET` | Lambda | 백엔드의 `IMAGE_PROCESSOR_CALLBACK_SECRET`과 동일한 HMAC 서명 키 |
+| `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | Lambda | dev 백엔드 이미지 처리 API 주소. **`/internal/v1`까지 포함**해야 한다 |
+| `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | Lambda | prod 백엔드 이미지 처리 API 주소. **`/internal/v1`까지 포함**해야 한다 |
+| `IMAGE_PROCESSING_API_TIMEOUT_SECONDS` | Lambda | presigned URL 발급과 완료·실패 요청의 HTTP timeout. 기본값 `3`초 |
 
-백엔드와 Lambda가 같은 secret을 공유한다. 값이 어긋나면 콜백이 전부 `401`로 떨어지고 사인이 영원히 `PROCESSING`에 남으므로, 서명 실패는 즉시 알람 대상이다.
+백엔드의 `IMAGE_PROCESSOR_CALLBACK_SECRET`과 Lambda의 `IMAGE_PROCESSING_API_SECRET`은
+이름만 다르고 값은 같아야 한다. 값이 어긋나면 내부 API 요청이 전부 `401`로 떨어지고 사인이
+영원히 `PROCESSING`에 남으므로, 서명 실패는 즉시 알람 대상이다.
 
-> **콜백 URL의 경로를 빠뜨리면 조용히 실패한다.** Lambda는 서명 대상 경로를 `/internal/v1/signature-processing/{uploadId}/{result}`로 **고정**해 계산하고, 실제 요청 URL은 `{base_url}/{uploadId}/{result}`로 만든다. 둘은 `base_url`이 정확히 그 경로로 끝날 때만 일치한다. 경로를 빼고 호스트만 넣으면 서명은 유효한데 요청이 `404`로 떨어지고 SQS가 무한 재시도한다.
+> **API base URL의 경로를 빠뜨리면 기동에 실패한다.** 환경 변수에는 `/internal/v1`까지
+> 포함한다. Lambda는 이미지 종류에 따라 `/signature-processing` 또는
+> `/post-image-processing`을 붙이고, 이어서 `/{uploadId}/{result}`를 붙인다.
 
 ### 로컬 실행
 
