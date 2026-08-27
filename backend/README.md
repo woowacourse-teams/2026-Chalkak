@@ -293,7 +293,7 @@ EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다.
 2. 새 pending을 등록해도 기존 active는 바꾸지 않는다.
 3. 콜백의 `uploadId`가 현재 pending과 같고 `PROCESSING`일 때만 상태를 바꾼다.
 4. 성공 승격은 원본·썸네일을 한 트랜잭션에서 함께 바꾼다.
-5. 영구 실패와 타임아웃은 active를 바꾸지 않는다.
+5. 영구 실패는 `FAILED`로 저장하고, 타임아웃은 시작 시각과 현재 시각으로 판단한다. 둘 다 active는 바꾸지 않는다.
 6. 모든 콜백은 멱등하다. 중복·역순 콜백은 상태를 바꾸지 않고 `204`로 끝난다.
 
 백엔드는 콜백 본문에서 저장소 키를 받지 않고 `uploadId`로 직접 유도한다. 사인을 연속 등록하면 마지막 `uploadId`가 pending을 덮어쓰고, 먼저 보낸 작업의 완료 콜백은 pending 불일치로 무시된다.
@@ -306,6 +306,9 @@ EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다.
 | `chalkak.image.environment` | 백엔드 | 경로의 `{environment}` 세그먼트. 프로필별로 `local`·`dev`·`prod`·`test` |
 | `IMAGE_PROCESSOR_CALLBACK_SECRET` | 백엔드 | 이미지 처리 내부 API HMAC 검증 키. **32자 이상**이어야 기동한다 |
 | `IMAGE_PROCESSING_API_SECRET` | Lambda | 백엔드의 `IMAGE_PROCESSOR_CALLBACK_SECRET`과 동일한 HMAC 서명 키 |
+| `POST_IMAGE_PROCESSING_TIMEOUT` | 백엔드 | 게시물 이미지 처리 완료 콜백을 기다리는 필수 환경 변수 |
+| `SIGNATURE_PROCESSING_TIMEOUT` | 백엔드 | 사인 처리 완료 콜백을 기다리는 필수 환경 변수 |
+| `CALLBACK_MAX_BODY_BYTES` | 백엔드 | 이미지 처리 내부 API 요청 본문 상한 |
 | `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | Lambda | dev 백엔드 이미지 처리 API 주소. **`/internal/v1`까지 포함**해야 한다 |
 | `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL` | Lambda | prod 백엔드 이미지 처리 API 주소. **`/internal/v1`까지 포함**해야 한다 |
 | `IMAGE_PROCESSING_API_TIMEOUT_SECONDS` | Lambda | presigned URL 발급과 완료·실패 요청의 HTTP timeout. 기본값 `3`초 |
