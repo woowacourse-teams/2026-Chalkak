@@ -11,6 +11,9 @@ public class DomainErrorHttpMapper {
         if (exception instanceof UnauthorizedException) {
             return HttpStatus.UNAUTHORIZED;
         }
+        if (exception instanceof ForbiddenException) {
+            return HttpStatus.FORBIDDEN;
+        }
         if (exception instanceof BusinessException) {
             return HttpStatus.BAD_REQUEST;
         }
