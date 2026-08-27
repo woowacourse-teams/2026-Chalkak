@@ -65,6 +65,10 @@ class AuthRepositoryImpl(
                 return SocialSignUpResult.Failure(SocialSignUpFailure.NETWORK_UNAVAILABLE)
             }
 
+            SignatureUploadResult.InvalidUploadUrl -> {
+                return SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN)
+            }
+
             SignatureUploadResult.Rejected -> {
                 return SocialSignUpResult.Failure(SocialSignUpFailure.INVALID_SIGNATURE)
             }

@@ -41,4 +41,13 @@ class OkHttpSignatureUploaderTest {
         assertNull(request.headers["X-User-Id"])
         assertArrayEquals(png, request.body.readByteArray())
     }
+
+    @Test
+    fun `잘못된 업로드 URL은 명시적인 실패 결과로 변환한다`() = runTest {
+        val uploader = OkHttpSignatureUploader(OkHttpClient())
+
+        val result = uploader.upload("not-a-url", byteArrayOf(1, 2, 3))
+
+        assertEquals(SignatureUploadResult.InvalidUploadUrl, result)
+    }
 }

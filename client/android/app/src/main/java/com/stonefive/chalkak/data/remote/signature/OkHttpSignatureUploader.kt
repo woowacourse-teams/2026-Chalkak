@@ -30,6 +30,8 @@ class OkHttpSignatureUploader(private val client: OkHttpClient) : SignatureUploa
             }
         } catch (error: CancellationException) {
             throw error
+        } catch (_: IllegalArgumentException) {
+            SignatureUploadResult.InvalidUploadUrl
         } catch (_: IOException) {
             SignatureUploadResult.NetworkFailure
         }

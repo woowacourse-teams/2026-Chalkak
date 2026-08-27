@@ -5,6 +5,8 @@ sealed interface SignatureUploadResult {
 
     data object NetworkFailure : SignatureUploadResult
 
+    data object InvalidUploadUrl : SignatureUploadResult
+
     data object Rejected : SignatureUploadResult
 }
 

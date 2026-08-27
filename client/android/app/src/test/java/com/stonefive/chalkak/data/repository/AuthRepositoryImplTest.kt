@@ -98,6 +98,24 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun `잘못된 서명 업로드 URL은 재시도 가능한 가입 실패로 변환한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+        )
+        uploader.result = SignatureUploadResult.InvalidUploadUrl
+
+        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        val result = repository.completeSocialSignUp(byteArrayOf(1))
+
+        assertEquals(
+            SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN),
+            result,
+        )
+        assertEquals(1, uploader.uploadCount)
+        assertEquals(0, authDataSource.signUpCount)
+    }
+
+    @Test
     fun `비회원으로 계속하면 게스트 세션으로 전환한다`() = runTest {
         repository.continueAsGuest()
 
@@ -150,6 +168,7 @@ private class FakeAuthDataSource : AuthDataSource {
 private class FakeSignatureUploader : SignatureUploader {
     var uploadCount = 0
     var uploadedPng = ByteArray(0)
+    var result: SignatureUploadResult = SignatureUploadResult.Success
 
     override suspend fun upload(
         uploadUrl: String,
@@ -157,7 +176,7 @@ private class FakeSignatureUploader : SignatureUploader {
     ): SignatureUploadResult {
         uploadCount += 1
         uploadedPng = signaturePng
-        return SignatureUploadResult.Success
+        return result
     }
 }
 
