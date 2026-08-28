@@ -22,7 +22,7 @@ data class HomePostPageResponse(
 data class HomePostResponse(
     val id: String,
     val originalImageUrl: String,
-    val thumbnailImageUrl: String? = null,
+    val thumbnailImageUrl: String,
     val signatureOriginalImageUrl: String,
     val signatureThumbnailImageUrl: String,
     val title: String? = null,

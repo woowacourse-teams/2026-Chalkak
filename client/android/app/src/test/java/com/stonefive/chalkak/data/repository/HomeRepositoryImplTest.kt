@@ -57,12 +57,12 @@ class HomeRepositoryImplTest {
     }
 
     @Test
-    fun `게시물 썸네일이 없으면 원본 URL로 대체하고 사인 썸네일은 직접 매핑한다`() = runTest {
+    fun `게시물과 사인 썸네일 URL을 직접 매핑한다`() = runTest {
         val content = (repository.getHome(query) as HomeResult.Success).value
 
         assertEquals("photo-thumbnail", content.photos[0].imageUrl)
         assertEquals("signature-thumbnail", content.photos[0].signatureUrl)
-        assertEquals("photo-original-2", content.photos[1].imageUrl)
+        assertEquals("photo-thumbnail-2", content.photos[1].imageUrl)
         assertEquals("signature-thumbnail", content.photos[1].signatureUrl)
     }
 
@@ -288,6 +288,7 @@ private fun postPage(
             id = "photo-2",
             title = " ",
             originalImageUrl = "photo-original-2",
+            thumbnailImageUrl = "photo-thumbnail-2",
             signatureOriginalImageUrl = "signature-original-2",
         ),
         homePost(id = "photo-3", title = null),
@@ -306,7 +307,7 @@ private fun homePost(
     id: String,
     title: String?,
     originalImageUrl: String = "photo-original",
-    thumbnailImageUrl: String? = null,
+    thumbnailImageUrl: String = "photo-thumbnail",
     signatureOriginalImageUrl: String = "signature-original",
     signatureThumbnailImageUrl: String = "signature-thumbnail",
     isLiked: Boolean = false,

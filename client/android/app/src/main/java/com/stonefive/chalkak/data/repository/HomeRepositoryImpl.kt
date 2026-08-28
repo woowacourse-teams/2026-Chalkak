@@ -103,7 +103,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         val mappedLikeCount = likeCount.toLikeCountOrNull() ?: return null
         return Post(
             id = id,
-            imageUrl = thumbnailImageUrl ?: originalImageUrl,
+            imageUrl = thumbnailImageUrl,
             signatureUrl = signatureThumbnailImageUrl,
             contentDescription = title
                 ?.takeIf(String::isNotBlank)
