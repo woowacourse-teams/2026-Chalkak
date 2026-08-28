@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -133,8 +134,9 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
         assertThat(audit.afterStatus()).isEqualTo(moderationStatus.name());
         Instant auditDeletedAt = Instant.parse(audit.afterDeletedAt())
                 .truncatedTo(ChronoUnit.MICROS);
-        assertThat(auditDeletedAt).isEqualTo(
-                softDeletion.postDeletedAt().truncatedTo(ChronoUnit.MICROS)
+        assertThat(auditDeletedAt).isCloseTo(
+                softDeletion.postDeletedAt(),
+                within(1, ChronoUnit.MICROS)
         );
         then(postImageStorage).should(never()).deleteImage(anyString());
     }

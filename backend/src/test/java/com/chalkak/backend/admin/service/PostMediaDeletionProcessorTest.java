@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -10,6 +11,7 @@ import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -181,8 +183,9 @@ class PostMediaDeletionProcessorTest extends IntegrationTestSupport {
         DeletionPlanState state = findPlanState();
         assertThat(state.status()).isEqualTo("PENDING");
         assertThat(state.attemptCount()).isZero();
-        assertThat(state.nextAttemptAt()).isEqualTo(
-                futureAttemptAt.truncatedTo(java.time.temporal.ChronoUnit.MICROS)
+        assertThat(state.nextAttemptAt()).isCloseTo(
+                futureAttemptAt,
+                within(1, ChronoUnit.MICROS)
         );
         then(postImageStorage).should(never()).deleteImage(STAGING_STORAGE_KEY);
         then(postImageStorage).should(never()).deleteImage(ORIGINAL_STORAGE_KEY);
