@@ -1,8 +1,11 @@
 package com.chalkak.backend.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -16,6 +19,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final DomainErrorHttpMapper httpMapper = new DomainErrorHttpMapper();
 
@@ -99,6 +105,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BaseException.class})
     public ResponseEntity<ErrorResponse> handleBaseException(BaseException e) {
         return response(e);
+    }
+
+    /**
+     * 인가 거부는 Security의 처리기가 응답을 만든다. 아래 캐치올이 삼키면 403이 500으로 바뀐다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public void handleAccessDeniedException(AccessDeniedException e)
+            throws AccessDeniedException {
+        throw e;
+    }
+
+    /**
+     * 처리되지 않은 예외를 여기서 500으로 끝낸다. 그대로 두면 서블릿 컨테이너가 {@code /error}로
+     * 넘기는데, 그 경로는 인증을 요구하므로 익명 요청의 장애가 401로 뒤바뀌어 나간다. 클라이언트는
+     * 장애를 인증 만료로 오인하고, 지표에서도 장애가 숨는다.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception e) {
+        log.error("처리되지 않은 예외", e);
+
+        return response(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                ErrorCode.INTERNAL_ERROR,
+                "서버에서 요청을 처리하지 못했습니다.");
     }
 
     private ResponseEntity<ErrorResponse> response(BaseException exception) {

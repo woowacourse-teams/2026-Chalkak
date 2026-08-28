@@ -228,6 +228,22 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(notBlockedBySecurity());
     }
 
+    /**
+     * 공개 경로에서 처리되지 않은 예외가 나면 장애가 그대로 드러나야 한다. 여기서 401이 나가면
+     * 클라이언트가 서버 장애를 인증 만료로 오인해 재로그인을 반복하고, 지표에서도 장애가 숨는다.
+     */
+    @Test
+    @DisplayName("공개 경로에서 예외가 나면 익명 요청도 500을 받는다")
+    void publicPath_unhandledException_returnsInternalServerError() throws Exception {
+        // Given
+        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+                .willThrow(new IllegalStateException("예상하지 못한 장애"));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", "2026-08-12"))
+                .andExpect(status().isInternalServerError());
+    }
+
     @Test
     @DisplayName("헬스체크는 토큰 없이 호출할 수 있다")
     void health_withoutToken_returnsOk() throws Exception {
