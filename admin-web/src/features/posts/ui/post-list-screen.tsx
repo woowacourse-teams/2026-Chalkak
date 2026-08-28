@@ -20,7 +20,7 @@ import {
   getPostDisplayStatus,
   getPostErrorMessage,
 } from "../model/post-display";
-import { PostFilters } from "./post-filters";
+import { PostFilters, type FilterOption } from "./post-filters";
 import { PostThumbnail } from "./post-thumbnail";
 import styles from "./posts.module.css";
 
@@ -39,7 +39,44 @@ export function PostListScreen() {
     [serializedSearch],
   );
   const postsQuery = useAdminPosts(filters);
+  const filterOptionFilters = useMemo(
+    () => ({
+      ...filters,
+      topicId: undefined,
+      userId: undefined,
+      page: 1,
+      pageSize: 100,
+    }),
+    [filters],
+  );
+  const filterOptionsQuery = useAdminPosts(filterOptionFilters);
   const returnTo = pathname + (serializedSearch ? "?" + serializedSearch : "");
+
+  const topicOptions = useMemo<FilterOption[]>(() => {
+    const options = new Map<string, string>();
+    filterOptionsQuery.data?.posts.forEach((post) => {
+      if (post.topic) {
+        options.set(
+          post.topic.topicId,
+          post.topic.title + " · " + post.topic.topicDate,
+        );
+      }
+    });
+    return Array.from(options, ([value, label]) => ({ value, label }));
+  }, [filterOptionsQuery.data?.posts]);
+
+  const authorOptions = useMemo<FilterOption[]>(() => {
+    const options = new Map<string, string>();
+    filterOptionsQuery.data?.posts.forEach((post) => {
+      if (post.author) {
+        options.set(
+          post.author.userId,
+          post.author.email ?? "이메일 정보 없음",
+        );
+      }
+    });
+    return Array.from(options, ([value, label]) => ({ value, label }));
+  }, [filterOptionsQuery.data?.posts]);
 
   const updateFilters = (patch: Record<string, string | number | undefined>) => {
     router.push(pathname + withQueryPatch(searchParams, patch));
@@ -118,6 +155,7 @@ export function PostListScreen() {
       </section>
 
       <PostFilters
+        authorOptions={authorOptions}
         filters={filters}
         onApply={(next) =>
           updateFilters({
@@ -133,6 +171,7 @@ export function PostListScreen() {
           })
         }
         onReset={() => router.push(pathname)}
+        topicOptions={topicOptions}
       />
 
       {postsQuery.isPending ? <LoadingSkeleton rows={5} /> : null}

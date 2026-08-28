@@ -12,12 +12,21 @@ import styles from "./posts.module.css";
 
 interface PostFiltersProps {
   filters: AdminPostFilters;
+  authorOptions: ReadonlyArray<FilterOption>;
+  topicOptions: ReadonlyArray<FilterOption>;
   onApply: (patch: Partial<AdminPostFilters>) => void;
   onReset: () => void;
 }
 
+export interface FilterOption {
+  label: string;
+  value: string;
+}
+
 export function PostFilters({
   filters,
+  authorOptions,
+  topicOptions,
   onApply,
   onReset,
 }: PostFiltersProps) {
@@ -55,6 +64,36 @@ export function PostFilters({
           </select>
         </label>
         <label>
+          <span>주제</span>
+          <select
+            defaultValue={filters.topicId ?? ""}
+            key={filters.topicId}
+            name="topicId"
+          >
+            <option value="">모든 주제</option>
+            {topicOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>작성자</span>
+          <select
+            defaultValue={filters.userId ?? ""}
+            key={filters.userId}
+            name="userId"
+          >
+            <option value="">모든 작성자</option>
+            {authorOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           <span>주제 날짜</span>
           <input
             defaultValue={filters.topicDate ?? ""}
@@ -79,24 +118,6 @@ export function PostFilters({
             key={filters.createdAtTo}
             name="createdAtTo"
             type="date"
-          />
-        </label>
-        <label>
-          <span>주제 ID</span>
-          <input
-            defaultValue={filters.topicId ?? ""}
-            key={filters.topicId}
-            name="topicId"
-            placeholder="UUID"
-          />
-        </label>
-        <label>
-          <span>사용자 ID</span>
-          <input
-            defaultValue={filters.userId ?? ""}
-            key={filters.userId}
-            name="userId"
-            placeholder="UUID"
           />
         </label>
         <label>
@@ -127,6 +148,9 @@ export function PostFilters({
           필터 적용
         </button>
       </div>
+      <p className={styles.filterNotice}>
+        주제와 작성자는 현재 조건의 최근 게시물에서 선택할 수 있습니다.
+      </p>
     </form>
   );
 }

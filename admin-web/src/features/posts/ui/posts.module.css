@@ -100,6 +100,13 @@
   margin-top: 16px;
 }
 
+.filterNotice {
+  margin-top: 10px;
+  color: #899187;
+  font-size: 10px;
+  text-align: right;
+}
+
 .filterActions button,
 .detailActions button {
   min-height: 40px;
@@ -379,6 +386,11 @@
   .filterActions button {
     min-height: 46px;
     flex: 1;
+  }
+
+  .filterNotice {
+    line-height: 1.5;
+    text-align: left;
   }
 
   .desktopList {

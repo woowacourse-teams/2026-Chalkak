@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QueryProvider } from "@/shared/query/query-provider";
@@ -60,5 +61,37 @@ describe("PostListScreen", () => {
       screen.queryByRole("option", { name: "이미지 처리 중" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("이미지 처리 중")).not.toBeInTheDocument();
+  });
+
+  it("lets administrators select topics and authors without typing UUIDs", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryProvider>
+        <PostListScreen />
+      </QueryProvider>,
+    );
+
+    const topic = await screen.findByRole("combobox", { name: "주제" });
+    const author = screen.getByRole("combobox", { name: "작성자" });
+    await screen.findByRole("option", { name: /여름의 한 장면/ });
+    await user.selectOptions(topic, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    await user.selectOptions(author, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    expect(screen.getByRole("option", { name: /여름의 한 장면/ })).toBeVisible();
+    expect(
+      screen.getByRole("option", { name: "creator@example.com" }),
+    ).toBeVisible();
+    expect(screen.queryByPlaceholderText("UUID")).not.toBeInTheDocument();
+    expect(routerPush).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "topicId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      ),
+    );
+    expect(routerPush).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "userId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      ),
+    );
   });
 });
