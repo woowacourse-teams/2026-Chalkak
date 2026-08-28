@@ -4,11 +4,17 @@ import { describe, expect, it } from "vitest";
 import Home from "./page";
 
 describe("Home", () => {
-  it("renders the admin web foundation", () => {
+  it("renders the admin dashboard entry", () => {
     render(<Home />);
 
     expect(
-      screen.getByRole("heading", { name: "관리자 웹 개발 기반" }),
+      screen.getByRole("heading", {
+        name: "운영 흐름을 한눈에 확인하세요.",
+      }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /게시물/ })).toHaveAttribute(
+      "href",
+      "/posts",
+    );
   });
 });
