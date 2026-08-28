@@ -50,11 +50,23 @@ class AdminUserOpenApiTest extends IntegrationTestSupport {
                         + ".properties.originalImageUrl.type")
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}'].get"
+                        + ".responses['404']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/status'].patch"
+                        + ".requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminUserStatusUpdateRequest"))
+                .andExpect(jsonPath("$.components.schemas.AdminUserStatusUpdateRequest"
+                        + ".properties.status.enum")
+                        .value(containsInAnyOrder("ACTIVE", "BANNED")))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/status'].patch"
+                        + ".responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/status'].patch"
                         + ".responses['404']").exists());
 
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users']").doesNotExist())
-                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}']").doesNotExist());
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/status']")
+                        .doesNotExist());
     }
 }

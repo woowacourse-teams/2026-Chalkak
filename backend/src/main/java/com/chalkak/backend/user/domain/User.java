@@ -2,6 +2,8 @@ package com.chalkak.backend.user.domain;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -92,6 +94,26 @@ public class User {
         delete();
     }
 
+    public void ban() {
+        validateStatusChangeAllowed();
+        if (status == UserStatus.BANNED) {
+            throw new BusinessException(
+                    ErrorCode.RESOURCE_STATE_CHANGED,
+                    "이미 차단된 회원입니다.");
+        }
+        this.status = UserStatus.BANNED;
+    }
+
+    public void unban() {
+        validateStatusChangeAllowed();
+        if (status == UserStatus.ACTIVE) {
+            throw new BusinessException(
+                    ErrorCode.RESOURCE_STATE_CHANGED,
+                    "이미 활성 상태인 회원입니다.");
+        }
+        this.status = UserStatus.ACTIVE;
+    }
+
     public void startSignatureProcessing(UUID uploadId, Instant startedAt) {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
@@ -160,8 +182,29 @@ public class User {
         return !isDeleted() && status == UserStatus.ACTIVE;
     }
 
+    public void validateAccessible() {
+        if (isDeleted()) {
+            throw new UnauthorizedException(
+                    ErrorCode.UNAUTHORIZED,
+                    "유효하지 않은 인증 정보입니다.");
+        }
+        if (status == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.USER_BANNED,
+                    "차단된 회원입니다.");
+        }
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void validateStatusChangeAllowed() {
+        if (isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "탈퇴한 회원의 상태를 변경할 수 없습니다.");
+        }
     }
 
     private boolean isProcessing(UUID uploadId) {

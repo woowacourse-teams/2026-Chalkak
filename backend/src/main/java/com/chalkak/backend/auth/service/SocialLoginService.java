@@ -39,6 +39,7 @@ public class SocialLoginService {
                     ErrorCode.UNAUTHORIZED,
                     "탈퇴한 회원은 로그인할 수 없습니다.");
         }
+        socialAccount.getUser().validateAccessible();
         return SocialLoginResult.loginSuccess(socialAccount.getUser().getId());
     }
 }

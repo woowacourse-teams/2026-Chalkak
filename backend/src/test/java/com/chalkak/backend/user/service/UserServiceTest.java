@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
@@ -164,6 +165,57 @@ class UserServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
         verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("차단된 회원은 사인 업로드 URL을 발급받을 수 없다")
+    void createSignatureUpload_bannedUser_throwsForbiddenException() {
+        // Given
+        User user = UserFixture.create();
+        user.ban();
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.createSignatureUpload(userId))
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.USER_BANNED));
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("차단된 회원은 현재 사인을 조회할 수 없다")
+    void getSignature_bannedUser_throwsForbiddenException() {
+        // Given
+        User user = UserFixture.create();
+        user.ban();
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.getSignature(userId))
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.USER_BANNED));
+        verifyNoInteractions(signatureImageStorage);
+    }
+
+    @Test
+    @DisplayName("차단된 회원은 사인을 변경할 수 없고 이미지 저장소도 조회하지 않는다")
+    void updateSignature_bannedUser_throwsForbiddenWithoutStorageLookup() {
+        // Given
+        User user = UserFixture.create();
+        user.ban();
+        UUID userId = userRepository.save(user).getId();
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userService.updateSignature(userId, UUID.randomUUID()))
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.USER_BANNED));
+        verifyNoInteractions(signatureImageStorage);
     }
 
     @Test

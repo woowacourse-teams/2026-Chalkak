@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,9 +15,12 @@ import com.chalkak.backend.admin.service.AdminUserDetail;
 import com.chalkak.backend.admin.service.AdminUserListResult;
 import com.chalkak.backend.admin.service.AdminUserQueryService;
 import com.chalkak.backend.admin.service.AdminUserSort;
+import com.chalkak.backend.admin.service.AdminUserStatusResult;
+import com.chalkak.backend.admin.service.AdminUserStatusService;
 import com.chalkak.backend.admin.service.AdminUserStatus;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
 import java.time.Instant;
@@ -32,6 +36,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 
 @WebMvcTest(AdminUserController.class)
 @Import({
@@ -53,6 +58,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private AdminUserQueryService adminUserQueryService;
+
+    @MockitoBean
+    private AdminUserStatusService adminUserStatusService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -193,5 +201,80 @@ class AdminUserControllerTest {
         mockMvc.perform(get("/api/v1/admin/users/{userId}", USER_ID))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("관리자는 사유를 남겨 사용자를 차단한다")
+    void updateStatus_banned_returnsUpdatedStatus() throws Exception {
+        // Given
+        given(adminUserStatusService.updateStatus(
+                USER_ID,
+                ADMIN_ID,
+                com.chalkak.backend.user.domain.UserStatus.BANNED,
+                "운영 정책 위반"
+        )).willReturn(new AdminUserStatusResult(
+                USER_ID,
+                com.chalkak.backend.user.domain.UserStatus.BANNED));
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"BANNED","reason":"운영 정책 위반"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.status").value("BANNED"));
+    }
+
+    @Test
+    @DisplayName("상태 변경 사유가 비어 있으면 400을 반환한다")
+    void updateStatus_blankReason_returnsBadRequest() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"BANNED","reason":" "}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminUserStatusService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("탈퇴 상태는 관리자 변경 요청 값으로 사용할 수 없다")
+    void updateStatus_withdrawnRequest_returnsBadRequest() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"WITHDRAWN","reason":"변경 요청"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminUserStatusService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("이미 같은 상태인 사용자 변경 요청은 상태 충돌 코드와 400을 반환한다")
+    void updateStatus_sameStatus_returnsStateChanged() throws Exception {
+        // Given
+        given(adminUserStatusService.updateStatus(
+                USER_ID,
+                ADMIN_ID,
+                com.chalkak.backend.user.domain.UserStatus.ACTIVE,
+                "상태 확인"
+        )).willThrow(new BusinessException(
+                ErrorCode.RESOURCE_STATE_CHANGED,
+                "이미 활성 상태인 회원입니다."));
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"ACTIVE","reason":"상태 확인"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_STATE_CHANGED"));
     }
 }

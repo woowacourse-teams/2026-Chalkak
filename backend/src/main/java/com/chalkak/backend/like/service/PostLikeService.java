@@ -49,7 +49,8 @@ public class PostLikeService {
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
                         "유효하지 않은 인증 정보입니다."
-                ));
+                ))
+                .validateAccessible();
     }
 
     private void validatePost(UUID postId) {

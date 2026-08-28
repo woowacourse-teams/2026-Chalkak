@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.PostImageUpload;
@@ -175,11 +177,12 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("정지된 회원은 업로드 URL을 발급받지 못한다")
-    void createPostImageUpload_bannedUser_throwsNotFound() {
+    void createPostImageUpload_bannedUser_throwsForbidden() {
         // When & Then
         assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.USER_BANNED));
     }
 
     @Test
@@ -187,7 +190,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     void createPostImageUpload_bannedUser_leavesNoUploadRow() {
         // When
         assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(NotFoundException.class);
+                .isInstanceOf(ForbiddenException.class);
 
         // Then
         assertThat(jdbcTemplate.queryForObject(

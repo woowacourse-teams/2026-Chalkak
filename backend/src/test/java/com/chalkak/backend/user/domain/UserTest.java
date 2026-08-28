@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -130,6 +133,110 @@ class UserTest {
 
         // When & Then
         assertThat(user.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("활성 회원을 차단하면 BANNED 상태가 된다")
+    void ban_activeUser_changesStatusToBanned() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When
+        user.ban();
+
+        // Then
+        assertThat(user.getStatus()).isEqualTo(UserStatus.BANNED);
+        assertThat(user.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("차단된 회원을 다시 차단할 수 없다")
+    void ban_bannedUser_throwsException() {
+        // Given
+        User user = UserFixture.createBanned(UUID.randomUUID());
+
+        // When & Then
+        assertThatThrownBy(user::ban)
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 차단된 회원입니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원을 차단할 수 없다")
+    void ban_withdrawnUser_throwsException() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.withdraw();
+
+        // When & Then
+        assertThatThrownBy(user::ban)
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("탈퇴한 회원의 상태를 변경할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("차단된 회원을 해제하면 ACTIVE 상태가 된다")
+    void unban_bannedUser_changesStatusToActive() {
+        // Given
+        User user = UserFixture.createBanned(UUID.randomUUID());
+
+        // When
+        user.unban();
+
+        // Then
+        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(user.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("활성 회원을 차단 해제할 수 없다")
+    void unban_activeUser_throwsException() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThatThrownBy(user::unban)
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 활성 상태인 회원입니다.");
+    }
+
+    @Test
+    @DisplayName("활성 회원은 사용자 기능을 이용할 수 있다")
+    void validateAccessible_activeUser_doesNotThrow() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        user.validateAccessible();
+    }
+
+    @Test
+    @DisplayName("차단된 회원은 USER_BANNED 코드로 접근을 거절한다")
+    void validateAccessible_bannedUser_throwsForbiddenException() {
+        // Given
+        User user = UserFixture.createBanned(UUID.randomUUID());
+
+        // When & Then
+        assertThatThrownBy(user::validateAccessible)
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(
+                        ((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.USER_BANNED));
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 유효하지 않은 인증으로 거절한다")
+    void validateAccessible_withdrawnUser_throwsUnauthorizedException() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.withdraw();
+
+        // When & Then
+        assertThatThrownBy(user::validateAccessible)
+                .isInstanceOf(UnauthorizedException.class)
+                .satisfies(exception -> assertThat(
+                        ((UnauthorizedException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
     @Test

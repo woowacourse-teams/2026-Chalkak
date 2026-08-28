@@ -8,6 +8,8 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
@@ -214,13 +216,13 @@ class PostCreationServiceTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("차단된 사용자는 게시물을 생성할 수 없다")
-    void createPost_bannedUser_throwsNotFoundException() {
+    void createPost_bannedUser_throwsForbiddenException() {
         // Given
         jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
 
         // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
+        ForbiddenException exception = catchThrowableOfType(
+                ForbiddenException.class,
                 () -> postCommandService.createPost(
                         USER_ID,
                         TOPIC_ID,
@@ -230,7 +232,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         );
 
         // Then
-        assertThat(exception).hasMessage("게시물을 작성할 회원을 찾을 수 없습니다.");
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_BANNED);
         assertNoCreatedRows();
         then(postImageStorage).shouldHaveNoInteractions();
     }

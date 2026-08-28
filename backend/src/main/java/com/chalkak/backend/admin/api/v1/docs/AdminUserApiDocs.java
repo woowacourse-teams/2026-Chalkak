@@ -2,8 +2,10 @@ package com.chalkak.backend.admin.api.v1.docs;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminUserListRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminUserStatusUpdateRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminUserDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminUserListResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.AdminUserStatusResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -77,4 +79,39 @@ public interface AdminUserApiDocs {
                     description = "사용자 ID",
                     schema = @Schema(type = "string", format = "uuid"))
             String userId);
+
+    @Operation(
+            summary = "관리자 사용자 상태 변경",
+            description = "필수 사유를 남겨 사용자를 차단하거나 차단 해제합니다.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "사용자 상태 변경 성공",
+                    useReturnTypeSchema = true),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 상태·사유 또는 이미 변경된 상태",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 API 접근 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "사용자를 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AdminUserStatusResponse> updateStatus(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(
+                    description = "사용자 ID",
+                    schema = @Schema(type = "string", format = "uuid"))
+            String userId,
+            AdminUserStatusUpdateRequest request);
 }

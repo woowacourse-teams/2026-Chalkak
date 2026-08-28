@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -433,6 +434,45 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
         assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
+    }
+
+    @Test
+    @DisplayName("차단된 사용자는 게시물 상세를 조회할 수 없다")
+    void getPost_bannedUser_throwsForbiddenException() {
+        // Given
+        jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
+
+        // When
+        ForbiddenException exception = catchThrowableOfType(
+                ForbiddenException.class,
+                () -> postQueryService.getPost(POST_ID, USER_ID)
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_BANNED);
+    }
+
+    @Test
+    @DisplayName("선택 인증 목록 조회에서도 차단된 사용자를 익명으로 취급하지 않는다")
+    void getPosts_bannedOptionalUser_throwsForbiddenException() {
+        // Given
+        jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
+
+        // When
+        ForbiddenException exception = catchThrowableOfType(
+                ForbiddenException.class,
+                () -> postQueryService.getPosts(
+                        TOPIC_DATE,
+                        PostSort.RECENT,
+                        null,
+                        1,
+                        20,
+                        Optional.of(USER_ID)
+                )
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_BANNED);
     }
 
     private void insertPostLike() {

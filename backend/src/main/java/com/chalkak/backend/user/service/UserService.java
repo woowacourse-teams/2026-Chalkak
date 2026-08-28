@@ -59,13 +59,14 @@ public class UserService {
 
     @Transactional
     public String updateSignature(UUID userId, UUID uploadId) {
-        SignatureStorageKeys storageKeys =
-                signatureImageStorage.toStorageKeys(uploadId);
-
         User user = userRepository.findActiveByIdForUpdate(userId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "사인을 교체할 회원을 찾을 수 없습니다."));
+        user.validateAccessible();
+
+        SignatureStorageKeys storageKeys =
+                signatureImageStorage.toStorageKeys(uploadId);
 
         if (user.hasSignature(storageKeys.originalStorageKey())) {
             user.cancelSignatureProcessing();
@@ -139,10 +140,12 @@ public class UserService {
     }
 
     private User getActiveUser(UUID userId, String notFoundMessage) {
-        return userRepository.findActiveById(userId)
+        User user = userRepository.findActiveById(userId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         notFoundMessage));
+        user.validateAccessible();
+        return user;
     }
 
     private boolean isSignatureProcessingTimedOut(

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -175,6 +176,23 @@ class PostLikeServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
         assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
+        assertThat(countPostLikes()).isZero();
+    }
+
+    @Test
+    @DisplayName("차단된 사용자는 좋아요를 등록할 수 없다")
+    void likePost_bannedUser_throwsForbiddenException() {
+        // Given
+        jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
+
+        // When
+        ForbiddenException exception = catchThrowableOfType(
+                ForbiddenException.class,
+                () -> postLikeService.likePost(POST_ID, USER_ID)
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_BANNED);
         assertThat(countPostLikes()).isZero();
     }
 
