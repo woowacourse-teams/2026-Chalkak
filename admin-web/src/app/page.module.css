@@ -1,0 +1,36 @@
+.page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+}
+
+.card {
+  width: min(100%, 640px);
+  padding: clamp(32px, 7vw, 72px);
+  border: 1px solid #d9ddd2;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgb(37 44 30 / 10%);
+}
+
+.eyebrow {
+  margin-bottom: 18px;
+  color: #557047;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.card h1 {
+  margin-bottom: 20px;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.card > p:last-child {
+  color: #62695c;
+  font-size: 17px;
+  line-height: 1.7;
+}
