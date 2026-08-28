@@ -23,4 +23,27 @@ public class TopicRepositoryImpl implements TopicRepository {
     public Optional<Topic> findActiveByTopicDate(LocalDate topicDate) {
         return topicJpaRepository.findActiveByTopicDate(topicDate);
     }
+
+    @Override
+    public Optional<Topic> findActiveByIdForUpdate(UUID topicId) {
+        return topicJpaRepository.findActiveByIdForUpdate(topicId);
+    }
+
+    @Override
+    public boolean existsActiveByTopicDate(LocalDate topicDate) {
+        return topicJpaRepository.existsByTopicDateAndDeletedAtIsNull(topicDate);
+    }
+
+    @Override
+    public boolean existsActiveByTopicDateExcludingId(LocalDate topicDate, UUID topicId) {
+        return topicJpaRepository.existsByTopicDateAndDeletedAtIsNullAndIdNot(
+                topicDate,
+                topicId
+        );
+    }
+
+    @Override
+    public Topic saveAndFlush(Topic topic) {
+        return topicJpaRepository.saveAndFlush(topic);
+    }
 }
