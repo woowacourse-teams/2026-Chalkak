@@ -1,6 +1,8 @@
 import type {
   AdminPostDetailResponse,
   AdminPostListResponse,
+  AdminTopicDetailResponse,
+  AdminUserDetailResponse,
   ApiErrorResponse,
 } from "@/shared/api/contracts";
 
@@ -182,3 +184,99 @@ export const errorFixtures = {
     message: "게시물을 찾을 수 없습니다.",
   },
 } satisfies Record<string, ApiErrorResponse>;
+
+export const userIds = {
+  active: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  banned: "abababab-abab-4bab-8bab-abababababab",
+  withdrawn: "acacacac-acac-4cac-8cac-acacacacacac",
+} as const;
+
+export const userDetailFixtures: Record<string, AdminUserDetailResponse> = {
+  [userIds.active]: {
+    userId: userIds.active,
+    email: "creator@example.com",
+    status: "ACTIVE",
+    appVersion: "1.4.0",
+    socialProvider: "GOOGLE",
+    postCounts: { total: 14, validating: 1, pending: 2, approved: 10, rejected: 1 },
+    signature: {
+      originalImageUrl: null,
+      thumbnailImageUrl: null,
+    },
+    createdAt: "2026-07-02T04:20:00Z",
+    updatedAt: "2026-08-27T14:10:00Z",
+    deletedAt: null,
+  },
+  [userIds.banned]: {
+    userId: userIds.banned,
+    email: "paused@example.com",
+    status: "BANNED",
+    appVersion: "1.3.2",
+    socialProvider: "KAKAO",
+    postCounts: { total: 5, validating: 0, pending: 0, approved: 3, rejected: 2 },
+    signature: {
+      originalImageUrl: null,
+      thumbnailImageUrl: null,
+    },
+    createdAt: "2026-06-11T02:00:00Z",
+    updatedAt: "2026-08-20T09:15:00Z",
+    deletedAt: null,
+  },
+  [userIds.withdrawn]: {
+    userId: userIds.withdrawn,
+    email: null,
+    status: "WITHDRAWN",
+    appVersion: null,
+    socialProvider: null,
+    postCounts: { total: 0, validating: 0, pending: 0, approved: 0, rejected: 0 },
+    signature: {
+      originalImageUrl: null,
+      thumbnailImageUrl: null,
+    },
+    createdAt: "2026-05-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+    deletedAt: "2026-08-01T00:00:00Z",
+  },
+};
+
+export const topicIds = {
+  beforeOpen: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  open: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
+  closed: "bdbdbdbd-bdbd-4dbd-8dbd-bdbdbdbdbdbd",
+} as const;
+
+export const topicDetailFixtures: Record<string, AdminTopicDetailResponse> = {
+  [topicIds.beforeOpen]: {
+    topicId: topicIds.beforeOpen,
+    title: "가을을 기다리는 마음",
+    topicDate: "2099-09-01",
+    startsAt: "2099-08-31T15:00:00Z",
+    endsAt: "2099-09-01T14:59:59Z",
+    phase: "BEFORE_OPEN",
+    postCounts: { total: 0, validating: 0, pending: 0, approved: 0, rejected: 0 },
+    createdAt: "2026-08-20T03:00:00Z",
+    updatedAt: "2026-08-20T03:00:00Z",
+  },
+  [topicIds.open]: {
+    topicId: topicIds.open,
+    title: "오늘의 빛",
+    topicDate: "2026-08-28",
+    startsAt: "2026-08-27T15:00:00Z",
+    endsAt: "2099-08-28T14:59:59Z",
+    phase: "OPEN",
+    postCounts: { total: 18, validating: 1, pending: 4, approved: 11, rejected: 2 },
+    createdAt: "2026-08-01T02:00:00Z",
+    updatedAt: "2026-08-27T01:00:00Z",
+  },
+  [topicIds.closed]: {
+    topicId: topicIds.closed,
+    title: "비 오는 거리",
+    topicDate: "2026-07-10",
+    startsAt: "2026-07-09T15:00:00Z",
+    endsAt: "2026-07-10T14:59:59Z",
+    phase: "CLOSED",
+    postCounts: { total: 23, validating: 0, pending: 0, approved: 19, rejected: 4 },
+    createdAt: "2026-07-01T01:00:00Z",
+    updatedAt: "2026-07-10T15:00:00Z",
+  },
+};
