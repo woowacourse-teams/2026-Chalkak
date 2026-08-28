@@ -47,8 +47,10 @@ fun SignaturePad(
     onStrokeFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val borderColor = ChalkakTheme.colors.textPrimary
+    val padBorderColor = ChalkakTheme.colors.textPrimary
         .copy(alpha = 0.12f)
+    val canvasBorderColor = ChalkakTheme.colors.textOnImage
+        .copy(alpha = 0.28f)
 
     Column(
         modifier = modifier
@@ -56,7 +58,7 @@ fun SignaturePad(
             .background(ChalkakTheme.colors.inputBackground)
             .border(
                 width = 1.dp,
-                color = borderColor,
+                color = padBorderColor,
                 shape = ChalkakTheme.shapes.large,
             ).padding(
                 start = 16.dp,
@@ -72,7 +74,7 @@ fun SignaturePad(
             onStrokeStarted = onStrokeStarted,
             onStrokeMoved = onStrokeMoved,
             onStrokeFinished = onStrokeFinished,
-            borderColor = borderColor,
+            borderColor = canvasBorderColor,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -97,7 +99,7 @@ private fun SignatureCanvas(
     borderColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    val signatureColor = ChalkakTheme.colors.textPrimary
+    val signatureColor = ChalkakTheme.colors.textOnImage
     val currentOnStrokeStarted by rememberUpdatedState(onStrokeStarted)
     val currentOnStrokeMoved by rememberUpdatedState(onStrokeMoved)
     val currentOnStrokeFinished by rememberUpdatedState(onStrokeFinished)
@@ -128,6 +130,8 @@ private fun SignatureCanvas(
 
     Box(
         modifier = modifier
+            .clip(ChalkakTheme.shapes.button)
+            .background(ChalkakTheme.colors.actionPrimary)
             .testTag(SIGNATURE_PAD_TAG)
             .semantics { contentDescription = "사인 입력창" }
             .then(gestureModifier),
@@ -173,7 +177,8 @@ private fun SignatureCanvas(
         if (strokes.none { it.points.isNotEmpty() }) {
             Text(
                 text = "사인",
-                color = ChalkakTheme.colors.textInactive,
+                color = ChalkakTheme.colors.textOnImage
+                    .copy(alpha = 0.56f),
                 style = ChalkakTheme.typography.handwriting.copy(
                     fontSize = 48.sp,
                     lineHeight = 52.sp,

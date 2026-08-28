@@ -30,9 +30,11 @@ import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
+import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
+import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
+import com.stonefive.chalkak.feature.signature.OnboardingSignaturePreviewRoute
+import com.stonefive.chalkak.feature.signature.OnboardingSignatureRoute
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
-import com.stonefive.chalkak.feature.signature.SignaturePreviewRoute
-import com.stonefive.chalkak.feature.signature.SignatureRoute
 import com.stonefive.chalkak.feature.terms.TermsRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
@@ -89,7 +91,7 @@ fun ChalkakNavHost(
         composable<Terms> {
             TermsRoute(
                 onNextClick = {
-                    navController.navigate(Signature(SignatureOrigin.ONBOARDING))
+                    navController.navigate(OnboardingSignature)
                 },
                 onServiceTermsViewClick = {
                     legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
@@ -100,29 +102,30 @@ fun ChalkakNavHost(
             )
         }
 
-        composable<Signature> { backStackEntry ->
-            val signature = backStackEntry.toRoute<Signature>()
-
-            SignatureRoute(
-                onSignatureSaved = { signaturePng ->
-                    when (signature.origin) {
-                        SignatureOrigin.ONBOARDING -> {
-                            signaturePreviewPng = signaturePng
-                            navController.navigate(SignaturePreview)
-                        }
-
-                        SignatureOrigin.SETTINGS -> navController.popBackStack()
-                    }
+        composable<OnboardingSignature> {
+            OnboardingSignatureRoute(
+                onPreviewRequested = { signaturePng ->
+                    signaturePreviewPng = signaturePng
+                    navController.navigate(OnboardingSignaturePreview)
                 },
             )
         }
 
-        composable<SignaturePreview> {
+        composable<ChangeSignature> {
+            ChangeSignatureRoute(
+                onPreviewRequested = { signaturePng ->
+                    signaturePreviewPng = signaturePng
+                    navController.navigate(ChangeSignaturePreview)
+                },
+            )
+        }
+
+        composable<OnboardingSignaturePreview> {
             signaturePreviewPng?.let { signaturePng ->
                 val previewSignUpViewModel = signUpViewModel
                     ?: viewModel(factory = SignUpViewModel.Factory)
 
-                SignaturePreviewRoute(
+                OnboardingSignaturePreviewRoute(
                     imageModel = R.drawable.preview_photo,
                     signaturePng = signaturePng,
                     onRedrawClick = {
@@ -143,6 +146,25 @@ fun ChalkakNavHost(
                         signaturePreviewPng = null
                     },
                     viewModel = previewSignUpViewModel,
+                )
+            }
+        }
+
+        composable<ChangeSignaturePreview> {
+            signaturePreviewPng?.let { signaturePng ->
+                ChangeSignaturePreviewRoute(
+                    signaturePng = signaturePng,
+                    onRedrawClick = {
+                        navController.popBackStack()
+                        signaturePreviewPng = null
+                    },
+                    onSignatureChanged = { profile ->
+                        navController.getBackStackEntry<Settings>().savedStateHandle[
+                            SETTINGS_SIGNATURE_UPDATED_KEY,
+                        ] = profile.signatureUrl
+                        signaturePreviewPng = null
+                        navController.popBackStack(Settings, inclusive = false)
+                    },
                 )
             }
         }
@@ -220,15 +242,20 @@ fun ChalkakNavHost(
             )
         }
 
-        composable<Settings> {
+        composable<Settings> { backStackEntry ->
+            val updatedSignatureUrl by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(SETTINGS_SIGNATURE_UPDATED_KEY, null)
+                .collectAsStateWithLifecycle()
+
             SettingsRoute(
+                signatureUpdateUrl = updatedSignatureUrl,
                 onNavigateToLogin = {
                     navController.navigate(Login) {
                         popUpTo<Today> { inclusive = true }
                     }
                 },
                 onNavigateToSignature = {
-                    navController.navigate(Signature(SignatureOrigin.SETTINGS))
+                    navController.navigate(ChangeSignature)
                 },
                 onOpenPrivacyPolicy = {
                     legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
@@ -306,6 +333,7 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
 }
 
 private const val HOME_SELECTION_REQUEST_KEY = "home_selection_request"
+private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
