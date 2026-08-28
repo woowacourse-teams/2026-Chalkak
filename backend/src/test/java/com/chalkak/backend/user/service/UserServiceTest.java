@@ -167,23 +167,28 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("처리 중인 새 사인이 없으면 현재 활성 사인 URL을 반환한다")
-    void getSignature_withoutPending_returnsActiveSignatureUrl() {
+    @DisplayName("처리 중인 새 사인이 없으면 현재 활성 사인의 원본과 썸네일 URL을 반환한다")
+    void getSignature_withoutPending_returnsActiveSignatureUrls() {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID userId = saved.getId();
-        String storageKey = saved.getSignatureOriginalStorageKey();
-        String imageUrl = "https://cdn.test.chalkak/" + storageKey;
+        String originalStorageKey = saved.getSignatureOriginalStorageKey();
+        String thumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
+        String originalImageUrl = "https://cdn.test.chalkak/" + originalStorageKey;
+        String thumbnailImageUrl = "https://cdn.test.chalkak/" + thumbnailStorageKey;
         flushAndClear();
 
-        given(signatureImageStorage.toImageUrl(storageKey))
-                .willReturn(imageUrl);
+        given(signatureImageStorage.toImageUrl(originalStorageKey))
+                .willReturn(originalImageUrl);
+        given(signatureImageStorage.toImageUrl(thumbnailStorageKey))
+                .willReturn(thumbnailImageUrl);
 
         // When
-        String result = userService.getSignature(userId);
+        UserSignatureResult result = userService.getSignature(userId);
 
         // Then
-        assertThat(result).isEqualTo(imageUrl);
+        assertThat(result.originalImageUrl()).isEqualTo(originalImageUrl);
+        assertThat(result.thumbnailImageUrl()).isEqualTo(thumbnailImageUrl);
     }
 
     @Test
@@ -215,29 +220,34 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("사인 처리 시작 후 7분이 지나지 않았으면 현재 활성 사인 URL을 반환한다")
-    void getSignature_processingWithinTimeout_returnsActiveSignatureUrl() {
+    @DisplayName("사인 처리 시작 후 7분이 지나지 않았으면 현재 활성 사인의 URL들을 반환한다")
+    void getSignature_processingWithinTimeout_returnsActiveSignatureUrls() {
         // Given
         User user = UserFixture.create();
         user.startSignatureProcessing(
                 UUID.randomUUID(),
                 Instant.now().minus(Duration.ofMinutes(6)));
         UUID userId = userRepository.save(user).getId();
-        String storageKey = user.getSignatureOriginalStorageKey();
-        String imageUrl = "https://cdn.test.chalkak/" + storageKey;
+        String originalStorageKey = user.getSignatureOriginalStorageKey();
+        String thumbnailStorageKey = user.getSignatureThumbnailStorageKey();
+        String originalImageUrl = "https://cdn.test.chalkak/" + originalStorageKey;
+        String thumbnailImageUrl = "https://cdn.test.chalkak/" + thumbnailStorageKey;
         flushAndClear();
 
-        given(signatureImageStorage.toImageUrl(storageKey))
-                .willReturn(imageUrl);
+        given(signatureImageStorage.toImageUrl(originalStorageKey))
+                .willReturn(originalImageUrl);
+        given(signatureImageStorage.toImageUrl(thumbnailStorageKey))
+                .willReturn(thumbnailImageUrl);
 
         // When
-        String result = userService.getSignature(userId);
+        UserSignatureResult result = userService.getSignature(userId);
         flushAndClear();
 
         // Then
         User updated = userRepository.findById(userId).orElseThrow();
 
-        assertThat(result).isEqualTo(imageUrl);
+        assertThat(result.originalImageUrl()).isEqualTo(originalImageUrl);
+        assertThat(result.thumbnailImageUrl()).isEqualTo(thumbnailImageUrl);
         assertThat(updated.getSignatureProcessingStatus())
                 .isEqualTo(SignatureProcessingStatus.PROCESSING);
     }

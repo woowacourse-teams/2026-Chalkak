@@ -18,6 +18,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -180,18 +181,21 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("내 사인 조회에 성공하면 현재 사인 이미지 URL을 반환한다")
-    void getSignature_validRequest_returnsImageUrl() throws Exception {
+    @DisplayName("내 사인 조회에 성공하면 현재 사인의 원본과 썸네일 이미지 URL을 반환한다")
+    void getSignature_validRequest_returnsOriginalAndThumbnailImageUrls() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        String imageUrl = "https://cdn.example.com/signatures/current.png";
-        given(userService.getSignature(userId)).willReturn(imageUrl);
+        String originalImageUrl = "https://cdn.example.com/signatures/original/current.png";
+        String thumbnailImageUrl = "https://cdn.example.com/signatures/thumbnail/current.png";
+        given(userService.getSignature(userId))
+                .willReturn(new UserSignatureResult(originalImageUrl, thumbnailImageUrl));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/me/signature")
                         .header(USER_ID_HEADER, userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.signatureOriginalImageUrl").value(imageUrl));
+                .andExpect(jsonPath("$.signatureOriginalImageUrl").value(originalImageUrl))
+                .andExpect(jsonPath("$.signatureThumbnailImageUrl").value(thumbnailImageUrl));
 
         verify(userService).getSignature(userId);
     }

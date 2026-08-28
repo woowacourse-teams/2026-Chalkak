@@ -4,9 +4,11 @@ import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,12 +56,12 @@ public class UserController implements UserApiDocs {
 
     @Override
     @GetMapping("/me/signature")
-    public ResponseEntity<UserSignatureResponse> getSignature(
+    public ResponseEntity<UserSignatureDetailResponse> getSignature(
             @LoginUser AuthenticatedUser loginUser
     ) {
-        String imageUrl = userService.getSignature(loginUser.userId());
+        UserSignatureResult result = userService.getSignature(loginUser.userId());
 
-        return ResponseEntity.ok(new UserSignatureResponse(imageUrl));
+        return ResponseEntity.ok(UserSignatureDetailResponse.from(result));
     }
 
     @Override
