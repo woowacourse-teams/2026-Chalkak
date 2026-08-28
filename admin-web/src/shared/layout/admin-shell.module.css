@@ -158,12 +158,17 @@
 }
 
 .header {
+  position: sticky;
+  z-index: 15;
+  top: 0;
   display: flex;
   min-height: 112px;
   align-items: center;
   gap: 16px;
   border-bottom: 1px solid rgb(212 218 206 / 80%);
+  background: rgb(244 246 240 / 88%);
   padding: 22px clamp(24px, 5vw, 64px);
+  backdrop-filter: blur(18px);
 }
 
 .breadcrumb {

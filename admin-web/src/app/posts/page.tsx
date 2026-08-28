@@ -1,11 +1,12 @@
-import { SectionPlaceholder } from "@/shared/ui/section-placeholder";
+import { Suspense } from "react";
+
+import { PostListScreen } from "@/features/posts/ui/post-list-screen";
+import { LoadingSkeleton } from "@/shared/ui/feedback-states";
 
 export default function PostsPage() {
   return (
-    <SectionPlaceholder
-      description="게시물 필터, 상세 확인, 승인·거절·삭제 흐름을 다음 단계에서 연결합니다."
-      eyebrow="POST MODERATION"
-      title="게시물 검수 화면을 준비하고 있습니다."
-    />
+    <Suspense fallback={<LoadingSkeleton rows={5} />}>
+      <PostListScreen />
+    </Suspense>
   );
 }

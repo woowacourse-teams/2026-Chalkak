@@ -17,7 +17,9 @@ describe("ApiClient", () => {
     const response = await client.request<AdminPostListResponse>("/posts");
 
     expect(response.posts).not.toHaveLength(0);
-    expect(response.posts[0]?.createdAt).toBe("2026-08-28T04:10:00Z");
+    expect(response.posts[0]?.createdAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T.*Z$/,
+    );
   });
 
   it("maps the common error response to a UI-safe ApiError", async () => {

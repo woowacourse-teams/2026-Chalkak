@@ -18,8 +18,9 @@ export function createQueryClient() {
 export const queryKeys = {
   posts: {
     all: ["admin", "posts"] as const,
+    lists: ["admin", "posts", "list"] as const,
     list: (filters: object) =>
-      [...queryKeys.posts.all, "list", filters] as const,
+      [...queryKeys.posts.lists, filters] as const,
     detail: (postId: string) =>
       [...queryKeys.posts.all, "detail", postId] as const,
   },

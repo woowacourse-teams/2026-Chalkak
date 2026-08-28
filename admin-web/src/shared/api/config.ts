@@ -36,12 +36,18 @@ export function assertMockModeAllowed(
 }
 
 export function readPublicApiConfig(
-  env: NodeJS.ProcessEnv = process.env,
+  env?: NodeJS.ProcessEnv,
 ): PublicApiConfig {
-  const mode = resolveApiMode(env.NEXT_PUBLIC_API_MODE);
-  assertMockModeAllowed(mode, env.NODE_ENV);
+  const source = env ?? {
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_API_MODE: process.env.NEXT_PUBLIC_API_MODE,
+    NEXT_PUBLIC_ADMIN_API_BASE_URL:
+      process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL,
+  };
+  const mode = resolveApiMode(source.NEXT_PUBLIC_API_MODE);
+  assertMockModeAllowed(mode, source.NODE_ENV);
 
-  const rawBaseUrl = env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.trim();
+  const rawBaseUrl = source.NEXT_PUBLIC_ADMIN_API_BASE_URL?.trim();
   if (!rawBaseUrl) {
     throw new ApiError({
       kind: "configuration",

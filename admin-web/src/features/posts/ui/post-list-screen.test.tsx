@@ -1,0 +1,47 @@
+import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { QueryProvider } from "@/shared/query/query-provider";
+
+import { PostListScreen } from "./post-list-screen";
+
+const { routerPush } = vi.hoisted(() => ({
+  routerPush: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/posts",
+  useRouter: () => ({ push: routerPush }),
+  useSearchParams: () => new URLSearchParams("status=PENDING&page=1"),
+}));
+
+describe("PostListScreen", () => {
+  beforeEach(() => {
+    vi.stubEnv(
+      "NEXT_PUBLIC_ADMIN_API_BASE_URL",
+      "http://localhost:8080/api/v1/admin",
+    );
+    vi.stubEnv("NEXT_PUBLIC_API_MODE", "mock");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    routerPush.mockReset();
+  });
+
+  it("keeps filters and page in every detail link", async () => {
+    render(
+      <QueryProvider>
+        <PostListScreen />
+      </QueryProvider>,
+    );
+
+    const links = await screen.findAllByRole("link", { name: /한강의 노을/ });
+    expect(links[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "returnTo=%2Fposts%3Fstatus%3DPENDING%26page%3D1",
+      ),
+    );
+  });
+});

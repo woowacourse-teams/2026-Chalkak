@@ -5,6 +5,7 @@ import type {
 } from "@/shared/api/contracts";
 
 export const postIds = {
+  validating: "00000000-0000-4000-8000-000000000000",
   pending: "11111111-1111-4111-8111-111111111111",
   approved: "22222222-2222-4222-8222-222222222222",
   rejected: "33333333-3333-4333-8333-333333333333",
@@ -29,6 +30,22 @@ export const postListFixture = {
   pageSize: 20,
   hasNext: false,
   posts: [
+    {
+      postId: postIds.validating,
+      title: "이미지 처리 중",
+      moderationStatus: "VALIDATING",
+      author,
+      topic,
+      photo: {
+        photoId: "c0000000-0000-4000-8000-000000000000",
+        originalImageUrl: "https://images.unsplash.com/photo-1497250681960-ef046c08a56e",
+        thumbnailImageUrl: null,
+      },
+      likeCount: 0,
+      createdAt: "2026-08-28T05:00:00Z",
+      moderatedAt: null,
+      deletedAt: null,
+    },
     {
       postId: postIds.pending,
       title: "한강의 노을",
