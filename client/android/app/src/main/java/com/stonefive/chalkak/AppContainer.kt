@@ -3,6 +3,7 @@ package com.stonefive.chalkak
 import android.content.Context
 import androidx.credentials.CredentialManager
 import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
+import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
@@ -37,6 +38,8 @@ class AppContainer(context: Context) {
         credentialManager = CredentialManager.create(context),
         serverClientId = BuildConfig.GOOGLE_SERVER_CLIENT_ID,
     )
+
+    val kakaoIdTokenClient = KakaoIdTokenClient()
 
     val authRepository: AuthRepository by lazy {
         AuthRepositoryImpl(

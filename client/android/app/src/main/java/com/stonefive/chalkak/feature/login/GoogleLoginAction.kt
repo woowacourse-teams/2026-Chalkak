@@ -66,7 +66,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-internal fun GoogleCredentialFailure.toUserMessage(): String = when (this) {
+fun GoogleCredentialFailure.toUserMessage(): String = when (this) {
     GoogleCredentialFailure.NO_CREDENTIAL -> "사용 가능한 Google 계정이 없어요."
 
     GoogleCredentialFailure.INTERRUPTED -> "Google 로그인이 중단됐어요. 다시 시도해 주세요."
