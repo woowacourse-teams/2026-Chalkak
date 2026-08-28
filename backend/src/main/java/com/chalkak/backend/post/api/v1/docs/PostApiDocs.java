@@ -150,7 +150,7 @@ public interface PostApiDocs {
     })
     ResponseEntity<PostListResponse> getPosts(
             @ParameterObject PostListRequest request,
-            Optional<AuthenticatedUser> loginUser
+            @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
     @Operation(

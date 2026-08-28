@@ -24,7 +24,6 @@ public class SecurityConfig {
      */
     private static final String[] PUBLIC_GET_PATHS = {
             "/api/v1/topics",
-            "/api/v1/topics/**",
             "/api/v1/posts"
     };
 
@@ -40,6 +39,8 @@ public class SecurityConfig {
             JwtAccessTokenProvider accessTokenProvider,
             AuthenticationErrorResponder responder
     ) throws Exception {
+        UnauthorizedEntryPoint entryPoint = new UnauthorizedEntryPoint(responder);
+
         return http
                 // 자격증명을 쿠키가 아니라 Authorization 헤더로 받는 stateless API라
                 // CSRF 공격이 성립하지 않는다. 켜 두면 모든 쓰기 요청이 403이 된다.
@@ -65,12 +66,10 @@ public class SecurityConfig {
                         // 새 API에 인증을 붙이는 것을 잊어도 기본값이 차단이 되도록 한다.
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationEntryPoint(
-                                new UnauthorizedEntryPoint(responder))
+                        .authenticationEntryPoint(entryPoint)
                         .jwt(jwt -> jwt.decoder(accessTokenProvider.jwtDecoder())))
                 .exceptionHandling(handling -> handling
-                        .authenticationEntryPoint(
-                                new UnauthorizedEntryPoint(responder))
+                        .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(
                                 new ForbiddenAccessDeniedHandler(responder)))
                 .build();

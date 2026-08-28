@@ -23,7 +23,7 @@ public class ForbiddenAccessDeniedHandler implements AccessDeniedHandler {
         responder.respond(
                 response,
                 HttpStatus.FORBIDDEN,
-                ErrorCode.UNAUTHORIZED,
+                ErrorCode.FORBIDDEN,
                 "접근 권한이 없습니다.");
     }
 }
