@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 import { AdminAccessBoundary } from "@/features/auth/admin-access-boundary";
 import { AdminShell } from "@/shared/layout/admin-shell";
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <body>
