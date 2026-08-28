@@ -170,4 +170,44 @@ class UserDataSourceImplTest {
             request.body.readUtf8(),
         )
     }
+
+    @Test
+    fun `회원탈퇴는 body 없이 DELETE 경로로 전송하고 204를 성공 처리한다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = dataSource.deleteMyAccount()
+        val request = server.takeRequest()
+
+        assertEquals(ApiResult.Success(Unit), result)
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/users/me", request.path)
+        assertEquals("", request.body.readUtf8())
+    }
+
+    @Test
+    fun `회원탈퇴 401 응답은 세션 무효화와 HTTP 오류로 반환한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"UNAUTHORIZED","message":"invalid"}"""),
+        )
+
+        val result = dataSource.deleteMyAccount()
+
+        assertEquals(
+            ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
+            result,
+        )
+        assertEquals(true, unauthorizedHandled)
+    }
+
+    @Test
+    fun `회원탈퇴 404 응답은 회원 없음 HTTP 오류로 반환한다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+
+        val result = dataSource.deleteMyAccount()
+
+        assertEquals(ApiResult.Failure(ApiError.Http(statusCode = 404, errorCode = null)), result)
+    }
 }

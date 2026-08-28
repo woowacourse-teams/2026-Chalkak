@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
@@ -8,11 +9,15 @@ import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.model.SignatureUpdateResponse
 import com.stonefive.chalkak.data.remote.user.model.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
+import com.stonefive.chalkak.domain.model.AccountWithdrawalException
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
+import com.stonefive.chalkak.domain.model.UserSessionState
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -20,7 +25,8 @@ import org.junit.Test
 class UserRepositoryImplTest {
     private val userDataSource = FakeUserDataSource()
     private val signatureUploader = FakeUserSignatureUploader()
-    private val repository = UserRepositoryImpl(userDataSource, signatureUploader)
+    private val sessionStore = FakeUserSessionStore()
+    private val repository = UserRepositoryImpl(userDataSource, signatureUploader, sessionStore)
 
     @Test
     fun `사인 응답을 사용자 프로필로 변환한다`() = runTest {
@@ -78,6 +84,27 @@ class UserRepositoryImplTest {
         )
         assertEquals(null, userDataSource.updatedUploadId)
     }
+
+    @Test
+    fun `회원탈퇴 API 성공 후 세션을 삭제한다`() = runTest {
+        sessionStore.setAuthenticated()
+
+        repository.withdraw()
+
+        assertEquals(1, userDataSource.deleteAccountCount)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+    }
+
+    @Test
+    fun `회원탈퇴 API 실패 시 세션을 삭제하지 않는다`() = runTest {
+        sessionStore.setAuthenticated()
+        userDataSource.deleteAccountResult = ApiResult.Failure(ApiError.Network)
+
+        val error = runCatching { repository.withdraw() }.exceptionOrNull()
+
+        assertEquals(AccountWithdrawalException::class, error!!::class)
+        assertEquals(UserSessionState.Authenticated("user-id"), sessionStore.sessionState.value)
+    }
 }
 
 private class FakeUserDataSource : UserDataSource {
@@ -89,6 +116,8 @@ private class FakeUserDataSource : UserDataSource {
     )
 
     var updatedUploadId: String? = null
+    var deleteAccountCount = 0
+    var deleteAccountResult: ApiResult<Unit> = ApiResult.Success(Unit)
 
     override suspend fun getMySignature(): ApiResult<UserSignatureResponse> = mySignatureResult
 
@@ -104,6 +133,11 @@ private class FakeUserDataSource : UserDataSource {
         updatedUploadId = signatureOriginalUploadId
         return ApiResult.Success(SignatureUpdateResponse("updated-signature-url"))
     }
+
+    override suspend fun deleteMyAccount(): ApiResult<Unit> {
+        deleteAccountCount += 1
+        return deleteAccountResult
+    }
 }
 
 private class FakeUserSignatureUploader : SignatureUploader {
@@ -116,5 +150,27 @@ private class FakeUserSignatureUploader : SignatureUploader {
     ): SignatureUploadResult {
         uploadedPng = signaturePng
         return result
+    }
+}
+
+private class FakeUserSessionStore : SessionStore {
+    private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+
+    override val sessionState: StateFlow<UserSessionState> = mutableSessionState
+
+    fun setAuthenticated() {
+        mutableSessionState.value = UserSessionState.Authenticated("user-id")
+    }
+
+    override suspend fun continueAsGuest() {
+        mutableSessionState.value = UserSessionState.Guest
+    }
+
+    override suspend fun saveUserId(userId: String) {
+        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    }
+
+    override suspend fun clear() {
+        mutableSessionState.value = UserSessionState.SignedOut
     }
 }
