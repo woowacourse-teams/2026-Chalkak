@@ -49,6 +49,15 @@ class SettingsViewModel(
         _uiState.update { it.copy(accountDialog = SettingsAccountDialog.WITHDRAW) }
     }
 
+    fun applySignatureUpdate(signatureUrl: String) {
+        _uiState.update {
+            it.copy(
+                signatureUrl = signatureUrl,
+                signatureErrorMessage = null,
+            )
+        }
+    }
+
     fun dismissAccountDialog() {
         _uiState.update { it.copy(accountDialog = null) }
     }

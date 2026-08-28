@@ -3,6 +3,8 @@ package com.stonefive.chalkak.data.remote.user
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.user.model.SignatureUpdateResponse
+import com.stonefive.chalkak.data.remote.user.model.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -109,5 +111,63 @@ class UserDataSourceImplTest {
             result,
         )
         assertEquals(true, unauthorizedHandled)
+    }
+
+    @Test
+    fun `사인 업로드 URL 발급 경로와 응답을 명세대로 처리한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"uploadId":"upload-id","uploadUrl":"https://cdn.example.com/upload","expiresInSeconds":300}""",
+                ),
+        )
+
+        val result = dataSource.createSignatureUpload()
+        val request = server.takeRequest()
+
+        assertEquals(
+            ApiResult.Success(
+                SignatureUploadResponse(
+                    uploadId = "upload-id",
+                    uploadUrl = "https://cdn.example.com/upload",
+                    expiresInSeconds = 300,
+                ),
+            ),
+            result,
+        )
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/users/me/signature/uploads", request.path)
+    }
+
+    @Test
+    fun `사인 변경 확정은 업로드 ID를 JSON으로 전송한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"signatureOriginalImageUrl":"https://cdn.example.com/signatures/new.png"}""",
+                ),
+        )
+
+        val result = dataSource.updateSignature("upload-id")
+        val request = server.takeRequest()
+
+        assertEquals(
+            ApiResult.Success(
+                SignatureUpdateResponse(
+                    originalImageUrl = "https://cdn.example.com/signatures/new.png",
+                ),
+            ),
+            result,
+        )
+        assertEquals("PUT", request.method)
+        assertEquals("/api/v1/users/me/signature", request.path)
+        assertEquals(
+            "{\"signatureOriginalUploadId\":\"upload-id\"}",
+            request.body.readUtf8(),
+        )
     }
 }

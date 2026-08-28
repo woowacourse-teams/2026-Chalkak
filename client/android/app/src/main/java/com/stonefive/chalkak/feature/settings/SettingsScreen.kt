@@ -38,9 +38,14 @@ fun SettingsRoute(
     onOpenTerms: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
+    signatureUpdateUrl: String? = null,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(signatureUpdateUrl) {
+        signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->

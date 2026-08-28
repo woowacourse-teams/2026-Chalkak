@@ -58,6 +58,7 @@ class AppContainer(context: Context) {
                 networkModule.userApi,
                 networkModule.apiRequestExecutor,
             ),
+            signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
         )
     }
 

@@ -56,4 +56,21 @@ class SignaturePreviewScreenTest {
         assertTrue(redrawClicked)
         assertTrue(startClicked)
     }
+
+    @Test
+    fun customConfirmTextIsDisplayedForSignatureChange() {
+        composeRule.setContent {
+            ChalkakTheme {
+                SignaturePreviewScreen(
+                    imageModel = R.drawable.preview_photo,
+                    signatureModel = R.drawable.preview_signature,
+                    onRedrawClick = {},
+                    onStartClick = {},
+                    confirmText = "이 사인으로 변경하기",
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("이 사인으로 변경하기").assertIsDisplayed()
+    }
 }

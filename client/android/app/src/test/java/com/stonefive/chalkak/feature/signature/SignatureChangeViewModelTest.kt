@@ -1,0 +1,77 @@
+package com.stonefive.chalkak.feature.signature
+
+import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
+import com.stonefive.chalkak.domain.model.SignatureUpdateResult
+import com.stonefive.chalkak.domain.model.UserProfile
+import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignatureChangeViewModelTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    private val userRepository = FakeSignatureChangeUserRepository()
+
+    @Test
+    fun `사인 변경 확인 시 저장하고 완료 상태를 제공한다`() = runTest {
+        val viewModel = SignatureChangeViewModel(userRepository)
+
+        viewModel.updateSignature(byteArrayOf(1, 2, 3))
+        advanceUntilIdle()
+
+        assertEquals(
+            SignatureChangeStatus.Completed(
+                UserProfile(
+                    signatureUrl = "updated-signature-url",
+                    signatureThumbnailUrl = "updated-signature-url",
+                ),
+            ),
+            viewModel.uiState.value.status,
+        )
+        assertTrue(userRepository.updatedPng.contentEquals(byteArrayOf(1, 2, 3)))
+        assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+
+    @Test
+    fun `사인 변경 실패 시 프리뷰에 오류 메시지를 제공한다`() = runTest {
+        userRepository.result = SignatureUpdateResult.Failure(
+            SignatureUpdateFailure.NETWORK_UNAVAILABLE,
+        )
+        val viewModel = SignatureChangeViewModel(userRepository)
+
+        viewModel.updateSignature(byteArrayOf(1))
+        advanceUntilIdle()
+
+        assertEquals(
+            SignatureChangeStatus.Failed("네트워크 연결을 확인해 주세요."),
+            viewModel.uiState.value.status,
+        )
+        assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+}
+
+private class FakeSignatureChangeUserRepository : UserRepository {
+    var result: SignatureUpdateResult = SignatureUpdateResult.Success(
+        UserProfile(
+            signatureUrl = "updated-signature-url",
+            signatureThumbnailUrl = "updated-signature-url",
+        ),
+    )
+    var updatedPng: ByteArray = byteArrayOf()
+
+    override suspend fun getMySignature(): UserProfile = error("Not used")
+
+    override suspend fun updateMySignature(signaturePng: ByteArray): SignatureUpdateResult {
+        updatedPng = signaturePng
+        return result
+    }
+}

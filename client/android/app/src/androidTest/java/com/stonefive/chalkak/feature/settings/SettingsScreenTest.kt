@@ -36,6 +36,23 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun tappingChangeSignatureInvokesChangeCallback() {
+        var changeClicked = false
+        setSettingsContent(
+            uiState = SettingsUiState(
+                isLoggedIn = true,
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                versionName = "1.0",
+            ),
+            onChangeSignatureClick = { changeClicked = true },
+        )
+
+        composeRule.onNodeWithText("변경하기").performClick()
+
+        assertTrue(changeClicked)
+    }
+
+    @Test
     fun guestSeesOnlyLoginButton() {
         var loginClicked = false
         setSettingsContent(
@@ -118,6 +135,7 @@ class SettingsScreenTest {
     private fun setSettingsContent(
         uiState: SettingsUiState,
         onLoginClick: () -> Unit = {},
+        onChangeSignatureClick: () -> Unit = {},
         onPrivacyPolicyClick: () -> Unit = {},
         onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
@@ -128,7 +146,7 @@ class SettingsScreenTest {
                 SettingsScreen(
                     uiState = uiState,
                     onLoginClick = onLoginClick,
-                    onChangeSignatureClick = {},
+                    onChangeSignatureClick = onChangeSignatureClick,
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
                     onLogoutClick = {},

@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
@@ -156,4 +157,6 @@ private class FakeSettingsUserRepository : UserRepository {
         profileError?.let { throw it }
         return profile
     }
+
+    override suspend fun updateMySignature(signaturePng: ByteArray): SignatureUpdateResult = error("Not used")
 }
