@@ -5,7 +5,6 @@ import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
-import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -142,8 +141,6 @@ private class FakeLoginRepository : AuthRepository {
     override suspend fun continueAsGuest() {
         mutableSessionState.value = UserSessionState.Guest
     }
-
-    override suspend fun getMyProfile(): UserProfile? = null
 
     override suspend fun logout() = Unit
 

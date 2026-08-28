@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -23,9 +24,10 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
 fun SettingsSignatureCard(
-    signatureModel: Any?,
+    signatureUrl: String?,
     onChangeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    errorMessage: String? = null,
 ) {
     SettingsCard(modifier = modifier) {
         Row(
@@ -63,13 +65,20 @@ fun SettingsSignatureCard(
                 .background(ChalkakTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            if (signatureModel != null) {
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    color = ChalkakTheme.colors.error,
+                    style = ChalkakTheme.typography.caption,
+                )
+            } else if (signatureUrl != null) {
                 ChalkakImage(
-                    model = signatureModel,
+                    model = signatureUrl,
                     contentDescription = "현재 사인",
                     modifier = Modifier
                         .fillMaxWidth(0.42f)
                         .height(48.dp),
+                    contentScale = ContentScale.Fit,
                 )
             }
         }
@@ -81,7 +90,7 @@ fun SettingsSignatureCard(
 private fun SettingsSignatureCardPreview() {
     ChalkakTheme {
         SettingsSignatureCard(
-            signatureModel = R.drawable.preview_signature,
+            signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
             onChangeClick = {},
             modifier = Modifier
                 .padding(25.dp)

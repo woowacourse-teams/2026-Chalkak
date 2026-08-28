@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.data.remote.auth.model.response
+package com.stonefive.chalkak.data.remote.model
 
 import kotlinx.serialization.Serializable
 

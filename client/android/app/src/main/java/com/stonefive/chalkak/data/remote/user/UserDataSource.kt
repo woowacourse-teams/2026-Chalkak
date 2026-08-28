@@ -1,0 +1,8 @@
+package com.stonefive.chalkak.data.remote.user
+
+import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
+
+interface UserDataSource {
+    suspend fun getMySignature(): ApiResult<UserSignatureResponse>
+}

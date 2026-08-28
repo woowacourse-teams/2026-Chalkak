@@ -24,7 +24,7 @@ class SettingsScreenTest {
         setSettingsContent(
             SettingsUiState(
                 isLoggedIn = true,
-                signatureModel = R.drawable.preview_signature,
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )

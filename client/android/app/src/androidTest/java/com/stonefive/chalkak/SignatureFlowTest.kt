@@ -15,7 +15,6 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
-import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
@@ -122,8 +121,6 @@ private class FakeSignUpRepository : AuthRepository {
     }
 
     override suspend fun continueAsGuest() = Unit
-
-    override suspend fun getMyProfile(): UserProfile? = null
 
     override suspend fun logout() = Unit
 

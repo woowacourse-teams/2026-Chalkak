@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.data.remote.auth
 
 import com.stonefive.chalkak.data.remote.ApiError
+import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.auth.model.response.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.auth.model.response.SocialLoginResponse
@@ -33,7 +34,10 @@ class AuthDataSourceImplTest {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(AuthApi::class.java)
-        dataSource = AuthDataSourceImpl(api, json)
+        dataSource = AuthDataSourceImpl(
+            api = api,
+            requestExecutor = ApiRequestExecutor(json) {},
+        )
     }
 
     @After
