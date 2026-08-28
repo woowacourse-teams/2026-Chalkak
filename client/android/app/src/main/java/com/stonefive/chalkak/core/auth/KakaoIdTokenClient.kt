@@ -11,7 +11,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 private typealias KakaoLoginCallback = (OAuthToken?, Throwable?) -> Unit
 
-class KakaoIdTokenClient internal constructor(
+class KakaoIdTokenClient(
     private val loginGateway: KakaoLoginGateway = UserApiClientKakaoLoginGateway(),
 ) {
     suspend fun getIdToken(context: Context): KakaoCredentialResult = getIdToken(
@@ -21,7 +21,7 @@ class KakaoIdTokenClient internal constructor(
     )
 }
 
-internal suspend fun getIdToken(
+suspend fun getIdToken(
     isKakaoTalkLoginAvailable: () -> Boolean,
     loginWithKakaoTalk: suspend () -> KakaoCredentialResult,
     loginWithKakaoAccount: suspend () -> KakaoCredentialResult,
@@ -49,7 +49,7 @@ internal suspend fun getIdToken(
     KakaoCredentialResult.Failure(KakaoCredentialFailure.UNKNOWN)
 }
 
-internal interface KakaoLoginGateway {
+interface KakaoLoginGateway {
     fun isKakaoTalkLoginAvailable(context: Context): Boolean
 
     suspend fun loginWithKakaoTalk(context: Context): KakaoCredentialResult

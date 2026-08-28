@@ -66,7 +66,7 @@ private tailrec fun Context.findKakaoLoginActivity(): Activity? = when (this) {
     else -> null
 }
 
-internal fun KakaoCredentialFailure.toUserMessage(): String = when (this) {
+fun KakaoCredentialFailure.toUserMessage(): String = when (this) {
     KakaoCredentialFailure.CONFIGURATION ->
         "카카오 로그인 설정을 확인해 주세요."
 
