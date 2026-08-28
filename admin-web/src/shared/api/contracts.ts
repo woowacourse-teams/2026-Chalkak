@@ -14,6 +14,7 @@ export type ModerationStatus =
 
 export type UserStatus = "ACTIVE" | "BANNED" | "WITHDRAWN";
 export type TopicStatus = "BEFORE_OPEN" | "OPEN" | "CLOSED";
+export type SocialProvider = "GOOGLE" | "KAKAO";
 export type ImageUploadStatus =
   | "PENDING"
   | "PROCESSING"
@@ -111,22 +112,62 @@ export interface AdminPostModerationResponse {
   rejectionReason: string | null;
 }
 
-export interface AdminUserResponse {
+export interface AdminPostCounts {
+  total: number;
+  validating: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+export interface AdminUserListItem {
   userId: string;
   email: string | null;
   status: UserStatus;
+  appVersion: string | null;
+  socialProvider: SocialProvider | null;
+  postCounts: AdminPostCounts;
   createdAt: Instant;
+  updatedAt: Instant;
   deletedAt: Instant | null;
 }
 
-export interface AdminTopicResponse {
+export interface AdminUserListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  users: AdminUserListItem[];
+}
+
+export interface AdminUserDetailResponse extends AdminUserListItem {
+  signature: {
+    originalImageUrl: string | null;
+    thumbnailImageUrl: string | null;
+  };
+}
+
+export interface AdminUserStatusResponse {
+  userId: string;
+  status: "ACTIVE" | "BANNED";
+}
+
+export interface AdminTopicDetailResponse {
   topicId: string;
   title: string;
   topicDate: LocalDate;
   startsAt: Instant;
   endsAt: Instant;
-  status: TopicStatus;
-  deletedAt: Instant | null;
+  phase: TopicStatus;
+  postCounts: AdminPostCounts;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface AdminTopicListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  topics: AdminTopicDetailResponse[];
 }
 
 export interface AdminDashboardResponse {
