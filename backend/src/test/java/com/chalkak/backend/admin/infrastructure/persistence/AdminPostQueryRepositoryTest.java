@@ -30,6 +30,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(AdminPostQueryRepositoryImpl.class)
 class AdminPostQueryRepositoryTest {
 
+    private static final UUID ADMIN_ID =
+            UUID.fromString("0198fa00-0000-7000-8000-000000000001");
+
     private static final UUID VALIDATING_USER_ID =
             UUID.fromString("0198fa10-0000-7000-8000-000000000001");
     private static final UUID PENDING_USER_ID =
@@ -108,11 +111,13 @@ class AdminPostQueryRepositoryTest {
 
     @BeforeEach
     void setUp() {
+        insertAdmin();
         insertUsers();
         insertTopics();
         insertPhotos();
         insertUploads();
         insertPosts();
+        insertModerationAuditLog();
         insertLikes();
         entityManager.flush();
         entityManager.clear();
@@ -400,6 +405,20 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("상세 조회는 관리자 검수 감사 로그에서 처리자와 사유를 함께 조회한다")
+    void findPostById_moderatedPost_returnsModeratorAndReasonFromAuditLog() {
+        // When
+        AdminPostDetailProjection detail = adminPostQueryRepository.findPostById(
+                APPROVED_POST_ID
+        ).orElseThrow();
+
+        // Then
+        assertThat(detail.moderatedBy()).isEqualTo(ADMIN_ID);
+        assertThat(detail.rejectionReason()).isNull();
+        assertThat(detail.moderatedAt()).isEqualTo(MODERATED_AT);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 게시물 상세 조회는 빈 결과를 반환한다")
     void findPostById_unknownPost_returnsEmpty() {
         // When & Then
@@ -430,6 +449,39 @@ class AdminPostQueryRepositoryTest {
                 "withdrawn+0198fa10000070008000000000000005@chalkak.invalid",
                 "ACTIVE",
                 DELETED_AT
+        );
+    }
+
+    private void insertAdmin() {
+        jdbcTemplate.update("""
+                INSERT INTO admins (
+                    id, username, password, created_at, updated_at
+                ) VALUES (
+                    ?, 'admin-post-query', 'test-password',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, ADMIN_ID);
+    }
+
+    private void insertModerationAuditLog() {
+        jdbcTemplate.update("""
+                INSERT INTO admin_audit_logs (
+                    actor_admin_id, action, target_type, target_id, reason,
+                    before_state, after_state, occurred_at, request_id
+                ) VALUES (
+                    ?, CAST('POST_APPROVED' AS admin_action),
+                    CAST('POST' AS admin_target_type), ?, NULL,
+                    CAST('{"moderationStatus":"PENDING","moderatedAt":null}' AS jsonb),
+                    CAST(? AS jsonb), ?, ?
+                )
+                """,
+                ADMIN_ID,
+                APPROVED_POST_ID,
+                "{\"moderationStatus\":\"APPROVED\","
+                        + "\"moderatedAt\":\"" + MODERATED_AT + "\","
+                        + "\"moderatedBy\":\"" + ADMIN_ID + "\"}",
+                timestamp(MODERATED_AT),
+                UUID.fromString("0198fa60-0000-7000-8000-000000000001")
         );
     }
 

@@ -72,9 +72,36 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailImageUpload"
                         + ".properties.imageMetadata").doesNotExist());
 
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']"
+                        + ".put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminPostModerationRequest"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostModerationRequest"
+                        + ".properties.status.enum")
+                        .value(containsInAnyOrder("APPROVED", "REJECTED")))
+                .andExpect(jsonPath("$.components.schemas.AdminPostModerationRequest"
+                        + ".properties.rejectionReason.maxLength").value(500))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']"
+                        + ".put.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']"
+                        + ".put.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']"
+                        + ".put.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']"
+                        + ".put.responses['404']").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.moderatedBy").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.rejectionReason").exists());
+
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']").doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']")
+                        .doesNotExist());
     }
 }

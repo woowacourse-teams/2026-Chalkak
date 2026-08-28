@@ -25,6 +25,8 @@ public record AdminPostDetail(
         Instant createdAt,
         Instant updatedAt,
         Instant moderatedAt,
+        UUID moderatedBy,
+        String rejectionReason,
         Instant deletedAt
 ) {
 
@@ -70,6 +72,8 @@ public record AdminPostDetail(
                 post.createdAt(),
                 post.updatedAt(),
                 post.moderatedAt(),
+                post.moderatedBy(),
+                post.rejectionReason(),
                 post.deletedAt()
         );
     }

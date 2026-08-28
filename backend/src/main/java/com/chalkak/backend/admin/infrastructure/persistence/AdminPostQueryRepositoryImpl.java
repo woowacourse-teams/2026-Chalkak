@@ -1,5 +1,7 @@
 package com.chalkak.backend.admin.infrastructure.persistence;
 
+import com.chalkak.backend.admin.domain.AdminAction;
+import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.repository.AdminPostDetailProjection;
 import com.chalkak.backend.admin.repository.AdminPostQueryCriteria;
 import com.chalkak.backend.admin.repository.AdminPostQueryPage;
@@ -11,6 +13,7 @@ import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -55,6 +58,8 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
                 post.createdAt,
                 post.updatedAt,
                 post.moderatedAt,
+                moderationAudit.actorAdminId,
+                moderationAudit.reason,
                 post.deletedAt,
                 author.id,
                 author.email,
@@ -87,6 +92,10 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
             JOIN post.author author
             JOIN post.photo photo
             LEFT JOIN PostImageUpload upload ON upload.id = post.postImageUploadId
+            LEFT JOIN AdminAuditLog moderationAudit
+              ON moderationAudit.targetType = :postTargetType
+             AND moderationAudit.targetId = post.id
+             AND moderationAudit.action IN :moderationActions
             WHERE post.id = :postId
             """;
 
@@ -124,6 +133,11 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
     public Optional<AdminPostDetailProjection> findPostById(UUID postId) {
         return entityManager.createQuery(DETAIL_QUERY, AdminPostDetailProjection.class)
                 .setParameter("postId", postId)
+                .setParameter("postTargetType", AdminTargetType.POST)
+                .setParameter(
+                        "moderationActions",
+                        Set.of(AdminAction.POST_APPROVED, AdminAction.POST_REJECTED)
+                )
                 .getResultStream()
                 .findFirst();
     }

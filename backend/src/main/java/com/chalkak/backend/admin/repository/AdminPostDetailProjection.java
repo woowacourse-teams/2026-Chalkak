@@ -15,6 +15,8 @@ public record AdminPostDetailProjection(
         Instant createdAt,
         Instant updatedAt,
         Instant moderatedAt,
+        UUID moderatedBy,
+        String rejectionReason,
         Instant deletedAt,
         UUID authorId,
         String authorEmail,

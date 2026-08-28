@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,8 +14,11 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminPostSortConverter;
 import com.chalkak.backend.admin.service.AdminPostDetail;
 import com.chalkak.backend.admin.service.AdminPostListResult;
+import com.chalkak.backend.admin.service.AdminPostModerationResult;
+import com.chalkak.backend.admin.service.AdminPostModerationService;
 import com.chalkak.backend.admin.service.AdminPostQueryService;
 import com.chalkak.backend.admin.service.AdminPostSort;
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
@@ -35,6 +39,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -69,6 +74,9 @@ class AdminPostControllerTest {
 
     @MockitoBean
     private AdminPostQueryService adminPostQueryService;
+
+    @MockitoBean
+    private AdminPostModerationService adminPostModerationService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -356,6 +364,284 @@ class AdminPostControllerTest {
         then(adminPostQueryService).should().getPost(POST_ID);
     }
 
+    @Test
+    @DisplayName("관리자는 대기 중인 게시물을 승인하고 처리 결과를 조회한다")
+    void moderatePost_approvedRequest_returnsModerationResult() throws Exception {
+        // Given
+        AdminPostModerationResult result = new AdminPostModerationResult(
+                POST_ID,
+                ModerationStatus.APPROVED,
+                ADMIN_ID,
+                MODERATED_AT,
+                null
+        );
+        given(adminPostModerationService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "APPROVED"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.moderationStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.moderatedBy").value(ADMIN_ID.toString()))
+                .andExpect(jsonPath("$.moderatedAt").value(MODERATED_AT.toString()))
+                .andExpect(jsonPath("$.rejectionReason").value(nullValue()));
+
+        then(adminActorResolver).should().resolve();
+        then(adminPostModerationService).should().moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        );
+    }
+
+    @Test
+    @DisplayName("관리자는 대기 중인 게시물을 사유와 함께 거절하고 처리 결과를 조회한다")
+    void moderatePost_rejectedRequest_returnsModerationResult() throws Exception {
+        // Given
+        String rejectionReason = "운영 정책 위반";
+        AdminPostModerationResult result = new AdminPostModerationResult(
+                POST_ID,
+                ModerationStatus.REJECTED,
+                ADMIN_ID,
+                MODERATED_AT,
+                rejectionReason
+        );
+        given(adminPostModerationService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                rejectionReason
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "REJECTED",
+                                  "rejectionReason": "운영 정책 위반"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.moderationStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.moderatedBy").value(ADMIN_ID.toString()))
+                .andExpect(jsonPath("$.moderatedAt").value(MODERATED_AT.toString()))
+                .andExpect(jsonPath("$.rejectionReason").value(rejectionReason));
+
+        then(adminActorResolver).should().resolve();
+        then(adminPostModerationService).should().moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                rejectionReason
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VALIDATING", "PENDING"})
+    @DisplayName("승인과 거절이 아닌 검수 상태를 요청하면 400을 반환한다")
+    void moderatePost_nonDecisionStatus_returnsBadRequest(String statusValue) throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "%s"
+                                }
+                                """.formatted(statusValue)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"status\":\"REJECTED\"}",
+            "{\"status\":\"REJECTED\",\"rejectionReason\":null}",
+            "{\"status\":\"REJECTED\",\"rejectionReason\":\"\"}",
+            "{\"status\":\"REJECTED\",\"rejectionReason\":\"   \"}"
+    })
+    @DisplayName("거절 사유가 누락되거나 비어 있으면 400을 반환한다")
+    void moderatePost_rejectedWithoutReason_returnsBadRequest(String requestBody) throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("승인 요청에 거절 사유가 포함되면 400을 반환한다")
+    void moderatePost_approvedWithReason_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "APPROVED",
+                                  "rejectionReason": "승인 요청에는 허용하지 않음"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("거절 사유가 최대 길이인 500자이면 요청을 허용한다")
+    void moderatePost_rejectionReasonAtMaximum_returnsModerationResult() throws Exception {
+        // Given
+        String rejectionReason = "가".repeat(500);
+        AdminPostModerationResult result = new AdminPostModerationResult(
+                POST_ID,
+                ModerationStatus.REJECTED,
+                ADMIN_ID,
+                MODERATED_AT,
+                rejectionReason
+        );
+        given(adminPostModerationService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                rejectionReason
+        )).willReturn(result);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "REJECTED",
+                                  "rejectionReason": "%s"
+                                }
+                                """.formatted(rejectionReason)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rejectionReason").value(rejectionReason));
+
+        then(adminPostModerationService).should().moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                rejectionReason
+        );
+    }
+
+    @Test
+    @DisplayName("거절 사유가 500자를 초과하면 400을 반환한다")
+    void moderatePost_rejectionReasonOverMaximum_returnsBadRequest() throws Exception {
+        // Given
+        String rejectionReason = "가".repeat(501);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "REJECTED",
+                                  "rejectionReason": "%s"
+                                }
+                                """.formatted(rejectionReason)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}",
+            "{\"status\":null}",
+            "{\"status\":\"UNKNOWN\"}"
+    })
+    @DisplayName("검수 상태가 누락되거나 올바르지 않으면 400을 반환한다")
+    void moderatePost_invalidStatus_returnsBadRequest(String requestBody) throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("검수 요청 본문이 비어 있으면 400을 반환한다")
+    void moderatePost_emptyBody_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("검수할 게시물 ID 형식이 올바르지 않으면 400을 반환한다")
+    void moderatePost_invalidPostId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", "invalid-post-id")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "APPROVED"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+
+        then(adminPostModerationService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("대기 상태가 아닌 게시물의 검수를 요청하면 구분 가능한 400을 반환한다")
+    void moderatePost_nonPendingPost_returnsStateInvalidError() throws Exception {
+        // Given
+        given(adminPostModerationService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        )).willThrow(new BusinessException(
+                ErrorCode.POST_MODERATION_STATE_INVALID,
+                "대기 중인 게시물만 검수할 수 있습니다."
+        ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "APPROVED"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("POST_MODERATION_STATE_INVALID"))
+                .andExpect(jsonPath("$.message")
+                        .value("대기 중인 게시물만 검수할 수 있습니다."));
+    }
+
     private AdminPostDetail createDetail(
             ModerationStatus moderationStatus,
             Instant moderatedAt,
@@ -405,6 +691,8 @@ class AdminPostControllerTest {
                 CREATED_AT,
                 UPDATED_AT,
                 moderatedAt,
+                null,
+                null,
                 deletedAt
         );
     }

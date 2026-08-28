@@ -21,6 +21,15 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     @Query("""
             SELECT post
             FROM Post post
+            WHERE post.id = :postId
+              AND post.deletedAt IS NULL
+            """)
+    Optional<Post> findActiveByIdForUpdate(@Param("postId") UUID postId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT post
+            FROM Post post
             WHERE post.author.id = :authorId
               AND post.topic.id = :topicId
               AND post.moderationStatus <> :excludedStatus

@@ -26,6 +26,10 @@ public record AdminPostDetailResponse(
         @Schema(nullable = true)
         Instant moderatedAt,
         @Schema(nullable = true)
+        UUID moderatedBy,
+        @Schema(nullable = true)
+        String rejectionReason,
+        @Schema(nullable = true)
         Instant deletedAt
 ) {
 
@@ -42,6 +46,8 @@ public record AdminPostDetailResponse(
                 detail.createdAt(),
                 detail.updatedAt(),
                 detail.moderatedAt(),
+                detail.moderatedBy(),
+                detail.rejectionReason(),
                 detail.deletedAt()
         );
     }

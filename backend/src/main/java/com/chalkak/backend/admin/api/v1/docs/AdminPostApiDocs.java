@@ -2,8 +2,10 @@ package com.chalkak.backend.admin.api.v1.docs;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminPostListRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminPostModerationRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostListResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.AdminPostModerationResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "Admin Posts", description = "관리자 게시물 검수 조회 API")
 public interface AdminPostApiDocs {
@@ -94,5 +97,51 @@ public interface AdminPostApiDocs {
                     schema = @Schema(type = "string", format = "uuid")
             )
             String postId
+    );
+
+    @Operation(
+            summary = "관리자 게시물 승인·거절",
+            description = "PENDING 게시물을 한 번만 승인하거나 사유와 함께 거절합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "게시물 검수 확정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 또는 이미 확정된 게시물",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 API 접근 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "게시물을 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<AdminPostModerationResponse> moderatePost(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(
+                    description = "게시물 ID",
+                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            String postId,
+            @RequestBody AdminPostModerationRequest request
     );
 }
