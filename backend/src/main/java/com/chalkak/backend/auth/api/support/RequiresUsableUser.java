@@ -14,6 +14,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@PreAuthorize("@usableUserPolicy.isUsable(authentication)")
+@PreAuthorize("@usableUserPolicy.validateUsable(authentication)")
 public @interface RequiresUsableUser {
 }
