@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+if (process.env.VERCEL_ENV === "production") {
+  throw new Error(
+    "관리자 인증·인가가 완료되기 전에는 Vercel Production 배포를 허용하지 않습니다.",
+  );
+}
+
 if (
   process.env.NODE_ENV === "production" &&
   process.env.NEXT_PUBLIC_API_MODE === "mock"
