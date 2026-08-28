@@ -1,7 +1,6 @@
 package com.chalkak.backend.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -22,11 +21,11 @@ import org.springframework.context.annotation.Profile;
         )
 )
 @SecurityScheme(
-        name = "userIdHeader",
-        type = SecuritySchemeType.APIKEY,
-        in = SecuritySchemeIn.HEADER,
-        paramName = "X-User-Id",
-        description = "로컬·개발 환경에서 로그인 사용자를 식별하는 임시 헤더"
+        name = "accessToken",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT",
+        description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰"
 )
 @Configuration(proxyBeanMethods = false)
 @Profile("!prod")

@@ -18,7 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Users", description = "사용자 API")
-@SecurityRequirement(name = "userIdHeader")
+@SecurityRequirement(name = "accessToken")
 public interface UserApiDocs {
 
     @Operation(summary = "회원 탈퇴")

@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(PostLikeController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 @ActiveProfiles("prod")
 class PostLikeControllerProdProfileTest {
@@ -34,8 +36,7 @@ class PostLikeControllerProdProfileTest {
     @DisplayName("운영 환경에서는 임시 인증을 사용하는 좋아요 API가 노출되지 않는다")
     void likePost_prodProfile_isNotExposed() throws Exception {
         // When & Then
-        mockMvc.perform(put("/api/v1/posts/{postId}/likes", UUID.randomUUID())
-                        .header("X-User-Id", UUID.randomUUID().toString()))
+        mockMvc.perform(put("/api/v1/posts/{postId}/likes", UUID.randomUUID()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("요청한 API를 찾을 수 없습니다."));

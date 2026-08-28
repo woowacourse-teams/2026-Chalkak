@@ -91,7 +91,8 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
                 timestampValidator,
                 new JwtIssuerValidator(properties.issuer()),
                 this::validateAudience,
-                this::validatePurpose));
+                this::validatePurpose,
+                this::validateSubject));
         return jwtDecoder;
     }
 
@@ -111,6 +112,23 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
             return OAuth2TokenValidatorResult.success();
         }
         return invalidTokenResult();
+    }
+
+    /**
+     * subject는 회원 식별자다. 여기서 걸러 두면 인증을 통과한 토큰의 subject를 신뢰할 수 있어,
+     * 뒤에서 형식이 어긋난 값을 만나 500으로 끝나는 대신 401로 응답한다.
+     */
+    private OAuth2TokenValidatorResult validateSubject(Jwt jwt) {
+        String subject = jwt.getSubject();
+        if (subject == null) {
+            return invalidTokenResult();
+        }
+        try {
+            UUID.fromString(subject);
+            return OAuth2TokenValidatorResult.success();
+        } catch (IllegalArgumentException exception) {
+            return invalidTokenResult();
+        }
     }
 
     private OAuth2TokenValidatorResult invalidTokenResult() {

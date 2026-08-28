@@ -21,6 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(PostController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 @ActiveProfiles("prod")
 class PostControllerProdProfileTest {
@@ -62,7 +64,6 @@ class PostControllerProdProfileTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .header("X-User-Id", UUID.randomUUID().toString())
                         .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts").isEmpty());
@@ -72,8 +73,7 @@ class PostControllerProdProfileTest {
     @DisplayName("운영 환경에서는 임시 인증 헤더로 게시물 상세를 조회할 수 없다")
     void getPost_prodProfile_rejectsTemporaryUserHeader() throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID)
-                        .header("X-User-Id", UUID.randomUUID().toString()))
+        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
@@ -86,7 +86,6 @@ class PostControllerProdProfileTest {
     void getMyPostCalendar_prodProfile_rejectsTemporaryUserHeader() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .header("X-User-Id", UUID.randomUUID().toString())
                         .queryParam("year", "2026")
                         .queryParam("month", "8"))
                 .andExpect(status().isUnauthorized())
@@ -100,8 +99,7 @@ class PostControllerProdProfileTest {
     @DisplayName("운영 환경에서는 임시 인증 헤더로 업로드 URL을 발급할 수 없다")
     void createPostImageUpload_prodProfile_rejectsTemporaryUserHeader() throws Exception {
         // When & Then
-        mockMvc.perform(post("/api/v1/posts/uploads")
-                        .header("X-User-Id", UUID.randomUUID().toString()))
+        mockMvc.perform(post("/api/v1/posts/uploads"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
@@ -114,7 +112,6 @@ class PostControllerProdProfileTest {
     void createPost_prodProfile_rejectsTemporaryUserHeader() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

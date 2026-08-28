@@ -15,7 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Post Likes", description = "게시물 좋아요 API")
-@SecurityRequirement(name = "userIdHeader")
+@SecurityRequirement(name = "accessToken")
 public interface PostLikeApiDocs {
 
     @Operation(summary = "게시물 좋아요 등록")

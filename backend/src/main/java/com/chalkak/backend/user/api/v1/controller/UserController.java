@@ -22,12 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 로그인 사용자는 {@code X-User-Id} 헤더로 식별한다. Spring Security 도입 전까지 쓰는 임시 수단이며 헤더 값을 검증 없이 신뢰하므로,
- * 누구나 남의 계정을 조작할 수 있어 {@code prod}에서는 컨트롤러를 등록하지 않는다.
- *
- * <p>Security 도입 시 프로파일 제한을 없애고 리졸버가 인증 주체를 읽도록 바꾼다. 컨트롤러 시그니처는 그대로 둔다.
- */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")

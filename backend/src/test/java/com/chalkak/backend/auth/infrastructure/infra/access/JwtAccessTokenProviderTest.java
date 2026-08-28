@@ -172,6 +172,20 @@ class JwtAccessTokenProviderTest {
                 .isInstanceOf(JwtException.class);
     }
 
+    @Test
+    @DisplayName("subject가 회원 식별자 형식이 아닌 토큰은 검증할 수 없다")
+    void decode_nonUuidSubject_throwsJwtException() {
+        // Given
+        JwtAccessTokenProvider provider = createProvider(NOW);
+        String token = encodeWithSameSecret(claims()
+                .subject("google-subject")
+                .build());
+
+        // When & Then
+        assertThatThrownBy(() -> provider.jwtDecoder().decode(token))
+                .isInstanceOf(JwtException.class);
+    }
+
     /**
      * 서명의 첫 글자를 바꾼다. base64url 마지막 글자는 32바이트 서명에서 유효 비트가 4개뿐이라
      * 글자를 바꿔도 디코딩된 서명 바이트가 그대로일 수 있다. 첫 글자는 6비트가 모두 유효하다.

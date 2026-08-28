@@ -17,10 +17,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 로그인 사용자는 {@code X-User-Id} 헤더로 식별한다. Spring Security 도입 전까지 쓰는 임시 수단이므로 {@code prod}에서는
- * 컨트롤러를 등록하지 않는다.
- */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/posts")
