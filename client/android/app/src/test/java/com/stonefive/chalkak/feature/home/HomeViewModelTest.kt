@@ -2,16 +2,26 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeLike
+import com.stonefive.chalkak.domain.model.HomeQuery
+import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.HomeRepository
+import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Before
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -19,332 +29,866 @@ class HomeViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: FakeHomeRepository
-    private lateinit var viewModel: HomeViewModel
-
-    @Before
-    fun setUp() {
-        repository = FakeHomeRepository()
-        viewModel = HomeViewModel(repository)
-    }
-
     @Test
-    fun `화면 진입 시 홈 콘텐츠를 불러온다`() = runTest {
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("하늘하늘하늘", viewModel.uiState.value.topic)
-        assertEquals(listOf(PostSort.LATEST), repository.requestedSorts)
-    }
-
-    @Test
-    fun `정렬 액션은 선택 상태를 바꾸고 해당 정렬로 홈을 다시 불러온다`() = runTest {
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
-
-        assertEquals(PostSort.POPULAR, viewModel.uiState.value.selectedSort)
-        assertEquals(listOf(PostSort.LATEST, PostSort.POPULAR), repository.requestedSorts)
-    }
-
-    @Test
-    fun `하단 탭 액션은 네비게이션 이벤트를 전달한다`() = runTest {
-        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
+    fun `초기 로드는 주입된 KST 날짜와 recent 첫 페이지를 사용한다`() = runTest {
+        val repository = RecordingHomeRepository()
+        val viewModel = homeViewModel(repository)
 
         assertEquals(
-            HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
+            HomeQuery(
+                date = TEST_DATE,
+                sort = PostSort.LATEST,
+                page = 1,
+            ),
+            repository.homeQueries.single(),
+        )
+        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
+    }
+
+    @Test
+    fun `최초 실패 원인을 구분된 오류 상태로 표현한다`() = runTest {
+        val cases = listOf(
+            HomeFailure.TopicNotFound to HomeInitialError.TopicNotFound,
+            HomeFailure.Unauthorized to HomeInitialError.Unauthorized,
+            HomeFailure.Network to HomeInitialError.Network,
+            HomeFailure.InvalidResponse to HomeInitialError.InvalidResponse,
+            HomeFailure.Http(400) to HomeInitialError.Client,
+            HomeFailure.Http(503) to HomeInitialError.Server,
+            HomeFailure.Http(302) to HomeInitialError.Generic,
+        )
+
+        cases.forEach { (failure, expected) ->
+            val repository = RecordingHomeRepository(
+                homeResults = ArrayDeque(listOf(HomeResult.Failure(failure))),
+            )
+
+            assertEquals(
+                HomeContentStatus.Error(expected),
+                homeViewModel(repository)
+                    .uiState.value.contentStatus,
+            )
+        }
+    }
+
+    @Test
+    fun `빈 결과는 오류가 아닌 content 상태다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(photos = emptyList())))),
+        )
+
+        val state = homeViewModel(repository).uiState.value
+
+        assertEquals(HomeContentStatus.Content, state.contentStatus)
+        assertTrue(state.photos.isEmpty())
+    }
+
+    @Test
+    fun `응답 topicDate를 날짜 라벨과 페이지네이션 세션에 사용한다`() = runTest {
+        var currentDate = LocalDate.of(2026, 8, 28)
+        val canonicalDate = LocalDate.of(2026, 8, 29)
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(
+                        homeContent(
+                            topic = "새 주제",
+                            topicDate = canonicalDate,
+                        ),
+                    ),
+                    HomeResult.Success(
+                        homeContent(
+                            topic = "다음 주제",
+                            topicDate = LocalDate.of(2026, 8, 30),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository, dateProvider = { currentDate })
+
+        assertEquals(
+            LocalDate.of(2026, 8, 28),
+            repository.homeQueries
+                .single()
+                .date,
+        )
+        assertEquals("새 주제", viewModel.uiState.value.topic)
+        assertEquals("8월 29일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+
+        currentDate = LocalDate.of(2026, 8, 30)
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        assertEquals(
+            canonicalDate,
+            repository.pageQueries
+                .single()
+                .date,
+        )
+
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        assertEquals(
+            LocalDate.of(2026, 8, 30),
+            repository.homeQueries
+                .last()
+                .date,
+        )
+        assertEquals("다음 주제", viewModel.uiState.value.topic)
+        assertEquals("8월 30일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+    }
+
+    @Test
+    fun `첫 페이지의 빈 성공은 이전 목록을 제거하고 새 주제를 적용한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent(topic = "이전 주제")),
+                    HomeResult.Success(
+                        homeContent(
+                            topic = "새 주제",
+                            topicDate = LocalDate.of(2026, 8, 29),
+                            photos = emptyList(),
+                            hasNext = false,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+
+        assertEquals("새 주제", viewModel.uiState.value.topic)
+        assertEquals("8월 29일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+        assertTrue(
+            viewModel.uiState.value.photos
+                .isEmpty(),
+        )
+        assertEquals(1, viewModel.uiState.value.currentPage)
+        assertFalse(viewModel.uiState.value.hasNext)
+    }
+
+    @Test
+    fun `재시도는 첫 페이지를 다시 요청하고 복구한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Failure(HomeFailure.Network),
+                    HomeResult.Success(homeContent()),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.RetryClicked)
+
+        assertEquals(2, repository.homeQueries.size)
+        assertTrue(repository.homeQueries.all { it.page == 1 })
+        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
+    }
+
+    @Test
+    fun `수동 새로고침은 매번 seed 없는 랜덤 첫 페이지 새 세션을 요청한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(homeContent(randomSeed = "seed-1")),
+                    HomeResult.Success(homeContent(randomSeed = "seed-2")),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+
+        assertEquals(
+            listOf(PostSort.LATEST, PostSort.RANDOM, PostSort.RANDOM),
+            repository.homeQueries.map(HomeQuery::sort),
+        )
+        assertTrue(
+            repository.homeQueries
+                .drop(1)
+                .all { it.page == 1 && it.randomSeed == null },
+        )
+        assertEquals(PostSort.RANDOM, viewModel.uiState.value.selectedSort)
+        assertEquals(2, viewModel.uiState.value.refreshRevision)
+    }
+
+    @Test
+    fun `수동 새로고침 중에는 콘텐츠를 유지하고 실패하면 원인 이벤트만 보낸다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "기존 주제"))
+        val viewModel = homeViewModel(repository)
+        val before = viewModel.uiState.value
+
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+
+        assertEquals("기존 주제", viewModel.uiState.value.topic)
+        assertEquals(before.photos, viewModel.uiState.value.photos)
+        assertTrue(viewModel.uiState.value.isRefreshing)
+        assertEquals(
+            PostSort.RANDOM,
+            repository.homeQueries
+                .last()
+                .sort,
+        )
+        assertEquals(
+            null,
+            repository.homeQueries
+                .last()
+                .randomSeed,
+        )
+
+        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+
+        assertEquals(before.copy(isRefreshing = false), viewModel.uiState.value)
+        assertEquals(
+            HomeUiEvent.ShowRefreshFailure(HomeInitialError.Network),
             viewModel.uiEvent.first(),
         )
     }
 
     @Test
-    fun `이전 정렬 요청이 나중에 완료되어도 최신 정렬 결과를 유지한다`() = runTest {
-        val controlledRepository = ControlledHomeRepository()
-        val controlledViewModel = HomeViewModel(controlledRepository)
-
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
-        controlledRepository.complete(
-            sort = PostSort.POPULAR,
-            content = homeContent(topic = "인기순 결과"),
-        )
-
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
-        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
-        assertFalse(controlledViewModel.uiState.value.isLoading)
-
-        controlledRepository.complete(
-            sort = PostSort.LATEST,
-            content = homeContent(topic = "최신순 결과"),
-        )
-
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
-        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
-        assertFalse(controlledViewModel.uiState.value.isLoading)
-    }
-
-    @Test
-    fun `좋아요 액션은 선택한 사진 상태와 저장소를 함께 갱신한다`() = runTest {
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
-        assertEquals(
-            25,
-            viewModel.uiState.value.photos
-                .first()
-                .likeCount,
-        )
-        assertEquals(PHOTO_ID, repository.updatedPhotoId)
-        assertEquals(true, repository.updatedIsLiked)
-    }
-
-    @Test
-    fun `좋아요 액션은 좋아요 상태와 개수를 토글한다`() = runTest {
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPhotoIds)
-        assertEquals(
-            24,
-            viewModel.uiState.value.photos
-                .first()
-                .likeCount,
-        )
-    }
-
-    @Test
-    fun `좋아요 액션은 선택한 사진에만 적용한다`() = runTest {
-        val firstPhoto = homeContent().photos.first()
-        val secondPhoto = firstPhoto.copy(id = "photo-2", likeCount = 10)
-        val multiPhotoViewModel = HomeViewModel(
-            FakeHomeRepository(
-                content = homeContent().copy(photos = listOf(firstPhoto, secondPhoto)),
+    fun `정렬 변경은 목록과 페이지 seed 다음 페이지 상태를 초기화한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent(randomSeed = "old-seed", hasNext = true)),
+                    HomeResult.Success(
+                        homeContent(
+                            photos = listOf(post("popular")),
+                            randomSeed = null,
+                            hasNext = false,
+                        ),
+                    ),
+                ),
             ),
         )
+        val viewModel = homeViewModel(repository)
 
-        multiPhotoViewModel.onAction(HomeUiAction.LikeClicked(secondPhoto.id))
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
 
-        assertEquals(
-            24,
-            multiPhotoViewModel.uiState.value.photos
-                .first()
-                .likeCount,
-        )
-        assertEquals(
-            11,
-            multiPhotoViewModel.uiState.value.photos
-                .last()
-                .likeCount,
-        )
-        assertEquals(setOf(secondPhoto.id), multiPhotoViewModel.uiState.value.likedPhotoIds)
+        val state = viewModel.uiState.value
+        assertEquals(PostSort.POPULAR, state.selectedSort)
+        assertEquals(listOf("popular"), state.photos.map(Post::id))
+        assertEquals(1, state.currentPage)
+        assertFalse(state.hasNext)
+        assertEquals(null, state.randomSeed)
+        assertFalse(state.isLoadingNext)
     }
 
     @Test
-    fun `좋아요 실패는 해당 사진만 복원하고 새 정렬 상태를 유지한다`() = runTest {
-        val controlledRepository = ControlledLikeRepository()
-        val controlledViewModel = HomeViewModel(controlledRepository)
+    fun `이전 정렬 응답은 최신 정렬 결과를 덮어쓰지 않는다`() = runTest {
+        val repository = ControlledHomeRepository()
+        val viewModel = homeViewModel(repository)
 
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
-        controlledRepository.failLike(requestIndex = 0)
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        repository.completeHome(1, HomeResult.Success(homeContent(topic = "인기")))
+        repository.completeHome(0, HomeResult.Success(homeContent(topic = "최신")))
 
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
-        assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
+        assertEquals(PostSort.POPULAR, viewModel.uiState.value.selectedSort)
+        assertEquals("인기", viewModel.uiState.value.topic)
+    }
+
+    @Test
+    fun `새 랜덤 정렬 세션은 이전 seed를 재사용하지 않는다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(homeContent(randomSeed = "first-seed")),
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(homeContent(randomSeed = "second-seed")),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.LATEST))
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+
+        val randomQueries = repository.homeQueries.filter { it.sort == PostSort.RANDOM }
+        assertEquals(2, randomQueries.size)
+        assertTrue(randomQueries.all { it.randomSeed == null })
+    }
+
+    @Test
+    fun `끝 임계값 false to true는 다음 페이지를 한 번만 요청한다`() = runTest {
+        val repository = RecordingHomeRepository()
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+
+        assertEquals(1, repository.pageQueries.size)
         assertEquals(
-            24,
-            controlledViewModel.uiState.value.photos
-                .first()
-                .likeCount,
+            2,
+            repository.pageQueries
+                .single()
+                .page,
         )
     }
 
     @Test
-    fun `이전 좋아요 성공 응답이 나중에 완료되어도 최신 요청 결과를 유지한다`() = runTest {
-        val controlledRepository = ControlledLikeRepository()
-        val controlledViewModel = HomeViewModel(controlledRepository)
+    fun `페이지 성공은 순서를 유지하고 중복 id를 제외하며 seed를 보존한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            pageResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(
+                        postPage(
+                            photos = listOf(post(PHOTO_ID), post("photo-2")),
+                            currentPage = 2,
+                            hasNext = false,
+                            randomSeed = "seed-1",
+                        ),
+                    ),
+                ),
+            ),
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(
+                        homeContent(
+                            randomSeed = "seed-1",
+                            sortPhotos = listOf(post(PHOTO_ID)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
 
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledRepository.completeLike(requestIndex = 1, likeCount = 24)
-        controlledRepository.completeLike(requestIndex = 0, likeCount = 25)
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
 
-        assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
         assertEquals(
-            24,
-            controlledViewModel.uiState.value.photos
-                .first()
+            listOf(PHOTO_ID, "photo-2"),
+            viewModel.uiState.value.photos
+                .map(Post::id),
+        )
+        assertEquals(
+            "seed-1",
+            repository.pageQueries
+                .single()
+                .randomSeed,
+        )
+        assertFalse(viewModel.uiState.value.hasNext)
+    }
+
+    @Test
+    fun `hasNext false면 추가 요청하지 않는다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(hasNext = false)))),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+
+        assertTrue(repository.pageQueries.isEmpty())
+    }
+
+    @Test
+    fun `RANDOM seed가 없으면 크래시 또는 추가 요청 없이 pagination을 종료한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(homeContent(hasNext = true, randomSeed = null)),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+
+        assertTrue(repository.pageQueries.isEmpty())
+        assertFalse(viewModel.uiState.value.hasNext)
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+    }
+
+    @Test
+    fun `페이지 실패는 콘텐츠와 cursor seed를 유지하고 재진입 때 같은 페이지를 재시도한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            pageResults = ArrayDeque(
+                listOf(
+                    HomeResult.Failure(HomeFailure.Network),
+                    HomeResult.Success(postPage(currentPage = 2, randomSeed = "seed-1")),
+                ),
+            ),
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(
+                        homeContent(
+                            randomSeed = "seed-1",
+                            sortPhotos = listOf(post(PHOTO_ID)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+
+        assertEquals(1, repository.pageQueries.size)
+        assertEquals(
+            listOf(PHOTO_ID),
+            viewModel.uiState.value.photos
+                .map(Post::id),
+        )
+        assertEquals(1, viewModel.uiState.value.currentPage)
+        assertEquals("seed-1", viewModel.uiState.value.randomSeed)
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+
+        assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+    }
+
+    @Test
+    fun `page 2 대기 중 refresh 성공은 새 첫 페이지만 표시한다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "이전 주제"))
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        assertTrue(viewModel.uiState.value.isLoadingNext)
+
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        assertEquals(1, repository.pageQueries.size)
+
+        repository.completeHome(
+            0,
+            HomeResult.Success(
+                homeContent(
+                    topic = "새 주제",
+                    photos = listOf(post("new-photo")),
+                    hasNext = false,
+                ),
+            ),
+        )
+        repository.completePage(0, HomeResult.Success(postPage(photos = listOf(post("stale-photo")))))
+
+        assertEquals("새 주제", viewModel.uiState.value.topic)
+        assertEquals(
+            listOf("new-photo"),
+            viewModel.uiState.value.photos
+                .map(Post::id),
+        )
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+    }
+
+    @Test
+    fun `page 2 대기 중 refresh 실패는 콘텐츠를 유지하고 page 2 재시도를 허용한다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "이전 주제"))
+        val viewModel = homeViewModel(repository)
+        val before = viewModel.uiState.value
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+
+        assertEquals(before, viewModel.uiState.value)
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
+        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
+
+        repository.completePage(1, HomeResult.Success(postPage(photos = listOf(post("retried-photo")))))
+        repository.completePage(0, HomeResult.Success(postPage(photos = listOf(post("stale-photo")))))
+
+        assertEquals(
+            listOf(PHOTO_ID, "retried-photo"),
+            viewModel.uiState.value.photos
+                .map(Post::id),
+        )
+        assertFalse(viewModel.uiState.value.isLoadingNext)
+    }
+
+    @Test
+    fun `인증 좋아요는 낙관 적용 후 서버 count state로 조정한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            likeResults = ArrayDeque(listOf(HomeResult.Success(HomeLike(likeCount = 30, isLiked = true)))),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+
+        assertEquals(PHOTO_ID to true, repository.likeRequests.single())
+        assertEquals(
+            30,
+            viewModel.uiState.value.photos
+                .single()
                 .likeCount,
+        )
+        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
+    }
+
+    @Test
+    fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(
+                        homeContent(sortPhotos = listOf(post(PHOTO_ID), post("photo-2", likeCount = 10))),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+
+        assertEquals(
+            listOf(24, 10),
+            viewModel.uiState.value.photos
+                .map(Post::likeCount),
+        )
+        assertTrue(
+            viewModel.uiState.value.likedPhotoIds
+                .isEmpty(),
         )
     }
 
     @Test
-    fun `이전 좋아요 실패 응답은 최신 낙관적 상태를 복원하지 않는다`() = runTest {
-        val controlledRepository = ControlledLikeRepository()
-        val controlledViewModel = HomeViewModel(controlledRepository)
+    fun `이전 좋아요 응답과 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val viewModel = homeViewModel(repository)
 
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledRepository.failLike(requestIndex = 0)
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
+        repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
 
-        assertEquals(setOf(PHOTO_ID), controlledViewModel.uiState.value.likedPhotoIds)
+        assertEquals(
+            24,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertTrue(
+            viewModel.uiState.value.likedPhotoIds
+                .isEmpty(),
+        )
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        assertEquals(1, repository.homeQueries.size)
+        repository.completeLike(2, HomeResult.Failure(HomeFailure.Network))
+        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 40, liked = true)))
+
+        assertEquals(
+            40,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
+    }
+
+    @Test
+    fun `좋아요 성공을 기다린 뒤 refresh를 시작하고 대기 중 새 좋아요를 차단한다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+
+        assertTrue(viewModel.uiState.value.isRefreshing)
+        assertFalse(viewModel.uiState.value.areLikesEnabled)
+        assertEquals(1, repository.likeRequests.size)
+        assertEquals(1, repository.homeQueries.size)
+
+        repository.completeLike(0, HomeResult.Success(HomeLike(likeCount = 30, isLiked = true)))
+
+        assertEquals(2, repository.homeQueries.size)
+        assertEquals(
+            30,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
+
+        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 31, liked = true)))
+        assertEquals(
+            31,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertTrue(viewModel.uiState.value.areLikesEnabled)
+    }
+
+    @Test
+    fun `좋아요 실패 rollback을 기다린 뒤 refresh를 시작한다`() = runTest {
+        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
         assertEquals(
             25,
-            controlledViewModel.uiState.value.photos
-                .first()
+            viewModel.uiState.value.photos
+                .single()
                 .likeCount,
         )
+
+        repository.completeLike(0, HomeResult.Failure(HomeFailure.Network))
+
+        assertEquals(
+            24,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertTrue(
+            viewModel.uiState.value.likedPhotoIds
+                .isEmpty(),
+        )
+        assertEquals(2, repository.homeQueries.size)
+
+        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+        assertEquals(
+            24,
+            viewModel.uiState.value.photos
+                .single()
+                .likeCount,
+        )
+        assertTrue(
+            viewModel.uiState.value.likedPhotoIds
+                .isEmpty(),
+        )
+        assertTrue(viewModel.uiState.value.areLikesEnabled)
     }
 
     @Test
-    fun `홈 재조회 후 이전 좋아요 요청이 실패해도 최신 홈 콘텐츠를 유지한다`() = runTest {
-        val reloadRepository = ReloadDuringLikeRepository()
-        val reloadViewModel = HomeViewModel(reloadRepository)
+    fun `repository의 예상하지 못한 예외를 Network 초기 오류로 위장하지 않는다`() {
+        val uncaught = mutableListOf<Throwable>()
+        val viewModel = homeViewModel(
+            repository = object : HomeRepository {
+                override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+                    error("unexpected defect")
+                }
 
-        reloadViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        reloadViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+                override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
 
-        assertEquals(
-            30,
-            reloadViewModel.uiState.value.photos
-                .first()
-                .likeCount,
+                override suspend fun updateLike(
+                    photoId: String,
+                    isLiked: Boolean,
+                ): HomeResult<HomeLike> = error("unused")
+            },
+            launchContext = CoroutineExceptionHandler { _, error -> uncaught += error },
         )
-        assertEquals(setOf(PHOTO_ID), reloadViewModel.uiState.value.likedPhotoIds)
 
-        reloadRepository.failLike()
-
-        assertEquals(PostSort.POPULAR, reloadViewModel.uiState.value.selectedSort)
-        assertEquals(
-            30,
-            reloadViewModel.uiState.value.photos
-                .first()
-                .likeCount,
-        )
-        assertEquals(setOf(PHOTO_ID), reloadViewModel.uiState.value.likedPhotoIds)
+        assertTrue(uncaught.single() is IllegalStateException)
+        assertEquals(HomeContentStatus.Loading, viewModel.uiState.value.contentStatus)
     }
 
     @Test
-    fun `추가 액션은 업로드 열기 이벤트를 전달한다`() = runTest {
+    fun `게스트 좋아요는 정확한 snackbar 이벤트만 보내고 상태와 저장소를 바꾸지 않는다`() = runTest {
+        val repository = RecordingHomeRepository()
+        val viewModel = homeViewModel(
+            repository = repository,
+            sessionState = UserSessionState.Guest,
+        )
+        val before = viewModel.uiState.value
+
+        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+
+        assertEquals(before, viewModel.uiState.value)
+        assertTrue(repository.likeRequests.isEmpty())
+        assertEquals(HomeUiEvent.ShowGuestLikeMessage, viewModel.uiEvent.first())
+    }
+
+    @Test
+    fun `오늘 탭 재선택은 랜덤 새로고침이고 다른 하단 탭과 추가 이벤트는 유지한다`() = runTest {
+        val repository = RecordingHomeRepository(
+            homeResults = ArrayDeque(
+                listOf(
+                    HomeResult.Success(homeContent()),
+                    HomeResult.Success(homeContent(randomSeed = "seed-1")),
+                ),
+            ),
+        )
+        val viewModel = homeViewModel(repository)
+
+        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
+        assertEquals(
+            PostSort.RANDOM,
+            repository.homeQueries
+                .last()
+                .sort,
+        )
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+
+        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
+        assertEquals(
+            HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
+            viewModel.uiEvent.first(),
+        )
+
         viewModel.onAction(HomeUiAction.AddClicked)
-
         assertEquals(HomeUiEvent.OpenPhotoUpload, viewModel.uiEvent.first())
     }
 }
 
+private val TEST_DATE: LocalDate = LocalDate.of(2026, 8, 28)
 private const val PHOTO_ID = "photo-1"
 
-private fun homeContent(
-    topic: String = "하늘하늘하늘",
-    likeCount: Int = 24,
-    likedPhotoIds: Set<String> = emptySet(),
-) = PostContent(
-    dateLabel = "8월 3일 · 오늘의 주제",
-    topic = topic,
-    photos = listOf(
-        Post(
-            id = PHOTO_ID,
-            imageUrl = "https://example.com/photo.jpg",
-            signatureUrl = "https://example.com/signature.png",
-            contentDescription = "하늘",
-            title = "사진 제목",
-            likeCount = likeCount,
-        ),
-    ),
-    likedPhotoIds = likedPhotoIds,
+private fun homeViewModel(
+    repository: HomeRepository,
+    sessionState: UserSessionState = UserSessionState.Authenticated("user-id"),
+    dateProvider: () -> LocalDate = { TEST_DATE },
+    launchContext: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
+) = HomeViewModel(
+    repository = repository,
+    sessionState = MutableStateFlow(sessionState),
+    dateProvider = dateProvider,
+    launchContext = launchContext,
 )
 
-private class FakeHomeRepository(private val content: PostContent = homeContent()) : HomeRepository {
-    val requestedSorts = mutableListOf<PostSort>()
-    var updatedPhotoId: String? = null
-    var updatedIsLiked: Boolean? = null
-    private val serverLikeCounts = content.photos
-        .associate { photo -> photo.id to photo.likeCount }
-        .toMutableMap()
+private fun homeContent(
+    topic: String = "바다",
+    topicDate: LocalDate = TEST_DATE,
+    photos: List<Post> = listOf(post(PHOTO_ID)),
+    sortPhotos: List<Post>? = null,
+    likeCount: Int = 24,
+    liked: Boolean = false,
+    hasNext: Boolean = true,
+    randomSeed: String? = null,
+) = PostContent(
+    topicDate = topicDate,
+    dateLabel = "${topicDate.monthValue}월 ${topicDate.dayOfMonth}일 · 오늘의 주제",
+    topic = topic,
+    photos = sortPhotos ?: photos.map { if (it.id == PHOTO_ID) it.copy(likeCount = likeCount) else it },
+    likedPhotoIds = if (liked) setOf(PHOTO_ID) else emptySet(),
+    currentPage = 1,
+    hasNext = hasNext,
+    randomSeed = randomSeed,
+)
 
-    override suspend fun getHome(sort: PostSort): PostContent {
-        requestedSorts += sort
-        return content
+private fun postPage(
+    photos: List<Post> = listOf(post("photo-2")),
+    currentPage: Int = 2,
+    hasNext: Boolean = true,
+    randomSeed: String? = null,
+) = PostPage(
+    photos = photos,
+    likedPhotoIds = emptySet(),
+    currentPage = currentPage,
+    hasNext = hasNext,
+    randomSeed = randomSeed,
+)
+
+private fun post(
+    id: String,
+    likeCount: Int = 24,
+) = Post(
+    id = id,
+    imageUrl = "https://example.com/$id.jpg",
+    signatureUrl = "https://example.com/$id-signature.png",
+    contentDescription = "작품 이미지: $id",
+    title = id,
+    likeCount = likeCount,
+)
+
+private class RecordingHomeRepository(
+    val homeResults: ArrayDeque<HomeResult<PostContent>> = ArrayDeque(listOf(HomeResult.Success(homeContent()))),
+    val pageResults: ArrayDeque<HomeResult<PostPage>> = ArrayDeque(listOf(HomeResult.Success(postPage()))),
+    val likeResults: ArrayDeque<HomeResult<HomeLike>> = ArrayDeque(listOf(HomeResult.Success(HomeLike(25, true)))),
+) : HomeRepository {
+    val homeQueries = mutableListOf<HomeQuery>()
+    val pageQueries = mutableListOf<HomeQuery>()
+    val likeRequests = mutableListOf<Pair<String, Boolean>>()
+
+    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+        homeQueries += query
+        return homeResults.removeFirst()
+    }
+
+    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
+        pageQueries += query
+        return pageResults.removeFirst()
     }
 
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): Int {
-        updatedPhotoId = photoId
-        updatedIsLiked = isLiked
-        val likeCount = checkNotNull(serverLikeCounts[photoId])
-        val nextLikeCount = likeCount + if (isLiked) 1 else -1
-        serverLikeCounts[photoId] = nextLikeCount
-        return nextLikeCount
+    ): HomeResult<HomeLike> {
+        likeRequests += photoId to isLiked
+        return likeResults.removeFirst()
     }
 }
 
-private class ControlledHomeRepository : HomeRepository {
-    private val responses = mutableMapOf<PostSort, CompletableDeferred<PostContent>>()
+private class ControlledHomeRepository(autoInitial: PostContent? = null) : HomeRepository {
+    private val homeResults = mutableListOf<CompletableDeferred<HomeResult<PostContent>>>()
+    private val pageResults = mutableListOf<CompletableDeferred<HomeResult<PostPage>>>()
+    private val likeResults = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
+    private val autoInitialResult = autoInitial
+    private var servedAutoInitial = false
+    val homeQueries = mutableListOf<HomeQuery>()
+    val pageQueries = mutableListOf<HomeQuery>()
+    val likeRequests = mutableListOf<Pair<String, Boolean>>()
 
-    override suspend fun getHome(sort: PostSort): PostContent {
-        val response = CompletableDeferred<PostContent>()
-        responses[sort] = response
-        return response.await()
+    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+        homeQueries += query
+        if (autoInitialResult != null && !servedAutoInitial) {
+            servedAutoInitial = true
+            return HomeResult.Success(autoInitialResult)
+        }
+        return CompletableDeferred<HomeResult<PostContent>>()
+            .also(homeResults::add)
+            .await()
     }
 
-    fun complete(
-        sort: PostSort,
-        content: PostContent,
+    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
+        pageQueries += query
+        return CompletableDeferred<HomeResult<PostPage>>()
+            .also(pageResults::add)
+            .await()
+    }
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): HomeResult<HomeLike> {
+        likeRequests += photoId to isLiked
+        return CompletableDeferred<HomeResult<HomeLike>>()
+            .also(likeResults::add)
+            .await()
+    }
+
+    fun completeHome(
+        index: Int,
+        result: HomeResult<PostContent>,
     ) {
-        checkNotNull(responses[sort]).complete(content)
-    }
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): Int = error("Not used")
-}
-
-private class ControlledLikeRepository : HomeRepository {
-    private val likeResponses = mutableListOf<CompletableDeferred<Int>>()
-
-    override suspend fun getHome(sort: PostSort): PostContent = homeContent()
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): Int {
-        val response = CompletableDeferred<Int>()
-        likeResponses += response
-        return response.await()
+        homeResults[index].complete(result)
     }
 
     fun completeLike(
-        requestIndex: Int,
-        likeCount: Int,
+        index: Int,
+        result: HomeResult<HomeLike>,
     ) {
-        likeResponses[requestIndex].complete(likeCount)
+        likeResults[index].complete(result)
     }
 
-    fun failLike(requestIndex: Int) {
-        likeResponses[requestIndex].completeExceptionally(IllegalStateException("Like update failed"))
-    }
-}
-
-private class ReloadDuringLikeRepository : HomeRepository {
-    private val likeResponse = CompletableDeferred<Int>()
-    private var homeRequestCount = 0
-
-    override suspend fun getHome(sort: PostSort): PostContent {
-        homeRequestCount++
-        return if (homeRequestCount == 1) {
-            homeContent()
-        } else {
-            homeContent(
-                likeCount = 30,
-                likedPhotoIds = setOf(PHOTO_ID),
-            )
-        }
-    }
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): Int = likeResponse.await()
-
-    fun failLike() {
-        likeResponse.completeExceptionally(IllegalStateException("Like update failed"))
+    fun completePage(
+        index: Int,
+        result: HomeResult<PostPage>,
+    ) {
+        pageResults[index].complete(result)
     }
 }
