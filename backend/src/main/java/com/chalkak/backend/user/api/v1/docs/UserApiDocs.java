@@ -3,6 +3,7 @@ package com.chalkak.backend.user.api.v1.docs;
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -105,7 +106,7 @@ public interface UserApiDocs {
                     )
             )
     })
-    ResponseEntity<UserSignatureResponse> getSignature(
+    ResponseEntity<UserSignatureDetailResponse> getSignature(
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 

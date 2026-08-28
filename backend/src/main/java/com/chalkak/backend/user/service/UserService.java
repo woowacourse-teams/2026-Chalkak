@@ -40,7 +40,7 @@ public class UserService {
         return signatureImageUploadIssuer.issueProcessingUpload(uploadId);
     }
 
-    public String getSignature(UUID userId) {
+    public UserSignatureResult getSignature(UUID userId) {
         User user = getActiveUser(
                 userId,
                 "사인을 조회할 회원을 찾을 수 없습니다.");
@@ -52,7 +52,9 @@ public class UserService {
                     "사인 이미지 처리에 실패했습니다. 사인을 다시 등록해 주세요.");
         }
 
-        return getSignatureImageUrl(user);
+        return new UserSignatureResult(
+                signatureImageStorage.toImageUrl(user.getSignatureOriginalStorageKey()),
+                signatureImageStorage.toImageUrl(user.getSignatureThumbnailStorageKey()));
     }
 
     @Transactional
