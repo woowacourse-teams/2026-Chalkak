@@ -42,7 +42,7 @@ public class AdminPostDeletionService {
         }
 
         AdminAuditSnapshot beforeState = deletionState(post);
-        post.delete(requestedAt);
+        post.deleteByAdmin(requestedAt);
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.POST_DELETED,

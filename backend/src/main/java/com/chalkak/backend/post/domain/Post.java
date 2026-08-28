@@ -2,6 +2,7 @@ package com.chalkak.backend.post.domain;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
@@ -138,15 +139,53 @@ public class Post {
         this.moderatedAt = null;
     }
 
-    public void delete(Instant deletedAt) {
-        if (this.deletedAt != null) {
-            return;
+    public void deleteByAuthor(UUID authorId, Instant deletedAt) {
+        validateAuthor(authorId);
+        validateAuthorDeletionStatus();
+        deleteIfNotDeleted(deletedAt);
+    }
+
+    public void deleteByAdmin(Instant deletedAt) {
+        validateAdminDeletionStatus();
+        deleteIfNotDeleted(deletedAt);
+    }
+
+    private void validateAdminDeletionStatus() {
+        if (moderationStatus == ModerationStatus.VALIDATING) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미지 처리 중인 게시물은 삭제할 수 없습니다."
+            );
+        }
+    }
+
+    private void validateAuthor(UUID authorId) {
+        if (!author.getId().equals(authorId)) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "본인의 게시물만 삭제할 수 있습니다."
+            );
+        }
+    }
+
+    private void validateAuthorDeletionStatus() {
+        if (moderationStatus == ModerationStatus.REJECTED) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "현재 상태의 게시물은 삭제할 수 없습니다."
+            );
         }
         if (moderationStatus == ModerationStatus.VALIDATING) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "이미지 처리 중인 게시물은 삭제할 수 없습니다."
             );
+        }
+    }
+
+    private void deleteIfNotDeleted(Instant deletedAt) {
+        if (this.deletedAt != null) {
+            return;
         }
         if (deletedAt == null) {
             throw new BusinessException(
