@@ -203,8 +203,7 @@ private class ControlledHomeRepository : HomeRepository {
 }
 
 private fun feedContent() = PostContent(
-    topicDate = LocalDate.of(2026, 8, 28),
-    dateLabel = "8월 3일 · 오늘의 주제",
+    topicDate = LocalDate.of(2026, 8, 3),
     topic = "하늘하늘하늘",
     photos = listOf(
         Post(

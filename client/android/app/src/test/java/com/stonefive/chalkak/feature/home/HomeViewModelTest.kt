@@ -727,7 +727,6 @@ private fun homeContent(
     randomSeed: String? = null,
 ) = PostContent(
     topicDate = topicDate,
-    dateLabel = "${topicDate.monthValue}월 ${topicDate.dayOfMonth}일 · 오늘의 주제",
     topic = topic,
     photos = sortPhotos ?: photos.map { if (it.id == PHOTO_ID) it.copy(likeCount = likeCount) else it },
     likedPhotoIds = if (liked) setOf(PHOTO_ID) else emptySet(),

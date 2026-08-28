@@ -306,7 +306,6 @@ private class GuestHomeRepository : HomeRepository {
     override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
-            dateLabel = "8월 28일 · 오늘의 주제",
             topic = "바다",
             photos = photos(1),
             likedPhotoIds = emptySet(),
@@ -333,7 +332,6 @@ private class PageFailureHomeRepository : HomeRepository {
     override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
-            dateLabel = "8월 28일 · 오늘의 주제",
             topic = "바다",
             photos = photos(20),
             likedPhotoIds = emptySet(),

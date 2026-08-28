@@ -103,7 +103,7 @@ class FeedViewModel(
 
             _uiState.value = FeedUiState(
                 content = FeedContentState.Success(
-                    dateLabel = content.dateLabel.toFeedDateLabel(),
+                    dateLabel = content.topicDate.toFeedDateLabel(),
                     topic = content.topic,
                     post = post,
                     isLiked = post.id in content.likedPhotoIds,
@@ -112,11 +112,7 @@ class FeedViewModel(
         }
     }
 
-    private fun String.toFeedDateLabel(): String = if (contains(" ·")) {
-        "${substringBefore(" ·")}의 주제"
-    } else {
-        this
-    }
+    private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
 
     companion object {
         fun factory(initialContent: FeedContentState.Success? = null) = viewModelFactory {

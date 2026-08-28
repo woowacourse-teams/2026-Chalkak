@@ -47,7 +47,6 @@ class HomeRepositoryImplTest {
                 .date,
         )
         assertEquals(LocalDate.of(2026, 8, 29), content.topicDate)
-        assertEquals("8월 29일 · 오늘의 주제", content.dateLabel)
         assertEquals("새 바다", content.topic)
         assertEquals(listOf("photo-1", "photo-2", "photo-3"), content.photos.map { it.id })
         assertEquals(setOf("photo-1"), content.likedPhotoIds)

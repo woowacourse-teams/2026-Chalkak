@@ -35,7 +35,6 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
                 is HomeResult.Success -> HomeResult.Success(
                     PostContent(
                         topicDate = topicDate,
-                        dateLabel = "${topicDate.monthValue}월 ${topicDate.dayOfMonth}일 · 오늘의 주제",
                         topic = topic.title,
                         photos = pageResult.value.photos,
                         likedPhotoIds = pageResult.value.likedPhotoIds,

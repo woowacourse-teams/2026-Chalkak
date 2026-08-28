@@ -4,7 +4,6 @@ import java.time.LocalDate
 
 data class PostContent(
     val topicDate: LocalDate,
-    val dateLabel: String,
     val topic: String,
     val photos: List<Post>,
     val likedPhotoIds: Set<String>,
