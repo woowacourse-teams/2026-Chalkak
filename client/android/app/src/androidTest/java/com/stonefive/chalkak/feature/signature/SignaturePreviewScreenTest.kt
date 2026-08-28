@@ -73,4 +73,23 @@ class SignaturePreviewScreenTest {
 
         composeRule.onNodeWithText("이 사인으로 변경하기").assertIsDisplayed()
     }
+
+    @Test
+    fun changeNoticeIsDisplayedBelowPreview() {
+        composeRule.setContent {
+            ChalkakTheme {
+                SignaturePreviewScreen(
+                    imageModel = R.drawable.preview_photo,
+                    signatureModel = R.drawable.preview_signature,
+                    onRedrawClick = {},
+                    onStartClick = {},
+                    noticeText = "사인 변경까지 시간이 조금 걸릴 수 있어요",
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithText("사인 변경까지 시간이 조금 걸릴 수 있어요")
+            .assertIsDisplayed()
+    }
 }

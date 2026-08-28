@@ -85,6 +85,7 @@ fun ChangeSignaturePreviewRoute(
         isSubmitting = uiState.isSubmitting,
         errorMessage = uiState.errorMessage,
         confirmText = "사인 변경하기",
+        noticeText = "사인 변경까지 시간이 조금 걸릴 수 있어요",
     )
 }
 
@@ -98,6 +99,7 @@ fun SignaturePreviewScreen(
     isSubmitting: Boolean = false,
     errorMessage: String? = null,
     confirmText: String = "시작하기",
+    noticeText: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -113,6 +115,17 @@ fun SignaturePreviewScreen(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title1,
         )
+
+        noticeText?.let { text ->
+            Text(
+                text = text,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = ChalkakTheme.spacing.sm),
+                color = ChalkakTheme.colors.textMuted,
+                style = ChalkakTheme.typography.subheadline,
+            )
+        }
 
         Spacer(modifier = Modifier.height(50.dp))
 
