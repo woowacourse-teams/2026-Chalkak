@@ -172,7 +172,7 @@ public class Post {
         if (moderationStatus == ModerationStatus.REJECTED) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "현재 상태의 게시물은 삭제할 수 없습니다."
+                    "검수 거절된 게시물은 삭제할 수 없습니다."
             );
         }
         if (moderationStatus == ModerationStatus.VALIDATING) {

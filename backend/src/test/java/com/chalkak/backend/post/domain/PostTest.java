@@ -340,7 +340,7 @@ class PostTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR))
-                .hasMessage("현재 상태의 게시물은 삭제할 수 없습니다.");
+                .hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
         assertThat(post.getDeletedAt()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }

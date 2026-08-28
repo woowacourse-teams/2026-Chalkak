@@ -37,6 +37,13 @@ public interface PostLikeJpaRepository extends JpaRepository<PostLike, UUID> {
             @Param("userId") UUID userId
     );
 
+    @Modifying
+    @Query("""
+            DELETE FROM PostLike postLike
+            WHERE postLike.postId = :postId
+            """)
+    int deleteByPostId(@Param("postId") UUID postId);
+
     long countByPostId(UUID postId);
 
     @Query("""
