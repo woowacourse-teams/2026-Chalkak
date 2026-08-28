@@ -61,8 +61,12 @@ fun SettingsSignatureCard(
                 .padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 20.dp)
                 .height(112.dp)
                 .clip(SettingsShape)
-                .border(1.dp, ChalkakTheme.colors.border, SettingsShape)
-                .background(ChalkakTheme.colors.surfaceElevated),
+                .border(
+                    1.dp,
+                    ChalkakTheme.colors.textOnImage
+                        .copy(alpha = 0.28f),
+                    SettingsShape,
+                ).background(ChalkakTheme.colors.actionPrimary),
             contentAlignment = Alignment.Center,
         ) {
             if (errorMessage != null) {
