@@ -81,8 +81,15 @@ fun HomeRoute(
         viewModel.uiEvent.collect { event ->
             when (event) {
                 HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
-                HomeUiEvent.ShowGuestLikeMessage -> snackbarHostState.showSnackbar(GUEST_LIKE_MESSAGE)
-                is HomeUiEvent.ShowRefreshFailure -> snackbarHostState.showSnackbar(event.reason.message)
+
+                HomeUiEvent.ShowGuestLikeMessage -> launch {
+                    snackbarHostState.showSnackbar(GUEST_LIKE_MESSAGE)
+                }
+
+                is HomeUiEvent.ShowRefreshFailure -> launch {
+                    snackbarHostState.showSnackbar(event.reason.message)
+                }
+
                 is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
             }
         }

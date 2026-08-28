@@ -201,7 +201,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun guestLikeShowsOnlyApprovedSnackbarMessage() {
+    fun guestLikeSnackbarDoesNotDelayNavigationEvents() {
         val repository = GuestHomeRepository()
         var openPhotoUploadCount = 0
         var navigateToBottomBarCount = 0
@@ -224,10 +224,15 @@ class HomeScreenTest {
 
         composeRule.onAllNodesWithText(GUEST_LIKE_MESSAGE).assertCountEquals(1)
         assertEquals(0, repository.likeRequestCount)
-        assertEquals(0, openPhotoUploadCount)
-        assertEquals(0, navigateToBottomBarCount)
         composeRule.onAllNodesWithText("로그인 없이 사진 둘러보기").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그인").assertCountEquals(0)
+
+        composeRule.onNodeWithContentDescription("추가").performClick()
+        composeRule.onNodeWithText("전시").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 1_000) {
+            openPhotoUploadCount == 1 && navigateToBottomBarCount == 1
+        }
     }
 
     @Test
