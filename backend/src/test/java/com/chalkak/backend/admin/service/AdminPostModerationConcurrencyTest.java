@@ -100,7 +100,7 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
                 .extracting(ModerationAttempt::outcome)
                 .containsExactlyInAnyOrder(
                         SUCCESS,
-                        ErrorCode.POST_MODERATION_STATE_INVALID.name()
+                        ErrorCode.RESOURCE_STATE_CHANGED.name()
                 );
         AdminPostModerationResult decided = attempts.stream()
                 .filter(attempt -> attempt.result() != null)

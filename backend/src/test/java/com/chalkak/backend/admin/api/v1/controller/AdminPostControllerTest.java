@@ -620,8 +620,8 @@ class AdminPostControllerTest {
     }
 
     @Test
-    @DisplayName("대기 상태가 아닌 게시물의 검수를 요청하면 구분 가능한 400을 반환한다")
-    void moderatePost_nonPendingPost_returnsStateInvalidError() throws Exception {
+    @DisplayName("대기 상태가 아닌 게시물의 검수 요청은 현재 상태 재조회 오류를 반환한다")
+    void moderatePost_nonPendingPost_returnsResourceStateChangedError() throws Exception {
         // Given
         given(adminPostModerationService.moderate(
                 POST_ID,
@@ -629,7 +629,7 @@ class AdminPostControllerTest {
                 ModerationStatus.APPROVED,
                 null
         )).willThrow(new BusinessException(
-                ErrorCode.POST_MODERATION_STATE_INVALID,
+                ErrorCode.RESOURCE_STATE_CHANGED,
                 "대기 중인 게시물만 검수할 수 있습니다."
         ));
 
@@ -643,7 +643,7 @@ class AdminPostControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
-                        .value("POST_MODERATION_STATE_INVALID"))
+                        .value("RESOURCE_STATE_CHANGED"))
                 .andExpect(jsonPath("$.message")
                         .value("대기 중인 게시물만 검수할 수 있습니다."));
     }
@@ -783,11 +783,11 @@ class AdminPostControllerTest {
     }
 
     @Test
-    @DisplayName("이미지 처리 중인 게시물을 삭제하면 구분 가능한 400을 반환한다")
-    void deletePost_validatingPost_returnsStateInvalidError() throws Exception {
+    @DisplayName("이미지 처리 중인 게시물을 삭제하면 기본 비즈니스 오류 400을 반환한다")
+    void deletePost_validatingPost_returnsBusinessError() throws Exception {
         // Given
         willThrow(new BusinessException(
-                ErrorCode.POST_DELETION_STATE_INVALID,
+                ErrorCode.BUSINESS_ERROR,
                 "이미지 처리 중인 게시물은 삭제할 수 없습니다."
         )).given(adminPostDeletionService).deletePost(
                 POST_ID,
@@ -805,7 +805,7 @@ class AdminPostControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
-                        .value("POST_DELETION_STATE_INVALID"));
+                        .value("BUSINESS_ERROR"));
     }
 
     @Test

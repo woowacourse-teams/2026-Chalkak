@@ -112,7 +112,7 @@ public interface AdminPostApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청 또는 이미 확정된 게시물",
+                    description = "잘못된 요청 또는 현재 상태가 변경되어 검수할 수 없는 게시물",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

@@ -154,8 +154,8 @@ class AdminPostModerationServiceTest extends IntegrationTestSupport {
             value = ModerationStatus.class,
             names = {"VALIDATING", "APPROVED", "REJECTED"}
     )
-    @DisplayName("대기 상태가 아닌 게시물은 다시 승인하거나 거절할 수 없다")
-    void moderate_nonPendingPost_throwsStateInvalidException(
+    @DisplayName("대기 상태가 아닌 게시물은 현재 상태 재조회 오류로 검수를 거부한다")
+    void moderate_nonPendingPost_throwsResourceStateChangedException(
             ModerationStatus currentStatus
     ) {
         // Given
@@ -177,7 +177,7 @@ class AdminPostModerationServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception.getErrorCode())
-                .isEqualTo(ErrorCode.POST_MODERATION_STATE_INVALID);
+                .isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
         PostModerationRow post = findPost();
         assertThat(post.moderationStatus()).isEqualTo(currentStatus.name());
         assertThat(post.moderatedAt()).isEqualTo(previousModeratedAt);

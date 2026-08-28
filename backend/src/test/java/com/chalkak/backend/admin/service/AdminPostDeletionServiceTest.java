@@ -120,8 +120,8 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("이미지 처리 중인 게시물은 관리자가 삭제할 수 없다")
-    void deletePost_validatingPost_throwsStateInvalidException() {
+    @DisplayName("이미지 처리 중인 게시물은 기본 비즈니스 오류로 삭제를 거부한다")
+    void deletePost_validatingPost_throwsBusinessException() {
         // Given
         insertPost(ModerationStatus.VALIDATING);
 
@@ -137,7 +137,7 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception.getErrorCode())
-                .isEqualTo(ErrorCode.POST_DELETION_STATE_INVALID);
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
         SoftDeletionRow softDeletion = findSoftDeletion();
         assertThat(softDeletion.postDeletedAt()).isNull();
         assertThat(softDeletion.photoDeletedAt()).isNull();

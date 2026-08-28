@@ -144,7 +144,7 @@ public class Post {
         }
         if (moderationStatus == ModerationStatus.VALIDATING) {
             throw new BusinessException(
-                    ErrorCode.POST_DELETION_STATE_INVALID,
+                    ErrorCode.BUSINESS_ERROR,
                     "이미지 처리 중인 게시물은 삭제할 수 없습니다."
             );
         }

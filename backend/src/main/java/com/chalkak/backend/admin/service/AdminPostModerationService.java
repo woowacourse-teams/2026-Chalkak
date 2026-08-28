@@ -115,7 +115,7 @@ public class AdminPostModerationService {
     private void validatePending(Post post) {
         if (post.getModerationStatus() != ModerationStatus.PENDING) {
             throw new BusinessException(
-                    ErrorCode.POST_MODERATION_STATE_INVALID,
+                    ErrorCode.RESOURCE_STATE_CHANGED,
                     INVALID_STATE_MESSAGE
             );
         }
