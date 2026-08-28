@@ -1,0 +1,135 @@
+.dashboard {
+  display: grid;
+  gap: 42px;
+}
+
+.hero {
+  display: flex;
+  min-height: 260px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid #d7dfcf;
+  border-radius: 26px;
+  background:
+    linear-gradient(120deg, rgb(255 255 255 / 92%), rgb(239 245 229 / 88%)),
+    #ffffff;
+  padding: clamp(28px, 5vw, 56px);
+  box-shadow: 0 22px 70px rgb(32 52 37 / 7%);
+}
+
+.eyebrow,
+.sectionTitle p {
+  color: #6f855f;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.hero h2 {
+  max-width: 680px;
+  margin-top: 16px;
+  color: #1f3226;
+  font-family: Georgia, "Apple SD Gothic Neo", serif;
+  font-size: clamp(32px, 5vw, 58px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.hero div > p:last-child {
+  max-width: 620px;
+  margin-top: 22px;
+  color: #6d786c;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sectionTitle h2 {
+  margin-top: 6px;
+  color: #24352a;
+  font-size: 22px;
+}
+
+.sectionTitle > span {
+  color: #7b8679;
+  font-size: 11px;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.menuGrid a {
+  position: relative;
+  min-height: 190px;
+  border: 1px solid #dde3d7;
+  border-radius: 20px;
+  background: rgb(255 255 255 / 82%);
+  padding: 22px;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.menuGrid a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 38px rgb(32 51 37 / 9%);
+}
+
+.menuGrid a > span {
+  color: #9aa396;
+  font-family: Georgia, serif;
+  font-size: 12px;
+}
+
+.menuGrid strong {
+  display: block;
+  margin-top: 26px;
+  color: #293a2e;
+  font-size: 17px;
+}
+
+.menuGrid p {
+  margin-top: 8px;
+  color: #778176;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.menuGrid i {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  color: #59744b;
+  font-style: normal;
+}
+
+@media (max-width: 1180px) {
+  .menuGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    min-height: auto;
+    flex-direction: column;
+  }
+
+  .menuGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .menuGrid a {
+    min-height: 142px;
+  }
+}
