@@ -66,6 +66,25 @@ class AuthDataSourceImplTest {
     }
 
     @Test
+    fun `Kakao 소셜 로그인 JSON body에는 Kakao provider와 idToken을 전송한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"status":"SIGN_UP_REQUIRED"}"""),
+        )
+
+        dataSource.socialLogin(SocialLoginProvider.KAKAO, "kakao-id-token")
+        val body = server
+            .takeRequest()
+            .body
+            .readUtf8()
+
+        assertTrue(body.contains("\"provider\":\"KAKAO\""))
+        assertTrue(body.contains("\"idToken\":\"kakao-id-token\""))
+    }
+
+    @Test
     fun `서명 업로드 응답에서 회원가입 토큰을 반환한다`() = runTest {
         server.enqueue(
             MockResponse()

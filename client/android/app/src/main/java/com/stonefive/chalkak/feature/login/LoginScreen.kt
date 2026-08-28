@@ -37,9 +37,17 @@ fun LoginRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val loginWithGoogle = rememberGoogleLoginAction(
-        onStart = viewModel::startCredentialRequest,
+        onStart = { viewModel.startCredentialRequest(SocialLoginProvider.GOOGLE) },
         onSuccess = { idToken ->
             viewModel.login(SocialLoginProvider.GOOGLE, idToken)
+        },
+        onCancelled = viewModel::credentialRequestCancelled,
+        onFailure = viewModel::credentialRequestFailed,
+    )
+    val loginWithKakao = rememberKakaoLoginAction(
+        onStart = { viewModel.startCredentialRequest(SocialLoginProvider.KAKAO) },
+        onSuccess = { idToken ->
+            viewModel.login(SocialLoginProvider.KAKAO, idToken)
         },
         onCancelled = viewModel::credentialRequestCancelled,
         onFailure = viewModel::credentialRequestFailed,
@@ -56,7 +64,7 @@ fun LoginRoute(
         onSocialLoginClick = { provider ->
             when (provider) {
                 SocialLoginProvider.GOOGLE -> loginWithGoogle()
-                SocialLoginProvider.KAKAO -> viewModel.showKakaoPreparing()
+                SocialLoginProvider.KAKAO -> loginWithKakao()
             }
         },
         onContinueAsGuestClick = viewModel::continueAsGuest,

@@ -49,13 +49,37 @@ class LoginViewModelTest {
 
     @Test
     fun `Google 자격 증명 요청이 취소되면 재시도 가능한 상태로 돌아간다`() {
-        assertTrue(viewModel.startCredentialRequest())
+        assertTrue(viewModel.startCredentialRequest(SocialLoginProvider.GOOGLE))
         assertEquals(LoginStatus.Loading, viewModel.uiState.value.status)
 
         viewModel.credentialRequestCancelled()
 
         assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
         assertTrue(viewModel.uiState.value.canSubmit)
+    }
+
+    @Test
+    fun `Kakao 자격 증명 요청이 취소되면 재시도 가능한 상태로 돌아간다`() {
+        assertTrue(viewModel.startCredentialRequest(SocialLoginProvider.KAKAO))
+        assertEquals(LoginStatus.Loading, viewModel.uiState.value.status)
+        assertEquals(SocialLoginProvider.KAKAO, viewModel.uiState.value.activeProvider)
+
+        viewModel.credentialRequestCancelled()
+
+        assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
+        assertEquals(null, viewModel.uiState.value.activeProvider)
+        assertTrue(viewModel.uiState.value.canSubmit)
+    }
+
+    @Test
+    fun `Kakao 로그인은 provider와 idToken을 repository로 전달한다`() = runTest {
+        repository.loginResult = SocialLoginResult.LoginSuccess("user-id")
+
+        viewModel.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+
+        assertEquals(SocialLoginProvider.KAKAO, repository.provider)
+        assertEquals("kakao-id-token", repository.idToken)
+        assertEquals(LoginStatus.Authenticated, viewModel.uiState.value.status)
     }
 
     @Test
@@ -71,6 +95,18 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun `Kakao 백엔드 인증 실패를 카카오 사용자 메시지로 변환한다`() {
+        repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
+
+        viewModel.login(SocialLoginProvider.KAKAO, "id-token")
+
+        assertEquals(
+            "카카오 계정을 확인할 수 없어요. 다시 시도해 주세요.",
+            viewModel.uiState.value.errorMessage,
+        )
+    }
+
+    @Test
     fun `비회원으로 계속하면 게스트 세션으로 전환한다`() = runTest {
         viewModel.continueAsGuest()
 
@@ -81,6 +117,7 @@ class LoginViewModelTest {
 
 private class FakeLoginRepository : AuthRepository {
     var loginResult: SocialLoginResult = SocialLoginResult.SignUpRequired
+    var provider: SocialLoginProvider? = null
     var idToken: String? = null
 
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
@@ -90,6 +127,7 @@ private class FakeLoginRepository : AuthRepository {
         provider: SocialLoginProvider,
         idToken: String,
     ): SocialLoginResult {
+        this.provider = provider
         this.idToken = idToken
         if (loginResult is SocialLoginResult.LoginSuccess) {
             mutableSessionState.value = UserSessionState.Authenticated(

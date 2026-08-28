@@ -46,4 +46,21 @@ class LoginScreenTest {
 
         assertEquals(SocialLoginProvider.GOOGLE, selectedProvider)
     }
+
+    @Test
+    fun tappingKakaoButtonPassesKakaoProvider() {
+        var selectedProvider: SocialLoginProvider? = null
+        composeRule.setContent {
+            ChalkakTheme {
+                LoginScreen(
+                    onSocialLoginClick = { selectedProvider = it },
+                    onContinueAsGuestClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("카카오로 계속하기").performClick()
+
+        assertEquals(SocialLoginProvider.KAKAO, selectedProvider)
+    }
 }

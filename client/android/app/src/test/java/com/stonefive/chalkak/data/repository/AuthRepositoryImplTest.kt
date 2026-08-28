@@ -51,6 +51,36 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun `Kakao 로그인 성공 시 Kakao provider와 idToken을 data source로 전달한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(
+                status = "LOGIN_SUCCESS",
+                userId = "user-id",
+            ),
+        )
+
+        val result = repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+
+        assertEquals(SocialLoginResult.LoginSuccess("user-id"), result)
+        assertEquals(SocialLoginProvider.KAKAO, authDataSource.loginProvider)
+        assertEquals("kakao-id-token", authDataSource.loginIdToken)
+    }
+
+    @Test
+    fun `Kakao 신규 회원은 보류된 Kakao provider와 idToken으로 서명 업로드를 생성한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+        )
+        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+
+        repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+        repository.completeSocialSignUp(byteArrayOf(1))
+
+        assertEquals(SocialLoginProvider.KAKAO, authDataSource.createUploadProvider)
+        assertEquals("kakao-id-token", authDataSource.createUploadIdToken)
+    }
+
+    @Test
     fun `신규 회원은 사인을 한 번 업로드하고 처리 중 응답에는 가입 완료만 재시도한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
             SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
@@ -128,6 +158,8 @@ private class FakeAuthDataSource : AuthDataSource {
         ApiResult.Success(SocialLoginResponse(status = "SIGN_UP_REQUIRED"))
     var loginProvider: SocialLoginProvider? = null
     var loginIdToken: String? = null
+    var createUploadProvider: SocialLoginProvider? = null
+    var createUploadIdToken: String? = null
     var createUploadCount = 0
     var signUpCount = 0
     val signupTokens = mutableListOf<String>()
@@ -146,6 +178,8 @@ private class FakeAuthDataSource : AuthDataSource {
         provider: SocialLoginProvider,
         idToken: String,
     ): ApiResult<SignatureUploadResponse> {
+        createUploadProvider = provider
+        createUploadIdToken = idToken
         createUploadCount += 1
         return ApiResult.Success(
             SignatureUploadResponse(

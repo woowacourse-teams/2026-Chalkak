@@ -21,6 +21,7 @@ val localProperties = Properties().apply {
 }
 val apiBaseUrl = localProperties.requiredProperty("API_BASE_URL")
 val googleServerClientId = localProperties.requiredProperty("GOOGLE_SERVER_CLIENT_ID")
+val kakaoNativeAppKey = localProperties.requiredProperty("KAKAO_NATIVE_APP_KEY")
 
 ktlint {
     version.set("1.8.0")
@@ -52,6 +53,12 @@ android {
             "GOOGLE_SERVER_CLIENT_ID",
             googleServerClientId.toBuildConfigString(),
         )
+        buildConfigField(
+            "String",
+            "KAKAO_NATIVE_APP_KEY",
+            kakaoNativeAppKey.toBuildConfigString(),
+        )
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
     }
 
     buildTypes {
@@ -93,6 +100,7 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.googleid)
+    implementation(libs.kakao.user)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)
