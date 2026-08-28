@@ -4,7 +4,6 @@ import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
-import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,8 +50,6 @@ private class FakeAuthGateRepository : AuthRepository {
     override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult = error("Not used")
 
     override suspend fun continueAsGuest() = Unit
-
-    override suspend fun getMyProfile(): UserProfile? = null
 
     override suspend fun logout() = Unit
 

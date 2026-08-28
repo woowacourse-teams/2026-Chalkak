@@ -28,5 +28,13 @@ class SignaturePngEncoderTest {
         assertEquals(512, bitmap.height)
         assertEquals(0, bitmap.getPixel(0, 0).ushr(24))
         assertTrue(bitmap.hasAlpha())
+        assertTrue(
+            (0 until bitmap.height).any { y ->
+                (0 until bitmap.width).any { x ->
+                    val pixel = bitmap.getPixel(x, y)
+                    pixel.ushr(24) > 0 && pixel and 0x00FFFFFF == 0x00FFFFFF
+                }
+            },
+        )
     }
 }

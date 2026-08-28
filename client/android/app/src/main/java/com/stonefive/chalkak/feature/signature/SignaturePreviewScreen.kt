@@ -26,9 +26,10 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.UserProfile
 
 @Composable
-fun SignaturePreviewRoute(
+fun OnboardingSignaturePreviewRoute(
     imageModel: Any?,
     signaturePng: ByteArray,
     onRedrawClick: () -> Unit,
@@ -59,6 +60,36 @@ fun SignaturePreviewRoute(
 }
 
 @Composable
+fun ChangeSignaturePreviewRoute(
+    signaturePng: ByteArray,
+    onSignatureChanged: (UserProfile) -> Unit,
+    onRedrawClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: SignatureChangeViewModel = viewModel(factory = SignatureChangeViewModel.Factory),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(uiState.status) {
+        val status = uiState.status
+        if (status is SignatureChangeStatus.Completed) {
+            onSignatureChanged(status.profile)
+        }
+    }
+
+    SignaturePreviewScreen(
+        imageModel = R.drawable.preview_photo,
+        signatureModel = signaturePng,
+        onRedrawClick = onRedrawClick,
+        onStartClick = { viewModel.updateSignature(signaturePng) },
+        modifier = modifier,
+        isSubmitting = uiState.isSubmitting,
+        errorMessage = uiState.errorMessage,
+        confirmText = "사인 변경하기",
+        noticeText = "사인 변경까지 시간이 조금 걸릴 수 있어요",
+    )
+}
+
+@Composable
 fun SignaturePreviewScreen(
     imageModel: Any?,
     signatureModel: Any,
@@ -67,6 +98,8 @@ fun SignaturePreviewScreen(
     modifier: Modifier = Modifier,
     isSubmitting: Boolean = false,
     errorMessage: String? = null,
+    confirmText: String = "시작하기",
+    noticeText: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -82,6 +115,17 @@ fun SignaturePreviewScreen(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title1,
         )
+
+        noticeText?.let { text ->
+            Text(
+                text = text,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = ChalkakTheme.spacing.sm),
+                color = ChalkakTheme.colors.textMuted,
+                style = ChalkakTheme.typography.subheadline,
+            )
+        }
 
         Spacer(modifier = Modifier.height(50.dp))
 
@@ -120,7 +164,7 @@ fun SignaturePreviewScreen(
             )
 
             ChalkakButton(
-                text = "시작하기",
+                text = confirmText,
                 onClick = onStartClick,
                 modifier = Modifier.weight(1f),
                 enabled = !isSubmitting,

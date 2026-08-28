@@ -1,12 +1,16 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserProfile
+import com.stonefive.chalkak.domain.model.UserProfileLoadException
+import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -20,18 +24,36 @@ class SettingsViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val repository = FakeSettingsAuthRepository()
+    private val authRepository = FakeSettingsAuthRepository()
+    private val userRepository = FakeSettingsUserRepository()
 
     @Test
     fun `프로필이 있으면 로그인 상태와 서명을 제공한다`() = runTest {
-        repository.profile = UserProfile(signatureUrl = "signature-url")
+        authRepository.setAuthenticated()
+        userRepository.profile = UserProfile(
+            signatureUrl = "original-signature-url",
+            signatureThumbnailUrl = "thumbnail-signature-url",
+        )
 
         val viewModel = createViewModel()
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertTrue(viewModel.uiState.value.isLoggedIn)
-        assertEquals("signature-url", viewModel.uiState.value.signatureModel)
+        assertEquals("thumbnail-signature-url", viewModel.uiState.value.signatureUrl)
         assertEquals("1.2.4", viewModel.uiState.value.versionName)
+    }
+
+    @Test
+    fun `서명 조회가 401이면 로그아웃 상태를 제공한다`() = runTest {
+        authRepository.setAuthenticated()
+        userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.UNAUTHORIZED)
+
+        val viewModel = createViewModel()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
+        assertEquals(null, viewModel.uiState.value.signatureErrorMessage)
+        assertEquals(null, viewModel.uiState.value.signatureUrl)
     }
 
     @Test
@@ -40,22 +62,23 @@ class SettingsViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.isLoggedIn)
+        assertEquals(0, userRepository.getMySignatureCalled)
     }
 
     @Test
     fun `로그아웃 API 성공 후 로그인 화면으로 이동한다`() = runTest {
-        repository.profile = UserProfile(signatureUrl = null)
+        authRepository.setAuthenticated()
         val viewModel = createViewModel()
 
         viewModel.showLogoutDialog()
 
-        assertFalse(repository.logoutCalled)
+        assertFalse(authRepository.logoutCalled)
 
         viewModel.confirmAccountAction()
 
-        assertTrue(repository.logoutCalled)
+        assertTrue(authRepository.logoutCalled)
         assertFalse(viewModel.uiState.value.isLoggedIn)
-        assertEquals(UserSessionState.SignedOut, repository.sessionState.value)
+        assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
     }
 
     @Test
@@ -66,23 +89,24 @@ class SettingsViewModelTest {
         viewModel.dismissAccountDialog()
 
         assertEquals(null, viewModel.uiState.value.accountDialog)
-        assertFalse(repository.logoutCalled)
+        assertFalse(authRepository.logoutCalled)
     }
 
     @Test
     fun `회원탈퇴 확인 시 회원탈퇴 API를 호출한다`() = runTest {
-        repository.profile = UserProfile(signatureUrl = null)
+        authRepository.setAuthenticated()
         val viewModel = createViewModel()
 
         viewModel.showWithdrawDialog()
         viewModel.confirmAccountAction()
 
-        assertTrue(repository.withdrawCalled)
-        assertEquals(UserSessionState.SignedOut, repository.sessionState.value)
+        assertTrue(authRepository.withdrawCalled)
+        assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
     }
 
     private fun createViewModel() = SettingsViewModel(
-        authRepository = repository,
+        authRepository = authRepository,
+        userRepository = userRepository,
         versionName = "1.2.4",
     )
 }
@@ -91,17 +115,12 @@ private class FakeSettingsAuthRepository : AuthRepository {
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.Guest)
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
-    var profile: UserProfile? = null
-        set(value) {
-            field = value
-            mutableSessionState.value = if (value == null) {
-                UserSessionState.Guest
-            } else {
-                UserSessionState.Authenticated("user-id")
-            }
-        }
     var logoutCalled: Boolean = false
     var withdrawCalled: Boolean = false
+
+    fun setAuthenticated() {
+        mutableSessionState.value = UserSessionState.Authenticated("user-id")
+    }
 
     override suspend fun login(
         provider: SocialLoginProvider,
@@ -114,17 +133,30 @@ private class FakeSettingsAuthRepository : AuthRepository {
         mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun getMyProfile(): UserProfile? = profile
-
     override suspend fun logout() {
         logoutCalled = true
-        profile = null
         mutableSessionState.value = UserSessionState.SignedOut
     }
 
     override suspend fun withdraw() {
         withdrawCalled = true
-        profile = null
         mutableSessionState.value = UserSessionState.SignedOut
     }
+}
+
+private class FakeSettingsUserRepository : UserRepository {
+    var profile: UserProfile = UserProfile(
+        signatureUrl = "signature-url",
+        signatureThumbnailUrl = "signature-thumbnail-url",
+    )
+    var profileError: Throwable? = null
+    var getMySignatureCalled: Int = 0
+
+    override suspend fun getMySignature(): UserProfile {
+        getMySignatureCalled += 1
+        profileError?.let { throw it }
+        return profile
+    }
+
+    override suspend fun updateMySignature(signaturePng: ByteArray): SignatureUpdateResult = error("Not used")
 }

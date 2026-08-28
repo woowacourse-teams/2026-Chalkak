@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.navigation
 
-import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -10,17 +9,16 @@ data object Login
 data object Terms
 
 @Serializable
-data class Signature(val origin: SignatureOrigin)
+data object OnboardingSignature
 
 @Serializable
-data object SignaturePreview
+data object ChangeSignature
 
 @Serializable
-@Keep
-enum class SignatureOrigin {
-    ONBOARDING,
-    SETTINGS,
-}
+data object OnboardingSignaturePreview
+
+@Serializable
+data object ChangeSignaturePreview
 
 @Serializable
 data object Today

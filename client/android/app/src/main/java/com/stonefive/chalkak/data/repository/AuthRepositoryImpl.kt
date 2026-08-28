@@ -12,7 +12,6 @@ import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpFailure
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
-import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import kotlinx.coroutines.delay
@@ -81,10 +80,6 @@ class AuthRepositoryImpl(
         pendingLogin = null
         sessionStore.continueAsGuest()
     }
-
-    override suspend fun getMyProfile(): UserProfile? =
-        (sessionStore.sessionState.value as? UserSessionState.Authenticated)
-            ?.let { UserProfile(signatureUrl = null) }
 
     override suspend fun logout() {
         pendingLogin = null

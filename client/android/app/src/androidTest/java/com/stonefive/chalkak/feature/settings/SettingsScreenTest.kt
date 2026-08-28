@@ -24,7 +24,7 @@ class SettingsScreenTest {
         setSettingsContent(
             SettingsUiState(
                 isLoggedIn = true,
-                signatureModel = R.drawable.preview_signature,
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )
@@ -33,6 +33,23 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("로그아웃").assertIsDisplayed()
         composeRule.onNodeWithText("회원탈퇴").assertIsDisplayed()
         composeRule.onAllNodesWithText("로그인").assertCountEquals(0)
+    }
+
+    @Test
+    fun tappingChangeSignatureInvokesChangeCallback() {
+        var changeClicked = false
+        setSettingsContent(
+            uiState = SettingsUiState(
+                isLoggedIn = true,
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                versionName = "1.0",
+            ),
+            onChangeSignatureClick = { changeClicked = true },
+        )
+
+        composeRule.onNodeWithText("변경하기").performClick()
+
+        assertTrue(changeClicked)
     }
 
     @Test
@@ -118,6 +135,7 @@ class SettingsScreenTest {
     private fun setSettingsContent(
         uiState: SettingsUiState,
         onLoginClick: () -> Unit = {},
+        onChangeSignatureClick: () -> Unit = {},
         onPrivacyPolicyClick: () -> Unit = {},
         onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
@@ -128,7 +146,7 @@ class SettingsScreenTest {
                 SettingsScreen(
                     uiState = uiState,
                     onLoginClick = onLoginClick,
-                    onChangeSignatureClick = {},
+                    onChangeSignatureClick = onChangeSignatureClick,
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
                     onLogoutClick = {},

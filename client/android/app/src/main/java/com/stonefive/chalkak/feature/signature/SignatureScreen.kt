@@ -29,7 +29,7 @@ import com.stonefive.chalkak.feature.signature.component.SignatureControlButton
 import com.stonefive.chalkak.feature.signature.component.SignaturePad
 
 @Composable
-fun SignatureRoute(
+fun SignatureEditorRoute(
     onSignatureSaved: (ByteArray) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignatureViewModel = viewModel(factory = SignatureViewModel.Factory),

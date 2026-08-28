@@ -11,18 +11,18 @@ import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
-import com.stonefive.chalkak.data.remote.signature.MockSignatureRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
+import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
 import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
 import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
-import com.stonefive.chalkak.data.repository.SignatureRepositoryImpl
+import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.DisplayRepository
 import com.stonefive.chalkak.domain.repository.HomeRepository
 import com.stonefive.chalkak.domain.repository.RecordRepository
-import com.stonefive.chalkak.domain.repository.SignatureRepository
+import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -44,9 +44,22 @@ class AppContainer(context: Context) {
 
     val authRepository: AuthRepository by lazy {
         AuthRepositoryImpl(
-            authDataSource = AuthDataSourceImpl(networkModule.authApi, networkModule.json),
+            authDataSource = AuthDataSourceImpl(
+                networkModule.authApi,
+                networkModule.apiRequestExecutor,
+            ),
             signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
             sessionStore = sessionStore,
+        )
+    }
+
+    val userRepository: UserRepository by lazy {
+        UserRepositoryImpl(
+            userDataSource = UserDataSourceImpl(
+                networkModule.userApi,
+                networkModule.apiRequestExecutor,
+            ),
+            signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
         )
     }
 
@@ -74,12 +87,6 @@ class AppContainer(context: Context) {
     val displayRepository: DisplayRepository by lazy {
         DisplayRepositoryImpl(
             remoteDataSource = MockDisplayRemoteDataSource(),
-        )
-    }
-
-    val signatureRepository: SignatureRepository by lazy {
-        SignatureRepositoryImpl(
-            remoteDataSource = MockSignatureRemoteDataSource(),
         )
     }
 }

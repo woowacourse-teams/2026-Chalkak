@@ -7,8 +7,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.domain.model.UserProfileLoadException
+import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +23,7 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val authRepository: AuthRepository,
+    private val userRepository: UserRepository,
     versionName: String,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -43,6 +47,15 @@ class SettingsViewModel(
 
     fun showWithdrawDialog() {
         _uiState.update { it.copy(accountDialog = SettingsAccountDialog.WITHDRAW) }
+    }
+
+    fun applySignatureUpdate(signatureUrl: String) {
+        _uiState.update {
+            it.copy(
+                signatureUrl = signatureUrl,
+                signatureErrorMessage = null,
+            )
+        }
     }
 
     fun dismissAccountDialog() {
@@ -71,12 +84,12 @@ class SettingsViewModel(
                     it.copy(
                         isLoggedIn = false,
                         isAccountActionInProgress = false,
-                        signatureModel = null,
+                        signatureUrl = null,
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 _uiState.update { it.copy(isAccountActionInProgress = false) }
                 _uiEvent.send(SettingsUiEvent.AccountActionFailed)
             }
@@ -90,27 +103,54 @@ class SettingsViewModel(
                     it.copy(
                         isLoading = false,
                         isLoggedIn = false,
-                        signatureModel = null,
+                        signatureUrl = null,
                     )
                 }
                 return@launch
             }
 
             try {
-                val profile = authRepository.getMyProfile()
+                val profile = userRepository.getMySignature()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         isLoggedIn = true,
-                        signatureModel = profile?.signatureUrl,
+                        signatureUrl = profile.signatureThumbnailUrl,
+                        signatureErrorMessage = null,
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Throwable) {
-                _uiState.update { it.copy(isLoading = false) }
+            } catch (error: UserProfileLoadException) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isLoggedIn = false,
+                        signatureUrl = null,
+                        signatureErrorMessage = null,
+                    )
+                }
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        signatureUrl = null,
+                        signatureErrorMessage = "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+                    )
+                }
             }
         }
+    }
+
+    private fun UserProfileLoadFailure.toMessage(): String = when (this) {
+        UserProfileLoadFailure.UNAUTHORIZED -> "유효하지 않은 인증 정보입니다."
+
+        UserProfileLoadFailure.FORBIDDEN -> "서비스를 이용할 수 없는 계정입니다."
+
+        UserProfileLoadFailure.NETWORK,
+        UserProfileLoadFailure.UNKNOWN,
+        -> "사인을 불러오지 못했어요. 다시 시도해 주세요."
     }
 
     companion object {
@@ -119,6 +159,7 @@ class SettingsViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 SettingsViewModel(
                     authRepository = application.appContainer.authRepository,
+                    userRepository = application.appContainer.userRepository,
                     versionName = BuildConfig.VERSION_NAME,
                 )
             }

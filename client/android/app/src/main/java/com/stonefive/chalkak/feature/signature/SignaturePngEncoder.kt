@@ -102,6 +102,6 @@ class AndroidSignaturePngEncoder : SignaturePngEncoder {
         const val PADDING_PX = 48
         const val STROKE_WIDTH_PX = 14f
         const val MIN_NORMALIZED_SIZE = 0.02f
-        val SIGNATURE_COLOR = Color.rgb(43, 39, 36)
+        val SIGNATURE_COLOR = Color.WHITE
     }
 }

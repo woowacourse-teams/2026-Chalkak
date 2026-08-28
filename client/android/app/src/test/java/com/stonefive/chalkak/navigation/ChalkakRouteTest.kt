@@ -34,14 +34,11 @@ class ChalkakRouteTest {
     }
 
     @Test
-    fun `signature route preserves its entry origin after serialization`() {
-        SignatureOrigin.entries.forEach { origin ->
-            val route = Signature(origin)
-
-            val restored = Json.decodeFromString<Signature>(Json.encodeToString(route))
-
-            assertEquals(route, restored)
-        }
+    fun `signature flow destinations are serializable`() {
+        assertEquals(OnboardingSignature, roundTrip(OnboardingSignature))
+        assertEquals(ChangeSignature, roundTrip(ChangeSignature))
+        assertEquals(OnboardingSignaturePreview, roundTrip(OnboardingSignaturePreview))
+        assertEquals(ChangeSignaturePreview, roundTrip(ChangeSignaturePreview))
     }
 
     @Test
@@ -59,4 +56,6 @@ class ChalkakRouteTest {
 
         assertEquals(route, restored)
     }
+
+    private inline fun <reified T> roundTrip(route: T): T = Json.decodeFromString(Json.encodeToString(route))
 }

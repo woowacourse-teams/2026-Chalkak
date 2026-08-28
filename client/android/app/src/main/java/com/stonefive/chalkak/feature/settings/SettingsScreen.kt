@@ -38,9 +38,14 @@ fun SettingsRoute(
     onOpenTerms: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
+    signatureUpdateUrl: String? = null,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(signatureUpdateUrl) {
+        signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
@@ -123,7 +128,8 @@ fun SettingsScreen(
                 uiState.isLoading -> Spacer(modifier = Modifier.height(56.dp))
 
                 uiState.isLoggedIn -> SettingsSignatureCard(
-                    signatureModel = uiState.signatureModel,
+                    signatureUrl = uiState.signatureUrl,
+                    errorMessage = uiState.signatureErrorMessage,
                     onChangeClick = onChangeSignatureClick,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -167,7 +173,7 @@ private fun AuthenticatedSettingsScreenPreview() {
         SettingsScreenPreview(
             uiState = SettingsUiState(
                 isLoggedIn = true,
-                signatureModel = R.drawable.preview_signature,
+                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )
