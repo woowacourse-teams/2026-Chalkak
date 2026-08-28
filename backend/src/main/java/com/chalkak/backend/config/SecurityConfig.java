@@ -55,6 +55,10 @@ public class SecurityConfig {
                         .requestMatchers("/internal/v1/**").permitAll()
                         // 막으면 헬스체크가 실패해 배포가 중단된다.
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // 관리자 API는 회원 액세스 토큰이 아니라 자체 수단으로 행위자를 정한다.
+                        // 비운영에서는 개발 관리자 계정을 쓰고, 운영에서는 ProdAdminAccessInterceptor가
+                        // 전면 차단한다. 여기서 회원 인증을 요구하면 관리자 콘솔이 아예 호출할 수 없다.
+                        .requestMatchers("/api/v1/admin/**").permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                         // 새 API에 인증을 붙이는 것을 잊어도 기본값이 차단이 되도록 한다.
                         .anyRequest().authenticated())
