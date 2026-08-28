@@ -42,6 +42,14 @@ public interface PostLikeApiDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "게시물을 찾을 수 없음",
                     content = @Content(

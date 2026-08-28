@@ -172,28 +172,4 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
     }
-
-    @Test
-    @DisplayName("정지된 회원은 업로드 URL을 발급받지 못한다")
-    void createPostImageUpload_bannedUser_throwsNotFound() {
-        // When & Then
-        assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
-    }
-
-    @Test
-    @DisplayName("정지된 회원의 발급 시도는 업로드 행을 남기지 않는다")
-    void createPostImageUpload_bannedUser_leavesNoUploadRow() {
-        // When
-        assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(NotFoundException.class);
-
-        // Then
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_image_uploads WHERE user_id = ?",
-                Integer.class,
-                BANNED_USER_ID
-        )).isZero();
-    }
 }

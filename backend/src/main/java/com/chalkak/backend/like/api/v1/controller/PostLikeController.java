@@ -1,6 +1,7 @@
 package com.chalkak.backend.like.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
+import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.like.api.v1.docs.PostLikeApiDocs;
@@ -26,6 +27,7 @@ public class PostLikeController implements PostLikeApiDocs {
     private final PostLikeService postLikeService;
 
     @Override
+    @RequiresUsableUser
     @PutMapping("/{postId}/likes")
     public ResponseEntity<PostLikeResponse> likePost(
             @PathVariable String postId,

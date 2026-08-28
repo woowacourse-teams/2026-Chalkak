@@ -52,6 +52,14 @@ public interface PostApiDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "사진을 업로드할 회원을 찾을 수 없음",
                     content = @Content(
@@ -86,6 +94,14 @@ public interface PostApiDocs {
             @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

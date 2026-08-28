@@ -118,4 +118,5 @@ class PostLikeControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
     }
+
 }
