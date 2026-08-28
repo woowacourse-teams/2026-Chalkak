@@ -7,6 +7,7 @@ import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
+import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.MockSignatureRemoteDataSource
@@ -47,6 +48,15 @@ class AppContainer(context: Context) {
     }
 
     val homeRepository: HomeRepository by lazy {
+        HomeRepositoryImpl(
+            remoteDataSource = HomeRemoteDataSourceImpl(
+                api = networkModule.homeApi,
+                json = networkModule.json,
+            ),
+        )
+    }
+
+    val feedRepository: HomeRepository by lazy {
         HomeRepositoryImpl(
             remoteDataSource = MockHomeRemoteDataSource(),
         )

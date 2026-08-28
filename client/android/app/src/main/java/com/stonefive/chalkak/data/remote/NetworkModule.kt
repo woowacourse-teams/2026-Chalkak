@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.remote
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.auth.AuthApi
+import com.stonefive.chalkak.data.remote.home.HomeApi
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -32,6 +33,7 @@ class NetworkModule(
         .build()
 
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
+    val homeApi: HomeApi = retrofit.create(HomeApi::class.java)
 
     val signatureUploadClient = OkHttpClient
         .Builder()

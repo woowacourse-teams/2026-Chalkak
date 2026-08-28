@@ -2,55 +2,72 @@ package com.stonefive.chalkak.data.remote.home
 
 import androidx.annotation.DrawableRes
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePhotoResponse
-import com.stonefive.chalkak.data.remote.home.model.HomeResponse
-import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
+import com.stonefive.chalkak.data.remote.home.model.HomePostResponse
+import com.stonefive.chalkak.data.remote.home.model.HomeTopicResponse
+import com.stonefive.chalkak.domain.model.HomeQuery
+import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : HomeRemoteDataSource {
     private val likedPhotoIds = mutableSetOf<String>()
 
-    @Suppress("UNUSED_PARAMETER")
-    override suspend fun getHome(sort: PostSort): HomeResponse {
+    override suspend fun getTopic(date: LocalDate): ApiResult<HomeTopicResponse> {
         delay(responseDelayMillis)
-        return HomeResponse(
-            dateLabel = "8월 3일 · 오늘의 주제",
-            topic = "하늘하늘하늘",
-            photos = listOf(
-                HomePhotoResponse(
-                    id = FIRST_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "노을이 진 하늘과 전신주",
-                    title = "안녕하세요 찰캌입니다",
-                    likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT),
-                ),
-                HomePhotoResponse(
-                    id = SECOND_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "오늘의 주제를 담은 두 번째 사진",
-                    title = null,
-                    likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT),
-                ),
-                HomePhotoResponse(
-                    id = THIRD_PHOTO_ID,
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    contentDescription = "저녁 하늘을 담은 세 번째 사진",
-                    title = "저녁 하늘",
-                    likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT),
-                ),
+        return ApiResult.Success(
+            HomeTopicResponse(
+                id = "sample-home-topic",
+                title = "하늘하늘하늘",
+                topicDate = date.toString(),
             ),
-            likedPhotoIds = likedPhotoIds.toSet(),
+        )
+    }
+
+    override suspend fun getPosts(query: HomeQuery): ApiResult<HomePostPageResponse> {
+        delay(responseDelayMillis)
+        val posts = listOf(
+            HomePostResponse(
+                id = FIRST_PHOTO_ID,
+                originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                title = "안녕하세요 찰캌입니다",
+                likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT).toLong(),
+                isLiked = FIRST_PHOTO_ID in likedPhotoIds,
+            ),
+            HomePostResponse(
+                id = SECOND_PHOTO_ID,
+                originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                title = null,
+                likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT).toLong(),
+                isLiked = SECOND_PHOTO_ID in likedPhotoIds,
+            ),
+            HomePostResponse(
+                id = THIRD_PHOTO_ID,
+                originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                title = "저녁 하늘",
+                likeCount = currentLikeCount(THIRD_PHOTO_ID, THIRD_PHOTO_LIKE_COUNT).toLong(),
+                isLiked = THIRD_PHOTO_ID in likedPhotoIds,
+            ),
+        )
+        return ApiResult.Success(
+            HomePostPageResponse(
+                currentPage = query.page,
+                pageSize = query.pageSize,
+                hasNext = false,
+                randomSeed = query.randomSeed,
+                posts = posts,
+            ),
         )
     }
 
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): HomeLikeResponse {
+    ): ApiResult<HomeLikeResponse> {
         delay(responseDelayMillis)
         // Feed는 Display 등 다른 소스의 게시물도 열 수 있어 이 Mock이 모르는 id가 올 수 있다.
         // 프로토타입 단계에서는 예외 대신 기본값으로 관대하게 처리한다.
@@ -60,8 +77,12 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
         } else {
             likedPhotoIds -= photoId
         }
-        return HomeLikeResponse(
-            likeCount = defaultLikeCount + if (isLiked) 1 else 0,
+        return ApiResult.Success(
+            HomeLikeResponse(
+                postId = photoId,
+                likeCount = (defaultLikeCount + if (isLiked) 1 else 0).toLong(),
+                isLiked = isLiked,
+            ),
         )
     }
 

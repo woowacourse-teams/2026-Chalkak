@@ -1,19 +1,38 @@
 package com.stonefive.chalkak.data.remote.home.model
 
-data class HomeResponse(
-    val dateLabel: String,
-    val topic: String,
-    val photos: List<HomePhotoResponse>,
-    val likedPhotoIds: Set<String>,
-)
+import kotlinx.serialization.Serializable
 
-data class HomePhotoResponse(
+@Serializable
+data class HomeTopicResponse(
     val id: String,
-    val imageUrl: String,
-    val signatureUrl: String,
-    val contentDescription: String,
-    val title: String?,
-    val likeCount: Int,
+    val title: String,
+    val topicDate: String,
 )
 
-data class HomeLikeResponse(val likeCount: Int)
+@Serializable
+data class HomePostPageResponse(
+    val currentPage: Int,
+    val pageSize: Int,
+    val hasNext: Boolean,
+    val randomSeed: String? = null,
+    val posts: List<HomePostResponse>,
+)
+
+@Serializable
+data class HomePostResponse(
+    val id: String,
+    val originalImageUrl: String,
+    val thumbnailImageUrl: String? = null,
+    val signatureOriginalImageUrl: String,
+    val signatureThumbnailImageUrl: String? = null,
+    val title: String? = null,
+    val likeCount: Long,
+    val isLiked: Boolean,
+)
+
+@Serializable
+data class HomeLikeResponse(
+    val postId: String,
+    val likeCount: Long,
+    val isLiked: Boolean,
+)
