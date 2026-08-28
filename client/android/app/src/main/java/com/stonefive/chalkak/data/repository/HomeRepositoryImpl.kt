@@ -104,7 +104,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         return Post(
             id = id,
             imageUrl = thumbnailImageUrl ?: originalImageUrl,
-            signatureUrl = signatureThumbnailImageUrl ?: signatureOriginalImageUrl,
+            signatureUrl = signatureThumbnailImageUrl,
             contentDescription = title
                 ?.takeIf(String::isNotBlank)
                 ?.let { "작품 이미지: $it" }

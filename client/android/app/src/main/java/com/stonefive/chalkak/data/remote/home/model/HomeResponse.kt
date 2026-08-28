@@ -24,7 +24,7 @@ data class HomePostResponse(
     val originalImageUrl: String,
     val thumbnailImageUrl: String? = null,
     val signatureOriginalImageUrl: String,
-    val signatureThumbnailImageUrl: String? = null,
+    val signatureThumbnailImageUrl: String,
     val title: String? = null,
     val likeCount: Long,
     val isLiked: Boolean,

@@ -205,6 +205,33 @@ class HomeRemoteDataSourceImplTest {
     }
 
     @Test
+    fun `사인 썸네일이 누락되거나 null이면 invalid response다`() = runTest {
+        listOf(
+            POSTS_BODY.replace(
+                "\"signatureThumbnailImageUrl\":\"https://example.com/signature-thumbnail.png\",",
+                "",
+            ),
+            POSTS_BODY.replace(
+                "\"signatureThumbnailImageUrl\":\"https://example.com/signature-thumbnail.png\"",
+                "\"signatureThumbnailImageUrl\":null",
+            ),
+        ).forEach { body ->
+            server.enqueue(jsonResponse(body))
+
+            assertEquals(
+                ApiResult.Failure(ApiError.InvalidResponse),
+                dataSource.getPosts(
+                    HomeQuery(
+                        date = LocalDate.of(2026, 8, 28),
+                        sort = PostSort.LATEST,
+                        page = 1,
+                    ),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun `서버 연결 실패는 network failure다`() = runTest {
         server.shutdown()
 
@@ -235,7 +262,7 @@ class HomeRemoteDataSourceImplTest {
         const val TOPIC_BODY =
             """{"id":"topic-id","title":"바다","topicDate":"2026-08-28","startsAt":"2026-08-27T15:00:00Z","endsAt":"2026-08-28T15:00:00Z","phase":"ACTIVE"}"""
         const val POSTS_BODY =
-            """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":null,"signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":null,"title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false}]}"""
+            """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":null,"signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumbnail.png","title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false}]}"""
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
     }
