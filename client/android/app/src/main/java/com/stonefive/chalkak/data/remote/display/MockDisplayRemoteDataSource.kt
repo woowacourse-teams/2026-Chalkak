@@ -40,13 +40,18 @@ class MockDisplayRemoteDataSource(private val responseDelayMillis: Long = 0L) : 
         )
     }
 
-    private fun photosFor(date: LocalDate): List<DisplayPhotoResponse> = photoSeeds.mapIndexed { index, seed ->
-        seed.copy(id = "display-$date-$index")
+    private fun photosFor(date: LocalDate): List<DisplayPhotoResponse> = List(DISPLAY_PHOTO_COUNT) { index ->
+        val seed = photoSeeds[index % photoSeeds.size]
+        seed.copy(
+            id = "display-$date-$index",
+            contentDescription = "${seed.contentDescription} ${index + 1}",
+        )
     }
 
     private companion object {
         val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
         val EARLIEST_DATE: LocalDate = LocalDate.of(2026, 8, 1)
+        const val DISPLAY_PHOTO_COUNT = 12
 
         val photoSeeds = listOf(
             DisplayPhotoResponse(

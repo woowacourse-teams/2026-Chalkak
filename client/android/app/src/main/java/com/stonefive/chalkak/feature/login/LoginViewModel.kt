@@ -20,9 +20,12 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
-    fun startCredentialRequest(): Boolean {
+    fun startCredentialRequest(provider: SocialLoginProvider): Boolean {
         if (!_uiState.value.canSubmit) return false
-        _uiState.value = LoginUiState(status = LoginStatus.Loading)
+        _uiState.value = LoginUiState(
+            status = LoginStatus.Loading,
+            activeProvider = provider,
+        )
         return true
     }
 
@@ -30,21 +33,31 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
         provider: SocialLoginProvider,
         idToken: String,
     ) {
-        _uiState.value = LoginUiState(status = LoginStatus.Loading)
+        _uiState.value = LoginUiState(
+            status = LoginStatus.Loading,
+            activeProvider = provider,
+        )
         viewModelScope.launch {
             try {
                 when (val result = authRepository.login(provider, idToken)) {
                     is SocialLoginResult.LoginSuccess -> {
-                        _uiState.value = LoginUiState(status = LoginStatus.Authenticated)
+                        _uiState.value = LoginUiState(
+                            status = LoginStatus.Authenticated,
+                            activeProvider = provider,
+                        )
                     }
 
                     SocialLoginResult.SignUpRequired -> {
-                        _uiState.value = LoginUiState(status = LoginStatus.SignUpRequired)
+                        _uiState.value = LoginUiState(
+                            status = LoginStatus.SignUpRequired,
+                            activeProvider = provider,
+                        )
                     }
 
                     is SocialLoginResult.Failure -> {
                         _uiState.value = LoginUiState(
-                            status = LoginStatus.Failed(result.reason.toMessage()),
+                            status = LoginStatus.Failed(result.reason.toMessage(provider)),
+                            activeProvider = provider,
                         )
                     }
                 }
@@ -53,6 +66,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
             } catch (error: Throwable) {
                 _uiState.value = LoginUiState(
                     status = LoginStatus.Failed("로그인하지 못했어요. 다시 시도해 주세요."),
+                    activeProvider = provider,
                 )
             }
         }
@@ -63,12 +77,8 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
 
     fun credentialRequestFailed(message: String) {
-        _uiState.value = LoginUiState(status = LoginStatus.Failed(message))
-    }
-
-    fun showKakaoPreparing() {
-        _uiState.value = LoginUiState(
-            status = LoginStatus.Failed("카카오 로그인은 준비 중이에요."),
+        _uiState.value = _uiState.value.copy(
+            status = LoginStatus.Failed(message),
         )
     }
 
@@ -96,10 +106,11 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
 
-    private fun SocialAuthFailure.toMessage(): String = when (this) {
+    private fun SocialAuthFailure.toMessage(provider: SocialLoginProvider): String = when (this) {
         SocialAuthFailure.NETWORK_UNAVAILABLE -> "네트워크 연결을 확인해 주세요."
 
-        SocialAuthFailure.UNAUTHORIZED -> "Google 계정을 확인할 수 없어요. 다시 시도해 주세요."
+        SocialAuthFailure.UNAUTHORIZED ->
+            "${provider.displayName} 계정을 확인할 수 없어요. 다시 시도해 주세요."
 
         SocialAuthFailure.UNSUPPORTED_PROVIDER -> "아직 지원하지 않는 로그인 방식이에요."
 
@@ -107,6 +118,12 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
         SocialAuthFailure.UNKNOWN,
         -> "로그인하지 못했어요. 다시 시도해 주세요."
     }
+
+    private val SocialLoginProvider.displayName: String
+        get() = when (this) {
+            SocialLoginProvider.GOOGLE -> "Google"
+            SocialLoginProvider.KAKAO -> "카카오"
+        }
 
     companion object {
         val Factory = viewModelFactory {

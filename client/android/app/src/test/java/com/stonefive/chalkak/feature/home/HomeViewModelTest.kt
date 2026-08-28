@@ -248,64 +248,20 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `정렬 변경은 목록과 페이지 seed 다음 페이지 상태를 초기화한다`() = runTest {
-        val repository = RecordingHomeRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent(randomSeed = "old-seed", hasNext = true)),
-                    HomeResult.Success(
-                        homeContent(
-                            photos = listOf(post("popular")),
-                            randomSeed = null,
-                            hasNext = false,
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
-
-        val state = viewModel.uiState.value
-        assertEquals(PostSort.POPULAR, state.selectedSort)
-        assertEquals(listOf("popular"), state.photos.map(Post::id))
-        assertEquals(1, state.currentPage)
-        assertFalse(state.hasNext)
-        assertEquals(null, state.randomSeed)
-        assertFalse(state.isLoadingNext)
-    }
-
-    @Test
-    fun `이전 정렬 응답은 최신 정렬 결과를 덮어쓰지 않는다`() = runTest {
-        val repository = ControlledHomeRepository()
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
-        repository.completeHome(1, HomeResult.Success(homeContent(topic = "인기")))
-        repository.completeHome(0, HomeResult.Success(homeContent(topic = "최신")))
-
-        assertEquals(PostSort.POPULAR, viewModel.uiState.value.selectedSort)
-        assertEquals("인기", viewModel.uiState.value.topic)
-    }
-
-    @Test
-    fun `새 랜덤 정렬 세션은 이전 seed를 재사용하지 않는다`() = runTest {
+    fun `연속 새로고침은 매번 새로운 랜덤 세션이라 이전 seed를 재사용하지 않는다`() = runTest {
         val repository = RecordingHomeRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent()),
                     HomeResult.Success(homeContent(randomSeed = "first-seed")),
-                    HomeResult.Success(homeContent()),
                     HomeResult.Success(homeContent(randomSeed = "second-seed")),
                 ),
             ),
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.LATEST))
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(HomeUiAction.RefreshRequested)
 
         val randomQueries = repository.homeQueries.filter { it.sort == PostSort.RANDOM }
         assertEquals(2, randomQueries.size)
@@ -358,7 +314,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
 
         assertEquals(
@@ -399,7 +355,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
 
         assertTrue(repository.pageQueries.isEmpty())
@@ -430,7 +386,7 @@ class HomeViewModelTest {
             ),
         )
         val viewModel = homeViewModel(repository)
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.RANDOM))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
 
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
@@ -583,7 +539,7 @@ class HomeViewModelTest {
         )
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        viewModel.onAction(HomeUiAction.RefreshRequested)
         assertEquals(1, repository.homeQueries.size)
         repository.completeLike(2, HomeResult.Failure(HomeFailure.Network))
         repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 40, liked = true)))

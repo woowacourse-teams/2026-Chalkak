@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -35,6 +36,7 @@ fun HomePhotoList(
     onEndThresholdChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
+    topContentPadding: Dp = 0.dp,
 ) {
     LaunchedEffect(state, photos.size) {
         snapshotFlow { state.isNearEnd(photos.size) }
@@ -46,6 +48,7 @@ fun HomePhotoList(
         modifier = modifier,
         state = state,
         contentPadding = PaddingValues(
+            top = topContentPadding,
             bottom = ChalkakTheme.spacing.xxl + ChalkakTheme.spacing.sm,
         ),
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xxl),

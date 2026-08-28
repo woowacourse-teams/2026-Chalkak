@@ -18,8 +18,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
-import androidx.compose.ui.test.swipeDown
-import androidx.compose.ui.test.swipeUp
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -255,68 +253,16 @@ class HomeScreenTest {
         composeRule.waitUntil { thresholdEvents.count { it } == 2 }
     }
 
-    @Test
-    fun sortingFilterHidesOnDownwardScrollAndReappearsOnUpwardScroll() {
-        setHomeContent(contentUiState(photos = photos(12)))
-
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
-        val photoList = composeRule.onNode(hasScrollAction())
-
-        photoList.performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
-
-        photoList.performTouchInput { swipeDown() }
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
-    }
-
-    @Test
-    fun changingSortRestoresFilterAndMovesPhotoListToFirstItem() {
-        var selectedSort: PostSort? = null
-        setHomeContent(
-            uiState = contentUiState(photos = photos(12)),
-            onSortSelected = { selectedSort = it },
-        )
-
-        val photoList = composeRule.onNode(hasScrollAction())
-        photoList.performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
-        photoList.performScrollToIndex(10)
-        composeRule.onAllNodesWithContentDescription("작품 이미지: 사진 0").assertCountEquals(0)
-
-        photoList.performTouchInput {
-            swipe(
-                start = center,
-                end = center.copy(y = center.y + 40f),
-            )
-        }
-        composeRule.onNodeWithText("최신순").assertIsDisplayed()
-
-        composeRule.onNodeWithText("인기순").performClick()
-
-        assertEquals(PostSort.POPULAR, selectedSort)
-        composeRule.onNodeWithText("인기순").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
-    }
-
     private fun setHomeContent(
         uiState: HomeUiState,
         onAction: (HomeUiAction) -> Unit = {},
-        onSortSelected: (PostSort) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
-                var currentUiState by remember { mutableStateOf(uiState) }
-
                 HomeScreen(
-                    uiState = currentUiState,
+                    uiState = uiState,
                     snackbarHostState = remember { SnackbarHostState() },
-                    onAction = { action ->
-                        if (action is HomeUiAction.SortSelected) {
-                            currentUiState = currentUiState.copy(selectedSort = action.sort)
-                            onSortSelected(action.sort)
-                        }
-                        onAction(action)
-                    },
+                    onAction = onAction,
                 )
             }
         }

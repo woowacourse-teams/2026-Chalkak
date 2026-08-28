@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -14,7 +15,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
@@ -46,17 +46,35 @@ class DisplayScreenTest {
     }
 
     @Test
-    fun sortingFilterHidesOnDownwardScrollAndReappearsOnUpwardScrollForLatestDate() {
+    fun latestDateHeaderAndFilterHideAndRestoreTogetherOnScroll() {
         setDisplayContent(scrollableLatestUiState())
 
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithText("전시").assertIsDisplayed()
         val photoGrid = composeRule.onNode(hasScrollAction())
 
         photoGrid.performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
+        composeRule.onNodeWithText("8월 5일").assertIsNotDisplayed()
+        composeRule.onNodeWithText("바다").assertIsNotDisplayed()
+        composeRule
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsNotDisplayed()
+        composeRule.onNodeWithText("최신순").assertIsNotDisplayed()
+        composeRule.onNodeWithText("전시").assertIsDisplayed()
 
         photoGrid.performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("같은 주제에서 다른 시선을 느껴보세요")
+            .assertIsDisplayed()
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithText("전시").assertIsDisplayed()
     }
 
     @Test
@@ -66,17 +84,15 @@ class DisplayScreenTest {
             uiState = scrollableLatestUiState(),
             onSortSelected = { selectedSort = it },
         )
-
         val photoGrid = composeRule.onNode(hasScrollAction())
+
         photoGrid.performTouchInput { swipeUp() }
-        composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
-        photoGrid.performScrollToIndex(30)
-        composeRule.onAllNodesWithContentDescription("사진 0").assertCountEquals(0)
+        composeRule.onNodeWithText("최신순").assertIsNotDisplayed()
 
         photoGrid.performTouchInput {
             swipe(
                 start = center,
-                end = center.copy(y = center.y + 40f),
+                end = center.copy(y = center.y + 120f),
             )
         }
         composeRule.onNodeWithText("최신순").assertIsDisplayed()
@@ -119,6 +135,32 @@ class DisplayScreenTest {
         composeRule.onAllNodesWithText("최신순").assertCountEquals(0)
         composeRule.onAllNodesWithText("인기순").assertCountEquals(0)
         composeRule.onAllNodesWithText("랜덤순").assertCountEquals(0)
+    }
+
+    @Test
+    fun archiveHeaderCollapsesOnScrollAndReappearsAtTop() {
+        setDisplayContent(scrollableArchiveUiState())
+
+        composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
+        composeRule.onNodeWithText("다리").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsDisplayed()
+        val photoGrid = composeRule.onNode(hasScrollAction())
+
+        photoGrid.performTouchInput { swipeUp() }
+        composeRule.onNodeWithText("8월 4일").assertIsNotDisplayed()
+        composeRule.onNodeWithText("다리").assertIsNotDisplayed()
+        composeRule
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsNotDisplayed()
+
+        photoGrid.performTouchInput { swipeDown() }
+        composeRule.onNodeWithText("8월 4일").assertIsDisplayed()
+        composeRule.onNodeWithText("다리").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("가장 사람들이 좋아했던 사진들이에요")
+            .assertIsDisplayed()
     }
 
     @Test
@@ -194,7 +236,7 @@ private fun latestUiState() = DisplayUiState(
 
 private fun scrollableLatestUiState() = latestUiState().copy(
     content = DisplayContentState.Latest(
-        photos = List(40) { index ->
+        photos = List(12) { index ->
             photo.copy(
                 id = "photo-$index",
                 contentDescription = "사진 $index",
@@ -212,5 +254,22 @@ private fun archiveUiState() = DisplayUiState(
     content = DisplayContentState.Archive(
         photos = listOf(photo),
         featuredPhotos = listOf(photo),
+    ),
+)
+
+private fun scrollableArchiveUiState() = archiveUiState().copy(
+    content = DisplayContentState.Archive(
+        photos = List(20) { index ->
+            photo.copy(
+                id = "archive-photo-$index",
+                contentDescription = "전시 사진 $index",
+            )
+        },
+        featuredPhotos = listOf(
+            photo.copy(
+                id = "featured-photo",
+                contentDescription = "추천 사진",
+            ),
+        ),
     ),
 )

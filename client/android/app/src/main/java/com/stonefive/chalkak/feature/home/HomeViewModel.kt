@@ -78,17 +78,7 @@ class HomeViewModel(
             is HomeUiAction.EndThresholdChanged -> updateEndThreshold(action.isReached)
 
             is HomeUiAction.LikeClicked -> updateLike(action.photoId)
-
-            is HomeUiAction.SortSelected -> selectSort(action.sort)
         }
-    }
-
-    private fun selectSort(sort: PostSort) {
-        if (sort == _uiState.value.selectedSort) return
-
-        isEndThresholdReached = false
-        _uiState.update { it.copy(selectedSort = sort) }
-        loadHome()
     }
 
     private fun loadHome() {

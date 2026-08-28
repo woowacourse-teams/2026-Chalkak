@@ -1,10 +1,6 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,8 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -28,32 +25,37 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
-import com.stonefive.chalkak.core.designsystem.component.sort.ChalkakSortSelector
+import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
+import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
+import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import kotlinx.coroutines.launch
 
 internal const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
 internal const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
@@ -69,6 +71,7 @@ internal const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    selectionSignal: Int = 0,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -85,10 +88,17 @@ fun HomeRoute(
         }
     }
 
+    LaunchedEffect(selectionSignal) {
+        if (selectionSignal > 0) {
+            viewModel.onAction(HomeUiAction.RefreshRequested)
+        }
+    }
+
     HomeScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
+        resetSignal = selectionSignal,
     )
 }
 
@@ -98,79 +108,47 @@ fun HomeScreen(
     snackbarHostState: SnackbarHostState,
     onAction: (HomeUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    resetSignal: Int = 0,
 ) {
-    val photoListState = rememberLazyListState()
-    var isSortVisible by remember { mutableStateOf(true) }
-
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    when {
-                        available.y < 0f -> isSortVisible = false
-                        available.y > 0f -> isSortVisible = true
-                    }
-                }
-                return Offset.Zero
-            }
-        }
-    }
-
-    LaunchedEffect(uiState.selectedSort, uiState.refreshRevision) {
-        isSortVisible = true
-        photoListState.scrollToItem(0)
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.TODAY,
-                onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                onAddClick = { onAction(HomeUiAction.AddClicked) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (uiState.contentStatus != HomeContentStatus.Content) {
+                ChalkakBottomBar(
+                    selectedItem = ChalkakBottomBarItem.TODAY,
+                    onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
+                    onAddClick = { onAction(HomeUiAction.AddClicked) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding()
-                .nestedScroll(nestedScrollConnection),
+                .padding(innerPadding),
         ) {
-            HomeTopBar(modifier = Modifier.homeBottomDivider())
             when (uiState.contentStatus) {
                 HomeContentStatus.Loading -> HomeInitialStatus(
                     status = uiState.contentStatus,
                     onRetryClick = { onAction(HomeUiAction.RetryClicked) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                 )
 
                 is HomeContentStatus.Error -> HomeInitialStatus(
                     status = uiState.contentStatus,
                     onRetryClick = { onAction(HomeUiAction.RetryClicked) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                 )
 
                 HomeContentStatus.Content -> HomeContent(
                     uiState = uiState,
-                    isSortVisible = isSortVisible,
-                    photoListState = photoListState,
                     onAction = onAction,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    resetSignal = resetSignal,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
@@ -188,33 +166,39 @@ private fun HomeInitialStatus(
         is HomeContentStatus.Error -> HOME_INITIAL_ERROR_TEST_TAG
         HomeContentStatus.Content -> error("Content is rendered by HomeContent")
     }
-    Box(
-        modifier = modifier.testTag(testTag),
-        contentAlignment = Alignment.Center,
-    ) {
-        when (status) {
-            HomeContentStatus.Loading -> {
-                CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
-            }
+    Column(modifier = modifier.statusBarsPadding()) {
+        HomeTopBar(modifier = Modifier.homeBottomDivider())
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .testTag(testTag),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (status) {
+                HomeContentStatus.Loading -> {
+                    CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
+                }
 
-            is HomeContentStatus.Error -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = status.reason.message,
-                        color = ChalkakTheme.colors.textSecondary,
-                        style = ChalkakTheme.typography.body,
-                    )
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
-                    ChalkakFilledIconButton(onClick = onRetryClick) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = HOME_REFRESH_CONTENT_DESCRIPTION,
+                is HomeContentStatus.Error -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = status.reason.message,
+                            color = ChalkakTheme.colors.textSecondary,
+                            style = ChalkakTheme.typography.body,
                         )
+                        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
+                        ChalkakFilledIconButton(onClick = onRetryClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = HOME_REFRESH_CONTENT_DESCRIPTION,
+                            )
+                        }
                     }
                 }
-            }
 
-            HomeContentStatus.Content -> Unit
+                HomeContentStatus.Content -> Unit
+            }
         }
     }
 }
@@ -222,36 +206,59 @@ private fun HomeInitialStatus(
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
-    isSortVisible: Boolean,
-    photoListState: LazyListState,
     onAction: (HomeUiAction) -> Unit,
+    resetSignal: Int,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        HomeTopic(
-            dateLabel = uiState.dateLabel,
-            topic = uiState.topic,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        AnimatedVisibility(
-            visible = isSortVisible,
-            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-        ) {
-            ChalkakSortSelector(
-                options = PostSort.entries,
-                selectedOption = uiState.selectedSort,
-                optionLabel = { it.label },
-                onOptionSelected = { onAction(HomeUiAction.SortSelected(it)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+    val photoListState = rememberLazyListState()
+    var localResetSignal by remember { mutableIntStateOf(0) }
+    val interactionScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
+    val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
+        HomeTopBarHeight.toPx()
+    }
+    val scrollState = rememberHomeScrollBehaviorState(
+        photoListState = photoListState,
+        interactionScope = interactionScope,
+        scrollToTopToggleThresholdPx = with(density) {
+            CollapsingScrollToTopThreshold.toPx()
+        },
+    )
+    val photoListTopPadding = with(density) {
+        scrollState.visibleTopAreaHeight(fixedTopAreaHeightPx).toDp()
+    }
+    val bottomBarHeight = with(density) {
+        scrollState.bottomBarState.height
+            .toDp()
+    }
+    val topBarBackgroundAlpha = topBarBackgroundAlpha(scrollState.collapsedTopAreaProgress)
+
+    LaunchedEffect(uiState.selectedSort, uiState.refreshRevision) {
+        scrollState.reset()
+        photoListState.scrollToItem(0)
+    }
+
+    LaunchedEffect(resetSignal, localResetSignal) {
+        if (resetSignal == 0 && localResetSignal == 0) return@LaunchedEffect
+        scrollState.reset()
+        photoListState.animateScrollToItem(0)
+    }
+
+    LaunchedEffect(photoListState.canScrollBackward, scrollState.topAreaOffset) {
+        scrollState.updateScrollToTopVisibility()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ChalkakBackground)
+            .nestedScroll(scrollState.nestedScrollConnection),
+    ) {
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             onRefresh = { onAction(HomeUiAction.RefreshRequested) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = Modifier.fillMaxSize(),
         ) {
             HomePhotoList(
                 photos = uiState.photos,
@@ -262,6 +269,7 @@ private fun HomeContent(
                 onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
                 modifier = Modifier.fillMaxSize(),
                 state = photoListState,
+                topContentPadding = photoListTopPadding,
             )
             if (uiState.photos.isEmpty()) {
                 Column(
@@ -284,8 +292,86 @@ private fun HomeContent(
                 }
             }
         }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(HomeTopBarHeight))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .collapsingArea(scrollState.topAreaOffset),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ChalkakBackground)
+                        .onSizeChanged { scrollState.topAreaHeight = it.height },
+                ) {
+                    HomeTopic(
+                        dateLabel = uiState.dateLabel,
+                        topic = uiState.topic,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
+        ) {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars),
+            )
+            HomeTopBar(
+                modifier = Modifier
+                    .then(
+                        if (scrollState.isTopAreaVisible) {
+                            Modifier.homeBottomDivider()
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+        }
+        if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
+            ChalkakScrollToTopButton(
+                onClick = {
+                    interactionScope.launch {
+                        scrollState.reset()
+                        photoListState.animateScrollToItem(0)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 24.dp,
+                        bottom = bottomBarHeight + 18.dp,
+                    ),
+            )
+        }
+        ChalkakBottomBar(
+            selectedItem = ChalkakBottomBarItem.TODAY,
+            onItemSelected = { item ->
+                if (item == ChalkakBottomBarItem.TODAY) {
+                    localResetSignal++
+                }
+                onAction(HomeUiAction.BottomBarSelected(item))
+            },
+            onAddClick = { onAction(HomeUiAction.AddClicked) },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { scrollState.bottomBarState.height = it.height }
+                .graphicsLayer { translationY = scrollState.bottomBarState.offset },
+        )
     }
 }
+
+private val HomeTopBarHeight = 55.dp
 
 @Preview(
     showBackground = true,
@@ -326,13 +412,6 @@ private fun HomeScreenPreview() {
 }
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
-
-private val PostSort.label: String
-    get() = when (this) {
-        PostSort.LATEST -> "최신순"
-        PostSort.POPULAR -> "인기순"
-        PostSort.RANDOM -> "랜덤순"
-    }
 
 internal val HomeInitialError.message: String
     get() = when (this) {
