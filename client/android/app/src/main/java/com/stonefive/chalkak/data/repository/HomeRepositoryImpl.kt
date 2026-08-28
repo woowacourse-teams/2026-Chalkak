@@ -62,7 +62,12 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         photoId: String,
         isLiked: Boolean,
     ): HomeResult<HomeLike> = when (val result = remoteDataSource.updateLike(photoId, isLiked)) {
-        is ApiResult.Success -> result.value.toDomain()
+        is ApiResult.Success -> if (result.value.postId == photoId) {
+            result.value.toDomain()
+        } else {
+            HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+
         is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
     }
 

@@ -216,6 +216,22 @@ class HomeRepositoryImplTest {
     }
 
     @Test
+    fun `좋아요 응답 postId가 요청한 게시물과 다르면 InvalidResponse다`() = runTest {
+        remoteDataSource.likeResult = ApiResult.Success(
+            HomeLikeResponse(
+                postId = "other-photo",
+                likeCount = 25,
+                isLiked = true,
+            ),
+        )
+
+        assertEquals(
+            HomeResult.Failure(HomeFailure.InvalidResponse),
+            repository.updateLike("photo-1", isLiked = true),
+        )
+    }
+
+    @Test
     fun `토픽 404와 인증 네트워크 응답을 도메인 실패로 구분한다`() = runTest {
         remoteDataSource.topicResult = ApiResult.Failure(ApiError.Http(404, "TOPIC_NOT_FOUND"))
         assertEquals(HomeResult.Failure(HomeFailure.TopicNotFound), repository.getHome(query))

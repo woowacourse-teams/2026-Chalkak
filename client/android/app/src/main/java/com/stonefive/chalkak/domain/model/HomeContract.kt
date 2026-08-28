@@ -12,8 +12,13 @@ data class HomeQuery(
     init {
         require(page >= FIRST_PAGE)
         require(pageSize == PAGE_SIZE)
-        require(sort == PostSort.RANDOM || randomSeed == null)
-        require(sort != PostSort.RANDOM || page == FIRST_PAGE || randomSeed != null)
+        require(
+            when {
+                sort != PostSort.RANDOM -> randomSeed == null
+                page == FIRST_PAGE -> randomSeed == null
+                else -> !randomSeed.isNullOrBlank()
+            },
+        )
     }
 
     companion object {
