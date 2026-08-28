@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.exception.BusinessException;
-import com.chalkak.backend.admin.domain.PostMediaDeletionStatus;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -80,7 +79,6 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
         insertPhotos();
         insertPostImageUpload();
         insertPosts();
-        insertMediaDeletionPlan();
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 SECOND_POST_ID,
@@ -119,8 +117,9 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
             assertThat(post.moderationStatus()).isEqualTo(ModerationStatus.REJECTED);
             assertThat(post.deletedAt()).isEqualTo(SECOND_POST_DELETED_AT);
             assertThat(post.likeCount()).isEqualTo(1L);
-            assertThat(post.photo().originalImageUrl()).isNull();
-            assertThat(post.photo().thumbnailImageUrl()).isNull();
+            assertThat(post.photo().originalImageUrl()).isEqualTo(SECOND_ORIGINAL_IMAGE_URL);
+            assertThat(post.photo().thumbnailImageUrl())
+                    .isEqualTo(SECOND_THUMBNAIL_IMAGE_URL);
         });
     }
 
@@ -213,21 +212,14 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
         assertThat(result.author().userId()).isEqualTo(SECOND_USER_ID);
         assertThat(result.topic().topicId()).isEqualTo(SECOND_TOPIC_ID);
         assertThat(result.photo().photoId()).isEqualTo(SECOND_PHOTO_ID);
-        assertThat(result.photo().originalImageUrl()).isNull();
-        assertThat(result.photo().thumbnailImageUrl()).isNull();
+        assertThat(result.photo().originalImageUrl()).isEqualTo(SECOND_ORIGINAL_IMAGE_URL);
+        assertThat(result.photo().thumbnailImageUrl()).isEqualTo(SECOND_THUMBNAIL_IMAGE_URL);
         assertThat(result.photo().metadata()).containsEntry("width", 2048);
         assertThat(result.photo().metadata())
                 .doesNotContainKeys("location", "capturedAt", "metaAttributes");
         assertThat(result.imageUpload().uploadId()).isEqualTo(SECOND_POST_IMAGE_UPLOAD_ID);
         assertThat(result.imageUpload().status()).isEqualTo(PostImageUploadStatus.REJECTED);
         assertThat(result.imageUpload().rejectionReason()).isEqualTo("CORRUPTED_IMAGE");
-        assertThat(result.mediaDeletion().status())
-                .isEqualTo(PostMediaDeletionStatus.FAILED);
-        assertThat(result.mediaDeletion().attemptCount()).isEqualTo(1);
-        assertThat(result.mediaDeletion().lastErrorCode())
-                .isEqualTo("STORAGE_DELETE_FAILED");
-        assertThat(result.mediaDeletion().nextAttemptAt()).isNotNull();
-        assertThat(result.mediaDeletion().completedAt()).isNull();
         assertThat(result.likeCount()).isEqualTo(1L);
     }
 
@@ -339,27 +331,5 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                     '2026-08-13T04:00:00Z', '2026-08-13T04:20:00Z'
                 )
                 """, SECOND_POST_IMAGE_UPLOAD_ID, SECOND_USER_ID);
-    }
-
-    private void insertMediaDeletionPlan() {
-        jdbcTemplate.update("""
-                INSERT INTO post_media_deletion_plans (
-                    post_id, post_image_upload_id,
-                    staging_storage_key, original_storage_key, thumbnail_storage_key,
-                    status, attempt_count, last_error_code,
-                    next_attempt_at, completed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?,
-                    'chalkak/staging/test/posts/deleted.webp', ?, ?,
-                    CAST('FAILED' AS post_media_deletion_status), 1,
-                    'STORAGE_DELETE_FAILED',
-                    CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
-                SECOND_POST_ID,
-                SECOND_POST_IMAGE_UPLOAD_ID,
-                SECOND_ORIGINAL_STORAGE_KEY,
-                SECOND_THUMBNAIL_STORAGE_KEY
-        );
     }
 }

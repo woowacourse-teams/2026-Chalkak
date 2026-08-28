@@ -809,14 +809,15 @@ class AdminPostControllerTest {
     }
 
     @Test
-    @DisplayName("이미 삭제된 게시물도 삭제 서비스에 위임해 기존 삭제 계획 재처리를 요청한다")
-    void deletePost_alreadyDeletedPost_delegatesForRetryAndReturnsNoContent() throws Exception {
+    @DisplayName("이미 삭제된 게시물도 삭제 서비스에 위임해 멱등하게 204를 반환한다")
+    void deletePost_alreadyDeletedPost_delegatesIdempotentlyAndReturnsNoContent()
+            throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reason": "삭제 계획 재처리"
+                                  "reason": "중복 삭제 요청"
                                 }
                                 """))
                 .andExpect(status().isNoContent());
@@ -824,7 +825,7 @@ class AdminPostControllerTest {
         then(adminPostDeletionService).should().deletePost(
                 POST_ID,
                 ADMIN_ID,
-                "삭제 계획 재처리"
+                "중복 삭제 요청"
         );
     }
 
@@ -873,7 +874,6 @@ class AdminPostControllerTest {
                         CREATED_AT,
                         UPDATED_AT
                 ),
-                null,
                 43L,
                 CREATED_AT,
                 UPDATED_AT,

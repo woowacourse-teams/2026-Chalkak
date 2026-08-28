@@ -65,16 +65,6 @@ class S3PostImageUploadIssuerTest {
     }
 
     @Test
-    @DisplayName("미디어 정리 유예 계산에 처리 결과 URL의 5분 유효 시간을 제공한다")
-    void processingUploadUrlValidity_returnsSignatureDuration() {
-        // When
-        Duration validity = issuer().processingUploadUrlValidity();
-
-        // Then
-        assertThat(validity).isEqualTo(Duration.ofMinutes(5));
-    }
-
-    @Test
     @DisplayName("개발 환경 게시물 WebP 업로드 URL을 5분 동안 유효하게 발급한다")
     void issue_devEnvironment_presignsDevPostUpload() throws Exception {
         // Given

@@ -65,11 +65,6 @@ public class S3PostImageUploadIssuer implements PostImageUploadIssuer {
         );
     }
 
-    @Override
-    public Duration processingUploadUrlValidity() {
-        return SIGNATURE_DURATION;
-    }
-
     private String presignProcessingUpload(String storageKey) {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(imageProperties.bucket())

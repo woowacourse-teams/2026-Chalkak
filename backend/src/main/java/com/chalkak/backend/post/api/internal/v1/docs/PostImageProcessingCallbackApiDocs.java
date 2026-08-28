@@ -38,14 +38,6 @@ public interface PostImageProcessingCallbackApiDocs {
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "업로드가 없거나 연결된 게시물이 삭제되어 처리 취소",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
             )
     })
     ResponseEntity<PostProcessingUploadUrlsResponse> issueUploadUrls(

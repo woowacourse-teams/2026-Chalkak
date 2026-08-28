@@ -1,6 +1,5 @@
 package com.chalkak.backend.admin.service;
 
-import com.chalkak.backend.admin.domain.PostMediaDeletionStatus;
 import com.chalkak.backend.admin.repository.AdminPostDetailProjection;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
@@ -22,7 +21,6 @@ public record AdminPostDetail(
         TopicDetail topic,
         PhotoDetail photo,
         ImageUploadDetail imageUpload,
-        MediaDeletionDetail mediaDeletion,
         long likeCount,
         Instant createdAt,
         Instant updatedAt,
@@ -62,15 +60,14 @@ public record AdminPostDetail(
                 ),
                 new PhotoDetail(
                         post.photoId(),
-                        imageUrl(post.originalStorageKey(), post.deletedAt(), imageUrlProvider),
-                        imageUrl(post.thumbnailStorageKey(), post.deletedAt(), imageUrlProvider),
+                        imageUrlProvider.getUrl(post.originalStorageKey()),
+                        imageUrlProvider.getUrl(post.thumbnailStorageKey()),
                         safeImageMetadata(post.photoMetadata()),
                         post.photoCreatedAt(),
                         post.photoUpdatedAt(),
                         post.photoDeletedAt()
                 ),
                 ImageUploadDetail.from(post),
-                MediaDeletionDetail.from(post),
                 post.likeCount(),
                 post.createdAt(),
                 post.updatedAt(),
@@ -79,17 +76,6 @@ public record AdminPostDetail(
                 post.rejectionReason(),
                 post.deletedAt()
         );
-    }
-
-    private static String imageUrl(
-            String storageKey,
-            Instant deletedAt,
-            ImageUrlProvider imageUrlProvider
-    ) {
-        if (deletedAt != null) {
-            return null;
-        }
-        return imageUrlProvider.getUrl(storageKey);
     }
 
     private static Map<String, Object> safeImageMetadata(Map<String, Object> metadata) {
@@ -152,28 +138,6 @@ public record AdminPostDetail(
                     post.uploadRejectionReason(),
                     post.uploadCreatedAt(),
                     post.uploadUpdatedAt()
-            );
-        }
-    }
-
-    public record MediaDeletionDetail(
-            PostMediaDeletionStatus status,
-            int attemptCount,
-            String lastErrorCode,
-            Instant nextAttemptAt,
-            Instant completedAt
-    ) {
-
-        private static MediaDeletionDetail from(AdminPostDetailProjection post) {
-            if (post.mediaDeletionStatus() == null) {
-                return null;
-            }
-            return new MediaDeletionDetail(
-                    post.mediaDeletionStatus(),
-                    post.mediaDeletionAttemptCount(),
-                    post.mediaDeletionLastErrorCode(),
-                    post.mediaDeletionNextAttemptAt(),
-                    post.mediaDeletionCompletedAt()
             );
         }
     }

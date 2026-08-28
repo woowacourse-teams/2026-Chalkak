@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
-import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.post.repository.PostProcessingImageUpload;
 import com.chalkak.backend.post.service.PostCommandService;
@@ -100,26 +99,6 @@ class PostImageProcessingCallbackControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(postCommandService, never()).issuePostImageProcessingUpload(any());
-    }
-
-    @Test
-    @DisplayName("삭제된 게시물의 업로드에는 처리 URL을 발급하지 않고 404를 반환한다")
-    void issueUploadUrls_deletedPost_returnsNotFound() throws Exception {
-        // Given
-        given(postCommandService.issuePostImageProcessingUpload(UPLOAD_ID))
-                .willThrow(new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "삭제된 게시물의 이미지 업로드는 처리할 수 없습니다."
-                ));
-
-        // When & Then
-        mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/upload-urls", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-
-        verify(postCommandService).issuePostImageProcessingUpload(UPLOAD_ID);
     }
 
     @Test

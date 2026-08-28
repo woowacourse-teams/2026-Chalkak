@@ -1,32 +1,20 @@
 package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BaseException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.post.repository.PostImageStorage;
-import com.chalkak.backend.post.repository.PostImageUploadIssuer;
-import com.chalkak.backend.post.repository.PostProcessingImageUpload;
-import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,9 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/** 관리자 검수·삭제와 이미지 처리 URL 발급의 잠금 경합을 실제 PostgreSQL에서 검증한다. */
+/** 관리자 검수와 삭제의 잠금 경합을 실제 PostgreSQL에서 검증한다. */
 class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport {
 
     private static final String SUCCESS = "SUCCESS";
@@ -55,8 +42,6 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575e1");
     private static final UUID POST_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575d1");
-    private static final String STAGING_STORAGE_KEY =
-            "chalkak/staging/test/posts/" + UPLOAD_ID + ".webp";
     private static final String ORIGINAL_STORAGE_KEY =
             "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
     private static final String THUMBNAIL_STORAGE_KEY =
@@ -69,16 +54,7 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
     private AdminPostDeletionService adminPostDeletionService;
 
     @Autowired
-    private PostCommandService postCommandService;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @MockitoBean
-    private PostImageStorage postImageStorage;
-
-    @MockitoBean
-    private PostImageUploadIssuer postImageUploadIssuer;
 
     @BeforeEach
     void setUp() {
@@ -90,10 +66,6 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
         insertPhoto();
         insertUpload();
         insertPendingPost();
-        given(postImageStorage.toStagingStorageKey(UPLOAD_ID))
-                .willReturn(STAGING_STORAGE_KEY);
-        given(postImageUploadIssuer.processingUploadUrlValidity())
-                .willReturn(Duration.ofMinutes(5));
     }
 
     @AfterEach
@@ -133,88 +105,14 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
         PostState post = findPostState();
         assertThat(post.postDeletedAt()).isNotNull();
         assertThat(post.photoDeletedAt()).isEqualTo(post.postDeletedAt());
-        assertThat(countDeletionPlans()).isEqualTo(1);
         assertThat(countAudits("POST_DELETED")).isEqualTo(1);
         assertThat(findDeletionAuditBeforeStatus()).isEqualTo(post.moderationStatus());
-        then(postImageStorage).should(never()).deleteImage(anyString());
 
         if (concurrentResult.moderation().outcome().equals(SUCCESS)) {
             assertSuccessfulModerationBeforeDeletion(concurrentResult, post);
             return;
         }
         assertDeletionBeforeModeration(post);
-    }
-
-    @Test
-    @DisplayName("처리 URL 발급 중 삭제가 겹치면 발급 완료 뒤 삭제하고 URL 만료 후 정리를 예약한다")
-    void issueProcessingUploadAndDelete_concurrentSamePost_serializesWithWriterLease()
-            throws Exception {
-        // Given
-        PostProcessingImageUpload processingUpload = new PostProcessingImageUpload(
-                "https://s3.test/original",
-                "https://s3.test/thumbnail",
-                "image/webp",
-                "public, max-age=86400"
-        );
-        CountDownLatch issuerEntered = new CountDownLatch(1);
-        CountDownLatch releaseIssuer = new CountDownLatch(1);
-        given(postImageUploadIssuer.issueProcessingUpload(UPLOAD_ID))
-                .willAnswer(invocation -> {
-                    issuerEntered.countDown();
-                    if (!releaseIssuer.await(5, TimeUnit.SECONDS)) {
-                        throw new IllegalStateException("처리 URL 발급 대기 시간 초과");
-                    }
-                    return processingUpload;
-                });
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        Future<PostProcessingImageUpload> issuanceFuture = executor.submit(
-                () -> postCommandService.issuePostImageProcessingUpload(UPLOAD_ID)
-        );
-        Future<Void> deletionFuture = null;
-
-        try {
-            assertThat(issuerEntered.await(5, TimeUnit.SECONDS)).isTrue();
-            CountDownLatch deletionStarted = new CountDownLatch(1);
-            deletionFuture = executor.submit(() -> {
-                deletionStarted.countDown();
-                adminPostDeletionService.deletePost(
-                        POST_ID,
-                        DELETING_ADMIN_ID,
-                        "운영 정책 위반"
-                );
-                return null;
-            });
-            assertThat(deletionStarted.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<Void> blockedDeletion = deletionFuture;
-            assertThatThrownBy(
-                    () -> blockedDeletion.get(300, TimeUnit.MILLISECONDS)
-            ).isInstanceOf(TimeoutException.class);
-
-            releaseIssuer.countDown();
-
-            assertThat(issuanceFuture.get(10, TimeUnit.SECONDS))
-                    .isEqualTo(processingUpload);
-            deletionFuture.get(10, TimeUnit.SECONDS);
-        } finally {
-            releaseIssuer.countDown();
-            issuanceFuture.cancel(true);
-            if (deletionFuture != null) {
-                deletionFuture.cancel(true);
-            }
-            executor.shutdownNow();
-            executor.awaitTermination(2, TimeUnit.SECONDS);
-        }
-
-        // Then
-        PostState post = findPostState();
-        assertThat(post.postDeletedAt()).isNotNull();
-        assertThat(Duration.between(
-                post.postDeletedAt(),
-                findDeletionPlanNextAttemptAt()
-        )).isEqualTo(Duration.ofMinutes(6));
-        assertThat(countDeletionPlans()).isEqualTo(1);
-        assertThat(countAudits("POST_DELETED")).isEqualTo(1);
-        then(postImageUploadIssuer).should().issueProcessingUpload(UPLOAD_ID);
     }
 
     private void assertSuccessfulModerationBeforeDeletion(
@@ -303,22 +201,6 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
         ), POST_ID);
     }
 
-    private int countDeletionPlans() {
-        return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_media_deletion_plans WHERE post_id = ?",
-                Integer.class,
-                POST_ID
-        );
-    }
-
-    private Instant findDeletionPlanNextAttemptAt() {
-        return jdbcTemplate.queryForObject(
-                "SELECT next_attempt_at FROM post_media_deletion_plans WHERE post_id = ?",
-                Instant.class,
-                POST_ID
-        );
-    }
-
     private int countAudits(String action) {
         return jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -338,10 +220,6 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
     }
 
     private void cleanUp() {
-        jdbcTemplate.update(
-                "DELETE FROM post_media_deletion_plans WHERE post_id = ?",
-                POST_ID
-        );
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);

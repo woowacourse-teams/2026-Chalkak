@@ -70,28 +70,11 @@ public class OpenApiConfig {
             return;
         }
 
-        addNullableReference(
-                detailSchema,
-                "imageUpload",
-                "AdminPostDetailImageUpload"
+        ComposedSchema nullableImageUploadSchema = new ComposedSchema();
+        nullableImageUploadSchema.addOneOfItem(
+                new Schema<>().$ref("#/components/schemas/AdminPostDetailImageUpload")
         );
-        addNullableReference(
-                detailSchema,
-                "mediaDeletion",
-                "AdminPostDetailMediaDeletion"
-        );
-    }
-
-    private void addNullableReference(
-            Schema<?> parentSchema,
-            String propertyName,
-            String referencedSchemaName
-    ) {
-        ComposedSchema nullableReferenceSchema = new ComposedSchema();
-        nullableReferenceSchema.addOneOfItem(
-                new Schema<>().$ref("#/components/schemas/" + referencedSchemaName)
-        );
-        nullableReferenceSchema.addOneOfItem(new Schema<>().types(Set.of("null")));
-        parentSchema.addProperty(propertyName, nullableReferenceSchema);
+        nullableImageUploadSchema.addOneOfItem(new Schema<>().types(Set.of("null")));
+        detailSchema.addProperty("imageUpload", nullableImageUploadSchema);
     }
 }

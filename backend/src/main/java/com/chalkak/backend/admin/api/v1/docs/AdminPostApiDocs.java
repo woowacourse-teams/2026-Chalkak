@@ -148,7 +148,7 @@ public interface AdminPostApiDocs {
 
     @Operation(
             summary = "관리자 게시물 삭제",
-            description = "게시물과 사진을 Soft Delete하고 게시물 소유 미디어의 안전한 삭제 계획을 생성합니다."
+            description = "게시물과 사진을 Soft Delete하고 감사 로그를 기록합니다. S3 미디어는 보관합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "게시물 삭제 요청 성공"),

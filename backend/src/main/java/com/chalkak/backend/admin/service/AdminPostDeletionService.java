@@ -3,17 +3,11 @@ package com.chalkak.backend.admin.service;
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
-import com.chalkak.backend.admin.domain.PostMediaDeletionPlan;
-import com.chalkak.backend.admin.repository.PostMediaDeletionPlanRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.domain.Post;
-import com.chalkak.backend.post.repository.PostImageStorage;
-import com.chalkak.backend.post.repository.PostImageUploadIssuer;
-import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,22 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminPostDeletionService {
 
     private static final int MAX_REASON_LENGTH = 500;
-    private static final Duration PROCESSING_WRITE_COMPLETION_BUFFER =
-            Duration.ofMinutes(1);
     private static final String INVALID_REQUEST_MESSAGE =
             "게시물 삭제 요청이 올바르지 않습니다.";
 
     private final PostRepository postRepository;
-    private final PostImageStorage postImageStorage;
-    private final PostImageUploadRepository postImageUploadRepository;
-    private final PostImageUploadIssuer postImageUploadIssuer;
-    private final PostMediaDeletionPlanRepository deletionPlanRepository;
     private final AdminAuditLogService adminAuditLogService;
 
     @Transactional
     public void deletePost(UUID postId, UUID adminId, String reason) {
         String normalizedReason = validateAndNormalize(postId, adminId, reason);
-        lockLinkedUpload(postId);
         Post post = postRepository.findByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -51,13 +38,11 @@ public class AdminPostDeletionService {
         Instant requestedAt = Instant.now();
         if (post.getDeletedAt() != null) {
             post.getPhoto().delete(post.getDeletedAt());
-            retryExistingPlan(post, requestedAt);
             return;
         }
 
         AdminAuditSnapshot beforeState = deletionState(post);
         post.delete(requestedAt);
-        deletionPlanRepository.save(createDeletionPlan(post, requestedAt));
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.POST_DELETED,
@@ -68,51 +53,6 @@ public class AdminPostDeletionService {
                 deletionState(post),
                 UUID.randomUUID()
         ));
-    }
-
-    private void retryExistingPlan(Post post, Instant requestedAt) {
-        if (deletionPlanRepository.retryFailedNow(post.getId(), requestedAt) > 0) {
-            return;
-        }
-        if (deletionPlanRepository.findByPostId(post.getId()).isPresent()) {
-            return;
-        }
-        deletionPlanRepository.save(createDeletionPlan(post, requestedAt));
-    }
-
-    private PostMediaDeletionPlan createDeletionPlan(Post post, Instant requestedAt) {
-        UUID uploadId = post.getPostImageUploadId();
-        String stagingStorageKey = null;
-        String thumbnailStorageKey = post.getPhoto().getThumbnailStorageKey();
-        if (uploadId != null) {
-            stagingStorageKey = postImageStorage.toStagingStorageKey(uploadId);
-            if (thumbnailStorageKey == null) {
-                thumbnailStorageKey = postImageStorage.toThumbnailStorageKey(uploadId);
-            }
-        }
-        Instant firstAttemptAt = firstAttemptAt(uploadId, requestedAt);
-        return PostMediaDeletionPlan.create(
-                post.getId(),
-                uploadId,
-                stagingStorageKey,
-                post.getPhoto().getOriginalStorageKey(),
-                thumbnailStorageKey,
-                firstAttemptAt
-        );
-    }
-
-    private void lockLinkedUpload(UUID postId) {
-        postRepository.findPostImageUploadIdById(postId)
-                .ifPresent(postImageUploadRepository::findByIdForUpdate);
-    }
-
-    private Instant firstAttemptAt(UUID uploadId, Instant requestedAt) {
-        if (uploadId == null) {
-            return requestedAt;
-        }
-        return requestedAt
-                .plus(postImageUploadIssuer.processingUploadUrlValidity())
-                .plus(PROCESSING_WRITE_COMPLETION_BUFFER);
     }
 
     private AdminAuditSnapshot deletionState(Post post) {

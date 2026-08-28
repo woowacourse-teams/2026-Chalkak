@@ -171,25 +171,6 @@ arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/original/*
 arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/thumbnail/*
 ```
 
-관리자 게시물 삭제 후 별도 재시도 작업이 게시물 소유 이미지를 정리하므로, 같은 instance
-role에 다음 경로의 `s3:DeleteObject`도 필요하다. 사용자 서명은 여러 게시물에서 공유하므로
-서명 경로에는 삭제 권한을 추가하지 않는다.
-
-```text
-arn:aws:s3:::techcourse-project-2026/chalkak/staging/{environment}/posts/*
-arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/original/*
-arn:aws:s3:::techcourse-project-2026/chalkak/posts/{environment}/thumbnail/*
-```
-
-DB의 Soft Delete는 즉시 사용자 조회에서 제외되지만, 이미 전달된 CloudFront URL은 캐시
-TTL이 끝날 때까지 응답할 수 있다. 즉시 무효화가 필요한 운영 정책은 CloudFront invalidation
-기능으로 별도 구현한다.
-
-게시물과 연결된 업로드가 있으면 삭제 계획의 첫 S3 정리는 바로 실행하지 않는다. 기존 사용자·Lambda
-presigned PUT URL의 5분 유효 시간과 쓰기 완료 여유 1분이 지난 뒤 원본·썸네일·staging을 정리한다.
-삭제 이후 내부 `upload-urls` 요청은 404로 차단되며 Lambda는 이를 영구 취소로 처리해 staging을
-삭제한다. 이 tombstone과 6분 유예를 함께 유지해야 삭제 완료 뒤 객체가 다시 생성되지 않는다.
-
 presigned URL 생성은 로컬 서명 연산이라 위 권한이 없어도 백엔드는 URL을 200으로 반환한다.
 권한 누락은 Lambda가 URL로 PUT할 때 S3의 403으로 처음 드러나므로, 백엔드 로그가 아니라
 Lambda의 `image_processing_failed` 로그와 SQS 재시도를 확인한다. 재시도 상한에 도달하면 Lambda가
@@ -197,14 +178,13 @@ Lambda의 `image_processing_failed` 로그와 SQS 재시도를 확인한다. 재
 
 배포 순서는 다음과 같이 고정한다.
 
-1. dev·prod EC2 instance role에 각 환경 최종 경로의 `s3:PutObject`와 게시물 경로의
-   `s3:DeleteObject`를 부여한다.
+1. dev·prod EC2 instance role에 각 환경 최종 경로의 `s3:PutObject`를 부여한다.
 2. `upload-urls` 엔드포인트가 포함된 백엔드를 배포한다.
 3. 새 이미지 처리 API 환경 변수와 코드가 포함된 Lambda를 배포한다.
 
-Lambda를 먼저 배포하면 아직 없는 `upload-urls` 엔드포인트의 404를 새 Lambda가 영구 취소로
-처리해 staging 객체를 삭제하고 메시지를 종료한다. 사용자 업로드를 잃지 않도록 반드시 백엔드를
-먼저 배포한다. 이후 URL 발급 200, S3 PUT 200 또는 검증된 412, 완료 콜백 204를 순서대로 확인한다.
+Lambda를 먼저 배포하면 아직 없는 `upload-urls` 엔드포인트가 404를 반환해 모든 이미지 처리가
+SQS 재시도로 들어간다. 백엔드 배포 후 URL 발급 200, S3 PUT 200 또는 검증된 412, 완료 콜백
+204를 순서대로 확인한다.
 
 Lambda role에는 staging 객체의 `s3:GetObject`, `s3:DeleteObject`와 사인·포스트 최종 경로의
 `s3:GetObject`가 필요하다. 최종 경로 읽기는 조건부 PUT이 412를 반환했을 때 기존 객체가 현재

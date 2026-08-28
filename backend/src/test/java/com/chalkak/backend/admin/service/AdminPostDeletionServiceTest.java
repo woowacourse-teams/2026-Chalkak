@@ -3,10 +3,7 @@ package com.chalkak.backend.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.within;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -16,11 +13,9 @@ import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,8 +46,6 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6573d1");
     private static final String SIGNATURE_STORAGE_KEY =
             "chalkak/signatures/deletion-service/original.webp";
-    private static final String STAGING_STORAGE_KEY =
-            "chalkak/staging/test/posts/" + UPLOAD_ID + ".webp";
     private static final String ORIGINAL_STORAGE_KEY =
             "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
     private static final String THUMBNAIL_STORAGE_KEY =
@@ -78,8 +71,6 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
         insertTopic();
         insertPhoto();
         insertUpload("READY");
-        given(postImageStorage.toStagingStorageKey(UPLOAD_ID))
-                .willReturn(STAGING_STORAGE_KEY);
     }
 
     @AfterEach
@@ -92,8 +83,8 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
             value = ModerationStatus.class,
             names = {"PENDING", "APPROVED", "REJECTED"}
     )
-    @DisplayName("허용된 검수 상태의 게시물을 삭제하면 게시물과 사진 및 삭제 계획과 감사 로그를 저장한다")
-    void deletePost_allowedStatus_softDeletesAndCreatesPlanAndAudit(
+    @DisplayName("허용된 검수 상태의 게시물을 삭제하면 미디어를 보존하고 soft delete와 감사 로그를 저장한다")
+    void deletePost_allowedStatus_softDeletesAndPreservesMediaAndCreatesAudit(
             ModerationStatus moderationStatus
     ) {
         // Given
@@ -108,24 +99,11 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
 
         // Then
         SoftDeletionRow softDeletion = findSoftDeletion();
-        DeletionPlanRow plan = findSinglePlan();
         DeletionAuditRow audit = findSingleAudit();
         assertThat(softDeletion.postDeletedAt()).isNotNull();
         assertThat(softDeletion.photoDeletedAt()).isEqualTo(softDeletion.postDeletedAt());
-        assertThat(plan.postId()).isEqualTo(POST_ID);
-        assertThat(plan.postImageUploadId()).isEqualTo(UPLOAD_ID);
-        assertThat(plan.stagingStorageKey()).isEqualTo(STAGING_STORAGE_KEY);
-        assertThat(plan.originalStorageKey()).isEqualTo(ORIGINAL_STORAGE_KEY);
-        assertThat(plan.thumbnailStorageKey()).isEqualTo(THUMBNAIL_STORAGE_KEY);
-        assertThat(plan.storageKeys()).doesNotContain(SIGNATURE_STORAGE_KEY);
-        assertThat(plan.status()).isEqualTo("PENDING");
-        assertThat(plan.attemptCount()).isZero();
-        assertThat(plan.lastErrorCode()).isNull();
-        assertThat(Duration.between(
-                softDeletion.postDeletedAt(),
-                plan.nextAttemptAt()
-        )).isEqualTo(Duration.ofMinutes(6));
-        assertThat(plan.completedAt()).isNull();
+        assertThat(softDeletion.originalStorageKey()).isEqualTo(ORIGINAL_STORAGE_KEY);
+        assertThat(softDeletion.thumbnailStorageKey()).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(audit.action()).isEqualTo("POST_DELETED");
         assertThat(audit.actorAdminId()).isEqualTo(ADMIN_ID);
         assertThat(audit.reason()).isEqualTo("운영 정책 위반");
@@ -138,7 +116,7 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
                 softDeletion.postDeletedAt(),
                 within(1, ChronoUnit.MICROS)
         );
-        then(postImageStorage).should(never()).deleteImage(anyString());
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
@@ -163,9 +141,8 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
         SoftDeletionRow softDeletion = findSoftDeletion();
         assertThat(softDeletion.postDeletedAt()).isNull();
         assertThat(softDeletion.photoDeletedAt()).isNull();
-        assertThat(countPlans()).isZero();
         assertThat(countAudits()).isZero();
-        then(postImageStorage).should(never()).deleteImage(anyString());
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
@@ -183,45 +160,37 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(countPlans()).isZero();
         assertThat(countAudits()).isZero();
-        then(postImageStorage).should(never()).deleteImage(anyString());
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("삭제 요청을 다시 보내도 계획과 감사 로그를 중복 생성하지 않고 재시도 시각만 당긴다")
-    void deletePost_alreadyDeletedPost_requeuesExistingPlanWithoutDuplicates() {
+    @DisplayName("삭제 요청을 다시 보내도 최초 삭제 시각과 감사 로그를 유지한다")
+    void deletePost_alreadyDeletedPost_keepsFirstDeletionAndAudit() {
         // Given
         insertPost(ModerationStatus.APPROVED);
         adminPostDeletionService.deletePost(POST_ID, ADMIN_ID, "최초 삭제 사유");
-        Instant futureAttemptAt = Instant.now().plusSeconds(86_400);
-        jdbcTemplate.update(
-                """
-                UPDATE post_media_deletion_plans
-                SET status = CAST('FAILED' AS post_media_deletion_status),
-                    attempt_count = 1,
-                    last_error_code = 'STORAGE_DELETE_FAILED',
-                    next_attempt_at = ?
-                WHERE post_id = ?
-                """,
-                Timestamp.from(futureAttemptAt),
-                POST_ID
-        );
+        SoftDeletionRow firstDeletion = findSoftDeletion();
 
         // When
         adminPostDeletionService.deletePost(POST_ID, ADMIN_ID, "중복 삭제 사유");
 
         // Then
-        assertThat(countPlans()).isEqualTo(1);
+        SoftDeletionRow repeatedDeletion = findSoftDeletion();
+        assertThat(repeatedDeletion.postDeletedAt())
+                .isEqualTo(firstDeletion.postDeletedAt());
+        assertThat(repeatedDeletion.photoDeletedAt())
+                .isEqualTo(firstDeletion.photoDeletedAt());
+        assertThat(repeatedDeletion.originalStorageKey()).isEqualTo(ORIGINAL_STORAGE_KEY);
+        assertThat(repeatedDeletion.thumbnailStorageKey())
+                .isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(countAudits()).isEqualTo(1);
-        DeletionPlanRow plan = findSinglePlan();
-        assertThat(plan.nextAttemptAt()).isBefore(futureAttemptAt);
         assertThat(findSingleAudit().reason()).isEqualTo("최초 삭제 사유");
-        then(postImageStorage).should(never()).deleteImage(anyString());
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("감사 로그 관리자 외래키 저장이 실패하면 삭제와 계획도 모두 롤백한다")
+    @DisplayName("감사 로그 관리자 외래키 저장이 실패하면 게시물과 사진 삭제도 롤백한다")
     void deletePost_auditActorForeignKeyFailure_rollsBackEveryChange() {
         // Given
         insertPost(ModerationStatus.REJECTED);
@@ -241,9 +210,8 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
         SoftDeletionRow softDeletion = findSoftDeletion();
         assertThat(softDeletion.postDeletedAt()).isNull();
         assertThat(softDeletion.photoDeletedAt()).isNull();
-        assertThat(countPlans()).isZero();
         assertThat(countAudits()).isZero();
-        then(postImageStorage).should(never()).deleteImage(anyString());
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
@@ -269,36 +237,16 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
 
     private SoftDeletionRow findSoftDeletion() {
         return jdbcTemplate.queryForObject("""
-                SELECT post.deleted_at, photo.deleted_at
+                SELECT post.deleted_at, photo.deleted_at,
+                       photo.original_storage_key, photo.thumbnail_storage_key
                 FROM posts post
                 JOIN photos photo ON photo.id = post.photo_id
                 WHERE post.id = ?
                 """, (resultSet, rowNumber) -> new SoftDeletionRow(
                 instant(resultSet.getTimestamp(1)),
-                instant(resultSet.getTimestamp(2))
-        ), POST_ID);
-    }
-
-    private DeletionPlanRow findSinglePlan() {
-        return jdbcTemplate.queryForObject("""
-                SELECT post_id, post_image_upload_id,
-                       staging_storage_key, original_storage_key,
-                       thumbnail_storage_key, CAST(status AS TEXT),
-                       attempt_count, last_error_code,
-                       next_attempt_at, completed_at
-                FROM post_media_deletion_plans
-                WHERE post_id = ?
-                """, (resultSet, rowNumber) -> new DeletionPlanRow(
-                resultSet.getObject(1, UUID.class),
-                resultSet.getObject(2, UUID.class),
+                instant(resultSet.getTimestamp(2)),
                 resultSet.getString(3),
-                resultSet.getString(4),
-                resultSet.getString(5),
-                resultSet.getString(6),
-                resultSet.getInt(7),
-                resultSet.getString(8),
-                instant(resultSet.getTimestamp(9)),
-                instant(resultSet.getTimestamp(10))
+                resultSet.getString(4)
         ), POST_ID);
     }
 
@@ -324,14 +272,6 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
         ), POST_ID);
     }
 
-    private int countPlans() {
-        return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_media_deletion_plans WHERE post_id = ?",
-                Integer.class,
-                POST_ID
-        );
-    }
-
     private int countAudits() {
         return jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -342,10 +282,6 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     private void cleanUp() {
-        jdbcTemplate.update(
-                "DELETE FROM post_media_deletion_plans WHERE post_id = ?",
-                POST_ID
-        );
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
@@ -470,30 +406,10 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
 
     private record SoftDeletionRow(
             Instant postDeletedAt,
-            Instant photoDeletedAt
-    ) {
-    }
-
-    private record DeletionPlanRow(
-            UUID postId,
-            UUID postImageUploadId,
-            String stagingStorageKey,
+            Instant photoDeletedAt,
             String originalStorageKey,
-            String thumbnailStorageKey,
-            String status,
-            int attemptCount,
-            String lastErrorCode,
-            Instant nextAttemptAt,
-            Instant completedAt
+            String thumbnailStorageKey
     ) {
-
-        private List<String> storageKeys() {
-            return List.of(
-                    stagingStorageKey,
-                    originalStorageKey,
-                    thumbnailStorageKey
-            );
-        }
     }
 
     private record DeletionAuditRow(
