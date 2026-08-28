@@ -44,15 +44,15 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `서명 조회가 401이면 명세의 인증 오류를 표시한다`() = runTest {
+    fun `서명 조회가 401이면 로그아웃 상태를 제공한다`() = runTest {
         authRepository.setAuthenticated()
         userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.UNAUTHORIZED)
 
         val viewModel = createViewModel()
 
         assertFalse(viewModel.uiState.value.isLoading)
-        assertTrue(viewModel.uiState.value.isLoggedIn)
-        assertEquals("유효하지 않은 인증 정보입니다.", viewModel.uiState.value.signatureErrorMessage)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
+        assertEquals(null, viewModel.uiState.value.signatureErrorMessage)
         assertEquals(null, viewModel.uiState.value.signatureUrl)
     }
 

@@ -125,9 +125,9 @@ class SettingsViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        isLoggedIn = true,
+                        isLoggedIn = false,
                         signatureUrl = null,
-                        signatureErrorMessage = error.reason.toMessage(),
+                        signatureErrorMessage = null,
                     )
                 }
             } catch (error: Exception) {
