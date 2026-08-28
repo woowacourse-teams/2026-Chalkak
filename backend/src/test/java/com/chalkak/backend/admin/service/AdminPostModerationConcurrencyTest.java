@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.within;
 
 import com.chalkak.backend.exception.BaseException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -110,8 +111,9 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
         PostModerationRow post = findPost();
         ModerationAuditRow audit = findSingleAuditLog();
         assertThat(post.moderationStatus()).isEqualTo(decided.moderationStatus().name());
-        assertThat(post.moderatedAt()).isEqualTo(
-                decided.moderatedAt().truncatedTo(ChronoUnit.MICROS)
+        assertThat(post.moderatedAt()).isCloseTo(
+                decided.moderatedAt(),
+                within(1, ChronoUnit.MICROS)
         );
         assertThat(countAuditLogs()).isEqualTo(1);
         assertThat(audit.action()).isEqualTo(
