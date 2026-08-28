@@ -10,8 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
-import com.chalkak.backend.user.domain.UserFixture;
-import com.chalkak.backend.user.repository.UserRepository;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +19,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,16 +41,32 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Autowired
-    private UserRepository userRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
 
     private String token;
 
+    /**
+     * 사인 조회가 스토리지 키를 URL로 바꾸므로 root-prefix에 맞는 키를 넣는다. 픽스처의 기본 키를
+     * 쓰면 인가와 무관한 이유로 요청이 실패해 이 테스트가 무엇을 검증하는지 흐려진다.
+     */
     @BeforeEach
     void setUp() {
-        UUID userId = userRepository.save(UserFixture.createBanned(null)).getId();
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status,
+                    signature_original_storage_key, signature_thumbnail_storage_key,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, 'suspended@chalkak.test', 'BANNED',
+                    'chalkak/signatures/original/suspended.png',
+                    'chalkak/signatures/thumbnail/suspended.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, userId);
         token = "Bearer " + accessTokenProvider.issue(userId).value();
     }
 
@@ -140,6 +155,25 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/posts/calendar")
                         .queryParam("year", "2026")
                         .queryParam("month", "8")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(notSuspended());
+    }
+
+    @Test
+    @DisplayName("정지 회원도 내 사인을 조회할 수 있다")
+    void getSignature_suspendedUser_isNotForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/me/signature")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(notSuspended());
+    }
+
+    @Test
+    @DisplayName("정지 회원도 게시물 목록을 조회할 수 있다")
+    void getPosts_suspendedUser_isNotForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .queryParam("topicDate", "2026-08-12")
                         .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(notSuspended());
     }

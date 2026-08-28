@@ -1,8 +1,8 @@
 package com.chalkak.backend.user.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
-import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
+import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;

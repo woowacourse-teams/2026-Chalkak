@@ -1,8 +1,8 @@
 package com.chalkak.backend.post.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
-import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.auth.api.support.OptionalLoginUser;
+import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;

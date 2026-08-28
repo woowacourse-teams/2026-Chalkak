@@ -15,19 +15,19 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         return parameter.hasParameterAnnotation(LoginUser.class)
-            && AuthenticatedUser.class.equals(parameter.getParameterType());
+                && AuthenticatedUser.class.equals(parameter.getParameterType());
     }
 
     @Override
     public AuthenticatedUser resolveArgument(
-        MethodParameter parameter,
-        ModelAndViewContainer mavContainer,
-        NativeWebRequest webRequest,
-        WebDataBinderFactory binderFactory
+            MethodParameter parameter,
+            ModelAndViewContainer mavContainer,
+            NativeWebRequest webRequest,
+            WebDataBinderFactory binderFactory
     ) {
         return AuthenticatedUsers.find()
-            .orElseThrow(() -> new UnauthorizedException(
-                ErrorCode.UNAUTHORIZED,
-                "유효하지 않은 인증 정보입니다."));
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
     }
 }

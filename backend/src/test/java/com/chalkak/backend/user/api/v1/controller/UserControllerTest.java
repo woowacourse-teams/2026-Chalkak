@@ -79,20 +79,8 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("사용자 식별 헤더가 없으면 401을 반환한다")
-    void withdraw_missingUserIdHeader_returnsUnauthorized() throws Exception {
-        // When & Then
-        mockMvc.perform(delete("/api/v1/users/me"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
-
-        verify(userService, never()).withdraw(any());
-    }
-
-    @Test
-    @DisplayName("사용자 식별 헤더가 UUID 형식이 아니면 401을 반환한다")
-    void withdraw_invalidUserIdHeader_returnsUnauthorized() throws Exception {
+    @DisplayName("인증 정보가 없으면 401을 반환한다")
+    void withdraw_unauthenticated_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized())

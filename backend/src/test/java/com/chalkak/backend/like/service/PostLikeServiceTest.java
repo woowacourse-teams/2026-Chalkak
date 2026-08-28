@@ -22,8 +22,6 @@ class PostLikeServiceTest extends IntegrationTestSupport {
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID UNKNOWN_USER_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a3");
-    private static final UUID BANNED_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a4");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
     @Autowired
@@ -51,14 +49,6 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                         'post-like-user@example.com',
                         'ACTIVE',
                         'chalkak/dev/signatures/post-like-user.png',
-                        CURRENT_TIMESTAMP,
-                        CURRENT_TIMESTAMP
-                    ),
-                    (
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570a4',
-                        'post-like-banned@example.com',
-                        'BANNED',
-                        'chalkak/dev/signatures/post-like-banned.png',
                         CURRENT_TIMESTAMP,
                         CURRENT_TIMESTAMP
                     )
