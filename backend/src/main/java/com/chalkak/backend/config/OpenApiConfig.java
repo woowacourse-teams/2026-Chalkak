@@ -5,6 +5,10 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import java.util.Set;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +46,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("admin-api")
                 .pathsToMatch("/api/v1/admin/**")
+                .addOpenApiCustomizer(this::customizeAdminPostNullableSchemas)
                 .build();
     }
 
@@ -51,5 +56,25 @@ public class OpenApiConfig {
                 .group("internal-api")
                 .pathsToMatch("/internal/v1/**")
                 .build();
+    }
+
+    /**
+     * springdoc 3.1은 nullable한 참조 타입을 {@code type: null}과 {@code $ref}의 교집합으로
+     * 생성하므로, 실제 응답처럼 업로드 객체 또는 null을 허용하는 합집합 스키마로 교정한다.
+     */
+    private void customizeAdminPostNullableSchemas(OpenAPI openApi) {
+        Schema<?> detailSchema = openApi.getComponents()
+                .getSchemas()
+                .get("AdminPostDetailResponse");
+        if (detailSchema == null) {
+            return;
+        }
+
+        ComposedSchema nullableImageUploadSchema = new ComposedSchema();
+        nullableImageUploadSchema.addOneOfItem(
+                new Schema<>().$ref("#/components/schemas/AdminPostDetailImageUpload")
+        );
+        nullableImageUploadSchema.addOneOfItem(new Schema<>().types(Set.of("null")));
+        detailSchema.addProperty("imageUpload", nullableImageUploadSchema);
     }
 }
