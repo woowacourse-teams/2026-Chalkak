@@ -2,10 +2,11 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
+import java.time.LocalDate
 
 data class HomeUiState(
     val contentStatus: HomeContentStatus = HomeContentStatus.Loading,
-    val dateLabel: String = "",
+    val topicDate: LocalDate? = null,
     val topic: String = "",
     val photos: List<Post> = emptyList(),
     val selectedSort: PostSort = PostSort.LATEST,

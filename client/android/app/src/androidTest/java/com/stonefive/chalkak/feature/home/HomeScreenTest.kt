@@ -74,6 +74,7 @@ class HomeScreenTest {
             uiState = contentUiState()
         }
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
+        composeRule.onNodeWithText("8월 28일 · 오늘의 주제").assertIsDisplayed()
 
         composeRule.runOnIdle {
             uiState = contentUiState(isLoadingNext = true)
@@ -279,7 +280,7 @@ private fun contentUiState(
     isLoadingNext: Boolean = false,
 ) = HomeUiState(
     contentStatus = HomeContentStatus.Content,
-    dateLabel = "8월 28일 · 오늘의 주제",
+    topicDate = LocalDate.of(2026, 8, 28),
     topic = "바다",
     photos = photos,
     selectedSort = PostSort.LATEST,

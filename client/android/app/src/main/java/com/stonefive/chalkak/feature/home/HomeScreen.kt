@@ -55,6 +55,7 @@ import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
 import com.stonefive.chalkak.feature.home.component.HomeTopic
 import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 internal const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
@@ -315,7 +316,7 @@ private fun HomeContent(
                         .onSizeChanged { scrollState.topAreaHeight = it.height },
                 ) {
                     HomeTopic(
-                        dateLabel = uiState.dateLabel,
+                        topicDate = uiState.topicDate,
                         topic = uiState.topic,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -391,7 +392,7 @@ private fun HomeScreenPreview() {
         HomeScreen(
             uiState = HomeUiState(
                 contentStatus = HomeContentStatus.Content,
-                dateLabel = "8월 3일 · 오늘의 주제",
+                topicDate = LocalDate.of(2026, 8, 3),
                 topic = "하늘하늘하늘",
                 photos = listOf(
                     Post(

@@ -185,7 +185,7 @@ class HomeViewModel(
         homeContentRevision++
         _uiState.value = HomeUiState(
             contentStatus = HomeContentStatus.Content,
-            dateLabel = content.dateLabel,
+            topicDate = content.topicDate,
             topic = content.topic,
             photos = content.photos,
             selectedSort = requestedSort,

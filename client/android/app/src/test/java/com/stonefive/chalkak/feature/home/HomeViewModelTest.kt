@@ -113,7 +113,7 @@ class HomeViewModelTest {
                 .date,
         )
         assertEquals("새 주제", viewModel.uiState.value.topic)
-        assertEquals("8월 29일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+        assertEquals(canonicalDate, viewModel.uiState.value.topicDate)
 
         currentDate = LocalDate.of(2026, 8, 30)
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
@@ -132,7 +132,7 @@ class HomeViewModelTest {
                 .date,
         )
         assertEquals("다음 주제", viewModel.uiState.value.topic)
-        assertEquals("8월 30일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+        assertEquals(LocalDate.of(2026, 8, 30), viewModel.uiState.value.topicDate)
     }
 
     @Test
@@ -157,7 +157,7 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.RefreshRequested)
 
         assertEquals("새 주제", viewModel.uiState.value.topic)
-        assertEquals("8월 29일 · 오늘의 주제", viewModel.uiState.value.dateLabel)
+        assertEquals(LocalDate.of(2026, 8, 29), viewModel.uiState.value.topicDate)
         assertTrue(
             viewModel.uiState.value.photos
                 .isEmpty(),
