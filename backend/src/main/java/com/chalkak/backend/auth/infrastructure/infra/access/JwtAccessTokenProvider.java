@@ -87,6 +87,9 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
         JwtTimestampValidator timestampValidator =
                 new JwtTimestampValidator(CLOCK_SKEW);
         timestampValidator.setClock(clock);
+        // 기본값은 exp가 없는 토큰을 통과시킨다. 그대로 두면 만료되지 않는 토큰이 만들어질 수 있어
+        // 1시간 만료라는 전제가 통째로 무너진다.
+        timestampValidator.setAllowEmptyExpiryClaim(false);
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 timestampValidator,
                 new JwtIssuerValidator(properties.issuer()),

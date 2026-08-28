@@ -173,6 +173,39 @@ class JwtAccessTokenProviderTest {
     }
 
     @Test
+    @DisplayName("만료 시각이 없는 토큰은 검증할 수 없다")
+    void decode_missingExpiry_throwsJwtException() {
+        // Given
+        JwtAccessTokenProvider provider = createProvider(NOW);
+        String token = encodeWithSameSecret(JwtClaimsSet.builder()
+                .issuer(ISSUER)
+                .audience(List.of(AUDIENCE))
+                .subject(UUID.randomUUID().toString())
+                .issuedAt(NOW)
+                .claim("purpose", "ACCESS")
+                .build());
+
+        // When & Then
+        assertThatThrownBy(() -> provider.jwtDecoder().decode(token))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    @DisplayName("허용 오차와 정확히 같은 시각에 만료된 토큰은 검증할 수 있다")
+    void decode_exactlyAtClockSkewBoundary_verifiesAccessToken() {
+        // Given
+        String token = createProvider(NOW).issue(UUID.randomUUID()).value();
+        JwtAccessTokenProvider verifier =
+                createProvider(NOW.plus(EXPIRATION).plusSeconds(30));
+
+        // When
+        Jwt jwt = verifier.jwtDecoder().decode(token);
+
+        // Then
+        assertThat(jwt.getSubject()).isNotBlank();
+    }
+
+    @Test
     @DisplayName("subject가 회원 식별자 형식이 아닌 토큰은 검증할 수 없다")
     void decode_nonUuidSubject_throwsJwtException() {
         // Given
