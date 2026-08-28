@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -190,27 +191,58 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     }
 
     /**
-     * 목록만 공개다. 상세와 캘린더는 인증 없이 열리면 안 된다.
-     *
-     * <p>지금은 컨트롤러도 {@code requireUserId}로 같은 판단을 하므로, 경로 규칙만 넓혀서는 이
-     * 테스트가 깨지지 않는다. 컨트롤러의 검사까지 함께 사라졌을 때 열리는 것을 막는 것이 목적이다.
+     * 필터가 막은 401과 컨트롤러가 던진 401은 상태 코드도 본문도 같다. RFC 6750이 요구하는
+     * 이 헤더가 둘을 구별하는 유일한 신호이므로, 경로 인가 규칙을 검증하는 테스트가 기댈 수 있다.
      */
     @Test
-    @DisplayName("게시물 상세 조회는 토큰 없이 호출할 수 없다")
-    void postDetail_withoutToken_returnsUnauthorized() throws Exception {
+    @DisplayName("필터가 막은 401에는 WWW-Authenticate 헤더가 붙는다")
+    void protectedApi_withoutToken_setsWwwAuthenticateHeader() throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID()))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
     }
 
     @Test
-    @DisplayName("내 게시물 캘린더는 토큰 없이 호출할 수 없다")
-    void postCalendar_withoutToken_returnsUnauthorized() throws Exception {
+    @DisplayName("컨트롤러가 던진 401에는 WWW-Authenticate 헤더가 붙지 않는다")
+    void publicPath_controllerRejection_doesNotSetWwwAuthenticateHeader() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        given(postQueryService.getPost(any(), eq(userId)))
+                .willReturn(null);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION,
+                                "Bearer " + accessTokenProvider.issue(userId).value()))
+                .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
+    }
+
+    /**
+     * 목록만 공개다. 상세와 캘린더는 인증 없이 열리면 안 된다.
+     *
+     * <p>컨트롤러도 {@code requireUserId}로 같은 401을 내므로 상태 코드만으로는 누가 막았는지
+     * 알 수 없다. 필터가 막았을 때만 붙는 {@code WWW-Authenticate}를 함께 확인해,
+     * {@code /api/v1/posts/*} 같은 넓은 규칙이 다시 들어오면 여기서 걸리게 한다.
+     */
+    @Test
+    @DisplayName("게시물 상세 조회는 필터가 인증을 요구한다")
+    void postDetail_withoutToken_isRejectedByFilter() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("내 게시물 캘린더는 필터가 인증을 요구한다")
+    void postCalendar_withoutToken_isRejectedByFilter() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
                         .queryParam("year", "2026")
                         .queryParam("month", "8"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
     }
 
     /**
