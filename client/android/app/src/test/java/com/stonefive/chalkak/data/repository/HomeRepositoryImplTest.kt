@@ -3,10 +3,10 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
-import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostResponse
-import com.stonefive.chalkak.data.remote.home.model.HomeTopicResponse
+import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -30,7 +30,7 @@ class HomeRepositoryImplTest {
     @Test
     fun `토픽과 첫 게시물 페이지를 Home 도메인 콘텐츠로 변환한다`() = runTest {
         remoteDataSource.topicResult = ApiResult.Success(
-            HomeTopicResponse(
+            TopicResponse(
                 id = "new-topic-id",
                 title = "새 바다",
                 topicDate = "2026-08-29",
@@ -77,7 +77,7 @@ class HomeRepositoryImplTest {
     @Test
     fun `HTTP 200 빈 게시물은 성공한 빈 콘텐츠다`() = runTest {
         remoteDataSource.topicResult = ApiResult.Success(
-            HomeTopicResponse(
+            TopicResponse(
                 id = "new-topic-id",
                 title = "새 주제",
                 topicDate = "2026-08-29",
@@ -99,7 +99,7 @@ class HomeRepositoryImplTest {
     @Test
     fun `topicDate 파싱 실패는 InvalidResponse로 분류하고 posts를 요청하지 않는다`() = runTest {
         remoteDataSource.topicResult = ApiResult.Success(
-            HomeTopicResponse(
+            TopicResponse(
                 id = "invalid-topic-id",
                 title = "잘못된 주제",
                 topicDate = "2026-02-30",
@@ -185,7 +185,7 @@ class HomeRepositoryImplTest {
     @Test
     fun `좋아요 응답의 count와 state를 권위 있는 결과로 매핑한다`() = runTest {
         remoteDataSource.likeResult = ApiResult.Success(
-            HomeLikeResponse(
+            PostLikeResponse(
                 postId = "photo-1",
                 likeCount = Int.MAX_VALUE.toLong(),
                 isLiked = true,
@@ -201,7 +201,7 @@ class HomeRepositoryImplTest {
     fun `좋아요 응답 count가 Int 범위를 벗어나면 InvalidResponse다`() = runTest {
         listOf(Int.MAX_VALUE.toLong() + 1L, -1L).forEach { invalidCount ->
             remoteDataSource.likeResult = ApiResult.Success(
-                HomeLikeResponse(
+                PostLikeResponse(
                     postId = "photo-1",
                     likeCount = invalidCount,
                     isLiked = true,
@@ -217,7 +217,7 @@ class HomeRepositoryImplTest {
     @Test
     fun `좋아요 응답 postId가 요청한 게시물과 다르면 InvalidResponse다`() = runTest {
         remoteDataSource.likeResult = ApiResult.Success(
-            HomeLikeResponse(
+            PostLikeResponse(
                 postId = "other-photo",
                 likeCount = 25,
                 isLiked = true,
@@ -245,25 +245,25 @@ class HomeRepositoryImplTest {
 
 private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
-    var topicResult: ApiResult<HomeTopicResponse> = ApiResult.Success(
-        HomeTopicResponse(
+    var topicResult: ApiResult<TopicResponse> = ApiResult.Success(
+        TopicResponse(
             id = "topic-id",
             title = "바다",
             topicDate = "2026-08-28",
         ),
     )
-    var postsResult: ApiResult<HomePostPageResponse> = ApiResult.Success(postPage())
-    var likeResult: ApiResult<HomeLikeResponse> = ApiResult.Success(
-        HomeLikeResponse(
+    var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
+    var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
+        PostLikeResponse(
             postId = "photo-1",
             likeCount = 25,
             isLiked = true,
         ),
     )
 
-    override suspend fun getTopic(date: LocalDate): ApiResult<HomeTopicResponse> = topicResult
+    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = topicResult
 
-    override suspend fun getPosts(query: HomeQuery): ApiResult<HomePostPageResponse> {
+    override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> {
         postsQueries += query
         return postsResult
     }
@@ -271,11 +271,11 @@ private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): ApiResult<HomeLikeResponse> = likeResult
+    ): ApiResult<PostLikeResponse> = likeResult
 }
 
 private fun postPage(
-    posts: List<HomePostResponse> = listOf(
+    posts: List<PostResponse> = listOf(
         homePost(
             id = "photo-1",
             title = "바다",
@@ -294,7 +294,7 @@ private fun postPage(
     ),
     hasNext: Boolean = posts.isNotEmpty(),
     randomSeed: String? = "seed-1",
-) = HomePostPageResponse(
+) = PostPageResponse(
     currentPage = 1,
     pageSize = 20,
     hasNext = hasNext,
@@ -311,7 +311,7 @@ private fun homePost(
     signatureThumbnailImageUrl: String = "signature-thumbnail",
     isLiked: Boolean = false,
     likeCount: Long = 24,
-) = HomePostResponse(
+) = PostResponse(
     id = id,
     originalImageUrl = originalImageUrl,
     thumbnailImageUrl = thumbnailImageUrl,

@@ -3,10 +3,10 @@ package com.stonefive.chalkak.data.remote.home
 import androidx.annotation.DrawableRes
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostResponse
-import com.stonefive.chalkak.data.remote.home.model.HomeTopicResponse
+import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import java.time.LocalDate
 import kotlinx.coroutines.delay
@@ -14,10 +14,10 @@ import kotlinx.coroutines.delay
 class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : HomeRemoteDataSource {
     private val likedPhotoIds = mutableSetOf<String>()
 
-    override suspend fun getTopic(date: LocalDate): ApiResult<HomeTopicResponse> {
+    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
         delay(responseDelayMillis)
         return ApiResult.Success(
-            HomeTopicResponse(
+            TopicResponse(
                 id = "sample-home-topic",
                 title = "하늘하늘하늘",
                 topicDate = date.toString(),
@@ -25,10 +25,10 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
         )
     }
 
-    override suspend fun getPosts(query: HomeQuery): ApiResult<HomePostPageResponse> {
+    override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> {
         delay(responseDelayMillis)
         val posts = listOf(
-            HomePostResponse(
+            PostResponse(
                 id = FIRST_PHOTO_ID,
                 originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
                 thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
@@ -38,7 +38,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
                 likeCount = currentLikeCount(FIRST_PHOTO_ID, FIRST_PHOTO_LIKE_COUNT).toLong(),
                 isLiked = FIRST_PHOTO_ID in likedPhotoIds,
             ),
-            HomePostResponse(
+            PostResponse(
                 id = SECOND_PHOTO_ID,
                 originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
                 thumbnailImageUrl = drawableResourceUrl(R.drawable.preview_photo),
@@ -48,7 +48,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
                 likeCount = currentLikeCount(SECOND_PHOTO_ID, SECOND_PHOTO_LIKE_COUNT).toLong(),
                 isLiked = SECOND_PHOTO_ID in likedPhotoIds,
             ),
-            HomePostResponse(
+            PostResponse(
                 id = THIRD_PHOTO_ID,
                 originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
                 thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
@@ -60,7 +60,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
             ),
         )
         return ApiResult.Success(
-            HomePostPageResponse(
+            PostPageResponse(
                 currentPage = query.page,
                 pageSize = query.pageSize,
                 hasNext = false,
@@ -73,7 +73,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): ApiResult<HomeLikeResponse> {
+    ): ApiResult<PostLikeResponse> {
         delay(responseDelayMillis)
         // Feed는 Display 등 다른 소스의 게시물도 열 수 있어 이 Mock이 모르는 id가 올 수 있다.
         // 프로토타입 단계에서는 예외 대신 기본값으로 관대하게 처리한다.
@@ -84,7 +84,7 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
             likedPhotoIds -= photoId
         }
         return ApiResult.Success(
-            HomeLikeResponse(
+            PostLikeResponse(
                 postId = photoId,
                 likeCount = (defaultLikeCount + if (isLiked) 1 else 0).toLong(),
                 isLiked = isLiked,

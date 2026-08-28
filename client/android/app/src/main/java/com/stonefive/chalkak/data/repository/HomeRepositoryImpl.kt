@@ -3,9 +3,9 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
-import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostResponse
+import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -70,7 +70,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
     }
 
-    private fun HomePostPageResponse.toDomain(query: HomeQuery): HomeResult<PostPage> {
+    private fun PostPageResponse.toDomain(query: HomeQuery): HomeResult<PostPage> {
         val effectiveSeed = if (query.sort == PostSort.RANDOM) {
             randomSeed ?: query.randomSeed
         } else {
@@ -89,8 +89,8 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
             PostPage(
                 photos = mappedPosts,
                 likedPhotoIds = posts
-                    .filter(HomePostResponse::isLiked)
-                    .mapTo(mutableSetOf(), HomePostResponse::id),
+                    .filter(PostResponse::isLiked)
+                    .mapTo(mutableSetOf(), PostResponse::id),
                 currentPage = currentPage,
                 hasNext = hasNext,
                 randomSeed = effectiveSeed,
@@ -98,7 +98,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         )
     }
 
-    private fun HomePostResponse.toDomain(): Post? {
+    private fun PostResponse.toDomain(): Post? {
         val mappedLikeCount = likeCount.toLikeCountOrNull() ?: return null
         return Post(
             id = id,
@@ -113,7 +113,7 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         )
     }
 
-    private fun HomeLikeResponse.toDomain(): HomeResult<HomeLike> {
+    private fun PostLikeResponse.toDomain(): HomeResult<HomeLike> {
         val mappedLikeCount = likeCount.toLikeCountOrNull()
             ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
         return HomeResult.Success(

@@ -1,25 +1,18 @@
-package com.stonefive.chalkak.data.remote.home.model
+package com.stonefive.chalkak.data.remote.post.model
 
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class HomeTopicResponse(
-    val id: String,
-    val title: String,
-    val topicDate: String,
-)
-
-@Serializable
-data class HomePostPageResponse(
+data class PostPageResponse(
     val currentPage: Int,
     val pageSize: Int,
     val hasNext: Boolean,
     val randomSeed: String? = null,
-    val posts: List<HomePostResponse>,
+    val posts: List<PostResponse>,
 )
 
 @Serializable
-data class HomePostResponse(
+data class PostResponse(
     val id: String,
     val originalImageUrl: String,
     val thumbnailImageUrl: String,
@@ -31,7 +24,7 @@ data class HomePostResponse(
 )
 
 @Serializable
-data class HomeLikeResponse(
+data class PostLikeResponse(
     val postId: String,
     val likeCount: Long,
     val isLiked: Boolean,

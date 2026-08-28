@@ -2,9 +2,11 @@ package com.stonefive.chalkak.data.remote.home
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.home.model.HomeLikeResponse
-import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
-import com.stonefive.chalkak.data.remote.home.model.HomeTopicResponse
+import com.stonefive.chalkak.data.remote.post.PostApi
+import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.topic.TopicApi
+import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import java.io.IOException
@@ -16,15 +18,16 @@ import kotlinx.serialization.json.Json
 import retrofit2.Response
 
 class HomeRemoteDataSourceImpl(
-    private val api: HomeApi,
+    private val topicApi: TopicApi,
+    private val postApi: PostApi,
     private val json: Json,
 ) : HomeRemoteDataSource {
-    override suspend fun getTopic(date: LocalDate): ApiResult<HomeTopicResponse> = request {
-        api.getTopic(date.toString())
+    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = request {
+        topicApi.getTopic(date.toString())
     }
 
-    override suspend fun getPosts(query: HomeQuery): ApiResult<HomePostPageResponse> = request {
-        api.getPosts(
+    override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> = request {
+        postApi.getPosts(
             topicDate = query.date.toString(),
             sort = query.sort.apiValue,
             page = query.page,
@@ -36,8 +39,8 @@ class HomeRemoteDataSourceImpl(
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): ApiResult<HomeLikeResponse> = request {
-        if (isLiked) api.likePost(photoId) else api.unlikePost(photoId)
+    ): ApiResult<PostLikeResponse> = request {
+        if (isLiked) postApi.likePost(photoId) else postApi.unlikePost(photoId)
     }
 
     private suspend fun <T> request(block: suspend () -> Response<T>): ApiResult<T> = try {

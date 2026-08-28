@@ -66,7 +66,8 @@ class AppContainer(context: Context) {
     val homeRepository: HomeRepository by lazy {
         HomeRepositoryImpl(
             remoteDataSource = HomeRemoteDataSourceImpl(
-                api = networkModule.homeApi,
+                topicApi = networkModule.topicApi,
+                postApi = networkModule.postApi,
                 json = networkModule.json,
             ),
         )

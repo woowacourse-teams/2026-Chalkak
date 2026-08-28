@@ -4,7 +4,9 @@ import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
-import com.stonefive.chalkak.data.remote.home.model.HomePostPageResponse
+import com.stonefive.chalkak.data.remote.post.PostApi
+import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
@@ -93,7 +95,7 @@ class HomeRemoteDataSourceImplTest {
             .takeRequest()
             .requestUrl
         assertNull(requestUrl?.queryParameter("randomSeed"))
-        val page = (result as ApiResult.Success<HomePostPageResponse>).value
+        val page = (result as ApiResult.Success<PostPageResponse>).value
         assertEquals("seed-1", page.randomSeed)
     }
 
@@ -269,14 +271,17 @@ class HomeRemoteDataSourceImplTest {
 
     private fun createDataSource(client: OkHttpClient = OkHttpClient()): HomeRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
-        val api = Retrofit
+        val retrofit = Retrofit
             .Builder()
             .baseUrl(server.url("/api/v1/"))
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(HomeApi::class.java)
-        return HomeRemoteDataSourceImpl(api = api, json = json)
+        return HomeRemoteDataSourceImpl(
+            topicApi = retrofit.create(TopicApi::class.java),
+            postApi = retrofit.create(PostApi::class.java),
+            json = json,
+        )
     }
 
     private fun jsonResponse(body: String) = MockResponse()
