@@ -44,4 +44,21 @@ describe("PostListScreen", () => {
       ),
     );
   });
+
+  it("shows only administrator-reviewable statuses", async () => {
+    render(
+      <QueryProvider>
+        <PostListScreen />
+      </QueryProvider>,
+    );
+
+    const statusFilter = await screen.findByRole("combobox", {
+      name: "검수 상태",
+    });
+    expect(statusFilter).toHaveValue("PENDING");
+    expect(
+      screen.queryByRole("option", { name: "이미지 처리 중" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("이미지 처리 중")).not.toBeInTheDocument();
+  });
 });

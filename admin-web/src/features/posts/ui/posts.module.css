@@ -346,9 +346,21 @@
 }
 
 @media (max-width: 700px) {
+  .postsPage,
+  .detailPage {
+    gap: 16px;
+  }
+
   .listIntro {
     align-items: flex-start;
     flex-direction: column;
+    border-radius: 18px;
+    padding: 22px;
+  }
+
+  .listIntro h2 {
+    font-size: 28px;
+    line-height: 1.15;
   }
 
   .listIntro > strong {
@@ -357,6 +369,16 @@
 
   .filterGrid {
     grid-template-columns: 1fr;
+  }
+
+  .filters {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .filterActions button {
+    min-height: 46px;
+    flex: 1;
   }
 
   .desktopList {
@@ -375,6 +397,16 @@
 
   .detailImage {
     min-height: 78vw;
+    border-radius: 18px;
+  }
+
+  .detailPanel {
+    border-radius: 18px;
+    padding: 22px 18px;
+  }
+
+  .detailTitleRow h2 {
+    font-size: 30px;
   }
 
   .detailMeta {
@@ -382,10 +414,12 @@
   }
 
   .detailActions {
-    position: sticky;
-    z-index: 10;
-    bottom: 10px;
-    margin: 24px -12px -12px;
+    position: fixed;
+    z-index: 40;
+    right: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 16px;
+    margin: 0;
     border: 1px solid #dce2d6;
     border-radius: 15px;
     background: rgb(255 255 255 / 94%);
@@ -395,11 +429,15 @@
   }
 
   .detailActions button {
-    min-height: 46px;
+    min-height: 50px;
     flex: 1;
   }
 
   .detailActions .deleteButton {
     margin-left: 0;
+  }
+
+  .detailPage:has(.detailActions) {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }

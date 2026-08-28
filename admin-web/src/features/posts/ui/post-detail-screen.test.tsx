@@ -61,4 +61,22 @@ describe("PostDetailScreen", () => {
       await screen.findByRole("link", { name: "← 목록과 필터로 돌아가기" }),
     ).toHaveAttribute("href", "/posts?status=PENDING");
   });
+
+  it("does not expose a post before image validation is complete", async () => {
+    render(
+      <QueryProvider>
+        <ToastProvider>
+          <PostDetailScreen postId={postIds.validating} />
+        </ToastProvider>
+      </QueryProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "아직 검수할 수 없는 게시물입니다",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("이미지 처리 중")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "승인" })).not.toBeInTheDocument();
+  });
 });

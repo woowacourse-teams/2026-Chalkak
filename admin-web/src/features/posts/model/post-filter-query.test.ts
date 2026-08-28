@@ -24,17 +24,24 @@ describe("post filter URL query", () => {
     });
   });
 
-  it("drops invalid values instead of forwarding them to the API", () => {
+  it("falls back to the actionable pending queue for invalid values", () => {
     const filters = readAdminPostFilters(
       new URLSearchParams("status=UNKNOWN&page=-1&pageSize=500&sort=random"),
     );
 
     expect(filters).toMatchObject({
-      status: undefined,
+      status: "PENDING",
       page: 1,
       pageSize: 100,
       sort: "createdAtDesc",
     });
+  });
+
+  it("does not expose image-validation work to administrators", () => {
+    expect(
+      readAdminPostFilters(new URLSearchParams("status=VALIDATING")).status,
+    ).toBe("PENDING");
+    expect(readAdminPostFilters(new URLSearchParams()).status).toBe("PENDING");
   });
 
   it("preserves current filters while changing the page", () => {

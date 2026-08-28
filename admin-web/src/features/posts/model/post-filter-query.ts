@@ -3,7 +3,6 @@ import type { ModerationStatus } from "@/shared/api/contracts";
 import type { AdminPostFilters, AdminPostSort } from "../api/post-api";
 
 const moderationStatuses = new Set<ModerationStatus>([
-  "VALIDATING",
   "PENDING",
   "APPROVED",
   "REJECTED",
@@ -26,7 +25,7 @@ export function readAdminPostFilters(
 
   return {
     status:
-      rawStatus && moderationStatuses.has(rawStatus) ? rawStatus : undefined,
+      rawStatus && moderationStatuses.has(rawStatus) ? rawStatus : "PENDING",
     topicId: optional(params.get("topicId")),
     topicDate: optional(params.get("topicDate")),
     userId: optional(params.get("userId")),

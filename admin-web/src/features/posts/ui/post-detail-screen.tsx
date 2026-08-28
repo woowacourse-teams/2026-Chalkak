@@ -5,7 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
-import { ErrorState, LoadingSkeleton } from "@/shared/ui/feedback-states";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingSkeleton,
+} from "@/shared/ui/feedback-states";
 import { StatusBadge } from "@/shared/ui/status-badge";
 import { useToast } from "@/shared/ui/toast";
 
@@ -59,11 +63,20 @@ export function PostDetailScreen({ postId }: { postId: string }) {
   }
 
   const post = postQuery.data;
+
+  if (post.moderationStatus === "VALIDATING") {
+    return (
+      <EmptyState
+        description="이미지 처리가 완료되면 검수 대기 목록에서 확인할 수 있습니다."
+        title="아직 검수할 수 없는 게시물입니다"
+      />
+    );
+  }
+
   const status = getPostDisplayStatus(post);
   const canModerate =
     post.moderationStatus === "PENDING" && post.deletedAt === null;
-  const canDelete =
-    post.moderationStatus !== "VALIDATING" && post.deletedAt === null;
+  const canDelete = post.deletedAt === null;
 
   const confirmAction = async (reason: string) => {
     if (!action || isProcessing || requestLockRef.current) {

@@ -49,8 +49,6 @@ export function PostFilters({
             key={filters.status}
             name="status"
           >
-            <option value="">전체 상태</option>
-            <option value="VALIDATING">이미지 처리 중</option>
             <option value="PENDING">검수 대기</option>
             <option value="APPROVED">승인</option>
             <option value="REJECTED">거절</option>
