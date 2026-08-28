@@ -105,13 +105,20 @@ class ProcessingCallbackClient:
         environment: str,
         upload_id: str,
     ) -> ProcessingUploadUrls:
-        raw_response = self._post(
-            environment,
-            upload_id,
-            "upload-urls",
-            None,
-            permanent_rejection=False,
-        )
+        try:
+            raw_response = self._post(
+                environment,
+                upload_id,
+                "upload-urls",
+                None,
+                permanent_rejection=False,
+            )
+        except HTTPError as error:
+            if error.code == 404:
+                raise PermanentCallbackError(
+                    "backend cancelled processing upload URLs with HTTP 404"
+                ) from error
+            raise
         try:
             payload = json.loads(raw_response)
             upload_urls = ProcessingUploadUrls(

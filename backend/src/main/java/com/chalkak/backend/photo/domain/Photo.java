@@ -75,4 +75,17 @@ public class Photo {
         }
         return new Photo(originalStorageKey);
     }
+
+    public void delete(Instant deletedAt) {
+        if (this.deletedAt != null) {
+            return;
+        }
+        if (deletedAt == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "사진 삭제 시각이 필요합니다."
+            );
+        }
+        this.deletedAt = deletedAt;
+    }
 }

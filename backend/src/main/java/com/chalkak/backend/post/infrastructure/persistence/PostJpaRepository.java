@@ -30,6 +30,22 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     @Query("""
             SELECT post
             FROM Post post
+            JOIN FETCH post.photo photo
+            WHERE post.id = :postId
+            """)
+    Optional<Post> findByIdForUpdate(@Param("postId") UUID postId);
+
+    @Query("""
+            SELECT post.postImageUploadId
+            FROM Post post
+            WHERE post.id = :postId
+            """)
+    Optional<UUID> findPostImageUploadIdById(@Param("postId") UUID postId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT post
+            FROM Post post
             WHERE post.author.id = :authorId
               AND post.topic.id = :topicId
               AND post.moderationStatus <> :excludedStatus
@@ -72,6 +88,16 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     Optional<Post> findByPostImageUploadIdForUpdate(
             @Param("postImageUploadId") UUID postImageUploadId,
             @Param("moderationStatus") ModerationStatus moderationStatus
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT post
+            FROM Post post
+            WHERE post.postImageUploadId = :postImageUploadId
+            """)
+    Optional<Post> findIncludingDeletedByPostImageUploadIdForUpdate(
+            @Param("postImageUploadId") UUID postImageUploadId
     );
 
     @Query("""

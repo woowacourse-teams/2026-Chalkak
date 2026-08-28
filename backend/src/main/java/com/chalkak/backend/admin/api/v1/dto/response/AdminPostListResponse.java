@@ -101,6 +101,7 @@ public record AdminPostListResponse(
     @Schema(name = "AdminPostListPhoto")
     public record PhotoResponse(
             UUID photoId,
+            @Schema(nullable = true)
             String originalImageUrl,
             @Schema(nullable = true)
             String thumbnailImageUrl

@@ -104,10 +104,14 @@ class PostImageProcessor:
 
             original_key = self._destination_key(environment, "original", upload_id)
             thumbnail_key = self._destination_key(environment, "thumbnail", upload_id)
-            upload_urls = self._callback_client.issue_upload_urls(
-                environment,
-                upload_id,
-            )
+            try:
+                upload_urls = self._callback_client.issue_upload_urls(
+                    environment,
+                    upload_id,
+                )
+            except PermanentCallbackError:
+                self._discard_staging(event)
+                raise
             self._upload(
                 original_key,
                 upload_urls.original_upload_url,

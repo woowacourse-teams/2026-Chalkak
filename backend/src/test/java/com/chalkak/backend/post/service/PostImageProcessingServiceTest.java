@@ -1,11 +1,16 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
+import com.chalkak.backend.post.repository.PostProcessingImageUpload;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.util.Map;
@@ -142,6 +147,69 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         Map<String, Object> upload = findUpload();
         assertThat(upload.get("status").toString()).isEqualTo("READY");
         assertThat(upload.get("metadata_width")).isEqualTo("4032");
+    }
+
+    @Test
+    @DisplayName("게시물이 삭제되기 전에는 Lambda 처리 결과용 업로드 URL을 발급한다")
+    void issuePostImageProcessingUpload_activeUpload_issuesUrls() {
+        // Given
+        PostProcessingImageUpload processingUpload = new PostProcessingImageUpload(
+                "https://s3.test/original",
+                "https://s3.test/thumbnail",
+                "image/webp",
+                "public, max-age=86400"
+        );
+        given(postImageUploadIssuer.issueProcessingUpload(UPLOAD_ID))
+                .willReturn(processingUpload);
+
+        // When
+        PostProcessingImageUpload result =
+                postCommandService.issuePostImageProcessingUpload(UPLOAD_ID);
+
+        // Then
+        assertThat(result).isEqualTo(processingUpload);
+        then(postImageUploadIssuer).should().issueProcessingUpload(UPLOAD_ID);
+    }
+
+    @Test
+    @DisplayName("삭제된 게시물의 업로드에는 처리 결과용 URL을 다시 발급하지 않는다")
+    void issuePostImageProcessingUpload_deletedPost_throwsNotFound() {
+        // Given
+        UUID postId = createValidatingPost();
+        jdbcTemplate.update(
+                "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                postId
+        );
+        entityManager.clear();
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                () -> postCommandService.issuePostImageProcessingUpload(UPLOAD_ID),
+                NotFoundException.class
+        );
+
+        // Then
+        assertThat(exception).isNotNull();
+        then(postImageUploadIssuer).should(never()).issueProcessingUpload(UPLOAD_ID);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 업로드에는 처리 결과용 URL을 발급하지 않는다")
+    void issuePostImageProcessingUpload_unknownUpload_throwsNotFound() {
+        // Given
+        UUID unknownUploadId = UUID.fromString(
+                "0198f6c1-62ba-7d30-8b12-0f733b6570ff"
+        );
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                () -> postCommandService.issuePostImageProcessingUpload(unknownUploadId),
+                NotFoundException.class
+        );
+
+        // Then
+        assertThat(exception).isNotNull();
+        then(postImageUploadIssuer).should(never()).issueProcessingUpload(unknownUploadId);
     }
 
     @Test

@@ -63,6 +63,19 @@ public class PostCommandService {
     }
 
     public PostProcessingImageUpload issuePostImageProcessingUpload(UUID uploadId) {
+        postImageUploadRepository.findByIdForUpdate(uploadId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "처리할 게시물 이미지 업로드를 찾을 수 없습니다."
+                ));
+        postRepository.findIncludingDeletedByPostImageUploadIdForUpdate(uploadId)
+                .filter(post -> post.getDeletedAt() != null)
+                .ifPresent(post -> {
+                    throw new NotFoundException(
+                            ErrorCode.BUSINESS_ERROR,
+                            "삭제된 게시물의 이미지 업로드는 처리할 수 없습니다."
+                    );
+                });
         return postImageUploadIssuer.issueProcessingUpload(uploadId);
     }
 

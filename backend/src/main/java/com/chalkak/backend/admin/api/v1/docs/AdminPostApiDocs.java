@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.api.v1.docs;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminPostDeletionRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminPostListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminPostModerationRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostDetailResponse;
@@ -143,5 +144,47 @@ public interface AdminPostApiDocs {
             )
             String postId,
             @RequestBody AdminPostModerationRequest request
+    );
+
+    @Operation(
+            summary = "관리자 게시물 삭제",
+            description = "게시물과 사진을 Soft Delete하고 게시물 소유 미디어의 안전한 삭제 계획을 생성합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "게시물 삭제 요청 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 또는 이미지 처리 중인 게시물",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 API 접근 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "게시물을 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<Void> deletePost(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(
+                    description = "게시물 ID",
+                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            String postId,
+            @RequestBody AdminPostDeletionRequest request
     );
 }

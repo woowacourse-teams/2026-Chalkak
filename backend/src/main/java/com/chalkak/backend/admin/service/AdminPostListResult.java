@@ -65,14 +65,33 @@ public record AdminPostListResult(
                     ),
                     new PhotoSummary(
                             post.photoId(),
-                            imageUrlProvider.getUrl(post.originalStorageKey()),
-                            imageUrlProvider.getUrl(post.thumbnailStorageKey())
+                            imageUrl(
+                                    post.originalStorageKey(),
+                                    post.deletedAt(),
+                                    imageUrlProvider
+                            ),
+                            imageUrl(
+                                    post.thumbnailStorageKey(),
+                                    post.deletedAt(),
+                                    imageUrlProvider
+                            )
                     ),
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
                     post.deletedAt()
             );
+        }
+
+        private static String imageUrl(
+                String storageKey,
+                Instant deletedAt,
+                ImageUrlProvider imageUrlProvider
+        ) {
+            if (deletedAt != null) {
+                return null;
+            }
+            return imageUrlProvider.getUrl(storageKey);
         }
     }
 

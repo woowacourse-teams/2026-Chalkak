@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
+import com.chalkak.backend.admin.domain.PostMediaDeletionStatus;
 import com.chalkak.backend.admin.service.AdminPostDetail;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
@@ -20,6 +21,8 @@ public record AdminPostDetailResponse(
         TopicResponse topic,
         PhotoResponse photo,
         ImageUploadResponse imageUpload,
+        @Schema(nullable = true)
+        MediaDeletionResponse mediaDeletion,
         long likeCount,
         Instant createdAt,
         Instant updatedAt,
@@ -42,6 +45,7 @@ public record AdminPostDetailResponse(
                 TopicResponse.from(detail.topic()),
                 PhotoResponse.from(detail.photo()),
                 ImageUploadResponse.from(detail.imageUpload()),
+                MediaDeletionResponse.from(detail.mediaDeletion()),
                 detail.likeCount(),
                 detail.createdAt(),
                 detail.updatedAt(),
@@ -104,6 +108,7 @@ public record AdminPostDetailResponse(
     @Schema(name = "AdminPostDetailPhoto")
     public record PhotoResponse(
             UUID photoId,
+            @Schema(nullable = true)
             String originalImageUrl,
             @Schema(nullable = true)
             String thumbnailImageUrl,
@@ -178,6 +183,34 @@ public record AdminPostDetailResponse(
                     imageUpload.rejectionReason(),
                     imageUpload.createdAt(),
                     imageUpload.updatedAt()
+            );
+        }
+    }
+
+    @Schema(name = "AdminPostDetailMediaDeletion")
+    public record MediaDeletionResponse(
+            PostMediaDeletionStatus status,
+            int attemptCount,
+            @Schema(nullable = true)
+            String lastErrorCode,
+            @Schema(nullable = true)
+            Instant nextAttemptAt,
+            @Schema(nullable = true)
+            Instant completedAt
+    ) {
+
+        private static MediaDeletionResponse from(
+                AdminPostDetail.MediaDeletionDetail mediaDeletion
+        ) {
+            if (mediaDeletion == null) {
+                return null;
+            }
+            return new MediaDeletionResponse(
+                    mediaDeletion.status(),
+                    mediaDeletion.attemptCount(),
+                    mediaDeletion.lastErrorCode(),
+                    mediaDeletion.nextAttemptAt(),
+                    mediaDeletion.completedAt()
             );
         }
     }

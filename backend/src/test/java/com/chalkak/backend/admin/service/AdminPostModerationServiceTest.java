@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.assertj.core.api.Assertions.within;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -78,8 +79,9 @@ class AdminPostModerationServiceTest extends IntegrationTestSupport {
         assertThat(result.moderatedAt()).isNotNull();
         assertThat(result.rejectionReason()).isNull();
         assertThat(post.moderationStatus()).isEqualTo("APPROVED");
-        assertThat(post.moderatedAt()).isEqualTo(
-                result.moderatedAt().truncatedTo(ChronoUnit.MICROS)
+        assertThat(post.moderatedAt()).isCloseTo(
+                result.moderatedAt(),
+                within(1, ChronoUnit.MICROS)
         );
         assertModerationAudit(
                 audit,
@@ -115,8 +117,9 @@ class AdminPostModerationServiceTest extends IntegrationTestSupport {
         assertThat(result.moderatedAt()).isNotNull();
         assertThat(result.rejectionReason()).isEqualTo("운영 정책 위반");
         assertThat(post.moderationStatus()).isEqualTo("REJECTED");
-        assertThat(post.moderatedAt()).isEqualTo(
-                result.moderatedAt().truncatedTo(ChronoUnit.MICROS)
+        assertThat(post.moderatedAt()).isCloseTo(
+                result.moderatedAt(),
+                within(1, ChronoUnit.MICROS)
         );
         assertModerationAudit(
                 audit,

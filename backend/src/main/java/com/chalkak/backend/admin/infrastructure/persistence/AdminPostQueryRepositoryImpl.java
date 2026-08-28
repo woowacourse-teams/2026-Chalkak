@@ -60,6 +60,11 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
                 post.moderatedAt,
                 moderationAudit.actorAdminId,
                 moderationAudit.reason,
+                mediaDeletion.status,
+                mediaDeletion.attemptCount,
+                mediaDeletion.lastErrorCode,
+                mediaDeletion.nextAttemptAt,
+                mediaDeletion.completedAt,
                 post.deletedAt,
                 author.id,
                 author.email,
@@ -96,6 +101,8 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
               ON moderationAudit.targetType = :postTargetType
              AND moderationAudit.targetId = post.id
              AND moderationAudit.action IN :moderationActions
+            LEFT JOIN PostMediaDeletionPlan mediaDeletion
+              ON mediaDeletion.postId = post.id
             WHERE post.id = :postId
             """;
 

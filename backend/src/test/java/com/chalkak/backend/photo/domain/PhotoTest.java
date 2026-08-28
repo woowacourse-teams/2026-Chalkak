@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,5 +61,34 @@ class PhotoTest {
 
         // Then
         assertThat(photo.getMetadata()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사진을 삭제하면 soft delete 시각을 기록한다")
+    void delete_activePhoto_recordsDeletedAt() {
+        // Given
+        Photo photo = Photo.createPhoto("chalkak/posts/test/original/photo.webp");
+        Instant deletedAt = Instant.parse("2026-08-20T01:00:00Z");
+
+        // When
+        photo.delete(deletedAt);
+
+        // Then
+        assertThat(photo.getDeletedAt()).isEqualTo(deletedAt);
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 사진을 다시 삭제해도 최초 삭제 시각을 유지한다")
+    void delete_alreadyDeletedPhoto_keepsFirstDeletionTime() {
+        // Given
+        Photo photo = Photo.createPhoto("chalkak/posts/test/original/photo.webp");
+        Instant firstDeletedAt = Instant.parse("2026-08-20T01:00:00Z");
+        photo.delete(firstDeletedAt);
+
+        // When
+        photo.delete(firstDeletedAt.plusSeconds(60));
+
+        // Then
+        assertThat(photo.getDeletedAt()).isEqualTo(firstDeletedAt);
     }
 }

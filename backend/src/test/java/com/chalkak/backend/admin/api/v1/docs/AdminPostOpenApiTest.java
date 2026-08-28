@@ -95,6 +95,35 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
                         + ".properties.rejectionReason").exists());
 
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']"
+                        + ".delete.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminPostDeletionRequest"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDeletionRequest"
+                        + ".required[0]").value("reason"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDeletionRequest"
+                        + ".properties.reason.minLength").value(1))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDeletionRequest"
+                        + ".properties.reason.maxLength").value(500))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']"
+                        + ".delete.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']"
+                        + ".delete.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']"
+                        + ".delete.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}']"
+                        + ".delete.responses['404']").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.mediaDeletion.oneOf[0]['$ref']")
+                        .value("#/components/schemas/AdminPostDetailMediaDeletion"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.mediaDeletion.oneOf[1].type")
+                        .value("null"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailMediaDeletion"
+                        + ".properties.status.enum")
+                        .value(containsInAnyOrder("PENDING", "FAILED", "SUCCEEDED")));
+
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts']").doesNotExist())
@@ -102,6 +131,10 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}/moderation']")
+                        .doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].delete")
                         .doesNotExist());
     }
 }

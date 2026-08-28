@@ -69,6 +69,16 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findByIdForUpdate(UUID postId) {
+        return postJpaRepository.findByIdForUpdate(postId);
+    }
+
+    @Override
+    public Optional<UUID> findPostImageUploadIdById(UUID postId) {
+        return postJpaRepository.findPostImageUploadIdById(postId);
+    }
+
+    @Override
     public Optional<Post> findVisibleById(UUID postId) {
         return postJpaRepository.findVisibleById(postId, ModerationStatus.APPROVED);
     }
@@ -78,6 +88,15 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByPostImageUploadIdForUpdate(
                 postImageUploadId,
                 ModerationStatus.VALIDATING
+        );
+    }
+
+    @Override
+    public Optional<Post> findIncludingDeletedByPostImageUploadIdForUpdate(
+            UUID postImageUploadId
+    ) {
+        return postJpaRepository.findIncludingDeletedByPostImageUploadIdForUpdate(
+                postImageUploadId
         );
     }
 

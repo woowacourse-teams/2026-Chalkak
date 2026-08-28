@@ -8,7 +8,7 @@ from PIL.TiffImagePlugin import IFDRational
 
 from image_processor.callback import ProcessingUploadUrls
 from image_processor.config import Settings
-from image_processor.errors import RejectedImageError
+from image_processor.errors import PermanentCallbackError, RejectedImageError
 from image_processor.events import S3ObjectCreated
 from image_processor.post import PostImageProcessor
 
@@ -433,8 +433,6 @@ class PostImageProcessorTest(unittest.TestCase):
         )
 
     def test_process_closes_upload_when_complete_callback_is_refused(self) -> None:
-        from image_processor.errors import PermanentCallbackError
-
         self.callback_client.complete.side_effect = PermanentCallbackError("400")
         self.given_object(webp_bytes())
 
@@ -445,6 +443,22 @@ class PostImageProcessorTest(unittest.TestCase):
             "dev", UPLOAD_ID, {"reason": "PROCESSING_ERROR"}
         )
         self.s3_client.delete_object.assert_not_called()
+
+    def test_process_discards_staging_when_upload_urls_are_permanently_refused(
+        self,
+    ) -> None:
+        self.callback_client.issue_upload_urls.side_effect = PermanentCallbackError("404")
+        self.given_object(webp_bytes())
+
+        with self.assertRaises(PermanentCallbackError):
+            self.processor.process(self.event())
+
+        self.upload_client.upload.assert_not_called()
+        self.callback_client.complete.assert_not_called()
+        self.s3_client.delete_object.assert_called_once_with(
+            Bucket=BUCKET,
+            Key=STAGING_KEY,
+        )
 
     def test_process_sends_image_size_in_complete_callback(self) -> None:
         self.given_object(webp_bytes(size=(120, 90)))

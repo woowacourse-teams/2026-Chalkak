@@ -11,4 +11,6 @@ public interface PostImageStorage {
     String toOriginalStorageKey(UUID uploadId);
 
     String toThumbnailStorageKey(UUID uploadId);
+
+    void deleteImage(String storageKey);
 }

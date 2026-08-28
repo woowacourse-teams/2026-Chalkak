@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.repository;
 
+import com.chalkak.backend.admin.domain.PostMediaDeletionStatus;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -17,6 +18,11 @@ public record AdminPostDetailProjection(
         Instant moderatedAt,
         UUID moderatedBy,
         String rejectionReason,
+        PostMediaDeletionStatus mediaDeletionStatus,
+        Integer mediaDeletionAttemptCount,
+        String mediaDeletionLastErrorCode,
+        Instant mediaDeletionNextAttemptAt,
+        Instant mediaDeletionCompletedAt,
         Instant deletedAt,
         UUID authorId,
         String authorEmail,

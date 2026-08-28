@@ -3,6 +3,8 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +15,7 @@ import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminPostSortConverter;
 import com.chalkak.backend.admin.service.AdminPostDetail;
+import com.chalkak.backend.admin.service.AdminPostDeletionService;
 import com.chalkak.backend.admin.service.AdminPostListResult;
 import com.chalkak.backend.admin.service.AdminPostModerationResult;
 import com.chalkak.backend.admin.service.AdminPostModerationService;
@@ -77,6 +80,9 @@ class AdminPostControllerTest {
 
     @MockitoBean
     private AdminPostModerationService adminPostModerationService;
+
+    @MockitoBean
+    private AdminPostDeletionService adminPostDeletionService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -642,6 +648,186 @@ class AdminPostControllerTest {
                         .value("대기 중인 게시물만 검수할 수 있습니다."));
     }
 
+    @Test
+    @DisplayName("관리자는 사유와 함께 게시물을 삭제하고 204를 반환받는다")
+    void deletePost_validReason_returnsNoContent() throws Exception {
+        // Given
+        String reason = "운영 정책 위반";
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "운영 정책 위반"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+
+        then(adminActorResolver).should().resolve();
+        then(adminPostDeletionService).should().deletePost(POST_ID, ADMIN_ID, reason);
+    }
+
+    @Test
+    @DisplayName("삭제 사유 입력 원문이 500자이면 허용한다")
+    void deletePost_reasonAtMaximum_returnsNoContent() throws Exception {
+        // Given
+        String reason = "가".repeat(500);
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "%s"
+                                }
+                                """.formatted(reason)))
+                .andExpect(status().isNoContent());
+
+        then(adminPostDeletionService).should().deletePost(POST_ID, ADMIN_ID, reason);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}",
+            "{\"reason\":null}",
+            "{\"reason\":\"\"}",
+            "{\"reason\":\"   \"}"
+    })
+    @DisplayName("삭제 사유가 누락되거나 비어 있으면 400을 반환한다")
+    void deletePost_missingOrBlankReason_returnsBadRequest(String requestBody) throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostDeletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("삭제 사유 입력 원문이 500자를 초과하면 400을 반환한다")
+    void deletePost_reasonOverMaximum_returnsBadRequest() throws Exception {
+        // Given
+        String reason = "가".repeat(501);
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "%s"
+                                }
+                                """.formatted(reason)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostDeletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("삭제 요청 본문이 비어 있으면 400을 반환한다")
+    void deletePost_emptyBody_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostDeletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("삭제할 게시물 ID 형식이 올바르지 않으면 400을 반환한다")
+    void deletePost_invalidPostId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", "invalid-post-id")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "운영 정책 위반"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+
+        then(adminPostDeletionService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("삭제할 게시물을 찾을 수 없으면 404를 반환한다")
+    void deletePost_unknownPost_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(
+                ErrorCode.BUSINESS_ERROR,
+                "게시물을 찾을 수 없습니다."
+        )).given(adminPostDeletionService).deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "운영 정책 위반"
+        );
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "운영 정책 위반"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("이미지 처리 중인 게시물을 삭제하면 구분 가능한 400을 반환한다")
+    void deletePost_validatingPost_returnsStateInvalidError() throws Exception {
+        // Given
+        willThrow(new BusinessException(
+                ErrorCode.POST_DELETION_STATE_INVALID,
+                "이미지 처리 중인 게시물은 삭제할 수 없습니다."
+        )).given(adminPostDeletionService).deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "운영 정책 위반"
+        );
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "운영 정책 위반"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("POST_DELETION_STATE_INVALID"));
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 게시물도 삭제 서비스에 위임해 기존 삭제 계획 재처리를 요청한다")
+    void deletePost_alreadyDeletedPost_delegatesForRetryAndReturnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "삭제 계획 재처리"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+
+        then(adminPostDeletionService).should().deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "삭제 계획 재처리"
+        );
+    }
+
     private AdminPostDetail createDetail(
             ModerationStatus moderationStatus,
             Instant moderatedAt,
@@ -687,6 +873,7 @@ class AdminPostControllerTest {
                         CREATED_AT,
                         UPDATED_AT
                 ),
+                null,
                 43L,
                 CREATED_AT,
                 UPDATED_AT,

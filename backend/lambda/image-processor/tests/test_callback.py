@@ -136,6 +136,13 @@ class SignatureProcessingCallbackClientTest(unittest.TestCase):
         self.assertIs(error, raised.exception)
 
     @patch("image_processor.callback.request.urlopen")
+    def test_issue_upload_urls_treats_deleted_post_as_permanent(self, urlopen) -> None:
+        urlopen.side_effect = self._http_error(404)
+
+        with self.assertRaises(PermanentCallbackError):
+            self.client.issue_upload_urls("dev", UPLOAD_ID)
+
+    @patch("image_processor.callback.request.urlopen")
     def test_complete_raises_permanent_error_for_non_retryable_status(
         self, urlopen
     ) -> None:

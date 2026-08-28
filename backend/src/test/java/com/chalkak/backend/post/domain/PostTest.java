@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
@@ -12,11 +13,14 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class PostTest {
 
     private static final UUID UPLOAD_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
+    private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
 
     private final User author = mock(User.class);
     private final Topic topic = mock(Topic.class);
@@ -249,5 +253,66 @@ class PostTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("게시물 검수 시각이 필요합니다.");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ModerationStatus.class,
+            names = {"PENDING", "APPROVED", "REJECTED"}
+    )
+    @DisplayName("관리자가 삭제할 수 있는 상태의 게시물은 사진과 함께 soft delete한다")
+    void deletePost_deletableStatus_softDeletesPostAndPhoto(ModerationStatus status) {
+        // Given
+        Post post = createPostWithStatus(status);
+
+        // When
+        post.delete(DELETED_AT);
+
+        // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("이미지 처리 중인 게시물은 삭제할 수 없다")
+    void deletePost_validatingPost_throwsStateInvalidException() {
+        // Given
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.delete(DELETED_AT))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.POST_DELETION_STATE_INVALID));
+        assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getPhoto().getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 게시물을 다시 삭제해도 최초 삭제 시각을 유지한다")
+    void deletePost_alreadyDeletedPost_keepsFirstDeletionTime() {
+        // Given
+        Post post = createPostWithStatus(ModerationStatus.PENDING);
+        post.delete(DELETED_AT);
+
+        // When
+        post.delete(DELETED_AT.plusSeconds(60));
+
+        // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    private Post createPostWithStatus(ModerationStatus status) {
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        if (status == ModerationStatus.REJECTED) {
+            post.failImageProcessing();
+            return post;
+        }
+        post.requestModeration();
+        if (status == ModerationStatus.APPROVED) {
+            post.approve(Instant.parse("2026-08-20T00:00:00Z"));
+        }
+        return post;
     }
 }
