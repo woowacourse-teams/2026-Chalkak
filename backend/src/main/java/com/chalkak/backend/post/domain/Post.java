@@ -138,6 +138,26 @@ public class Post {
         this.moderatedAt = null;
     }
 
+    public void delete(Instant deletedAt) {
+        if (this.deletedAt != null) {
+            return;
+        }
+        if (moderationStatus == ModerationStatus.VALIDATING) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미지 처리 중인 게시물은 삭제할 수 없습니다."
+            );
+        }
+        if (deletedAt == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "게시물 삭제 시각이 필요합니다."
+            );
+        }
+        photo.delete(deletedAt);
+        this.deletedAt = deletedAt;
+    }
+
     private void decideModeration(ModerationStatus moderationStatus, Instant moderatedAt) {
         validateModerationStatus(ModerationStatus.PENDING);
         if (moderatedAt == null) {
