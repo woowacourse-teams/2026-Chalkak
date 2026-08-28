@@ -91,7 +91,8 @@ class AdminTopicControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
                 .andExpect(jsonPath("$.topics[0].topicId").value(TOPIC_ID.toString()))
-                .andExpect(jsonPath("$.topics[0].phase").value("BEFORE_OPEN"));
+                .andExpect(jsonPath("$.topics[0].phase").value("BEFORE_OPEN"))
+                .andExpect(jsonPath("$.topics[0].postCounts.total").value(3));
     }
 
     @Test
@@ -184,6 +185,7 @@ class AdminTopicControllerTest {
                 STARTS_AT,
                 ENDS_AT,
                 TopicPhase.BEFORE_OPEN,
+                new AdminTopicDetail.PostCounts(3, 0, 1, 2, 0),
                 Instant.parse("2026-08-28T01:00:00Z"),
                 Instant.parse("2026-08-28T01:00:00Z")
         );

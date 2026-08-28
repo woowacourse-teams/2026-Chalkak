@@ -15,6 +15,7 @@ public record AdminTopicDetailResponse(
         Instant startsAt,
         Instant endsAt,
         TopicPhase phase,
+        AdminTopicPostCounts postCounts,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -27,6 +28,7 @@ public record AdminTopicDetailResponse(
                 detail.startsAt(),
                 detail.endsAt(),
                 detail.phase(),
+                AdminTopicPostCounts.from(detail.postCounts()),
                 detail.createdAt(),
                 detail.updatedAt()
         );

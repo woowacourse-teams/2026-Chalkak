@@ -74,9 +74,7 @@ public class AdminTopicService {
         if (topicId == null) {
             throw invalidRequestException();
         }
-        Topic topic = topicRepository.findActiveById(topicId)
-                .orElseThrow(this::topicNotFoundException);
-        return AdminTopicDetail.from(topic, clock.instant());
+        return findDetail(topicId, clock.instant());
     }
 
     @Transactional
@@ -105,7 +103,7 @@ public class AdminTopicService {
                 AdminAuditSnapshot.from(Map.of()),
                 topicState(saved)
         );
-        return AdminTopicDetail.from(saved, now);
+        return findDetail(saved.getId(), now);
     }
 
     @Transactional
@@ -138,7 +136,7 @@ public class AdminTopicService {
                 beforeState,
                 topicState(saved)
         );
-        return AdminTopicDetail.from(saved, now);
+        return findDetail(saved.getId(), now);
     }
 
     @Transactional
@@ -271,5 +269,11 @@ public class AdminTopicService {
                 ErrorCode.BUSINESS_ERROR,
                 "주제를 찾을 수 없습니다."
         );
+    }
+
+    private AdminTopicDetail findDetail(UUID topicId, Instant now) {
+        return adminTopicQueryRepository.findActiveTopicById(topicId)
+                .map(topic -> AdminTopicDetail.from(topic, now))
+                .orElseThrow(this::topicNotFoundException);
     }
 }

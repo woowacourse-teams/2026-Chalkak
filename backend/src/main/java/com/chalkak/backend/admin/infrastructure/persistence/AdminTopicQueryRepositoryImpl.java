@@ -4,18 +4,46 @@ import com.chalkak.backend.admin.repository.AdminTopicQueryCriteria;
 import com.chalkak.backend.admin.repository.AdminTopicQueryPage;
 import com.chalkak.backend.admin.repository.AdminTopicQueryRepository;
 import com.chalkak.backend.admin.repository.AdminTopicQuerySort;
-import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.admin.repository.AdminTopicProjection;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository {
+
+    private static final String TOPIC_SELECT = """
+            SELECT new com.chalkak.backend.admin.repository.AdminTopicProjection(
+                topic.id,
+                topic.title,
+                topic.topicDate,
+                topic.participationPeriod.startsAt,
+                topic.participationPeriod.endsAt,
+                topic.createdAt,
+                topic.updatedAt,
+                COUNT(post),
+                SUM(CASE WHEN post.moderationStatus = :validatingStatus THEN 1 ELSE 0 END),
+                SUM(CASE WHEN post.moderationStatus = :pendingStatus THEN 1 ELSE 0 END),
+                SUM(CASE WHEN post.moderationStatus = :approvedStatus THEN 1 ELSE 0 END),
+                SUM(CASE WHEN post.moderationStatus = :rejectedStatus THEN 1 ELSE 0 END)
+            )
+            FROM Topic topic
+            LEFT JOIN Post post ON post.topic = topic AND post.deletedAt IS NULL
+            """;
+    private static final String TOPIC_GROUP_BY = """
+             GROUP BY topic.id, topic.title, topic.topicDate,
+                      topic.participationPeriod.startsAt,
+                      topic.participationPeriod.endsAt,
+                      topic.createdAt, topic.updatedAt
+            """;
 
     private final EntityManager entityManager;
 
@@ -25,9 +53,8 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
             int page,
             int pageSize
     ) {
-        StringBuilder queryText = new StringBuilder(
-                "SELECT topic FROM Topic topic WHERE topic.deletedAt IS NULL"
-        );
+        StringBuilder queryText = new StringBuilder(TOPIC_SELECT)
+                .append(" WHERE topic.deletedAt IS NULL");
         List<QueryParameter> parameters = new ArrayList<>();
         appendPhase(queryText, parameters, criteria);
         appendFilter(
@@ -44,18 +71,45 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
                 " AND topic.topicDate <= :dateTo",
                 "dateTo"
         );
+        queryText.append(TOPIC_GROUP_BY);
         appendOrder(queryText, criteria.sort());
 
-        TypedQuery<Topic> query = entityManager.createQuery(queryText.toString(), Topic.class);
+        TypedQuery<AdminTopicProjection> query = entityManager.createQuery(
+                queryText.toString(),
+                AdminTopicProjection.class
+        );
         parameters.forEach(parameter -> query.setParameter(parameter.name(), parameter.value()));
+        setModerationStatuses(query);
         query.setFirstResult((page - 1) * pageSize);
         query.setMaxResults(pageSize + 1);
-        List<Topic> rows = query.getResultList();
+        List<AdminTopicProjection> rows = query.getResultList();
         boolean hasNext = rows.size() > pageSize;
-        List<Topic> topics = hasNext
+        List<AdminTopicProjection> topics = hasNext
                 ? List.copyOf(rows.subList(0, pageSize))
                 : List.copyOf(rows);
         return new AdminTopicQueryPage(topics, page, pageSize, hasNext);
+    }
+
+    @Override
+    public Optional<AdminTopicProjection> findActiveTopicById(UUID topicId) {
+        TypedQuery<AdminTopicProjection> query = entityManager.createQuery(
+                        TOPIC_SELECT
+                                + " WHERE topic.id = :topicId AND topic.deletedAt IS NULL"
+                                + TOPIC_GROUP_BY,
+                        AdminTopicProjection.class
+                )
+                .setParameter("topicId", topicId);
+        setModerationStatuses(query);
+        return query
+                .getResultStream()
+                .findFirst();
+    }
+
+    private void setModerationStatuses(TypedQuery<AdminTopicProjection> query) {
+        query.setParameter("validatingStatus", ModerationStatus.VALIDATING);
+        query.setParameter("pendingStatus", ModerationStatus.PENDING);
+        query.setParameter("approvedStatus", ModerationStatus.APPROVED);
+        query.setParameter("rejectedStatus", ModerationStatus.REJECTED);
     }
 
     private void appendPhase(

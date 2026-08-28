@@ -38,6 +38,12 @@ class AdminTopicServiceTest extends IntegrationTestSupport {
             UUID.fromString("0198fd20-0000-7000-8000-000000000013");
     private static final UUID DELETED_TOPIC_ID =
             UUID.fromString("0198fd20-0000-7000-8000-000000000014");
+    private static final UUID USER_ID =
+            UUID.fromString("0198fd20-0000-7000-8000-000000000021");
+    private static final UUID PHOTO_ID =
+            UUID.fromString("0198fd20-0000-7000-8000-000000000022");
+    private static final UUID POST_ID =
+            UUID.fromString("0198fd20-0000-7000-8000-000000000023");
 
     @Autowired
     private AdminTopicService adminTopicService;
@@ -91,6 +97,7 @@ class AdminTopicServiceTest extends IntegrationTestSupport {
                 Instant.parse("2026-09-01T15:00:00Z"),
                 NOW
         );
+        insertOpenTopicPost();
     }
 
     @Test
@@ -122,6 +129,16 @@ class AdminTopicServiceTest extends IntegrationTestSupport {
         given(clock.instant()).willReturn(Instant.parse("2026-08-28T15:00:00Z"));
         assertThat(adminTopicService.getTopic(OPEN_TOPIC_ID).phase())
                 .isEqualTo(TopicPhase.CLOSED);
+    }
+
+    @Test
+    @DisplayName("주제 상세은 게시물 검수 상태별 통계를 함께 반환한다")
+    void getTopic_existingPosts_returnsModerationCounts() {
+        AdminTopicDetail result = adminTopicService.getTopic(OPEN_TOPIC_ID);
+
+        assertThat(result.postCounts()).isEqualTo(
+                new AdminTopicDetail.PostCounts(1, 0, 1, 0, 0)
+        );
     }
 
     @Test
@@ -249,6 +266,26 @@ class AdminTopicServiceTest extends IntegrationTestSupport {
                 Timestamp.from(startsAt),
                 Timestamp.from(endsAt),
                 deletedAt == null ? null : Timestamp.from(deletedAt));
+    }
+
+    private void insertOpenTopicPost() {
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key, created_at, updated_at
+                ) VALUES (
+                    ?, 'topic-count-author@example.com', 'ACTIVE',
+                    'signatures/topic-count-author', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, USER_ID);
+        jdbcTemplate.update("""
+                INSERT INTO photos (id, original_storage_key, created_at, updated_at)
+                VALUES (?, 'posts/topic-count-original', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, PHOTO_ID);
+        jdbcTemplate.update("""
+                INSERT INTO posts (
+                    id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, POST_ID, USER_ID, OPEN_TOPIC_ID, PHOTO_ID);
     }
 
     private void flushAndClear() {
