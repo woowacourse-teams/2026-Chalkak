@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - be/develop
-      - admin/develop
+      - admin-web
     paths:
       - "admin-web/**"
       - ".github/workflows/admin-web-ci.yml"
