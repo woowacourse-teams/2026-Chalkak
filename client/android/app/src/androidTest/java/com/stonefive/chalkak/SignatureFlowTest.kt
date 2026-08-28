@@ -88,11 +88,11 @@ class SignatureFlowTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
-                .onAllNodesWithText("하늘하늘하늘")
+                .onAllNodesWithText("오늘")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithText("하늘하늘하늘").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘").assertIsDisplayed()
 
         composeRule.onNodeWithText("전시").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
