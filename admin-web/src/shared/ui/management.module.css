@@ -9,7 +9,7 @@
 .filters span, .form label > span { color:#536256; font-size:11px; font-weight:800; }
 .filters input, .filters select, .form input { width:100%; min-height:43px; border:1px solid #ccd5c8; border-radius:11px; background:#fff; padding:0 12px; color:#28382d; outline:none; }
 .filters input:focus, .filters select:focus, .form input:focus { border-color:#688458; box-shadow:0 0 0 3px rgb(104 132 88 / 14%); }
-.filters button, .primaryButton, .dangerButton, .secondaryButton { min-height:43px; border:0; border-radius:11px; padding:0 17px; cursor:pointer; font-size:12px; font-weight:800; }
+.filters button, .primaryButton, .dangerButton, .secondaryButton { min-height:44px; border:0; border-radius:11px; padding:0 17px; cursor:pointer; font-size:12px; font-weight:800; }
 .filters button, .primaryButton { background:#254632; color:#fff; }
 .dangerButton { background:#963e32; color:#fff; }
 .secondaryButton { border:1px solid #ccd5c8; background:#fff; color:#34463a; }
@@ -41,12 +41,14 @@
 .formActions { display:flex; justify-content:flex-end; gap:10px; }
 @media (max-width:760px) {
   .intro, .detailHero { align-items:flex-start; }
+  .detailHero { flex-direction:column; }
   .intro > strong { width:50px; height:50px; border-radius:16px; font-size:18px; }
   .filters { grid-template-columns:1fr; }
   .desktop { display:none; }
   .mobileCards { display:grid; }
   .detailGrid, .formGrid { grid-template-columns:1fr; }
   .statGrid { grid-template-columns:repeat(2,1fr); }
-  .formActions, .actions { flex-direction:column-reverse; }
+  .formActions { flex-direction:column-reverse; }
+  .actions { flex-direction:column; }
   .formActions button, .actions button { width:100%; }
 }

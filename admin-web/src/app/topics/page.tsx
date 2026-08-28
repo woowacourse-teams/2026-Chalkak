@@ -1,11 +1,7 @@
-import { SectionPlaceholder } from "@/shared/ui/section-placeholder";
+import { Suspense } from "react";
+import { TopicListScreen } from "@/features/topics/ui/topic-list-screen";
+import { LoadingSkeleton } from "@/shared/ui/feedback-states";
 
 export default function TopicsPage() {
-  return (
-    <SectionPlaceholder
-      description="오늘의 주제를 만들고 운영하는 기능은 후속 단계에서 연결합니다."
-      eyebrow="TOPIC MANAGEMENT"
-      title="주제 관리"
-    />
-  );
+  return <Suspense fallback={<LoadingSkeleton rows={5}/>}><TopicListScreen/></Suspense>;
 }
