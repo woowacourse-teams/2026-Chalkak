@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.HomeRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +29,7 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
     private val latestLikeGenerationByPhotoId = mutableMapOf<String, Int>()
 
     init {
-        loadHome()
+        loadHome(PostSort.LATEST)
     }
 
     fun onAction(action: HomeUiAction) {
@@ -35,20 +37,23 @@ class HomeViewModel(private val repository: HomeRepository) : ViewModel() {
             HomeUiAction.AddClicked -> sendUiEvent(HomeUiEvent.OpenPhotoUpload)
 
             is HomeUiAction.BottomBarSelected -> {
-                sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
-            }
-
-            is HomeUiAction.SortSelected -> {
-                _uiState.update { it.copy(selectedSort = action.sort) }
-                loadHome()
+                if (action.item == ChalkakBottomBarItem.TODAY) {
+                    onHomeSelected()
+                } else {
+                    sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
+                }
             }
 
             is HomeUiAction.LikeClicked -> updateLike(action.photoId)
         }
     }
 
-    private fun loadHome() {
-        val requestedSort = _uiState.value.selectedSort
+    fun onHomeSelected() {
+        loadHome(PostSort.RANDOM)
+    }
+
+    private fun loadHome(requestedSort: PostSort) {
+        _uiState.update { it.copy(selectedSort = requestedSort) }
         val generation = ++latestLoadGeneration
 
         viewModelScope.launch {

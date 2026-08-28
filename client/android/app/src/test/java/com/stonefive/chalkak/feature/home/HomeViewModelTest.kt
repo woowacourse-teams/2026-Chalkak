@@ -36,11 +36,11 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `정렬 액션은 선택 상태를 바꾸고 해당 정렬로 홈을 다시 불러온다`() = runTest {
-        viewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+    fun `홈 재선택부터는 랜덤순으로 다시 불러온다`() = runTest {
+        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
 
-        assertEquals(PostSort.POPULAR, viewModel.uiState.value.selectedSort)
-        assertEquals(listOf(PostSort.LATEST, PostSort.POPULAR), repository.requestedSorts)
+        assertEquals(PostSort.RANDOM, viewModel.uiState.value.selectedSort)
+        assertEquals(listOf(PostSort.LATEST, PostSort.RANDOM), repository.requestedSorts)
     }
 
     @Test
@@ -54,18 +54,18 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `이전 정렬 요청이 나중에 완료되어도 최신 정렬 결과를 유지한다`() = runTest {
+    fun `최초 최신순 응답이 늦게 도착해도 재선택한 랜덤순 결과를 유지한다`() = runTest {
         val controlledRepository = ControlledHomeRepository()
         val controlledViewModel = HomeViewModel(controlledRepository)
 
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        controlledViewModel.onHomeSelected()
         controlledRepository.complete(
-            sort = PostSort.POPULAR,
-            content = homeContent(topic = "인기순 결과"),
+            sort = PostSort.RANDOM,
+            content = homeContent(topic = "랜덤순 결과"),
         )
 
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
-        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
+        assertEquals(PostSort.RANDOM, controlledViewModel.uiState.value.selectedSort)
+        assertEquals("랜덤순 결과", controlledViewModel.uiState.value.topic)
         assertFalse(controlledViewModel.uiState.value.isLoading)
 
         controlledRepository.complete(
@@ -73,8 +73,8 @@ class HomeViewModelTest {
             content = homeContent(topic = "최신순 결과"),
         )
 
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
-        assertEquals("인기순 결과", controlledViewModel.uiState.value.topic)
+        assertEquals(PostSort.RANDOM, controlledViewModel.uiState.value.selectedSort)
+        assertEquals("랜덤순 결과", controlledViewModel.uiState.value.topic)
         assertFalse(controlledViewModel.uiState.value.isLoading)
     }
 
@@ -135,15 +135,15 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `좋아요 실패는 해당 사진만 복원하고 새 정렬 상태를 유지한다`() = runTest {
+    fun `좋아요 실패는 해당 사진만 복원하고 랜덤순 재조회 상태를 유지한다`() = runTest {
         val controlledRepository = ControlledLikeRepository()
         val controlledViewModel = HomeViewModel(controlledRepository)
 
         controlledViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        controlledViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        controlledViewModel.onHomeSelected()
         controlledRepository.failLike(requestIndex = 0)
 
-        assertEquals(PostSort.POPULAR, controlledViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.RANDOM, controlledViewModel.uiState.value.selectedSort)
         assertEquals(emptySet<String>(), controlledViewModel.uiState.value.likedPhotoIds)
         assertEquals(
             24,
@@ -197,7 +197,7 @@ class HomeViewModelTest {
         val reloadViewModel = HomeViewModel(reloadRepository)
 
         reloadViewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        reloadViewModel.onAction(HomeUiAction.SortSelected(PostSort.POPULAR))
+        reloadViewModel.onHomeSelected()
 
         assertEquals(
             30,
@@ -209,7 +209,7 @@ class HomeViewModelTest {
 
         reloadRepository.failLike()
 
-        assertEquals(PostSort.POPULAR, reloadViewModel.uiState.value.selectedSort)
+        assertEquals(PostSort.RANDOM, reloadViewModel.uiState.value.selectedSort)
         assertEquals(
             30,
             reloadViewModel.uiState.value.photos

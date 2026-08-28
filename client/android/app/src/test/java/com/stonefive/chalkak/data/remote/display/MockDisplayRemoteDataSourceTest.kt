@@ -20,7 +20,21 @@ class MockDisplayRemoteDataSourceTest {
         assertEquals("2026-08-05", response.selectedDate)
         assertEquals("바다", response.topic)
         assertTrue(response.featuredPhotos.isEmpty())
-        assertEquals(6, response.photos.size)
+        assertEquals(12, response.photos.size)
+        assertEquals(
+            12,
+            response.photos
+                .map { it.id }
+                .distinct()
+                .size,
+        )
+        assertEquals(
+            12,
+            response.photos
+                .map { it.contentDescription }
+                .distinct()
+                .size,
+        )
     }
 
     @Test

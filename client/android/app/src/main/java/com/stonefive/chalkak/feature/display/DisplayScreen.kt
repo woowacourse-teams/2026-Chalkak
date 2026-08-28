@@ -1,65 +1,54 @@
 package com.stonefive.chalkak.feature.display
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
+import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
+import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
+import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
-import com.stonefive.chalkak.feature.display.component.DisplayFeaturedPager
-import com.stonefive.chalkak.feature.display.component.DisplayPhotoCard
-import com.stonefive.chalkak.feature.display.component.DisplayPhotoGrid
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 @Composable
 fun DisplayRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
-    initialDate: LocalDate? = null,
     modifier: Modifier = Modifier,
+    initialDate: LocalDate? = null,
     viewModel: DisplayViewModel = viewModel(
         key = "display-${initialDate ?: "latest"}",
         factory = DisplayViewModel.factory(initialDate),
@@ -93,225 +82,153 @@ fun DisplayScreen(
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
-    Scaffold(
-        modifier = modifier,
-        containerColor = ChalkakBackground,
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.DISPLAY,
-                onItemSelected = onNavigateToBottomBar,
-                onAddClick = onOpenPhotoUpload,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-                .statusBarsPadding(),
-        ) {
-            DisplayDateHeader(
-                selectedDate = uiState.selectedDate,
-                topic = uiState.topic,
-                isArchiveDate = uiState.content is DisplayContentState.Archive,
-                canGoPrevious = uiState.canGoPrevious,
-                canGoNext = uiState.canGoNext,
-                onPreviousClick = onPreviousDateClick,
-                onNextClick = onNextDateClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (uiState.content is DisplayContentState.Archive) {
-                Spacer(modifier = Modifier.height(15.dp))
-            }
-
-            DisplayBody(
-                content = uiState.content,
-                onSortSelected = onSortSelected,
-                onFeaturedPageChanged = onFeaturedPageChanged,
-                onPhotoClick = { photo ->
-                    onOpenFeed(
-                        photo,
-                        uiState.selectedDate
-                            ?.toFeedDateLabel()
-                            .orEmpty(),
-                        uiState.topic,
-                    )
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            )
-        }
-    }
-}
-
-@Composable
-fun DisplayBody(
-    content: DisplayContentState,
-    onSortSelected: (PostSort) -> Unit,
-    onFeaturedPageChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    onPhotoClick: (Post) -> Unit = {},
-) {
-    when (content) {
-        DisplayContentState.Loading -> DisplayLoadingContent(modifier = modifier)
-
-        is DisplayContentState.Latest -> LatestDisplayContent(
-            content = content,
-            onSortSelected = onSortSelected,
-            onPhotoClick = onPhotoClick,
-            modifier = modifier,
-        )
-
-        is DisplayContentState.Archive -> ArchiveDisplayContent(
-            content = content,
-            onFeaturedPageChanged = onFeaturedPageChanged,
-            onPhotoClick = onPhotoClick,
-            modifier = modifier,
-        )
-
-        is DisplayContentState.Error -> DisplayErrorContent(
-            message = content.message,
-            modifier = modifier,
-        )
-    }
-}
-
-@Composable
-fun DisplayLoadingContent(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        CircularProgressIndicator(
-            color = ChalkakTheme.colors.actionPrimary,
-            modifier = Modifier.padding(top = 64.dp),
-        )
-    }
-}
-
-@Composable
-fun LatestDisplayContent(
-    content: DisplayContentState.Latest,
-    onSortSelected: (PostSort) -> Unit,
-    modifier: Modifier = Modifier,
-    onPhotoClick: (Post) -> Unit = {},
-) {
     val gridState = rememberLazyStaggeredGridState()
-    var isSortVisible by remember { mutableStateOf(true) }
-
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    when {
-                        available.y < 0f -> isSortVisible = false
-                        available.y > 0f -> isSortVisible = true
-                    }
-                }
-                return Offset.Zero
-            }
-        }
+    val settleScope = rememberCoroutineScope()
+    val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
+    val density = LocalDensity.current
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
+    val scrollState = rememberDisplayScrollBehaviorState(
+        gridState = gridState,
+        settleScope = settleScope,
+        scrollToTopToggleThresholdPx = with(density) {
+            CollapsingScrollToTopThreshold.toPx()
+        },
+        hasFilter = uiState.content is DisplayContentState.Latest,
+    )
+    val bodyTopContentPadding = with(density) {
+        scrollState.visibleTopAreaHeight(statusBarHeightPx).toDp()
+    }
+    val bottomBarHeight = with(density) {
+        scrollState.bottomBarState.height
+            .toDp()
     }
 
-    LaunchedEffect(content.selectedSort) {
-        isSortVisible = true
+    LaunchedEffect(uiState.selectedDate, selectedSort) {
+        scrollState.reset()
         gridState.scrollToItem(0)
     }
 
-    Column(
-        modifier = modifier.nestedScroll(nestedScrollConnection),
+    LaunchedEffect(
+        gridState.canScrollBackward,
+        scrollState.headerOffset,
+        scrollState.filterOffset,
     ) {
-        AnimatedVisibility(
-            visible = isSortVisible,
-            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(),
-        ) {
-            DisplaySortTabs(
-                selectedSort = content.selectedSort,
-                onSortSelected = onSortSelected,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        DisplayPhotoGrid(
-            photos = content.photos,
-            state = gridState,
-            onPhotoClick = onPhotoClick,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        )
+        scrollState.updateScrollToTopVisibility()
     }
-}
 
-@Composable
-fun ArchiveDisplayContent(
-    content: DisplayContentState.Archive,
-    onFeaturedPageChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    onPhotoClick: (Post) -> Unit = {},
-) {
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(2),
-        modifier = modifier,
-        contentPadding = PaddingValues(
-            start = 22.dp,
-            top = 4.dp,
-            end = 22.dp,
-            bottom = 36.dp,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalItemSpacing = 12.dp,
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ChalkakBackground)
+            .nestedScroll(scrollState.nestedScrollConnection),
     ) {
-        item(
-            key = "featured",
-            span = StaggeredGridItemSpan.FullLine,
+        DisplayBody(
+            content = uiState.content,
+            onFeaturedPageChanged = onFeaturedPageChanged,
+            gridState = gridState,
+            onPhotoClick = { photo ->
+                onOpenFeed(
+                    photo,
+                    uiState.selectedDate
+                        ?.toFeedDateLabel()
+                        .orEmpty(),
+                    uiState.topic,
+                )
+            },
+            topContentPadding = bodyTopContentPadding,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
         ) {
-            DisplayFeaturedPager(
-                photos = content.featuredPhotos,
-                selectedPage = content.featuredPage,
-                onPageChanged = onFeaturedPageChanged,
-                onPhotoClick = onPhotoClick,
+            Spacer(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(
+                        ChalkakBackground.copy(alpha = COLLAPSING_FLOATING_BACKGROUND_ALPHA),
+                    ),
             )
-        }
-        items(
-            items = content.photos,
-            key = Post::id,
-        ) { photo ->
-            DisplayPhotoCard(
-                photo = photo,
-                onClick = { onPhotoClick(photo) },
-            )
-        }
-    }
-}
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .collapsingArea(scrollState.headerOffset),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ChalkakBackground)
+                        .onSizeChanged { scrollState.headerHeight = it.height },
+                ) {
+                    DisplayDateHeader(
+                        selectedDate = uiState.selectedDate,
+                        topic = uiState.topic,
+                        isArchiveDate = uiState.content is DisplayContentState.Archive,
+                        canGoPrevious = uiState.canGoPrevious,
+                        canGoNext = uiState.canGoNext,
+                        onPreviousClick = onPreviousDateClick,
+                        onNextClick = onNextDateClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
-@Composable
-fun DisplayErrorContent(
-    message: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
+                    if (uiState.content is DisplayContentState.Archive) {
+                        Spacer(modifier = Modifier.height(15.dp))
+                    }
+                }
+            }
+
+            if (uiState.content is DisplayContentState.Latest) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            ChalkakBackground.copy(alpha = COLLAPSING_FLOATING_BACKGROUND_ALPHA),
+                        ).clipToBounds()
+                        .collapsingArea(scrollState.filterOffset),
+                ) {
+                    DisplaySortTabs(
+                        selectedSort = uiState.content.selectedSort,
+                        onSortSelected = onSortSelected,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { scrollState.filterHeight = it.height },
+                    )
+                }
+            }
+        }
+        if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
+            ChalkakScrollToTopButton(
+                onClick = {
+                    settleScope.launch {
+                        scrollState.reset()
+                        gridState.animateScrollToItem(0)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 24.dp,
+                        bottom = bottomBarHeight + 18.dp,
+                    ),
+            )
+        }
+        ChalkakBottomBar(
+            selectedItem = ChalkakBottomBarItem.DISPLAY,
+            onItemSelected = onNavigateToBottomBar,
+            onAddClick = onOpenPhotoUpload,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { scrollState.bottomBarState.height = it.height }
+                .graphicsLayer { translationY = scrollState.bottomBarState.offset },
         )
     }
 }
+
+private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
 
 private val previewLatestState = DisplayUiState(
     selectedDate = LocalDate.of(2026, 8, 5),
@@ -353,7 +270,6 @@ private fun DisplayLoadingContentPreview() {
     ChalkakTheme {
         DisplayBody(
             content = DisplayContentState.Loading,
-            onSortSelected = {},
             onFeaturedPageChanged = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -366,7 +282,6 @@ private fun LatestDisplayContentPreview() {
     ChalkakTheme {
         LatestDisplayContent(
             content = previewLatestState.content as DisplayContentState.Latest,
-            onSortSelected = {},
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -410,5 +325,3 @@ private fun DisplayScreenPreviewContent(uiState: DisplayUiState) {
         )
     }
 }
-
-private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
