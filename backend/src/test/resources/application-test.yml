@@ -2,6 +2,7 @@ CLOUDFRONT_BASE_URL: https://cdn.example.com
 CLOUDFRONT_ORIGIN_PATH: /chalkak
 IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
 SOCIAL_SIGNUP_TOKEN_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+ACCESS_TOKEN_SECRET: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
 
 spring:
   datasource:
@@ -18,6 +19,8 @@ spring:
 # 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
 chalkak:
   auth:
+    access-token:
+      expiration: 1h
     oidc:
       google:
         client-id: test-google-client-id

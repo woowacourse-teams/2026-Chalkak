@@ -12,7 +12,6 @@ import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,7 +36,7 @@ public interface PostApiDocs {
                     발급받은 `uploadId`는 게시물 생성 요청의 `photoUploadId`로 사용합니다.
                     """
     )
-    @SecurityRequirement(name = "userIdHeader")
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
@@ -47,6 +46,14 @@ public interface PostApiDocs {
             @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -69,7 +76,7 @@ public interface PostApiDocs {
             summary = "게시물 생성",
             description = "업로드된 사진과 선택 제목을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다."
     )
-    @SecurityRequirement(name = "userIdHeader")
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "201",
@@ -93,6 +100,14 @@ public interface PostApiDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "회원, 주제 또는 업로드 사진을 찾을 수 없음",
                     content = @Content(
@@ -110,6 +125,7 @@ public interface PostApiDocs {
             summary = "게시물 목록 조회",
             description = "인증 정보가 없으면 isLiked는 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다."
     )
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
@@ -135,22 +151,14 @@ public interface PostApiDocs {
     })
     ResponseEntity<PostListResponse> getPosts(
             @ParameterObject PostListRequest request,
-            @Parameter(
-                    name = "X-User-Id",
-                    description = "로그인 사용자의 좋아요 여부 조회용 임시 사용자 ID",
-                    in = ParameterIn.HEADER,
-                    required = false,
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570a1",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            Optional<AuthenticatedUser> loginUser
+            @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
     @Operation(
             summary = "내 게시물 캘린더 조회",
             description = "조회 연월에 작성한 APPROVED 상태의 게시물만 주제 날짜순으로 반환합니다."
     )
-    @SecurityRequirement(name = "userIdHeader")
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
@@ -180,7 +188,7 @@ public interface PostApiDocs {
     );
 
     @Operation(summary = "게시물 상세 조회")
-    @SecurityRequirement(name = "userIdHeader")
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",

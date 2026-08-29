@@ -1036,4 +1036,17 @@ class UserServiceTest extends IntegrationTestSupport {
                         + uploadId
                         + ".png");
     }
+
+    @Test
+    @DisplayName("정지된 회원도 탈퇴할 수 있다")
+    void withdraw_bannedUser_withdrawsUser() {
+        // Given
+        UUID userId = userRepository.save(UserFixture.createBanned(null)).getId();
+
+        // When
+        userService.withdraw(userId);
+
+        // Then
+        assertThat(userRepository.findActiveById(userId)).isEmpty();
+    }
 }
