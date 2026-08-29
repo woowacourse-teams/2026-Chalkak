@@ -170,8 +170,36 @@ class PostRemoteDataSourceImplTest {
 
         val result = dataSource.createPostImageUpload()
 
-        assertEquals(ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED")), result)
+        assertEquals(
+            ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED", "unauthorized")),
+            result,
+        )
         assertTrue(unauthorizedHandled)
+    }
+
+    @Test
+    fun `게시물 생성 실패 응답의 errorCode와 message를 보존한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"errorCode":"BUSINESS_ERROR","message":"이미 해당 주제에 게시물을 작성했습니다."}""",
+                ),
+        )
+
+        val result = dataSource.createPost("topic-id", "upload-id", null)
+
+        assertEquals(
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 400,
+                    errorCode = "BUSINESS_ERROR",
+                    message = "이미 해당 주제에 게시물을 작성했습니다.",
+                ),
+            ),
+            result,
+        )
     }
 
     @Test

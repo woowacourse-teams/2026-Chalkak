@@ -87,7 +87,13 @@ class UserDataSourceImplTest {
         val result = dataSource.getMySignature()
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(statusCode = 403, errorCode = null)),
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 403,
+                    errorCode = null,
+                    message = "서비스를 이용할 수 없는 계정입니다.",
+                ),
+            ),
             result,
         )
         assertEquals(false, unauthorizedHandled)
@@ -107,7 +113,13 @@ class UserDataSourceImplTest {
         val result = dataSource.getMySignature()
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 401,
+                    errorCode = "UNAUTHORIZED",
+                    message = "인증 정보가 유효하지 않습니다.",
+                ),
+            ),
             result,
         )
         assertEquals(true, unauthorizedHandled)

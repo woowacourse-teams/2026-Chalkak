@@ -148,6 +148,7 @@ class AuthDataSourceImplTest {
                 ApiError.Http(
                     statusCode = 400,
                     errorCode = "SIGNATURE_PROCESSING_PENDING",
+                    message = "processing",
                 ),
             ),
             result,

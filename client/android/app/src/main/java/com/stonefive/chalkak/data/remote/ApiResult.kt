@@ -14,5 +14,6 @@ sealed interface ApiError {
     data class Http(
         val statusCode: Int,
         val errorCode: String?,
+        val message: String? = null,
     ) : ApiError
 }
