@@ -43,7 +43,7 @@ class NetworkModule(
         onUnauthorized = sessionStore::clear,
     )
 
-    val signatureUploadClient = OkHttpClient
+    val presignedUploadClient = OkHttpClient
         .Builder()
         .addInterceptor(createLoggingInterceptor())
         .build()

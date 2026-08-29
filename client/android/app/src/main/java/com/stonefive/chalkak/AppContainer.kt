@@ -11,7 +11,7 @@ import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
-import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
+import com.stonefive.chalkak.data.remote.signature.OkHttpPresignedImageUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
@@ -34,6 +34,9 @@ class AppContainer(context: Context) {
         baseUrl = BuildConfig.API_BASE_URL,
         sessionStore = sessionStore,
     )
+    private val presignedImageUploader = OkHttpPresignedImageUploader(
+        networkModule.presignedUploadClient,
+    )
 
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
@@ -48,7 +51,7 @@ class AppContainer(context: Context) {
                 networkModule.authApi,
                 networkModule.apiRequestExecutor,
             ),
-            signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
+            signatureUploader = presignedImageUploader,
             sessionStore = sessionStore,
         )
     }
@@ -59,7 +62,7 @@ class AppContainer(context: Context) {
                 networkModule.userApi,
                 networkModule.apiRequestExecutor,
             ),
-            signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
+            signatureUploader = presignedImageUploader,
         )
     }
 

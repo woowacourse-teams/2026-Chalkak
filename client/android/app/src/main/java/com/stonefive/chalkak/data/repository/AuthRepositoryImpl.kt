@@ -5,8 +5,9 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.auth.AuthDataSource
 import com.stonefive.chalkak.data.remote.auth.model.response.SocialLoginResponse
-import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
-import com.stonefive.chalkak.data.remote.signature.SignatureUploader
+import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
+import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
+import com.stonefive.chalkak.data.remote.signature.UploadContent
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -19,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 class AuthRepositoryImpl(
     private val authDataSource: AuthDataSource,
-    private val signatureUploader: SignatureUploader,
+    private val signatureUploader: PresignedImageUploader,
     private val sessionStore: SessionStore,
     private val retryDelay: suspend (Long) -> Unit = { delay(it) },
 ) : AuthRepository {
@@ -57,18 +58,24 @@ class AuthRepositoryImpl(
             is ApiResult.Failure -> return SocialSignUpResult.Failure(result.error.toSignUpFailure())
         }
 
-        when (signatureUploader.upload(upload.uploadUrl, signaturePng)) {
-            SignatureUploadResult.Success -> Unit
+        when (
+            signatureUploader.upload(
+                uploadUrl = upload.uploadUrl,
+                contentType = SIGNATURE_CONTENT_TYPE,
+                content = UploadContent.Bytes(signaturePng),
+            )
+        ) {
+            PresignedUploadResult.Success -> Unit
 
-            SignatureUploadResult.NetworkFailure -> {
+            PresignedUploadResult.NetworkFailure -> {
                 return SocialSignUpResult.Failure(SocialSignUpFailure.NETWORK_UNAVAILABLE)
             }
 
-            SignatureUploadResult.InvalidUploadUrl -> {
+            PresignedUploadResult.InvalidUploadUrl -> {
                 return SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN)
             }
 
-            SignatureUploadResult.Rejected -> {
+            PresignedUploadResult.Rejected -> {
                 return SocialSignUpResult.Failure(SocialSignUpFailure.INVALID_SIGNATURE)
             }
         }
@@ -192,6 +199,7 @@ class AuthRepositoryImpl(
         const val SIGN_UP_REQUIRED = "SIGN_UP_REQUIRED"
         const val SIGNATURE_PROCESSING_PENDING = "SIGNATURE_PROCESSING_PENDING"
         const val MAX_SIGNATURE_BYTES = 1024 * 1024
+        const val SIGNATURE_CONTENT_TYPE = "image/png"
         const val SIGN_UP_ATTEMPTS = 10
         const val SIGN_UP_RETRY_DELAY_MILLIS = 1_000L
     }

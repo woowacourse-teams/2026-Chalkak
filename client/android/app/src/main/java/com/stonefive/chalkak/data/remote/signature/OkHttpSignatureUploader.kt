@@ -1,43 +1,27 @@
 package com.stonefive.chalkak.data.remote.signature
 
-import java.io.IOException
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 
-class OkHttpSignatureUploader(private val client: OkHttpClient) : SignatureUploader {
+class OkHttpSignatureUploader(client: OkHttpClient) : SignatureUploader {
+    private val delegate = OkHttpPresignedImageUploader(client)
+
     override suspend fun upload(
         uploadUrl: String,
         signaturePng: ByteArray,
-    ): SignatureUploadResult = withContext(Dispatchers.IO) {
-        try {
-            val request = Request
-                .Builder()
-                .url(uploadUrl)
-                .put(signaturePng.toRequestBody(PNG_MEDIA_TYPE))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    SignatureUploadResult.Success
-                } else {
-                    SignatureUploadResult.Rejected
-                }
-            }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: IllegalArgumentException) {
-            SignatureUploadResult.InvalidUploadUrl
-        } catch (_: IOException) {
-            SignatureUploadResult.NetworkFailure
-        }
+    ): SignatureUploadResult = when (
+        delegate.upload(
+            uploadUrl = uploadUrl,
+            contentType = PNG_CONTENT_TYPE,
+            content = UploadContent.Bytes(signaturePng),
+        )
+    ) {
+        PresignedUploadResult.Success -> SignatureUploadResult.Success
+        PresignedUploadResult.NetworkFailure -> SignatureUploadResult.NetworkFailure
+        PresignedUploadResult.InvalidUploadUrl -> SignatureUploadResult.InvalidUploadUrl
+        PresignedUploadResult.Rejected -> SignatureUploadResult.Rejected
     }
 
     private companion object {
-        val PNG_MEDIA_TYPE = "image/png".toMediaType()
+        const val PNG_CONTENT_TYPE = "image/png"
     }
 }

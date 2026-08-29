@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.remote.signature
 
+import java.io.File
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -49,5 +50,44 @@ class OkHttpSignatureUploaderTest {
         val result = uploader.upload("not-a-url", byteArrayOf(1, 2, 3))
 
         assertEquals(SignatureUploadResult.InvalidUploadUrl, result)
+    }
+
+    @Test
+    fun `공통 업로더는 파일을 스트리밍하고 응답 Content-Type을 그대로 전송한다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+        val file = File.createTempFile("presigned-upload-test", ".webp")
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        file.writeBytes(bytes)
+
+        try {
+            val uploader = OkHttpPresignedImageUploader(OkHttpClient())
+            val result = uploader.upload(
+                uploadUrl = server.url("/post").toString(),
+                contentType = "image/webp",
+                content = UploadContent.FileContent(file),
+            )
+            val request = server.takeRequest()
+
+            assertEquals(PresignedUploadResult.Success, result)
+            assertEquals("PUT", request.method)
+            assertEquals("image/webp", request.headers["Content-Type"])
+            assertArrayEquals(bytes, request.body.readByteArray())
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `공통 업로더는 잘못된 Content-Type을 요청 없이 실패시킨다`() = runTest {
+        val uploader = OkHttpPresignedImageUploader(OkHttpClient())
+
+        val result = uploader.upload(
+            uploadUrl = server.url("/post").toString(),
+            contentType = "not a media type",
+            content = UploadContent.Bytes(byteArrayOf(1)),
+        )
+
+        assertEquals(PresignedUploadResult.InvalidUploadUrl, result)
+        assertEquals(0, server.requestCount)
     }
 }
