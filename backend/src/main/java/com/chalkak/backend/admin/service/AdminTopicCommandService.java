@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +47,7 @@ public class AdminTopicCommandService {
                 now
         );
         validateDateAvailable(topicDate, null);
-        Topic saved = saveUnique(topic);
+        Topic saved = topicRepository.saveAndFlush(topic);
         createAuditLog(
                 adminId,
                 AdminAction.TOPIC_CREATED,
@@ -81,7 +80,7 @@ public class AdminTopicCommandService {
                 now
         );
         validateDateAvailable(topicDate, topicId);
-        Topic saved = saveUnique(topic);
+        Topic saved = topicRepository.saveAndFlush(topic);
         createAuditLog(
                 adminId,
                 AdminAction.TOPIC_UPDATED,
@@ -131,17 +130,6 @@ public class AdminTopicCommandService {
                         excludedTopicId
                 );
         if (duplicated) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "해당 날짜의 주제가 이미 존재합니다."
-            );
-        }
-    }
-
-    private Topic saveUnique(Topic topic) {
-        try {
-            return topicRepository.saveAndFlush(topic);
-        } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "해당 날짜의 주제가 이미 존재합니다."
