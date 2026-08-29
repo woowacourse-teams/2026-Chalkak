@@ -180,28 +180,32 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 Spring Boot 4 지원과 최신 기능을 위해 `springdoc-openapi` 3.1.0을 유지한다. 다만 이 버전은 Bean Validation 제약이 붙은 숫자 파라미터를 문서화할 때 경고 로그를 출력하는 [알려진 회귀 문제](https://github.com/springdoc/springdoc-openapi/issues/3314)가 있다. 현재 문서 응답과 스키마 생성에는 문제가 없으므로 하위 버전으로 내리지 않고, [수정 PR](https://github.com/springdoc/springdoc-openapi/pull/3315)이 반영된 정식 버전이 나오면 업그레이드한다.
 
-## 임시 인증
+## 인증과 인가
 
-로그인 사용자는 `X-User-Id` 헤더로 식별한다.
+소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰을 `Authorization` 헤더에 담아 호출한다.
 
 ```bash
 curl -X PUT localhost:8080/api/v1/users/me/signature \
-  -H "X-User-Id: 01a03199-f6e2-764c-afbf-23f7b0429eb6" \
+  -H "Authorization: Bearer <accessToken>" \
   -H 'Content-Type: application/json' \
   -d '{"signatureOriginalUploadId":"<uuid>"}'
 ```
 
-> **이 방식은 한시적이다.** MVP 핵심 기능을 먼저 만들고 로그인·회원가입·인증인가를 마지막에 붙이기로 해서, 그 전까지 쓰는 임시 수단이다. **헤더 값을 검증 없이 신뢰하므로 누구나 남의 계정을 조작할 수 있다.**
-
-배포 환경 유출을 막기 위해 임시 인증 관련 빈과 컨트롤러에 `@Profile("!prod")`를 붙인다.
+액세스 토큰은 HS256으로 서명한 JWT이며 `sub`에 회원 식별자를 담는다. 회원가입 토큰과는 서명 키,
+`aud`, `purpose` 세 가지로 분리해, 키를 같은 값으로 잘못 설정해도 서로를 대신할 수 없게 한다.
 
 | 대상 | 역할 |
 |---|---|
-| `LoginUserArgumentResolver` | `X-User-Id`를 `AuthenticatedUser`로 변환. 없거나 UUID가 아니면 401 |
-| `WebMvcConfig` | 리졸버를 필수 생성자 파라미터로 주입받아 등록 |
-| `UserController` 등 임시 인증 사용 컨트롤러 | prod에서 미등록 → 404 |
-| `OptionalLoginUserArgumentResolver` | 공개 API에서 헤더가 없으면 비로그인, 있으면 로그인 사용자로 변환. prod에서는 헤더를 무시 |
-| `OptionalLoginUserWebMvcConfig` | 선택 인증 리졸버를 모든 프로필에 등록 |
+| `SecurityConfig` | 필터 체인. 공개 경로를 열고 나머지는 모두 인증을 요구한다 |
+| `JwtAccessTokenProvider` | 액세스 토큰 발급과 검증용 `JwtDecoder` 제공 |
+| `LoginUserArgumentResolver` | 인증 주체를 `AuthenticatedUser`로 변환. 인증이 없으면 401 |
+| `OptionalLoginUserArgumentResolver` | 공개 API에서 인증이 없으면 비로그인으로 처리 |
+| `UnauthorizedEntryPoint` | 필터 단계의 401을 공통 에러 형식으로 응답 |
+
+공개 경로는 소셜 로그인·회원가입(`/api/v1/auth/**`), 주제와 게시물 조회(`GET`), Lambda 콜백
+(`/internal/v1/**`, HMAC으로 자체 인증), 헬스체크다. 이 목록은 `SecurityFilterChainTest`가 고정한다.
+
+Bearer 토큰을 쓰는 stateless API라 CSRF 보호는 끈다. 켜 두면 모든 쓰기 요청이 403이 된다.
 
 규칙:
 

@@ -18,7 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Users", description = "사용자 API")
-@SecurityRequirement(name = "userIdHeader")
+@SecurityRequirement(name = "accessToken")
 public interface UserApiDocs {
 
     @Operation(summary = "회원 탈퇴")
@@ -55,6 +55,14 @@ public interface UserApiDocs {
             @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -129,6 +137,14 @@ public interface UserApiDocs {
             @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

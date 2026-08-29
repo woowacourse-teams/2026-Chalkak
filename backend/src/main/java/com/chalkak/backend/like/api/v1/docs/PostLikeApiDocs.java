@@ -15,7 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Post Likes", description = "게시물 좋아요 API")
-@SecurityRequirement(name = "userIdHeader")
+@SecurityRequirement(name = "accessToken")
 public interface PostLikeApiDocs {
 
     @Operation(summary = "게시물 좋아요 등록")
@@ -36,6 +36,14 @@ public interface PostLikeApiDocs {
             @ApiResponse(
                     responseCode = "401",
                     description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

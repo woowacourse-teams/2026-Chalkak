@@ -6,21 +6,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
-import com.chalkak.backend.auth.service.SocialLoginStatus;
+import com.chalkak.backend.auth.service.SocialSignupResult;
 import com.chalkak.backend.auth.service.SocialSignupService;
 import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -28,8 +31,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AuthController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class AuthControllerTest {
+
+    private static final String ACCESS_TOKEN = "chalkak-access-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,9 +52,9 @@ class AuthControllerTest {
         // Given
         UUID userId = UUID.randomUUID();
         given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
-                .willReturn(new SocialLoginResult(
-                        SocialLoginStatus.LOGIN_SUCCESS,
-                        userId));
+                .willReturn(SocialLoginResult.loginSuccess(
+                        userId,
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -61,7 +67,9 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LOGIN_SUCCESS"))
-                .andExpect(jsonPath("$.userId").value(userId.toString()));
+                .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
+                .andExpect(jsonPath("$.expiresIn").value(3600));
     }
 
     @Test
@@ -69,9 +77,7 @@ class AuthControllerTest {
     void socialLogin_newUser_returnsSignUpRequired() throws Exception {
         // Given
         given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
-                .willReturn(new SocialLoginResult(
-                        SocialLoginStatus.SIGN_UP_REQUIRED,
-                        null));
+                .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -84,7 +90,9 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
-                .andExpect(jsonPath("$.userId").doesNotExist());
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.expiresIn").doesNotExist());
     }
 
     @Test
@@ -92,9 +100,7 @@ class AuthControllerTest {
     void socialLogin_kakaoProvider_returnsLoginResult() throws Exception {
         // Given
         given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token"))
-                .willReturn(new SocialLoginResult(
-                        SocialLoginStatus.SIGN_UP_REQUIRED,
-                        null));
+                .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -107,7 +113,9 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
-                .andExpect(jsonPath("$.userId").doesNotExist());
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.expiresIn").doesNotExist());
     }
 
     @Test
@@ -206,7 +214,9 @@ class AuthControllerTest {
         // Given
         UUID userId = UUID.randomUUID();
         given(socialSignupService.signup("social-signup-token"))
-                .willReturn(userId);
+                .willReturn(new SocialSignupResult(
+                        userId,
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
@@ -217,7 +227,9 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value(userId.toString()));
+                .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
+                .andExpect(jsonPath("$.expiresIn").value(3600));
     }
 
     @Test

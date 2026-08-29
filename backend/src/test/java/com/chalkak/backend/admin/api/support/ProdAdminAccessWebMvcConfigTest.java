@@ -10,6 +10,7 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
         ProdAdminAccessWebMvcConfigTest.AdminController.class,
         ProdAdminAccessWebMvcConfigTest.ControlController.class
 })
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("prod")
 @Import({
         ProdAdminAccessWebMvcConfigTest.AdminController.class,
