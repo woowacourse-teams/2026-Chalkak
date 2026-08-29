@@ -63,6 +63,22 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun emptyArchiveUsesArchiveEmptyPhotoMessage() {
+        setDisplayContent(
+            archiveUiState().copy(
+                content = DisplayContentState.Archive(
+                    photos = emptyList(),
+                    featuredPhotos = emptyList(),
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(DISPLAY_EMPTY_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText("이 날 올라온 사진이 없어요").assertIsDisplayed()
+        composeRule.onAllNodesWithText("첫 번째 사진을 올려보세요").assertCountEquals(0)
+    }
+
+    @Test
     fun latestDateHeaderAndFilterHideAndRestoreTogetherOnScroll() {
         setDisplayContent(scrollableLatestUiState())
 

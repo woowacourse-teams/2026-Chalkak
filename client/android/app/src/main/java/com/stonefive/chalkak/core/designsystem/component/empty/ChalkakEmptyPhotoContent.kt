@@ -20,6 +20,8 @@ const val EMPTY_PHOTO_DESCRIPTION = "첫 번째 사진을 올려보세요"
 fun ChalkakEmptyPhotoContent(
     modifier: Modifier = Modifier,
     testTag: String? = null,
+    title: String = EMPTY_PHOTO_TITLE,
+    description: String? = EMPTY_PHOTO_DESCRIPTION,
 ) {
     val contentModifier = testTag?.let(modifier::testTag) ?: modifier
     Column(
@@ -28,16 +30,18 @@ fun ChalkakEmptyPhotoContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = EMPTY_PHOTO_TITLE,
+            text = title,
             color = ChalkakTheme.colors.textSecondary,
             style = ChalkakTheme.typography.body,
         )
-        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
-        Text(
-            text = EMPTY_PHOTO_DESCRIPTION,
-            color = ChalkakTheme.colors.textMuted,
-            style = ChalkakTheme.typography.subheadline,
-        )
+        if (description != null) {
+            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
+            Text(
+                text = description,
+                color = ChalkakTheme.colors.textMuted,
+                style = ChalkakTheme.typography.subheadline,
+            )
+        }
     }
 }
 

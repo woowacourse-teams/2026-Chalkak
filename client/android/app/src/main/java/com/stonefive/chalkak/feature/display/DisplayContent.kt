@@ -123,6 +123,8 @@ fun ArchiveDisplayContent(
         ChalkakEmptyPhotoContent(
             modifier = modifier,
             testTag = DISPLAY_EMPTY_TEST_TAG,
+            title = "이 날 올라온 사진이 없어요",
+            description = null,
         )
     } else {
         DisplayPhotoGrid(
