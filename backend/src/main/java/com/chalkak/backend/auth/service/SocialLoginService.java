@@ -6,6 +6,7 @@ import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ public class SocialLoginService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
+    private final AccessTokenIssuer accessTokenIssuer;
 
     @Transactional(readOnly = true)
     public SocialLoginResult login(
@@ -39,6 +41,9 @@ public class SocialLoginService {
                     ErrorCode.UNAUTHORIZED,
                     "탈퇴한 회원은 로그인할 수 없습니다.");
         }
-        return SocialLoginResult.loginSuccess(socialAccount.getUser().getId());
+        UUID userId = socialAccount.getUser().getId();
+        return SocialLoginResult.loginSuccess(
+                userId,
+                accessTokenIssuer.issue(userId));
     }
 }

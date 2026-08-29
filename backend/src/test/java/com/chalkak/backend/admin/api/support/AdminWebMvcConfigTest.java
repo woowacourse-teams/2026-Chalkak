@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest(AdminWebMvcConfigTest.TestController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import({
         AdminWebMvcConfigTest.TestController.class,
         AdminArgumentResolverWebMvcConfig.class,

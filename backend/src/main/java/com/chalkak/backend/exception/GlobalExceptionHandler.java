@@ -1,8 +1,11 @@
 package com.chalkak.backend.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -16,6 +19,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final DomainErrorHttpMapper httpMapper = new DomainErrorHttpMapper();
 
@@ -99,6 +105,35 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BaseException.class})
     public ResponseEntity<ErrorResponse> handleBaseException(BaseException e) {
         return response(e);
+    }
+
+    /**
+     * 인가 거부는 Security의 처리기가 응답을 만든다. 아래 캐치올이 삼키면 403이 500으로 바뀐다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public void handleAccessDeniedException(AccessDeniedException e)
+            throws AccessDeniedException {
+        throw e;
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception e) {
+        HttpStatus status = statusOf(e);
+        if (status.is4xxClientError()) {
+            return response(status, ErrorCode.BUSINESS_ERROR, "지원하지 않는 요청 방식이거나 형식입니다.");
+        }
+
+        log.error("처리되지 않은 예외", e);
+
+        return response(status, ErrorCode.INTERNAL_ERROR, "서버에서 요청을 처리하지 못했습니다.");
+    }
+
+    private HttpStatus statusOf(Exception e) {
+        if (e instanceof org.springframework.web.ErrorResponse springErrorResponse) {
+            return HttpStatus.valueOf(springErrorResponse.getStatusCode().value());
+        }
+
+        return HttpStatus.INTERNAL_SERVER_ERROR;
     }
 
     private ResponseEntity<ErrorResponse> response(BaseException exception) {
