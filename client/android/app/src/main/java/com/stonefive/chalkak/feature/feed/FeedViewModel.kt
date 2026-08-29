@@ -182,6 +182,7 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> applyPostDetail(result.value)
+
                 is HomeResult.Failure -> _uiState.update {
                     it.copy(
                         content = if (result.reason.isPostNotFound()) null else it.content,
@@ -227,11 +228,11 @@ class FeedViewModel(
         }
 
         HomeFailure.InvalidResponse -> "게시물 정보를 불러오지 못했어요"
+
         else -> "게시물을 불러오지 못했어요"
     }
 
-    private fun HomeFailure.isPostNotFound(): Boolean =
-        this is HomeFailure.Http && statusCode == 404
+    private fun HomeFailure.isPostNotFound(): Boolean = this is HomeFailure.Http && statusCode == 404
 
     private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
 

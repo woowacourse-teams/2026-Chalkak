@@ -38,22 +38,24 @@ fun FeedContent(
 @Preview(name = "성공", showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
 private fun FeedContentPreview() {
+    val resourcePrefix = "android.resource://com.stonefive.chalkak"
+
     ChalkakTheme {
         FeedContent(
             content = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
-            post = Post(
-                id = "preview",
-                originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                contentDescription = "노을이 진 하늘과 전신주",
+                post = Post(
+                    id = "preview",
+                    originalImageUrl = "$resourcePrefix/${R.drawable.home_feed_photo}",
+                    thumbnailImageUrl = "$resourcePrefix/${R.drawable.home_feed_photo}",
+                    signatureOriginalImageUrl = "$resourcePrefix/${R.drawable.preview_signature}",
+                    signatureThumbnailImageUrl = "$resourcePrefix/${R.drawable.preview_signature}",
+                    contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 감사합니다.",
                     likeCount = 24,
                 ),
-            isLiked = false,
+                isLiked = false,
             ),
             onLikeClick = {},
             modifier = Modifier.fillMaxSize(),

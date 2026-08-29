@@ -6,8 +6,8 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -116,7 +116,11 @@ class FeedViewModelTest {
             postId = selectedPost.id,
         )
 
-        assertEquals(selectedPost, selectedViewModel.uiState.value.content?.post)
+        assertEquals(
+            selectedPost,
+            selectedViewModel.uiState.value.content
+                ?.post,
+        )
         assertTrue(selectedViewModel.uiState.value.isRefreshing)
 
         detailResult.complete(
@@ -259,8 +263,7 @@ private class FakePostRepository : PostRepository {
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
 
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
-        detailRequest?.await() ?: detailResult
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = detailRequest?.await() ?: detailResult
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requestedQueries += query
@@ -285,8 +288,7 @@ private class FakePostRepository : PostRepository {
 private class ControlledPostRepository : PostRepository {
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
 
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
-        HomeResult.Failure(HomeFailure.Network)
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 

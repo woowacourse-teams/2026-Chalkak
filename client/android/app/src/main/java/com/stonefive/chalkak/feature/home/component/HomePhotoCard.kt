@@ -63,8 +63,7 @@ fun HomePhotoCard(
                 .height(415.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = photo.contentDescription
-                }
-                .clickable(
+                }.clickable(
                     interactionSource = null,
                     indication = null,
                     role = Role.Button,

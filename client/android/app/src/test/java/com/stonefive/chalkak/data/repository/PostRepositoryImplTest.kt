@@ -12,10 +12,10 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostDetail
-import java.time.LocalDate
+import com.stonefive.chalkak.domain.model.PostSort
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

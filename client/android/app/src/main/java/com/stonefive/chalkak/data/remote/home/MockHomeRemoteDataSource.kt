@@ -19,13 +19,15 @@ class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : Hom
 
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> {
         delay(responseDelayMillis)
-        val post = (getPosts(
-            HomeQuery(
-                date = LocalDate.of(2026, 8, 29),
-                sort = PostSort.LATEST,
-                page = HomeQuery.FIRST_PAGE,
-            ),
-        ) as ApiResult.Success).value.posts.firstOrNull { it.id == postId }
+        val post = (
+            getPosts(
+                HomeQuery(
+                    date = LocalDate.of(2026, 8, 29),
+                    sort = PostSort.LATEST,
+                    page = HomeQuery.FIRST_PAGE,
+                ),
+            ) as ApiResult.Success
+            ).value.posts.firstOrNull { it.id == postId }
             ?: return ApiResult.Failure(ApiError.Http(404, "POST_NOT_FOUND"))
 
         return ApiResult.Success(
