@@ -98,8 +98,8 @@ class AdminUserQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("활성 사용자 상세에 소셜 제공자와 게시물 상태별 개수를 제공한다")
-    void findUserById_activeUser_returnsProviderSignatureAndPostCounts() {
+    @DisplayName("활성 사용자 상세에 소셜 제공자와 관리자 공개 게시물 상태별 개수를 제공한다")
+    void findUserById_activeUser_returnsProviderSignatureAndVisiblePostCounts() {
         // When
         AdminUserDetailProjection result = adminUserQueryRepository
                 .findUserById(ACTIVE_USER_ID)
@@ -109,7 +109,6 @@ class AdminUserQueryRepositoryTest {
         assertThat(result.socialProvider()).isEqualTo(SocialProvider.GOOGLE);
         assertThat(result.signatureOriginalStorageKey()).isEqualTo("signatures/active-original");
         assertThat(result.signatureThumbnailStorageKey()).isEqualTo("signatures/active-thumbnail");
-        assertThat(result.validatingPostCount()).isEqualTo(1);
         assertThat(result.pendingPostCount()).isEqualTo(1);
         assertThat(result.approvedPostCount()).isEqualTo(1);
         assertThat(result.rejectedPostCount()).isEqualTo(1);

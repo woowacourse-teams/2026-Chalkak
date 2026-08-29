@@ -42,13 +42,7 @@ public record AdminUserDetail(
     private static AdminUserListResult.PostCounts postCounts(
             AdminUserDetailProjection user
     ) {
-        long total = user.validatingPostCount()
-                + user.pendingPostCount()
-                + user.approvedPostCount()
-                + user.rejectedPostCount();
         return new AdminUserListResult.PostCounts(
-                total,
-                user.validatingPostCount(),
                 user.pendingPostCount(),
                 user.approvedPostCount(),
                 user.rejectedPostCount());

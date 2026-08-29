@@ -14,7 +14,6 @@ public record AdminUserSummaryProjection(
         Instant createdAt,
         Instant updatedAt,
         Instant deletedAt,
-        long validatingPostCount,
         long pendingPostCount,
         long approvedPostCount,
         long rejectedPostCount

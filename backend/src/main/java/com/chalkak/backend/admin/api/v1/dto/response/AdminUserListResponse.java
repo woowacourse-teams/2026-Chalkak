@@ -58,8 +58,6 @@ public record AdminUserListResponse(
 
     @Schema(name = "AdminUserPostCounts")
     public record PostCountsResponse(
-            long total,
-            long validating,
             long pending,
             long approved,
             long rejected
@@ -67,8 +65,6 @@ public record AdminUserListResponse(
 
         public static PostCountsResponse from(AdminUserListResult.PostCounts postCounts) {
             return new PostCountsResponse(
-                    postCounts.total(),
-                    postCounts.validating(),
                     postCounts.pending(),
                     postCounts.approved(),
                     postCounts.rejected());

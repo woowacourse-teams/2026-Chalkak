@@ -44,7 +44,6 @@ public record AdminUserListResult(
                     user.appVersion(),
                     user.socialProvider(),
                     PostCounts.from(
-                            user.validatingPostCount(),
                             user.pendingPostCount(),
                             user.approvedPostCount(),
                             user.rejectedPostCount()),
@@ -55,22 +54,17 @@ public record AdminUserListResult(
     }
 
     public record PostCounts(
-            long total,
-            long validating,
             long pending,
             long approved,
             long rejected
     ) {
 
         private static PostCounts from(
-                long validating,
                 long pending,
                 long approved,
                 long rejected
         ) {
             return new PostCounts(
-                    validating + pending + approved + rejected,
-                    validating,
                     pending,
                     approved,
                     rejected);

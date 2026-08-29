@@ -35,10 +35,6 @@ public class AdminUserQueryRepositoryImpl implements AdminUserQueryRepository {
                 (SELECT COUNT(post)
                  FROM Post post
                  WHERE post.author.id = user.id
-                   AND post.moderationStatus = :validatingStatus),
-                (SELECT COUNT(post)
-                 FROM Post post
-                 WHERE post.author.id = user.id
                    AND post.moderationStatus = :pendingStatus),
                 (SELECT COUNT(post)
                  FROM Post post
@@ -65,10 +61,6 @@ public class AdminUserQueryRepositoryImpl implements AdminUserQueryRepository {
                 user.createdAt,
                 user.updatedAt,
                 user.deletedAt,
-                (SELECT COUNT(post)
-                 FROM Post post
-                 WHERE post.author.id = user.id
-                   AND post.moderationStatus = :validatingStatus),
                 (SELECT COUNT(post)
                  FROM Post post
                  WHERE post.author.id = user.id
@@ -169,7 +161,6 @@ public class AdminUserQueryRepositoryImpl implements AdminUserQueryRepository {
     }
 
     private void setPostStatusParameters(TypedQuery<?> query) {
-        query.setParameter("validatingStatus", ModerationStatus.VALIDATING);
         query.setParameter("pendingStatus", ModerationStatus.PENDING);
         query.setParameter("approvedStatus", ModerationStatus.APPROVED);
         query.setParameter("rejectedStatus", ModerationStatus.REJECTED);

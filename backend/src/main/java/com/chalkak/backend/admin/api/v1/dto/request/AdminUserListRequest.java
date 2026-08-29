@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 public record AdminUserListRequest(
-        @Schema(description = "사용자 상태")
+        @Schema(description = "사용자 상태", defaultValue = "ACTIVE")
         AdminUserStatus status,
 
         @Schema(description = "대소문자를 무시하는 이메일 부분 검색")
@@ -32,11 +32,13 @@ public record AdminUserListRequest(
         Integer pageSize
 ) {
 
+    private static final AdminUserStatus DEFAULT_STATUS = AdminUserStatus.ACTIVE;
     private static final AdminUserSort DEFAULT_SORT = AdminUserSort.CREATED_AT_DESC;
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     public AdminUserListRequest {
+        status = status == null ? DEFAULT_STATUS : status;
         sort = sort == null ? DEFAULT_SORT : sort;
         page = page == null ? DEFAULT_PAGE : page;
         pageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;

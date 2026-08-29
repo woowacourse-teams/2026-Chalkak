@@ -23,7 +23,7 @@ public interface AdminUserApiDocs {
 
     @Operation(
             summary = "관리자 사용자 목록 조회",
-            description = "탈퇴자를 포함한 사용자를 파생 상태와 이메일로 검색합니다.")
+            description = "활성 사용자를 기본으로 차단·탈퇴 상태와 이메일을 선택해 검색합니다.")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
@@ -48,7 +48,8 @@ public interface AdminUserApiDocs {
 
     @Operation(
             summary = "관리자 사용자 상세 조회",
-            description = "탈퇴 여부와 관계없이 사용자 상태·소셜 제공자·게시물 개수를 조회합니다.")
+            description = "탈퇴 여부와 관계없이 사용자 상태·소셜 제공자와 "
+                    + "승인 대기·승인·거절 게시물 개수를 조회합니다.")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",

@@ -73,8 +73,8 @@ class AdminUserControllerTest {
     }
 
     @Test
-    @DisplayName("관리자는 기본 조건으로 전체 사용자 목록을 조회한다")
-    void getUsers_withoutFilters_returnsDefaultPage() throws Exception {
+    @DisplayName("관리자는 상태를 생략하면 활성 사용자 목록을 조회한다")
+    void getUsers_withoutStatus_returnsActiveUsersByDefault() throws Exception {
         // Given
         AdminUserListResult result = new AdminUserListResult(
                 1,
@@ -86,12 +86,12 @@ class AdminUserControllerTest {
                         AdminUserStatus.ACTIVE,
                         "1.2.3",
                         SocialProvider.GOOGLE,
-                        new AdminUserListResult.PostCounts(3, 0, 1, 2, 0),
+                        new AdminUserListResult.PostCounts(1, 2, 0),
                         CREATED_AT,
                         UPDATED_AT,
                         null)));
         given(adminUserQueryService.getUsers(
-                null,
+                AdminUserStatus.ACTIVE,
                 null,
                 AdminUserSort.CREATED_AT_DESC,
                 1,
@@ -105,10 +105,14 @@ class AdminUserControllerTest {
                 .andExpect(jsonPath("$.users[0].email").value("user@example.com"))
                 .andExpect(jsonPath("$.users[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.users[0].socialProvider").value("GOOGLE"))
-                .andExpect(jsonPath("$.users[0].postCounts.total").value(3));
+                .andExpect(jsonPath("$.users[0].postCounts.pending").value(1))
+                .andExpect(jsonPath("$.users[0].postCounts.approved").value(2))
+                .andExpect(jsonPath("$.users[0].postCounts.rejected").value(0))
+                .andExpect(jsonPath("$.users[0].postCounts.total").doesNotExist())
+                .andExpect(jsonPath("$.users[0].postCounts.validating").doesNotExist());
 
         then(adminUserQueryService).should().getUsers(
-                null,
+                AdminUserStatus.ACTIVE,
                 null,
                 AdminUserSort.CREATED_AT_DESC,
                 1,
@@ -176,7 +180,7 @@ class AdminUserControllerTest {
                 null,
                 SocialProvider.KAKAO,
                 new AdminUserDetail.Signature(null, null),
-                new AdminUserListResult.PostCounts(1, 0, 0, 0, 1),
+                new AdminUserListResult.PostCounts(0, 0, 1),
                 CREATED_AT,
                 UPDATED_AT,
                 UPDATED_AT);

@@ -15,6 +15,7 @@ import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -124,8 +125,8 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("관리자 목록은 모든 검수 상태와 삭제된 게시물을 함께 조회한다")
-    void findPosts_noFilters_returnsEveryModerationStatusAndSoftDeletedPost() {
+    @DisplayName("관리자 목록은 내부 검증 중 게시물을 제외하고 삭제된 게시물을 함께 조회한다")
+    void findPosts_noFilters_excludesValidatingAndIncludesSoftDeletedPost() {
         // Given
         AdminPostQueryCriteria criteria = criteria(AdminPostQuerySort.CREATED_AT_DESC);
 
@@ -140,13 +141,12 @@ class AdminPostQueryRepositoryTest {
                 .containsExactly(
                         DELETED_POST_ID,
                         PENDING_POST_ID,
-                        VALIDATING_POST_ID,
                         APPROVED_POST_ID,
                         REJECTED_POST_ID
                 );
         assertThat(result.posts()).extracting(AdminPostSummaryProjection::moderationStatus)
-                .contains(
-                        ModerationStatus.VALIDATING,
+                .containsExactly(
+                        ModerationStatus.APPROVED,
                         ModerationStatus.PENDING,
                         ModerationStatus.APPROVED,
                         ModerationStatus.REJECTED
@@ -273,7 +273,7 @@ class AdminPostQueryRepositoryTest {
         assertThat(statusResult.posts()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(DELETED_POST_ID, APPROVED_POST_ID);
         assertThat(topicIdResult.posts()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(PENDING_POST_ID, VALIDATING_POST_ID, REJECTED_POST_ID);
+                .containsExactly(PENDING_POST_ID, REJECTED_POST_ID);
         assertThat(topicDateResult.posts()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(APPROVED_POST_ID);
         assertThat(userIdResult.posts()).extracting(AdminPostSummaryProjection::postId)
@@ -319,17 +319,17 @@ class AdminPostQueryRepositoryTest {
 
         // Then
         assertThat(descendingFirst.posts()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(DELETED_POST_ID, PENDING_POST_ID, VALIDATING_POST_ID);
+                .containsExactly(DELETED_POST_ID, PENDING_POST_ID, APPROVED_POST_ID);
         assertThat(descendingSecond.posts()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(APPROVED_POST_ID, REJECTED_POST_ID);
+                .containsExactly(REJECTED_POST_ID);
         assertThat(descendingFirst.hasNext()).isTrue();
         assertThat(descendingSecond.hasNext()).isFalse();
         assertThat(descendingSecond.currentPage()).isEqualTo(2);
 
         assertThat(ascendingFirst.posts()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(REJECTED_POST_ID, APPROVED_POST_ID, VALIDATING_POST_ID);
+                .containsExactly(REJECTED_POST_ID, APPROVED_POST_ID, PENDING_POST_ID);
         assertThat(ascendingSecond.posts()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(PENDING_POST_ID, DELETED_POST_ID);
+                .containsExactly(DELETED_POST_ID);
         assertThat(ascendingFirst.hasNext()).isTrue();
         assertThat(ascendingSecond.hasNext()).isFalse();
         assertThat(ascendingSecond.currentPage()).isEqualTo(2);
@@ -382,6 +382,17 @@ class AdminPostQueryRepositoryTest {
         assertThat(detail.uploadCreatedAt()).isEqualTo(UPLOAD_CREATED_AT);
         assertThat(detail.uploadUpdatedAt()).isEqualTo(UPLOAD_UPDATED_AT);
         assertThat(detail.likeCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("내부 검증 중 게시물은 관리자 상세에서 조회하지 않는다")
+    void findPostById_validatingPost_returnsEmpty() {
+        // When
+        Optional<AdminPostDetailProjection> result =
+                adminPostQueryRepository.findPostById(VALIDATING_POST_ID);
+
+        // Then
+        assertThat(result).isEmpty();
     }
 
     @Test

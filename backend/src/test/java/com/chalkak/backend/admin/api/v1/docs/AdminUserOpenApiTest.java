@@ -43,6 +43,16 @@ class AdminUserOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.AdminUserListItem"
                         + ".properties.postCounts['$ref']")
                         .value("#/components/schemas/AdminUserPostCounts"))
+                .andExpect(jsonPath("$.components.schemas.AdminUserPostCounts"
+                        + ".properties.pending").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminUserPostCounts"
+                        + ".properties.approved").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminUserPostCounts"
+                        + ".properties.rejected").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminUserPostCounts"
+                        + ".properties.total").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.AdminUserPostCounts"
+                        + ".properties.validating").doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AdminUserDetailResponse"
                         + ".properties.signature['$ref']")
                         .value("#/components/schemas/AdminUserSignature"))
