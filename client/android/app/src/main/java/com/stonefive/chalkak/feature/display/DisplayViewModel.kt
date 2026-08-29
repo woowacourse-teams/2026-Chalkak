@@ -234,7 +234,7 @@ class DisplayViewModel(
             randomSeed = randomSeed,
         )
         _uiState.update { it.copy(isLoadingNext = true) }
-        nextPageJob = viewModelScope.launch {
+        val job = viewModelScope.launch {
             val result = try {
                 repository.getPostPage(query)
             } catch (cancellation: CancellationException) {
@@ -248,7 +248,10 @@ class DisplayViewModel(
                 is HomeResult.Success -> appendPage(result.value)
                 is HomeResult.Failure -> _uiState.update { it.copy(isLoadingNext = false) }
             }
-            nextPageJob = null
+        }
+        nextPageJob = job
+        job.invokeOnCompletion {
+            if (nextPageJob === job) nextPageJob = null
         }
     }
 

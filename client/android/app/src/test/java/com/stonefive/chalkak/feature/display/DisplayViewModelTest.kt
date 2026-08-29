@@ -183,6 +183,29 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `다음 페이지 요청이 즉시 완료되어도 다시 요청할 수 있다`() = runTest {
+        val pagingRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "next-photo")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = true,
+                    randomSeed = null,
+                ),
+            )
+        }
+        val pagingViewModel = displayViewModel(pagingRepository)
+
+        pagingViewModel.updateEndThreshold(true)
+        pagingViewModel.updateEndThreshold(false)
+        pagingViewModel.updateEndThreshold(true)
+
+        assertEquals(2, pagingRepository.pageRequests.size)
+    }
+
+    @Test
     fun `이전 날짜에 주제가 없으면 현재 날짜를 최초 전시일로 확정한다`() = runTest {
         repository.topicNotFoundDates = setOf(ARCHIVE_DATE)
 
