@@ -67,6 +67,8 @@
 6. Settings → Deployment Protection에서 Vercel Authentication과 Standard Protection을 켭니다.
 7. GitHub Integration을 연결한 뒤 Preview PR에 배포 링크와 `Vercel` 상태 검사가 생성되는지 확인합니다.
 
+이 저장소는 `admin-web`과 `be/develop`을 장기 분리해 사용합니다. 관리자 웹 브랜치의 `admin-web/vercel.json`은 Git 자동 배포를 켜고, 백엔드 브랜치의 동명 최소 설정은 이를 꺼서 `admin-web` 디렉터리가 없는 백엔드 PR에 실패한 Vercel 검사가 붙지 않게 합니다. 두 설정은 각 브랜치의 배포 목적에 맞게 유지합니다.
+
 `NEXT_PUBLIC_*` 값은 모두 브라우저에 공개됩니다. 비밀번호, API 토큰, AWS 자격증명, Webhook, FCM 등록값을 Vercel 공개 변수나 저장소에 넣지 않습니다. 개발 API 주소는 HTTPS여야 하며 개발 DB·개발 S3만 사용해야 합니다.
 
 ### CORS 연결
