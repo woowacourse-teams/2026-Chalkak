@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.auth.model.response.SocialLoginResponse
 import com.stonefive.chalkak.data.remote.auth.model.response.SocialSignUpResponse
 import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
 import com.stonefive.chalkak.data.remote.signature.SignatureUploader
+import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpFailure
@@ -34,11 +35,13 @@ class AuthRepositoryImplTest {
     )
 
     @Test
-    fun `기존 회원 로그인 성공 시 userId를 저장한다`() = runTest {
+    fun `기존 회원 로그인 성공 시 JWT 세션을 저장한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
             SocialLoginResponse(
                 status = "LOGIN_SUCCESS",
                 userId = "user-id",
+                accessToken = "access-token",
+                expiresIn = 604_800,
             ),
         )
 
@@ -48,6 +51,7 @@ class AuthRepositoryImplTest {
         assertEquals(SocialLoginProvider.GOOGLE, authDataSource.loginProvider)
         assertEquals("id-token", authDataSource.loginIdToken)
         assertEquals(UserSessionState.Authenticated("user-id"), sessionStore.sessionState.value)
+        assertEquals("access-token", sessionStore.accessToken)
     }
 
     @Test
@@ -56,6 +60,8 @@ class AuthRepositoryImplTest {
             SocialLoginResponse(
                 status = "LOGIN_SUCCESS",
                 userId = "user-id",
+                accessToken = "access-token",
+                expiresIn = 604_800,
             ),
         )
 
@@ -71,7 +77,9 @@ class AuthRepositoryImplTest {
         authDataSource.loginResult = ApiResult.Success(
             SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
         )
-        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        authDataSource.signUpResults += ApiResult.Success(
+            SocialSignUpResponse("new-user-id", "access-token", 604_800),
+        )
 
         repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
         repository.completeSocialSignUp(byteArrayOf(1))
@@ -88,7 +96,9 @@ class AuthRepositoryImplTest {
         authDataSource.signUpResults += ApiResult.Failure(
             ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
         )
-        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        authDataSource.signUpResults += ApiResult.Success(
+            SocialSignUpResponse("new-user-id", "access-token", 604_800),
+        )
         val signaturePng = byteArrayOf(1, 2, 3)
 
         repository.login(SocialLoginProvider.GOOGLE, "id-token")
@@ -102,6 +112,26 @@ class AuthRepositoryImplTest {
         assertEquals(listOf(1_000L), retryDelays)
         assertEquals(listOf("signup-token", "signup-token"), authDataSource.signupTokens)
         assertEquals(UserSessionState.Authenticated("new-user-id"), sessionStore.sessionState.value)
+        assertEquals("access-token", sessionStore.accessToken)
+    }
+
+    @Test
+    fun `로그인 성공 응답에 JWT가 없으면 세션을 만들지 않는다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse(
+                status = "LOGIN_SUCCESS",
+                userId = "user-id",
+            ),
+        )
+
+        val result = repository.login(SocialLoginProvider.GOOGLE, "id-token")
+
+        assertEquals(
+            SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE),
+            result,
+        )
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+        assertEquals(null, sessionStore.accessToken)
     }
 
     @Test
@@ -216,18 +246,31 @@ private class FakeSignatureUploader : SignatureUploader {
 
 private class FakeSessionStore : SessionStore {
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+    private var mutableAccessToken: String? = null
 
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
+    override val accessToken: String?
+        get() = mutableAccessToken
 
     override suspend fun continueAsGuest() {
         mutableSessionState.value = UserSessionState.Guest
     }
 
     override suspend fun saveUserId(userId: String) {
+        mutableAccessToken = null
+        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    }
+
+    override suspend fun saveSession(
+        userId: String,
+        accessToken: String,
+    ) {
+        mutableAccessToken = accessToken
         mutableSessionState.value = UserSessionState.Authenticated(userId)
     }
 
     override suspend fun clear() {
+        mutableAccessToken = null
         mutableSessionState.value = UserSessionState.SignedOut
     }
 }

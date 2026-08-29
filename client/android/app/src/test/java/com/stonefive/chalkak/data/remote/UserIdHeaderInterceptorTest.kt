@@ -30,8 +30,11 @@ class UserIdHeaderInterceptorTest {
     }
 
     @Test
-    fun `저장된 userId를 백엔드 요청 헤더에 추가한다`() {
-        val store = HeaderTestSessionStore(userId = "user-id")
+    fun `인증 세션을 백엔드 요청의 Bearer와 userId 헤더에 추가한다`() {
+        val store = HeaderTestSessionStore(
+            userId = "user-id",
+            accessToken = "access-token",
+        )
         val client = OkHttpClient
             .Builder()
             .addInterceptor(UserIdHeaderInterceptor(store))
@@ -46,7 +49,9 @@ class UserIdHeaderInterceptorTest {
             ).execute()
             .close()
 
-        assertEquals("user-id", server.takeRequest().headers["X-User-Id"])
+        val request = server.takeRequest()
+        assertEquals("Bearer access-token", request.headers["Authorization"])
+        assertEquals("user-id", request.headers["X-User-Id"])
     }
 
     @Test
@@ -65,11 +70,16 @@ class UserIdHeaderInterceptorTest {
             ).execute()
             .close()
 
-        assertNull(server.takeRequest().headers["X-User-Id"])
+        val request = server.takeRequest()
+        assertNull(request.headers["Authorization"])
+        assertNull(request.headers["X-User-Id"])
     }
 }
 
-private class HeaderTestSessionStore(userId: String? = null) : SessionStore {
+private class HeaderTestSessionStore(
+    userId: String? = null,
+    override val accessToken: String? = null,
+) : SessionStore {
     private val mutableSessionState = MutableStateFlow<UserSessionState>(
         userId?.let(UserSessionState::Authenticated) ?: UserSessionState.SignedOut,
     )

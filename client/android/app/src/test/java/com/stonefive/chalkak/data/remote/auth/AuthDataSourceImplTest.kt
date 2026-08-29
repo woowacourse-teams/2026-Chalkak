@@ -51,7 +51,9 @@ class AuthDataSourceImplTest {
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("Content-Type", "application/json")
-                .setBody("""{"status":"LOGIN_SUCCESS","userId":"user-id"}"""),
+                .setBody(
+                    """{"status":"LOGIN_SUCCESS","userId":"user-id","accessToken":"access-token","expiresIn":604800}""",
+                ),
         )
 
         val result = dataSource.socialLogin(SocialLoginProvider.GOOGLE, "id-token")
@@ -59,7 +61,12 @@ class AuthDataSourceImplTest {
 
         assertEquals(
             ApiResult.Success(
-                SocialLoginResponse(status = "LOGIN_SUCCESS", userId = "user-id"),
+                SocialLoginResponse(
+                    status = "LOGIN_SUCCESS",
+                    userId = "user-id",
+                    accessToken = "access-token",
+                    expiresIn = 604_800,
+                ),
             ),
             result,
         )

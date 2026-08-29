@@ -49,8 +49,9 @@ class NetworkModule(
         .build()
 
     private fun createLoggingInterceptor() = HttpLoggingInterceptor().apply {
+        redactHeader("Authorization")
         level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
+            HttpLoggingInterceptor.Level.HEADERS
         } else {
             HttpLoggingInterceptor.Level.NONE
         }

@@ -22,8 +22,11 @@ class UserSessionStore(
 ) : SessionStore {
     private val dataStore = context.authDataStore
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.Loading)
+    private val mutableAccessToken = MutableStateFlow<String?>(null)
 
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState.asStateFlow()
+    override val accessToken: String?
+        get() = mutableAccessToken.value
 
     init {
         scope.launch {
@@ -35,9 +38,14 @@ class UserSessionStore(
                         throw error
                     }
                 }.collect { preferences ->
-                    mutableSessionState.value = preferences[USER_ID]
-                        ?.let(UserSessionState::Authenticated)
-                        ?: UserSessionState.SignedOut
+                    val userId = preferences[USER_ID]
+                    val accessToken = preferences[ACCESS_TOKEN]
+                    mutableAccessToken.value = accessToken
+                    mutableSessionState.value = if (!userId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
+                        UserSessionState.Authenticated(userId)
+                    } else {
+                        UserSessionState.SignedOut
+                    }
                 }
         }
     }
@@ -47,16 +55,37 @@ class UserSessionStore(
     }
 
     override suspend fun saveUserId(userId: String) {
-        dataStore.edit { preferences -> preferences[USER_ID] = userId }
+        dataStore.edit { preferences ->
+            preferences[USER_ID] = userId
+            preferences.remove(ACCESS_TOKEN)
+        }
+        mutableAccessToken.value = null
+        mutableSessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun saveSession(
+        userId: String,
+        accessToken: String,
+    ) {
+        dataStore.edit { preferences ->
+            preferences[USER_ID] = userId
+            preferences[ACCESS_TOKEN] = accessToken
+        }
+        mutableAccessToken.value = accessToken
         mutableSessionState.value = UserSessionState.Authenticated(userId)
     }
 
     override suspend fun clear() {
-        dataStore.edit { preferences -> preferences.remove(USER_ID) }
+        dataStore.edit { preferences ->
+            preferences.remove(USER_ID)
+            preferences.remove(ACCESS_TOKEN)
+        }
+        mutableAccessToken.value = null
         mutableSessionState.value = UserSessionState.SignedOut
     }
 
     private companion object {
         val USER_ID = stringPreferencesKey("user_id")
+        val ACCESS_TOKEN = stringPreferencesKey("access_token")
     }
 }

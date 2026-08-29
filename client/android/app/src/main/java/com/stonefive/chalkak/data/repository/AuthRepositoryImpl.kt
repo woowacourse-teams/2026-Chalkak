@@ -95,21 +95,28 @@ class AuthRepositoryImpl(
         provider: SocialLoginProvider,
         idToken: String,
         response: SocialLoginResponse,
-    ): SocialLoginResult = when (response.status) {
-        LOGIN_SUCCESS -> {
-            val userId = response.userId
-                ?: return SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
-            pendingLogin = null
-            sessionStore.saveUserId(userId)
-            SocialLoginResult.LoginSuccess(userId)
-        }
+    ): SocialLoginResult {
+        return when (response.status) {
+            LOGIN_SUCCESS -> {
+                val userId = response.userId?.takeIf(String::isNotBlank)
+                    ?: return SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
+                val accessToken = response.accessToken?.takeIf(String::isNotBlank)
+                    ?: return SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
+                if (response.expiresIn == null || response.expiresIn <= 0) {
+                    return SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
+                }
+                pendingLogin = null
+                sessionStore.saveSession(userId, accessToken)
+                SocialLoginResult.LoginSuccess(userId)
+            }
 
-        SIGN_UP_REQUIRED -> {
-            pendingLogin = PendingSocialLogin(provider, idToken)
-            SocialLoginResult.SignUpRequired
-        }
+            SIGN_UP_REQUIRED -> {
+                pendingLogin = PendingSocialLogin(provider, idToken)
+                SocialLoginResult.SignUpRequired
+            }
 
-        else -> SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
+            else -> SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
+        }
     }
 
     private suspend fun completeSocialSignUp(signupToken: String): SocialSignUpResult {
@@ -118,9 +125,15 @@ class AuthRepositoryImpl(
                 val result = authDataSource.socialSignUp(signupToken = signupToken)
             ) {
                 is ApiResult.Success -> {
+                    val response = result.value
+                    val accessToken = response.accessToken?.takeIf(String::isNotBlank)
+                        ?: return SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN)
+                    if (response.userId.isBlank() || response.expiresIn == null || response.expiresIn <= 0) {
+                        return SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN)
+                    }
                     pendingLogin = null
-                    sessionStore.saveUserId(result.value.userId)
-                    return SocialSignUpResult.Success(result.value.userId)
+                    sessionStore.saveSession(response.userId, accessToken)
+                    return SocialSignUpResult.Success(response.userId)
                 }
 
                 is ApiResult.Failure -> {
