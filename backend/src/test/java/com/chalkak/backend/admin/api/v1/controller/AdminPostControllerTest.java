@@ -215,6 +215,18 @@ class AdminPostControllerTest {
         );
     }
 
+    @Test
+    @DisplayName("내부 검증 중 상태로 관리자 게시물 목록을 요청하면 400을 반환한다")
+    void getPosts_validatingStatus_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                        .queryParam("status", "VALIDATING"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostQueryService).shouldHaveNoInteractions();
+    }
+
     @ParameterizedTest
     @CsvSource({
             "page, 0",
@@ -330,14 +342,14 @@ class AdminPostControllerTest {
     @DisplayName("처리 시각이 없는 게시물 상세 정보는 null로 직렬화한다")
     void getPost_withoutModeratedOrDeletedAt_returnsNullTimes() throws Exception {
         // Given
-        AdminPostDetail detail = createDetail(ModerationStatus.VALIDATING, null, null);
+        AdminPostDetail detail = createDetail(ModerationStatus.PENDING, null, null);
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts/{postId}", POST_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
-                .andExpect(jsonPath("$.moderationStatus").value("VALIDATING"))
+                .andExpect(jsonPath("$.moderationStatus").value("PENDING"))
                 .andExpect(jsonPath("$.moderatedAt").value(nullValue()))
                 .andExpect(jsonPath("$.deletedAt").value(nullValue()));
     }

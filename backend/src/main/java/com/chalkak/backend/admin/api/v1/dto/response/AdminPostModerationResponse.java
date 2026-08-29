@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record AdminPostModerationResponse(
         UUID postId,
+        @Schema(allowableValues = {"APPROVED", "REJECTED"})
         ModerationStatus moderationStatus,
         UUID moderatedBy,
         Instant moderatedAt,

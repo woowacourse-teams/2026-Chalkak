@@ -16,6 +16,7 @@ import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvid
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -177,6 +178,29 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("차단 회원에 연결된 소셜 계정은 회원가입 재요청으로 우회할 수 없다")
+    void signup_bannedSocialAccount_throwsForbiddenException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        User bannedUser = UserFixture.create();
+        bannedUser.ban();
+        userRepository.save(bannedUser);
+        socialAccountRepository.save(SocialAccount.create(
+                bannedUser,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
     @DisplayName("다른 회원이 사용한 서명 업로드 ID로는 회원가입할 수 없다")
     void signup_usedSignatureUploadId_throwsNotFoundException() {
         // Given
@@ -333,6 +357,31 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
+    }
+
+    @Test
+    @DisplayName("차단 회원은 회원가입용 사인 업로드 발급으로 우회할 수 없다")
+    void createSignatureUpload_bannedSocialAccount_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User bannedUser = UserFixture.create();
+        bannedUser.ban();
+        userRepository.save(bannedUser);
+        socialAccountRepository.save(SocialAccount.create(
+                bannedUser,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     private VerifiedSocialIdentity identity() {

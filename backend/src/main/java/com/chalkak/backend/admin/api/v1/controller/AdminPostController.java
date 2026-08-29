@@ -44,7 +44,7 @@ public class AdminPostController implements AdminPostApiDocs {
             @Valid @ModelAttribute AdminPostListRequest request
     ) {
         AdminPostListResult result = adminPostQueryService.getPosts(
-                request.status(),
+                request.moderationStatus(),
                 request.topicId(),
                 request.topicDate(),
                 request.userId(),
