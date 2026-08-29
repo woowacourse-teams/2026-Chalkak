@@ -8,5 +8,6 @@ public enum ErrorCode {
     USER_BANNED,
     RESOURCE_STATE_CHANGED,
     UNAUTHORIZED,
-    FORBIDDEN
+    FORBIDDEN,
+    INTERNAL_ERROR
 }

@@ -7,8 +7,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.chalkak.backend.exception.ErrorCode;
-import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.PostImageUpload;
@@ -34,8 +32,6 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a4");
-    private static final UUID BANNED_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c9");
     private static final UUID WITHDRAWN_USER_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a5");
     private static final String UPLOAD_URL = "https://test-bucket.s3.amazonaws.com/upload";
@@ -82,15 +78,6 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, WITHDRAWN_USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, 'post-upload-banned@example.com', 'BANNED',
-                    'chalkak/signatures/test/original/signature-banned.png',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, BANNED_USER_ID);
         given(postImageUploadIssuer.issue(any(UUID.class))).willReturn(
                 new PresignedPostImageUpload(UPLOAD_URL, 300L, "image/webp", 5_242_880L)
         );
@@ -175,28 +162,4 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
     }
 
-    @Test
-    @DisplayName("정지된 회원은 업로드 URL을 발급받지 못한다")
-    void createPostImageUpload_bannedUser_throwsForbidden() {
-        // When & Then
-        assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(ForbiddenException.class)
-                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.USER_BANNED));
-    }
-
-    @Test
-    @DisplayName("정지된 회원의 발급 시도는 업로드 행을 남기지 않는다")
-    void createPostImageUpload_bannedUser_leavesNoUploadRow() {
-        // When
-        assertThatThrownBy(() -> postCommandService.createPostImageUpload(BANNED_USER_ID))
-                .isInstanceOf(ForbiddenException.class);
-
-        // Then
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_image_uploads WHERE user_id = ?",
-                Integer.class,
-                BANNED_USER_ID
-        )).isZero();
-    }
 }

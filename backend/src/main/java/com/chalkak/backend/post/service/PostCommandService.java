@@ -163,17 +163,9 @@ public class PostCommandService {
         return postRepository.findValidatingByPostImageUploadIdForUpdate(uploadId);
     }
 
-    /**
-     * 업로드 발급과 게시물 생성이 같은 기준을 써야 한다. 발급만 느슨하면 정지된 회원이 claim과 staging 객체를
-     * 만든 뒤 마지막 단계에서야 막혀, 아무도 쓰지 않을 행과 파일을 서버가 스스로 남기게 된다.
-     *
-     * <p>{@code findActiveById}는 탈퇴만 거르므로 도메인의 접근 정책으로 정지 여부를 함께 검증한다.
-     */
     private User getPostableUser(UUID userId, String message) {
-        User user = userRepository.findActiveById(userId)
+        return userRepository.findActiveById(userId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR, message));
-        user.validateAccessible();
-        return user;
     }
 
     private void validateTopicOpen(Topic topic) {

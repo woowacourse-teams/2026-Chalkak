@@ -32,6 +32,7 @@ public class SocialSignupService {
     private final SocialAccountRepository socialAccountRepository;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
+    private final AccessTokenIssuer accessTokenIssuer;
     private final SocialSignupTokenVerifier socialSignupTokenVerifier;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImagePolicy signatureImagePolicy;
@@ -56,7 +57,7 @@ public class SocialSignupService {
     }
 
     @Transactional
-    public UUID signup(String signupToken) {
+    public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =
                 socialSignupTokenVerifier.verify(signupToken);
         Optional<SocialAccount> existingSocialAccount = socialAccountRepository
@@ -64,7 +65,7 @@ public class SocialSignupService {
                         verifiedToken.provider(),
                         verifiedToken.subject());
         if (existingSocialAccount.isPresent()) {
-            return getExistingUserId(existingSocialAccount.get());
+            return toSignupResult(getExistingUserId(existingSocialAccount.get()));
         }
 
         SignatureStorageKeys storageKeys = signatureImageStorage
@@ -93,7 +94,11 @@ public class SocialSignupService {
                 verifiedToken.provider(),
                 verifiedToken.subject()));
 
-        return user.getId();
+        return toSignupResult(user.getId());
+    }
+
+    private SocialSignupResult toSignupResult(UUID userId) {
+        return new SocialSignupResult(userId, accessTokenIssuer.issue(userId));
     }
 
     private UUID getExistingUserId(SocialAccount socialAccount) {

@@ -12,6 +12,7 @@ import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialSignupService socialSignupService;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
 
     @Autowired
     private UserRepository userRepository;
@@ -89,7 +94,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
 
@@ -144,7 +149,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
 
         // Then
         assertThat(userId).isEqualTo(existingUser.getId());
@@ -268,13 +273,36 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
 
         // Then
         User user = userRepository.findById(userId).orElseThrow();
         assertThat(user.getEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("소셜 회원가입을 완료하면 새 회원 식별자를 담은 액세스 토큰을 발급한다")
+    void signup_completedSignature_issuesAccessToken() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+
+        // When
+        SocialSignupResult result = socialSignupService.signup(SIGNUP_TOKEN);
+
+        // Then
+        Jwt jwt = accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value());
+        assertThat(jwt.getSubject()).isEqualTo(result.userId().toString());
+        assertThat(result.accessToken().expiresIn()).isPositive();
     }
 
     @Test
