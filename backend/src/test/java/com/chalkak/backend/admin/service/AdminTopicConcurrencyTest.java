@@ -39,7 +39,7 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
     private static final Instant ENDS_AT = Instant.parse("2099-01-02T15:00:00Z");
 
     @Autowired
-    private AdminTopicService adminTopicService;
+    private AdminTopicCommandService adminTopicCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -62,9 +62,9 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
     @Test
     @DisplayName("같은 날짜의 주제를 동시에 생성하면 하나만 저장하고 감사 로그도 하나만 남긴다")
     void createTopic_sameDateConcurrently_createsExactlyOnce() throws Exception {
-        Callable<AdminTopicDetail> first = () -> adminTopicService.createTopic(
+        Callable<AdminTopicDetail> first = () -> adminTopicCommandService.createTopic(
                 FIRST_ADMIN_ID, "첫 번째 주제", TOPIC_DATE, STARTS_AT, ENDS_AT);
-        Callable<AdminTopicDetail> second = () -> adminTopicService.createTopic(
+        Callable<AdminTopicDetail> second = () -> adminTopicCommandService.createTopic(
                 SECOND_ADMIN_ID, "두 번째 주제", TOPIC_DATE, STARTS_AT, ENDS_AT);
 
         List<CreateAttempt> attempts = runConcurrently(first, second);
@@ -82,7 +82,7 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
         Throwable exception = catchThrowable(() -> transactionTemplate.executeWithoutResult(
-                status -> adminTopicService.createTopic(
+                status -> adminTopicCommandService.createTopic(
                         UNKNOWN_ADMIN_ID,
                         "롤백 주제",
                         TOPIC_DATE,

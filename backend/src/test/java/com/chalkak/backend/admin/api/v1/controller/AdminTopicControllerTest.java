@@ -14,9 +14,10 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminTopicSortConverter;
+import com.chalkak.backend.admin.service.AdminTopicCommandService;
 import com.chalkak.backend.admin.service.AdminTopicDetail;
 import com.chalkak.backend.admin.service.AdminTopicListResult;
-import com.chalkak.backend.admin.service.AdminTopicService;
+import com.chalkak.backend.admin.service.AdminTopicQueryService;
 import com.chalkak.backend.admin.service.AdminTopicSort;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.topic.domain.TopicPhase;
@@ -56,7 +57,10 @@ class AdminTopicControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private AdminTopicService adminTopicService;
+    private AdminTopicQueryService adminTopicQueryService;
+
+    @MockitoBean
+    private AdminTopicCommandService adminTopicCommandService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -69,7 +73,7 @@ class AdminTopicControllerTest {
     @Test
     @DisplayName("관리자는 phase와 날짜·정렬·페이지 조건으로 주제 목록을 조회한다")
     void getTopics_withFilters_returnsTopicPage() throws Exception {
-        given(adminTopicService.getTopics(
+        given(adminTopicQueryService.getTopics(
                 TopicPhase.BEFORE_OPEN,
                 LocalDate.of(2026, 8, 29),
                 LocalDate.of(2026, 8, 31),
@@ -104,7 +108,7 @@ class AdminTopicControllerTest {
     @Test
     @DisplayName("관리자는 새 주제를 등록한다")
     void createTopic_validRequest_returnsCreatedTopic() throws Exception {
-        given(adminTopicService.createTopic(
+        given(adminTopicCommandService.createTopic(
                 ADMIN_ID,
                 "새 주제",
                 TOPIC_DATE,
@@ -122,7 +126,7 @@ class AdminTopicControllerTest {
     @Test
     @DisplayName("관리자는 주제 상세를 조회한다")
     void getTopic_existingTopic_returnsDetail() throws Exception {
-        given(adminTopicService.getTopic(TOPIC_ID)).willReturn(detail("상세 주제"));
+        given(adminTopicQueryService.getTopic(TOPIC_ID)).willReturn(detail("상세 주제"));
 
         mockMvc.perform(get("/api/v1/admin/topics/{topicId}", TOPIC_ID))
                 .andExpect(status().isOk())
@@ -133,7 +137,7 @@ class AdminTopicControllerTest {
     @Test
     @DisplayName("관리자는 공개 전 주제를 수정한다")
     void updateTopic_validRequest_returnsUpdatedTopic() throws Exception {
-        given(adminTopicService.updateTopic(
+        given(adminTopicCommandService.updateTopic(
                 TOPIC_ID,
                 ADMIN_ID,
                 "수정 주제",
@@ -159,7 +163,7 @@ class AdminTopicControllerTest {
                                 """))
                 .andExpect(status().isNoContent());
 
-        then(adminTopicService).should().deleteTopic(
+        then(adminTopicCommandService).should().deleteTopic(
                 TOPIC_ID,
                 ADMIN_ID,
                 "주제 편성 변경"
@@ -180,7 +184,8 @@ class AdminTopicControllerTest {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        then(adminTopicService).shouldHaveNoInteractions();
+        then(adminTopicQueryService).shouldHaveNoInteractions();
+        then(adminTopicCommandService).shouldHaveNoInteractions();
     }
 
     private AdminTopicDetail detail(String title) {

@@ -8,9 +8,10 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicMutationRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminTopicDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminTopicListResponse;
+import com.chalkak.backend.admin.service.AdminTopicCommandService;
 import com.chalkak.backend.admin.service.AdminTopicDetail;
 import com.chalkak.backend.admin.service.AdminTopicListResult;
-import com.chalkak.backend.admin.service.AdminTopicService;
+import com.chalkak.backend.admin.service.AdminTopicQueryService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin/topics")
 public class AdminTopicController implements AdminTopicApiDocs {
 
-    private final AdminTopicService adminTopicService;
+    private final AdminTopicQueryService adminTopicQueryService;
+    private final AdminTopicCommandService adminTopicCommandService;
 
     @Override
     @GetMapping
@@ -39,7 +41,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @ModelAttribute AdminTopicListRequest request
     ) {
-        AdminTopicListResult result = adminTopicService.getTopics(
+        AdminTopicListResult result = adminTopicQueryService.getTopics(
                 request.phase(),
                 request.dateFrom(),
                 request.dateTo(),
@@ -56,7 +58,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @RequestBody AdminTopicMutationRequest request
     ) {
-        AdminTopicDetail result = adminTopicService.createTopic(
+        AdminTopicDetail result = adminTopicCommandService.createTopic(
                 authenticatedAdmin.adminId(),
                 request.title(),
                 request.topicDate(),
@@ -73,7 +75,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @PathVariable String topicId
     ) {
-        AdminTopicDetail result = adminTopicService.getTopic(
+        AdminTopicDetail result = adminTopicQueryService.getTopic(
                 CanonicalUuidParser.parse(topicId)
         );
         return ResponseEntity.ok(AdminTopicDetailResponse.from(result));
@@ -86,7 +88,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @PathVariable String topicId,
             @Valid @RequestBody AdminTopicMutationRequest request
     ) {
-        AdminTopicDetail result = adminTopicService.updateTopic(
+        AdminTopicDetail result = adminTopicCommandService.updateTopic(
                 CanonicalUuidParser.parse(topicId),
                 authenticatedAdmin.adminId(),
                 request.title(),
@@ -104,7 +106,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @PathVariable String topicId,
             @Valid @RequestBody AdminTopicDeletionRequest request
     ) {
-        adminTopicService.deleteTopic(
+        adminTopicCommandService.deleteTopic(
                 CanonicalUuidParser.parse(topicId),
                 authenticatedAdmin.adminId(),
                 request.reason()
