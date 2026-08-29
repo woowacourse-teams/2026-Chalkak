@@ -12,9 +12,11 @@ import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -33,6 +35,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialSignupService socialSignupService;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
 
     @Autowired
     private UserRepository userRepository;
@@ -88,7 +94,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
 
@@ -143,7 +149,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
 
         // Then
         assertThat(userId).isEqualTo(existingUser.getId());
@@ -169,6 +175,29 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("탈퇴한 회원은 회원가입할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("차단 회원에 연결된 소셜 계정은 회원가입 재요청으로 우회할 수 없다")
+    void signup_bannedSocialAccount_throwsForbiddenException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        User bannedUser = UserFixture.create();
+        bannedUser.ban();
+        userRepository.save(bannedUser);
+        socialAccountRepository.save(SocialAccount.create(
+                bannedUser,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -244,13 +273,36 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
 
         // Then
         User user = userRepository.findById(userId).orElseThrow();
         assertThat(user.getEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("소셜 회원가입을 완료하면 새 회원 식별자를 담은 액세스 토큰을 발급한다")
+    void signup_completedSignature_issuesAccessToken() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+
+        // When
+        SocialSignupResult result = socialSignupService.signup(SIGNUP_TOKEN);
+
+        // Then
+        Jwt jwt = accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value());
+        assertThat(jwt.getSubject()).isEqualTo(result.userId().toString());
+        assertThat(result.accessToken().expiresIn()).isPositive();
     }
 
     @Test
@@ -305,6 +357,31 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
+    }
+
+    @Test
+    @DisplayName("차단 회원은 회원가입용 사인 업로드 발급으로 우회할 수 없다")
+    void createSignatureUpload_bannedSocialAccount_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User bannedUser = UserFixture.create();
+        bannedUser.ban();
+        userRepository.save(bannedUser);
+        socialAccountRepository.save(SocialAccount.create(
+                bannedUser,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     private VerifiedSocialIdentity identity() {

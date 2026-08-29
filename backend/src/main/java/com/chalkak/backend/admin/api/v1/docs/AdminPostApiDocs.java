@@ -25,7 +25,8 @@ public interface AdminPostApiDocs {
 
     @Operation(
             summary = "관리자 게시물 목록 조회",
-            description = "모든 검수 상태와 삭제된 게시물을 필터링해 조회합니다. 등록 시각 범위의 양 끝값은 포함됩니다."
+            description = "승인 대기·승인·거절 게시물과 삭제된 게시물을 필터링해 조회합니다. "
+                    + "내부 검증 중 게시물은 노출하지 않으며 등록 시각 범위의 양 끝값은 포함됩니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -57,7 +58,7 @@ public interface AdminPostApiDocs {
 
     @Operation(
             summary = "관리자 게시물 상세 조회",
-            description = "삭제 여부와 검수 상태에 관계없이 게시물과 작성자·주제·사진·이미지 처리 정보를 조회합니다."
+            description = "내부 검증 중 게시물을 제외하고 게시물과 작성자·주제·사진·이미지 처리 정보를 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(

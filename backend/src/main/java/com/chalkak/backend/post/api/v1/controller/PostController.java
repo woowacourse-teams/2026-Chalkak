@@ -2,6 +2,7 @@ package com.chalkak.backend.post.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.OptionalLoginUser;
+import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
@@ -44,6 +45,7 @@ public class PostController implements PostApiDocs {
     private final PostQueryService postQueryService;
 
     @Override
+    @RequiresUsableUser
     @PostMapping("/uploads")
     public ResponseEntity<PostImageUploadResponse> createPostImageUpload(
             @OptionalLoginUser Optional<AuthenticatedUser> loginUser
@@ -55,6 +57,7 @@ public class PostController implements PostApiDocs {
     }
 
     @Override
+    @RequiresUsableUser
     @PostMapping
     public ResponseEntity<PostCreateResponse> createPost(
             @OptionalLoginUser Optional<AuthenticatedUser> loginUser,

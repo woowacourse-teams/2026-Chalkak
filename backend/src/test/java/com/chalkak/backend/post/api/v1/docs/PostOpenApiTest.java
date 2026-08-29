@@ -1,6 +1,9 @@
 package com.chalkak.backend.post.api.v1.docs;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasKey;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,7 +32,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         + ".parameters[?(@.name == 'postId')].schema.format")
                         .value(containsInAnyOrder("uuid")))
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].delete"
-                        + ".security[0].userIdHeader").exists())
+                        + ".security[0].accessToken").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].delete"
                         + ".requestBody").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].delete.responses['204']")
@@ -42,5 +45,18 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].delete.responses['404']")
                         .exists());
+    }
+
+    @Test
+    @DisplayName("게시물 목록 조회는 익명 호출과 accessToken 호출을 모두 허용하는 선택적 인증으로 문서화된다")
+    void userApiDocs_postListEndpoint_declaresOptionalAuth() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security.length()").value(2))
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[0]").value(anEmptyMap()))
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
+                        .value(aMapWithSize(1)))
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
+                        .value(hasKey("accessToken")));
     }
 }
