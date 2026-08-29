@@ -125,6 +125,7 @@ public interface PostApiDocs {
             summary = "게시물 목록 조회",
             description = "인증 정보가 없으면 isLiked는 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다."
     )
+    @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
