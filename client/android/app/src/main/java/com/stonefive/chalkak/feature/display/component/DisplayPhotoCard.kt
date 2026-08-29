@@ -57,9 +57,15 @@ fun DisplayPhotoCard(
             .then(photoClickModifier),
     ) {
         ChalkakSignedImage(
-            imageModel = photo.thumbnailImageUrl,
-            signatureModel = photo.signatureThumbnailImageUrl,
+            imageModel = if (isFeatured) photo.originalImageUrl else photo.thumbnailImageUrl,
+            signatureModel = if (isFeatured) {
+                photo.signatureOriginalImageUrl
+            } else {
+                photo.signatureThumbnailImageUrl
+            },
             contentDescription = if (onClick == null) photo.contentDescription else null,
+            thumbnailImageModel = photo.thumbnailImageUrl.takeIf { isFeatured },
+            thumbnailSignatureModel = photo.signatureThumbnailImageUrl.takeIf { isFeatured },
             contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
             signatureModifier = Modifier.size(
                 width = if (isFeatured) 48.dp else 40.dp,
