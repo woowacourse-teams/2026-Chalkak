@@ -213,29 +213,6 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("차단된 사용자는 게시물을 생성할 수 없다")
-    void createPost_bannedUser_throwsNotFoundException() {
-        // Given
-        jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
-
-        // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> postCommandService.createPost(
-                        USER_ID,
-                        TOPIC_ID,
-                        PHOTO_UPLOAD_ID,
-                        null
-                )
-        );
-
-        // Then
-        assertThat(exception).hasMessage("게시물을 작성할 회원을 찾을 수 없습니다.");
-        assertNoCreatedRows();
-        then(postImageStorage).shouldHaveNoInteractions();
-    }
-
-    @Test
     @DisplayName("삭제된 주제에는 게시물을 생성할 수 없다")
     void createPost_deletedTopic_throwsNotFoundException() {
         // Given

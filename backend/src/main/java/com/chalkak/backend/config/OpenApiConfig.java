@@ -1,13 +1,16 @@
 package com.chalkak.backend.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import java.util.List;
 import java.util.Set;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
@@ -22,11 +25,11 @@ import org.springframework.context.annotation.Profile;
         )
 )
 @SecurityScheme(
-        name = "userIdHeader",
-        type = SecuritySchemeType.APIKEY,
-        in = SecuritySchemeIn.HEADER,
-        paramName = "X-User-Id",
-        description = "로컬·개발 환경에서 로그인 사용자를 식별하는 임시 헤더"
+        name = "accessToken",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT",
+        description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰"
 )
 @Configuration(proxyBeanMethods = false)
 @Profile("!prod")
@@ -38,6 +41,7 @@ public class OpenApiConfig {
                 .group("user-api")
                 .pathsToMatch("/api/v1/**")
                 .pathsToExclude("/api/v1/admin/**")
+                .addOpenApiCustomizer(this::customizeOptionalAuthOnPostList)
                 .build();
     }
 
@@ -76,5 +80,31 @@ public class OpenApiConfig {
         );
         nullableImageUploadSchema.addOneOfItem(new Schema<>().types(Set.of("null")));
         detailSchema.addProperty("imageUpload", nullableImageUploadSchema);
+    }
+
+    /**
+     * 게시물 목록 조회는 토큰이 없어도 호출 가능하지만 있으면 isLiked가 개인화되는
+     * 선택적 인증이다. swagger-core의 {@code @SecurityRequirement}는 이름이 빈
+     * 요구사항을 표현하지 못해 익명 호출 허용을 애노테이션만으로 선언할 수 없으므로,
+     * 생성된 문서에 빈 SecurityRequirement를 직접 추가해 "인증 없이 호출 가능"과
+     * "accessToken으로 호출 가능"을 모두 문서화한다.
+     */
+    private void customizeOptionalAuthOnPostList(OpenAPI openApi) {
+        PathItem postListPath = openApi.getPaths().get("/api/v1/posts");
+        if (postListPath == null) {
+            return;
+        }
+
+        Operation getPosts = postListPath.getGet();
+        if (getPosts == null) {
+            return;
+        }
+
+        List<SecurityRequirement> security = getPosts.getSecurity();
+        if (security == null) {
+            return;
+        }
+
+        security.addFirst(new SecurityRequirement());
     }
 }
