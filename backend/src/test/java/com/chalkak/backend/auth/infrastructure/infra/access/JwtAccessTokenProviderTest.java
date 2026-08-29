@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.infra.access;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -50,6 +51,23 @@ class JwtAccessTokenProviderTest {
         assertThat(issuedToken.value()).isNotBlank();
         assertThat(issuedToken.expiresIn()).isEqualTo(EXPIRATION);
         assertThat(jwt.getSubject()).isEqualTo(userId.toString());
+        assertThat(jwt.getClaimAsString("scope")).isEqualTo("USER");
+    }
+
+    @Test
+    @DisplayName("관리자 식별자로 관리자 scope의 액세스 토큰을 발급한다")
+    void issue_adminScope_issuesAdminAccessToken() {
+        // Given
+        JwtAccessTokenProvider provider = createProvider(NOW);
+        UUID adminId = UUID.randomUUID();
+
+        // When
+        IssuedAccessToken issuedToken = provider.issue(adminId, AccessTokenScope.ADMIN);
+        Jwt jwt = provider.jwtDecoder().decode(issuedToken.value());
+
+        // Then
+        assertThat(jwt.getSubject()).isEqualTo(adminId.toString());
+        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
     }
 
     @Test

@@ -193,6 +193,8 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 
 액세스 토큰은 HS256으로 서명한 JWT이며 `sub`에 회원 식별자를 담는다. 회원가입 토큰과는 서명 키,
 `aud`, `purpose` 세 가지로 분리해, 키를 같은 값으로 잘못 설정해도 서로를 대신할 수 없게 한다.
+일반 사용자 토큰에는 `USER`, 관리자 로그인 토큰에는 `ADMIN` scope를 서명해 같은 JWT 검증 계약을
+재사용하면서 `/api/v1/admin/**`의 권한을 구분한다.
 
 | 대상 | 역할 |
 |---|---|
@@ -200,6 +202,7 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 | `JwtAccessTokenProvider` | 액세스 토큰 발급과 검증용 `JwtDecoder` 제공 |
 | `LoginUserArgumentResolver` | 인증 주체를 `AuthenticatedUser`로 변환. 인증이 없으면 401 |
 | `OptionalLoginUserArgumentResolver` | 공개 API에서 인증이 없으면 비로그인으로 처리 |
+| `SecurityContextAdminActorResolver` | `ADMIN` scope를 가진 인증 주체를 `AuthenticatedAdmin`으로 변환 |
 | `UnauthorizedEntryPoint` | 필터 단계의 401을 공통 에러 형식으로 응답 |
 
 공개 경로는 소셜 로그인·회원가입(`/api/v1/auth/**`), 주제와 게시물 조회(`GET`), Lambda 콜백
@@ -207,14 +210,36 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 
 Bearer 토큰을 쓰는 stateless API라 CSRF 보호는 끈다. 켜 두면 모든 쓰기 요청이 403이 된다.
 
+관리자는 `POST /api/v1/admin/auth/login`으로 로그인한 뒤 응답의 액세스 토큰을 같은 방식으로
+전달한다. 로그인만 공개이며 현재 관리자 조회, 로그아웃과 나머지 관리자 API는 모두 `ADMIN`
+scope가 필요하다. 로그아웃 응답을 받으면 브라우저가 Bearer 토큰을 폐기한다.
+
+local과 test는 `chalkak.admin.authentication.development-bypass-enabled=true`를 명시해 기존
+`dev-admin`을 사용할 수 있다. dev와 prod의 기본값은 false이며 실제 관리자 로그인을 거쳐야 한다.
+prod에서는 이 값을 잘못 true로 바꿔도 개발 관리자 Resolver가 등록되지 않아 관리자 요청이 거부된다.
+
 규칙:
 
-- **`@LoginUser`를 쓰는 컨트롤러에는 반드시 `@Profile("!prod")`를 붙인다.** 빠뜨리면 prod에 리졸버가 없어 `AuthenticatedUser`가 `@ModelAttribute`로 바인딩되고 userId가 null인 채 동작할 수 있다.
-- `WebMvcConfig`의 생성자 파라미터를 `Optional`이나 `ObjectProvider`로 바꾸지 않는다. 비운영 프로파일에서 리졸버가 사라지면 기동 단계에서 드러나야 한다.
-- 컨트롤러는 헤더를 직접 읽지 않고 `@LoginUser AuthenticatedUser`를 받는다.
-- 로그인 여부에 따라 응답만 개인화하는 공개 API는 `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다. 헤더가 없으면 비로그인으로 처리하고, 임시 헤더를 신뢰하지 않는 prod에서는 항상 비로그인으로 처리한다.
+- 컨트롤러는 헤더를 직접 읽지 않고 회원은 `@LoginUser AuthenticatedUser`, 관리자는
+  `@CurrentAdmin AuthenticatedAdmin`을 받는다.
+- 로그인 여부에 따라 응답만 개인화하는 공개 API는
+  `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다.
+- 정지 회원의 쓰기 동작처럼 메서드별 정책이 필요한 곳만 `@RequiresUsableUser`를 붙인다.
+- 일반 사용자 토큰은 관리자 API에서 403, 토큰이 없는 요청은 401을 받는다.
 
-Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도록 바꾸고 `@Profile`을 제거한다. **컨트롤러 시그니처와 Service는 바뀌지 않는다.** 도입 이슈는 아직 생성되지 않았다.
+### 관리자 초기 계정
+
+dev와 prod는 `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`로 초기 관리자 계정을 준비한다. 서버에는
+평문 비밀번호가 아니라 BCrypt 해시만 저장한다. `htpasswd`가 설치된 안전한 관리 단말에서 다음
+명령을 실행하면 비밀번호를 대화형으로 입력해 해시를 만들 수 있다.
+
+```bash
+htpasswd -nBC 12 operator
+```
+
+출력에서 콜론 뒤의 BCrypt 해시만 `ADMIN_PASSWORD_HASH`에 넣는다. 애플리케이션은 해당
+`ADMIN_USERNAME`이 DB에 없을 때만 계정을 생성하며, 이미 있으면 저장된 해시를 덮어쓰지 않는다.
+따라서 비밀번호 변경은 환경변수만 바꾸지 말고 별도 변경 절차로 DB의 해시도 갱신해야 한다.
 
 ## 이미지 저장소
 

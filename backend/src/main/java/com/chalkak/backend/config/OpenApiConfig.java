@@ -31,6 +31,13 @@ import org.springframework.context.annotation.Profile;
         bearerFormat = "JWT",
         description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰"
 )
+@SecurityScheme(
+        name = "adminAccessToken",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT",
+        description = "관리자 로그인 응답으로 받은 관리자 액세스 토큰"
+)
 @Configuration(proxyBeanMethods = false)
 @Profile("!prod")
 public class OpenApiConfig {
@@ -50,6 +57,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("admin-api")
                 .pathsToMatch("/api/v1/admin/**")
+                .addOpenApiCustomizer(this::customizeAdminSecurity)
                 .addOpenApiCustomizer(this::customizeAdminPostNullableSchemas)
                 .build();
     }
@@ -106,5 +114,17 @@ public class OpenApiConfig {
         }
 
         security.addFirst(new SecurityRequirement());
+    }
+
+    private void customizeAdminSecurity(OpenAPI openApi) {
+        openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations()
+                .forEach(operation -> operation.setSecurity(List.of(
+                        new SecurityRequirement().addList("adminAccessToken")
+                ))));
+
+        PathItem loginPath = openApi.getPaths().get("/api/v1/admin/auth/login");
+        if (loginPath != null && loginPath.getPost() != null) {
+            loginPath.getPost().setSecurity(List.of());
+        }
     }
 }

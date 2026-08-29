@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Import({
         AdminWebMvcConfigTest.TestController.class,
         AdminArgumentResolverWebMvcConfig.class,
-        DevelopmentAdminCorsWebMvcConfig.class
+        AdminCorsWebMvcConfig.class
 })
 @TestPropertySource(properties =
         "chalkak.admin.cors.allowed-origins=https://admin-dev.example.com")

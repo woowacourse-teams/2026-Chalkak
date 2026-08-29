@@ -18,6 +18,9 @@ spring:
 
 # 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
 chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: true
   auth:
     access-token:
       expiration: 1h

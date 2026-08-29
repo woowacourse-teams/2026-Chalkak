@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.access;
 
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.service.AccessTokenIssuer;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
@@ -55,16 +56,22 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
 
     @Override
     public IssuedAccessToken issue(UUID userId) {
+        return issue(userId, AccessTokenScope.USER);
+    }
+
+    @Override
+    public IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.expiration());
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .audience(List.of(properties.audience()))
-                .subject(userId.toString())
+                .subject(subjectId.toString())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .id(UUID.randomUUID().toString())
                 .claim(PURPOSE_CLAIM, PURPOSE)
+                .claim("scope", scope.name())
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
                 .type("JWT")

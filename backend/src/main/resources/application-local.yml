@@ -11,6 +11,9 @@ spring:
         format_sql: true
 
 chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: true
   image:
     environment: local
     bucket: ${S3_BUCKET:chalkak-local-images}

@@ -6,11 +6,17 @@ import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.infrastructure.bootstrap.DevelopmentAdminBootstrap;
 import com.chalkak.backend.admin.repository.AdminRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
 @Profile("!prod & (local | dev | test)")
+@ConditionalOnProperty(
+        prefix = "chalkak.admin.authentication",
+        name = "development-bypass-enabled",
+        havingValue = "true"
+)
 @RequiredArgsConstructor
 public class DevAdminActorResolver implements AdminActorResolver {
 
