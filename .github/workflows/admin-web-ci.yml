@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - main
-      - be/develop
       - admin-web
     paths:
       - "admin-web/**"
