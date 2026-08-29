@@ -190,7 +190,7 @@ public class User {
         }
         if (status == UserStatus.BANNED) {
             throw new ForbiddenException(
-                    ErrorCode.USER_BANNED,
+                    ErrorCode.FORBIDDEN,
                     "차단된 회원입니다.");
         }
     }

@@ -190,7 +190,7 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     private ResultMatcher suspended() {
         return result -> {
             status().isForbidden().match(result);
-            jsonPath("$.errorCode").value("USER_BANNED").match(result);
+            jsonPath("$.errorCode").value("FORBIDDEN").match(result);
             jsonPath("$.message").value("차단된 회원입니다.").match(result);
         };
     }

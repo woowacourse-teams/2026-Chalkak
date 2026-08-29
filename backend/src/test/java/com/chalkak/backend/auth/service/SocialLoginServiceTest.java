@@ -115,7 +115,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("차단된 회원에 연결된 소셜 계정의 로그인은 전용 오류 코드로 거부한다")
+    @DisplayName("차단된 회원에 연결된 소셜 계정의 로그인은 기존 금지 오류로 거부한다")
     void login_bannedUser_throwsForbiddenException() {
         // Given
         willReturn(identity())
@@ -136,7 +136,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
                 .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.USER_BANNED));
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     @Test

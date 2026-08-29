@@ -197,7 +197,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_BANNED);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -381,7 +381,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_BANNED);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     private VerifiedSocialIdentity identity() {

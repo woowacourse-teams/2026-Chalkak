@@ -44,7 +44,7 @@ class UsableUserPolicyTest {
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("차단된 회원입니다.")
                 .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.USER_BANNED));
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     @Test

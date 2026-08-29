@@ -211,7 +211,7 @@ class UserTest {
     }
 
     @Test
-    @DisplayName("차단된 회원은 USER_BANNED 코드로 접근을 거절한다")
+    @DisplayName("차단된 회원은 기존 FORBIDDEN 코드로 접근을 거절한다")
     void validateAccessible_bannedUser_throwsForbiddenException() {
         // Given
         User user = UserFixture.createBanned(UUID.randomUUID());
@@ -221,7 +221,7 @@ class UserTest {
                 .isInstanceOf(ForbiddenException.class)
                 .satisfies(exception -> assertThat(
                         ((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.USER_BANNED));
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     @Test
