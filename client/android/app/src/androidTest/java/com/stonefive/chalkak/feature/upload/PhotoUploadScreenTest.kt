@@ -43,7 +43,7 @@ class PhotoUploadScreenTest {
             .onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG)
             .assertIsDisplayed()
             .assertIsNotEnabled()
-        composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘의 주제에 맞는 한 장").assertIsDisplayed()
     }
 
     @Test
@@ -119,6 +119,43 @@ class PhotoUploadScreenTest {
     }
 
     @Test
+    fun submittingStateDisablesInputsAndShowsProgressLabel() {
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = PhotoUploadUiState(
+                        selectedImage = PREVIEW_PHOTO_URI,
+                        isSubmitting = true,
+                    ),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("전시 중...").assertIsDisplayed()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun submissionErrorIsDisplayedWithoutDisablingRetry() {
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = PhotoUploadUiState(
+                        selectedImage = PREVIEW_PHOTO_URI,
+                        errorMessage = "전시를 완료하지 못했어요.",
+                    ),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("전시를 완료하지 못했어요.").assertIsDisplayed()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsEnabled()
+    }
+
+    @Test
     fun captionCanScrollIntoViewInCompactHeight() {
         composeRule.setContent {
             ChalkakTheme {
@@ -155,7 +192,7 @@ class PhotoUploadScreenTest {
             .performClick()
             .assertIsFocused()
 
-        composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").performTouchInput {
+        composeRule.onNodeWithText("오늘의 주제에 맞는 한 장").performTouchInput {
             click()
         }
 

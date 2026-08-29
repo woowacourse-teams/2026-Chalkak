@@ -1,9 +1,16 @@
 package com.stonefive.chalkak.feature.upload
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.domain.model.PostCreationFailure
+import com.stonefive.chalkak.domain.model.PostCreationResult
+import com.stonefive.chalkak.domain.repository.PostRepository
+import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +19,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class PhotoUploadViewModel : ViewModel() {
+class PhotoUploadViewModel(
+    private val postRepository: PostRepository,
+    private val topicDate: LocalDate,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(PhotoUploadUiState())
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
 
@@ -20,6 +30,8 @@ class PhotoUploadViewModel : ViewModel() {
     val uiEvent = _uiEvent.receiveAsFlow()
 
     fun onAction(action: PhotoUploadUiAction) {
+        if (_uiState.value.isSubmitting && action != PhotoUploadUiAction.BackClicked) return
+
         when (action) {
             PhotoUploadUiAction.BackClicked -> sendUiEvent(PhotoUploadUiEvent.NavigateBack)
 
@@ -28,26 +40,16 @@ class PhotoUploadViewModel : ViewModel() {
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                _uiState.update { it.copy(caption = action.caption) }
+                _uiState.update { it.copy(caption = action.caption, errorMessage = null) }
             }
 
-            PhotoUploadUiAction.SubmitClicked -> {
-                val state = _uiState.value
-                if (state.canSubmit) {
-                    sendUiEvent(
-                        PhotoUploadUiEvent.NavigateToSuccess(
-                            imageModel = checkNotNull(state.selectedImage),
-                            caption = state.caption,
-                            content = state.successContent,
-                        ),
-                    )
-                }
-            }
+            PhotoUploadUiAction.SubmitClicked -> submit()
         }
     }
 
     fun onImageSelected(image: String) {
-        _uiState.update { it.copy(selectedImage = image) }
+        if (_uiState.value.isSubmitting) return
+        _uiState.update { it.copy(selectedImage = image, errorMessage = null) }
     }
 
     fun reset() {
@@ -55,12 +57,96 @@ class PhotoUploadViewModel : ViewModel() {
     }
 
     private fun sendUiEvent(event: PhotoUploadUiEvent) {
-        viewModelScope.launch { _uiEvent.send(event) }
+        _uiEvent.trySend(event)
+    }
+
+    private fun submit() {
+        val state = _uiState.value
+        val imageUri = state.selectedImage ?: return
+        if (state.isSubmitting) return
+        val caption = state.caption
+
+        _uiState.update {
+            it.copy(
+                isSubmitting = true,
+                errorMessage = null,
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                when (val result = postRepository.createPost(imageUri, caption, topicDate)) {
+                    is PostCreationResult.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isSubmitting = false,
+                                completedSubmission = PhotoUploadSubmission(
+                                    imageModel = imageUri,
+                                    caption = caption,
+                                    content = result.value.toSuccessContent(),
+                                ),
+                            )
+                        }
+                    }
+
+                    is PostCreationResult.Failure -> handleFailure(result.reason)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSubmitting = false,
+                        errorMessage = GENERIC_ERROR_MESSAGE,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun handleFailure(failure: PostCreationFailure) {
+        if (failure == PostCreationFailure.ReauthenticationRequired) {
+            _uiState.update { it.copy(isSubmitting = false) }
+            sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isSubmitting = false,
+                errorMessage = failure.toMessage(),
+            )
+        }
+    }
+
+    private fun com.stonefive.chalkak.domain.model.PostCreation.toSuccessContent() = PhotoUploadSuccessContent(
+        dateLabel = topicDate.toSuccessDateLabel(),
+        topic = topic,
+        moderationStatus = moderationStatus.name,
+    )
+
+    private fun PostCreationFailure.toMessage(): String = when (this) {
+        PostCreationFailure.NetworkUnavailable -> "네트워크 연결을 확인해 주세요."
+        PostCreationFailure.ImagePreparationFailed -> "사진을 준비하지 못했어요. 다시 시도해 주세요."
+        PostCreationFailure.UploadRejected -> "사진을 업로드하지 못했어요. 다시 시도해 주세요."
+        PostCreationFailure.PostCreationRejected -> "전시를 완료하지 못했어요. 다시 시도해 주세요."
+        PostCreationFailure.InvalidResponse -> GENERIC_ERROR_MESSAGE
+        PostCreationFailure.ReauthenticationRequired -> error("Handled before message mapping")
     }
 
     companion object {
-        val Factory = viewModelFactory {
-            initializer { PhotoUploadViewModel() }
+        fun factory(topicDate: LocalDate) = viewModelFactory {
+            initializer {
+                val application = this[APPLICATION_KEY] as ChalkakApplication
+                PhotoUploadViewModel(
+                    postRepository = application.appContainer.postRepository,
+                    topicDate = topicDate,
+                )
+            }
         }
+
+        private const val GENERIC_ERROR_MESSAGE = "전시를 완료하지 못했어요. 다시 시도해 주세요."
     }
 }
+
+private fun java.time.LocalDate.toSuccessDateLabel(): String = "%04d. %02d. %02d".format(year, monthValue, dayOfMonth)

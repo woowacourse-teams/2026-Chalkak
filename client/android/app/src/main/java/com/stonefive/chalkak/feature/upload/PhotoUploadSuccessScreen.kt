@@ -62,11 +62,7 @@ fun PhotoUploadSuccessScreen(
                 imageModel = imageModel,
                 contentDescription = "전시한 사진",
                 dateLabel = content.dateLabel,
-                title = if (caption.isNotBlank()) {
-                    "${content.topic} - $caption"
-                } else {
-                    content.topic
-                },
+                title = caption.takeIf(String::isNotBlank) ?: content.topic,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
@@ -81,8 +77,7 @@ fun PhotoUploadSuccessScreen(
                 color = ChalkakTheme.colors.textPrimary,
             )
             Text(
-                text = "${content.nickname}님 ${content.exhibitionCount}번째 전시를 축하드려요,\n" +
-                    "피드 표시까지 시간이 조금 걸릴 수도 있어요!",
+                text = content.moderationStatus.toSuccessMessage(),
                 modifier = Modifier.padding(
                     start = ChalkakTheme.spacing.screenHorizontal,
                     top = 10.dp,
@@ -101,10 +96,20 @@ fun PhotoUploadSuccessScreen(
 private fun PhotoUploadSuccessScreenPreview() {
     ChalkakTheme {
         PhotoUploadSuccessScreen(
+            modifier = Modifier,
             imageModel = R.drawable.preview_photo,
             caption = "한낮의 다리",
-            content = PhotoUploadSuccessContent(),
+            content = PhotoUploadSuccessContent(
+                dateLabel = "2026. 08. 29",
+                topic = "다리",
+                moderationStatus = "VALIDATING",
+            ),
             onConfirmClick = {},
         )
     }
+}
+
+private fun String.toSuccessMessage(): String = when (this) {
+    "PENDING" -> "검수를 기다리고 있어요. 피드 표시까지 시간이 조금 걸릴 수도 있어요!"
+    else -> "사진을 확인하고 있어요. 피드 표시까지 시간이 조금 걸릴 수도 있어요!"
 }

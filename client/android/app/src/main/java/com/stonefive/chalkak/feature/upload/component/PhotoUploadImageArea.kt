@@ -52,7 +52,7 @@ fun PhotoUploadImageArea(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "주제 ‘틈’에 맞는 한 장",
+                    text = "오늘의 주제에 맞는 한 장",
                     color = ChalkakTheme.colors.textSecondary,
                     style = ChalkakTheme.typography.subheadline,
                 )

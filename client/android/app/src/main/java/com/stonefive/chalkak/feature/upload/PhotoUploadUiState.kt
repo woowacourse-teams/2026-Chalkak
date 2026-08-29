@@ -8,16 +8,17 @@ data class PhotoUploadUiState(
     val signatureModel: String? = null,
     val caption: String = "",
     val isCameraAvailable: Boolean = true,
-    val successContent: PhotoUploadSuccessContent = PhotoUploadSuccessContent(),
+    val isSubmitting: Boolean = false,
+    val errorMessage: String? = null,
+    val completedSubmission: PhotoUploadSubmission? = null,
 ) {
     val canSubmit: Boolean
-        get() = selectedImage != null
+        get() = selectedImage != null && !isSubmitting && completedSubmission == null
 }
 
 @Immutable
 data class PhotoUploadSuccessContent(
-    val dateLabel: String = "2025. 07. 18",
-    val topic: String = "주제",
-    val nickname: String = "@@",
-    val exhibitionCount: Int = 128,
+    val dateLabel: String,
+    val topic: String,
+    val moderationStatus: String,
 )

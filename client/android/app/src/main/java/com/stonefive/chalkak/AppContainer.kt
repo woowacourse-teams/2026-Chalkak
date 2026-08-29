@@ -5,22 +5,26 @@ import androidx.credentials.CredentialManager
 import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
+import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpPresignedImageUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
 import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
+import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.DisplayRepository
 import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.RecordRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +67,21 @@ class AppContainer(context: Context) {
                 networkModule.apiRequestExecutor,
             ),
             signatureUploader = presignedImageUploader,
+        )
+    }
+
+    val postRepository: PostRepository by lazy {
+        PostRepositoryImpl(
+            remoteDataSource = PostRemoteDataSourceImpl(
+                postApi = networkModule.postApi,
+                topicApi = networkModule.topicApi,
+                requestExecutor = networkModule.apiRequestExecutor,
+            ),
+            imageEncoder = AndroidPostImageEncoder(
+                contentResolver = context.contentResolver,
+                cacheDir = context.cacheDir,
+            ),
+            imageUploader = presignedImageUploader,
         )
     }
 
