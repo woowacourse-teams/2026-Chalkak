@@ -161,4 +161,5 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
     }
+
 }

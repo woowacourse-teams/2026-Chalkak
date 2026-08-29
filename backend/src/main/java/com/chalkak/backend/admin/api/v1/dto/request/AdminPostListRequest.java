@@ -12,7 +12,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 public record AdminPostListRequest(
         @Schema(description = "게시물 검수 상태")
-        ModerationStatus status,
+        AdminPostListStatus status,
 
         @Schema(description = "주제 ID", format = "uuid")
         UUID topicId,
@@ -64,5 +64,12 @@ public record AdminPostListRequest(
         sort = sort == null ? DEFAULT_SORT : sort;
         page = page == null ? DEFAULT_PAGE : page;
         pageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+    }
+
+    public ModerationStatus moderationStatus() {
+        if (status == null) {
+            return null;
+        }
+        return status.toModerationStatus();
     }
 }

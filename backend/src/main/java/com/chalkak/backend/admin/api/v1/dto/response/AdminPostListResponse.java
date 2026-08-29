@@ -32,6 +32,7 @@ public record AdminPostListResponse(
             UUID postId,
             @Schema(nullable = true)
             String title,
+            @Schema(allowableValues = {"PENDING", "APPROVED", "REJECTED"})
             ModerationStatus moderationStatus,
             AuthorResponse author,
             TopicResponse topic,

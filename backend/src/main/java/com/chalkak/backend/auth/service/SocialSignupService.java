@@ -107,6 +107,7 @@ public class SocialSignupService {
                     ErrorCode.UNAUTHORIZED,
                     "탈퇴한 회원은 회원가입할 수 없습니다.");
         }
+        socialAccount.getUser().validateAccessible();
         return socialAccount.getUser().getId();
     }
 
@@ -120,14 +121,14 @@ public class SocialSignupService {
     }
 
     private void validateNewSocialAccount(VerifiedSocialIdentity identity) {
-        boolean exists = socialAccountRepository.findByProviderAndSubject(
-                        identity.provider(),
-                        identity.subject())
-                .isPresent();
-        if (exists) {
+        socialAccountRepository.findByProviderAndSubject(
+                identity.provider(),
+                identity.subject()
+        ).ifPresent(socialAccount -> {
+            socialAccount.getUser().validateAccessible();
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "이미 가입된 소셜 계정입니다.");
-        }
+        });
     }
 }
