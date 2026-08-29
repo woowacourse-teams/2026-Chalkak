@@ -2,17 +2,49 @@ package com.stonefive.chalkak.data.remote.home
 
 import androidx.annotation.DrawableRes
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
+import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 class MockHomeRemoteDataSource(private val responseDelayMillis: Long = 0L) : HomeRemoteDataSource {
     private val likedPhotoIds = mutableSetOf<String>()
+
+    override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> {
+        delay(responseDelayMillis)
+        val post = (getPosts(
+            HomeQuery(
+                date = LocalDate.of(2026, 8, 29),
+                sort = PostSort.LATEST,
+                page = HomeQuery.FIRST_PAGE,
+            ),
+        ) as ApiResult.Success).value.posts.firstOrNull { it.id == postId }
+            ?: return ApiResult.Failure(ApiError.Http(404, "POST_NOT_FOUND"))
+
+        return ApiResult.Success(
+            PostDetailResponse(
+                id = post.id,
+                topic = TopicResponse(
+                    id = "sample-home-topic",
+                    title = "하늘하늘하늘",
+                    topicDate = "2026-08-29",
+                ),
+                originalImageUrl = post.originalImageUrl,
+                thumbnailImageUrl = post.thumbnailImageUrl,
+                signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                title = post.title,
+                likeCount = post.likeCount,
+                isLiked = post.id in likedPhotoIds,
+            ),
+        )
+    }
 
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
         delay(responseDelayMillis)

@@ -25,6 +25,7 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
@@ -80,6 +81,21 @@ class HomeScreenTest {
             uiState = contentUiState(isLoadingNext = true)
         }
         composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun tappingHomePhotoInvokesOpenFeedCallback() {
+        var selectedPhoto: Post? = null
+        setHomeContent(
+            uiState = contentUiState(),
+            onOpenFeed = { post, _, _ -> selectedPhoto = post },
+        )
+
+        composeRule
+            .onNodeWithContentDescription("작품 이미지: 사진 0")
+            .performClick()
+
+        assertEquals("photo-0", selectedPhoto?.id)
     }
 
     @Test
@@ -262,6 +278,7 @@ class HomeScreenTest {
     private fun setHomeContent(
         uiState: HomeUiState,
         onAction: (HomeUiAction) -> Unit = {},
+        onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -269,6 +286,7 @@ class HomeScreenTest {
                     uiState = uiState,
                     snackbarHostState = remember { SnackbarHostState() },
                     onAction = onAction,
+                    onOpenFeed = onOpenFeed,
                 )
             }
         }
@@ -292,8 +310,10 @@ private fun contentUiState(
 private fun photos(count: Int) = List(count) { index ->
     Post(
         id = "photo-$index",
-        imageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+        originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+        signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+        signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
         contentDescription = "작품 이미지: 사진 $index",
         title = "사진 $index",
         likeCount = 17,
@@ -302,6 +322,8 @@ private fun photos(count: Int) = List(count) { index ->
 
 private class GuestPostRepository : PostRepository {
     var likeRequestCount = 0
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
@@ -328,6 +350,8 @@ private class GuestPostRepository : PostRepository {
 private class PageFailurePostRepository : PostRepository {
     val pageResult = CompletableDeferred<HomeResult<PostPage>>()
     var pageRequestCount = 0
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(

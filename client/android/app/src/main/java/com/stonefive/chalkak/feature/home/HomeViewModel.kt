@@ -295,7 +295,10 @@ class HomeViewModel(
         _uiState.value = previousState.copy(
             photos = previousState.photos.map { photo ->
                 if (photo.id == photoId) {
-                    photo.copy(likeCount = photo.likeCount + if (isLiked) 1 else -1)
+                    photo.copy(
+                        likeCount = photo.likeCount + if (isLiked) 1 else -1,
+                        isLiked = isLiked,
+                    )
                 } else {
                     photo
                 }
@@ -325,7 +328,10 @@ class HomeViewModel(
                         state.copy(
                             photos = state.photos.map { photo ->
                                 if (photo.id == photoId) {
-                                    photo.copy(likeCount = result.value.likeCount)
+                                    photo.copy(
+                                        likeCount = result.value.likeCount,
+                                        isLiked = result.value.isLiked,
+                                    )
                                 } else {
                                     photo
                                 }

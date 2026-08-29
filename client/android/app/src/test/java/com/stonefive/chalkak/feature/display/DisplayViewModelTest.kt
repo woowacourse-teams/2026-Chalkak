@@ -6,6 +6,7 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
@@ -237,6 +238,8 @@ private class FakePostRepository : PostRepository {
         ),
     )
 
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requests += query
         val selectedDate = query.date
@@ -290,8 +293,10 @@ private fun firstPageQuery(
 
 private val post = Post(
     id = "photo",
-    imageUrl = "https://example.com/photo.jpg",
-    signatureUrl = "https://example.com/signature.png",
+    originalImageUrl = "https://example.com/photo.jpg",
+    thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
+    signatureOriginalImageUrl = "https://example.com/signature.png",
+    signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,

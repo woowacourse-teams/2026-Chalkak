@@ -4,6 +4,7 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
@@ -22,6 +23,10 @@ class HomeRemoteDataSourceImpl(
     private val postApi: PostApi,
     private val json: Json,
 ) : HomeRemoteDataSource {
+    override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = request {
+        postApi.getPost(postId)
+    }
+
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = request {
         topicApi.getTopic(date.toString())
     }

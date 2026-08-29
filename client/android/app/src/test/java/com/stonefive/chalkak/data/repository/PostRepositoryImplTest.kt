@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
@@ -10,8 +11,11 @@ import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostDetail
 import java.time.LocalDate
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,6 +30,47 @@ class PostRepositoryImplTest {
         sort = PostSort.LATEST,
         page = 1,
     )
+
+    @Test
+    fun `게시물 상세 응답을 Feed 도메인 모델로 변환한다`() = runTest {
+        remoteDataSource.detailResult = ApiResult.Success(
+            PostDetailResponse(
+                id = "photo-1",
+                topic = TopicResponse(
+                    id = "topic-1",
+                    title = "새 바다",
+                    topicDate = "2026-08-29",
+                ),
+                originalImageUrl = "photo-original",
+                thumbnailImageUrl = "photo-thumbnail",
+                signatureOriginalImageUrl = "signature-original",
+                title = "상세 제목",
+                likeCount = 42,
+                isLiked = true,
+            ),
+        )
+
+        val result = repository.getPostDetail("photo-1") as HomeResult.Success<PostDetail>
+
+        assertEquals(
+            PostDetail(
+                post = Post(
+                    id = "photo-1",
+                    originalImageUrl = "photo-original",
+                    thumbnailImageUrl = "photo-thumbnail",
+                    signatureOriginalImageUrl = "signature-original",
+                    signatureThumbnailImageUrl = null,
+                    contentDescription = "작품 이미지: 상세 제목",
+                    title = "상세 제목",
+                    likeCount = 42,
+                    isLiked = true,
+                ),
+                topic = "새 바다",
+                topicDate = LocalDate.of(2026, 8, 29),
+            ),
+            result.value,
+        )
+    }
 
     @Test
     fun `토픽과 첫 게시물 페이지를 Home 도메인 콘텐츠로 변환한다`() = runTest {
@@ -59,10 +104,15 @@ class PostRepositoryImplTest {
     fun `게시물과 사인 썸네일 URL을 직접 매핑한다`() = runTest {
         val content = (repository.getPostContent(query) as HomeResult.Success).value
 
-        assertEquals("photo-thumbnail", content.photos[0].imageUrl)
-        assertEquals("signature-thumbnail", content.photos[0].signatureUrl)
-        assertEquals("photo-thumbnail-2", content.photos[1].imageUrl)
-        assertEquals("signature-thumbnail", content.photos[1].signatureUrl)
+        assertEquals("photo-original", content.photos[0].originalImageUrl)
+        assertEquals("photo-thumbnail", content.photos[0].thumbnailImageUrl)
+        assertEquals("signature-original", content.photos[0].signatureOriginalImageUrl)
+        assertEquals("signature-thumbnail", content.photos[0].signatureThumbnailImageUrl)
+        assertEquals(Instant.parse("2026-08-28T01:00:00Z"), content.photos[0].submittedAt)
+        assertEquals("photo-original-2", content.photos[1].originalImageUrl)
+        assertEquals("photo-thumbnail-2", content.photos[1].thumbnailImageUrl)
+        assertEquals("signature-original-2", content.photos[1].signatureOriginalImageUrl)
+        assertEquals("signature-thumbnail", content.photos[1].signatureThumbnailImageUrl)
     }
 
     @Test
@@ -245,6 +295,7 @@ class PostRepositoryImplTest {
 
 private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
+    var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
     var topicResult: ApiResult<TopicResponse> = ApiResult.Success(
         TopicResponse(
             id = "topic-id",
@@ -260,6 +311,8 @@ private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
             isLiked = true,
         ),
     )
+
+    override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
 
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = topicResult
 
@@ -279,6 +332,7 @@ private fun postPage(
         homePost(
             id = "photo-1",
             title = "바다",
+            submittedAt = "2026-08-28T01:00:00Z",
             thumbnailImageUrl = "photo-thumbnail",
             signatureThumbnailImageUrl = "signature-thumbnail",
             isLiked = true,
@@ -309,6 +363,7 @@ private fun homePost(
     thumbnailImageUrl: String = "photo-thumbnail",
     signatureOriginalImageUrl: String = "signature-original",
     signatureThumbnailImageUrl: String = "signature-thumbnail",
+    submittedAt: String? = null,
     isLiked: Boolean = false,
     likeCount: Long = 24,
 ) = PostResponse(
@@ -317,6 +372,7 @@ private fun homePost(
     thumbnailImageUrl = thumbnailImageUrl,
     signatureOriginalImageUrl = signatureOriginalImageUrl,
     signatureThumbnailImageUrl = signatureThumbnailImageUrl,
+    submittedAt = submittedAt,
     title = title,
     likeCount = likeCount,
     isLiked = isLiked,

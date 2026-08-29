@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import retrofit2.Response
 import retrofit2.http.DELETE
@@ -10,6 +11,11 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PostApi {
+    @GET("posts/{postId}")
+    suspend fun getPost(
+        @Path("postId") postId: String,
+    ): Response<PostDetailResponse>
+
     @GET("posts")
     suspend fun getPosts(
         @Query("topicDate") topicDate: String,

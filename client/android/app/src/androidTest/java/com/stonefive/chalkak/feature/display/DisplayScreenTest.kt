@@ -234,8 +234,10 @@ class DisplayScreenTest {
 private val latestDate = LocalDate.of(2026, 8, 5)
 private val photo = Post(
     id = "photo",
-    imageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-    signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+    originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+    signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+    signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,

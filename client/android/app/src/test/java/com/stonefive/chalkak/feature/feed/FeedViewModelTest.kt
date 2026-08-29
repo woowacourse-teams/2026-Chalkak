@@ -6,15 +6,18 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -58,8 +61,10 @@ class FeedViewModelTest {
         val selectedRepository = FakePostRepository()
         val selectedPost = Post(
             id = "display-photo-1",
-            imageUrl = "https://example.com/display-photo.jpg",
-            signatureUrl = "https://example.com/display-signature.png",
+            originalImageUrl = "https://example.com/display-photo.jpg",
+            thumbnailImageUrl = "https://example.com/display-photo-thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/display-signature.png",
+            signatureThumbnailImageUrl = "https://example.com/display-signature-thumbnail.png",
             contentDescription = "전시 사진",
             title = "전시에서 선택한 사진",
             likeCount = 31,
@@ -80,6 +85,107 @@ class FeedViewModelTest {
         assertEquals("8월 5일의 주제", content.dateLabel)
         assertEquals("바다", content.topic)
         assertTrue(selectedRepository.requestedQueries.isEmpty())
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `전달받은 캐시를 먼저 보여주고 상세 응답으로 원본 정보를 갱신한다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply {
+            detailRequest = detailResult
+        }
+        val selectedPost = Post(
+            id = "display-photo-1",
+            originalImageUrl = "https://example.com/original.jpg",
+            thumbnailImageUrl = "https://example.com/thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/signature-original.png",
+            signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
+            contentDescription = "전시 사진",
+            title = "목록 제목",
+            likeCount = 31,
+        )
+
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 5일의 주제",
+                topic = "바다",
+                post = selectedPost,
+                isLiked = false,
+            ),
+            postId = selectedPost.id,
+        )
+
+        assertEquals(selectedPost, selectedViewModel.uiState.value.content?.post)
+        assertTrue(selectedViewModel.uiState.value.isRefreshing)
+
+        detailResult.complete(
+            HomeResult.Success(
+                PostDetail(
+                    post = selectedPost.copy(
+                        originalImageUrl = "https://example.com/original-updated.jpg",
+                        signatureOriginalImageUrl = "https://example.com/signature-original-updated.png",
+                        title = "최신 제목",
+                        likeCount = 32,
+                        isLiked = true,
+                    ),
+                    topic = "새 바다",
+                    topicDate = LocalDate.of(2026, 8, 6),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val updatedContent = selectedViewModel.uiState.value.content
+        assertEquals("https://example.com/original-updated.jpg", updatedContent?.post?.originalImageUrl)
+        assertEquals("https://example.com/thumbnail.jpg", updatedContent?.post?.thumbnailImageUrl)
+        assertEquals("새 바다", updatedContent?.topic)
+        assertTrue(updatedContent?.isLiked == true)
+        assertFalse(selectedViewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `상세 응답이 동일하면 기존 게시물 콘텐츠를 유지한다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply {
+            detailRequest = detailResult
+        }
+        val selectedPost = Post(
+            id = "display-photo-1",
+            originalImageUrl = "https://example.com/original.jpg",
+            thumbnailImageUrl = "https://example.com/thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/signature-original.png",
+            signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
+            contentDescription = "전시 사진",
+            title = "목록 제목",
+            likeCount = 31,
+        )
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 5일의 주제",
+                topic = "바다",
+                post = selectedPost,
+                isLiked = false,
+            ),
+            postId = selectedPost.id,
+        )
+        val initialContent = selectedViewModel.uiState.value.content
+
+        detailResult.complete(
+            HomeResult.Success(
+                PostDetail(
+                    post = selectedPost,
+                    topic = "바다",
+                    topicDate = LocalDate.of(2026, 8, 5),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertSame(initialContent, selectedViewModel.uiState.value.content)
+        assertFalse(selectedViewModel.uiState.value.isRefreshing)
     }
 
     @Test
@@ -150,6 +256,11 @@ private class FakePostRepository : PostRepository {
     val requestedQueries = mutableListOf<HomeQuery>()
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
+    var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
+    var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
+        detailRequest?.await() ?: detailResult
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requestedQueries += query
@@ -173,6 +284,9 @@ private class FakePostRepository : PostRepository {
 
 private class ControlledPostRepository : PostRepository {
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
+        HomeResult.Failure(HomeFailure.Network)
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 
@@ -208,8 +322,10 @@ private fun feedContent() = PostContent(
     photos = listOf(
         Post(
             id = PHOTO_ID,
-            imageUrl = "https://example.com/photo.jpg",
-            signatureUrl = "https://example.com/signature.png",
+            originalImageUrl = "https://example.com/photo.jpg",
+            thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/signature.png",
+            signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
             contentDescription = "사진",
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,

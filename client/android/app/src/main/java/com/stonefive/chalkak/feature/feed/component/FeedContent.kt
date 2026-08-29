@@ -43,15 +43,17 @@ private fun FeedContentPreview() {
             content = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
-                post = Post(
-                    id = "preview",
-                    imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                    signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                    contentDescription = "노을이 진 하늘과 전신주",
+            post = Post(
+                id = "preview",
+                originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 감사합니다.",
                     likeCount = 24,
                 ),
-                isLiked = false,
+            isLiked = false,
             ),
             onLikeClick = {},
             modifier = Modifier.fillMaxSize(),

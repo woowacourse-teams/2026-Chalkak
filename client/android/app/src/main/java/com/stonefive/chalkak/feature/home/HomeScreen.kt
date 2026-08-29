@@ -71,6 +71,7 @@ const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     selectionSignal: Int = 0,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
@@ -105,6 +106,7 @@ fun HomeRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
+        onOpenFeed = onOpenFeed,
         resetSignal = selectionSignal,
     )
 }
@@ -114,6 +116,7 @@ fun HomeScreen(
     uiState: HomeUiState,
     snackbarHostState: SnackbarHostState,
     onAction: (HomeUiAction) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
     resetSignal: Int = 0,
 ) {
@@ -154,6 +157,7 @@ fun HomeScreen(
                 HomeContentStatus.Content -> HomeContent(
                     uiState = uiState,
                     onAction = onAction,
+                    onOpenFeed = onOpenFeed,
                     resetSignal = resetSignal,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -214,6 +218,7 @@ private fun HomeInitialStatus(
 private fun HomeContent(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit,
     resetSignal: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -273,6 +278,15 @@ private fun HomeContent(
                 isLoadingNext = uiState.isLoadingNext,
                 areLikesEnabled = uiState.areLikesEnabled,
                 onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+                onPhotoClick = { post ->
+                    onOpenFeed(
+                        post,
+                        uiState.topicDate
+                            ?.let { "${it.monthValue}월 ${it.dayOfMonth}일의 주제" }
+                            .orEmpty(),
+                        uiState.topic,
+                    )
+                },
                 onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
                 modifier = Modifier.fillMaxSize(),
                 state = photoListState,
@@ -382,16 +396,20 @@ private fun HomeScreenPreview() {
                 photos = listOf(
                     Post(
                         id = "preview-1",
-                        imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,
                     ),
                     Post(
                         id = "preview-2",
-                        imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        thumbnailImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "두 번째 사진",
                         title = null,
                         likeCount = 12,

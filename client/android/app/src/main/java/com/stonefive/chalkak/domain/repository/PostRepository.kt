@@ -4,9 +4,12 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 
 interface PostRepository {
+    suspend fun getPostDetail(postId: String): HomeResult<PostDetail>
+
     suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent>
 
     suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage>

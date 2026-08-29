@@ -7,6 +7,7 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
@@ -635,6 +636,8 @@ class HomeViewModelTest {
         val uncaught = mutableListOf<Throwable>()
         val viewModel = homeViewModel(
             repository = object : PostRepository {
+                override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
                 override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
                     error("unexpected defect")
                 }
@@ -753,8 +756,10 @@ private fun post(
     likeCount: Int = 24,
 ) = Post(
     id = id,
-    imageUrl = "https://example.com/$id.jpg",
-    signatureUrl = "https://example.com/$id-signature.png",
+    originalImageUrl = "https://example.com/$id.jpg",
+    thumbnailImageUrl = "https://example.com/$id-thumbnail.jpg",
+    signatureOriginalImageUrl = "https://example.com/$id-signature.png",
+    signatureThumbnailImageUrl = "https://example.com/$id-signature-thumbnail.png",
     contentDescription = "작품 이미지: $id",
     title = id,
     likeCount = likeCount,
@@ -768,6 +773,8 @@ private class RecordingPostRepository(
     val homeQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         homeQueries += query
@@ -797,6 +804,8 @@ private class ControlledPostRepository(autoInitial: PostContent? = null) : PostR
     val homeQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
+
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         homeQueries += query

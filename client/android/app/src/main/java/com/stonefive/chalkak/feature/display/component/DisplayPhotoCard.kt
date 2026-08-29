@@ -57,8 +57,8 @@ fun DisplayPhotoCard(
             .then(photoClickModifier),
     ) {
         ChalkakSignedImage(
-            imageModel = photo.imageUrl,
-            signatureModel = photo.signatureUrl,
+            imageModel = photo.thumbnailImageUrl,
+            signatureModel = photo.signatureThumbnailImageUrl,
             contentDescription = if (onClick == null) photo.contentDescription else null,
             contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
             signatureModifier = Modifier.size(
