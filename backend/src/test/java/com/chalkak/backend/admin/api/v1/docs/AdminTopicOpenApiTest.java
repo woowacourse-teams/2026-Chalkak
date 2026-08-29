@@ -47,7 +47,11 @@ class AdminTopicOpenApiTest extends IntegrationTestSupport {
                                 "endsAt")))
                 .andExpect(jsonPath("$.components.schemas.AdminTopicDetailResponse"
                         + ".properties.phase.enum")
-                        .value(containsInAnyOrder("BEFORE_OPEN", "OPEN", "CLOSED")));
+                        .value(containsInAnyOrder("BEFORE_OPEN", "OPEN", "CLOSED")))
+                .andExpect(jsonPath("$.components.schemas.AdminTopicPostCounts"
+                        + ".properties.total").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.AdminTopicPostCounts"
+                        + ".properties.validating").doesNotExist());
 
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())

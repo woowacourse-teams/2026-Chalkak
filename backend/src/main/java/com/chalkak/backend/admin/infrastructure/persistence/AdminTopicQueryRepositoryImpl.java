@@ -29,8 +29,6 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
                 topic.participationPeriod.endsAt,
                 topic.createdAt,
                 topic.updatedAt,
-                COUNT(post),
-                SUM(CASE WHEN post.moderationStatus = :validatingStatus THEN 1 ELSE 0 END),
                 SUM(CASE WHEN post.moderationStatus = :pendingStatus THEN 1 ELSE 0 END),
                 SUM(CASE WHEN post.moderationStatus = :approvedStatus THEN 1 ELSE 0 END),
                 SUM(CASE WHEN post.moderationStatus = :rejectedStatus THEN 1 ELSE 0 END)
@@ -106,7 +104,6 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
     }
 
     private void setModerationStatuses(TypedQuery<AdminTopicProjection> query) {
-        query.setParameter("validatingStatus", ModerationStatus.VALIDATING);
         query.setParameter("pendingStatus", ModerationStatus.PENDING);
         query.setParameter("approvedStatus", ModerationStatus.APPROVED);
         query.setParameter("rejectedStatus", ModerationStatus.REJECTED);

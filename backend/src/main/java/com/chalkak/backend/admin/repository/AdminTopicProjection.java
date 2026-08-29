@@ -12,8 +12,6 @@ public record AdminTopicProjection(
         Instant endsAt,
         Instant createdAt,
         Instant updatedAt,
-        long totalPostCount,
-        long validatingPostCount,
         long pendingPostCount,
         long approvedPostCount,
         long rejectedPostCount

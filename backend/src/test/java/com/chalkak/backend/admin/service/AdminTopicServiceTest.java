@@ -137,7 +137,7 @@ class AdminTopicServiceTest extends IntegrationTestSupport {
         AdminTopicDetail result = adminTopicService.getTopic(OPEN_TOPIC_ID);
 
         assertThat(result.postCounts()).isEqualTo(
-                new AdminTopicDetail.PostCounts(1, 0, 1, 0, 0)
+                new AdminTopicDetail.PostCounts(1, 0, 0)
         );
     }
 

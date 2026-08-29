@@ -27,7 +27,7 @@ public record AdminTopicDetail(
                 topic.getParticipationPeriod().getStartsAt(),
                 topic.getParticipationPeriod().getEndsAt(),
                 topic.phaseAt(now),
-                new PostCounts(0, 0, 0, 0, 0),
+                new PostCounts(0, 0, 0),
                 topic.getCreatedAt(),
                 topic.getUpdatedAt()
         );
@@ -46,8 +46,6 @@ public record AdminTopicDetail(
                 topic.endsAt(),
                 phase,
                 new PostCounts(
-                        topic.totalPostCount(),
-                        topic.validatingPostCount(),
                         topic.pendingPostCount(),
                         topic.approvedPostCount(),
                         topic.rejectedPostCount()
@@ -58,8 +56,6 @@ public record AdminTopicDetail(
     }
 
     public record PostCounts(
-            long total,
-            long validating,
             long pending,
             long approved,
             long rejected
