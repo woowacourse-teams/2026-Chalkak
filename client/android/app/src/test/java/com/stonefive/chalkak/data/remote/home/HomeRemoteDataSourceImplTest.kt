@@ -5,7 +5,6 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
 import com.stonefive.chalkak.data.remote.post.PostApi
-import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -51,7 +50,7 @@ class HomeRemoteDataSourceImplTest {
 
         val result = dataSource.getPostDetail(POST_ID)
 
-        assertTrue(result is ApiResult.Success<PostDetailResponse>)
+        assertTrue(result is ApiResult.Success<*>)
         assertEquals("/api/v1/posts/$POST_ID", server.takeRequest().path)
     }
 
