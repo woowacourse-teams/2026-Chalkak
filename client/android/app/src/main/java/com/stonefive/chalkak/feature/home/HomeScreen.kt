@@ -58,15 +58,15 @@ import com.stonefive.chalkak.feature.home.component.homeBottomDivider
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
-internal const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
-internal const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
-internal const val HOME_EMPTY_TITLE = "아직 올라온 사진이 없어요"
-internal const val HOME_EMPTY_DESCRIPTION = "첫 번째 사진을 올려보세요"
-internal const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
-internal const val HOME_LOADING_TEST_TAG = "home-loading"
-internal const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
-internal const val HOME_EMPTY_TEST_TAG = "home-empty"
-internal const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
+const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
+const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
+const val HOME_EMPTY_TITLE = "아직 올라온 사진이 없어요"
+const val HOME_EMPTY_DESCRIPTION = "첫 번째 사진을 올려보세요"
+const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
+const val HOME_LOADING_TEST_TAG = "home-loading"
+const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
+const val HOME_EMPTY_TEST_TAG = "home-empty"
+const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 
 @Composable
 fun HomeRoute(
@@ -421,7 +421,7 @@ private fun HomeScreenPreview() {
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
-internal val HomeInitialError.message: String
+val HomeInitialError.message: String
     get() = when (this) {
         HomeInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
         HomeInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
