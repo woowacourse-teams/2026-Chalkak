@@ -193,6 +193,53 @@ class FeedViewModelTest {
     }
 
     @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `좋아요 이후 도착한 이전 상세 응답은 최신 좋아요 상태를 덮어쓰지 않는다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply {
+            detailRequest = detailResult
+            likeResult = HomeResult.Success(HomeLike(likeCount = 32, isLiked = true))
+        }
+        val selectedPost = Post(
+            id = "display-photo-1",
+            originalImageUrl = "https://example.com/original.jpg",
+            thumbnailImageUrl = "https://example.com/thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/signature-original.png",
+            signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
+            contentDescription = "전시 사진",
+            title = "목록 제목",
+            likeCount = 31,
+        )
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 5일의 주제",
+                topic = "바다",
+                post = selectedPost,
+                isLiked = false,
+            ),
+            postId = selectedPost.id,
+        )
+
+        selectedViewModel.onLikeClicked()
+        detailResult.complete(
+            HomeResult.Success(
+                PostDetail(
+                    post = selectedPost,
+                    topic = "바다",
+                    topicDate = LocalDate.of(2026, 8, 5),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val updatedContent = selectedViewModel.uiState.value.content
+        assertEquals(32, updatedContent?.post?.likeCount)
+        assertTrue(updatedContent?.post?.isLiked == true)
+        assertTrue(updatedContent?.isLiked == true)
+    }
+
+    @Test
     fun `Display에서 받은 게시물 좋아요는 주입된 Feed repository로만 전달한다`() = runTest {
         val selectedRepository = FakePostRepository()
         val selectedPost =
@@ -260,6 +307,7 @@ private class FakePostRepository : PostRepository {
     val requestedQueries = mutableListOf<HomeQuery>()
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
+    var likeResult: HomeResult<HomeLike>? = null
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
 
@@ -277,7 +325,7 @@ private class FakePostRepository : PostRepository {
         isLiked: Boolean,
     ): HomeResult<HomeLike> {
         updatedLike = photoId to isLiked
-        return if (failLike) {
+        return likeResult ?: if (failLike) {
             HomeResult.Failure(HomeFailure.Network)
         } else {
             HomeResult.Success(HomeLike(if (isLiked) 25 else 24, isLiked))

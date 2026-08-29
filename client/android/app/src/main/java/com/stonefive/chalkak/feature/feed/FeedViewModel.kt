@@ -164,6 +164,7 @@ class FeedViewModel(
     }
 
     private fun loadPostDetail(postId: String) {
+        val likeGenerationAtRequestStart = latestLikeGeneration
         _uiState.update {
             it.copy(
                 isLoading = it.content == null,
@@ -181,7 +182,7 @@ class FeedViewModel(
             }
 
             when (result) {
-                is HomeResult.Success -> applyPostDetail(result.value)
+                is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart)
 
                 is HomeResult.Failure -> _uiState.update {
                     it.copy(
@@ -195,10 +196,18 @@ class FeedViewModel(
         }
     }
 
-    private fun applyPostDetail(detail: PostDetail) {
+    private fun applyPostDetail(
+        detail: PostDetail,
+        likeGenerationAtRequestStart: Int,
+    ) {
         val previousContent = _uiState.value.content
         val previousPost = previousContent?.post
+        val shouldPreserveCurrentLike =
+            previousPost != null && likeGenerationAtRequestStart != latestLikeGeneration
+        val currentLikePost = previousPost?.takeIf { shouldPreserveCurrentLike }
         val updatedPost = detail.post.copy(
+            likeCount = currentLikePost?.likeCount ?: detail.post.likeCount,
+            isLiked = currentLikePost?.isLiked ?: detail.post.isLiked,
             signatureThumbnailImageUrl = detail.post.signatureThumbnailImageUrl
                 ?: previousPost?.signatureThumbnailImageUrl,
             submittedAt = detail.post.submittedAt ?: previousPost?.submittedAt,
