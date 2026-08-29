@@ -72,6 +72,7 @@ public class PostController implements PostApiDocs {
                 .body(PostCreateResponse.from(result));
     }
 
+    @Override
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> deletePost(
             @PathVariable String postId,
