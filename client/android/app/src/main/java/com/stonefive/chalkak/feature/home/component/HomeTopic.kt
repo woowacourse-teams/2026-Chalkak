@@ -15,12 +15,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private val HomeDivider = Color(0xFFE8E6E1)
+private val HomeDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
 
 @Composable
 fun HomeTopic(
-    dateLabel: String,
+    topicDate: LocalDate?,
     topic: String,
     modifier: Modifier = Modifier,
 ) {
@@ -35,7 +39,7 @@ fun HomeTopic(
             ),
     ) {
         Text(
-            text = dateLabel,
+            text = topicDate?.let { "${it.format(HomeDateFormatter)} · 오늘의 주제" }.orEmpty(),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.subheadline,
         )
@@ -66,7 +70,7 @@ fun Modifier.homeBottomDivider(): Modifier = drawBehind {
 private fun HomeTopicPreview() {
     ChalkakTheme {
         HomeTopic(
-            dateLabel = "8월 3일 · 오늘의 주제",
+            topicDate = LocalDate.of(2026, 8, 3),
             topic = "하늘하늘하늘",
             modifier = Modifier.fillMaxWidth(),
         )

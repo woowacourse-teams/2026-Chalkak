@@ -1,8 +1,13 @@
 package com.stonefive.chalkak.domain.model
 
+import java.time.LocalDate
+
 data class PostContent(
-    val dateLabel: String,
+    val topicDate: LocalDate,
     val topic: String,
     val photos: List<Post>,
     val likedPhotoIds: Set<String>,
+    val currentPage: Int = HomeQuery.FIRST_PAGE,
+    val hasNext: Boolean = false,
+    val randomSeed: String? = null,
 )

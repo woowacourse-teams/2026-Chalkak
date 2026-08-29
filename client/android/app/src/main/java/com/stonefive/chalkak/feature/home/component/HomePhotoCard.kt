@@ -39,6 +39,7 @@ private val HomeText = Color(0xFF7D7D7D)
 fun HomePhotoCard(
     photo: Post,
     isLiked: Boolean,
+    isLikeEnabled: Boolean,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -63,6 +64,7 @@ fun HomePhotoCard(
         PhotoActionRow(
             photo = photo,
             isLiked = isLiked,
+            isLikeEnabled = isLikeEnabled,
             onLikeClick = onLikeClick,
         )
     }
@@ -72,6 +74,7 @@ fun HomePhotoCard(
 private fun PhotoActionRow(
     photo: Post,
     isLiked: Boolean,
+    isLikeEnabled: Boolean,
     onLikeClick: () -> Unit,
 ) {
     Row(
@@ -85,6 +88,7 @@ private fun PhotoActionRow(
             modifier = Modifier
                 .semantics { contentDescription = "좋아요 ${photo.likeCount}" }
                 .clickable(
+                    enabled = isLikeEnabled,
                     interactionSource = null,
                     indication = null,
                     role = Role.Button,
@@ -135,6 +139,7 @@ private fun HomePhotoCardPreview() {
                 likeCount = 24,
             ),
             isLiked = true,
+            isLikeEnabled = true,
             onLikeClick = {},
             modifier = Modifier.padding(16.dp),
         )
