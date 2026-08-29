@@ -63,6 +63,7 @@ fun DisplayRoute(
         onNextDateClick = viewModel::moveToNextDate,
         onSortSelected = viewModel::selectSort,
         onFeaturedPageChanged = viewModel::updateFeaturedPage,
+        onEndThresholdChanged = viewModel::updateEndThreshold,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = onOpenFeed,
@@ -77,6 +78,7 @@ fun DisplayScreen(
     onNextDateClick: () -> Unit,
     onSortSelected: (PostSort) -> Unit,
     onFeaturedPageChanged: (Int) -> Unit,
+    onEndThresholdChanged: (Boolean) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -125,6 +127,8 @@ fun DisplayScreen(
         DisplayBody(
             content = uiState.content,
             onFeaturedPageChanged = onFeaturedPageChanged,
+            onEndThresholdChanged = onEndThresholdChanged,
+            isLoadingNext = uiState.isLoadingNext,
             gridState = gridState,
             onPhotoClick = { photo ->
                 onOpenFeed(
@@ -271,6 +275,7 @@ private fun DisplayLoadingContentPreview() {
         DisplayBody(
             content = DisplayContentState.Loading,
             onFeaturedPageChanged = {},
+            onEndThresholdChanged = {},
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -319,6 +324,7 @@ private fun DisplayScreenPreviewContent(uiState: DisplayUiState) {
             onNextDateClick = {},
             onSortSelected = {},
             onFeaturedPageChanged = {},
+            onEndThresholdChanged = {},
             onOpenPhotoUpload = {},
             onNavigateToBottomBar = {},
             modifier = Modifier.fillMaxSize(),

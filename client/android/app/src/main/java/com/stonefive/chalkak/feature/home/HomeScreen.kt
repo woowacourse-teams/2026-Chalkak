@@ -45,6 +45,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
+import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPhotoContent
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
@@ -60,8 +61,6 @@ import kotlinx.coroutines.launch
 
 const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
 const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
-const val HOME_EMPTY_TITLE = "아직 올라온 사진이 없어요"
-const val HOME_EMPTY_DESCRIPTION = "첫 번째 사진을 올려보세요"
 const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
 const val HOME_LOADING_TEST_TAG = "home-loading"
 const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
@@ -280,24 +279,10 @@ private fun HomeContent(
                 topContentPadding = photoListTopPadding,
             )
             if (uiState.photos.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .testTag(HOME_EMPTY_TEST_TAG),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = HOME_EMPTY_TITLE,
-                        color = ChalkakTheme.colors.textSecondary,
-                        style = ChalkakTheme.typography.body,
-                    )
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
-                    Text(
-                        text = HOME_EMPTY_DESCRIPTION,
-                        color = ChalkakTheme.colors.textMuted,
-                        style = ChalkakTheme.typography.subheadline,
-                    )
-                }
+                ChalkakEmptyPhotoContent(
+                    modifier = Modifier.align(Alignment.Center),
+                    testTag = HOME_EMPTY_TEST_TAG,
+                )
             }
         }
         Column(modifier = Modifier.fillMaxWidth()) {

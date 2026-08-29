@@ -9,7 +9,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
@@ -24,12 +24,12 @@ class FeedViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: FakeHomeRepository
+    private lateinit var repository: FakePostRepository
     private lateinit var viewModel: FeedViewModel
 
     @Before
     fun setUp() {
-        repository = FakeHomeRepository()
+        repository = FakePostRepository()
         viewModel = FeedViewModel(repository, dateProvider = { TEST_DATE })
     }
 
@@ -55,7 +55,7 @@ class FeedViewModelTest {
 
     @Test
     fun `전달받은 게시물 정보로 피드 상태를 시작한다`() = runTest {
-        val selectedRepository = FakeHomeRepository()
+        val selectedRepository = FakePostRepository()
         val selectedPost = Post(
             id = "display-photo-1",
             imageUrl = "https://example.com/display-photo.jpg",
@@ -84,7 +84,7 @@ class FeedViewModelTest {
 
     @Test
     fun `Display에서 받은 게시물 좋아요는 주입된 Feed repository로만 전달한다`() = runTest {
-        val selectedRepository = FakeHomeRepository()
+        val selectedRepository = FakePostRepository()
         val selectedPost =
             feedContent()
                 .photos
@@ -129,7 +129,7 @@ class FeedViewModelTest {
 
     @Test
     fun `이전 좋아요 응답이 늦게 도착해도 최신 상태를 유지한다`() = runTest {
-        val controlledRepository = ControlledHomeRepository()
+        val controlledRepository = ControlledPostRepository()
         val controlledViewModel = FeedViewModel(controlledRepository)
 
         controlledViewModel.onLikeClicked()
@@ -146,12 +146,12 @@ class FeedViewModelTest {
 private const val PHOTO_ID = "photo-1"
 private val TEST_DATE = LocalDate.of(2026, 8, 28)
 
-private class FakeHomeRepository : HomeRepository {
+private class FakePostRepository : PostRepository {
     val requestedQueries = mutableListOf<HomeQuery>()
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requestedQueries += query
         return HomeResult.Success(feedContent())
     }
@@ -171,10 +171,10 @@ private class FakeHomeRepository : HomeRepository {
     }
 }
 
-private class ControlledHomeRepository : HomeRepository {
+private class ControlledPostRepository : PostRepository {
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 
     override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
 

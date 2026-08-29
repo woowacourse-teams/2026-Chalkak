@@ -9,7 +9,7 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class FeedViewModel(
-    private val repository: HomeRepository,
+    private val repository: PostRepository,
     private val initialContent: FeedContentState.Success? = null,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
@@ -86,7 +86,7 @@ class FeedViewModel(
     private fun loadFeed() {
         viewModelScope.launch {
             val result = try {
-                repository.getHome(
+                repository.getPostContent(
                     HomeQuery(
                         date = dateProvider(),
                         sort = PostSort.LATEST,
@@ -119,7 +119,7 @@ class FeedViewModel(
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
-                    repository = application.appContainer.feedRepository,
+                    repository = application.appContainer.postRepository,
                     initialContent = initialContent,
                 )
             }

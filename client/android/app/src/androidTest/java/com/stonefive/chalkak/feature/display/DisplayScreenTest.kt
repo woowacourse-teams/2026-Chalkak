@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -43,6 +44,22 @@ class DisplayScreenTest {
             .onNodeWithContentDescription("좋아요 17")
             .assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun emptyDisplayUsesHomeEmptyPhotoMessage() {
+        setDisplayContent(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = emptyList(),
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(DISPLAY_EMPTY_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText("아직 올라온 사진이 없어요").assertIsDisplayed()
+        composeRule.onNodeWithText("첫 번째 사진을 올려보세요").assertIsDisplayed()
     }
 
     @Test
@@ -204,6 +221,7 @@ class DisplayScreenTest {
                         onSortSelected(sort)
                     },
                     onFeaturedPageChanged = {},
+                    onEndThresholdChanged = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
                     onOpenFeed = onOpenFeed,
