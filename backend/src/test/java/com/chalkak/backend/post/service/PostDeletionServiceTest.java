@@ -7,6 +7,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
@@ -37,6 +38,8 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574df");
     private static final UUID UPLOAD_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e1");
+    private static final UUID SECOND_UPLOAD_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e2");
     private static final String ORIGINAL_STORAGE_KEY =
             "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
     private static final String THUMBNAIL_STORAGE_KEY =
@@ -277,6 +280,48 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("참여 기간이 남은 주제에서는 게시물을 삭제한 뒤 새 게시물을 제출할 수 있다")
+    void deletePost_openTopic_allowsNewPostSubmission() {
+        // Given
+        postCommandService.deletePost(AUTHOR_ID, POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+        insertUnclaimedReadyUpload();
+
+        // When
+        PostCreationResult result = postCommandService.createPost(
+                AUTHOR_ID,
+                TOPIC_ID,
+                SECOND_UPLOAD_ID,
+                "재제출"
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.PENDING);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT id
+                        FROM posts
+                        WHERE user_id = ?
+                          AND topic_id = ?
+                          AND deleted_at IS NULL
+                          AND moderation_status <> CAST('REJECTED' AS moderation_status)
+                        """,
+                UUID.class,
+                AUTHOR_ID,
+                TOPIC_ID
+        )).isEqualTo(result.postId());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM posts WHERE user_id = ? AND topic_id = ?",
+                Integer.class,
+                AUTHOR_ID,
+                TOPIC_ID
+        )).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 게시물은 삭제할 수 없다")
     void deletePost_unknownPost_throwsNotFoundException() {
         // When
@@ -340,6 +385,19 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, UPLOAD_ID, AUTHOR_ID);
+    }
+
+    private void insertUnclaimedReadyUpload() {
+        jdbcTemplate.update("""
+                INSERT INTO post_image_uploads (
+                    id, user_id, status, image_metadata,
+                    expires_at, claimed_at, created_at, updated_at
+                ) VALUES (
+                    ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
+                    CURRENT_TIMESTAMP + INTERVAL '1 hour', NULL,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, SECOND_UPLOAD_ID, AUTHOR_ID);
     }
 
     private void insertPendingPost() {
