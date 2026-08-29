@@ -28,6 +28,11 @@ chalkak:
       allowed-origins:
         - http://localhost:3000
   auth:
+    access-token:
+      issuer: chalkak-backend
+      audience: chalkak-access
+      expiration: ${ACCESS_TOKEN_EXPIRATION}
+      secret: ${ACCESS_TOKEN_SECRET}
     social-signup-token:
       issuer: chalkak-backend
       audience: chalkak-social-signup
