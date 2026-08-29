@@ -61,7 +61,7 @@
 5. Preview 환경에 아래 공개 변수만 설정합니다.
 
        NEXT_PUBLIC_API_MODE=real
-       NEXT_PUBLIC_ADMIN_API_BASE_URL=https://REPLACE_WITH_DEV_API_HOST/api/v1/admin
+       NEXT_PUBLIC_ADMIN_API_BASE_URL=https://chalkak-dev.pysun.kr/api/v1/admin
        NEXT_PUBLIC_APP_ENV=preview
 
 6. Settings → Deployment Protection에서 Vercel Authentication과 Standard Protection을 켭니다.
