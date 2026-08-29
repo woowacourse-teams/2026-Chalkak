@@ -16,11 +16,13 @@ import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
 import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
+import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.DisplayRepository
 import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.RecordRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +67,16 @@ class AppContainer(context: Context) {
 
     val homeRepository: HomeRepository by lazy {
         HomeRepositoryImpl(
+            remoteDataSource = HomeRemoteDataSourceImpl(
+                topicApi = networkModule.topicApi,
+                postApi = networkModule.postApi,
+                json = networkModule.json,
+            ),
+        )
+    }
+
+    val postRepository: PostRepository by lazy {
+        PostRepositoryImpl(
             remoteDataSource = HomeRemoteDataSourceImpl(
                 topicApi = networkModule.topicApi,
                 postApi = networkModule.postApi,

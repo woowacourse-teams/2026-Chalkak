@@ -11,7 +11,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -31,7 +31,7 @@ class HomeViewModelTest {
 
     @Test
     fun `초기 로드는 주입된 KST 날짜와 recent 첫 페이지를 사용한다`() = runTest {
-        val repository = RecordingHomeRepository()
+        val repository = RecordingPostRepository()
         val viewModel = homeViewModel(repository)
 
         assertEquals(
@@ -58,7 +58,7 @@ class HomeViewModelTest {
         )
 
         cases.forEach { (failure, expected) ->
-            val repository = RecordingHomeRepository(
+            val repository = RecordingPostRepository(
                 homeResults = ArrayDeque(listOf(HomeResult.Failure(failure))),
             )
 
@@ -72,7 +72,7 @@ class HomeViewModelTest {
 
     @Test
     fun `빈 결과는 오류가 아닌 content 상태다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(photos = emptyList())))),
         )
 
@@ -86,7 +86,7 @@ class HomeViewModelTest {
     fun `응답 topicDate를 날짜 라벨과 페이지네이션 세션에 사용한다`() = runTest {
         var currentDate = LocalDate.of(2026, 8, 28)
         val canonicalDate = LocalDate.of(2026, 8, 29)
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(
@@ -137,7 +137,7 @@ class HomeViewModelTest {
 
     @Test
     fun `첫 페이지의 빈 성공은 이전 목록을 제거하고 새 주제를 적용한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent(topic = "이전 주제")),
@@ -168,7 +168,7 @@ class HomeViewModelTest {
 
     @Test
     fun `재시도는 첫 페이지를 다시 요청하고 복구한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Failure(HomeFailure.Network),
@@ -187,7 +187,7 @@ class HomeViewModelTest {
 
     @Test
     fun `수동 새로고침은 매번 seed 없는 랜덤 첫 페이지 새 세션을 요청한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent()),
@@ -216,7 +216,7 @@ class HomeViewModelTest {
 
     @Test
     fun `수동 새로고침 중에는 콘텐츠를 유지하고 실패하면 원인 이벤트만 보낸다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "기존 주제"))
+        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "기존 주제"))
         val viewModel = homeViewModel(repository)
         val before = viewModel.uiState.value
 
@@ -249,7 +249,7 @@ class HomeViewModelTest {
 
     @Test
     fun `연속 새로고침은 매번 새로운 랜덤 세션이라 이전 seed를 재사용하지 않는다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent()),
@@ -270,7 +270,7 @@ class HomeViewModelTest {
 
     @Test
     fun `끝 임계값 false to true는 다음 페이지를 한 번만 요청한다`() = runTest {
-        val repository = RecordingHomeRepository()
+        val repository = RecordingPostRepository()
         val viewModel = homeViewModel(repository)
 
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
@@ -287,7 +287,7 @@ class HomeViewModelTest {
 
     @Test
     fun `페이지 성공은 순서를 유지하고 중복 id를 제외하며 seed를 보존한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             pageResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(
@@ -333,7 +333,7 @@ class HomeViewModelTest {
 
     @Test
     fun `hasNext false면 추가 요청하지 않는다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(hasNext = false)))),
         )
         val viewModel = homeViewModel(repository)
@@ -345,7 +345,7 @@ class HomeViewModelTest {
 
     @Test
     fun `RANDOM seed가 없으면 크래시 또는 추가 요청 없이 pagination을 종료한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent()),
@@ -366,7 +366,7 @@ class HomeViewModelTest {
 
     @Test
     fun `페이지 실패는 콘텐츠와 cursor seed를 유지하고 재진입 때 같은 페이지를 재시도한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             pageResults = ArrayDeque(
                 listOf(
                     HomeResult.Failure(HomeFailure.Network),
@@ -410,7 +410,7 @@ class HomeViewModelTest {
 
     @Test
     fun `page 2 대기 중 refresh 성공은 새 첫 페이지만 표시한다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "이전 주제"))
+        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "이전 주제"))
         val viewModel = homeViewModel(repository)
 
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
@@ -445,7 +445,7 @@ class HomeViewModelTest {
 
     @Test
     fun `page 2 대기 중 refresh 실패는 콘텐츠를 유지하고 page 2 재시도를 허용한다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent(topic = "이전 주제"))
+        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "이전 주제"))
         val viewModel = homeViewModel(repository)
         val before = viewModel.uiState.value
 
@@ -473,7 +473,7 @@ class HomeViewModelTest {
 
     @Test
     fun `인증 좋아요는 낙관 적용 후 서버 count state로 조정한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             likeResults = ArrayDeque(listOf(HomeResult.Success(HomeLike(likeCount = 30, isLiked = true)))),
         )
         val viewModel = homeViewModel(repository)
@@ -492,7 +492,7 @@ class HomeViewModelTest {
 
     @Test
     fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
             homeResults = ArrayDeque(
                 listOf(
@@ -519,7 +519,7 @@ class HomeViewModelTest {
 
     @Test
     fun `이전 좋아요 응답과 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
@@ -555,7 +555,7 @@ class HomeViewModelTest {
 
     @Test
     fun `좋아요 성공을 기다린 뒤 refresh를 시작하고 대기 중 새 좋아요를 차단한다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
@@ -590,7 +590,7 @@ class HomeViewModelTest {
 
     @Test
     fun `좋아요 실패 rollback을 기다린 뒤 refresh를 시작한다`() = runTest {
-        val repository = ControlledHomeRepository(autoInitial = homeContent())
+        val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
@@ -634,8 +634,8 @@ class HomeViewModelTest {
     fun `repository의 예상하지 못한 예외를 Network 초기 오류로 위장하지 않는다`() {
         val uncaught = mutableListOf<Throwable>()
         val viewModel = homeViewModel(
-            repository = object : HomeRepository {
-                override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+            repository = object : PostRepository {
+                override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
                     error("unexpected defect")
                 }
 
@@ -655,7 +655,7 @@ class HomeViewModelTest {
 
     @Test
     fun `게스트 좋아요는 정확한 snackbar 이벤트만 보내고 상태와 저장소를 바꾸지 않는다`() = runTest {
-        val repository = RecordingHomeRepository()
+        val repository = RecordingPostRepository()
         val viewModel = homeViewModel(
             repository = repository,
             sessionState = UserSessionState.Guest,
@@ -671,7 +671,7 @@ class HomeViewModelTest {
 
     @Test
     fun `오늘 탭 재선택은 랜덤 새로고침이고 다른 하단 탭과 추가 이벤트는 유지한다`() = runTest {
-        val repository = RecordingHomeRepository(
+        val repository = RecordingPostRepository(
             homeResults = ArrayDeque(
                 listOf(
                     HomeResult.Success(homeContent()),
@@ -705,7 +705,7 @@ private val TEST_DATE: LocalDate = LocalDate.of(2026, 8, 28)
 private const val PHOTO_ID = "photo-1"
 
 private fun homeViewModel(
-    repository: HomeRepository,
+    repository: PostRepository,
     sessionState: UserSessionState = UserSessionState.Authenticated("user-id"),
     dateProvider: () -> LocalDate = { TEST_DATE },
     launchContext: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
@@ -760,16 +760,16 @@ private fun post(
     likeCount = likeCount,
 )
 
-private class RecordingHomeRepository(
+private class RecordingPostRepository(
     val homeResults: ArrayDeque<HomeResult<PostContent>> = ArrayDeque(listOf(HomeResult.Success(homeContent()))),
     val pageResults: ArrayDeque<HomeResult<PostPage>> = ArrayDeque(listOf(HomeResult.Success(postPage()))),
     val likeResults: ArrayDeque<HomeResult<HomeLike>> = ArrayDeque(listOf(HomeResult.Success(HomeLike(25, true)))),
-) : HomeRepository {
+) : PostRepository {
     val homeQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         homeQueries += query
         return homeResults.removeFirst()
     }
@@ -788,7 +788,7 @@ private class RecordingHomeRepository(
     }
 }
 
-private class ControlledHomeRepository(autoInitial: PostContent? = null) : HomeRepository {
+private class ControlledPostRepository(autoInitial: PostContent? = null) : PostRepository {
     private val homeResults = mutableListOf<CompletableDeferred<HomeResult<PostContent>>>()
     private val pageResults = mutableListOf<CompletableDeferred<HomeResult<PostPage>>>()
     private val likeResults = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
@@ -798,7 +798,7 @@ private class ControlledHomeRepository(autoInitial: PostContent? = null) : HomeR
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         homeQueries += query
         if (autoInitialResult != null && !servedAutoInitial) {
             servedAutoInitial = true

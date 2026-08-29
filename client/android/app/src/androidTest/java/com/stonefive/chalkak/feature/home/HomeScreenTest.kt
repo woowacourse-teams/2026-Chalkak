@@ -29,7 +29,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -170,7 +170,7 @@ class HomeScreenTest {
 
     @Test
     fun pageFailureHasNoRetryRowOrSnackbar() {
-        val repository = PageFailureHomeRepository()
+        val repository = PageFailurePostRepository()
         val viewModel = HomeViewModel(
             repository = repository,
             sessionState = MutableStateFlow(UserSessionState.Authenticated("user-id")),
@@ -203,7 +203,7 @@ class HomeScreenTest {
 
     @Test
     fun guestLikeSnackbarDoesNotDelayNavigationEvents() {
-        val repository = GuestHomeRepository()
+        val repository = GuestPostRepository()
         var openPhotoUploadCount = 0
         var navigateToBottomBarCount = 0
         val viewModel = HomeViewModel(
@@ -300,10 +300,10 @@ private fun photos(count: Int) = List(count) { index ->
     )
 }
 
-private class GuestHomeRepository : HomeRepository {
+private class GuestPostRepository : PostRepository {
     var likeRequestCount = 0
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
             topic = "바다",
@@ -325,11 +325,11 @@ private class GuestHomeRepository : HomeRepository {
     }
 }
 
-private class PageFailureHomeRepository : HomeRepository {
+private class PageFailurePostRepository : PostRepository {
     val pageResult = CompletableDeferred<HomeResult<PostPage>>()
     var pageRequestCount = 0
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
             topic = "바다",
