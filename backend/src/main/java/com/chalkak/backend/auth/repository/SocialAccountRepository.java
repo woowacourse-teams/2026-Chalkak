@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.repository;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface SocialAccountRepository {
 
@@ -11,4 +12,6 @@ public interface SocialAccountRepository {
             String subject);
 
     SocialAccount save(SocialAccount socialAccount);
+
+    void deleteByUserId(UUID userId);
 }

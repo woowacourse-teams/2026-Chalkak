@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -23,5 +24,10 @@ public class SocialAccountRepositoryImpl implements SocialAccountRepository {
     @Override
     public SocialAccount save(SocialAccount socialAccount) {
         return socialAccountJpaRepository.save(socialAccount);
+    }
+
+    @Override
+    public void deleteByUserId(UUID userId) {
+        socialAccountJpaRepository.deleteByUserId(userId);
     }
 }

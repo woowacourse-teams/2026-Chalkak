@@ -16,7 +16,6 @@ import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
@@ -26,6 +25,7 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.Optional;
@@ -53,6 +53,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private UserService userService;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -150,25 +153,47 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴 회원에 연결된 소셜 계정은 회원가입을 재요청할 수 없다")
-    void signup_withdrawnSocialAccount_throwsUnauthorizedException() {
+    @DisplayName("탈퇴 후 동일한 소셜 계정으로 회원가입하면 새로운 회원을 생성한다")
+    void signup_withdrawnSocialAccount_createsNewUser() {
         // Given
         UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
         User withdrawnUser = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 withdrawnUser,
                 SocialProvider.GOOGLE,
                 SUBJECT));
-        withdrawnUser.withdraw();
+        UUID withdrawnUserId = withdrawnUser.getId();
+        userService.withdraw(withdrawnUserId);
         entityManager.flush();
         entityManager.clear();
 
-        // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
-                .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("탈퇴한 회원은 회원가입할 수 없습니다.");
+        // When
+        UUID newUserId = socialSignupService.signup(SIGNUP_TOKEN);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        User oldUser = userRepository.findById(withdrawnUserId).orElseThrow();
+        User newUser = userRepository.findById(newUserId).orElseThrow();
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubject(SocialProvider.GOOGLE, SUBJECT)
+                .orElseThrow();
+
+        assertThat(newUserId).isNotEqualTo(withdrawnUserId);
+        assertThat(oldUser.isDeleted()).isTrue();
+        assertThat(oldUser.getEmail())
+                .isEqualTo("withdrawn+" + withdrawnUserId + "@chalkak.invalid");
+        assertThat(oldUser.getSignatureOriginalStorageKey())
+                .isEqualTo("withdrawn/" + withdrawnUserId);
+        assertThat(newUser.getEmail()).isEqualTo(EMAIL);
+        assertThat(socialAccount.getUser().getId()).isEqualTo(newUserId);
     }
 
     @Test

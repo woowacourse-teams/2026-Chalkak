@@ -1,18 +1,17 @@
 package com.chalkak.backend.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.willReturn;
 
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +34,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private UserService userService;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -85,8 +87,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴한 회원에 연결된 소셜 계정의 로그인은 거부한다")
-    void login_withdrawnUser_throwsUnauthorizedException() {
+    @DisplayName("탈퇴한 회원이 동일한 소셜 계정으로 로그인하면 회원가입 필요 상태를 반환한다")
+    void login_withdrawnUser_returnsSignUpRequired() {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
@@ -96,15 +98,17 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 user,
                 SocialProvider.GOOGLE,
                 SUBJECT));
-        user.withdraw();
+        userService.withdraw(user.getId());
         flushAndClear();
 
-        // When & Then
-        assertThatThrownBy(() -> socialLoginService.login(
+        // When
+        SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
-                .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("탈퇴한 회원은 로그인할 수 없습니다.");
+                ID_TOKEN);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        assertThat(result.userId()).isNull();
     }
 
     private VerifiedSocialIdentity identity() {

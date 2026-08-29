@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.service;
 
+import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final SocialAccountRepository socialAccountRepository;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
@@ -135,6 +137,7 @@ public class UserService {
     public void withdraw(UUID userId) {
         User user = getActiveUser(userId, "탈퇴할 회원을 찾을 수 없습니다.");
 
+        socialAccountRepository.deleteByUserId(userId);
         user.withdraw();
     }
 

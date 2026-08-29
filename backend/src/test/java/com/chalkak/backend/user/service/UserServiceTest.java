@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.SocialAccount;
+import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -43,6 +46,9 @@ class UserServiceTest extends IntegrationTestSupport {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private SocialAccountRepository socialAccountRepository;
+
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
 
@@ -72,6 +78,28 @@ class UserServiceTest extends IntegrationTestSupport {
                 .isEqualTo("withdrawn/" + id);
         assertThat(withdrawn.getSignatureThumbnailStorageKey()).isNull();
         assertThat(withdrawn.isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 연결된 소셜 계정이 삭제된다")
+    void withdraw_activeUser_deletesSocialAccount() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                "google-subject"));
+        flushAndClear();
+
+        // When
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // Then
+        assertThat(socialAccountRepository.findByProviderAndSubject(
+                SocialProvider.GOOGLE,
+                "google-subject"))
+                .isEmpty();
     }
 
     @Test
