@@ -32,6 +32,10 @@ sealed interface PostCreationFailure {
 
     data object PostCreationRejected : PostCreationFailure
 
+    data object AlreadySubmitted : PostCreationFailure
+
+    data object TopicNotOpen : PostCreationFailure
+
     data object InvalidResponse : PostCreationFailure
 
     companion object {

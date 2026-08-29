@@ -165,14 +165,17 @@ class PostRepositoryImpl(
 
         ApiError.InvalidResponse -> PostCreationFailure.InvalidResponse
 
-        is ApiError.Http -> if (statusCode == HTTP_UNAUTHORIZED) {
-            PostCreationFailure.ReauthenticationRequired
-        } else {
-            PostCreationFailure.PostCreationRejected
+        is ApiError.Http -> when {
+            statusCode == HTTP_UNAUTHORIZED -> PostCreationFailure.ReauthenticationRequired
+            message == ALREADY_SUBMITTED_MESSAGE -> PostCreationFailure.AlreadySubmitted
+            message == TOPIC_NOT_OPEN_MESSAGE -> PostCreationFailure.TopicNotOpen
+            else -> PostCreationFailure.PostCreationRejected
         }
     }
 
     private companion object {
+        const val ALREADY_SUBMITTED_MESSAGE = "이미 해당 주제에 게시물을 작성했습니다."
         const val HTTP_UNAUTHORIZED = 401
+        const val TOPIC_NOT_OPEN_MESSAGE = "현재 게시물을 작성할 수 없는 주제입니다."
     }
 }

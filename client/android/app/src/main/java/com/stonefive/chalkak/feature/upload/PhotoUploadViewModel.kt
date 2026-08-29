@@ -130,6 +130,8 @@ class PhotoUploadViewModel(
         PostCreationFailure.ImagePreparationFailed -> "사진을 준비하지 못했어요. 다시 시도해 주세요."
         PostCreationFailure.UploadRejected -> "사진을 업로드하지 못했어요. 다시 시도해 주세요."
         PostCreationFailure.PostCreationRejected -> "전시를 완료하지 못했어요. 다시 시도해 주세요."
+        PostCreationFailure.AlreadySubmitted -> "이미 이 주제에 전시한 사진이 있어요."
+        PostCreationFailure.TopicNotOpen -> "주제가 변경되어 전시할 수 없어요."
         PostCreationFailure.InvalidResponse -> GENERIC_ERROR_MESSAGE
         PostCreationFailure.ReauthenticationRequired -> error("Handled before message mapping")
     }
@@ -149,4 +151,4 @@ class PhotoUploadViewModel(
     }
 }
 
-private fun java.time.LocalDate.toSuccessDateLabel(): String = "%04d. %02d. %02d".format(year, monthValue, dayOfMonth)
+private fun LocalDate.toSuccessDateLabel(): String = "%04d. %02d. %02d".format(year, monthValue, dayOfMonth)

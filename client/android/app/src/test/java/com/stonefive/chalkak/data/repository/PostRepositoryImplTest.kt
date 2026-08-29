@@ -137,6 +137,38 @@ class PostRepositoryImplTest {
     }
 
     @Test
+    fun `이미 작성한 주제 응답은 중복 제출 실패로 매핑한다`() = runTest {
+        remote.createResult = ApiResult.Failure(
+            ApiError.Http(
+                statusCode = 400,
+                errorCode = "BUSINESS_ERROR",
+                message = "이미 해당 주제에 게시물을 작성했습니다.",
+            ),
+        )
+
+        assertEquals(
+            PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted),
+            repository.createPost("content://photo/1", "제목", requestedDate),
+        )
+    }
+
+    @Test
+    fun `닫힌 주제 응답은 참여 기간 종료 실패로 매핑한다`() = runTest {
+        remote.createResult = ApiResult.Failure(
+            ApiError.Http(
+                statusCode = 400,
+                errorCode = "BUSINESS_ERROR",
+                message = "현재 게시물을 작성할 수 없는 주제입니다.",
+            ),
+        )
+
+        assertEquals(
+            PostCreationResult.Failure(PostCreationFailure.TopicNotOpen),
+            repository.createPost("content://photo/1", "제목", requestedDate),
+        )
+    }
+
+    @Test
     fun `VALIDATING과 PENDING은 모두 생성 성공으로 처리한다`() = runTest {
         listOf("VALIDATING", "PENDING").forEach { status ->
             remote.createResult = ApiResult.Success(

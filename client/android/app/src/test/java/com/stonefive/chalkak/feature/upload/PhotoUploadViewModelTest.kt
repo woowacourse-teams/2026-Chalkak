@@ -142,6 +142,37 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `중복 제출 실패는 구체적인 메시지와 입력을 유지한다`() = runTest {
+        postRepository.result = PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted)
+        val image = "content://media/photo/1"
+        viewModel.onImageSelected(image)
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
+
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals("이미 이 주제에 전시한 사진이 있어요.", viewModel.uiState.value.errorMessage)
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals("제목", viewModel.uiState.value.caption)
+    }
+
+    @Test
+    fun `닫힌 주제 실패는 주제 변경 메시지와 입력을 유지한다`() = runTest {
+        postRepository.result = PostCreationResult.Failure(PostCreationFailure.TopicNotOpen)
+        val image = "content://media/photo/1"
+        viewModel.onImageSelected(image)
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
+
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(
+            "주제가 변경되어 전시할 수 없어요.",
+            viewModel.uiState.value.errorMessage,
+        )
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals("제목", viewModel.uiState.value.caption)
+    }
+
+    @Test
     fun `401은 재인증 effect를 보내고 입력은 유지한다`() = runTest {
         postRepository.result = PostCreationResult.Failure(
             PostCreationFailure.ReauthenticationRequired,
