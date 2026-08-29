@@ -26,6 +26,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,6 +70,18 @@ public class PostController implements PostApiDocs {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(PostCreateResponse.from(result));
+    }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(
+            @PathVariable String postId,
+            @OptionalLoginUser Optional<AuthenticatedUser> loginUser
+    ) {
+        UUID userId = requireUserId(loginUser);
+        UUID parsedPostId = CanonicalUuidParser.parse(postId);
+        postCommandService.deletePost(userId, parsedPostId);
+
+        return ResponseEntity.noContent().build();
     }
 
     @Override

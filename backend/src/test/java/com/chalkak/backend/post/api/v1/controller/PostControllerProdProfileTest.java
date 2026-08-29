@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -79,6 +80,19 @@ class PostControllerProdProfileTest {
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
         verify(postQueryService, never()).getPost(any(), any());
+    }
+
+    @Test
+    @DisplayName("운영 환경에서는 임시 인증 헤더로 게시물을 삭제할 수 없다")
+    void deletePost_prodProfile_rejectsTemporaryUserHeader() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/posts/{postId}", POST_ID)
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        verify(postCommandService, never()).deletePost(any(), any());
     }
 
     @Test
