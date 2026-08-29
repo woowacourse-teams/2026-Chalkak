@@ -67,7 +67,6 @@ fun PhotoUploadRoute(
     onSubmitted: (PhotoUploadSubmission) -> Unit,
     modifier: Modifier = Modifier,
     onReauthenticationRequired: () -> Unit = {},
-    signatureModel: String? = drawableResourceUrl(R.drawable.preview_signature),
     viewModel: PhotoUploadViewModel = viewModel(
         key = "photo-upload-$topicDate",
         factory = PhotoUploadViewModel.factory(topicDate),
@@ -102,7 +101,6 @@ fun PhotoUploadRoute(
 
     PhotoUploadScreen(
         uiState = uiState.copy(
-            signatureModel = signatureModel,
             isCameraAvailable = photoPickerState.isCameraAvailable,
         ),
         onAction = viewModel::onAction,
@@ -209,7 +207,6 @@ fun PhotoUploadScreen(
             ) {
                 PhotoUploadImageArea(
                     selectedImage = uiState.selectedImage,
-                    signatureModel = uiState.signatureModel,
                     isCameraAvailable = uiState.isCameraAvailable,
                     onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
                     onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
@@ -359,7 +356,6 @@ private fun PhotoUploadScreenSelectedPreview() {
         PhotoUploadScreen(
             uiState = PhotoUploadUiState(
                 selectedImage = drawableResourceUrl(R.drawable.preview_photo),
-                signatureModel = drawableResourceUrl(R.drawable.preview_signature),
                 caption = "전선 사이로 빠져나온 하늘",
             ),
             onAction = {},

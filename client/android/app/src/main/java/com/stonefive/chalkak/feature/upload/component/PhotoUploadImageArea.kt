@@ -25,14 +25,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
 fun PhotoUploadImageArea(
     selectedImage: String?,
-    signatureModel: String?,
     isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
@@ -63,17 +61,9 @@ fun PhotoUploadImageArea(
                     modifier = Modifier.padding(top = 5.dp),
                 )
             }
-        } else if (signatureModel == null) {
+        } else {
             ChalkakImage(
                 model = selectedImage,
-                contentDescription = "선택한 사진",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            ChalkakSignedImage(
-                imageModel = selectedImage,
-                signatureModel = signatureModel,
                 contentDescription = "선택한 사진",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -108,7 +98,6 @@ private fun PhotoUploadImageAreaEmptyPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
-            signatureModel = null,
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -121,7 +110,6 @@ private fun PhotoUploadImageAreaSelectedPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = drawableResourceUrl(R.drawable.preview_photo),
-            signatureModel = drawableResourceUrl(R.drawable.preview_signature),
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -134,7 +122,6 @@ private fun PhotoUploadImageAreaWithoutCameraPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
-            signatureModel = null,
             isCameraAvailable = false,
             onGalleryClick = {},
             onCameraClick = {},
