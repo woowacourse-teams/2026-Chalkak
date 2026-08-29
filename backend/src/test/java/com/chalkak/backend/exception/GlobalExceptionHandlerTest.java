@@ -3,6 +3,7 @@ package com.chalkak.backend.exception;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,8 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -108,6 +111,40 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("관리자 API에 접근할 수 없습니다."));
     }
 
+    @Test
+    void unsupportedHttpMethod() throws Exception {
+        mockMvc.perform(put("/test/business-error"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("지원하지 않는 요청 방식이거나 형식입니다."));
+    }
+
+    @Test
+    void unsupportedMediaType() throws Exception {
+        mockMvc.perform(post("/test/requests")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("이름"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("지원하지 않는 요청 방식이거나 형식입니다."));
+    }
+
+    @Test
+    void unexpectedException() throws Exception {
+        mockMvc.perform(get("/test/unexpected-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("서버에서 요청을 처리하지 못했습니다."));
+    }
+
+    @Test
+    void serverSideStandardException() throws Exception {
+        mockMvc.perform(get("/test/server-error-response"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("서버에서 요청을 처리하지 못했습니다."));
+    }
+
     @RestController
     @RequestMapping("/test")
     public static class TestController {
@@ -133,6 +170,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/forbidden-error")
         void forbiddenError() {
             throw new ForbiddenException(ErrorCode.FORBIDDEN, "관리자 API에 접근할 수 없습니다.");
+        }
+
+        @GetMapping("/unexpected-error")
+        void unexpectedError() {
+            throw new RuntimeException("예상치 못한 예외");
+        }
+
+        @GetMapping("/server-error-response")
+        void serverErrorResponse() {
+            throw new ErrorResponseException(HttpStatus.SERVICE_UNAVAILABLE);
         }
     }
 
