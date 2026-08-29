@@ -8,6 +8,7 @@ import com.chalkak.backend.admin.repository.AdminPostQueryPage;
 import com.chalkak.backend.admin.repository.AdminPostQueryRepository;
 import com.chalkak.backend.admin.repository.AdminPostQuerySort;
 import com.chalkak.backend.admin.repository.AdminPostSummaryProjection;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
@@ -97,6 +98,7 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
              AND moderationAudit.targetId = post.id
              AND moderationAudit.action IN :moderationActions
             WHERE post.id = :postId
+              AND post.moderationStatus <> :hiddenStatus
             """;
 
     private final EntityManager entityManager;
@@ -133,6 +135,7 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
     public Optional<AdminPostDetailProjection> findPostById(UUID postId) {
         return entityManager.createQuery(DETAIL_QUERY, AdminPostDetailProjection.class)
                 .setParameter("postId", postId)
+                .setParameter("hiddenStatus", ModerationStatus.VALIDATING)
                 .setParameter("postTargetType", AdminTargetType.POST)
                 .setParameter(
                         "moderationActions",
@@ -147,7 +150,8 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
             List<QueryParameter> parameters,
             AdminPostQueryCriteria criteria
     ) {
-        queryText.append(" WHERE 1 = 1");
+        queryText.append(" WHERE post.moderationStatus <> :hiddenStatus");
+        parameters.add(new QueryParameter("hiddenStatus", ModerationStatus.VALIDATING));
         appendFilter(
                 queryText,
                 parameters,

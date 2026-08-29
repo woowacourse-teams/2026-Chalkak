@@ -9,6 +9,8 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
@@ -110,6 +112,31 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("탈퇴한 회원은 로그인할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("차단된 회원에 연결된 소셜 계정의 로그인은 기존 금지 오류로 거부한다")
+    void login_bannedUser_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = UserFixture.create();
+        user.ban();
+        userRepository.save(user);
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialLoginService.login(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     @Test
