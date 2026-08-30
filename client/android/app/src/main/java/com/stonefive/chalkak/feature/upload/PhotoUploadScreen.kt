@@ -217,14 +217,15 @@ fun PhotoUploadScreen(
                 Spacer(modifier = Modifier.height(34.dp))
 
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp),
                 ) {
                     ChalkakTextField(
                         value = uiState.caption,
                         onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 22.dp)
                             .onFocusChanged { isCaptionFocused = it.isFocused }
                             .testTag(PHOTO_UPLOAD_CAPTION_TAG),
                         placeholder = "작품 제목은 선택이에요.",
@@ -235,15 +236,11 @@ fun PhotoUploadScreen(
                     )
 
                     uiState.errorMessage?.let { errorMessage ->
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = errorMessage,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = 22.dp,
-                                    top = 8.dp,
-                                    end = 22.dp,
-                                ),
+                                .fillMaxWidth(),
                             style = ChalkakTheme.typography.footnote,
                             color = ChalkakTheme.colors.error,
                         )
