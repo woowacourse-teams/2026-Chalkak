@@ -2,7 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -21,7 +21,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
-class PostRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : PostRepository {
+class PostRepositoryImpl(private val remoteDataSource: PostRemoteDataSource) : PostRepository {
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
         when (val result = remoteDataSource.getPostDetail(postId)) {
             is ApiResult.Success -> result.value.toDomain(postId)

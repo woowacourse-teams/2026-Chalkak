@@ -1,10 +1,9 @@
-package com.stonefive.chalkak.data.remote.home
+package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
-import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -28,9 +27,9 @@ import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
-class HomeRemoteDataSourceImplTest {
+class PostRemoteDataSourceImplTest {
     private lateinit var server: MockWebServer
-    private lateinit var dataSource: HomeRemoteDataSourceImpl
+    private lateinit var dataSource: PostRemoteDataSourceImpl
 
     @Before
     fun setUp() {
@@ -159,7 +158,7 @@ class HomeRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `인증된 Home 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
+    fun `인증된 게시물 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
@@ -279,7 +278,7 @@ class HomeRemoteDataSourceImplTest {
         assertEquals(ApiResult.Failure(ApiError.Network), result)
     }
 
-    private fun createDataSource(client: OkHttpClient = OkHttpClient()): HomeRemoteDataSourceImpl {
+    private fun createDataSource(client: OkHttpClient = OkHttpClient()): PostRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
         val retrofit = Retrofit
             .Builder()
@@ -287,7 +286,7 @@ class HomeRemoteDataSourceImplTest {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-        return HomeRemoteDataSourceImpl(
+        return PostRemoteDataSourceImpl(
             topicApi = retrofit.create(TopicApi::class.java),
             postApi = retrofit.create(PostApi::class.java),
             json = json,

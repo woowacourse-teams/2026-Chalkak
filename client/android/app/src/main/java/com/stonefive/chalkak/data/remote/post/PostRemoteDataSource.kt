@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.data.remote.home
+package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
@@ -8,7 +8,7 @@ import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import java.time.LocalDate
 
-interface HomeRemoteDataSource {
+interface PostRemoteDataSource {
     suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse>
 
     suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse>

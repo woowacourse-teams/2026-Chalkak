@@ -2,7 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -23,7 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PostRepositoryImplTest {
-    private val remoteDataSource = FakeHomeRemoteDataSource()
+    private val remoteDataSource = FakePostRemoteDataSource()
     private val repository = PostRepositoryImpl(remoteDataSource)
     private val query = HomeQuery(
         date = LocalDate.of(2026, 8, 28),
@@ -293,7 +293,7 @@ class PostRepositoryImplTest {
     }
 }
 
-private class FakeHomeRemoteDataSource : HomeRemoteDataSource {
+private class FakePostRemoteDataSource : PostRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
     var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
     var topicResult: ApiResult<TopicResponse> = ApiResult.Success(

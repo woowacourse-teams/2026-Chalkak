@@ -7,7 +7,7 @@ import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
-import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
@@ -61,7 +61,7 @@ class AppContainer(context: Context) {
 
     val postRepository: PostRepository by lazy {
         PostRepositoryImpl(
-            remoteDataSource = HomeRemoteDataSourceImpl(
+            remoteDataSource = PostRemoteDataSourceImpl(
                 topicApi = networkModule.topicApi,
                 postApi = networkModule.postApi,
                 json = networkModule.json,
