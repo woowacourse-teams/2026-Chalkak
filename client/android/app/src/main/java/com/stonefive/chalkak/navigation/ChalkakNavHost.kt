@@ -177,6 +177,14 @@ fun ChalkakNavHost(
             HomeRoute(
                 onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
                 onNavigateToBottomBar = navController::navigateToBottomBar,
+                onOpenFeed = { post, dateLabel, topic ->
+                    navController.navigate(
+                        post.toFeedRoute(
+                            dateLabel = dateLabel,
+                            topic = topic,
+                        ),
+                    )
+                },
                 selectionSignal = homeSelectionSignal,
             )
         }
@@ -192,11 +200,14 @@ fun ChalkakNavHost(
                     navController.navigate(
                         Feed(
                             postId = post.id,
-                            imageUrl = post.imageUrl,
-                            signatureUrl = post.signatureUrl,
+                            originalImageUrl = post.originalImageUrl,
+                            thumbnailImageUrl = post.thumbnailImageUrl,
+                            signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                            signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
                             contentDescription = post.contentDescription,
                             title = post.title,
                             likeCount = post.likeCount,
+                            isLiked = post.isLiked,
                             dateLabel = dateLabel,
                             topic = topic,
                             isOwnedByCurrentUser = post.isOwnedByCurrentUser,
@@ -210,16 +221,20 @@ fun ChalkakNavHost(
             val feed = backStackEntry.toRoute<Feed>()
 
             FeedRoute(
+                postId = feed.postId.takeIf { feed.fetchDetail },
                 initialContent = FeedContentState.Success(
                     dateLabel = feed.dateLabel,
                     topic = feed.topic,
                     post = Post(
                         id = feed.postId,
-                        imageUrl = feed.imageUrl,
-                        signatureUrl = feed.signatureUrl,
+                        originalImageUrl = feed.originalImageUrl,
+                        thumbnailImageUrl = feed.thumbnailImageUrl,
+                        signatureOriginalImageUrl = feed.signatureOriginalImageUrl,
+                        signatureThumbnailImageUrl = feed.signatureThumbnailImageUrl,
                         contentDescription = feed.contentDescription,
                         title = feed.title,
                         likeCount = feed.likeCount,
+                        isLiked = feed.isLiked,
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                     ),
                     isLiked = false,
@@ -335,19 +350,40 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
 private const val HOME_SELECTION_REQUEST_KEY = "home_selection_request"
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 
+private fun Post.toFeedRoute(
+    dateLabel: String,
+    topic: String,
+): Feed = Feed(
+    postId = id,
+    originalImageUrl = originalImageUrl,
+    thumbnailImageUrl = thumbnailImageUrl,
+    signatureOriginalImageUrl = signatureOriginalImageUrl,
+    signatureThumbnailImageUrl = signatureThumbnailImageUrl,
+    contentDescription = contentDescription,
+    title = title,
+    likeCount = likeCount,
+    isLiked = isLiked,
+    dateLabel = dateLabel,
+    topic = topic,
+    isOwnedByCurrentUser = isOwnedByCurrentUser,
+)
+
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
 }
 
 private fun RecordPhoto.toFeedRoute(): Feed = Feed(
     postId = "record-$date",
-    imageUrl = imageUrl,
-    signatureUrl = signatureUrl,
+    originalImageUrl = imageUrl,
+    thumbnailImageUrl = imageUrl,
+    signatureOriginalImageUrl = signatureUrl,
+    signatureThumbnailImageUrl = signatureUrl,
     contentDescription = contentDescription,
     title = title,
     likeCount = 0,
     dateLabel = "${date.monthValue}월 ${date.dayOfMonth}일의 주제",
     topic = title?.takeIf(String::isNotBlank) ?: "오늘의 기록",
+    fetchDetail = false,
 )
 
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {

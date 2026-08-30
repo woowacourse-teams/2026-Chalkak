@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -43,6 +44,38 @@ class DisplayScreenTest {
             .onNodeWithContentDescription("좋아요 17")
             .assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun emptyDisplayUsesHomeEmptyPhotoMessage() {
+        setDisplayContent(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = emptyList(),
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(DISPLAY_EMPTY_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText("아직 올라온 사진이 없어요").assertIsDisplayed()
+        composeRule.onNodeWithText("첫 번째 사진을 올려보세요").assertIsDisplayed()
+    }
+
+    @Test
+    fun emptyArchiveUsesArchiveEmptyPhotoMessage() {
+        setDisplayContent(
+            archiveUiState().copy(
+                content = DisplayContentState.Archive(
+                    photos = emptyList(),
+                    featuredPhotos = emptyList(),
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(DISPLAY_EMPTY_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText("이 날 올라온 사진이 없어요").assertIsDisplayed()
+        composeRule.onAllNodesWithText("첫 번째 사진을 올려보세요").assertCountEquals(0)
     }
 
     @Test
@@ -204,6 +237,7 @@ class DisplayScreenTest {
                         onSortSelected(sort)
                     },
                     onFeaturedPageChanged = {},
+                    onEndThresholdChanged = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
                     onOpenFeed = onOpenFeed,
@@ -216,8 +250,10 @@ class DisplayScreenTest {
 private val latestDate = LocalDate.of(2026, 8, 5)
 private val photo = Post(
     id = "photo",
-    imageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-    signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+    originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+    signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+    signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,

@@ -7,21 +7,17 @@ import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
-import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
-import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
-import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
-import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
-import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
+import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
-import com.stonefive.chalkak.domain.repository.DisplayRepository
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.RecordRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -68,9 +64,9 @@ class AppContainer(context: Context) {
         )
     }
 
-    val homeRepository: HomeRepository by lazy {
-        HomeRepositoryImpl(
-            remoteDataSource = HomeRemoteDataSourceImpl(
+    val postRepository: PostRepository by lazy {
+        PostRepositoryImpl(
+            remoteDataSource = PostRemoteDataSourceImpl(
                 topicApi = networkModule.topicApi,
                 postApi = networkModule.postApi,
                 json = networkModule.json,
@@ -78,21 +74,9 @@ class AppContainer(context: Context) {
         )
     }
 
-    val feedRepository: HomeRepository by lazy {
-        HomeRepositoryImpl(
-            remoteDataSource = MockHomeRemoteDataSource(),
-        )
-    }
-
     val recordRepository: RecordRepository by lazy {
         RecordRepositoryImpl(
             remoteDataSource = MockRecordRemoteDataSource(),
-        )
-    }
-
-    val displayRepository: DisplayRepository by lazy {
-        DisplayRepositoryImpl(
-            remoteDataSource = MockDisplayRemoteDataSource(),
         )
     }
 }

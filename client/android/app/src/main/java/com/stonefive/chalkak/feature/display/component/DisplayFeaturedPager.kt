@@ -76,6 +76,7 @@ fun DisplayFeaturedPager(
         Column(modifier = Modifier.width(containerWidth)) {
             HorizontalPager(
                 state = pagerState,
+                userScrollEnabled = photos.size > 1,
                 pageSize = PageSize.Fixed(pageWidth),
                 contentPadding = PaddingValues(horizontal = 32.dp),
                 pageSpacing = 5.dp,

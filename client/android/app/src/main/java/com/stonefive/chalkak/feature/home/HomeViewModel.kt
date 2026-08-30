@@ -15,7 +15,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.coroutines.CoroutineContext
@@ -34,7 +34,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
-    private val repository: HomeRepository,
+    private val repository: PostRepository,
     private val sessionState: StateFlow<UserSessionState>,
     private val dateProvider: () -> LocalDate,
     private val launchContext: CoroutineContext = EmptyCoroutineContext,
@@ -135,7 +135,7 @@ class HomeViewModel(
             awaitLikeMutations()
             if (generation != latestLoadGeneration) return@launch
 
-            val result = repository.getHome(
+            val result = repository.getPostContent(
                 HomeQuery(
                     date = requestedDate,
                     sort = requestedSort,
@@ -295,7 +295,10 @@ class HomeViewModel(
         _uiState.value = previousState.copy(
             photos = previousState.photos.map { photo ->
                 if (photo.id == photoId) {
-                    photo.copy(likeCount = photo.likeCount + if (isLiked) 1 else -1)
+                    photo.copy(
+                        likeCount = photo.likeCount + if (isLiked) 1 else -1,
+                        isLiked = isLiked,
+                    )
                 } else {
                     photo
                 }
@@ -325,7 +328,10 @@ class HomeViewModel(
                         state.copy(
                             photos = state.photos.map { photo ->
                                 if (photo.id == photoId) {
-                                    photo.copy(likeCount = result.value.likeCount)
+                                    photo.copy(
+                                        likeCount = result.value.likeCount,
+                                        isLiked = result.value.isLiked,
+                                    )
                                 } else {
                                     photo
                                 }
@@ -406,7 +412,7 @@ class HomeViewModel(
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 HomeViewModel(
-                    repository = application.appContainer.homeRepository,
+                    repository = application.appContainer.postRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     dateProvider = { LocalDate.now(KST) },
                 )

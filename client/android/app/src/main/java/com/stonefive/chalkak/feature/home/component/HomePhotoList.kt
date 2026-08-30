@@ -34,6 +34,7 @@ fun HomePhotoList(
     areLikesEnabled: Boolean,
     onLikeClick: (String) -> Unit,
     onEndThresholdChanged: (Boolean) -> Unit,
+    onPhotoClick: (Post) -> Unit = {},
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
     topContentPadding: Dp = 0.dp,
@@ -62,6 +63,7 @@ fun HomePhotoList(
                 isLiked = photo.id in likedPhotoIds,
                 isLikeEnabled = areLikesEnabled,
                 onLikeClick = { onLikeClick(photo.id) },
+                onPhotoClick = { onPhotoClick(photo) },
             )
         }
         if (isLoadingNext) {
@@ -97,16 +99,20 @@ private fun HomePhotoListPreview() {
             photos = listOf(
                 Post(
                     id = "preview-1",
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                    originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                    signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 찰캌입니다.",
                     likeCount = 24,
                 ),
                 Post(
                     id = "preview-2",
-                    imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                    originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                    thumbnailImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                    signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                    signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                     contentDescription = "두 번째 사진",
                     title = null,
                     likeCount = 12,
@@ -116,6 +122,7 @@ private fun HomePhotoListPreview() {
             isLoadingNext = true,
             areLikesEnabled = true,
             onLikeClick = {},
+            onPhotoClick = {},
             onEndThresholdChanged = {},
             modifier = Modifier
                 .fillMaxWidth()

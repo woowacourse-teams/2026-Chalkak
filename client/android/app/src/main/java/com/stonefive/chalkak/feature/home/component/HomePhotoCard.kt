@@ -41,6 +41,7 @@ fun HomePhotoCard(
     isLiked: Boolean,
     isLikeEnabled: Boolean,
     onLikeClick: () -> Unit,
+    onPhotoClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -53,13 +54,21 @@ fun HomePhotoCard(
             ).background(ChalkakWhite),
     ) {
         ChalkakSignedImage(
-            imageModel = photo.imageUrl,
-            signatureModel = photo.signatureUrl,
+            imageModel = photo.originalImageUrl,
+            signatureModel = photo.signatureOriginalImageUrl,
             contentDescription = photo.contentDescription,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(415.dp),
+                .height(415.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = photo.contentDescription
+                }.clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onPhotoClick,
+                ),
         )
         PhotoActionRow(
             photo = photo,
@@ -132,8 +141,10 @@ private fun HomePhotoCardPreview() {
         HomePhotoCard(
             photo = Post(
                 id = "preview",
-                imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 찰캌입니다.",
                 likeCount = 24,
@@ -141,6 +152,7 @@ private fun HomePhotoCardPreview() {
             isLiked = true,
             isLikeEnabled = true,
             onLikeClick = {},
+            onPhotoClick = {},
             modifier = Modifier.padding(16.dp),
         )
     }

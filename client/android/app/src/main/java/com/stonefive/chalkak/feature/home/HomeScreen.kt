@@ -45,6 +45,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
+import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
@@ -58,20 +59,19 @@ import com.stonefive.chalkak.feature.home.component.homeBottomDivider
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
-internal const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
-internal const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
-internal const val HOME_EMPTY_TITLE = "아직 올라온 사진이 없어요"
-internal const val HOME_EMPTY_DESCRIPTION = "첫 번째 사진을 올려보세요"
-internal const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
-internal const val HOME_LOADING_TEST_TAG = "home-loading"
-internal const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
-internal const val HOME_EMPTY_TEST_TAG = "home-empty"
-internal const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
+const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
+const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
+const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
+const val HOME_LOADING_TEST_TAG = "home-loading"
+const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
+const val HOME_EMPTY_TEST_TAG = "home-empty"
+const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 
 @Composable
 fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     selectionSignal: Int = 0,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
@@ -106,6 +106,7 @@ fun HomeRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
+        onOpenFeed = onOpenFeed,
         resetSignal = selectionSignal,
     )
 }
@@ -115,6 +116,7 @@ fun HomeScreen(
     uiState: HomeUiState,
     snackbarHostState: SnackbarHostState,
     onAction: (HomeUiAction) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
     resetSignal: Int = 0,
 ) {
@@ -155,6 +157,7 @@ fun HomeScreen(
                 HomeContentStatus.Content -> HomeContent(
                     uiState = uiState,
                     onAction = onAction,
+                    onOpenFeed = onOpenFeed,
                     resetSignal = resetSignal,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -215,6 +218,7 @@ private fun HomeInitialStatus(
 private fun HomeContent(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
+    onOpenFeed: (Post, String, String) -> Unit,
     resetSignal: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -274,30 +278,25 @@ private fun HomeContent(
                 isLoadingNext = uiState.isLoadingNext,
                 areLikesEnabled = uiState.areLikesEnabled,
                 onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
+                onPhotoClick = { post ->
+                    onOpenFeed(
+                        post,
+                        uiState.topicDate
+                            ?.let { "${it.monthValue}월 ${it.dayOfMonth}일의 주제" }
+                            .orEmpty(),
+                        uiState.topic,
+                    )
+                },
                 onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
                 modifier = Modifier.fillMaxSize(),
                 state = photoListState,
                 topContentPadding = photoListTopPadding,
             )
             if (uiState.photos.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .testTag(HOME_EMPTY_TEST_TAG),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = HOME_EMPTY_TITLE,
-                        color = ChalkakTheme.colors.textSecondary,
-                        style = ChalkakTheme.typography.body,
-                    )
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
-                    Text(
-                        text = HOME_EMPTY_DESCRIPTION,
-                        color = ChalkakTheme.colors.textMuted,
-                        style = ChalkakTheme.typography.subheadline,
-                    )
-                }
+                ChalkakEmptyPostContent(
+                    modifier = Modifier.align(Alignment.Center),
+                    testTag = HOME_EMPTY_TEST_TAG,
+                )
             }
         }
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -397,16 +396,20 @@ private fun HomeScreenPreview() {
                 photos = listOf(
                     Post(
                         id = "preview-1",
-                        imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,
                     ),
                     Post(
                         id = "preview-2",
-                        imageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                        signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        thumbnailImageUrl = drawableResourceUrl(R.drawable.preview_photo),
+                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
                         contentDescription = "두 번째 사진",
                         title = null,
                         likeCount = 12,
@@ -421,7 +424,7 @@ private fun HomeScreenPreview() {
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
-internal val HomeInitialError.message: String
+val HomeInitialError.message: String
     get() = when (this) {
         HomeInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
         HomeInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
