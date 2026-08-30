@@ -89,11 +89,6 @@ class AuthRepositoryImpl(
         sessionStore.clear()
     }
 
-    override suspend fun withdraw() {
-        pendingLogin = null
-        sessionStore.clear()
-    }
-
     private suspend fun handleLoginResponse(
         provider: SocialLoginProvider,
         idToken: String,

@@ -1,6 +1,19 @@
 package com.stonefive.chalkak.data.remote.post.model
 
+import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import kotlinx.serialization.Serializable
+
+@Serializable
+data class PostDetailResponse(
+    val id: String,
+    val topic: TopicResponse,
+    val originalImageUrl: String,
+    val thumbnailImageUrl: String,
+    val signatureOriginalImageUrl: String,
+    val title: String? = null,
+    val likeCount: Long,
+    val isLiked: Boolean,
+)
 
 @Serializable
 data class PostPageResponse(
@@ -19,6 +32,7 @@ data class PostResponse(
     val signatureOriginalImageUrl: String,
     val signatureThumbnailImageUrl: String,
     val title: String? = null,
+    val submittedAt: String? = null,
     val likeCount: Long,
     val isLiked: Boolean,
 )

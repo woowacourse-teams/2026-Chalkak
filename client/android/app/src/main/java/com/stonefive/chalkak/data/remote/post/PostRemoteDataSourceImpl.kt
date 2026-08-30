@@ -1,8 +1,8 @@
-package com.stonefive.chalkak.data.remote.home
+package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.post.PostApi
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
@@ -11,11 +11,15 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
 
-class HomeRemoteDataSourceImpl(
+class PostRemoteDataSourceImpl(
     private val topicApi: TopicApi,
     private val postApi: PostApi,
     private val requestExecutor: ApiRequestExecutor,
-) : HomeRemoteDataSource {
+) : PostRemoteDataSource {
+    override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = requestExecutor.execute {
+        postApi.getPost(postId)
+    }
+
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = requestExecutor.execute {
         topicApi.getTopic(date.toString())
     }

@@ -143,6 +143,4 @@ private class FakeLoginRepository : AuthRepository {
     }
 
     override suspend fun logout() = Unit
-
-    override suspend fun withdraw() = Unit
 }

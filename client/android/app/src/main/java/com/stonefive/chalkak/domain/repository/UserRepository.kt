@@ -7,4 +7,6 @@ interface UserRepository {
     suspend fun getMySignature(): UserProfile
 
     suspend fun updateMySignature(signaturePng: ByteArray): SignatureUpdateResult
+
+    suspend fun withdraw()
 }

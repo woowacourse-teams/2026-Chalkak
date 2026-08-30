@@ -10,8 +10,10 @@ class ChalkakRouteTest {
     fun `feed route preserves selected post context after serialization`() {
         val route = Feed(
             postId = "post-42",
-            imageUrl = "https://example.com/photo.jpg",
-            signatureUrl = "https://example.com/signature.png",
+            originalImageUrl = "https://example.com/photo.jpg",
+            thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
+            signatureOriginalImageUrl = "https://example.com/signature.png",
+            signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
             contentDescription = "sunset",
             title = null,
             likeCount = 24,

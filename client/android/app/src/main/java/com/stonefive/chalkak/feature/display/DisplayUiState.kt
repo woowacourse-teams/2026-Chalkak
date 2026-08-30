@@ -10,9 +10,14 @@ data class DisplayUiState(
     val earliestDate: LocalDate? = null,
     val topic: String = "",
     val content: DisplayContentState = DisplayContentState.Loading,
+    val likedPhotoIds: Set<String> = emptySet(),
+    val currentPage: Int = 0,
+    val hasNext: Boolean = false,
+    val randomSeed: String? = null,
+    val isLoadingNext: Boolean = false,
 ) {
     val canGoPrevious: Boolean
-        get() = selectedDate != null && earliestDate != null && selectedDate > earliestDate
+        get() = selectedDate != null && (earliestDate == null || selectedDate > earliestDate)
 
     val canGoNext: Boolean
         get() = selectedDate != null && latestDate != null && selectedDate < latestDate

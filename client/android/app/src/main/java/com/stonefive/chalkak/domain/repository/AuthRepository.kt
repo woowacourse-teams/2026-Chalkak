@@ -19,6 +19,4 @@ interface AuthRepository {
     suspend fun continueAsGuest()
 
     suspend fun logout()
-
-    suspend fun withdraw()
 }

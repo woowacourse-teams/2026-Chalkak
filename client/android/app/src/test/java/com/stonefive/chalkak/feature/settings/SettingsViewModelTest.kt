@@ -25,7 +25,7 @@ class SettingsViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val authRepository = FakeSettingsAuthRepository()
-    private val userRepository = FakeSettingsUserRepository()
+    private val userRepository = FakeSettingsUserRepository(authRepository::setSignedOut)
 
     @Test
     fun `프로필이 있으면 로그인 상태와 서명을 제공한다`() = runTest {
@@ -100,7 +100,7 @@ class SettingsViewModelTest {
         viewModel.showWithdrawDialog()
         viewModel.confirmAccountAction()
 
-        assertTrue(authRepository.withdrawCalled)
+        assertTrue(userRepository.withdrawCalled)
         assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
     }
 
@@ -116,7 +116,6 @@ private class FakeSettingsAuthRepository : AuthRepository {
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     var logoutCalled: Boolean = false
-    var withdrawCalled: Boolean = false
 
     fun setAuthenticated() {
         mutableSessionState.value = UserSessionState.Authenticated("user-id")
@@ -138,19 +137,19 @@ private class FakeSettingsAuthRepository : AuthRepository {
         mutableSessionState.value = UserSessionState.SignedOut
     }
 
-    override suspend fun withdraw() {
-        withdrawCalled = true
+    fun setSignedOut() {
         mutableSessionState.value = UserSessionState.SignedOut
     }
 }
 
-private class FakeSettingsUserRepository : UserRepository {
+private class FakeSettingsUserRepository(private val onWithdraw: () -> Unit) : UserRepository {
     var profile: UserProfile = UserProfile(
         signatureUrl = "signature-url",
         signatureThumbnailUrl = "signature-thumbnail-url",
     )
     var profileError: Throwable? = null
     var getMySignatureCalled: Int = 0
+    var withdrawCalled: Boolean = false
 
     override suspend fun getMySignature(): UserProfile {
         getMySignatureCalled += 1
@@ -159,4 +158,10 @@ private class FakeSettingsUserRepository : UserRepository {
     }
 
     override suspend fun updateMySignature(signaturePng: ByteArray): SignatureUpdateResult = error("Not used")
+
+    override suspend fun withdraw() {
+        withdrawCalled = true
+        profileError = null
+        onWithdraw()
+    }
 }
