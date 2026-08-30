@@ -53,28 +53,7 @@ class UserSessionStore(
                         throw error
                     }
                 }.collect { preferences ->
-                    val storedSession = preferences[encryptedAccessTokenKey]
-                        ?.let(accessTokenCipher::decrypt)
-                        ?.let { accessToken ->
-                            val userId = preferences[userIdKey]
-                            val expiresAt = preferences[expiresAtEpochSecondsKey]
-                            if (
-                                !userId.isNullOrBlank() &&
-                                accessToken.isNotBlank() &&
-                                expiresAt != null &&
-                                expiresAt > currentEpochSeconds()
-                            ) {
-                                LocalSession.Authenticated(
-                                    SessionCredentials(
-                                        userId = userId,
-                                        accessToken = accessToken,
-                                        expiresAtEpochSeconds = expiresAt,
-                                    ),
-                                )
-                            } else {
-                                null
-                            }
-                        }
+                    val storedSession = preferences.toStoredSession()
 
                     when {
                         storedSession != null -> publish(storedSession)
@@ -84,7 +63,7 @@ class UserSessionStore(
                         else -> {
                             publish(LocalSession.SignedOut)
                             if (preferences.containsStoredCredentials()) {
-                                scope.launch { clear() }
+                                scope.launch { clearInvalidStoredCredentials() }
                             }
                         }
                     }
@@ -143,6 +122,44 @@ class UserSessionStore(
             preferences.remove(isGuestKey)
         }
     }
+
+    private suspend fun clearInvalidStoredCredentials() {
+        sessionMutex.withLock {
+            var cleared = false
+            dataStore.edit { preferences ->
+                if (preferences.containsStoredCredentials() && preferences.toStoredSession() == null) {
+                    preferences.removeStoredCredentials()
+                    preferences.remove(isGuestKey)
+                    cleared = true
+                }
+            }
+            if (cleared) publish(LocalSession.SignedOut)
+        }
+    }
+
+    private fun androidx.datastore.preferences.core.Preferences.toStoredSession(): LocalSession.Authenticated? =
+        this[encryptedAccessTokenKey]
+            ?.let(accessTokenCipher::decrypt)
+            ?.let { accessToken ->
+                val userId = this[userIdKey]
+                val expiresAt = this[expiresAtEpochSecondsKey]
+                if (
+                    !userId.isNullOrBlank() &&
+                    accessToken.isNotBlank() &&
+                    expiresAt != null &&
+                    expiresAt > currentEpochSeconds()
+                ) {
+                    LocalSession.Authenticated(
+                        SessionCredentials(
+                            userId = userId,
+                            accessToken = accessToken,
+                            expiresAtEpochSeconds = expiresAt,
+                        ),
+                    )
+                } else {
+                    null
+                }
+            }
 
     private fun publish(session: LocalSession) {
         mutableSession.value = session
