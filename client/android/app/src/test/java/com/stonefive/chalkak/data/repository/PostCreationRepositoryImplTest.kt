@@ -14,9 +14,9 @@ import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
-import com.stonefive.chalkak.domain.model.PostCreationTopic
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
+import com.stonefive.chalkak.domain.model.Topic
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -36,7 +36,7 @@ class PostCreationRepositoryImplTest {
     private val encoder = FakePostImageEncoder(events)
     private val uploader = FakePostImageUploader(events)
     private val requestedDate = LocalDate.of(2026, 8, 29)
-    private val topic = PostCreationTopic("topic-id", "바다", requestedDate)
+    private val topic = Topic("topic-id", "바다", requestedDate)
     private val repository = PostCreationRepositoryImpl(
         remoteDataSource = remote,
         topicRemoteDataSource = topicRemote,

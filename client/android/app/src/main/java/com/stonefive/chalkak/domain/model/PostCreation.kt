@@ -1,21 +1,13 @@
 package com.stonefive.chalkak.domain.model
 
-import java.time.LocalDate
-
 data class PostCreation(
     val postId: String,
-    val topic: PostCreationTopic,
+    val topic: Topic,
     val moderationStatus: PostModerationStatus,
 )
 
-data class PostCreationTopic(
-    val id: String,
-    val title: String,
-    val date: LocalDate,
-)
-
 sealed interface PostCreationTopicResult {
-    data class Success(val value: PostCreationTopic) : PostCreationTopicResult
+    data class Success(val value: Topic) : PostCreationTopicResult
 
     data class Failure(val reason: PostCreationFailure) : PostCreationTopicResult
 }

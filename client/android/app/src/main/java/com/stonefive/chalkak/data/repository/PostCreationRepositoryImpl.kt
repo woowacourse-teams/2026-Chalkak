@@ -12,9 +12,9 @@ import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
-import com.stonefive.chalkak.domain.model.PostCreationTopic
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
+import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate
@@ -37,7 +37,7 @@ class PostCreationRepositoryImpl(
             return PostCreationTopicResult.Failure(PostCreationFailure.InvalidResponse)
         }
         return PostCreationTopicResult.Success(
-            PostCreationTopic(
+            Topic(
                 id = topic.id,
                 title = topic.title,
                 date = responseDate,
@@ -48,7 +48,7 @@ class PostCreationRepositoryImpl(
     override suspend fun createPost(
         imageUri: String,
         title: String?,
-        topic: PostCreationTopic,
+        topic: Topic,
     ): PostCreationResult {
         if (topic.id.isBlank() || topic.title.isBlank()) {
             return PostCreationResult.Failure(PostCreationFailure.InvalidResponse)

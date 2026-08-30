@@ -4,9 +4,9 @@ import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
-import com.stonefive.chalkak.domain.model.PostCreationTopic
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
+import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -64,7 +64,7 @@ class PhotoUploadViewModelTest {
         postCreationRepository.result = PostCreationResult.Success(
             PostCreation(
                 postId = "post-id",
-                topic = PostCreationTopic(
+                topic = Topic(
                     id = "topic-id",
                     title = "바다",
                     date = LocalDate.of(2026, 8, 29),
@@ -98,7 +98,7 @@ class PhotoUploadViewModelTest {
         postCreationRepository.result = PostCreationResult.Success(
             PostCreation(
                 postId = "post-id",
-                topic = PostCreationTopic(
+                topic = Topic(
                     id = "topic-id",
                     title = "바다",
                     date = uploadTopicDate,
@@ -163,7 +163,7 @@ class PhotoUploadViewModelTest {
             result = PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
-                    topic = PostCreationTopic(
+                    topic = Topic(
                         id = "topic-id",
                         title = "바다",
                         date = uploadTopicDate,
@@ -189,7 +189,7 @@ class PhotoUploadViewModelTest {
             PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
-                    topic = PostCreationTopic(
+                    topic = Topic(
                         id = "topic-id",
                         title = "바다",
                         date = LocalDate.of(2026, 8, 29),
@@ -273,7 +273,7 @@ class PhotoUploadViewModelTest {
 }
 
 private class FakePostCreationRepository : PostCreationRepository {
-    val defaultTopic = PostCreationTopic(
+    val defaultTopic = Topic(
         id = "topic-id",
         title = "바다",
         date = LocalDate.of(2026, 8, 29),
@@ -287,7 +287,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     var await: CompletableDeferred<Unit>? = null
     var callCount = 0
     val requestedTopicDates = mutableListOf<LocalDate>()
-    val requestedTopics = mutableListOf<PostCreationTopic>()
+    val requestedTopics = mutableListOf<Topic>()
 
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
         requestedTopicDates += topicDate
@@ -297,7 +297,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     override suspend fun createPost(
         imageUri: String,
         title: String?,
-        topic: PostCreationTopic,
+        topic: Topic,
     ): PostCreationResult {
         callCount++
         requestedTopics += topic
