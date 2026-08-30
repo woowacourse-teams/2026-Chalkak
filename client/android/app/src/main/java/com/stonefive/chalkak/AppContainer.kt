@@ -8,10 +8,11 @@ import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
+import com.stonefive.chalkak.data.remote.post.OkHttpPostImageUploader
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
-import com.stonefive.chalkak.data.remote.signature.OkHttpPresignedImageUploader
+import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
@@ -35,7 +36,10 @@ class AppContainer(context: Context) {
         baseUrl = BuildConfig.API_BASE_URL,
         sessionStore = sessionStore,
     )
-    private val presignedImageUploader = OkHttpPresignedImageUploader(
+    private val signatureUploader = OkHttpSignatureUploader(
+        networkModule.presignedUploadClient,
+    )
+    private val postImageUploader = OkHttpPostImageUploader(
         networkModule.presignedUploadClient,
     )
     private val userDataSource: UserDataSource by lazy {
@@ -58,7 +62,7 @@ class AppContainer(context: Context) {
                 networkModule.authApi,
                 networkModule.apiRequestExecutor,
             ),
-            signatureUploader = presignedImageUploader,
+            signatureUploader = signatureUploader,
             sessionStore = sessionStore,
         )
     }
@@ -66,7 +70,7 @@ class AppContainer(context: Context) {
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(
             userDataSource = userDataSource,
-            signatureUploader = presignedImageUploader,
+            signatureUploader = signatureUploader,
             sessionStore = sessionStore,
         )
     }
@@ -82,7 +86,7 @@ class AppContainer(context: Context) {
                 contentResolver = context.contentResolver,
                 cacheDir = context.cacheDir,
             ),
-            imageUploader = presignedImageUploader,
+            imageUploader = postImageUploader,
         )
     }
 

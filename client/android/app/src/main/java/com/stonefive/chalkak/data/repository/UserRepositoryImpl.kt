@@ -3,9 +3,8 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
-import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
-import com.stonefive.chalkak.data.remote.signature.UploadContent
+import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
+import com.stonefive.chalkak.data.remote.signature.SignatureUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.domain.model.AccountWithdrawalException
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
@@ -17,7 +16,7 @@ import com.stonefive.chalkak.domain.repository.UserRepository
 
 class UserRepositoryImpl(
     private val userDataSource: UserDataSource,
-    private val signatureUploader: PresignedImageUploader,
+    private val signatureUploader: SignatureUploader,
     private val sessionStore: SessionStore,
 ) : UserRepository {
     override suspend fun getMySignature(): UserProfile = when (
@@ -44,21 +43,20 @@ class UserRepositoryImpl(
         when (
             signatureUploader.upload(
                 uploadUrl = upload.uploadUrl,
-                contentType = SIGNATURE_CONTENT_TYPE,
-                content = UploadContent.Bytes(signaturePng),
+                signaturePng = signaturePng,
             )
         ) {
-            PresignedUploadResult.Success -> Unit
+            SignatureUploadResult.Success -> Unit
 
-            PresignedUploadResult.NetworkFailure -> {
+            SignatureUploadResult.NetworkFailure -> {
                 return SignatureUpdateResult.Failure(SignatureUpdateFailure.NETWORK_UNAVAILABLE)
             }
 
-            PresignedUploadResult.InvalidUploadUrl -> {
+            SignatureUploadResult.InvalidUploadUrl -> {
                 return SignatureUpdateResult.Failure(SignatureUpdateFailure.UNKNOWN)
             }
 
-            PresignedUploadResult.Rejected -> {
+            SignatureUploadResult.Rejected -> {
                 return SignatureUpdateResult.Failure(SignatureUpdateFailure.INVALID_SIGNATURE)
             }
         }
@@ -112,6 +110,5 @@ class UserRepositoryImpl(
 
     private companion object {
         const val MAX_SIGNATURE_BYTES = 1024 * 1024
-        const val SIGNATURE_CONTENT_TYPE = "image/png"
     }
 }

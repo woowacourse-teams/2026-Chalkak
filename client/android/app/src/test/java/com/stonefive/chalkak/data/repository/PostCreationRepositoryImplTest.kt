@@ -5,11 +5,10 @@ import com.stonefive.chalkak.data.post.PostImageEncoder
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
+import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
-import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
-import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
-import com.stonefive.chalkak.data.remote.signature.UploadContent
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
@@ -115,7 +114,7 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `PUT 실패 시 게시물 생성을 호출하지 않고 임시 파일을 삭제한다`() = runTest {
-        uploader.result = PresignedUploadResult.Rejected
+        uploader.result = PostImageUploadResult.Rejected
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
@@ -305,20 +304,20 @@ private class FakePostImageEncoder(private val events: MutableList<String>) : Po
     }
 }
 
-private class FakePostImageUploader(private val events: MutableList<String>) : PresignedImageUploader {
+private class FakePostImageUploader(private val events: MutableList<String>) : PostImageUploader {
     val calls = mutableListOf<String>()
-    var result: PresignedUploadResult = PresignedUploadResult.Success
+    var result: PostImageUploadResult = PostImageUploadResult.Success
     var uploadedBytes: ByteArray = byteArrayOf()
     var await: CompletableDeferred<Unit>? = null
 
     override suspend fun upload(
         uploadUrl: String,
         contentType: String,
-        content: UploadContent,
-    ): PresignedUploadResult {
+        imageFile: File,
+    ): PostImageUploadResult {
         calls += "put:$contentType"
         events += "put:$contentType"
-        uploadedBytes = (content as UploadContent.FileContent).file.readBytes()
+        uploadedBytes = imageFile.readBytes()
         await?.await()
         return result
     }

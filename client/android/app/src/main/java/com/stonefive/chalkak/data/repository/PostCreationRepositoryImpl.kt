@@ -5,10 +5,9 @@ import com.stonefive.chalkak.data.post.PostImageEncoder
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
+import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
-import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
-import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
-import com.stonefive.chalkak.data.remote.signature.UploadContent
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -21,7 +20,7 @@ import okhttp3.MediaType.Companion.toMediaType
 class PostCreationRepositoryImpl(
     private val remoteDataSource: PostCreationRemoteDataSource,
     private val imageEncoder: PostImageEncoder,
-    private val imageUploader: PresignedImageUploader,
+    private val imageUploader: PostImageUploader,
 ) : PostCreationRepository {
     override suspend fun createPost(
         imageUri: String,
@@ -67,20 +66,20 @@ class PostCreationRepositoryImpl(
                 imageUploader.upload(
                     uploadUrl = upload.uploadUrl,
                     contentType = upload.contentType,
-                    content = UploadContent.FileContent(file),
+                    imageFile = file,
                 )
             ) {
-                PresignedUploadResult.Success -> Unit
+                PostImageUploadResult.Success -> Unit
 
-                PresignedUploadResult.NetworkFailure -> {
+                PostImageUploadResult.NetworkFailure -> {
                     return PostCreationResult.Failure(PostCreationFailure.NetworkUnavailable)
                 }
 
-                PresignedUploadResult.InvalidUploadUrl -> {
+                PostImageUploadResult.InvalidUploadRequest -> {
                     return PostCreationResult.Failure(PostCreationFailure.UploadRejected)
                 }
 
-                PresignedUploadResult.Rejected -> {
+                PostImageUploadResult.Rejected -> {
                     return PostCreationResult.Failure(PostCreationFailure.UploadRejected)
                 }
             }
