@@ -95,7 +95,7 @@ class AppContainer(context: Context) {
             remoteDataSource = PostRemoteDataSourceImpl(
                 topicApi = networkModule.topicApi,
                 postApi = networkModule.postApi,
-                json = networkModule.json,
+                requestExecutor = networkModule.apiRequestExecutor,
             ),
         )
     }
