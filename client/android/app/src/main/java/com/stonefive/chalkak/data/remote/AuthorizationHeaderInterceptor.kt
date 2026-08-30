@@ -11,9 +11,18 @@ class AuthorizationHeaderInterceptor(
     private val currentEpochSeconds: () -> Long = { Instant.now().epochSecond },
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
+        val originalRequest = chain.request()
+        if (!originalRequest.url.isHttps) {
+            return chain.proceed(
+                originalRequest
+                    .newBuilder()
+                    .removeHeader(AUTHORIZATION_HEADER)
+                    .build(),
+            )
+        }
+
         val credentials = (sessionStore.session.value as? LocalSession.Authenticated)?.credentials
-        val request = chain
-            .request()
+        val request = originalRequest
             .newBuilder()
             .apply {
                 if (credentials != null) {

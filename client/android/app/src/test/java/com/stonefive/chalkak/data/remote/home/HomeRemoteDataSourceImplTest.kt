@@ -6,7 +6,7 @@ import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.AuthorizationHeaderInterceptor
+import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -161,9 +162,8 @@ class HomeRemoteDataSourceImplTest {
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
-                .addInterceptor(
-                    AuthorizationHeaderInterceptor(sessionStore),
-                ).build(),
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
+                .build(),
             sessionStore = sessionStore,
         )
         server.enqueue(jsonResponse(POSTS_BODY))
@@ -190,7 +190,7 @@ class HomeRemoteDataSourceImplTest {
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
-                .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
                 .build(),
             sessionStore = sessionStore,
         )
@@ -222,7 +222,7 @@ class HomeRemoteDataSourceImplTest {
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
-                .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
+                .addInterceptor(testAuthorizationInterceptor("old-access-token"))
                 .addInterceptor { chain ->
                     val response = chain.proceed(chain.request())
                     runBlocking { sessionStore.saveSession(newCredentials) }
@@ -371,6 +371,18 @@ class HomeRemoteDataSourceImplTest {
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
     }
+}
+
+private fun testAuthorizationInterceptor(accessToken: String) = Interceptor { chain ->
+    val request = chain
+        .request()
+        .newBuilder()
+        .header("Authorization", "Bearer $accessToken")
+        .tag(
+            AuthorizationRequestContext::class.java,
+            AuthorizationRequestContext(accessToken),
+        ).build()
+    chain.proceed(request)
 }
 
 private class TestSessionStore(

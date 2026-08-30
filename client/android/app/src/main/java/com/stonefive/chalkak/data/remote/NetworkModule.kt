@@ -7,6 +7,8 @@ import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.data.remote.user.UserApi
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -29,7 +31,7 @@ class NetworkModule(
 
     private val retrofit = Retrofit
         .Builder()
-        .baseUrl(baseUrl)
+        .baseUrl(baseUrl.toHttpsBaseUrl())
         .client(backendClient)
         .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
         .build()
@@ -59,4 +61,8 @@ class NetworkModule(
     private companion object {
         val JSON_MEDIA_TYPE = "application/json".toMediaType()
     }
+}
+
+internal fun String.toHttpsBaseUrl(): HttpUrl = toHttpUrl().also { url ->
+    require(url.isHttps) { "API base URL must use HTTPS: $url" }
 }

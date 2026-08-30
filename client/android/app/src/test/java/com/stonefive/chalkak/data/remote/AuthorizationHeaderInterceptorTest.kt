@@ -7,7 +7,10 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -34,9 +37,39 @@ class AuthorizationHeaderInterceptorTest {
     @Test
     fun `저장된 access token을 백엔드 요청 Authorization 헤더에 추가한다`() {
         val store = HeaderTestSessionStore(token = "access-token")
+        lateinit var interceptedRequest: Request
         val client = OkHttpClient
             .Builder()
             .addInterceptor(AuthorizationHeaderInterceptor(store))
+            .addInterceptor { chain ->
+                interceptedRequest = chain.request()
+                Response
+                    .Builder()
+                    .request(interceptedRequest)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("".toResponseBody())
+                    .build()
+            }.build()
+
+        client
+            .newCall(
+                Request
+                    .Builder()
+                    .url("https://example.com/")
+                    .build(),
+            ).execute()
+            .close()
+
+        assertEquals("Bearer access-token", interceptedRequest.header("Authorization"))
+    }
+
+    @Test
+    fun `HTTP 요청에는 기존 Authorization 헤더도 전송하지 않는다`() {
+        val client = OkHttpClient
+            .Builder()
+            .addInterceptor(AuthorizationHeaderInterceptor(HeaderTestSessionStore(token = "access-token")))
             .build()
 
         client
@@ -44,11 +77,12 @@ class AuthorizationHeaderInterceptorTest {
                 Request
                     .Builder()
                     .url(server.url("/"))
+                    .header("Authorization", "Bearer existing-token")
                     .build(),
             ).execute()
             .close()
 
-        assertEquals("Bearer access-token", server.takeRequest().headers["Authorization"])
+        assertNull(server.takeRequest().headers["Authorization"])
     }
 
     @Test
