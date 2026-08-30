@@ -13,12 +13,17 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val SuccessCardDateFormatter = DateTimeFormatter.ofPattern("yyyy. MM. dd", Locale.KOREAN)
 
 @Composable
 fun PhotoUploadSuccessCard(
     imageModel: Any?,
     contentDescription: String?,
-    dateLabel: String,
+    date: LocalDate,
     title: String,
     modifier: Modifier = Modifier,
 ) {
@@ -51,7 +56,7 @@ fun PhotoUploadSuccessCard(
                 ),
             ) {
                 Text(
-                    text = dateLabel,
+                    text = date.format(SuccessCardDateFormatter),
                     style = ChalkakTheme.typography.caption,
                     color = ChalkakTheme.colors.textMuted,
                 )
@@ -73,7 +78,7 @@ private fun PhotoUploadSuccessCardPreview() {
         PhotoUploadSuccessCard(
             imageModel = R.drawable.preview_photo,
             contentDescription = "바다 위 다리",
-            dateLabel = "2025. 07. 18",
+            date = LocalDate.of(2025, 7, 18),
             title = "다리 - 한낮의 다리",
             modifier = Modifier.padding(ChalkakTheme.spacing.screenHorizontal),
         )

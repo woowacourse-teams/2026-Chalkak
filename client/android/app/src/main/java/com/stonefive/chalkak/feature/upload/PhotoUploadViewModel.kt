@@ -161,7 +161,7 @@ class PhotoUploadViewModel(
     }
 
     private fun com.stonefive.chalkak.domain.model.PostCreation.toSuccessContent() = PhotoUploadSuccessContent(
-        dateLabel = topic.date.toSuccessDateLabel(),
+        date = topic.date,
         topic = topic.title,
         moderationStatus = moderationStatus.name,
     )
@@ -191,5 +191,3 @@ class PhotoUploadViewModel(
         private const val GENERIC_ERROR_MESSAGE = "전시를 완료하지 못했어요. 다시 시도해 주세요."
     }
 }
-
-private fun LocalDate.toSuccessDateLabel(): String = "%04d. %02d. %02d".format(year, monthValue, dayOfMonth)

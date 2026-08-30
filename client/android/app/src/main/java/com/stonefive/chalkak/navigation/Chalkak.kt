@@ -56,7 +56,7 @@ data class PhotoUpload(val topicDate: String)
 data class PhotoUploadSuccess(
     val imageModel: String,
     val caption: String,
-    val dateLabel: String,
+    val date: String,
     val topic: String,
     val moderationStatus: String,
 )

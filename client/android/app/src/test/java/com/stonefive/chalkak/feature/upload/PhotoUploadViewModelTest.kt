@@ -83,7 +83,7 @@ class PhotoUploadViewModelTest {
                 imageModel = image,
                 caption = "한낮의 다리",
                 content = PhotoUploadSuccessContent(
-                    dateLabel = "2026. 08. 29",
+                    date = LocalDate.of(2026, 8, 29),
                     topic = "바다",
                     moderationStatus = "PENDING",
                 ),

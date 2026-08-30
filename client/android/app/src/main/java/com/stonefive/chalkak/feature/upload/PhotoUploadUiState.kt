@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.runtime.Immutable
+import java.time.LocalDate
 
 @Immutable
 data class PhotoUploadUiState(
@@ -19,7 +20,7 @@ data class PhotoUploadUiState(
 
 @Immutable
 data class PhotoUploadSuccessContent(
-    val dateLabel: String,
+    val date: LocalDate,
     val topic: String,
     val moderationStatus: String,
 )

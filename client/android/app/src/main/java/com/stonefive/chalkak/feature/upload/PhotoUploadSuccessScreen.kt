@@ -23,6 +23,7 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadSuccessCard
+import java.time.LocalDate
 
 @Composable
 fun PhotoUploadSuccessScreen(
@@ -61,7 +62,7 @@ fun PhotoUploadSuccessScreen(
             PhotoUploadSuccessCard(
                 imageModel = imageModel,
                 contentDescription = "전시한 사진",
-                dateLabel = content.dateLabel,
+                date = content.date,
                 title = caption.takeIf(String::isNotBlank) ?: content.topic,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -100,7 +101,7 @@ private fun PhotoUploadSuccessScreenPreview() {
             imageModel = R.drawable.preview_photo,
             caption = "한낮의 다리",
             content = PhotoUploadSuccessContent(
-                dateLabel = "2026. 08. 29",
+                date = LocalDate.of(2026, 8, 29),
                 topic = "다리",
                 moderationStatus = "VALIDATING",
             ),

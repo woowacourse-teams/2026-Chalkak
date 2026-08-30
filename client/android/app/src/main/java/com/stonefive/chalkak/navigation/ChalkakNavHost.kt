@@ -300,7 +300,8 @@ fun ChalkakNavHost(
                         PhotoUploadSuccess(
                             imageModel = submission.imageModel,
                             caption = submission.caption,
-                            dateLabel = submission.content.dateLabel,
+                            date = submission.content.date
+                                .toString(),
                             topic = submission.content.topic,
                             moderationStatus = submission.content.moderationStatus,
                         ),
@@ -316,7 +317,7 @@ fun ChalkakNavHost(
                 imageModel = success.imageModel,
                 caption = success.caption,
                 content = PhotoUploadSuccessContent(
-                    dateLabel = success.dateLabel,
+                    date = LocalDate.parse(success.date),
                     topic = success.topic,
                     moderationStatus = success.moderationStatus,
                 ),
