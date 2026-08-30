@@ -223,11 +223,11 @@ class UserDataSourceImplTest {
     }
 
     @Test
-    fun `회원탈퇴 오류 body가 없으면 invalid response로 반환한다`() = runTest {
+    fun `회원탈퇴 오류 body가 없어도 HTTP 상태를 보존한다`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
 
         val result = dataSource.deleteMyAccount()
 
-        assertEquals(ApiResult.Failure(ApiError.InvalidResponse), result)
+        assertEquals(ApiResult.Failure(ApiError.Http(statusCode = 404, errorCode = null)), result)
     }
 }

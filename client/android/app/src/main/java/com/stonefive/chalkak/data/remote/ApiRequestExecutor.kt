@@ -51,12 +51,11 @@ class ApiRequestExecutor(
             .errorBody()
             ?.string()
             ?.let(::decodeError)
-            ?: return ApiResult.Failure(ApiError.InvalidResponse)
         return ApiResult.Failure(
             ApiError.Http(
                 statusCode = response.code(),
-                errorCode = errorResponse.errorCode,
-                message = errorResponse.message,
+                errorCode = errorResponse?.errorCode,
+                message = errorResponse?.message,
             ),
         )
     }

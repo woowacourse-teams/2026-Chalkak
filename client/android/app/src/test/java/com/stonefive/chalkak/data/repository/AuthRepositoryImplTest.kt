@@ -94,7 +94,7 @@ class AuthRepositoryImplTest {
             SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
         )
         authDataSource.signUpResults += ApiResult.Failure(
-            ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING", "사인 이미지를 처리하고 있습니다."),
+            ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
         )
         authDataSource.signUpResults += ApiResult.Success(
             SocialSignUpResponse("new-user-id", "access-token", 604_800),
@@ -141,7 +141,7 @@ class AuthRepositoryImplTest {
         )
         repeat(10) {
             authDataSource.signUpResults += ApiResult.Failure(
-                ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING", "사인 이미지를 처리하고 있습니다."),
+                ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
             )
         }
 

@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
+import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -201,7 +202,7 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `HTTP 오류 body가 명세와 다르면 invalid response다`() = runTest {
+    fun `HTTP 오류 body가 명세와 달라도 상태를 보존한다`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(400)
@@ -210,7 +211,7 @@ class PostRemoteDataSourceImplTest {
         )
 
         assertEquals(
-            ApiResult.Failure(ApiError.InvalidResponse),
+            ApiResult.Failure(ApiError.Http(400, null)),
             dataSource.getTopic(LocalDate.of(2026, 8, 28)),
         )
     }
@@ -304,7 +305,7 @@ class PostRemoteDataSourceImplTest {
         return PostRemoteDataSourceImpl(
             topicApi = retrofit.create(TopicApi::class.java),
             postApi = retrofit.create(PostApi::class.java),
-            json = json,
+            requestExecutor = ApiRequestExecutor(json, onUnauthorized = {}),
         )
     }
 

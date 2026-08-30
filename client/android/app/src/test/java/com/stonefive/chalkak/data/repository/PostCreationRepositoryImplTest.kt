@@ -93,9 +93,7 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `업로드 정책 실패 시 인코더와 PUT을 호출하지 않는다`() = runTest {
-        remote.uploadPolicyResult = ApiResult.Failure(
-            ApiError.Http(400, "BUSINESS_ERROR", "잘못된 요청입니다."),
-        )
+        remote.uploadPolicyResult = ApiResult.Failure(ApiError.Http(400, "BUSINESS_ERROR"))
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
@@ -134,9 +132,7 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `게시물 생성 401은 재인증 실패로 매핑하고 파일을 삭제한다`() = runTest {
-        remote.createResult = ApiResult.Failure(
-            ApiError.Http(401, "UNAUTHORIZED", "유효하지 않은 인증 정보입니다."),
-        )
+        remote.createResult = ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED"))
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ReauthenticationRequired),
