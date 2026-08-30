@@ -22,7 +22,6 @@ class OkHttpPostImageUploader(private val client: OkHttpClient) : PostImageUploa
                 .Builder()
                 .url(uploadUrl)
                 .put(imageFile.asRequestBody(mediaType))
-                .header(CONTENT_TYPE_HEADER, contentType)
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -39,9 +38,5 @@ class OkHttpPostImageUploader(private val client: OkHttpClient) : PostImageUploa
         } catch (_: IOException) {
             PostImageUploadResult.NetworkFailure
         }
-    }
-
-    private companion object {
-        const val CONTENT_TYPE_HEADER = "Content-Type"
     }
 }

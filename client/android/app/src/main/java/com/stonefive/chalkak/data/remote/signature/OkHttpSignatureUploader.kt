@@ -19,7 +19,6 @@ class OkHttpSignatureUploader(private val client: OkHttpClient) : SignatureUploa
                 .Builder()
                 .url(uploadUrl)
                 .put(signaturePng.toRequestBody(PNG_MEDIA_TYPE))
-                .header(CONTENT_TYPE_HEADER, PNG_CONTENT_TYPE)
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -39,8 +38,6 @@ class OkHttpSignatureUploader(private val client: OkHttpClient) : SignatureUploa
     }
 
     private companion object {
-        const val CONTENT_TYPE_HEADER = "Content-Type"
-        const val PNG_CONTENT_TYPE = "image/png"
-        val PNG_MEDIA_TYPE = PNG_CONTENT_TYPE.toMediaType()
+        val PNG_MEDIA_TYPE = "image/png".toMediaType()
     }
 }
