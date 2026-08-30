@@ -92,6 +92,27 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `제출 완료 후 반복 탭은 repository를 다시 호출하지 않는다`() = runTest {
+        postCreationRepository.result = PostCreationResult.Success(
+            PostCreation(
+                postId = "post-id",
+                topicId = "topic-id",
+                topic = "바다",
+                topicDate = uploadTopicDate,
+                moderationStatus = PostModerationStatus.PENDING,
+            ),
+        )
+        viewModel.onImageSelected("content://media/photo/1")
+
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(1, postCreationRepository.callCount)
+        assertFalse(viewModel.uiState.value.canSubmit)
+        assertTrue(viewModel.uiState.value.completedSubmission != null)
+    }
+
+    @Test
     fun `처리 중 반복 탭은 repository를 한 번만 호출한다`() = runTest {
         val gate = CompletableDeferred<Unit>()
         postCreationRepository.await = gate

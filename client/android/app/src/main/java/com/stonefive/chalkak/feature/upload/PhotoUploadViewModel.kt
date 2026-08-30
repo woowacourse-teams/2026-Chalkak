@@ -69,8 +69,8 @@ class PhotoUploadViewModel(
 
     private fun submit() {
         val state = _uiState.value
+        if (!state.canSubmit) return
         val imageUri = state.selectedImage ?: return
-        if (state.isTopicLoading || state.isSubmitting) return
         val topic = creationTopic
         if (topic == null) {
             loadCreationTopic(submitAfterLoad = true)
