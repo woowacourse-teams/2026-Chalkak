@@ -45,7 +45,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
-import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPhotoContent
+import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
@@ -293,7 +293,7 @@ private fun HomeContent(
                 topContentPadding = photoListTopPadding,
             )
             if (uiState.photos.isEmpty()) {
-                ChalkakEmptyPhotoContent(
+                ChalkakEmptyPostContent(
                     modifier = Modifier.align(Alignment.Center),
                     testTag = HOME_EMPTY_TEST_TAG,
                 )

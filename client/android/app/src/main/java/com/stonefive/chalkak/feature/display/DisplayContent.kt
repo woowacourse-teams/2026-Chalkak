@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPhotoContent
+import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.display.component.DisplayFeaturedPager
@@ -87,7 +87,7 @@ fun LatestDisplayContent(
     topContentPadding: Dp = 0.dp,
 ) {
     if (content.photos.isEmpty()) {
-        ChalkakEmptyPhotoContent(
+        ChalkakEmptyPostContent(
             modifier = modifier,
             testTag = DISPLAY_EMPTY_TEST_TAG,
         )
@@ -120,7 +120,7 @@ fun ArchiveDisplayContent(
     topContentPadding: Dp = 0.dp,
 ) {
     if (content.photos.isEmpty()) {
-        ChalkakEmptyPhotoContent(
+        ChalkakEmptyPostContent(
             modifier = modifier,
             testTag = DISPLAY_EMPTY_TEST_TAG,
             title = "이 날 올라온 사진이 없어요",

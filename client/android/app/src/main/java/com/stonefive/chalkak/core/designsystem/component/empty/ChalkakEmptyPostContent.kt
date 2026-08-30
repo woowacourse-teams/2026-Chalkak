@@ -17,7 +17,7 @@ const val EMPTY_PHOTO_TITLE = "아직 올라온 사진이 없어요"
 const val EMPTY_PHOTO_DESCRIPTION = "첫 번째 사진을 올려보세요"
 
 @Composable
-fun ChalkakEmptyPhotoContent(
+fun ChalkakEmptyPostContent(
     modifier: Modifier = Modifier,
     testTag: String? = null,
     title: String = EMPTY_PHOTO_TITLE,
@@ -47,8 +47,8 @@ fun ChalkakEmptyPhotoContent(
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 640)
 @Composable
-private fun ChalkakEmptyPhotoContentPreview() {
+private fun ChalkakEmptyPostContentPreview() {
     ChalkakTheme {
-        ChalkakEmptyPhotoContent(modifier = Modifier.fillMaxSize())
+        ChalkakEmptyPostContent(modifier = Modifier.fillMaxSize())
     }
 }
