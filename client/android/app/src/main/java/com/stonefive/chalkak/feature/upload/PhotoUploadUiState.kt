@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 data class PhotoUploadUiState(
     val selectedImage: String? = null,
     val caption: String = "",
+    val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
     val isTopicLoading: Boolean = false,
     val isSubmitting: Boolean = false,

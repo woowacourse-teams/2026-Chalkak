@@ -31,6 +31,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun PhotoUploadImageArea(
     selectedImage: String?,
+    topicTitle: String?,
     isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
@@ -50,7 +51,7 @@ fun PhotoUploadImageArea(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "오늘의 주제에 맞는 한 장",
+                    text = topicTitle?.let { "주제 ‘$it’에 맞는 한 장" } ?: "오늘의 주제에 맞는 한 장",
                     color = ChalkakTheme.colors.textSecondary,
                     style = ChalkakTheme.typography.subheadline,
                 )
@@ -98,6 +99,7 @@ private fun PhotoUploadImageAreaEmptyPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
+            topicTitle = "틈",
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -110,6 +112,7 @@ private fun PhotoUploadImageAreaSelectedPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = drawableResourceUrl(R.drawable.preview_photo),
+            topicTitle = "틈",
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -122,6 +125,7 @@ private fun PhotoUploadImageAreaWithoutCameraPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
+            topicTitle = null,
             isCameraAvailable = false,
             onGalleryClick = {},
             onCameraClick = {},

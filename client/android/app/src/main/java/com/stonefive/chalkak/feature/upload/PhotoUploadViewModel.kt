@@ -125,7 +125,7 @@ class PhotoUploadViewModel(
                 when (val result = postCreationRepository.getCreationTopic(topicDate)) {
                     is PostCreationTopicResult.Success -> {
                         creationTopic = result.value
-                        _uiState.update { it.copy(isTopicLoading = false) }
+                        _uiState.update { it.copy(isTopicLoading = false, topicTitle = result.value.title) }
                         if (submitAfterLoad) submit()
                     }
 

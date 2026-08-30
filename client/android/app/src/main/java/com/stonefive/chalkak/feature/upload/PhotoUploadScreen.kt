@@ -207,6 +207,7 @@ fun PhotoUploadScreen(
             ) {
                 PhotoUploadImageArea(
                     selectedImage = uiState.selectedImage,
+                    topicTitle = uiState.topicTitle,
                     isCameraAvailable = uiState.isCameraAvailable,
                     onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
                     onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
