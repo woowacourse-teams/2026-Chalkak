@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
@@ -41,7 +42,9 @@ class UsableUserPolicyTest {
         // When & Then
         assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage("이용이 정지된 회원입니다.");
+                .hasMessage("차단된 회원입니다.")
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     @Test

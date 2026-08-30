@@ -1,5 +1,7 @@
 package com.chalkak.backend.topic.domain;
 
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import java.time.Instant;
@@ -19,6 +21,12 @@ public class ParticipationPeriod {
     private Instant endsAt;
 
     public ParticipationPeriod(Instant startsAt, Instant endsAt) {
+        if (startsAt == null || endsAt == null || !endsAt.isAfter(startsAt)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "주제 참여 기간이 올바르지 않습니다."
+            );
+        }
         this.startsAt = startsAt;
         this.endsAt = endsAt;
     }

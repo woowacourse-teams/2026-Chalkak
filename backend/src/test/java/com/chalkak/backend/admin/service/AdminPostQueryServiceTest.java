@@ -87,8 +87,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("필터가 없으면 삭제 여부와 관계없이 모든 상태의 게시물을 최신순으로 조회한다")
-    void getPosts_withoutFilters_returnsAllStatusesIncludingDeleted() {
+    @DisplayName("필터가 없으면 내부 검증 중을 제외하고 삭제된 게시물도 최신순으로 조회한다")
+    void getPosts_withoutFilters_returnsVisibleStatusesIncludingDeleted() {
         // Given
         given(imageUrlProvider.getUrl(SECOND_ORIGINAL_STORAGE_KEY))
                 .willReturn(SECOND_ORIGINAL_IMAGE_URL);
@@ -145,6 +145,30 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
             assertThat(post.moderationStatus()).isEqualTo(ModerationStatus.REJECTED);
             assertThat(post.deletedAt()).isEqualTo(SECOND_POST_DELETED_AT);
         });
+    }
+
+    @Test
+    @DisplayName("내부 검증 중 상태는 관리자 게시물 조회 조건으로 요청할 수 없다")
+    void getPosts_validatingStatus_throwsBusinessException() {
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminPostQueryService.getPosts(
+                        ModerationStatus.VALIDATING,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        AdminPostSort.CREATED_AT_DESC,
+                        1,
+                        20
+                )
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("게시물 조회 상태가 올바르지 않습니다.");
     }
 
     @Test

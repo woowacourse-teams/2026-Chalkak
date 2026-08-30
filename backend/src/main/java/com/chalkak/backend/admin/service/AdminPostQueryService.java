@@ -34,6 +34,7 @@ public class AdminPostQueryService {
             int page,
             int pageSize
     ) {
+        validateStatus(status);
         validatePagination(page, pageSize);
         validateCreatedAtRange(createdAtFrom, createdAtTo);
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
@@ -59,6 +60,16 @@ public class AdminPostQueryService {
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."
                 ));
+    }
+
+    private void validateStatus(ModerationStatus status) {
+        if (status != ModerationStatus.VALIDATING) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "게시물 조회 상태가 올바르지 않습니다."
+        );
     }
 
     private void validateCreatedAtRange(Instant createdAtFrom, Instant createdAtTo) {

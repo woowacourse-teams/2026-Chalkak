@@ -32,14 +32,8 @@ public class UsableUserPolicy {
                         ErrorCode.FORBIDDEN,
                         "접근 권한이 없습니다."));
 
-        boolean suspended = userRepository.findActiveById(userId)
-                .filter(user -> !user.isActive())
-                .isPresent();
-        if (suspended) {
-            throw new ForbiddenException(
-                    ErrorCode.FORBIDDEN,
-                    "이용이 정지된 회원입니다.");
-        }
+        userRepository.findActiveById(userId)
+                .ifPresent(user -> user.validateAccessible());
         return true;
     }
 
