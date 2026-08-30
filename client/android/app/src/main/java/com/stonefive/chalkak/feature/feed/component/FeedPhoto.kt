@@ -39,9 +39,11 @@ fun FeedPhoto(
 ) {
     Column(modifier = modifier) {
         ChalkakSignedImage(
-            imageModel = post.imageUrl,
-            signatureModel = post.signatureUrl,
+            imageModel = post.originalImageUrl,
+            signatureModel = post.signatureOriginalImageUrl,
             contentDescription = post.contentDescription,
+            thumbnailImageModel = post.thumbnailImageUrl,
+            thumbnailSignatureModel = post.signatureThumbnailImageUrl,
             contentScale = ContentScale.Crop,
             signatureModifier = Modifier.size(
                 width = 70.dp,
@@ -67,8 +69,10 @@ private fun FeedPhotoPreview() {
         FeedPhoto(
             post = Post(
                 id = "preview",
-                imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 감사합니다.",
                 likeCount = 24,

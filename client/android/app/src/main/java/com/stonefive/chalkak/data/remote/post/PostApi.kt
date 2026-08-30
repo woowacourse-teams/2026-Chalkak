@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.post.model.PostCreateRequest
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -20,6 +21,9 @@ interface PostApi {
 
     @POST("posts")
     suspend fun createPost(@Body request: PostCreateRequest): Response<PostCreateResponse>
+
+    @GET("posts/{postId}")
+    suspend fun getPost(@Path("postId") postId: String): Response<PostDetailResponse>
 
     @GET("posts")
     suspend fun getPosts(

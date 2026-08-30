@@ -11,4 +11,6 @@ interface UserDataSource {
     suspend fun createSignatureUpload(): ApiResult<SignatureUploadResponse>
 
     suspend fun updateSignature(signatureOriginalUploadId: String): ApiResult<SignatureUpdateResponse>
+
+    suspend fun deleteMyAccount(): ApiResult<Unit>
 }

@@ -26,10 +26,11 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +81,21 @@ class HomeScreenTest {
             uiState = contentUiState(isLoadingNext = true)
         }
         composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun tappingHomePhotoInvokesOpenFeedCallback() {
+        var selectedPhoto: Post? = null
+        setHomeContent(
+            uiState = contentUiState(),
+            onOpenFeed = { post, _, _ -> selectedPhoto = post },
+        )
+
+        composeRule
+            .onNodeWithContentDescription("작품 이미지: 사진 0")
+            .performClick()
+
+        assertEquals("photo-0", selectedPhoto?.id)
     }
 
     @Test
@@ -170,7 +186,7 @@ class HomeScreenTest {
 
     @Test
     fun pageFailureHasNoRetryRowOrSnackbar() {
-        val repository = PageFailureHomeRepository()
+        val repository = PageFailurePostRepository()
         val viewModel = HomeViewModel(
             repository = repository,
             sessionState = MutableStateFlow(UserSessionState.Authenticated("user-id")),
@@ -203,7 +219,7 @@ class HomeScreenTest {
 
     @Test
     fun guestLikeSnackbarDoesNotDelayNavigationEvents() {
-        val repository = GuestHomeRepository()
+        val repository = GuestPostRepository()
         var openPhotoUploadCount = 0
         var navigateToBottomBarCount = 0
         val viewModel = HomeViewModel(
@@ -262,6 +278,7 @@ class HomeScreenTest {
     private fun setHomeContent(
         uiState: HomeUiState,
         onAction: (HomeUiAction) -> Unit = {},
+        onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -269,6 +286,7 @@ class HomeScreenTest {
                     uiState = uiState,
                     snackbarHostState = remember { SnackbarHostState() },
                     onAction = onAction,
+                    onOpenFeed = onOpenFeed,
                 )
             }
         }
@@ -292,18 +310,22 @@ private fun contentUiState(
 private fun photos(count: Int) = List(count) { index ->
     Post(
         id = "photo-$index",
-        imageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+        originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
+        signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+        signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
         contentDescription = "작품 이미지: 사진 $index",
         title = "사진 $index",
         likeCount = 17,
     )
 }
 
-private class GuestHomeRepository : HomeRepository {
+private class GuestPostRepository : PostRepository {
     var likeRequestCount = 0
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
             topic = "바다",
@@ -325,11 +347,13 @@ private class GuestHomeRepository : HomeRepository {
     }
 }
 
-private class PageFailureHomeRepository : HomeRepository {
+private class PageFailurePostRepository : PostRepository {
     val pageResult = CompletableDeferred<HomeResult<PostPage>>()
     var pageRequestCount = 0
 
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
             topic = "바다",

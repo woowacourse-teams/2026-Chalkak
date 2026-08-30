@@ -1,10 +1,9 @@
-package com.stonefive.chalkak.data.remote.home
+package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
-import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -28,9 +27,9 @@ import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
-class HomeRemoteDataSourceImplTest {
+class PostRemoteDataSourceImplTest {
     private lateinit var server: MockWebServer
-    private lateinit var dataSource: HomeRemoteDataSourceImpl
+    private lateinit var dataSource: PostRemoteDataSourceImpl
 
     @Before
     fun setUp() {
@@ -42,6 +41,16 @@ class HomeRemoteDataSourceImplTest {
     @After
     fun tearDown() {
         runCatching { server.shutdown() }
+    }
+
+    @Test
+    fun `게시물 상세 요청은 postId를 path에 포함한다`() = runTest {
+        server.enqueue(jsonResponse(DETAIL_BODY))
+
+        val result = dataSource.getPostDetail(POST_ID)
+
+        assertTrue(result is ApiResult.Success<*>)
+        assertEquals("/api/v1/posts/$POST_ID", server.takeRequest().path)
     }
 
     @Test
@@ -149,7 +158,7 @@ class HomeRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `인증된 Home 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
+    fun `인증된 게시물 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
@@ -269,7 +278,7 @@ class HomeRemoteDataSourceImplTest {
         assertEquals(ApiResult.Failure(ApiError.Network), result)
     }
 
-    private fun createDataSource(client: OkHttpClient = OkHttpClient()): HomeRemoteDataSourceImpl {
+    private fun createDataSource(client: OkHttpClient = OkHttpClient()): PostRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
         val retrofit = Retrofit
             .Builder()
@@ -277,7 +286,7 @@ class HomeRemoteDataSourceImplTest {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-        return HomeRemoteDataSourceImpl(
+        return PostRemoteDataSourceImpl(
             topicApi = retrofit.create(TopicApi::class.java),
             postApi = retrofit.create(PostApi::class.java),
             json = json,
@@ -295,6 +304,8 @@ class HomeRemoteDataSourceImplTest {
             """{"id":"topic-id","title":"바다","topicDate":"2026-08-28","startsAt":"2026-08-27T15:00:00Z","endsAt":"2026-08-28T15:00:00Z","phase":"ACTIVE"}"""
         const val POSTS_BODY =
             """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumbnail.png","title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false}]}"""
+        const val DETAIL_BODY =
+            """{"id":"$POST_ID","topic":{"id":"topic-id","title":"바다","topicDate":"2026-08-28"},"originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","title":"바다 사진","likeCount":3,"isLiked":false}"""
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
     }

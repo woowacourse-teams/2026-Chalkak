@@ -1,13 +1,20 @@
 package com.stonefive.chalkak.feature.display
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.DisplayContent
+import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeLike
+import com.stonefive.chalkak.domain.model.HomeQuery
+import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.repository.DisplayRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -17,13 +24,13 @@ class DisplayViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: FakeDisplayRepository
+    private lateinit var repository: FakePostRepository
     private lateinit var viewModel: DisplayViewModel
 
     @Before
     fun setUp() {
-        repository = FakeDisplayRepository()
-        viewModel = DisplayViewModel(repository)
+        repository = FakePostRepository()
+        viewModel = displayViewModel(repository)
     }
 
     @Test
@@ -33,20 +40,20 @@ class DisplayViewModelTest {
         assertEquals(LATEST_DATE, viewModel.uiState.value.selectedDate)
         assertTrue(content is DisplayContentState.Latest)
         assertEquals(PostSort.LATEST, (content as DisplayContentState.Latest).selectedSort)
-        assertEquals(listOf(null to PostSort.LATEST), repository.requests)
+        assertEquals(listOf(firstPageQuery(LATEST_DATE, PostSort.LATEST)), repository.requests)
     }
 
     @Test
     fun `전달받은 날짜의 전시 상태로 시작한다`() = runTest {
-        val selectedRepository = FakeDisplayRepository()
-        val selectedViewModel = DisplayViewModel(
+        val selectedRepository = FakePostRepository()
+        val selectedViewModel = displayViewModel(
             repository = selectedRepository,
             initialDate = ARCHIVE_DATE,
         )
 
         assertEquals(ARCHIVE_DATE, selectedViewModel.uiState.value.selectedDate)
         assertEquals(
-            listOf(ARCHIVE_DATE to PostSort.LATEST),
+            listOf(firstPageQuery(ARCHIVE_DATE, PostSort.POPULAR)),
             selectedRepository.requests,
         )
     }
@@ -59,7 +66,7 @@ class DisplayViewModelTest {
         assertEquals(ARCHIVE_DATE, viewModel.uiState.value.selectedDate)
         assertTrue(content is DisplayContentState.Archive)
         assertEquals(2, (content as DisplayContentState.Archive).featuredPhotos.size)
-        assertEquals(ARCHIVE_DATE to PostSort.POPULAR, repository.requests.last())
+        assertEquals(firstPageQuery(ARCHIVE_DATE, PostSort.POPULAR), repository.requests.last())
     }
 
     @Test
@@ -79,7 +86,7 @@ class DisplayViewModelTest {
 
         val content = viewModel.uiState.value.content as DisplayContentState.Latest
         assertEquals(PostSort.POPULAR, content.selectedSort)
-        assertEquals(LATEST_DATE to PostSort.POPULAR, repository.requests.last())
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.POPULAR), repository.requests.last())
     }
 
     @Test
@@ -88,13 +95,13 @@ class DisplayViewModelTest {
 
         viewModel.moveToPreviousDate()
 
-        assertEquals(ARCHIVE_DATE to PostSort.POPULAR, repository.requests.last())
+        assertEquals(firstPageQuery(ARCHIVE_DATE, PostSort.POPULAR), repository.requests.last())
 
         viewModel.moveToNextDate()
 
         val content = viewModel.uiState.value.content as DisplayContentState.Latest
         assertEquals(PostSort.RANDOM, content.selectedSort)
-        assertEquals(LATEST_DATE to PostSort.RANDOM, repository.requests.last())
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.RANDOM), repository.requests.last())
     }
 
     @Test
@@ -115,36 +122,204 @@ class DisplayViewModelTest {
 
         assertEquals(content, viewModel.uiState.value.content)
     }
+
+    @Test
+    fun `랜덤 정렬의 다음 페이지는 첫 응답의 시드를 재사용한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "next-photo")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = false,
+                    randomSeed = "seed-1",
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository)
+
+        randomViewModel.selectSort(PostSort.RANDOM)
+        randomViewModel.updateEndThreshold(true)
+
+        assertEquals(
+            HomeQuery(
+                date = LATEST_DATE,
+                sort = PostSort.RANDOM,
+                page = 2,
+                randomSeed = "seed-1",
+            ),
+            randomRepository.pageRequests.single(),
+        )
+        assertEquals(
+            2,
+            (randomViewModel.uiState.value.content as DisplayContentState.Latest).photos.size,
+        )
+    }
+
+    @Test
+    fun `과거 전시의 다음 페이지도 인기순으로 요청한다`() = runTest {
+        val archiveRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "archive-next")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = false,
+                    randomSeed = null,
+                ),
+            )
+        }
+        val archiveViewModel = displayViewModel(archiveRepository)
+
+        archiveViewModel.moveToPreviousDate()
+        archiveViewModel.updateEndThreshold(true)
+
+        val pageQuery = archiveRepository.pageRequests.single()
+        assertEquals(PostSort.POPULAR, pageQuery.sort)
+        assertEquals(null, pageQuery.randomSeed)
+    }
+
+    @Test
+    fun `다음 페이지 요청이 즉시 완료되어도 다시 요청할 수 있다`() = runTest {
+        val pagingRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "next-photo")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = true,
+                    randomSeed = null,
+                ),
+            )
+        }
+        val pagingViewModel = displayViewModel(pagingRepository)
+
+        pagingViewModel.updateEndThreshold(true)
+        pagingViewModel.updateEndThreshold(false)
+        pagingViewModel.updateEndThreshold(true)
+
+        assertEquals(2, pagingRepository.pageRequests.size)
+    }
+
+    @Test
+    fun `이전 날짜에 주제가 없으면 현재 날짜를 최초 전시일로 확정한다`() = runTest {
+        repository.topicNotFoundDates = setOf(ARCHIVE_DATE)
+
+        viewModel.moveToPreviousDate()
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(LATEST_DATE, state.earliestDate)
+        assertFalse(state.canGoPrevious)
+    }
+
+    @Test
+    fun `다음 날짜에 주제가 없어도 기존 최초 전시일은 보존한다`() = runTest {
+        val archiveRepository = FakePostRepository().apply {
+            topicNotFoundDates = setOf(EARLIEST_DATE.minusDays(1))
+        }
+        val archiveViewModel = displayViewModel(
+            repository = archiveRepository,
+            initialDate = EARLIEST_DATE,
+        )
+
+        archiveViewModel.moveToPreviousDate()
+        archiveRepository.topicNotFoundDates = emptySet()
+        archiveViewModel.moveToNextDate()
+        val selectedDate = requireNotNull(archiveViewModel.uiState.value.selectedDate)
+        archiveRepository.topicNotFoundDates = setOf(selectedDate.plusDays(1))
+        archiveViewModel.moveToNextDate()
+
+        val state = archiveViewModel.uiState.value
+        assertEquals(selectedDate, state.selectedDate)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+    }
 }
 
 private val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
 private val ARCHIVE_DATE: LocalDate = LocalDate.of(2026, 8, 4)
 private val EARLIEST_DATE: LocalDate = LocalDate.of(2026, 8, 1)
 
-private class FakeDisplayRepository : DisplayRepository {
-    val requests = mutableListOf<Pair<LocalDate?, PostSort>>()
+private class FakePostRepository : PostRepository {
+    val requests = mutableListOf<HomeQuery>()
+    val pageRequests = mutableListOf<HomeQuery>()
+    var firstPageHasNext = false
+    var firstPageRandomSeed: String? = null
+    var topicNotFoundDates: Set<LocalDate> = emptySet()
+    var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
+        PostPage(
+            photos = emptyList(),
+            likedPhotoIds = emptySet(),
+            currentPage = 2,
+            hasNext = false,
+            randomSeed = null,
+        ),
+    )
 
-    override suspend fun getDisplay(
-        date: LocalDate?,
-        sort: PostSort,
-    ): DisplayContent {
-        requests += date to sort
-        val selectedDate = date ?: LATEST_DATE
-        return DisplayContent(
-            selectedDate = selectedDate,
-            latestDate = LATEST_DATE,
-            earliestDate = EARLIEST_DATE,
-            topic = if (selectedDate == LATEST_DATE) "바다" else "다리",
-            photos = listOf(post),
-            featuredPhotos = if (selectedDate < LATEST_DATE) listOf(post, post) else emptyList(),
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
+        requests += query
+        val selectedDate = query.date
+        if (selectedDate in topicNotFoundDates) {
+            return HomeResult.Failure(HomeFailure.TopicNotFound)
+        }
+        return HomeResult.Success(
+            PostContent(
+                topicDate = selectedDate,
+                topic = if (selectedDate == LATEST_DATE) "바다" else "다리",
+                photos = if (selectedDate < LATEST_DATE) {
+                    listOf(post, post.copy(id = "archive-photo"))
+                } else {
+                    listOf(post)
+                },
+                likedPhotoIds = emptySet(),
+                hasNext = firstPageHasNext,
+                randomSeed = firstPageRandomSeed,
+            ),
         )
     }
+
+    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
+        pageRequests += query
+        return nextPageResult
+    }
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): HomeResult<HomeLike> = error("unused")
 }
+
+private fun displayViewModel(
+    repository: PostRepository,
+    initialDate: LocalDate? = null,
+) = DisplayViewModel(
+    repository = repository,
+    initialDate = initialDate,
+    dateProvider = { LATEST_DATE },
+)
+
+private fun firstPageQuery(
+    date: LocalDate,
+    sort: PostSort,
+) = HomeQuery(
+    date = date,
+    sort = sort,
+    page = HomeQuery.FIRST_PAGE,
+)
 
 private val post = Post(
     id = "photo",
-    imageUrl = "https://example.com/photo.jpg",
-    signatureUrl = "https://example.com/signature.png",
+    originalImageUrl = "https://example.com/photo.jpg",
+    thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
+    signatureOriginalImageUrl = "https://example.com/signature.png",
+    signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,

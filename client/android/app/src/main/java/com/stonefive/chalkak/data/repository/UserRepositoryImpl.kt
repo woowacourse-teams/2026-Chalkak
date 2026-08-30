@@ -1,11 +1,13 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
 import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
 import com.stonefive.chalkak.data.remote.signature.UploadContent
 import com.stonefive.chalkak.data.remote.user.UserDataSource
+import com.stonefive.chalkak.domain.model.AccountWithdrawalException
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
@@ -16,6 +18,7 @@ import com.stonefive.chalkak.domain.repository.UserRepository
 class UserRepositoryImpl(
     private val userDataSource: UserDataSource,
     private val signatureUploader: PresignedImageUploader,
+    private val sessionStore: SessionStore,
 ) : UserRepository {
     override suspend fun getMySignature(): UserProfile = when (
         val result = userDataSource.getMySignature()
@@ -73,6 +76,13 @@ class UserRepositoryImpl(
                 signatureThumbnailUrl = updatedSignature.originalImageUrl,
             ),
         )
+    }
+
+    override suspend fun withdraw() {
+        when (val result = userDataSource.deleteMyAccount()) {
+            is ApiResult.Success -> sessionStore.clear()
+            is ApiResult.Failure -> throw AccountWithdrawalException()
+        }
     }
 
     private fun ApiError.toProfileLoadFailure(): UserProfileLoadFailure = when (this) {

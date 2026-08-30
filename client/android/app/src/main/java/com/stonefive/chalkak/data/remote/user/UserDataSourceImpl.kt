@@ -27,4 +27,8 @@ class UserDataSourceImpl(
                 ),
             )
         }
+
+    override suspend fun deleteMyAccount(): ApiResult<Unit> = requestExecutor.executeNoContent {
+        api.deleteMyAccount()
+    }
 }

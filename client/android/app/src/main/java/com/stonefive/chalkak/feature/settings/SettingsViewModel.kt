@@ -68,7 +68,7 @@ class SettingsViewModel(
 
         when (accountDialog) {
             SettingsAccountDialog.LOGOUT -> clearProfile(authRepository::logout)
-            SettingsAccountDialog.WITHDRAW -> clearProfile(authRepository::withdraw)
+            SettingsAccountDialog.WITHDRAW -> clearProfile(userRepository::withdraw)
         }
     }
 

@@ -1,13 +1,20 @@
 package com.stonefive.chalkak.feature.feed
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -25,10 +32,14 @@ fun FeedRoute(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier,
+    postId: String? = null,
     initialContent: FeedContentState.Success? = null,
     viewModel: FeedViewModel = viewModel(
-        key = "feed-${initialContent?.post?.id ?: "latest"}",
-        factory = FeedViewModel.factory(initialContent),
+        key = "feed-${postId ?: initialContent?.post?.id ?: "latest"}",
+        factory = FeedViewModel.factory(
+            postId = postId,
+            initialContent = initialContent,
+        ),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -38,6 +49,7 @@ fun FeedRoute(
         onNavigateBack = onNavigateBack,
         onDeleteClick = onDeleteClick,
         onLikeClick = viewModel::onLikeClicked,
+        onRetryClick = viewModel::retry,
         modifier = modifier,
     )
 }
@@ -49,6 +61,7 @@ fun FeedScreen(
     onDeleteClick: () -> Unit,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onRetryClick: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -73,19 +86,50 @@ fun FeedScreen(
             )
         },
     ) { innerPadding ->
-        FeedContent(
-            content = uiState.content,
-            onLikeClick = onLikeClick,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                uiState.content != null -> FeedContent(
+                    content = checkNotNull(uiState.content),
+                    onLikeClick = onLikeClick,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                uiState.isLoading -> CircularProgressIndicator(
+                    color = ChalkakTheme.colors.actionPrimary,
+                )
+
+                uiState.errorMessage != null -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = uiState.errorMessage,
+                        color = ChalkakTheme.colors.textSecondary,
+                        style = ChalkakTheme.typography.body,
+                    )
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
+                    androidx.compose.material3.TextButton(onClick = onRetryClick) {
+                        Text(
+                            text = "다시 시도",
+                            color = ChalkakTheme.colors.actionPrimary,
+                            style = ChalkakTheme.typography.body,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
 private fun FeedScreenPreview() {
+    val resourcePrefix = "android.resource://com.stonefive.chalkak"
+
     ChalkakTheme {
         FeedScreen(
             uiState = FeedUiState(
@@ -94,8 +138,10 @@ private fun FeedScreenPreview() {
                     topic = "하늘하늘하늘",
                     post = Post(
                         id = "preview",
-                        imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                        signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                        originalImageUrl = "$resourcePrefix/${R.drawable.home_feed_photo}",
+                        thumbnailImageUrl = "$resourcePrefix/${R.drawable.home_feed_photo}",
+                        signatureOriginalImageUrl = "$resourcePrefix/${R.drawable.preview_signature}",
+                        signatureThumbnailImageUrl = "$resourcePrefix/${R.drawable.preview_signature}",
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 감사합니다.",
                         likeCount = 24,

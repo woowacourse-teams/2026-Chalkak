@@ -1,8 +1,8 @@
-package com.stonefive.chalkak.data.remote.home
+package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.post.PostApi
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
@@ -17,11 +17,15 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.Response
 
-class HomeRemoteDataSourceImpl(
+class PostRemoteDataSourceImpl(
     private val topicApi: TopicApi,
     private val postApi: PostApi,
     private val json: Json,
-) : HomeRemoteDataSource {
+) : PostRemoteDataSource {
+    override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = request {
+        postApi.getPost(postId)
+    }
+
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = request {
         topicApi.getTopic(date.toString())
     }
@@ -69,7 +73,7 @@ class HomeRemoteDataSourceImpl(
     }
 
     private fun decodeErrorCode(body: String): String? = runCatching {
-        json.decodeFromString<HomeErrorResponse>(body).errorCode
+        json.decodeFromString<PostErrorResponse>(body).errorCode
     }.getOrNull()
 }
 
@@ -81,4 +85,4 @@ private val PostSort.apiValue: String
     }
 
 @Serializable
-private data class HomeErrorResponse(val errorCode: String? = null)
+private data class PostErrorResponse(val errorCode: String? = null)

@@ -16,9 +16,11 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun ChalkakSignedImage(
     imageModel: Any?,
-    signatureModel: Any,
+    signatureModel: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    thumbnailImageModel: Any? = null,
+    thumbnailSignatureModel: Any? = null,
     signatureModifier: Modifier = Modifier.size(
         width = 56.dp,
         height = 42.dp,
@@ -29,6 +31,7 @@ fun ChalkakSignedImage(
         ChalkakImage(
             model = imageModel,
             contentDescription = contentDescription,
+            thumbnailModel = thumbnailImageModel,
             modifier = Modifier.fillMaxSize(),
             contentScale = contentScale,
         )
@@ -36,6 +39,7 @@ fun ChalkakSignedImage(
         ChalkakImage(
             model = signatureModel,
             contentDescription = null,
+            thumbnailModel = thumbnailSignatureModel,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)

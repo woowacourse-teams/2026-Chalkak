@@ -52,6 +52,4 @@ private class FakeAuthGateRepository : AuthRepository {
     override suspend fun continueAsGuest() = Unit
 
     override suspend fun logout() = Unit
-
-    override suspend fun withdraw() = Unit
 }

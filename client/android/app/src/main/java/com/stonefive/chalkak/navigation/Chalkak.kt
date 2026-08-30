@@ -29,14 +29,18 @@ data class Display(val date: String)
 @Serializable
 data class Feed(
     val postId: String,
-    val imageUrl: String,
-    val signatureUrl: String,
+    val originalImageUrl: String,
+    val thumbnailImageUrl: String,
+    val signatureOriginalImageUrl: String,
+    val signatureThumbnailImageUrl: String? = null,
     val contentDescription: String,
     val title: String?,
     val likeCount: Int,
+    val isLiked: Boolean = false,
     val dateLabel: String,
     val topic: String,
     val isOwnedByCurrentUser: Boolean = false,
+    val fetchDetail: Boolean = true,
 )
 
 @Serializable

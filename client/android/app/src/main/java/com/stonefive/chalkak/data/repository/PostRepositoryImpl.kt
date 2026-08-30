@@ -2,7 +2,8 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
@@ -12,14 +13,22 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.repository.HomeRepository
+import com.stonefive.chalkak.domain.repository.PostRepository
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
-class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : HomeRepository {
-    override suspend fun getHome(query: HomeQuery): HomeResult<PostContent> {
+class PostRepositoryImpl(private val remoteDataSource: PostRemoteDataSource) : PostRepository {
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
+        when (val result = remoteDataSource.getPostDetail(postId)) {
+            is ApiResult.Success -> result.value.toDomain(postId)
+            is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        }
+
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         val topic = when (val result = remoteDataSource.getTopic(query.date)) {
             is ApiResult.Success -> result.value
             is ApiResult.Failure -> return HomeResult.Failure(result.error.toDomain(isTopic = true))
@@ -102,14 +111,52 @@ class HomeRepositoryImpl(private val remoteDataSource: HomeRemoteDataSource) : H
         val mappedLikeCount = likeCount.toLikeCountOrNull() ?: return null
         return Post(
             id = id,
-            imageUrl = thumbnailImageUrl,
-            signatureUrl = signatureThumbnailImageUrl,
+            originalImageUrl = originalImageUrl,
+            thumbnailImageUrl = thumbnailImageUrl,
+            signatureOriginalImageUrl = signatureOriginalImageUrl,
+            signatureThumbnailImageUrl = signatureThumbnailImageUrl,
             contentDescription = title
                 ?.takeIf(String::isNotBlank)
                 ?.let { "작품 이미지: $it" }
                 ?: "무제 작품 이미지",
+            submittedAt = submittedAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
             title = title,
             likeCount = mappedLikeCount,
+            isLiked = isLiked,
+        )
+    }
+
+    private fun PostDetailResponse.toDomain(postId: String): HomeResult<PostDetail> {
+        if (id != postId) return HomeResult.Failure(HomeFailure.InvalidResponse)
+
+        val parsedTopicDate = runCatching { LocalDate.parse(topic.topicDate) }.getOrNull()
+            ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
+        val mappedLikeCount = likeCount.toLikeCountOrNull()
+            ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
+        if (originalImageUrl.isBlank() || signatureOriginalImageUrl.isBlank()) {
+            return HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+
+        return HomeResult.Success(
+            PostDetail(
+                post = Post(
+                    id = id,
+                    originalImageUrl = originalImageUrl,
+                    thumbnailImageUrl = thumbnailImageUrl,
+                    signatureOriginalImageUrl = signatureOriginalImageUrl,
+                    signatureThumbnailImageUrl = null,
+                    contentDescription = title
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { "작품 이미지: $it" }
+                        ?: "무제 작품 이미지",
+                    submittedAt = null,
+                    title = title,
+                    likeCount = mappedLikeCount,
+                    isLiked = isLiked,
+                ),
+                topic = topic.title,
+                topicDate = parsedTopicDate,
+            ),
         )
     }
 

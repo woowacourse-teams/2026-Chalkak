@@ -17,21 +17,7 @@ class ApiRequestExecutor(
             response.body()?.let(ApiResult<T>::Success)
                 ?: ApiResult.Failure(ApiError.InvalidResponse)
         } else {
-            if (response.code() == HTTP_UNAUTHORIZED) {
-                onUnauthorized()
-            }
-
-            val errorResponse = response
-                .errorBody()
-                ?.string()
-                ?.let(::decodeError)
-            ApiResult.Failure(
-                ApiError.Http(
-                    statusCode = response.code(),
-                    errorCode = errorResponse?.errorCode,
-                    message = errorResponse?.message,
-                ),
-            )
+            createFailure(response)
         }
     } catch (error: CancellationException) {
         throw error
@@ -39,6 +25,39 @@ class ApiRequestExecutor(
         ApiResult.Failure(ApiError.Network)
     } catch (_: SerializationException) {
         ApiResult.Failure(ApiError.InvalidResponse)
+    }
+
+    suspend fun executeNoContent(block: suspend () -> Response<*>): ApiResult<Unit> = try {
+        val response = block()
+        if (response.isSuccessful) {
+            ApiResult.Success(Unit)
+        } else {
+            createFailure(response)
+        }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: IOException) {
+        ApiResult.Failure(ApiError.Network)
+    } catch (_: SerializationException) {
+        ApiResult.Failure(ApiError.InvalidResponse)
+    }
+
+    private suspend fun createFailure(response: Response<*>): ApiResult<Nothing> {
+        if (response.code() == HTTP_UNAUTHORIZED) {
+            onUnauthorized()
+        }
+
+        val errorResponse = response
+            .errorBody()
+            ?.string()
+            ?.let(::decodeError)
+        return ApiResult.Failure(
+            ApiError.Http(
+                statusCode = response.code(),
+                errorCode = errorResponse?.errorCode,
+                message = errorResponse?.message,
+            ),
+        )
     }
 
     private fun decodeError(body: String): ErrorResponse? =
