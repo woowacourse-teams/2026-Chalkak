@@ -57,7 +57,7 @@ class ChalkakRouteTest {
         val route = PhotoUploadSuccess(
             imageModel = "content://media/photo/1",
             caption = "한낮의 다리",
-            dateLabel = "2025. 07. 18",
+            date = "2025-07-18",
             topic = "다리",
             moderationStatus = "VALIDATING",
         )
