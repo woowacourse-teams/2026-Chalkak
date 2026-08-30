@@ -74,4 +74,6 @@ private class FakeSignatureChangeUserRepository : UserRepository {
         updatedPng = signaturePng
         return result
     }
+
+    override suspend fun withdraw() = Unit
 }

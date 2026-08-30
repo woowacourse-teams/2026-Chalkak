@@ -12,6 +12,7 @@ import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
+import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
@@ -34,6 +35,12 @@ class AppContainer(context: Context) {
         baseUrl = BuildConfig.API_BASE_URL,
         sessionStore = sessionStore,
     )
+    private val userDataSource: UserDataSource by lazy {
+        UserDataSourceImpl(
+            networkModule.userApi,
+            networkModule.apiRequestExecutor,
+        )
+    }
 
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
@@ -55,11 +62,9 @@ class AppContainer(context: Context) {
 
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(
-            userDataSource = UserDataSourceImpl(
-                networkModule.userApi,
-                networkModule.apiRequestExecutor,
-            ),
+            userDataSource = userDataSource,
             signatureUploader = OkHttpSignatureUploader(networkModule.signatureUploadClient),
+            sessionStore = sessionStore,
         )
     }
 
