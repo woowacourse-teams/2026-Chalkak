@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
 import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
+import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
@@ -31,12 +32,14 @@ import org.junit.Test
 class PostCreationRepositoryImplTest {
     private val events = mutableListOf<String>()
     private val remote = FakePostCreationRemoteDataSource(events)
+    private val topicRemote = FakeCreationTopicRemoteDataSource(events)
     private val encoder = FakePostImageEncoder(events)
     private val uploader = FakePostImageUploader(events)
     private val requestedDate = LocalDate.of(2026, 8, 29)
     private val topic = PostCreationTopic("topic-id", "바다", requestedDate)
     private val repository = PostCreationRepositoryImpl(
         remoteDataSource = remote,
+        topicRemoteDataSource = topicRemote,
         imageEncoder = encoder,
         imageUploader = uploader,
     )
@@ -80,13 +83,13 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `주제 조회 실패 시 뒤 단계로 진행하지 않는다`() = runTest {
-        remote.topicResult = ApiResult.Failure(ApiError.Network)
+        topicRemote.result = ApiResult.Failure(ApiError.Network)
 
         assertEquals(
             PostCreationTopicResult.Failure(PostCreationFailure.NetworkUnavailable),
             repository.getCreationTopic(requestedDate),
         )
-        assertEquals(listOf("topic:$requestedDate"), remote.calls)
+        assertEquals(listOf("topic:$requestedDate"), topicRemote.calls)
         assertTrue(encoder.calls.isEmpty())
         assertTrue(uploader.calls.isEmpty())
     }
@@ -250,9 +253,6 @@ class PostCreationRepositoryImplTest {
 private class FakePostCreationRemoteDataSource(private val events: MutableList<String>) : PostCreationRemoteDataSource {
     val calls = mutableListOf<String>()
     val createdTitles = mutableListOf<String?>()
-    var topicResult: ApiResult<TopicResponse> = ApiResult.Success(
-        TopicResponse("topic-id", "바다", "2026-08-29"),
-    )
     var uploadPolicyResult: ApiResult<PostImageUploadResponse> = ApiResult.Success(
         PostImageUploadResponse(
             uploadId = "upload-id",
@@ -265,12 +265,6 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
     var createResult: ApiResult<PostCreateResponse> = ApiResult.Success(
         PostCreateResponse("post-id", "VALIDATING"),
     )
-
-    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
-        calls += "topic:$date"
-        events += "topic:$date"
-        return topicResult
-    }
 
     override suspend fun createPostImageUpload(): ApiResult<PostImageUploadResponse> {
         calls += "upload-policy"
@@ -287,6 +281,19 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
         events += "create:$topicId:$photoUploadId:$title"
         createdTitles += title
         return createResult
+    }
+}
+
+private class FakeCreationTopicRemoteDataSource(private val events: MutableList<String>) : TopicRemoteDataSource {
+    val calls = mutableListOf<String>()
+    var result: ApiResult<TopicResponse> = ApiResult.Success(
+        TopicResponse("topic-id", "바다", "2026-08-29"),
+    )
+
+    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
+        calls += "topic:$date"
+        events += "topic:$date"
+        return result
     }
 }
 

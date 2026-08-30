@@ -7,6 +7,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -24,7 +25,8 @@ import org.junit.Test
 
 class PostRepositoryImplTest {
     private val remoteDataSource = FakePostRemoteDataSource()
-    private val repository = PostRepositoryImpl(remoteDataSource)
+    private val topicRemoteDataSource = FakeHomeTopicRemoteDataSource()
+    private val repository = PostRepositoryImpl(remoteDataSource, topicRemoteDataSource)
     private val query = HomeQuery(
         date = LocalDate.of(2026, 8, 28),
         sort = PostSort.LATEST,
@@ -74,7 +76,7 @@ class PostRepositoryImplTest {
 
     @Test
     fun `토픽과 첫 게시물 페이지를 Home 도메인 콘텐츠로 변환한다`() = runTest {
-        remoteDataSource.topicResult = ApiResult.Success(
+        topicRemoteDataSource.result = ApiResult.Success(
             TopicResponse(
                 id = "new-topic-id",
                 title = "새 바다",
@@ -126,7 +128,7 @@ class PostRepositoryImplTest {
 
     @Test
     fun `HTTP 200 빈 게시물은 성공한 빈 콘텐츠다`() = runTest {
-        remoteDataSource.topicResult = ApiResult.Success(
+        topicRemoteDataSource.result = ApiResult.Success(
             TopicResponse(
                 id = "new-topic-id",
                 title = "새 주제",
@@ -148,7 +150,7 @@ class PostRepositoryImplTest {
 
     @Test
     fun `topicDate 파싱 실패는 InvalidResponse로 분류하고 posts를 요청하지 않는다`() = runTest {
-        remoteDataSource.topicResult = ApiResult.Success(
+        topicRemoteDataSource.result = ApiResult.Success(
             TopicResponse(
                 id = "invalid-topic-id",
                 title = "잘못된 주제",
@@ -282,13 +284,13 @@ class PostRepositoryImplTest {
 
     @Test
     fun `토픽 404와 인증 네트워크 응답을 도메인 실패로 구분한다`() = runTest {
-        remoteDataSource.topicResult = ApiResult.Failure(ApiError.Http(404, "TOPIC_NOT_FOUND"))
+        topicRemoteDataSource.result = ApiResult.Failure(ApiError.Http(404, "TOPIC_NOT_FOUND"))
         assertEquals(HomeResult.Failure(HomeFailure.TopicNotFound), repository.getPostContent(query))
 
-        remoteDataSource.topicResult = ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED"))
+        topicRemoteDataSource.result = ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED"))
         assertEquals(HomeResult.Failure(HomeFailure.Unauthorized), repository.getPostContent(query))
 
-        remoteDataSource.topicResult = ApiResult.Failure(ApiError.Network)
+        topicRemoteDataSource.result = ApiResult.Failure(ApiError.Network)
         assertEquals(HomeResult.Failure(HomeFailure.Network), repository.getPostContent(query))
     }
 }
@@ -296,13 +298,6 @@ class PostRepositoryImplTest {
 private class FakePostRemoteDataSource : PostRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
     var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
-    var topicResult: ApiResult<TopicResponse> = ApiResult.Success(
-        TopicResponse(
-            id = "topic-id",
-            title = "바다",
-            topicDate = "2026-08-28",
-        ),
-    )
     var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
         PostLikeResponse(
@@ -314,8 +309,6 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
 
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
 
-    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = topicResult
-
     override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> {
         postsQueries += query
         return postsResult
@@ -325,6 +318,18 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
         photoId: String,
         isLiked: Boolean,
     ): ApiResult<PostLikeResponse> = likeResult
+}
+
+private class FakeHomeTopicRemoteDataSource : TopicRemoteDataSource {
+    var result: ApiResult<TopicResponse> = ApiResult.Success(
+        TopicResponse(
+            id = "topic-id",
+            title = "바다",
+            topicDate = "2026-08-28",
+        ),
+    )
+
+    override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = result
 }
 
 private fun postPage(

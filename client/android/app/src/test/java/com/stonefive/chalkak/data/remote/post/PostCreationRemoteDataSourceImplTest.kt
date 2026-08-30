@@ -5,9 +5,6 @@ import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
-import com.stonefive.chalkak.data.remote.topic.TopicApi
-import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
-import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -39,7 +36,6 @@ class PostCreationRemoteDataSourceImplTest {
         unauthorizedHandled = false
         dataSource = PostCreationRemoteDataSourceImpl(
             postApi = retrofit.create(PostApi::class.java),
-            topicApi = retrofit.create(TopicApi::class.java),
             requestExecutor = ApiRequestExecutor(json) {
                 unauthorizedHandled = true
             },
@@ -49,32 +45,6 @@ class PostCreationRemoteDataSourceImplTest {
     @After
     fun tearDown() {
         server.shutdown()
-    }
-
-    @Test
-    fun `오늘 주제를 날짜 query로 조회한다`() = runTest {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"id":"topic-id","title":"바다","topicDate":"2026-08-29"}"""),
-        )
-
-        val result = dataSource.getTopic(LocalDate.of(2026, 8, 29))
-        val request = server.takeRequest()
-
-        assertEquals(
-            ApiResult.Success(
-                TopicResponse(
-                    id = "topic-id",
-                    title = "바다",
-                    topicDate = "2026-08-29",
-                ),
-            ),
-            result,
-        )
-        assertEquals("GET", request.method)
-        assertEquals("/api/v1/topics?date=2026-08-29", request.path)
     }
 
     @Test

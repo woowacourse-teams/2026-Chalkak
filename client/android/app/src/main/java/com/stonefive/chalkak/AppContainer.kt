@@ -13,6 +13,7 @@ import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
+import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
@@ -75,13 +76,20 @@ class AppContainer(context: Context) {
         )
     }
 
+    private val topicRemoteDataSource by lazy {
+        TopicRemoteDataSourceImpl(
+            topicApi = networkModule.topicApi,
+            requestExecutor = networkModule.apiRequestExecutor,
+        )
+    }
+
     val postCreationRepository: PostCreationRepository by lazy {
         PostCreationRepositoryImpl(
             remoteDataSource = PostCreationRemoteDataSourceImpl(
                 postApi = networkModule.postApi,
-                topicApi = networkModule.topicApi,
                 requestExecutor = networkModule.apiRequestExecutor,
             ),
+            topicRemoteDataSource = topicRemoteDataSource,
             imageEncoder = AndroidPostImageEncoder(
                 contentResolver = context.contentResolver,
                 cacheDir = context.cacheDir,
@@ -93,10 +101,10 @@ class AppContainer(context: Context) {
     val postRepository: PostRepository by lazy {
         PostRepositoryImpl(
             remoteDataSource = PostRemoteDataSourceImpl(
-                topicApi = networkModule.topicApi,
                 postApi = networkModule.postApi,
                 requestExecutor = networkModule.apiRequestExecutor,
             ),
+            topicRemoteDataSource = topicRemoteDataSource,
         )
     }
 

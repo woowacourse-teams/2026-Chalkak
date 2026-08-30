@@ -6,7 +6,6 @@ import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
-import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
@@ -52,16 +51,6 @@ class PostRemoteDataSourceImplTest {
 
         assertTrue(result is ApiResult.Success<*>)
         assertEquals("/api/v1/posts/$POST_ID", server.takeRequest().path)
-    }
-
-    @Test
-    fun `토픽 요청은 공급된 KST 날짜를 ISO 형식으로 전송한다`() = runTest {
-        server.enqueue(jsonResponse(TOPIC_BODY))
-
-        val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
-
-        assertTrue(result is ApiResult.Success)
-        assertEquals("/api/v1/topics?date=2026-08-28", server.takeRequest().path)
     }
 
     @Test
@@ -183,55 +172,6 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `HTTP 실패 상태를 보존한다`() = runTest {
-        listOf(404, 401, 500, 400).forEach { statusCode ->
-            server.enqueue(
-                MockResponse()
-                    .setResponseCode(statusCode)
-                    .setHeader("Content-Type", "application/json")
-                    .setBody("""{"errorCode":"ERROR_$statusCode","message":"error $statusCode"}"""),
-            )
-
-            val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
-
-            assertEquals(
-                ApiResult.Failure(ApiError.Http(statusCode, "ERROR_$statusCode", "error $statusCode")),
-                result,
-            )
-        }
-    }
-
-    @Test
-    fun `HTTP 오류 body가 명세와 달라도 상태를 보존한다`() = runTest {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(400)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"errorCode":"BUSINESS_ERROR"}"""),
-        )
-
-        assertEquals(
-            ApiResult.Failure(ApiError.Http(400, null)),
-            dataSource.getTopic(LocalDate.of(2026, 8, 28)),
-        )
-    }
-
-    @Test
-    fun `빈 성공 body와 깨진 JSON은 invalid response다`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200))
-        server.enqueue(jsonResponse("{"))
-
-        assertEquals(
-            ApiResult.Failure(ApiError.InvalidResponse),
-            dataSource.getTopic(LocalDate.of(2026, 8, 28)),
-        )
-        assertEquals(
-            ApiResult.Failure(ApiError.InvalidResponse),
-            dataSource.getTopic(LocalDate.of(2026, 8, 28)),
-        )
-    }
-
-    @Test
     fun `사인 썸네일이 누락되거나 null이면 invalid response다`() = runTest {
         listOf(
             POSTS_BODY.replace(
@@ -285,15 +225,6 @@ class PostRemoteDataSourceImplTest {
         }
     }
 
-    @Test
-    fun `서버 연결 실패는 network failure다`() = runTest {
-        server.shutdown()
-
-        val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
-
-        assertEquals(ApiResult.Failure(ApiError.Network), result)
-    }
-
     private fun createDataSource(client: OkHttpClient = OkHttpClient()): PostRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
         val retrofit = Retrofit
@@ -303,7 +234,6 @@ class PostRemoteDataSourceImplTest {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
         return PostRemoteDataSourceImpl(
-            topicApi = retrofit.create(TopicApi::class.java),
             postApi = retrofit.create(PostApi::class.java),
             requestExecutor = ApiRequestExecutor(json, onUnauthorized = {}),
         )
@@ -316,8 +246,6 @@ class PostRemoteDataSourceImplTest {
 
     private companion object {
         const val POST_ID = "11111111-1111-1111-1111-111111111111"
-        const val TOPIC_BODY =
-            """{"id":"topic-id","title":"바다","topicDate":"2026-08-28","startsAt":"2026-08-27T15:00:00Z","endsAt":"2026-08-28T15:00:00Z","phase":"ACTIVE"}"""
         const val POSTS_BODY =
             """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumbnail.png","title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false}]}"""
         const val DETAIL_BODY =

@@ -8,6 +8,7 @@ import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
 import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
+import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -21,11 +22,12 @@ import okhttp3.MediaType.Companion.toMediaType
 
 class PostCreationRepositoryImpl(
     private val remoteDataSource: PostCreationRemoteDataSource,
+    private val topicRemoteDataSource: TopicRemoteDataSource,
     private val imageEncoder: PostImageEncoder,
     private val imageUploader: PostImageUploader,
 ) : PostCreationRepository {
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
-        val topic = when (val result = remoteDataSource.getTopic(topicDate)) {
+        val topic = when (val result = topicRemoteDataSource.getTopic(topicDate)) {
             is ApiResult.Success -> result.value
             is ApiResult.Failure -> return PostCreationTopicResult.Failure(result.error.toTopicFailure())
         }
