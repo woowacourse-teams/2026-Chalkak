@@ -64,9 +64,11 @@ class PhotoUploadViewModelTest {
         postCreationRepository.result = PostCreationResult.Success(
             PostCreation(
                 postId = "post-id",
-                topicId = "topic-id",
-                topic = "바다",
-                topicDate = LocalDate.of(2026, 8, 29),
+                topic = PostCreationTopic(
+                    id = "topic-id",
+                    title = "바다",
+                    date = LocalDate.of(2026, 8, 29),
+                ),
                 moderationStatus = PostModerationStatus.PENDING,
             ),
         )
@@ -96,9 +98,11 @@ class PhotoUploadViewModelTest {
         postCreationRepository.result = PostCreationResult.Success(
             PostCreation(
                 postId = "post-id",
-                topicId = "topic-id",
-                topic = "바다",
-                topicDate = uploadTopicDate,
+                topic = PostCreationTopic(
+                    id = "topic-id",
+                    title = "바다",
+                    date = uploadTopicDate,
+                ),
                 moderationStatus = PostModerationStatus.PENDING,
             ),
         )
@@ -159,9 +163,11 @@ class PhotoUploadViewModelTest {
             result = PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
-                    topicId = "topic-id",
-                    topic = "바다",
-                    topicDate = uploadTopicDate,
+                    topic = PostCreationTopic(
+                        id = "topic-id",
+                        title = "바다",
+                        date = uploadTopicDate,
+                    ),
                     moderationStatus = PostModerationStatus.VALIDATING,
                 ),
             )
@@ -183,9 +189,11 @@ class PhotoUploadViewModelTest {
             PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
-                    topicId = "topic-id",
-                    topic = "바다",
-                    topicDate = LocalDate.of(2026, 8, 29),
+                    topic = PostCreationTopic(
+                        id = "topic-id",
+                        title = "바다",
+                        date = LocalDate.of(2026, 8, 29),
+                    ),
                     moderationStatus = PostModerationStatus.VALIDATING,
                 ),
             ),

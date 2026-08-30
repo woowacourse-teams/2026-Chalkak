@@ -120,9 +120,7 @@ class PostCreationRepositoryImpl(
             PostCreationResult.Success(
                 PostCreation(
                     postId = post.postId,
-                    topicId = topic.id,
-                    topic = topic.title,
-                    topicDate = topic.date,
+                    topic = topic,
                     moderationStatus = moderationStatus,
                 ),
             )

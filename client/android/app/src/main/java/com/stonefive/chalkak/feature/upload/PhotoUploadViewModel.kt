@@ -161,8 +161,8 @@ class PhotoUploadViewModel(
     }
 
     private fun com.stonefive.chalkak.domain.model.PostCreation.toSuccessContent() = PhotoUploadSuccessContent(
-        dateLabel = this.topicDate.toSuccessDateLabel(),
-        topic = topic,
+        dateLabel = topic.date.toSuccessDateLabel(),
+        topic = topic.title,
         moderationStatus = moderationStatus.name,
     )
 

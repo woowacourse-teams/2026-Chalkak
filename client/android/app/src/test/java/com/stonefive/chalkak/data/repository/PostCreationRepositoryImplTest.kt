@@ -59,9 +59,7 @@ class PostCreationRepositoryImplTest {
             PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
-                    topicId = "topic-id",
-                    topic = "바다",
-                    topicDate = requestedDate,
+                    topic = topic,
                     moderationStatus = PostModerationStatus.VALIDATING,
                 ),
             ),

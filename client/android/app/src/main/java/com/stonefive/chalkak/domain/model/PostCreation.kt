@@ -4,9 +4,7 @@ import java.time.LocalDate
 
 data class PostCreation(
     val postId: String,
-    val topicId: String,
-    val topic: String,
-    val topicDate: LocalDate,
+    val topic: PostCreationTopic,
     val moderationStatus: PostModerationStatus,
 )
 
