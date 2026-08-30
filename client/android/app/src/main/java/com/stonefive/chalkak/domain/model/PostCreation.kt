@@ -49,9 +49,4 @@ sealed interface PostCreationFailure {
     data object TopicNotOpen : PostCreationFailure
 
     data object InvalidResponse : PostCreationFailure
-
-    companion object {
-        val Unauthorized: PostCreationFailure
-            get() = ReauthenticationRequired
-    }
 }
