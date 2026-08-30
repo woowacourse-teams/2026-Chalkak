@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.model.ErrorResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -12,7 +13,6 @@ import com.stonefive.chalkak.domain.model.PostSort
 import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.Response
@@ -53,14 +53,16 @@ class PostRemoteDataSourceImpl(
             response.body()?.let(ApiResult<T>::Success)
                 ?: ApiResult.Failure(ApiError.InvalidResponse)
         } else {
-            val errorCode = response
+            val errorResponse = response
                 .errorBody()
                 ?.string()
-                ?.let(::decodeErrorCode)
+                ?.let(::decodeError)
+                ?: return ApiResult.Failure(ApiError.InvalidResponse)
             ApiResult.Failure(
                 ApiError.Http(
                     statusCode = response.code(),
-                    errorCode = errorCode,
+                    errorCode = errorResponse.errorCode,
+                    message = errorResponse.message,
                 ),
             )
         }
@@ -72,9 +74,8 @@ class PostRemoteDataSourceImpl(
         ApiResult.Failure(ApiError.InvalidResponse)
     }
 
-    private fun decodeErrorCode(body: String): String? = runCatching {
-        json.decodeFromString<PostErrorResponse>(body).errorCode
-    }.getOrNull()
+    private fun decodeError(body: String): ErrorResponse? =
+        runCatching { json.decodeFromString<ErrorResponse>(body) }.getOrNull()
 }
 
 private val PostSort.apiValue: String
@@ -83,6 +84,3 @@ private val PostSort.apiValue: String
         PostSort.POPULAR -> "popular"
         PostSort.RANDOM -> "random"
     }
-
-@Serializable
-private data class PostErrorResponse(val errorCode: String? = null)

@@ -188,16 +188,31 @@ class PostRemoteDataSourceImplTest {
                 MockResponse()
                     .setResponseCode(statusCode)
                     .setHeader("Content-Type", "application/json")
-                    .setBody("""{"errorCode":"ERROR_$statusCode"}"""),
+                    .setBody("""{"errorCode":"ERROR_$statusCode","message":"error $statusCode"}"""),
             )
 
             val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
 
             assertEquals(
-                ApiResult.Failure(ApiError.Http(statusCode, "ERROR_$statusCode")),
+                ApiResult.Failure(ApiError.Http(statusCode, "ERROR_$statusCode", "error $statusCode")),
                 result,
             )
         }
+    }
+
+    @Test
+    fun `HTTP 오류 body가 명세와 다르면 invalid response다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"BUSINESS_ERROR"}"""),
+        )
+
+        assertEquals(
+            ApiResult.Failure(ApiError.InvalidResponse),
+            dataSource.getTopic(LocalDate.of(2026, 8, 28)),
+        )
     }
 
     @Test

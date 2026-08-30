@@ -43,7 +43,9 @@ class UserRepositoryImplTest {
 
     @Test
     fun `서명 조회의 401 응답을 인증 오류로 변환한다`() = runTest {
-        userDataSource.mySignatureResult = ApiResult.Failure(ApiError.Http(401, null))
+        userDataSource.mySignatureResult = ApiResult.Failure(
+            ApiError.Http(401, "UNAUTHORIZED", "유효하지 않은 인증 정보입니다."),
+        )
 
         val error = runCatching { repository.getMySignature() }.exceptionOrNull()
 

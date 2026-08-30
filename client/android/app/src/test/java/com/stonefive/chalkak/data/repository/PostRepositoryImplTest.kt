@@ -282,10 +282,14 @@ class PostRepositoryImplTest {
 
     @Test
     fun `토픽 404와 인증 네트워크 응답을 도메인 실패로 구분한다`() = runTest {
-        remoteDataSource.topicResult = ApiResult.Failure(ApiError.Http(404, "TOPIC_NOT_FOUND"))
+        remoteDataSource.topicResult = ApiResult.Failure(
+            ApiError.Http(404, "TOPIC_NOT_FOUND", "주제를 찾을 수 없습니다."),
+        )
         assertEquals(HomeResult.Failure(HomeFailure.TopicNotFound), repository.getPostContent(query))
 
-        remoteDataSource.topicResult = ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED"))
+        remoteDataSource.topicResult = ApiResult.Failure(
+            ApiError.Http(401, "UNAUTHORIZED", "유효하지 않은 인증 정보입니다."),
+        )
         assertEquals(HomeResult.Failure(HomeFailure.Unauthorized), repository.getPostContent(query))
 
         remoteDataSource.topicResult = ApiResult.Failure(ApiError.Network)
