@@ -1,9 +1,11 @@
 package com.stonefive.chalkak.data.remote.auth.model.response
 
-import kotlinx.serialization.Serializable
+sealed interface SocialLoginResponse {
+    data class LoginSuccess(
+        val userId: String,
+        val accessToken: String,
+        val expiresIn: Long,
+    ) : SocialLoginResponse
 
-@Serializable
-data class SocialLoginResponse(
-    val status: String,
-    val userId: String? = null,
-)
+    data object SignUpRequired : SocialLoginResponse
+}

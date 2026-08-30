@@ -23,7 +23,7 @@ class NetworkModule(
 
     private val backendClient = OkHttpClient
         .Builder()
-        .addInterceptor(UserIdHeaderInterceptor(sessionStore))
+        .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
         .addInterceptor(createLoggingInterceptor())
         .build()
 
@@ -40,7 +40,7 @@ class NetworkModule(
     val userApi: UserApi = retrofit.create(UserApi::class.java)
     val apiRequestExecutor = ApiRequestExecutor(
         json = json,
-        onUnauthorized = sessionStore::clear,
+        onUnauthorized = sessionStore::clearIfAccessTokenMatches,
     )
 
     val signatureUploadClient = OkHttpClient

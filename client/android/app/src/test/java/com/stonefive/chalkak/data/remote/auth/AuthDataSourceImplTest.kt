@@ -36,7 +36,7 @@ class AuthDataSourceImplTest {
             .create(AuthApi::class.java)
         dataSource = AuthDataSourceImpl(
             api = api,
-            requestExecutor = ApiRequestExecutor(json) {},
+            requestExecutor = ApiRequestExecutor(json) { _ -> },
         )
     }
 
@@ -51,7 +51,9 @@ class AuthDataSourceImplTest {
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("Content-Type", "application/json")
-                .setBody("""{"status":"LOGIN_SUCCESS","userId":"user-id"}"""),
+                .setBody(
+                    """{"status":"LOGIN_SUCCESS","userId":"user-id","accessToken":"access-token","expiresIn":3600}""",
+                ),
         )
 
         val result = dataSource.socialLogin(SocialLoginProvider.GOOGLE, "id-token")
@@ -59,7 +61,11 @@ class AuthDataSourceImplTest {
 
         assertEquals(
             ApiResult.Success(
-                SocialLoginResponse(status = "LOGIN_SUCCESS", userId = "user-id"),
+                SocialLoginResponse.LoginSuccess(
+                    userId = "user-id",
+                    accessToken = "access-token",
+                    expiresIn = 3600,
+                ),
             ),
             result,
         )
@@ -78,14 +84,29 @@ class AuthDataSourceImplTest {
                 .setBody("""{"status":"SIGN_UP_REQUIRED"}"""),
         )
 
-        dataSource.socialLogin(SocialLoginProvider.KAKAO, "kakao-id-token")
+        val result = dataSource.socialLogin(SocialLoginProvider.KAKAO, "kakao-id-token")
         val body = server
             .takeRequest()
             .body
             .readUtf8()
 
+        assertEquals(ApiResult.Success(SocialLoginResponse.SignUpRequired), result)
         assertTrue(body.contains("\"provider\":\"KAKAO\""))
         assertTrue(body.contains("\"idToken\":\"kakao-id-token\""))
+    }
+
+    @Test
+    fun `로그인 성공 응답에 필수 인증 정보가 없으면 잘못된 응답으로 처리한다`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"status":"LOGIN_SUCCESS","userId":"user-id","expiresIn":3600}"""),
+        )
+
+        val result = dataSource.socialLogin(SocialLoginProvider.GOOGLE, "id-token")
+
+        assertEquals(ApiResult.Failure(ApiError.InvalidResponse), result)
     }
 
     @Test
