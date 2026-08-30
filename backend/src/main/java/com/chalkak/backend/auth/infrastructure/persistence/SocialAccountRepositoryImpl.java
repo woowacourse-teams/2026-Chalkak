@@ -22,6 +22,11 @@ public class SocialAccountRepositoryImpl implements SocialAccountRepository {
     }
 
     @Override
+    public Optional<SocialAccount> findByUserId(UUID userId) {
+        return socialAccountJpaRepository.findByUserId(userId);
+    }
+
+    @Override
     public SocialAccount save(SocialAccount socialAccount) {
         return socialAccountJpaRepository.save(socialAccount);
     }

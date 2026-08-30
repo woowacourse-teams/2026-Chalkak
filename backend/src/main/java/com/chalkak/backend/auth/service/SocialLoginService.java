@@ -17,6 +17,7 @@ public class SocialLoginService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
+    private final SocialIdentityRestrictionService socialIdentityRestrictionService;
     private final AccessTokenIssuer accessTokenIssuer;
 
     @Transactional(readOnly = true)
@@ -27,6 +28,9 @@ public class SocialLoginService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken);
+        socialIdentityRestrictionService.validateNotBlocked(
+                identity.provider(),
+                identity.subject());
 
         return socialAccountRepository.findByProviderAndSubject(
                         identity.provider(),

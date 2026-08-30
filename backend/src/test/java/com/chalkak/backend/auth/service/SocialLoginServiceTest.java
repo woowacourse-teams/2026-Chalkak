@@ -44,6 +44,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private UserService userService;
 
     @Autowired
+    private SocialIdentityRestrictionService socialIdentityRestrictionService;
+
+    @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
@@ -117,6 +120,31 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
+    }
+
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤 동일한 소셜 계정으로 로그인하면 거부한다")
+    void login_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        user.ban();
+        socialIdentityRestrictionService.block(user.getId());
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialLoginService.login(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
     }
 
     @Test

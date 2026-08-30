@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
@@ -62,6 +63,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private SocialIdentityRestrictionService socialIdentityRestrictionService;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -223,6 +227,36 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤에는 기존 회원가입 토큰으로 재가입할 수 없다")
+    void signup_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        user.ban();
+        socialIdentityRestrictionService.block(user.getId());
+        userService.withdraw(user.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageStorage);
     }
 
     @Test
@@ -407,6 +441,33 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤에는 회원가입용 서명 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                SUBJECT));
+        user.ban();
+        socialIdentityRestrictionService.block(user.getId());
+        userService.withdraw(user.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
     }
 
     private VerifiedSocialIdentity identity() {

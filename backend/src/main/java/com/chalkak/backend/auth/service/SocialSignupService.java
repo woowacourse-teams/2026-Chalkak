@@ -30,6 +30,7 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
+    private final SocialIdentityRestrictionService socialIdentityRestrictionService;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final AccessTokenIssuer accessTokenIssuer;
@@ -45,6 +46,9 @@ public class SocialSignupService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken);
+        socialIdentityRestrictionService.validateNotBlocked(
+                identity.provider(),
+                identity.subject());
         validateNewSocialAccount(identity);
 
         UUID uploadId = UUID.randomUUID();
@@ -60,6 +64,9 @@ public class SocialSignupService {
     public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =
                 socialSignupTokenVerifier.verify(signupToken);
+        socialIdentityRestrictionService.validateNotBlocked(
+                verifiedToken.provider(),
+                verifiedToken.subject());
         Optional<SocialAccount> existingSocialAccount = socialAccountRepository
                 .findByProviderAndSubject(
                         verifiedToken.provider(),

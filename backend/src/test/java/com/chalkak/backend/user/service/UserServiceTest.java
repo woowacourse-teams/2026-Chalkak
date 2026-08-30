@@ -6,9 +6,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.BannedSocialIdentity;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.repository.BannedSocialIdentityRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -48,6 +51,12 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private BannedSocialIdentityRepository bannedSocialIdentityRepository;
+
+    @Autowired
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
@@ -1038,15 +1047,37 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("정지된 회원도 탈퇴할 수 있다")
-    void withdraw_bannedUser_withdrawsUser() {
+    @DisplayName("차단 회원이 탈퇴하면 소셜 계정은 삭제하고 차단 식별자는 유지한다")
+    void withdraw_bannedUser_deletesSocialAccountAndPreservesRestriction() {
         // Given
-        UUID userId = userRepository.save(UserFixture.createBanned(null)).getId();
+        User user = userRepository.save(UserFixture.createBanned(null));
+        UUID userId = user.getId();
+        String subject = "banned-google-subject";
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.GOOGLE,
+                subject);
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subject));
+        bannedSocialIdentityRepository.save(BannedSocialIdentity.create(
+                SocialProvider.GOOGLE,
+                subjectHmac));
+        flushAndClear();
 
         // When
         userService.withdraw(userId);
+        flushAndClear();
 
         // Then
         assertThat(userRepository.findActiveById(userId)).isEmpty();
+        assertThat(socialAccountRepository.findByProviderAndSubject(
+                SocialProvider.GOOGLE,
+                subject))
+                .isEmpty();
+        assertThat(bannedSocialIdentityRepository.existsByProviderAndSubjectHmac(
+                SocialProvider.GOOGLE,
+                subjectHmac))
+                .isTrue();
     }
 }

@@ -11,6 +11,8 @@ public interface SocialAccountRepository {
             SocialProvider provider,
             String subject);
 
+    Optional<SocialAccount> findByUserId(UUID userId);
+
     SocialAccount save(SocialAccount socialAccount);
 
     void deleteByUserId(UUID userId);
