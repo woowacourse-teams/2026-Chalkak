@@ -6,7 +6,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import java.time.LocalDate
 
-interface PostRemoteDataSource {
+interface PostCreationRemoteDataSource {
     suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse>
 
     suspend fun createPostImageUpload(): ApiResult<PostImageUploadResponse>

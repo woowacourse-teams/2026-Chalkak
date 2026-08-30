@@ -8,7 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
-import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class PhotoUploadViewModel(
-    private val postRepository: PostRepository,
+    private val postCreationRepository: PostCreationRepository,
     private val topicDate: LocalDate,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PhotoUploadUiState())
@@ -75,7 +75,7 @@ class PhotoUploadViewModel(
 
         viewModelScope.launch {
             try {
-                when (val result = postRepository.createPost(imageUri, caption, topicDate)) {
+                when (val result = postCreationRepository.createPost(imageUri, caption, topicDate)) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
@@ -141,7 +141,7 @@ class PhotoUploadViewModel(
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 PhotoUploadViewModel(
-                    postRepository = application.appContainer.postRepository,
+                    postCreationRepository = application.appContainer.postCreationRepository,
                     topicDate = topicDate,
                 )
             }

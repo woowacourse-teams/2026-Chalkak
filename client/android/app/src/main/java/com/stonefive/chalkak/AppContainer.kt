@@ -11,20 +11,20 @@ import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.display.MockDisplayRemoteDataSource
 import com.stonefive.chalkak.data.remote.home.HomeRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.home.MockHomeRemoteDataSource
-import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
+import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpPresignedImageUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.DisplayRepositoryImpl
 import com.stonefive.chalkak.data.repository.HomeRepositoryImpl
-import com.stonefive.chalkak.data.repository.PostRepositoryImpl
+import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.DisplayRepository
 import com.stonefive.chalkak.domain.repository.HomeRepository
-import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.RecordRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -70,9 +70,9 @@ class AppContainer(context: Context) {
         )
     }
 
-    val postRepository: PostRepository by lazy {
-        PostRepositoryImpl(
-            remoteDataSource = PostRemoteDataSourceImpl(
+    val postCreationRepository: PostCreationRepository by lazy {
+        PostCreationRepositoryImpl(
+            remoteDataSource = PostCreationRemoteDataSourceImpl(
                 postApi = networkModule.postApi,
                 topicApi = networkModule.topicApi,
                 requestExecutor = networkModule.apiRequestExecutor,

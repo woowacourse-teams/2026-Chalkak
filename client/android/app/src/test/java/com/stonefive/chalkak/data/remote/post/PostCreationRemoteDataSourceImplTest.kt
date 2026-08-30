@@ -21,9 +21,9 @@ import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
-class PostRemoteDataSourceImplTest {
+class PostCreationRemoteDataSourceImplTest {
     private lateinit var server: MockWebServer
-    private lateinit var dataSource: PostRemoteDataSourceImpl
+    private lateinit var dataSource: PostCreationRemoteDataSourceImpl
     private var unauthorizedHandled = false
 
     @Before
@@ -37,7 +37,7 @@ class PostRemoteDataSourceImplTest {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
         unauthorizedHandled = false
-        dataSource = PostRemoteDataSourceImpl(
+        dataSource = PostCreationRemoteDataSourceImpl(
             postApi = retrofit.create(PostApi::class.java),
             topicApi = retrofit.create(TopicApi::class.java),
             requestExecutor = ApiRequestExecutor(json) {

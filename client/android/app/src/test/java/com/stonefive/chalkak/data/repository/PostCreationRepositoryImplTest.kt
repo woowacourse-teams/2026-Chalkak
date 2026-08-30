@@ -4,7 +4,7 @@ import com.stonefive.chalkak.data.post.PostImageEncodeResult
 import com.stonefive.chalkak.data.post.PostImageEncoder
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
@@ -27,13 +27,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class PostRepositoryImplTest {
+class PostCreationRepositoryImplTest {
     private val events = mutableListOf<String>()
-    private val remote = FakePostRemoteDataSource(events)
+    private val remote = FakePostCreationRemoteDataSource(events)
     private val encoder = FakePostImageEncoder(events)
     private val uploader = FakePostImageUploader(events)
     private val requestedDate = LocalDate.of(2026, 8, 29)
-    private val repository = PostRepositoryImpl(
+    private val repository = PostCreationRepositoryImpl(
         remoteDataSource = remote,
         imageEncoder = encoder,
         imageUploader = uploader,
@@ -242,7 +242,7 @@ class PostRepositoryImplTest {
     }
 }
 
-private class FakePostRemoteDataSource(private val events: MutableList<String>) : PostRemoteDataSource {
+private class FakePostCreationRemoteDataSource(private val events: MutableList<String>) : PostCreationRemoteDataSource {
     val calls = mutableListOf<String>()
     val createdTitles = mutableListOf<String?>()
     var topicResult: ApiResult<TopicResponse> = ApiResult.Success(

@@ -9,11 +9,11 @@ import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import java.time.LocalDate
 
-class PostRemoteDataSourceImpl(
+class PostCreationRemoteDataSourceImpl(
     private val postApi: PostApi,
     private val topicApi: TopicApi,
     private val requestExecutor: ApiRequestExecutor,
-) : PostRemoteDataSource {
+) : PostCreationRemoteDataSource {
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = requestExecutor.execute {
         topicApi.getTopic(date.toString())
     }

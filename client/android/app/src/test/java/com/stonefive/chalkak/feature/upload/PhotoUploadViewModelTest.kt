@@ -5,7 +5,7 @@ import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
-import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
@@ -21,9 +21,9 @@ class PhotoUploadViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val postRepository = FakePostRepository()
+    private val postCreationRepository = FakePostCreationRepository()
     private val uploadTopicDate = LocalDate.of(2026, 8, 29)
-    private val viewModel = PhotoUploadViewModel(postRepository, uploadTopicDate)
+    private val viewModel = PhotoUploadViewModel(postCreationRepository, uploadTopicDate)
 
     @Test
     fun `사진을 선택하면 제출할 수 있다`() {
@@ -47,12 +47,12 @@ class PhotoUploadViewModelTest {
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertFalse(viewModel.uiState.value.isSubmitting)
-        assertEquals(0, postRepository.callCount)
+        assertEquals(0, postCreationRepository.callCount)
     }
 
     @Test
     fun `성공 결과는 실제 제출 정보와 함께 durable 상태가 된다`() = runTest {
-        postRepository.result = PostCreationResult.Success(
+        postCreationRepository.result = PostCreationResult.Success(
             PostCreation(
                 postId = "post-id",
                 topicId = "topic-id",
@@ -85,14 +85,14 @@ class PhotoUploadViewModelTest {
     @Test
     fun `처리 중 반복 탭은 repository를 한 번만 호출한다`() = runTest {
         val gate = CompletableDeferred<Unit>()
-        postRepository.await = gate
+        postCreationRepository.await = gate
         viewModel.onImageSelected("content://media/photo/1")
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
-        assertEquals(1, postRepository.callCount)
-        assertEquals(uploadTopicDate, postRepository.requestedTopicDates.single())
+        assertEquals(1, postCreationRepository.callCount)
+        assertEquals(uploadTopicDate, postCreationRepository.requestedTopicDates.single())
         assertTrue(viewModel.uiState.value.isSubmitting)
 
         gate.complete(Unit)
@@ -107,13 +107,13 @@ class PhotoUploadViewModelTest {
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
-        assertEquals(listOf(uploadTopicDate), postRepository.requestedTopicDates)
+        assertEquals(listOf(uploadTopicDate), postCreationRepository.requestedTopicDates)
     }
 
     @Test
     fun `실패하면 입력을 유지하고 다시 제출할 수 있다`() = runTest {
-        postRepository.results.add(PostCreationResult.Failure(PostCreationFailure.NetworkUnavailable))
-        postRepository.results.add(
+        postCreationRepository.results.add(PostCreationResult.Failure(PostCreationFailure.NetworkUnavailable))
+        postCreationRepository.results.add(
             PostCreationResult.Success(
                 PostCreation(
                     postId = "post-id",
@@ -137,13 +137,13 @@ class PhotoUploadViewModelTest {
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
-        assertEquals(2, postRepository.callCount)
+        assertEquals(2, postCreationRepository.callCount)
         assertTrue(viewModel.uiState.value.completedSubmission != null)
     }
 
     @Test
     fun `중복 제출 실패는 구체적인 메시지와 입력을 유지한다`() = runTest {
-        postRepository.result = PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted)
+        postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted)
         val image = "content://media/photo/1"
         viewModel.onImageSelected(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
@@ -157,7 +157,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `닫힌 주제 실패는 주제 변경 메시지와 입력을 유지한다`() = runTest {
-        postRepository.result = PostCreationResult.Failure(PostCreationFailure.TopicNotOpen)
+        postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.TopicNotOpen)
         val image = "content://media/photo/1"
         viewModel.onImageSelected(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
@@ -174,7 +174,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `401은 재인증 effect를 보내고 입력은 유지한다`() = runTest {
-        postRepository.result = PostCreationResult.Failure(
+        postCreationRepository.result = PostCreationResult.Failure(
             PostCreationFailure.ReauthenticationRequired,
         )
         val image = "content://media/photo/1"
@@ -198,7 +198,7 @@ class PhotoUploadViewModelTest {
     }
 }
 
-private class FakePostRepository : PostRepository {
+private class FakePostCreationRepository : PostCreationRepository {
     var result: PostCreationResult = PostCreationResult.Failure(
         PostCreationFailure.NetworkUnavailable,
     )

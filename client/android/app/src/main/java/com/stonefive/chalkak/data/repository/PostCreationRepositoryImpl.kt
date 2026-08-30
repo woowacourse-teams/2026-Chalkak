@@ -4,7 +4,7 @@ import com.stonefive.chalkak.data.post.PostImageEncodeResult
 import com.stonefive.chalkak.data.post.PostImageEncoder
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.signature.PresignedImageUploader
 import com.stonefive.chalkak.data.remote.signature.PresignedUploadResult
@@ -13,16 +13,16 @@ import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
-import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate
 import okhttp3.MediaType.Companion.toMediaType
 
-class PostRepositoryImpl(
-    private val remoteDataSource: PostRemoteDataSource,
+class PostCreationRepositoryImpl(
+    private val remoteDataSource: PostCreationRemoteDataSource,
     private val imageEncoder: PostImageEncoder,
     private val imageUploader: PresignedImageUploader,
-) : PostRepository {
+) : PostCreationRepository {
     override suspend fun createPost(
         imageUri: String,
         title: String?,
