@@ -10,6 +10,18 @@ data class PostCreation(
     val moderationStatus: PostModerationStatus,
 )
 
+data class PostCreationTopic(
+    val id: String,
+    val title: String,
+    val date: LocalDate,
+)
+
+sealed interface PostCreationTopicResult {
+    data class Success(val value: PostCreationTopic) : PostCreationTopicResult
+
+    data class Failure(val reason: PostCreationFailure) : PostCreationTopicResult
+}
+
 enum class PostModerationStatus {
     VALIDATING,
     PENDING,

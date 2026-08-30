@@ -4,6 +4,8 @@ import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
+import com.stonefive.chalkak.domain.model.PostCreationTopic
+import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
@@ -23,7 +25,14 @@ class PhotoUploadViewModelTest {
 
     private val postCreationRepository = FakePostCreationRepository()
     private val uploadTopicDate = LocalDate.of(2026, 8, 29)
-    private val viewModel = PhotoUploadViewModel(postCreationRepository, uploadTopicDate)
+    private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
+
+    @Test
+    fun `업로드 화면을 열면 고정한 날짜의 주제를 미리 조회한다`() {
+        assertFalse(viewModel.uiState.value.isTopicLoading)
+        assertEquals(listOf(uploadTopicDate), postCreationRepository.requestedTopicDates)
+        assertEquals(0, postCreationRepository.callCount)
+    }
 
     @Test
     fun `사진을 선택하면 제출할 수 있다`() {
@@ -92,7 +101,12 @@ class PhotoUploadViewModelTest {
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertEquals(1, postCreationRepository.callCount)
-        assertEquals(uploadTopicDate, postCreationRepository.requestedTopicDates.single())
+        assertEquals(
+            uploadTopicDate,
+            postCreationRepository.requestedTopics
+                .single()
+                .date,
+        )
         assertTrue(viewModel.uiState.value.isSubmitting)
 
         gate.complete(Unit)
@@ -108,6 +122,37 @@ class PhotoUploadViewModelTest {
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertEquals(listOf(uploadTopicDate), postCreationRepository.requestedTopicDates)
+        assertEquals(
+            uploadTopicDate,
+            postCreationRepository.requestedTopics
+                .single()
+                .date,
+        )
+    }
+
+    @Test
+    fun `주제 선조회 실패 후 제출하면 주제를 다시 조회하고 제출한다`() = runTest {
+        val repository = FakePostCreationRepository().apply {
+            topicResults.add(PostCreationTopicResult.Failure(PostCreationFailure.NetworkUnavailable))
+            topicResults.add(PostCreationTopicResult.Success(defaultTopic))
+            result = PostCreationResult.Success(
+                PostCreation(
+                    postId = "post-id",
+                    topicId = "topic-id",
+                    topic = "바다",
+                    topicDate = uploadTopicDate,
+                    moderationStatus = PostModerationStatus.VALIDATING,
+                ),
+            )
+        }
+        val retryViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
+        retryViewModel.onImageSelected("content://media/photo/1")
+
+        retryViewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(listOf(uploadTopicDate, uploadTopicDate), repository.requestedTopicDates)
+        assertEquals(1, repository.callCount)
+        assertTrue(retryViewModel.uiState.value.completedSubmission != null)
     }
 
     @Test
@@ -199,6 +244,13 @@ class PhotoUploadViewModelTest {
 }
 
 private class FakePostCreationRepository : PostCreationRepository {
+    val defaultTopic = PostCreationTopic(
+        id = "topic-id",
+        title = "바다",
+        date = LocalDate.of(2026, 8, 29),
+    )
+    var topicResult: PostCreationTopicResult = PostCreationTopicResult.Success(defaultTopic)
+    val topicResults = ArrayDeque<PostCreationTopicResult>()
     var result: PostCreationResult = PostCreationResult.Failure(
         PostCreationFailure.NetworkUnavailable,
     )
@@ -206,14 +258,20 @@ private class FakePostCreationRepository : PostCreationRepository {
     var await: CompletableDeferred<Unit>? = null
     var callCount = 0
     val requestedTopicDates = mutableListOf<LocalDate>()
+    val requestedTopics = mutableListOf<PostCreationTopic>()
+
+    override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
+        requestedTopicDates += topicDate
+        return if (topicResults.isEmpty()) topicResult else topicResults.removeFirst()
+    }
 
     override suspend fun createPost(
         imageUri: String,
         title: String?,
-        topicDate: LocalDate,
+        topic: PostCreationTopic,
     ): PostCreationResult {
         callCount++
-        requestedTopicDates += topicDate
+        requestedTopics += topic
         await?.await()
         return if (results.isEmpty()) result else results.removeFirst()
     }

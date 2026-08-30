@@ -13,6 +13,8 @@ import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
+import com.stonefive.chalkak.domain.model.PostCreationTopic
+import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import java.io.File
 import java.time.LocalDate
@@ -32,6 +34,7 @@ class PostCreationRepositoryImplTest {
     private val encoder = FakePostImageEncoder(events)
     private val uploader = FakePostImageUploader(events)
     private val requestedDate = LocalDate.of(2026, 8, 29)
+    private val topic = PostCreationTopic("topic-id", "바다", requestedDate)
     private val repository = PostCreationRepositoryImpl(
         remoteDataSource = remote,
         imageEncoder = encoder,
@@ -40,11 +43,14 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `주제 조회부터 게시물 생성까지 순서와 인자를 전달한다`() = runTest {
+        val topicResult = repository.getCreationTopic(requestedDate)
         val result = repository.createPost(
             imageUri = "content://photo/1",
             title = "   ",
-            topicDate = requestedDate,
+            topic = topic,
         )
+
+        assertEquals(PostCreationTopicResult.Success(topic), topicResult)
 
         assertEquals(
             PostCreationResult.Success(
@@ -77,8 +83,8 @@ class PostCreationRepositoryImplTest {
         remote.topicResult = ApiResult.Failure(ApiError.Network)
 
         assertEquals(
-            PostCreationResult.Failure(PostCreationFailure.NetworkUnavailable),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            PostCreationTopicResult.Failure(PostCreationFailure.NetworkUnavailable),
+            repository.getCreationTopic(requestedDate),
         )
         assertEquals(listOf("topic:$requestedDate"), remote.calls)
         assertTrue(encoder.calls.isEmpty())
@@ -91,9 +97,9 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
-        assertEquals(listOf("topic:$requestedDate", "upload-policy"), remote.calls)
+        assertEquals(listOf("upload-policy"), remote.calls)
         assertTrue(encoder.calls.isEmpty())
         assertTrue(uploader.calls.isEmpty())
     }
@@ -104,9 +110,9 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
-        assertEquals(listOf("topic:$requestedDate", "upload-policy"), remote.calls)
+        assertEquals(listOf("upload-policy"), remote.calls)
         assertEquals(listOf("encode:content://photo/1:5242880"), encoder.calls)
         assertTrue(uploader.calls.isEmpty())
         assertTrue(remote.createdTitles.isEmpty())
@@ -118,7 +124,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
         assertTrue(remote.createdTitles.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -130,7 +136,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ReauthenticationRequired),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -147,7 +153,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
     }
 
@@ -163,7 +169,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.TopicNotOpen),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
     }
 
@@ -174,7 +180,7 @@ class PostCreationRepositoryImplTest {
                 PostCreateResponse("post-$status", status),
             )
 
-            val result = repository.createPost("content://photo/1", "제목", requestedDate)
+            val result = repository.createPost("content://photo/1", "제목", topic)
 
             assertTrue(result is PostCreationResult.Success)
             assertEquals(
@@ -190,7 +196,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -201,7 +207,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
         assertTrue(uploader.calls.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -221,7 +227,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost("content://photo/1", "제목", requestedDate),
+            repository.createPost("content://photo/1", "제목", topic),
         )
         assertTrue(encoder.calls.isEmpty())
         assertTrue(uploader.calls.isEmpty())
@@ -231,7 +237,7 @@ class PostCreationRepositoryImplTest {
     fun `PUT 중 취소되어도 임시 파일을 삭제한다`() = runTest {
         uploader.await = CompletableDeferred()
         val job = launch {
-            repository.createPost("content://photo/1", "제목", requestedDate)
+            repository.createPost("content://photo/1", "제목", topic)
         }
 
         while (uploader.calls.isEmpty()) testScheduler.runCurrent()

@@ -11,6 +11,8 @@ import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
+import com.stonefive.chalkak.domain.model.PostCreationTopic
+import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
@@ -22,20 +24,30 @@ class PostCreationRepositoryImpl(
     private val imageEncoder: PostImageEncoder,
     private val imageUploader: PostImageUploader,
 ) : PostCreationRepository {
+    override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
+        val topic = when (val result = remoteDataSource.getTopic(topicDate)) {
+            is ApiResult.Success -> result.value
+            is ApiResult.Failure -> return PostCreationTopicResult.Failure(result.error.toTopicFailure())
+        }
+        val responseDate = runCatching { LocalDate.parse(topic.topicDate) }.getOrNull()
+            ?: return PostCreationTopicResult.Failure(PostCreationFailure.InvalidResponse)
+        if (topic.id.isBlank() || topic.title.isBlank() || responseDate != topicDate) {
+            return PostCreationTopicResult.Failure(PostCreationFailure.InvalidResponse)
+        }
+        return PostCreationTopicResult.Success(
+            PostCreationTopic(
+                id = topic.id,
+                title = topic.title,
+                date = responseDate,
+            ),
+        )
+    }
+
     override suspend fun createPost(
         imageUri: String,
         title: String?,
-        topicDate: LocalDate,
+        topic: PostCreationTopic,
     ): PostCreationResult {
-        val topic = when (val result = remoteDataSource.getTopic(topicDate)) {
-            is ApiResult.Success -> result.value
-
-            is ApiResult.Failure -> {
-                return PostCreationResult.Failure(result.error.toTopicFailure())
-            }
-        }
-        val topicDate = runCatching { LocalDate.parse(topic.topicDate) }.getOrNull()
-            ?: return PostCreationResult.Failure(PostCreationFailure.InvalidResponse)
         if (topic.id.isBlank() || topic.title.isBlank()) {
             return PostCreationResult.Failure(PostCreationFailure.InvalidResponse)
         }
@@ -108,7 +120,7 @@ class PostCreationRepositoryImpl(
                     postId = post.postId,
                     topicId = topic.id,
                     topic = topic.title,
-                    topicDate = topicDate,
+                    topicDate = topic.date,
                     moderationStatus = moderationStatus,
                 ),
             )

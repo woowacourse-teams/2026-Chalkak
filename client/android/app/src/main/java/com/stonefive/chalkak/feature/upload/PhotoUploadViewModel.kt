@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
+import com.stonefive.chalkak.domain.model.PostCreationTopic
+import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
@@ -23,11 +25,16 @@ class PhotoUploadViewModel(
     private val postCreationRepository: PostCreationRepository,
     private val topicDate: LocalDate,
 ) : ViewModel() {
+    private var creationTopic: PostCreationTopic? = null
     private val _uiState = MutableStateFlow(PhotoUploadUiState())
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
 
     private val _uiEvent = Channel<PhotoUploadUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
+
+    init {
+        loadCreationTopic()
+    }
 
     fun onAction(action: PhotoUploadUiAction) {
         if (_uiState.value.isSubmitting && action != PhotoUploadUiAction.BackClicked) return
@@ -63,7 +70,12 @@ class PhotoUploadViewModel(
     private fun submit() {
         val state = _uiState.value
         val imageUri = state.selectedImage ?: return
-        if (state.isSubmitting) return
+        if (state.isTopicLoading || state.isSubmitting) return
+        val topic = creationTopic
+        if (topic == null) {
+            loadCreationTopic(submitAfterLoad = true)
+            return
+        }
         val caption = state.caption
 
         _uiState.update {
@@ -75,7 +87,7 @@ class PhotoUploadViewModel(
 
         viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.createPost(imageUri, caption, topicDate)) {
+                when (val result = postCreationRepository.createPost(imageUri, caption, topic)) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
@@ -104,15 +116,44 @@ class PhotoUploadViewModel(
         }
     }
 
+    private fun loadCreationTopic(submitAfterLoad: Boolean = false) {
+        if (_uiState.value.isTopicLoading) return
+        _uiState.update { it.copy(isTopicLoading = true, errorMessage = null) }
+
+        viewModelScope.launch {
+            try {
+                when (val result = postCreationRepository.getCreationTopic(topicDate)) {
+                    is PostCreationTopicResult.Success -> {
+                        creationTopic = result.value
+                        _uiState.update { it.copy(isTopicLoading = false) }
+                        if (submitAfterLoad) submit()
+                    }
+
+                    is PostCreationTopicResult.Failure -> handleFailure(result.reason)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isTopicLoading = false,
+                        errorMessage = GENERIC_ERROR_MESSAGE,
+                    )
+                }
+            }
+        }
+    }
+
     private fun handleFailure(failure: PostCreationFailure) {
         if (failure == PostCreationFailure.ReauthenticationRequired) {
-            _uiState.update { it.copy(isSubmitting = false) }
+            _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
             sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
             return
         }
 
         _uiState.update {
             it.copy(
+                isTopicLoading = false,
                 isSubmitting = false,
                 errorMessage = failure.toMessage(),
             )
@@ -120,7 +161,7 @@ class PhotoUploadViewModel(
     }
 
     private fun com.stonefive.chalkak.domain.model.PostCreation.toSuccessContent() = PhotoUploadSuccessContent(
-        dateLabel = topicDate.toSuccessDateLabel(),
+        dateLabel = this.topicDate.toSuccessDateLabel(),
         topic = topic,
         moderationStatus = moderationStatus.name,
     )
