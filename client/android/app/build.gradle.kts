@@ -100,6 +100,8 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.play.app.update)
+    implementation(libs.play.app.update.ktx)
     implementation(libs.googleid)
     implementation(libs.kakao.user)
     implementation(libs.retrofit)
