@@ -138,7 +138,7 @@ export const postDetailFixtures: Record<string, AdminPostDetailResponse> =
           : null,
         imageUpload: {
           uploadId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-          status: "COMPLETED",
+          status: "READY",
           rejectionReason: null,
           createdAt: post.createdAt,
           updatedAt: post.createdAt,

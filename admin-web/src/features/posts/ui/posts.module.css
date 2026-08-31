@@ -25,7 +25,7 @@
 .postLink strong { color: #252631; font-size: 14px; overflow-wrap: anywhere; }
 .postLink:hover strong { text-decoration: underline; }
 .secondaryText { color: #77798d; font-size: 12px; }
-.relatedLink { color: #5557a1; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.relatedLink { display: inline-block; max-width: 100%; min-height: 44px; padding: 8px 0; color: #5557a1; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .relatedLink:hover { text-decoration: underline; }
 .mobileList { display: none; }
 .mobilePostCard { display: grid; min-width: 0; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 12px; }

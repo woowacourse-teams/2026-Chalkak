@@ -10,6 +10,12 @@ const commonCss = readFileSync(resolve("src/shared/ui/common-ui.module.css"), "u
 // jsdom does not calculate layout. These assertions preserve the fixed-bar
 // spacing contract; they do not replace mobile browser layout verification.
 describe("mobile fixed-control spacing", () => {
+  it("keeps wrapped author and topic links inside one touch target", () => {
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*display:\s*inline-block/);
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*max-width:\s*100%/);
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*min-height:\s*44px/);
+  });
+
   it("shares the safe-area-aware navigation height with the shell reserve", () => {
     expect(globalCss).toMatch(/--admin-bottom-nav-height:\s*0px/);
     expect(globalCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{\s*:root\s*\{\s*--admin-bottom-nav-height:\s*calc\(69px \+ env\(safe-area-inset-bottom\)\)/);

@@ -13,12 +13,11 @@ export type ModerationStatus =
 
 export type UserStatus = "ACTIVE" | "BANNED" | "WITHDRAWN";
 export type TopicStatus = "BEFORE_OPEN" | "OPEN" | "CLOSED";
-export type SocialProvider = "GOOGLE" | "KAKAO";
+export type SocialProvider = "GOOGLE" | "KAKAO" | "APPLE";
 export type ImageUploadStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "FAILED";
+  | "ISSUED"
+  | "READY"
+  | "REJECTED";
 
 export interface AdminPostAuthor {
   userId: string;

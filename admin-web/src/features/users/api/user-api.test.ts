@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 
-import { userIds } from "@/mocks/fixtures";
+import { userDetailFixtures, userIds } from "@/mocks/fixtures";
+import { server } from "@/mocks/server";
+import type { AdminUserDetailResponse, AdminUserListResponse } from "@/shared/api/contracts";
 
 import { fetchAdminUser, fetchAdminUsers, updateAdminUserStatus } from "./user-api";
 
@@ -20,6 +23,30 @@ describe("admin user API", () => {
       pageSize: 20,
     });
     expect(response.users.map((user) => user.userId)).toEqual([userIds.active]);
+  });
+
+  it("accepts the backend APPLE social provider in lists and details", async () => {
+    const detail = {
+      ...userDetailFixtures[userIds.active],
+      socialProvider: "APPLE",
+    } satisfies AdminUserDetailResponse;
+    const { signature, ...summary } = detail;
+    void signature;
+    const list = {
+      currentPage: 1,
+      pageSize: 20,
+      hasNext: false,
+      users: [summary],
+    } satisfies AdminUserListResponse;
+    server.use(
+      http.get("*/api/v1/admin/users", () => HttpResponse.json(list)),
+      http.get("*/api/v1/admin/users/:userId", () => HttpResponse.json(detail)),
+    );
+
+    const users = await fetchAdminUsers({ status: "ACTIVE", sort: "createdAtDesc", page: 1, pageSize: 20 });
+
+    expect(users.users[0]?.socialProvider).toBe("APPLE");
+    expect((await fetchAdminUser(userIds.active)).socialProvider).toBe("APPLE");
   });
 
   it("changes a status with a reason and returns the updated detail", async () => {

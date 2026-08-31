@@ -106,14 +106,79 @@ describe("admin login relay", () => {
 
   it.each([
     { accessToken: "invalid;token" }, { accessToken: "a".repeat(4000) },
+    { accessToken: undefined }, { accessToken: null },
     { expiresIn: 0 }, { expiresIn: -1 }, { expiresIn: 1.5 },
+    { expiresIn: undefined }, { expiresIn: null }, { expiresIn: "3600" },
     { expiresIn: Number.MAX_SAFE_INTEGER + 1 }, { adminId: "not-a-uuid" }, { username: "" },
   ])("rejects unsafe session fields: %j", async (invalid) => {
     fetchMock.mockResolvedValue(Response.json({ ...loginPayload, ...invalid }));
     const response = await relay("auth/login", { method: "POST", body: credentials });
     expect(response.status).toBe(502);
     expect(response.headers.get("Set-Cookie")).toBeNull();
-    expect(await response.text()).not.toContain(token);
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_INVALID_RESPONSE", message: "관리자 서버 응답이 올바르지 않습니다.",
+    });
+  });
+
+  it.each([
+    ["non-JSON content type", () => new Response(JSON.stringify(loginPayload))],
+    ["malformed JSON", () => new Response(`{"accessToken":"${token}",`, {
+      headers: { "Content-Type": "application/json" },
+    })],
+    ["empty JSON body", () => new Response(null, { headers: { "Content-Type": "application/json" } })],
+    ["invalid UTF-8", () => new Response(new Uint8Array([0xff]), {
+      headers: { "Content-Type": "application/json" },
+    })],
+    ["oversized response", () => Response.json(loginPayload, { headers: { "Content-Length": "8388609" } })],
+    ["missing session body", () => new Response(null, { status: 204 })],
+  ] as const)("distinguishes %s from a connection failure without creating a session", async (_label, createResponse) => {
+    fetchMock.mockResolvedValue(createResponse());
+    const response = await relay("auth/login", { method: "POST", body: credentials });
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_INVALID_RESPONSE", message: "관리자 서버 응답이 올바르지 않습니다.",
+    });
+  });
+
+  it.each([500, 502, 503])("distinguishes backend %s from a connection failure without exposing its response", async (status) => {
+    fetchMock.mockResolvedValue(Response.json({
+      errorCode: "PRIVATE_BACKEND_FAILURE", message: `private failure ${credentials.password}`,
+      accessToken: token,
+    }, { status }));
+    const response = await relay("auth/login", { method: "POST", body: credentials });
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_UPSTREAM_ERROR", message: "관리자 서버에서 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
+
+  it("keeps connection failures distinct and never returns their details", async () => {
+    fetchMock.mockRejectedValue(new Error(`private network detail ${credentials.password} ${token}`));
+    const response = await relay("auth/login", { method: "POST", body: credentials });
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_API_UNAVAILABLE", message: "관리자 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
+
+  it("preserves timeout classification while reading a successful login response", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async (_url, options) => new Response(new ReadableStream({
+      start(controller) {
+        options?.signal?.addEventListener("abort", () => controller.error(new Error("private body read detail")), { once: true });
+      },
+    }), { headers: { "Content-Type": "application/json" } }));
+    const pending = relay("auth/login", { method: "POST", body: credentials });
+    await vi.advanceTimersByTimeAsync(8000);
+    const response = await pending;
+    expect(response.status).toBe(504);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_API_TIMEOUT", message: "관리자 서버 응답 시간이 초과되었습니다.",
+    });
   });
 
   it.each([
@@ -343,6 +408,63 @@ describe("upstream safety and logout", () => {
     expect(await response.text()).toBe("");
     expectClearedCookie(response);
     expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+
+  it.each([undefined, "0"])("forwards a bodyless logout represented by an empty stream with Content-Length %s", async (contentLength) => {
+    const headers = new Headers({ Origin: origin, Cookie: `${cookieName}=${token}` });
+    if (contentLength !== undefined) headers.set("Content-Length", contentLength);
+    const logoutRequest = new NextRequest(`${origin}/api/admin/auth/logout`, {
+      method: "POST", headers,
+      body: new ReadableStream({ start(controller) { controller.close(); } }),
+    });
+    expect(logoutRequest.body).not.toBeNull();
+    expect(logoutRequest.headers.has("Content-Type")).toBe(false);
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const response = await relayAdminRequest(logoutRequest, ["auth", "logout"]);
+
+    expect(response.status).toBe(204);
+    expectClearedCookie(response);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][1]?.body).toBeUndefined();
+    const forwardedHeaders = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(forwardedHeaders.get("Authorization")).toBe(`Bearer ${token}`);
+    expect(forwardedHeaders.has("Content-Type")).toBe(false);
+  });
+
+  it.each([
+    ["nonempty untyped body", new TextEncoder().encode("{}"), new Headers({ "Content-Length": "0" }), 415],
+    ["whitespace-only untyped body", new TextEncoder().encode(" "), new Headers(), 415],
+    ["invalid UTF-8 untyped body", new Uint8Array([0xff]), new Headers(), 415],
+    ["unsupported content type", new Uint8Array(), new Headers({ "Content-Type": "text/plain" }), 415],
+    ["unsupported encoding", new Uint8Array(), new Headers({ "Content-Encoding": "gzip" }), 415],
+    ["oversized actual body", new Uint8Array(65537), new Headers({ "Content-Length": "0" }), 413],
+    ["oversized declared body", new Uint8Array(), new Headers({ "Content-Length": "65537" }), 413],
+  ] as const)("rejects a logout with %s before forwarding", async (_label, bytes, extraHeaders, status) => {
+    const headers = new Headers(extraHeaders);
+    headers.set("Origin", origin);
+    headers.set("Cookie", `${cookieName}=${token}`);
+    const logoutRequest = new NextRequest(`${origin}/api/admin/auth/logout`, {
+      method: "POST", headers,
+      body: new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }),
+    });
+
+    const response = await relayAdminRequest(logoutRequest, ["auth", "logout"]);
+
+    expect(response.status).toBe(status);
+    expectClearedCookie(response);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await response.json()).errorCode).toBe(status === 413 ? "ADMIN_BODY_TOO_LARGE" : "ADMIN_JSON_REQUIRED");
+  });
+
+  it("distinguishes an invalid successful logout response and still clears the local cookie", async () => {
+    fetchMock.mockResolvedValue(Response.json({ accessToken: token }));
+    const response = await relay("auth/logout", { method: "POST", cookie: token });
+    expect(response.status).toBe(502);
+    expectClearedCookie(response);
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_INVALID_RESPONSE", message: "관리자 서버 응답이 올바르지 않습니다.",
+    });
   });
 
   it("clears the cookie without claiming backend logout succeeded on network failure", async () => {

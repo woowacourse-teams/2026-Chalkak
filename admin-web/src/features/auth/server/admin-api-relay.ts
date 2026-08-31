@@ -72,11 +72,15 @@ function isSessionToken(value: unknown): value is string {
     /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value);
 }
 
+function invalidUpstreamResponse() {
+  return new RelayError(502, "ADMIN_INVALID_RESPONSE", "관리자 서버 응답이 올바르지 않습니다.");
+}
+
 function identity(payload: unknown) {
   if (!isRecord(payload) || typeof payload.adminId !== "string" ||
     !UUID_PATTERN.test(payload.adminId) || typeof payload.username !== "string" ||
     !payload.username.trim() || payload.username.length > 100) {
-    throw new RelayError(502, "ADMIN_INVALID_RESPONSE", "관리자 서버 응답이 올바르지 않습니다.");
+    throw invalidUpstreamResponse();
   }
   return { adminId: payload.adminId, username: payload.username };
 }
@@ -130,10 +134,32 @@ function isJson(contentType: string | null) {
   return contentType?.split(";", 1)[0].trim().toLowerCase() === "application/json";
 }
 
+async function upstreamPayload(response: Response): Promise<unknown> {
+  if (!isJson(response.headers.get("Content-Type"))) {
+    void response.body?.cancel().catch(() => {});
+    throw invalidUpstreamResponse();
+  }
+  try {
+    return JSON.parse(await readBoundedText(response, MAX_RESPONSE_BYTES));
+  } catch {
+    void response.body?.cancel().catch(() => {});
+    // Keep response validation failures distinct without exposing upstream data.
+    throw invalidUpstreamResponse();
+  }
+}
+
 async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boolean) {
   if (request.method === "GET") return undefined;
-  if (isLogout && !request.body && !request.headers.has("Content-Type")) return undefined;
   const encoding = request.headers.get("Content-Encoding");
+  if (isLogout && !request.headers.has("Content-Type") && (!encoding || encoding === "identity")) {
+    try {
+      // Node route handlers can represent a bodyless POST with a non-null empty stream.
+      if (await readBoundedText(request, MAX_BODY_BYTES) === "") return undefined;
+    } catch (error) {
+      if (error instanceof RelayError) throw error;
+      // An unreadable untyped body still fails the Content-Type check below.
+    }
+  }
   if (!isJson(request.headers.get("Content-Type")) || (encoding && encoding !== "identity")) {
     throw new RelayError(415, "ADMIN_JSON_REQUIRED", "JSON 형식의 요청만 지원합니다.");
   }
@@ -199,23 +225,22 @@ async function forward(request: NextRequest, path: string, token: string | undef
     }
     if (!response.ok) {
       void response.body?.cancel().catch(() => {});
-      throw new Error("Upstream request failed");
+      if (response.status >= 500) {
+        throw new RelayError(502, "ADMIN_UPSTREAM_ERROR", "관리자 서버에서 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+      throw invalidUpstreamResponse();
     }
     if (isLogout) {
-      if (response.status !== 204) throw new Error("Invalid logout response");
+      if (response.status !== 204) throw invalidUpstreamResponse();
       return empty();
     }
     if (response.status === 204 && !isLogin && path !== "/auth/me") return empty();
-    if (!isJson(response.headers.get("Content-Type"))) {
-      void response.body?.cancel().catch(() => {});
-      throw new Error("Invalid upstream content type");
-    }
-    const payload: unknown = JSON.parse(await readBoundedText(response, MAX_RESPONSE_BYTES));
+    const payload = await upstreamPayload(response);
     if (isLogin) {
       const admin = identity(payload);
       if (!isRecord(payload) || !isSessionToken(payload.accessToken) ||
         typeof payload.expiresIn !== "number" || !Number.isSafeInteger(payload.expiresIn) || payload.expiresIn <= 0) {
-        throw new Error("Invalid upstream session");
+        throw invalidUpstreamResponse();
       }
       const expiresIn = Math.min(payload.expiresIn, MAX_SESSION_SECONDS);
       const result = json({ ...admin, expiresIn });
