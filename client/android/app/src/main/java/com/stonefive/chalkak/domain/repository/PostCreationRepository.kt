@@ -8,6 +8,8 @@ import com.stonefive.chalkak.domain.model.Topic
 import java.time.LocalDate
 
 interface PostCreationRepository {
+    fun getCachedCreationTopic(topicDate: LocalDate): Topic?
+
     suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult
 
     suspend fun prepareImage(imageUri: String): PostImagePreparationResult

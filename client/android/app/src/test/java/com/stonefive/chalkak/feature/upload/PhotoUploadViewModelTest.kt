@@ -349,6 +349,7 @@ private class FakePostCreationRepository : PostCreationRepository {
         date = LocalDate.of(2026, 8, 29),
     )
     var topicResult: PostCreationTopicResult = PostCreationTopicResult.Success(defaultTopic)
+    var cachedTopic: Topic? = null
     val topicResults = ArrayDeque<PostCreationTopicResult>()
     val prepareResults = ArrayDeque<PostImagePreparationResult>()
     var prepareAwait: CompletableDeferred<Unit>? = null
@@ -363,6 +364,8 @@ private class FakePostCreationRepository : PostCreationRepository {
     val requestedTopics = mutableListOf<Topic>()
     val preparations = mutableListOf<PostImagePreparation>()
     val discardedPreparations = mutableListOf<PostImagePreparation>()
+
+    override fun getCachedCreationTopic(topicDate: LocalDate): Topic? = cachedTopic?.takeIf { it.date == topicDate }
 
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
         requestedTopicDates += topicDate

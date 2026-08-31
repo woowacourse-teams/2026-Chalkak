@@ -377,6 +377,8 @@ private class FakeHomeTopicRemoteDataSource : TopicRemoteDataSource {
         ),
     )
 
+    override fun getCachedTopic(date: LocalDate): TopicResponse? = null
+
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = result
 }
 

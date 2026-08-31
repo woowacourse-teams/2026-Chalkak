@@ -99,6 +99,25 @@ class PostCreationRepositoryImplTest {
     }
 
     @Test
+    fun `캐시된 주제는 네트워크 요청 없이 반환한다`() {
+        topicRemote.cachedTopic = TopicResponse("cached-topic-id", "틈", "2026-08-29")
+
+        assertEquals(
+            Topic("cached-topic-id", "틈", requestedDate),
+            repository.getCachedCreationTopic(requestedDate),
+        )
+        assertTrue(topicRemote.calls.isEmpty())
+    }
+
+    @Test
+    fun `캐시된 주제의 날짜가 요청 날짜와 다르면 사용하지 않는다`() {
+        topicRemote.cachedTopic = TopicResponse("cached-topic-id", "틈", "2026-08-28")
+
+        assertEquals(null, repository.getCachedCreationTopic(requestedDate))
+        assertTrue(topicRemote.calls.isEmpty())
+    }
+
+    @Test
     fun `업로드 정책 실패 시 인코더를 호출하지 않는다`() = runTest {
         remote.uploadPolicyResult = ApiResult.Failure(ApiError.Http(400, "BUSINESS_ERROR"))
 
@@ -348,7 +367,10 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
 
 private class FakeCreationTopicRemoteDataSource(private val events: MutableList<String>) : TopicRemoteDataSource {
     val calls = mutableListOf<String>()
+    var cachedTopic: TopicResponse? = null
     var result: ApiResult<TopicResponse> = ApiResult.Success(TopicResponse("topic-id", "바다", "2026-08-29"))
+
+    override fun getCachedTopic(date: LocalDate): TopicResponse? = cachedTopic
 
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
         calls += "topic:$date"

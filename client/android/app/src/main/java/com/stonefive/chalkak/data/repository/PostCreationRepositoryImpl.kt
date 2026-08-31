@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
 import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
+import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -34,23 +35,23 @@ class PostCreationRepositoryImpl(
     private val preparedImages = mutableMapOf<String, PreparedImage>()
     private val preparedImagesLock = Any()
 
+    override fun getCachedCreationTopic(topicDate: LocalDate): Topic? =
+        topicRemoteDataSource.getCachedTopic(topicDate)?.toTopicOrNull(topicDate)
+
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
-        val topic = when (val result = topicRemoteDataSource.getTopic(topicDate)) {
+        val response = when (val result = topicRemoteDataSource.getTopic(topicDate)) {
             is ApiResult.Success -> result.value
             is ApiResult.Failure -> return PostCreationTopicResult.Failure(result.error.toTopicFailure())
         }
-        val responseDate = runCatching { LocalDate.parse(topic.topicDate) }.getOrNull()
+        val topic = response.toTopicOrNull(topicDate)
             ?: return PostCreationTopicResult.Failure(PostCreationFailure.InvalidResponse)
-        if (topic.id.isBlank() || topic.title.isBlank() || responseDate != topicDate) {
-            return PostCreationTopicResult.Failure(PostCreationFailure.InvalidResponse)
-        }
-        return PostCreationTopicResult.Success(
-            Topic(
-                id = topic.id,
-                title = topic.title,
-                date = responseDate,
-            ),
-        )
+        return PostCreationTopicResult.Success(topic)
+    }
+
+    private fun TopicResponse.toTopicOrNull(requestedDate: LocalDate): Topic? {
+        val responseDate = runCatching { LocalDate.parse(topicDate) }.getOrNull() ?: return null
+        if (id.isBlank() || title.isBlank() || responseDate != requestedDate) return null
+        return Topic(id = id, title = title, date = responseDate)
     }
 
     override suspend fun prepareImage(imageUri: String): PostImagePreparationResult {

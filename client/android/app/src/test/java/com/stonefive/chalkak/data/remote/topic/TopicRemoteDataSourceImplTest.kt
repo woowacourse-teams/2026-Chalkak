@@ -45,14 +45,29 @@ class TopicRemoteDataSourceImplTest {
     @Test
     fun `토픽 요청은 공급된 KST 날짜를 ISO 형식으로 전송한다`() = runTest {
         server.enqueue(jsonResponse(TOPIC_BODY))
+        val date = LocalDate.of(2026, 8, 28)
 
-        val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
+        val result = dataSource.getTopic(date)
 
         assertEquals(
             ApiResult.Success(TopicResponse("topic-id", "바다", "2026-08-28")),
             result,
         )
+        assertEquals(TopicResponse("topic-id", "바다", "2026-08-28"), dataSource.getCachedTopic(date))
         assertEquals("/api/v1/topics?date=2026-08-28", server.takeRequest().path)
+    }
+
+    @Test
+    fun `재조회가 실패해도 이전 성공 캐시를 유지한다`() = runTest {
+        val date = LocalDate.of(2026, 8, 28)
+        val cachedTopic = TopicResponse("topic-id", "바다", "2026-08-28")
+        server.enqueue(jsonResponse(TOPIC_BODY))
+        dataSource.getTopic(date)
+        server.enqueue(MockResponse().setResponseCode(500))
+
+        dataSource.getTopic(date)
+
+        assertEquals(cachedTopic, dataSource.getCachedTopic(date))
     }
 
     @Test
