@@ -97,7 +97,6 @@ public class SocialSignupService {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 verifiedToken.provider(),
-                verifiedToken.subject(),
                 subjectHmac));
 
         return toSignupResult(user.getId());
