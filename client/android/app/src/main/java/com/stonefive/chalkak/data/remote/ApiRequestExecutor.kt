@@ -9,7 +9,7 @@ import retrofit2.Response
 
 class ApiRequestExecutor(
     private val json: Json,
-    private val onUnauthorized: suspend () -> Unit,
+    private val onUnauthorized: suspend (accessToken: String) -> Unit,
 ) {
     suspend fun <T> execute(block: suspend () -> Response<T>): ApiResult<T> = try {
         val response = block()
@@ -44,7 +44,12 @@ class ApiRequestExecutor(
 
     private suspend fun createFailure(response: Response<*>): ApiResult<Nothing> {
         if (response.code() == HTTP_UNAUTHORIZED) {
-            onUnauthorized()
+            response
+                .raw()
+                .request
+                .tag(AuthorizationRequestContext::class.java)
+                ?.accessToken
+                ?.let { accessToken -> onUnauthorized(accessToken) }
         }
 
         val errorResponse = response

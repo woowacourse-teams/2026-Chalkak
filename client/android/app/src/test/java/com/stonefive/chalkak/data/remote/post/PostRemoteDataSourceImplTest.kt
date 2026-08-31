@@ -1,9 +1,12 @@
 package com.stonefive.chalkak.data.remote.post
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
+import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
+import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
+import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -12,8 +15,10 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -158,15 +163,17 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `인증된 게시물 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
+    fun `인증된 게시물 요청은 Authorization bearer 헤더를 사용한다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "access-token",
+        )
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
-                .addInterceptor(
-                    UserIdHeaderInterceptor(
-                        TestSessionStore(UserSessionState.Authenticated("user-id")),
-                    ),
-                ).build(),
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
+                .build(),
+            sessionStore = sessionStore,
         )
         server.enqueue(jsonResponse(POSTS_BODY))
 
@@ -178,7 +185,70 @@ class PostRemoteDataSourceImplTest {
             ),
         )
 
-        assertEquals("user-id", server.takeRequest().headers["X-User-Id"])
+        val request = server.takeRequest()
+        assertEquals("Bearer access-token", request.headers["Authorization"])
+        assertNull(request.headers["X-User-Id"])
+    }
+
+    @Test
+    fun `Post API가 401이면 세션을 무효화한다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "access-token",
+        )
+        dataSource = createDataSource(
+            client = OkHttpClient
+                .Builder()
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
+                .build(),
+            sessionStore = sessionStore,
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"UNAUTHORIZED"}"""),
+        )
+
+        val result = dataSource.getTopic(LocalDate.of(2026, 8, 28))
+
+        assertEquals(ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED")), result)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+        assertEquals(LocalSession.SignedOut, sessionStore.session.value)
+    }
+
+    @Test
+    fun `이전 access token 요청의 401은 새 세션을 무효화하지 않는다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "old-access-token",
+        )
+        val newCredentials = SessionCredentials(
+            userId = "user-id",
+            accessToken = "new-access-token",
+            expiresAtEpochSeconds = Long.MAX_VALUE,
+        )
+        dataSource = createDataSource(
+            client = OkHttpClient
+                .Builder()
+                .addInterceptor(testAuthorizationInterceptor("old-access-token"))
+                .addInterceptor { chain ->
+                    val response = chain.proceed(chain.request())
+                    runBlocking { sessionStore.saveSession(newCredentials) }
+                    response
+                }.build(),
+            sessionStore = sessionStore,
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"UNAUTHORIZED"}"""),
+        )
+
+        dataSource.getTopic(LocalDate.of(2026, 8, 28))
+
+        assertEquals(LocalSession.Authenticated(newCredentials), sessionStore.session.value)
     }
 
     @Test
@@ -278,7 +348,10 @@ class PostRemoteDataSourceImplTest {
         assertEquals(ApiResult.Failure(ApiError.Network), result)
     }
 
-    private fun createDataSource(client: OkHttpClient = OkHttpClient()): PostRemoteDataSourceImpl {
+    private fun createDataSource(
+        client: OkHttpClient = OkHttpClient(),
+        sessionStore: TestSessionStore = TestSessionStore(UserSessionState.SignedOut),
+    ): PostRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
         val retrofit = Retrofit
             .Builder()
@@ -289,7 +362,7 @@ class PostRemoteDataSourceImplTest {
         return PostRemoteDataSourceImpl(
             topicApi = retrofit.create(TopicApi::class.java),
             postApi = retrofit.create(PostApi::class.java),
-            json = json,
+            requestExecutor = ApiRequestExecutor(json, sessionStore::clearIfAccessTokenMatches),
         )
     }
 
@@ -311,20 +384,61 @@ class PostRemoteDataSourceImplTest {
     }
 }
 
-private class TestSessionStore(initialState: UserSessionState) : SessionStore {
-    private val mutableSessionState = MutableStateFlow(initialState)
+private fun testAuthorizationInterceptor(accessToken: String) = Interceptor { chain ->
+    val request = chain
+        .request()
+        .newBuilder()
+        .header("Authorization", "Bearer $accessToken")
+        .tag(
+            AuthorizationRequestContext::class.java,
+            AuthorizationRequestContext(accessToken),
+        ).build()
+    chain.proceed(request)
+}
 
+private class TestSessionStore(
+    initialState: UserSessionState,
+    initialAccessToken: String? = null,
+) : SessionStore {
+    private val mutableSessionState = MutableStateFlow(initialState)
+    private val mutableSession = MutableStateFlow<LocalSession>(
+        when (initialState) {
+            UserSessionState.Loading -> LocalSession.Loading
+
+            UserSessionState.SignedOut -> LocalSession.SignedOut
+
+            UserSessionState.Guest -> LocalSession.Guest
+
+            is UserSessionState.Authenticated -> LocalSession.Authenticated(
+                SessionCredentials(
+                    userId = initialState.userId,
+                    accessToken = requireNotNull(initialAccessToken),
+                    expiresAtEpochSeconds = Long.MAX_VALUE,
+                ),
+            )
+        },
+    )
+
+    override val session: StateFlow<LocalSession> = mutableSession
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     override suspend fun continueAsGuest() {
+        mutableSession.value = LocalSession.Guest
         mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun saveUserId(userId: String) {
-        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    override suspend fun saveSession(credentials: SessionCredentials) {
+        mutableSession.value = LocalSession.Authenticated(credentials)
+        mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
     override suspend fun clear() {
+        mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
+        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
+        if (currentToken == accessToken) clear()
     }
 }

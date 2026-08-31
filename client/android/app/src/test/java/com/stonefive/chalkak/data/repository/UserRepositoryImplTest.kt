@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
+import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
@@ -155,22 +157,38 @@ private class FakeUserSignatureUploader : SignatureUploader {
 
 private class FakeUserSessionStore : SessionStore {
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+    private val mutableSession = MutableStateFlow<LocalSession>(LocalSession.SignedOut)
 
+    override val session: StateFlow<LocalSession> = mutableSession
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     fun setAuthenticated() {
-        mutableSessionState.value = UserSessionState.Authenticated("user-id")
+        val credentials = SessionCredentials(
+            userId = "user-id",
+            accessToken = "access-token",
+            expiresAtEpochSeconds = Long.MAX_VALUE,
+        )
+        mutableSession.value = LocalSession.Authenticated(credentials)
+        mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
     override suspend fun continueAsGuest() {
+        mutableSession.value = LocalSession.Guest
         mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun saveUserId(userId: String) {
-        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    override suspend fun saveSession(credentials: SessionCredentials) {
+        mutableSession.value = LocalSession.Authenticated(credentials)
+        mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
     override suspend fun clear() {
+        mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
+        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
+        if (currentToken == accessToken) clear()
     }
 }

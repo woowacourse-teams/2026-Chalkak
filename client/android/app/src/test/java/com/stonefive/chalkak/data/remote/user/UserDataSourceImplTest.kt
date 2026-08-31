@@ -3,12 +3,14 @@ package com.stonefive.chalkak.data.remote.user
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.user.model.SignatureUpdateResponse
 import com.stonefive.chalkak.data.remote.user.model.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -21,7 +23,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class UserDataSourceImplTest {
     private lateinit var server: MockWebServer
     private lateinit var dataSource: UserDataSourceImpl
-    private var unauthorizedHandled = false
+    private var unauthorizedAccessToken: String? = null
 
     @Before
     fun setUp() {
@@ -31,14 +33,27 @@ class UserDataSourceImplTest {
         val api = Retrofit
             .Builder()
             .baseUrl(server.url("/api/v1/"))
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .client(
+                OkHttpClient
+                    .Builder()
+                    .addInterceptor { chain ->
+                        val request = chain
+                            .request()
+                            .newBuilder()
+                            .tag(
+                                AuthorizationRequestContext::class.java,
+                                AuthorizationRequestContext("request-access-token"),
+                            ).build()
+                        chain.proceed(request)
+                    }.build(),
+            ).addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(UserApi::class.java)
-        unauthorizedHandled = false
+        unauthorizedAccessToken = null
         dataSource = UserDataSourceImpl(
             api = api,
-            requestExecutor = ApiRequestExecutor(json) {
-                unauthorizedHandled = true
+            requestExecutor = ApiRequestExecutor(json) { accessToken ->
+                unauthorizedAccessToken = accessToken
             },
         )
     }
@@ -90,7 +105,7 @@ class UserDataSourceImplTest {
             ApiResult.Failure(ApiError.Http(statusCode = 403, errorCode = null)),
             result,
         )
-        assertEquals(false, unauthorizedHandled)
+        assertEquals(null, unauthorizedAccessToken)
     }
 
     @Test
@@ -110,7 +125,7 @@ class UserDataSourceImplTest {
             ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
             result,
         )
-        assertEquals(true, unauthorizedHandled)
+        assertEquals("request-access-token", unauthorizedAccessToken)
     }
 
     @Test
@@ -199,7 +214,7 @@ class UserDataSourceImplTest {
             ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
             result,
         )
-        assertEquals(true, unauthorizedHandled)
+        assertEquals("request-access-token", unauthorizedAccessToken)
     }
 
     @Test

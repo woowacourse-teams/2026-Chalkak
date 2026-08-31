@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
@@ -14,6 +15,7 @@ import com.stonefive.chalkak.domain.model.SocialSignUpFailure
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import java.time.Instant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
@@ -22,6 +24,7 @@ class AuthRepositoryImpl(
     private val signatureUploader: SignatureUploader,
     private val sessionStore: SessionStore,
     private val retryDelay: suspend (Long) -> Unit = { delay(it) },
+    private val currentEpochSeconds: () -> Long = { Instant.now().epochSecond },
 ) : AuthRepository {
     private var pendingLogin: PendingSocialLogin? = null
 
@@ -73,7 +76,7 @@ class AuthRepositoryImpl(
             }
         }
 
-        return completeSocialSignUp(signupToken = upload.signupToken)
+        return completeSocialSignUp(signupToken = upload.signupToken, login = login)
     }
 
     override suspend fun continueAsGuest() {
@@ -90,32 +93,32 @@ class AuthRepositoryImpl(
         provider: SocialLoginProvider,
         idToken: String,
         response: SocialLoginResponse,
-    ): SocialLoginResult = when (response.status) {
-        LOGIN_SUCCESS -> {
+    ): SocialLoginResult = when (response) {
+        is SocialLoginResponse.LoginSuccess -> {
             val userId = response.userId
-                ?: return SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
             pendingLogin = null
-            sessionStore.saveUserId(userId)
+            sessionStore.saveSession(response.toSessionCredentials())
             SocialLoginResult.LoginSuccess(userId)
         }
 
-        SIGN_UP_REQUIRED -> {
+        SocialLoginResponse.SignUpRequired -> {
             pendingLogin = PendingSocialLogin(provider, idToken)
             SocialLoginResult.SignUpRequired
         }
-
-        else -> SocialLoginResult.Failure(SocialAuthFailure.INVALID_RESPONSE)
     }
 
-    private suspend fun completeSocialSignUp(signupToken: String): SocialSignUpResult {
+    private suspend fun completeSocialSignUp(
+        signupToken: String,
+        login: PendingSocialLogin,
+    ): SocialSignUpResult {
         repeat(SIGN_UP_ATTEMPTS) { attempt ->
             when (
                 val result = authDataSource.socialSignUp(signupToken = signupToken)
             ) {
                 is ApiResult.Success -> {
+                    val response = result.value
                     pendingLogin = null
-                    sessionStore.saveUserId(result.value.userId)
-                    return SocialSignUpResult.Success(result.value.userId)
+                    return authenticateAfterSignUp(response.userId, login)
                 }
 
                 is ApiResult.Failure -> {
@@ -133,6 +136,32 @@ class AuthRepositoryImpl(
             }
         }
         return SocialSignUpResult.Failure(SocialSignUpFailure.UNKNOWN)
+    }
+
+    private suspend fun authenticateAfterSignUp(
+        userId: String,
+        login: PendingSocialLogin,
+    ): SocialSignUpResult = when (
+        val result = authDataSource.socialLogin(login.provider, login.idToken)
+    ) {
+        is ApiResult.Success -> {
+            when (val response = result.value) {
+                is SocialLoginResponse.LoginSuccess -> {
+                    if (response.userId != userId) {
+                        SocialSignUpResult.Failure(SocialSignUpFailure.REAUTHENTICATION_REQUIRED)
+                    } else {
+                        sessionStore.saveSession(response.toSessionCredentials())
+                        SocialSignUpResult.Success(userId)
+                    }
+                }
+
+                SocialLoginResponse.SignUpRequired -> {
+                    SocialSignUpResult.Failure(SocialSignUpFailure.REAUTHENTICATION_REQUIRED)
+                }
+            }
+        }
+
+        is ApiResult.Failure -> SocialSignUpResult.Failure(result.error.toSignUpFailure())
     }
 
     private fun ApiError.toSocialAuthFailure(): SocialAuthFailure = when (this) {
@@ -164,14 +193,20 @@ class AuthRepositoryImpl(
         statusCode == 400 &&
         errorCode == SIGNATURE_PROCESSING_PENDING
 
+    private fun SocialLoginResponse.LoginSuccess.toSessionCredentials() = SessionCredentials(
+        userId = userId,
+        accessToken = accessToken,
+        expiresAtEpochSeconds = currentEpochSeconds().let { now ->
+            if (expiresIn > Long.MAX_VALUE - now) Long.MAX_VALUE else now + expiresIn
+        },
+    )
+
     private data class PendingSocialLogin(
         val provider: SocialLoginProvider,
         val idToken: String,
     )
 
     private companion object {
-        const val LOGIN_SUCCESS = "LOGIN_SUCCESS"
-        const val SIGN_UP_REQUIRED = "SIGN_UP_REQUIRED"
         const val SIGNATURE_PROCESSING_PENDING = "SIGNATURE_PROCESSING_PENDING"
         const val MAX_SIGNATURE_BYTES = 1024 * 1024
         const val SIGN_UP_ATTEMPTS = 10

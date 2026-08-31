@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
+import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
@@ -31,14 +33,16 @@ class AuthRepositoryImplTest {
         signatureUploader = uploader,
         sessionStore = sessionStore,
         retryDelay = retryDelays::add,
+        currentEpochSeconds = { CURRENT_EPOCH_SECONDS },
     )
 
     @Test
     fun `기존 회원 로그인 성공 시 userId를 저장한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(
-                status = "LOGIN_SUCCESS",
+            SocialLoginResponse.LoginSuccess(
                 userId = "user-id",
+                accessToken = "access-token",
+                expiresIn = 3_600,
             ),
         )
 
@@ -48,14 +52,25 @@ class AuthRepositoryImplTest {
         assertEquals(SocialLoginProvider.GOOGLE, authDataSource.loginProvider)
         assertEquals("id-token", authDataSource.loginIdToken)
         assertEquals(UserSessionState.Authenticated("user-id"), sessionStore.sessionState.value)
+        assertEquals(
+            LocalSession.Authenticated(
+                SessionCredentials(
+                    userId = "user-id",
+                    accessToken = "access-token",
+                    expiresAtEpochSeconds = CURRENT_EPOCH_SECONDS + 3_600,
+                ),
+            ),
+            sessionStore.session.value,
+        )
     }
 
     @Test
     fun `Kakao 로그인 성공 시 Kakao provider와 idToken을 data source로 전달한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(
-                status = "LOGIN_SUCCESS",
+            SocialLoginResponse.LoginSuccess(
                 userId = "user-id",
+                accessToken = "access-token",
+                expiresIn = 3_600,
             ),
         )
 
@@ -69,9 +84,18 @@ class AuthRepositoryImplTest {
     @Test
     fun `Kakao 신규 회원은 보류된 Kakao provider와 idToken으로 서명 업로드를 생성한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+            SocialLoginResponse.SignUpRequired,
         )
-        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        authDataSource.signUpResults += ApiResult.Success(
+            SocialSignUpResponse("new-user-id"),
+        )
+        authDataSource.postSignUpLoginResult = ApiResult.Success(
+            SocialLoginResponse.LoginSuccess(
+                userId = "new-user-id",
+                accessToken = "access-token",
+                expiresIn = 3_600,
+            ),
+        )
 
         repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
         repository.completeSocialSignUp(byteArrayOf(1))
@@ -83,12 +107,21 @@ class AuthRepositoryImplTest {
     @Test
     fun `신규 회원은 사인을 한 번 업로드하고 처리 중 응답에는 가입 완료만 재시도한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+            SocialLoginResponse.SignUpRequired,
         )
         authDataSource.signUpResults += ApiResult.Failure(
             ApiError.Http(400, "SIGNATURE_PROCESSING_PENDING"),
         )
-        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        authDataSource.signUpResults += ApiResult.Success(
+            SocialSignUpResponse("new-user-id"),
+        )
+        authDataSource.postSignUpLoginResult = ApiResult.Success(
+            SocialLoginResponse.LoginSuccess(
+                userId = "new-user-id",
+                accessToken = "access-token",
+                expiresIn = 3_600,
+            ),
+        )
         val signaturePng = byteArrayOf(1, 2, 3)
 
         repository.login(SocialLoginProvider.GOOGLE, "id-token")
@@ -102,12 +135,18 @@ class AuthRepositoryImplTest {
         assertEquals(listOf(1_000L), retryDelays)
         assertEquals(listOf("signup-token", "signup-token"), authDataSource.signupTokens)
         assertEquals(UserSessionState.Authenticated("new-user-id"), sessionStore.sessionState.value)
+        assertEquals(
+            CURRENT_EPOCH_SECONDS + 3_600,
+            (sessionStore.session.value as LocalSession.Authenticated)
+                .credentials
+                .expiresAtEpochSeconds,
+        )
     }
 
     @Test
     fun `처리 중 응답이 열 번 계속되면 타임아웃을 반환한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+            SocialLoginResponse.SignUpRequired,
         )
         repeat(10) {
             authDataSource.signUpResults += ApiResult.Failure(
@@ -130,7 +169,7 @@ class AuthRepositoryImplTest {
     @Test
     fun `잘못된 서명 업로드 URL은 재시도 가능한 가입 실패로 변환한다`() = runTest {
         authDataSource.loginResult = ApiResult.Success(
-            SocialLoginResponse(status = "SIGN_UP_REQUIRED"),
+            SocialLoginResponse.SignUpRequired,
         )
         uploader.result = SignatureUploadResult.InvalidUploadUrl
 
@@ -151,11 +190,38 @@ class AuthRepositoryImplTest {
 
         assertEquals(UserSessionState.Guest, repository.sessionState.value)
     }
+
+    @Test
+    fun `회원가입 성공 후 재인증 실패 시 보류된 가입 컨텍스트를 제거한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(SocialLoginResponse.SignUpRequired)
+        authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
+        authDataSource.postSignUpLoginResult = ApiResult.Failure(ApiError.Network)
+
+        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        val firstResult = repository.completeSocialSignUp(byteArrayOf(1))
+        val secondResult = repository.completeSocialSignUp(byteArrayOf(1))
+
+        assertEquals(
+            SocialSignUpResult.Failure(SocialSignUpFailure.NETWORK_UNAVAILABLE),
+            firstResult,
+        )
+        assertEquals(
+            SocialSignUpResult.Failure(SocialSignUpFailure.MISSING_LOGIN_CONTEXT),
+            secondResult,
+        )
+        assertEquals(1, authDataSource.createUploadCount)
+    }
+
+    private companion object {
+        const val CURRENT_EPOCH_SECONDS = 1_000_000L
+    }
 }
 
 private class FakeAuthDataSource : AuthDataSource {
     var loginResult: ApiResult<SocialLoginResponse> =
-        ApiResult.Success(SocialLoginResponse(status = "SIGN_UP_REQUIRED"))
+        ApiResult.Success(SocialLoginResponse.SignUpRequired)
+    var postSignUpLoginResult: ApiResult<SocialLoginResponse>? = null
+    var loginCount = 0
     var loginProvider: SocialLoginProvider? = null
     var loginIdToken: String? = null
     var createUploadProvider: SocialLoginProvider? = null
@@ -171,7 +237,12 @@ private class FakeAuthDataSource : AuthDataSource {
     ): ApiResult<SocialLoginResponse> {
         loginProvider = provider
         loginIdToken = idToken
-        return loginResult
+        loginCount += 1
+        return if (loginCount > 1) {
+            postSignUpLoginResult ?: loginResult
+        } else {
+            loginResult
+        }
     }
 
     override suspend fun createSignatureUpload(
@@ -216,18 +287,28 @@ private class FakeSignatureUploader : SignatureUploader {
 
 private class FakeSessionStore : SessionStore {
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+    private val mutableSession = MutableStateFlow<LocalSession>(LocalSession.SignedOut)
 
+    override val session: StateFlow<LocalSession> = mutableSession
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     override suspend fun continueAsGuest() {
+        mutableSession.value = LocalSession.Guest
         mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun saveUserId(userId: String) {
-        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    override suspend fun saveSession(credentials: SessionCredentials) {
+        mutableSession.value = LocalSession.Authenticated(credentials)
+        mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
     override suspend fun clear() {
+        mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
+        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
+        if (currentToken == accessToken) clear()
     }
 }
