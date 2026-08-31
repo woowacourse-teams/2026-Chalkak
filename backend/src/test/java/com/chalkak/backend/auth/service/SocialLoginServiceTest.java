@@ -44,7 +44,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private UserService userService;
 
     @Autowired
-    private SocialIdentityRestrictionService socialIdentityRestrictionService;
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
@@ -66,7 +66,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When
@@ -108,7 +108,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         userService.withdraw(user.getId());
         flushAndClear();
 
@@ -133,10 +133,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         user.ban();
-        socialIdentityRestrictionService.block(user.getId());
-        userService.withdraw(user.getId());
+        user.withdraw();
         flushAndClear();
 
         // When & Then
@@ -160,7 +159,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When & Then
@@ -183,7 +182,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When
@@ -220,6 +219,10 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 "user@chalkak.test");
+    }
+
+    private String subjectHmac() {
+        return fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT);
     }
 
     private void flushAndClear() {

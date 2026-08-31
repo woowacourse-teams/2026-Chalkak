@@ -6,10 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.auth.domain.BannedSocialIdentity;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.repository.BannedSocialIdentityRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
@@ -21,6 +19,7 @@ import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
@@ -51,9 +50,6 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
-
-    @Autowired
-    private BannedSocialIdentityRepository bannedSocialIdentityRepository;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
@@ -94,10 +90,13 @@ class UserServiceTest extends IntegrationTestSupport {
     void withdraw_activeUser_deletesSocialAccount() {
         // Given
         User user = userRepository.save(UserFixture.create());
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.GOOGLE,
+                "google-subject");
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                "google-subject"));
+                subjectHmac));
         flushAndClear();
 
         // When
@@ -105,9 +104,9 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(socialAccountRepository.findByProviderAndSubject(
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
                 SocialProvider.GOOGLE,
-                "google-subject"))
+                subjectHmac))
                 .isEmpty();
     }
 
@@ -1047,8 +1046,8 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("차단 회원이 탈퇴하면 소셜 계정은 삭제하고 차단 식별자는 유지한다")
-    void withdraw_bannedUser_deletesSocialAccountAndPreservesRestriction() {
+    @DisplayName("차단 회원이 탈퇴하면 재가입 차단을 위해 소셜 계정을 유지한다")
+    void withdraw_bannedUser_preservesSocialAccount() {
         // Given
         User user = userRepository.save(UserFixture.createBanned(null));
         UUID userId = user.getId();
@@ -1059,9 +1058,6 @@ class UserServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subject));
-        bannedSocialIdentityRepository.save(BannedSocialIdentity.create(
-                SocialProvider.GOOGLE,
                 subjectHmac));
         flushAndClear();
 
@@ -1071,13 +1067,14 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(userRepository.findActiveById(userId)).isEmpty();
-        assertThat(socialAccountRepository.findByProviderAndSubject(
-                SocialProvider.GOOGLE,
-                subject))
-                .isEmpty();
-        assertThat(bannedSocialIdentityRepository.existsByProviderAndSubjectHmac(
-                SocialProvider.GOOGLE,
-                subjectHmac))
-                .isTrue();
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac)
+                .orElseThrow();
+        assertThat(socialAccount.getUser().getId()).isEqualTo(userId);
+        assertThat(socialAccount.getUser().isDeleted()).isTrue();
+        assertThat(socialAccount.getUser().getStatus())
+                .isEqualTo(UserStatus.BANNED);
     }
 }

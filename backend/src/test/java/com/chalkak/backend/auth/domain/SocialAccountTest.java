@@ -14,8 +14,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class SocialAccountTest {
 
+    private static final String SUBJECT_HMAC =
+            "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
+
     @Test
-    @DisplayName("소셜 제공자와 subject를 회원에게 연결한다")
+    @DisplayName("소셜 제공자와 subject HMAC을 회원에게 연결한다")
     void create_validSocialIdentity_connectsUser() {
         // Given
         User user = User.create(
@@ -28,19 +31,25 @@ class SocialAccountTest {
         SocialAccount socialAccount = SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                "google-subject");
+                SUBJECT_HMAC);
 
         // Then
         assertThat(socialAccount.getUser()).isSameAs(user);
         assertThat(socialAccount.getProvider()).isEqualTo(SocialProvider.GOOGLE);
-        assertThat(socialAccount.getSubject()).isEqualTo("google-subject");
+        assertThat(socialAccount.getSubjectHmac()).isEqualTo(SUBJECT_HMAC);
     }
 
     @ParameterizedTest
     @NullSource
-    @ValueSource(strings = {"", " "})
-    @DisplayName("subject가 비어 있으면 소셜 계정을 생성할 수 없다")
-    void create_blankSubject_throwsException(String subject) {
+    @ValueSource(strings = {
+            "",
+            " ",
+            "ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890",
+            "abc123",
+            "g21c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218"
+    })
+    @DisplayName("subject HMAC 형식이 올바르지 않으면 소셜 계정을 생성할 수 없다")
+    void create_invalidSubjectHmac_throwsException(String subjectHmac) {
         // Given
         User user = User.create(
                 null,
@@ -49,24 +58,10 @@ class SocialAccountTest {
                         "chalkak/signatures/dev/thumbnail/signature.png"));
 
         // When & Then
-        assertThatThrownBy(() -> SocialAccount.create(user, SocialProvider.GOOGLE, subject))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("소셜 계정 식별 정보가 올바르지 않습니다.");
-    }
-
-    @Test
-    @DisplayName("subject가 255자를 초과하면 소셜 계정을 생성할 수 없다")
-    void create_overlongSubject_throwsException() {
-        // Given
-        User user = User.create(
-                null,
-                new SignatureStorageKeys(
-                        "chalkak/signatures/dev/original/signature.png",
-                        "chalkak/signatures/dev/thumbnail/signature.png"));
-        String subject = "a".repeat(256);
-
-        // When & Then
-        assertThatThrownBy(() -> SocialAccount.create(user, SocialProvider.GOOGLE, subject))
+        assertThatThrownBy(() -> SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 식별 정보가 올바르지 않습니다.");
     }
@@ -82,10 +77,10 @@ class SocialAccountTest {
                         "chalkak/signatures/dev/thumbnail/signature.png"));
 
         // When & Then
-        assertThatThrownBy(() -> SocialAccount.create(null, SocialProvider.GOOGLE, "subject"))
+        assertThatThrownBy(() -> SocialAccount.create(null, SocialProvider.GOOGLE, SUBJECT_HMAC))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 연결 정보가 올바르지 않습니다.");
-        assertThatThrownBy(() -> SocialAccount.create(user, null, "subject"))
+        assertThatThrownBy(() -> SocialAccount.create(user, null, SUBJECT_HMAC))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 연결 정보가 올바르지 않습니다.");
     }

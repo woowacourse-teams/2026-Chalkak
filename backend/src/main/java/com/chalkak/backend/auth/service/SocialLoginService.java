@@ -5,7 +5,9 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
-import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserStatus;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,7 +19,7 @@ public class SocialLoginService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
-    private final SocialIdentityRestrictionService socialIdentityRestrictionService;
+    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final AccessTokenIssuer accessTokenIssuer;
 
     @Transactional(readOnly = true)
@@ -28,25 +30,28 @@ public class SocialLoginService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken);
-        socialIdentityRestrictionService.validateNotBlocked(
+        String subjectHmac = fingerprintEncoder.encode(
                 identity.provider(),
                 identity.subject());
 
-        return socialAccountRepository.findByProviderAndSubject(
+        return socialAccountRepository.findByProviderAndSubjectHmac(
                         identity.provider(),
-                        identity.subject())
-                .map(this::toLoginSuccess)
+                        subjectHmac)
+                .map(this::toLoginResult)
                 .orElseGet(SocialLoginResult::signUpRequired);
     }
 
-    private SocialLoginResult toLoginSuccess(SocialAccount socialAccount) {
-        if (socialAccount.getUser().isDeleted()) {
-            throw new UnauthorizedException(
-                    ErrorCode.UNAUTHORIZED,
-                    "탈퇴한 회원은 로그인할 수 없습니다.");
+    private SocialLoginResult toLoginResult(SocialAccount socialAccount) {
+        User user = socialAccount.getUser();
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "차단된 소셜 계정입니다.");
         }
-        socialAccount.getUser().validateAccessible();
-        UUID userId = socialAccount.getUser().getId();
+        if (user.isDeleted()) {
+            return SocialLoginResult.signUpRequired();
+        }
+        UUID userId = user.getId();
         return SocialLoginResult.loginSuccess(
                 userId,
                 accessTokenIssuer.issue(userId));

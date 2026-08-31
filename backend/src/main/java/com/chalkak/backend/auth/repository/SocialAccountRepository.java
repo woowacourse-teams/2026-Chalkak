@@ -7,9 +7,9 @@ import java.util.UUID;
 
 public interface SocialAccountRepository {
 
-    Optional<SocialAccount> findByProviderAndSubject(
+    Optional<SocialAccount> findByProviderAndSubjectHmac(
             SocialProvider provider,
-            String subject);
+            String subjectHmac);
 
     Optional<SocialAccount> findByUserId(UUID userId);
 

@@ -15,10 +15,12 @@ public class SocialAccountRepositoryImpl implements SocialAccountRepository {
     private final SocialAccountJpaRepository socialAccountJpaRepository;
 
     @Override
-    public Optional<SocialAccount> findByProviderAndSubject(
+    public Optional<SocialAccount> findByProviderAndSubjectHmac(
             SocialProvider provider,
-            String subject) {
-        return socialAccountJpaRepository.findByProviderAndSubject(provider, subject);
+            String subjectHmac) {
+        return socialAccountJpaRepository.findByProviderAndSubjectHmac(
+                provider,
+                subjectHmac);
     }
 
     @Override

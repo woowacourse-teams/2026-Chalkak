@@ -65,7 +65,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private UserService userService;
 
     @Autowired
-    private SocialIdentityRestrictionService socialIdentityRestrictionService;
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -108,7 +108,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Then
         User user = userRepository.findById(userId).orElseThrow();
         SocialAccount socialAccount = socialAccountRepository
-                .findByProviderAndSubject(SocialProvider.GOOGLE, SUBJECT)
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac())
                 .orElseThrow();
         assertThat(user.getEmail()).isEqualTo(EMAIL);
         assertThat(user.getSignatureOriginalStorageKey())
@@ -116,6 +118,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThat(user.getSignatureThumbnailStorageKey())
                 .isEqualTo(storageKeys.thumbnailStorageKey());
         assertThat(socialAccount.getUser().getId()).isEqualTo(userId);
+        assertThat(socialAccount.getSubjectHmac()).isEqualTo(subjectHmac());
     }
 
     @Test
@@ -151,7 +154,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 existingUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -178,7 +181,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 withdrawnUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         UUID withdrawnUserId = withdrawnUser.getId();
         userService.withdraw(withdrawnUserId);
         entityManager.flush();
@@ -193,7 +196,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         User oldUser = userRepository.findById(withdrawnUserId).orElseThrow();
         User newUser = userRepository.findById(newUserId).orElseThrow();
         SocialAccount socialAccount = socialAccountRepository
-                .findByProviderAndSubject(SocialProvider.GOOGLE, SUBJECT)
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac())
                 .orElseThrow();
 
         assertThat(newUserId).isNotEqualTo(withdrawnUserId);
@@ -219,7 +224,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -245,10 +250,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         user.ban();
-        socialIdentityRestrictionService.block(user.getId());
-        userService.withdraw(user.getId());
+        user.withdraw();
         entityManager.flush();
         entityManager.clear();
 
@@ -256,6 +260,32 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("차단된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageStorage);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 일반 회원의 소셜 계정 행이 남아 있으면 회원가입을 완료하지 않는다")
+    void signup_withdrawnUserWithSocialAccount_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorCode",
+                        ErrorCode.BUSINESS_ERROR)
+                .hasMessage("이미 가입된 소셜 계정입니다.");
         verifyNoInteractions(signatureImageStorage);
     }
 
@@ -408,7 +438,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
 
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
@@ -416,6 +446,32 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴했지만 소셜 계정 행이 남아 있으면 회원가입용 서명 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_withdrawnUserWithSocialAccount_throwsBusinessException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
+                .hasMessage("이미 가입된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
     }
 
     @Test
@@ -431,7 +487,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -454,10 +510,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         user.ban();
-        socialIdentityRestrictionService.block(user.getId());
-        userService.withdraw(user.getId());
+        user.withdraw();
         entityManager.flush();
         entityManager.clear();
 
@@ -475,6 +530,10 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 EMAIL);
+    }
+
+    private String subjectHmac() {
+        return fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT);
     }
 
     private VerifiedSocialSignupToken verifiedSignupToken(

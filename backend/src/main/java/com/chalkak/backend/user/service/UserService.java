@@ -9,6 +9,7 @@ import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
@@ -137,7 +138,9 @@ public class UserService {
     public void withdraw(UUID userId) {
         User user = getActiveUser(userId, "탈퇴할 회원을 찾을 수 없습니다.");
 
-        socialAccountRepository.deleteByUserId(userId);
+        if (user.getStatus() != UserStatus.BANNED) {
+            socialAccountRepository.deleteByUserId(userId);
+        }
         user.withdraw();
     }
 

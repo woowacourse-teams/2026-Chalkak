@@ -8,12 +8,13 @@ import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
@@ -30,7 +31,7 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
-    private final SocialIdentityRestrictionService socialIdentityRestrictionService;
+    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final AccessTokenIssuer accessTokenIssuer;
@@ -46,9 +47,6 @@ public class SocialSignupService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken);
-        socialIdentityRestrictionService.validateNotBlocked(
-                identity.provider(),
-                identity.subject());
         validateNewSocialAccount(identity);
 
         UUID uploadId = UUID.randomUUID();
@@ -64,13 +62,13 @@ public class SocialSignupService {
     public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =
                 socialSignupTokenVerifier.verify(signupToken);
-        socialIdentityRestrictionService.validateNotBlocked(
+        String subjectHmac = fingerprintEncoder.encode(
                 verifiedToken.provider(),
                 verifiedToken.subject());
         Optional<SocialAccount> existingSocialAccount = socialAccountRepository
-                .findByProviderAndSubject(
+                .findByProviderAndSubjectHmac(
                         verifiedToken.provider(),
-                        verifiedToken.subject());
+                        subjectHmac);
         if (existingSocialAccount.isPresent()) {
             return toSignupResult(getExistingUserId(existingSocialAccount.get()));
         }
@@ -99,7 +97,7 @@ public class SocialSignupService {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 verifiedToken.provider(),
-                verifiedToken.subject()));
+                subjectHmac));
 
         return toSignupResult(user.getId());
     }
@@ -109,13 +107,18 @@ public class SocialSignupService {
     }
 
     private UUID getExistingUserId(SocialAccount socialAccount) {
-        if (socialAccount.getUser().isDeleted()) {
-            throw new UnauthorizedException(
-                    ErrorCode.UNAUTHORIZED,
-                    "탈퇴한 회원은 회원가입할 수 없습니다.");
+        User user = socialAccount.getUser();
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "차단된 소셜 계정입니다.");
         }
-        socialAccount.getUser().validateAccessible();
-        return socialAccount.getUser().getId();
+        if (user.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미 가입된 소셜 계정입니다.");
+        }
+        return user.getId();
     }
 
     private void validateUnusedSignature(SignatureStorageKeys storageKeys) {
@@ -128,14 +131,24 @@ public class SocialSignupService {
     }
 
     private void validateNewSocialAccount(VerifiedSocialIdentity identity) {
-        socialAccountRepository.findByProviderAndSubject(
+        String subjectHmac = fingerprintEncoder.encode(
                 identity.provider(),
-                identity.subject()
-        ).ifPresent(socialAccount -> {
-            socialAccount.getUser().validateAccessible();
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "이미 가입된 소셜 계정입니다.");
-        });
+                identity.subject());
+        socialAccountRepository.findByProviderAndSubjectHmac(
+                        identity.provider(),
+                        subjectHmac)
+                .ifPresent(this::validateAvailableForSignup);
+    }
+
+    private void validateAvailableForSignup(SocialAccount socialAccount) {
+        User user = socialAccount.getUser();
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "차단된 소셜 계정입니다.");
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "이미 가입된 소셜 계정입니다.");
     }
 }

@@ -3,10 +3,6 @@ package com.chalkak.backend.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
-import com.chalkak.backend.auth.domain.BannedSocialIdentity;
-import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.repository.BannedSocialIdentityRepository;
-import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -31,16 +27,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     private static final UUID UNKNOWN_USER_ID =
             UUID.fromString("0198fd10-0000-7000-8000-000000000099");
     private static final String REASON = "반복적인 운영 정책 위반";
-    private static final String SUBJECT = "status-target-subject";
-
     @Autowired
     private AdminUserStatusService adminUserStatusService;
-
-    @Autowired
-    private BannedSocialIdentityRepository bannedSocialIdentityRepository;
-
-    @Autowired
-    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -58,11 +46,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("관리자가 활성 사용자를 차단하면 상태와 소셜 차단 정보 및 감사 로그를 저장한다")
-    void updateStatus_activeToBanned_updatesUserRestrictionAndAuditLog() {
-        // Given
-        insertSocialAccount();
-
+    @DisplayName("소셜 계정이 없는 활성 사용자도 관리자가 차단하면 상태와 감사 로그를 저장한다")
+    void updateStatus_activeUserWithoutSocialAccount_updatesStatusAndAuditLog() {
         // When
         AdminUserStatusResult result = adminUserStatusService.updateStatus(
                 USER_ID,
@@ -87,23 +72,13 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                   AND before_state ->> 'status' = 'ACTIVE'
                   AND after_state ->> 'status' = 'BANNED'
                 """, Integer.class, ADMIN_ID, USER_ID, REASON)).isEqualTo(1);
-        assertThat(bannedSocialIdentityRepository.existsByProviderAndSubjectHmac(
-                SocialProvider.GOOGLE,
-                fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT)))
-                .isTrue();
     }
 
     @Test
-    @DisplayName("관리자가 차단 사용자를 해제하면 상태와 소셜 차단 정보 및 감사 로그를 갱신한다")
-    void updateStatus_bannedToActive_updatesUserRestrictionAndAuditLog() {
+    @DisplayName("소셜 계정이 없는 차단 사용자도 관리자가 차단 해제하면 상태와 감사 로그를 갱신한다")
+    void updateStatus_bannedUserWithoutSocialAccount_updatesStatusAndAuditLog() {
         // Given
         jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
-        insertSocialAccount();
-        bannedSocialIdentityRepository.save(BannedSocialIdentity.create(
-                SocialProvider.GOOGLE,
-                fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT)));
-        entityManager.flush();
-        entityManager.clear();
 
         // When
         AdminUserStatusResult result = adminUserStatusService.updateStatus(
@@ -125,10 +100,6 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                   AND before_state ->> 'status' = 'BANNED'
                   AND after_state ->> 'status' = 'ACTIVE'
                 """, Integer.class, USER_ID)).isEqualTo(1);
-        assertThat(bannedSocialIdentityRepository.existsByProviderAndSubjectHmac(
-                SocialProvider.GOOGLE,
-                fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT)))
-                .isFalse();
     }
 
     @Test
@@ -217,13 +188,6 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                     CAST(? AS timestamptz)
                 )
                 """, USER_ID, status, deletedAt);
-    }
-
-    private void insertSocialAccount() {
-        jdbcTemplate.update("""
-                INSERT INTO social_accounts (user_id, provider, subject)
-                VALUES (?, CAST('GOOGLE' AS social_provider), ?)
-                """, USER_ID, SUBJECT);
     }
 
     private String findUserStatus() {

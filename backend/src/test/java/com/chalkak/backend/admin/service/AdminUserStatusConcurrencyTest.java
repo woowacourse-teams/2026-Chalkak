@@ -3,8 +3,6 @@ package com.chalkak.backend.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BaseException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -38,8 +36,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
             UUID.fromString("0198fd11-0000-7000-8000-000000000099");
     private static final UUID USER_ID =
             UUID.fromString("0198fd11-0000-7000-8000-000000000003");
-    private static final String SUBJECT = "concurrent-status-subject";
-
     @Autowired
     private AdminUserStatusService adminUserStatusService;
 
@@ -48,9 +44,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
-
-    @Autowired
-    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @BeforeEach
     void setUp() {
@@ -65,7 +58,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
                     'signatures/concurrent-status', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, USER_ID);
-        insertSocialAccount();
     }
 
     @AfterEach
@@ -113,7 +105,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
         assertThat(exception).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(findUserStatus()).isEqualTo("ACTIVE");
         assertThat(countAuditLogs()).isZero();
-        assertThat(countBannedSocialIdentities()).isZero();
     }
 
     private List<StatusAttempt> runConcurrently(
@@ -164,24 +155,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
         );
     }
 
-    private int countBannedSocialIdentities() {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM banned_social_identities
-                WHERE provider = CAST('GOOGLE' AS social_provider)
-                  AND subject_hmac = ?
-                """, Integer.class, fingerprintEncoder.encode(
-                SocialProvider.GOOGLE,
-                SUBJECT));
-    }
-
-    private void insertSocialAccount() {
-        jdbcTemplate.update("""
-                INSERT INTO social_accounts (user_id, provider, subject)
-                VALUES (?, CAST('GOOGLE' AS social_provider), ?)
-                """, USER_ID, SUBJECT);
-    }
-
     private void insertAdmin(UUID id, String username) {
         jdbcTemplate.update("""
                 INSERT INTO admins (id, username, password, created_at, updated_at)
@@ -191,12 +164,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
 
     private void cleanUp() {
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", USER_ID);
-        jdbcTemplate.update("""
-                DELETE FROM banned_social_identities
-                WHERE provider = CAST('GOOGLE' AS social_provider)
-                  AND subject_hmac = ?
-                """, fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT));
-        jdbcTemplate.update("DELETE FROM social_accounts WHERE user_id = ?", USER_ID);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", USER_ID);
         jdbcTemplate.update(
                 "DELETE FROM admins WHERE id IN (?, ?, ?)",

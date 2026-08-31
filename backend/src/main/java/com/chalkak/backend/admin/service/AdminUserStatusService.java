@@ -3,7 +3,6 @@ package com.chalkak.backend.admin.service;
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
-import com.chalkak.backend.auth.service.SocialIdentityRestrictionService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -26,7 +25,6 @@ public class AdminUserStatusService {
 
     private final UserRepository userRepository;
     private final AdminAuditLogService adminAuditLogService;
-    private final SocialIdentityRestrictionService socialIdentityRestrictionService;
 
     @Transactional
     public AdminUserStatusResult updateStatus(
@@ -79,11 +77,9 @@ public class AdminUserStatusService {
     private void changeStatus(User user, UserStatus status) {
         if (status == UserStatus.BANNED) {
             user.ban();
-            socialIdentityRestrictionService.block(user.getId());
             return;
         }
         user.unban();
-        socialIdentityRestrictionService.unblock(user.getId());
     }
 
     private AdminAction actionOf(UserStatus status) {
