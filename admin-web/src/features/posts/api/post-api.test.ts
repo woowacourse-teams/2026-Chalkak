@@ -57,24 +57,21 @@ describe("admin post API", () => {
     });
   });
 
-  it("soft deletes a post but rejects a validating post", async () => {
+  it("soft deletes a post and allows idempotent repeated deletion", async () => {
     await deleteAdminPost(postIds.approved, "운영 정책 위반");
 
     const deleted = await fetchAdminPost(postIds.approved);
     expect(deleted.deletedAt).toMatch(/Z$/);
     expect(deleted.photo?.originalImageUrl).toContain("https://");
 
-    await expect(
-      deleteAdminPost(postIds.validating, "잘못된 이미지"),
-    ).rejects.toMatchObject({
-      errorCode: "RESOURCE_STATE_CHANGED",
-    } satisfies Partial<ApiError>);
+    await expect(deleteAdminPost(postIds.approved, "운영 정책 위반")).resolves.toBeUndefined();
+    expect((await fetchAdminPost(postIds.approved)).deletedAt).toBe(deleted.deletedAt);
   });
 
   it("explains a missing post with a 404 error", async () => {
     await expect(fetchAdminPost("missing")).rejects.toMatchObject({
       status: 404,
-      errorCode: "POST_NOT_FOUND",
+      errorCode: "BUSINESS_ERROR",
     } satisfies Partial<ApiError>);
   });
 });

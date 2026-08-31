@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, type FormEvent } from "react";
 
 import type { AdminUserListItem } from "@/shared/api/contracts";
 import { formatInstant } from "@/features/posts/model/post-display";
+import { PostCountLinks } from "@/features/posts/ui/post-count-links";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/shared/ui/feedback-states";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge } from "@/shared/ui/status-badge";
@@ -29,16 +30,15 @@ export function UserListScreen() {
     () => readAdminUserFilters(new URLSearchParams(serialized)),
     [serialized],
   );
-  const [email, setEmail] = useState(filters.email ?? "");
-  const [status, setStatus] = useState(filters.status ?? "");
   const query = useAdminUsers(filters);
   const returnTo = pathname + (serialized ? "?" + serialized : "");
   const update = (patch: Record<string, string | number | undefined>) =>
     router.push(pathname + withQueryPatch(searchParams, patch));
 
-  const apply = (event: FormEvent) => {
+  const apply = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    update({ email: email.trim() || undefined, status: status || undefined, page: 1 });
+    const email = String(new FormData(event.currentTarget).get("email") ?? "");
+    update({ email: email.trim() || undefined, status: filters.status, page: 1 });
   };
 
   const columns: TableColumn<AdminUserListItem>[] = [
@@ -65,9 +65,7 @@ export function UserListScreen() {
       id: "posts",
       header: "게시물",
       render: (user) => (
-        <span className={styles.countsInline}>
-          전체 {user.postCounts.total} · 대기 {user.postCounts.pending} · 승인 {user.postCounts.approved}
-        </span>
+        <PostCountLinks compact counts={user.postCounts} scope={{ userId: user.userId }} returnTo={returnTo} />
       ),
     },
     { id: "created", header: "가입일", align: "right", render: (user) => formatInstant(user.createdAt) },
@@ -75,20 +73,47 @@ export function UserListScreen() {
 
   return (
     <div className={styles.page}>
-      <section className={styles.intro}>
-        <div><p>USER MANAGEMENT</p><h2>이메일로 찾고, 상태는 안전하게 변경하세요.</h2><span>목록에는 운영에 필요한 최소 정보만 표시합니다.</span></div>
-        <strong>{query.data?.users.length ?? 0}</strong>
-      </section>
+      <h2 className={styles.pageTitle}>사용자</h2>
+      <nav aria-label="사용자 상태" className={styles.statusTabs}>
+        {(["ACTIVE", "BANNED", "WITHDRAWN"] as const).map((status) => (
+          <Link
+            aria-current={filters.status === status ? "page" : undefined}
+            href={pathname + withQueryPatch(searchParams, { status, page: 1 })}
+            key={status}
+          >
+            {userStatusDisplay[status].label}
+          </Link>
+        ))}
+      </nav>
       <form className={styles.filters} onSubmit={apply}>
-        <label><span>이메일 검색</span><input aria-label="이메일 검색" onChange={(e) => setEmail(e.target.value)} placeholder="이메일 일부 입력" value={email} /></label>
-        <label><span>사용자 상태</span><select aria-label="사용자 상태" onChange={(e) => setStatus(e.target.value)} value={status}><option value="">전체</option><option value="ACTIVE">활성</option><option value="BANNED">차단</option><option value="WITHDRAWN">탈퇴</option></select></label>
+        <label><span>이메일 검색</span><input aria-label="이메일 검색" defaultValue={filters.email ?? ""} key={filters.email} maxLength={320} name="email" placeholder="이메일 일부 입력" /></label>
         <label><span>정렬</span><select aria-label="정렬" onChange={(e) => update({ sort: e.target.value, page: 1 })} value={filters.sort}><option value="createdAtDesc">최근 가입순</option><option value="createdAtAsc">오래된 가입순</option></select></label>
         <button type="submit">검색 적용</button>
       </form>
       {query.isPending ? <LoadingSkeleton rows={5} /> : null}
       {query.isError ? <ErrorState description={getUserErrorMessage(query.error)} onRetry={() => query.refetch()} /> : null}
       {query.data?.users.length === 0 ? <EmptyState title="조건에 맞는 사용자가 없습니다" description="검색어나 상태를 변경해 주세요." /> : null}
-      {query.data?.users.length ? <><div className={styles.desktop}><Table caption="관리자 사용자 목록" columns={columns} getRowKey={(user) => user.userId} rows={query.data.users} /></div><div className={styles.mobileCards}>{query.data.users.map((user) => { const display = userStatusDisplay[user.status]; return <Link className={styles.mobileCard} href={detailHref(user.userId, returnTo)} key={user.userId}><div><strong>{user.email ?? "이메일 정보 없음"}</strong><StatusBadge tone={display.tone}>{display.label}</StatusBadge></div><span>{user.socialProvider ?? "소셜 정보 없음"} · 앱 {user.appVersion ?? "—"}</span><small>게시물 {user.postCounts.total} · 검수 대기 {user.postCounts.pending}</small></Link>; })}</div><Pagination currentPage={query.data.currentPage} hasNext={query.data.hasNext} onPageChange={(page) => update({ page })} /></> : null}
+      {query.data?.users.length ? (
+        <>
+          <div className={styles.desktop}><Table caption="관리자 사용자 목록" columns={columns} getRowKey={(user) => user.userId} rows={query.data.users} /></div>
+          <div className={styles.mobileCards}>
+            {query.data.users.map((user) => {
+              const display = userStatusDisplay[user.status];
+              return (
+                <article className={styles.mobileCard} key={user.userId}>
+                  <div className={styles.cardHeading}>
+                    <Link className={styles.primaryLink} href={detailHref(user.userId, returnTo)}><strong>{user.email ?? "이메일 정보 없음"}</strong></Link>
+                    <StatusBadge tone={display.tone}>{display.label}</StatusBadge>
+                  </div>
+                  <span>{user.socialProvider ?? "소셜 정보 없음"} · 앱 {user.appVersion ?? "—"}</span>
+                  <PostCountLinks compact counts={user.postCounts} scope={{ userId: user.userId }} returnTo={returnTo} />
+                </article>
+              );
+            })}
+          </div>
+          <Pagination currentPage={query.data.currentPage} hasNext={query.data.hasNext} onPageChange={(page) => update({ page })} />
+        </>
+      ) : null}
     </div>
   );
 }

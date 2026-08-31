@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   dateEndInstant,
   dateStartInstant,
+  instantDate,
   readAdminPostFilters,
   withQueryPatch,
 } from "./post-filter-query";
@@ -50,8 +51,10 @@ describe("post filter URL query", () => {
     ).toBe("?status=PENDING&page=3");
   });
 
-  it("converts date filters to inclusive UTC Instant bounds", () => {
-    expect(dateStartInstant("2026-08-01")).toBe("2026-08-01T00:00:00Z");
-    expect(dateEndInstant("2026-08-31")).toBe("2026-08-31T23:59:59Z");
+  it("converts Korean calendar dates to inclusive Instant bounds", () => {
+    expect(dateStartInstant("2026-08-01")).toBe("2026-07-31T15:00:00.000Z");
+    expect(dateEndInstant("2026-08-31")).toBe("2026-08-31T14:59:59.999Z");
+    expect(instantDate("2026-07-31T15:00:00.000Z")).toBe("2026-08-01");
+    expect(instantDate("invalid")).toBe("");
   });
 });

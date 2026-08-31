@@ -41,15 +41,17 @@ export function readAdminPostFilters(
 }
 
 export function dateStartInstant(value: string) {
-  return value ? value + "T00:00:00Z" : undefined;
+  return value ? new Date(value + "T00:00:00+09:00").toISOString() : undefined;
 }
 
 export function dateEndInstant(value: string) {
-  return value ? value + "T23:59:59Z" : undefined;
+  return value ? new Date(value + "T23:59:59.999+09:00").toISOString() : undefined;
 }
 
 export function instantDate(value?: string) {
-  return value?.slice(0, 10) ?? "";
+  if (!value) return "";
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? "" : new Date(timestamp + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 export function withQueryPatch(

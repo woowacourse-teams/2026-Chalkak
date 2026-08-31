@@ -1,20 +1,16 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import Home from "./page";
 
-describe("Home", () => {
-  it("renders the admin dashboard entry", () => {
-    render(<Home />);
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn(() => { throw new Error("NEXT_REDIRECT"); }),
+}));
 
-    expect(
-      screen.getByRole("heading", {
-        name: "운영 흐름을 한눈에 확인하세요.",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /게시물/ })).toHaveAttribute(
-      "href",
-      "/posts",
-    );
+vi.mock("next/navigation", () => ({ redirect }));
+
+describe("Home", () => {
+  it("opens the pending post review queue", () => {
+    expect(() => Home()).toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/posts?status=PENDING");
   });
 });

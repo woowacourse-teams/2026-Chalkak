@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { getSafeReturnTo } from "@/features/auth/model/return-to";
 import {
-  EmptyState,
   ErrorState,
   LoadingSkeleton,
 } from "@/shared/ui/feedback-states";
@@ -30,11 +30,13 @@ import styles from "./posts.module.css";
 type PendingAction = "approve" | "reject" | "delete" | null;
 
 function safeReturnTo(value: string | null) {
-  return value?.startsWith("/posts") ? value : "/posts";
+  const safe = getSafeReturnTo(value);
+  return /^\/(?:posts|audit-logs)(?:\?|$)/.test(safe) ? safe : "/posts?status=PENDING";
 }
 
 export function PostDetailScreen({ postId }: { postId: string }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const postQuery = useAdminPost(postId);
   const moderation = useModerateAdminPost();
   const deletion = useDeleteAdminPost();
@@ -50,6 +52,8 @@ export function PostDetailScreen({ postId }: { postId: string }) {
 
   if (postQuery.isError || !postQuery.data) {
     return (
+      <div className={styles.detailPage}>
+      <Link className={styles.backLink} href={returnTo}>← 이전 목록으로 돌아가기</Link>
       <ErrorState
         description={getPostErrorMessage(postQuery.error)}
         onRetry={() => postQuery.refetch()}
@@ -59,19 +63,11 @@ export function PostDetailScreen({ postId }: { postId: string }) {
             : "게시물 상세를 불러오지 못했습니다"
         }
       />
+      </div>
     );
   }
 
   const post = postQuery.data;
-
-  if (post.moderationStatus === "VALIDATING") {
-    return (
-      <EmptyState
-        description="이미지 처리가 완료되면 검수 대기 목록에서 확인할 수 있습니다."
-        title="아직 검수할 수 없는 게시물입니다"
-      />
-    );
-  }
 
   const status = getPostDisplayStatus(post);
   const canModerate =
@@ -100,6 +96,7 @@ export function PostDetailScreen({ postId }: { postId: string }) {
         showToast("게시물을 삭제했습니다.", "success");
       }
       setAction(null);
+      router.push(returnTo);
     } catch (error) {
       showToast(getPostErrorMessage(error), "error");
       await postQuery.refetch();
@@ -144,9 +141,8 @@ export function PostDetailScreen({ postId }: { postId: string }) {
     <div className={styles.detailPage}>
       <div className={styles.detailTopBar}>
         <Link className={styles.backLink} href={returnTo}>
-          ← 목록과 필터로 돌아가기
+          ← 이전 목록으로 돌아가기
         </Link>
-        <span className={styles.secondaryText}>{post.postId}</span>
       </div>
 
       <div className={styles.detailGrid}>
@@ -156,7 +152,6 @@ export function PostDetailScreen({ postId }: { postId: string }) {
           src={post.photo?.originalImageUrl}
         />
         <section className={styles.detailPanel}>
-          <p className={styles.detailEyebrow}>POST REVIEW</p>
           <div className={styles.detailTitleRow}>
             <h2>{post.title ?? "제목 없음"}</h2>
             <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
@@ -166,13 +161,12 @@ export function PostDetailScreen({ postId }: { postId: string }) {
             <div>
               <dt>주제</dt>
               <dd>
-                {post.topic?.title ?? "없음"}
-                {post.topic ? " · " + post.topic.topicDate : ""}
+                {post.topic ? <Link className={styles.relatedLink} href={"/topics/" + post.topic.topicId + "?" + new URLSearchParams({ returnTo })}>{post.topic.title} · {post.topic.topicDate}</Link> : "없음"}
               </dd>
             </div>
             <div>
               <dt>작성자</dt>
-              <dd>{post.author?.email ?? "탈퇴/정보 없음"}</dd>
+              <dd>{post.author ? <Link className={styles.relatedLink} href={"/users/" + post.author.userId + "?" + new URLSearchParams({ returnTo })}>{post.author.email ?? "이메일 정보 없음"}</Link> : "탈퇴/정보 없음"}</dd>
             </div>
             <div>
               <dt>등록 시각</dt>
@@ -182,26 +176,16 @@ export function PostDetailScreen({ postId }: { postId: string }) {
               <dt>처리 시각</dt>
               <dd>{formatInstant(post.moderatedAt)}</dd>
             </div>
-            <div>
-              <dt>사진 크기</dt>
-              <dd>
-                {post.photo?.metadata.width ?? "—"} ×{" "}
-                {post.photo?.metadata.height ?? "—"} px
-              </dd>
-            </div>
-            <div>
-              <dt>파일 크기</dt>
-              <dd>{formatFileSize(post.photo?.metadata.byteSize)}</dd>
-            </div>
-            <div>
-              <dt>좋아요</dt>
-              <dd>{post.likeCount.toLocaleString("ko-KR")}개</dd>
-            </div>
-            <div>
-              <dt>이미지 처리</dt>
-              <dd>{post.imageUpload?.status ?? "정보 없음"}</dd>
-            </div>
           </dl>
+          <details className={styles.extraInfo}>
+            <summary>추가 정보</summary>
+            <dl className={styles.detailMeta}>
+              <div><dt>게시물 ID</dt><dd>{post.postId}</dd></div>
+              <div><dt>사진 크기</dt><dd>{post.photo?.metadata.width ?? "—"} × {post.photo?.metadata.height ?? "—"} px</dd></div>
+              <div><dt>파일 크기</dt><dd>{formatFileSize(post.photo?.metadata.byteSize)}</dd></div>
+              <div><dt>좋아요</dt><dd>{post.likeCount.toLocaleString("ko-KR")}개</dd></div>
+            </dl>
+          </details>
 
           {post.rejectionReason ? (
             <p className={styles.moderationNote}>
@@ -214,7 +198,7 @@ export function PostDetailScreen({ postId }: { postId: string }) {
             </p>
           ) : null}
 
-          <div className={styles.detailActions}>
+          {canDelete ? <div aria-label="게시물 작업" className={styles.detailActions} role="group">
             {canModerate ? (
               <>
                 <button
@@ -245,7 +229,7 @@ export function PostDetailScreen({ postId }: { postId: string }) {
                 삭제
               </button>
             ) : null}
-          </div>
+          </div> : null}
         </section>
       </div>
 

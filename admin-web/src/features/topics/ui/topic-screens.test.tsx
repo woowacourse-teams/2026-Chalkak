@@ -35,6 +35,29 @@ describe("topic management screens", () => {
     expect(screen.queryByPlaceholderText("UUID")).not.toBeInTheDocument();
   });
 
+  it("links zero-count topics to the correct filtered posts on desktop and mobile", async () => {
+    render(<QueryProvider><TopicListScreen /></QueryProvider>);
+    const links = await screen.findAllByRole("link", { name: "검수 대기 게시물 0개 보기" });
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "/posts?status=PENDING&topicId=" + topicIds.beforeOpen + "&returnTo=%2Ftopics%3Fphase%3DBEFORE_OPEN%26page%3D1");
+      expect(link.parentElement?.closest("a")).toBeNull();
+    }
+    expect(screen.getAllByRole("link", { name: "승인 게시물 0개 보기" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "거절 게시물 0개 보기" })).toHaveLength(2);
+  });
+
+  it("links topic detail counts and preserves the source post list", async () => {
+    search.value = "returnTo=%2Fposts%3Fstatus%3DAPPROVED";
+    render(<QueryProvider><ToastProvider><TopicDetailScreen topicId={topicIds.open} /></ToastProvider></QueryProvider>);
+    const link = await screen.findByRole("link", { name: "승인 게시물 11개 보기" });
+    const params = new URL(link.getAttribute("href")!, "http://localhost").searchParams;
+    expect(params.get("status")).toBe("APPROVED");
+    expect(params.get("topicId")).toBe(topicIds.open);
+    expect(params.get("returnTo")).toBe("/topics/" + topicIds.open + "?returnTo=%2Fposts%3Fstatus%3DAPPROVED");
+    expect(screen.getByRole("link", { name: "← 목록과 필터로 돌아가기" })).toHaveAttribute("href", "/posts?status=APPROVED");
+  });
+
   it("validates the topic date against the Korean start date", async () => {
     const submit = vi.fn();
     const user = userEvent.setup();

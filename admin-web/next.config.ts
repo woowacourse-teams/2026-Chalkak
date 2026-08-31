@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 if (process.env.VERCEL_ENV === "production") {
   throw new Error(
-    "관리자 인증·인가가 완료되기 전에는 Vercel Production 배포를 허용하지 않습니다.",
+    "실제 웹 로그인·운영 연결 검증과 승인 전에는 Vercel Production 배포를 허용하지 않습니다.",
   );
 }
 

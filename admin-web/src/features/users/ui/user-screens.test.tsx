@@ -40,6 +40,41 @@ describe("user management screens", () => {
     expect(routerPush).toHaveBeenCalledWith(expect.stringContaining("email=creator"));
   });
 
+  it("defaults to active users and offers only the three status tabs", async () => {
+    search.value = "";
+    render(<QueryProvider><UserListScreen /></QueryProvider>);
+    const tabs = screen.getByRole("navigation", { name: "사용자 상태" });
+    expect(within(tabs).getAllByRole("link")).toHaveLength(3);
+    expect(within(tabs).getByRole("link", { name: "활성" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).queryByRole("link", { name: "전체" })).not.toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "차단" })).toHaveAttribute("href", "/users?status=BANNED&page=1");
+    expect(await screen.findAllByText("creator@example.com")).not.toHaveLength(0);
+    expect(screen.queryByText("paused@example.com")).not.toBeInTheDocument();
+  });
+
+  it("links all three user counts on desktop and mobile without nested links", async () => {
+    render(<QueryProvider><UserListScreen /></QueryProvider>);
+    const links = await screen.findAllByRole("link", { name: "검수 대기 게시물 2개 보기" });
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "/posts?status=PENDING&userId=" + userIds.active + "&returnTo=%2Fusers%3Fstatus%3DACTIVE%26page%3D1");
+      expect(link.parentElement?.closest("a")).toBeNull();
+    }
+    expect(screen.getAllByRole("link", { name: "승인 게시물 10개 보기" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "거절 게시물 1개 보기" })).toHaveLength(2);
+  });
+
+  it("links the detail counts and preserves its source filter", async () => {
+    search.value = "returnTo=%2Fposts%3Fstatus%3DREJECTED";
+    render(<QueryProvider><ToastProvider><UserDetailScreen userId={userIds.active} /></ToastProvider></QueryProvider>);
+    const link = await screen.findByRole("link", { name: "거절 게시물 1개 보기" });
+    const params = new URL(link.getAttribute("href")!, "http://localhost").searchParams;
+    expect(params.get("status")).toBe("REJECTED");
+    expect(params.get("userId")).toBe(userIds.active);
+    expect(params.get("returnTo")).toBe("/users/" + userIds.active + "?returnTo=%2Fposts%3Fstatus%3DREJECTED");
+    expect(screen.getByRole("link", { name: "← 목록과 필터로 돌아가기" })).toHaveAttribute("href", "/posts?status=REJECTED");
+  });
+
   it("requires an audit reason before banning an active user", async () => {
     search.value = "returnTo=%2Fusers%3Fstatus%3DACTIVE";
     const user = userEvent.setup();

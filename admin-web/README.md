@@ -37,20 +37,32 @@
 
 .env.example을 .env.local로 복사해 로컬 값을 설정합니다. NEXT_PUBLIC_ 접두사가 붙은 값은 빌드 시 브라우저 번들에 포함되므로 공개 가능한 API 주소와 모드 값만 사용합니다. 토큰, 비밀번호, 개인 키 같은 비밀값은 NEXT_PUBLIC_ 변수나 저장소에 넣지 않습니다.
 
-관리자 인증·인가는 후속 작업에서 연결합니다. 현재 프로젝트는 API 계약과 개발 화면 검증을 막지 않도록 인증 경계를 별도 계층으로 둘 예정이며, 브라우저가 임의의 관리자 식별자를 만들거나 저장하지 않습니다.
+관리자 아이디·비밀번호는 로그인 화면에서 입력합니다. 웹 환경변수에 관리자 계정이나 토큰을 설정하지 않습니다. 실제 환경에서는 Next.js 서버가 백엔드 로그인 API의 JWT를 받아 HttpOnly 쿠키로 보관하고, 이후 요청에만 Bearer 토큰으로 전달합니다. JWT는 브라우저 JavaScript, React 상태, localStorage 또는 sessionStorage에 전달하지 않습니다.
+
+### 로그인과 화면 흐름
+
+- `/login`: 단일 관리자 로그인. 로그인 후 원래 요청한 내부 화면 또는 검수 대기 목록으로 이동합니다.
+- `/posts`: 검수 대기 / 승인 / 거절 탭 → 게시물 상세 → 승인·거절 → 기존 필터 목록으로 복귀합니다.
+- `/users`: 활동 / 차단 / 탈퇴 상태별 조회와 사용자 상세. 게시물 건수를 누르면 해당 사용자·상태의 게시물 목록으로 이동합니다.
+- `/topics`: 한글 주제 목록·등록·수정·삭제와 주제별 게시물 조회입니다.
+- `/audit-logs`: 백엔드 처리 이력을 행동·대상별로 조회합니다. 데이터는 조회만 할 수 있습니다.
+
+검증 중(`VALIDATING`) 게시물은 관리자 화면·집계에 포함하지 않습니다. 알림 기능은 이번 범위에 포함하지 않습니다. 모바일에서는 하단 메뉴를 사용하고, 게시물 검수 버튼은 메뉴 바로 위에 고정합니다.
+
+세션 복원은 `/auth/me`로 확인합니다. 만료/401, 로그아웃 또는 계정 변경 시 이전 관리 데이터 캐시를 비웁니다. 로그아웃은 브라우저 쿠키를 삭제하지만, 현재 백엔드의 JWT 자체를 즉시 폐기하는 기능은 아닙니다. 이미 발급된 토큰의 서버 측 유효기간은 백엔드 정책을 따릅니다.
 
 ## API 모드
 
-- NEXT_PUBLIC_API_MODE=mock: 로컬 개발에서 MSW 응답을 사용합니다.
-- NEXT_PUBLIC_API_MODE=real: NEXT_PUBLIC_ADMIN_API_BASE_URL의 실제 API를 호출합니다.
+- `NEXT_PUBLIC_API_MODE=mock`: 로컬 MSW 데모입니다. 로그인 화면의 **데모 계정으로 둘러보기** 버튼으로 들어갑니다. 실제 계정·데이터를 사용하지 않으며, 새로고침하면 메모리 기반 데모 상태가 초기화됩니다.
+- `NEXT_PUBLIC_API_MODE=real`: 브라우저 → 같은 출처의 `/api/admin/*` → `NEXT_PUBLIC_ADMIN_API_BASE_URL`의 실제 백엔드 순서로 호출합니다. 공개 주소 변수에 비밀값을 넣지 않습니다.
 
 모드 전환은 위 환경변수 한 곳에서만 수행합니다. API 주소가 없거나 잘못되면 요청 전에 명확한 설정 오류를 표시하며, production build는 Mock 모드를 거부합니다. Mock에는 정상·빈 목록·지연·400·403·404 시나리오가 준비되어 있습니다.
 
-공통 API Client는 JSON과 {errorCode, message} 오류 계약, 10초 timeout을 처리합니다. 응답의 UTC Instant 문자열은 API 계층에서 변환하지 않고 보존하며 실제 화면에서만 사용자 시간대로 표시합니다.
+공통 API Client는 JSON과 `{errorCode, message}` 오류 계약, 10초 timeout을 처리합니다. Next.js 중계는 허용된 관리자 API만 연결하며 8초 timeout, 동일 출처 검사, 요청 크기 제한을 적용합니다. 쿠키는 HttpOnly·SameSite=Lax이고 운영 빌드에서는 Secure 속성을 사용합니다. 실제 API 주소는 운영 빌드에서 HTTPS만 허용합니다. 응답의 UTC Instant는 보존하고 화면에서 사용자 시간대로 표시합니다.
 
 ## Vercel Preview 배포
 
-실제 관리자 인증·인가가 완성되기 전에는 **Preview만** 사용합니다. `next.config.ts`가 `VERCEL_ENV=production` 빌드를 실패시켜 실수로 Production을 공개하지 못하게 합니다. 인증·인가 이슈가 끝난 뒤 이 보호 장치를 별도 PR에서 제거합니다.
+실제 웹 로그인과 운영 연결 검증·승인 전에는 **Preview만** 사용합니다. `next.config.ts`의 `VERCEL_ENV=production` 빌드 차단을 유지합니다. Production 공개는 별도 승인 후 보호 장치를 제거하고 진행합니다.
 
 ### 최초 프로젝트 연결
 
@@ -65,28 +77,24 @@
        NEXT_PUBLIC_APP_ENV=preview
 
 6. Settings → Deployment Protection에서 Vercel Authentication과 Standard Protection을 켭니다.
-7. GitHub Integration을 연결한 뒤 Preview PR에 배포 링크와 `Vercel` 상태 검사가 생성되는지 확인합니다.
+7. Git 브랜치 추적과 빌드 건너뛰기 설정은 Vercel 프로젝트 설정에서 확인합니다. 백엔드 PR에 Vercel 배포 검사를 추가하지 않도록 기존 팀 설정을 유지합니다.
 
-이 저장소는 `admin-web`과 `be/develop`을 장기 분리해 사용합니다. 관리자 웹 브랜치의 `admin-web/vercel.json`은 Git 자동 배포를 켜고, 백엔드 브랜치의 동명 최소 설정은 이를 꺼서 `admin-web` 디렉터리가 없는 백엔드 PR에 실패한 Vercel 검사가 붙지 않게 합니다. 두 설정은 각 브랜치의 배포 목적에 맞게 유지합니다.
+이 저장소는 `admin-web`과 `be/develop`을 분리해 사용합니다. 관리자 웹 PR의 대상은 `admin-web`입니다. 백엔드 브랜치에 Vercel 설정 파일을 추가하지 않습니다. 이 PR은 기존 Vercel 프로젝트 설정이나 자동 배포 설정을 변경하지 않습니다. 푸시만으로 배포된다고 가정하지 말고 실제 배포 커밋을 확인합니다.
 
 `NEXT_PUBLIC_*` 값은 모두 브라우저에 공개됩니다. 비밀번호, API 토큰, AWS 자격증명, Webhook, FCM 등록값을 Vercel 공개 변수나 저장소에 넣지 않습니다. 개발 API 주소는 HTTPS여야 하며 개발 DB·개발 S3만 사용해야 합니다.
 
-### CORS 연결
+### 백엔드 연결
 
-Vercel이 제공하는 브랜치별 고정 Preview URL을 확인한 뒤 그 Origin 전체(예: `https://프로젝트-git-브랜치-팀.vercel.app`)를 개발 EC2의 `ADMIN_CORS_ALLOWED_ORIGINS`에 설정합니다. 임의 배포 URL마다 값이 바뀌지 않도록 커밋 URL이 아닌 브랜치 URL을 사용합니다.
-
-- `*.vercel.app` 같은 와일드카드는 허용하지 않습니다.
-- Production 호스트나 운영 API 주소를 추가하지 않습니다.
-- 변경 후 개발 백엔드를 재시작하고 브라우저의 CORS preflight와 실제 요청을 확인합니다.
+브라우저는 같은 출처의 Next.js API만 호출하므로 이 경로에 브라우저→백엔드 CORS 예외를 추가할 필요가 없습니다. 기존 백엔드의 `ADMIN_CORS_ALLOWED_ORIGIN` 설정은 변경하지 않습니다. Next.js 서버에서 개발 API에 접근할 수 있어야 하며, 이미 배포된 백엔드의 관리자 계정과 인증·인가를 그대로 사용합니다. 웹 연결을 위해 EC2에 새 환경변수나 관리자 비밀번호를 추가하지 않습니다.
 
 ### 배포와 검증
 
-Preview 브랜치에 푸시하면 Vercel이 새 배포를 생성합니다. CLI로 확인할 때는 프로젝트를 연결한 `admin-web` 디렉터리에서 실행합니다.
+프로젝트의 기존 수동 Preview 배포 절차를 사용하고, PR 최신 커밋이 배포됐는지 확인합니다. CLI로 확인할 때는 프로젝트를 연결한 `admin-web` 디렉터리에서 실행합니다.
 
     vercel inspect <preview-url> --logs
     vercel curl / --deployment <preview-url>
 
-Preview에서 게시물 승인·거절, 사용자 검색·차단·해제, 한글 주제 등록·수정·삭제를 개발 데이터로 검증합니다. 데스크톱과 320px·390px 화면에서 목록, 상세, 확인 대화상자, 오류 상태가 가로로 넘치지 않는지도 확인합니다.
+Preview에서 실제 계정 로그인 → 새로고침 세션 유지 → 목록·상세 조회 → 로그아웃 → 보호 경로 차단을 먼저 확인합니다. 승인·거절, 차단·해제, 주제 변경은 허가받은 개발 데이터로만 검증합니다. 데스크톱과 320px·390px에서 목록, 상세, 확인창, 오류 상태가 가로로 넘치지 않는지도 확인합니다. 로컬 데모 통과만으로 실제 API 연결 검증을 완료했다고 간주하지 않습니다.
 
 ### 재배포와 되돌리기
 
@@ -94,4 +102,4 @@ Preview에서 게시물 승인·거절, 사용자 검색·차단·해제, 한글
 
     vercel redeploy <preview-url>
 
-Preview에서 문제가 생기면 직전 정상 커밋으로 새 Preview를 만들거나 해당 정상 배포 URL을 다시 사용합니다. `vercel rollback`은 Production용 명령이므로 인증 전 Preview 운영에는 사용하지 않습니다. Production 승격은 관리자 인증·인가와 운영 API 연결이 완료된 뒤 별도 배포 절차에서 수행합니다.
+Preview에서 문제가 생기면 직전 정상 커밋으로 새 Preview를 만들거나 해당 정상 배포 URL을 다시 사용합니다. `vercel rollback`은 Production용 명령이므로 Preview 운영에는 사용하지 않습니다. Production 승격은 실제 웹 로그인과 운영 연결 검증·승인 후 별도 배포 절차에서 수행합니다.

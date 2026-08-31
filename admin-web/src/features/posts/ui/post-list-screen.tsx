@@ -5,6 +5,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
 import type { AdminPostListItem } from "@/shared/api/contracts";
+import { getSafeReturnTo } from "@/features/auth/model/return-to";
+import { useAdminTopic } from "@/features/topics/api/topic-hooks";
+import { useAdminUser } from "@/features/users/api/user-hooks";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/shared/ui/feedback-states";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge } from "@/shared/ui/status-badge";
@@ -39,6 +42,8 @@ export function PostListScreen() {
     [serializedSearch],
   );
   const postsQuery = useAdminPosts(filters);
+  const selectedTopic = useAdminTopic(filters.topicId ?? "", Boolean(filters.topicId));
+  const selectedUser = useAdminUser(filters.userId ?? "", Boolean(filters.userId));
   const filterOptionFilters = useMemo(
     () => ({
       ...filters,
@@ -51,6 +56,7 @@ export function PostListScreen() {
   );
   const filterOptionsQuery = useAdminPosts(filterOptionFilters);
   const returnTo = pathname + (serializedSearch ? "?" + serializedSearch : "");
+  const sourceUrl = searchParams.get("returnTo") ? getSafeReturnTo(searchParams.get("returnTo")) : null;
 
   const topicOptions = useMemo<FilterOption[]>(() => {
     const options = new Map<string, string>();
@@ -62,8 +68,11 @@ export function PostListScreen() {
         );
       }
     });
+    if (filters.topicId) {
+      options.set(filters.topicId, selectedTopic.data ? selectedTopic.data.title + " · " + selectedTopic.data.topicDate : options.get(filters.topicId) ?? "선택한 주제");
+    }
     return Array.from(options, ([value, label]) => ({ value, label }));
-  }, [filterOptionsQuery.data?.posts]);
+  }, [filterOptionsQuery.data?.posts, filters.topicId, selectedTopic.data]);
 
   const authorOptions = useMemo<FilterOption[]>(() => {
     const options = new Map<string, string>();
@@ -75,8 +84,11 @@ export function PostListScreen() {
         );
       }
     });
+    if (filters.userId) {
+      options.set(filters.userId, selectedUser.data?.email ?? options.get(filters.userId) ?? "선택한 사용자");
+    }
     return Array.from(options, ([value, label]) => ({ value, label }));
-  }, [filterOptionsQuery.data?.posts]);
+  }, [filterOptionsQuery.data?.posts, filters.userId, selectedUser.data]);
 
   const updateFilters = (patch: Record<string, string | number | undefined>) => {
     router.push(pathname + withQueryPatch(searchParams, patch));
@@ -102,7 +114,6 @@ export function PostListScreen() {
           href={detailHref(post.postId, returnTo)}
         >
           <strong>{post.title ?? "제목 없음"}</strong>
-          <span>{post.postId}</span>
         </Link>
       ),
     },
@@ -118,18 +129,14 @@ export function PostListScreen() {
       id: "topic",
       header: "주제",
       render: (post) => (
-        <span className={styles.secondaryText}>
-          {post.topic?.title ?? "연결된 주제 없음"}
-        </span>
+        post.topic ? <Link className={styles.relatedLink} href={"/topics/" + post.topic.topicId + "?" + new URLSearchParams({ returnTo })}>{post.topic.title}</Link> : <span className={styles.secondaryText}>연결된 주제 없음</span>
       ),
     },
     {
       id: "author",
       header: "작성자",
       render: (post) => (
-        <span className={styles.secondaryText}>
-          {post.author?.email ?? "탈퇴/정보 없음"}
-        </span>
+        post.author ? <Link className={styles.relatedLink} href={"/users/" + post.author.userId + "?" + new URLSearchParams({ returnTo })}>{post.author.email ?? "이메일 정보 없음"}</Link> : <span className={styles.secondaryText}>탈퇴/정보 없음</span>
       ),
     },
     {
@@ -142,17 +149,14 @@ export function PostListScreen() {
 
   return (
     <div className={styles.postsPage}>
-      <section className={styles.listIntro}>
-        <div>
-          <p>POST MODERATION</p>
-          <h2>검수가 필요한 순간을 놓치지 마세요.</h2>
-          <span>
-            상태와 작성자, 주제, 날짜를 조합해 게시물을 찾고 상세에서
-            안전하게 처리합니다.
-          </span>
-        </div>
-        <strong>{postsQuery.data?.posts.length ?? 0}</strong>
-      </section>
+      <h2 className={styles.pageTitle}>게시물</h2>
+      {sourceUrl ? <Link className={styles.backLink} href={sourceUrl}>← 사용자·주제로 돌아가기</Link> : null}
+      <nav aria-label="검수 상태" className={styles.statusTabs}>
+        {([ ["PENDING", "검수 대기"], ["APPROVED", "승인"], ["REJECTED", "거절"] ] as const).map(([status, label]) => (
+          <Link aria-current={filters.status === status ? "page" : undefined} href={pathname + withQueryPatch(searchParams, { status, page: 1 })} key={status}>{label}</Link>
+        ))}
+      </nav>
+      {filters.topicId || filters.userId ? <p className={styles.filterContext}>{filters.topicId ? (selectedTopic.data?.title ?? "선택한 주제") : null}{filters.topicId && filters.userId ? " · " : null}{filters.userId ? (selectedUser.data?.email ?? "선택한 사용자") : null}의 게시물</p> : null}
 
       <PostFilters
         authorOptions={authorOptions}

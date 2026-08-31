@@ -1,10 +1,20 @@
 import type { ApiErrorResponse } from "./contracts";
 import { readPublicApiConfig, type PublicApiConfig } from "./config";
 import { ApiError } from "./errors";
+import { notifyAdminSessionExpired } from "./session-events";
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
 };
+
+const activeRequests = new Set<AbortController>();
+let sessionGeneration = 0;
+
+export function cancelAdminRequests() {
+  sessionGeneration += 1;
+  for (const controller of activeRequests) controller.abort("session-change");
+  activeRequests.clear();
+}
 
 function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   if (typeof value !== "object" || value === null) {
@@ -42,12 +52,17 @@ export class ApiClient {
     options: ApiRequestOptions = {},
   ): Promise<T> {
     const controller = new AbortController();
+    activeRequests.add(controller);
+    const requestGeneration = sessionGeneration;
     const timeoutId = window.setTimeout(
       () => controller.abort("timeout"),
       this.config.timeoutMs,
     );
     const externalSignal = options.signal;
     const abortFromExternalSignal = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) {
+      abortFromExternalSignal();
+    }
     externalSignal?.addEventListener("abort", abortFromExternalSignal, {
       once: true,
     });
@@ -59,14 +74,21 @@ export class ApiClient {
     }
 
     try {
-      const response = await fetch(this.config.baseUrl + path, {
+      // The real session cookie is HttpOnly; only our server reads and forwards it.
+      const baseUrl = this.config.mode === "real" ? "/api/admin" : this.config.baseUrl;
+      const response = await fetch(baseUrl + path, {
         ...options,
+        credentials: "same-origin",
+        cache: "no-store",
         body:
           options.body === undefined ? undefined : JSON.stringify(options.body),
         headers,
         signal: controller.signal,
       });
       const payload = await parseJson(response);
+      if (response.status === 401 && !path.startsWith("/auth/") && requestGeneration === sessionGeneration) {
+        notifyAdminSessionExpired();
+      }
 
       if (!response.ok) {
         if (isApiErrorResponse(payload)) {
@@ -102,6 +124,7 @@ export class ApiClient {
         cause: error,
       });
     } finally {
+      activeRequests.delete(controller);
       window.clearTimeout(timeoutId);
       externalSignal?.removeEventListener("abort", abortFromExternalSignal);
     }

@@ -7,7 +7,6 @@ export interface DisplayStatus {
 }
 
 const moderationDisplay: Record<ModerationStatus, DisplayStatus> = {
-  VALIDATING: { label: "이미지 처리 중", tone: "info" },
   PENDING: { label: "검수 대기", tone: "warning" },
   APPROVED: { label: "승인", tone: "success" },
   REJECTED: { label: "거절", tone: "danger" },
@@ -58,7 +57,7 @@ export function getPostErrorMessage(error: unknown) {
     return "다른 관리자가 이미 처리한 게시물입니다. 최신 상태를 다시 확인해 주세요.";
   }
   if (apiError.status === 403) {
-    return "관리자 API 접근이 차단되었습니다. 개발 환경 설정을 확인해 주세요.";
+    return "이 작업을 수행할 관리자 권한이 없습니다.";
   }
   if (apiError.kind === "network" || apiError.kind === "timeout") {
     return "서버에 연결하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.";

@@ -19,10 +19,11 @@ export function useAdminUsers(filters: AdminUserFilters) {
   });
 }
 
-export function useAdminUser(userId: string) {
+export function useAdminUser(userId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.users.detail(userId),
     queryFn: ({ signal }) => fetchAdminUser(userId, signal),
+    enabled,
   });
 }
 
@@ -43,7 +44,11 @@ export function useUpdateAdminUserStatus() {
         queryKeys.users.detail(result.userId),
         (current) => (current ? { ...current, status: result.status } : current),
       );
-      await queryClient.invalidateQueries({ queryKey: queryKeys.users.lists });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.posts.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.auditLogs }),
+      ]);
     },
   });
 }

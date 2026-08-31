@@ -16,7 +16,7 @@ export function readAdminUserFilters(
   const status = params.get("status") as UserStatus | null;
   const sort = params.get("sort") as AdminUserSort | null;
   return {
-    status: status && statuses.has(status) ? status : undefined,
+    status: status && statuses.has(status) ? status : "ACTIVE",
     email: params.get("email")?.trim() || undefined,
     sort: sort === "createdAtAsc" ? sort : "createdAtDesc",
     page: positive(params.get("page"), 1),

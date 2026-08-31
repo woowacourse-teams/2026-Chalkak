@@ -36,7 +36,7 @@ export function PostFilters({
     const value = (name: string) => String(data.get(name) ?? "").trim();
 
     onApply({
-      status: (value("status") || undefined) as AdminPostFilters["status"],
+      status: filters.status,
       topicId: value("topicId") || undefined,
       topicDate: value("topicDate") || undefined,
       userId: value("userId") || undefined,
@@ -49,25 +49,15 @@ export function PostFilters({
   };
 
   return (
-    <form className={styles.filters} onSubmit={submit}>
+    <details className={styles.filters}>
+      <summary>필터 {filters.topicId || filters.userId || filters.topicDate || filters.createdAtFrom || filters.createdAtTo ? "· 적용 중" : ""}</summary>
+    <form onSubmit={submit}>
       <div className={styles.filterGrid}>
-        <label>
-          <span>검수 상태</span>
-          <select
-            defaultValue={filters.status ?? ""}
-            key={filters.status}
-            name="status"
-          >
-            <option value="PENDING">검수 대기</option>
-            <option value="APPROVED">승인</option>
-            <option value="REJECTED">거절</option>
-          </select>
-        </label>
         <label>
           <span>주제</span>
           <select
             defaultValue={filters.topicId ?? ""}
-            key={filters.topicId}
+            key={`${filters.topicId}-${topicOptions.some((option) => option.value === filters.topicId)}`}
             name="topicId"
           >
             <option value="">모든 주제</option>
@@ -82,7 +72,7 @@ export function PostFilters({
           <span>작성자</span>
           <select
             defaultValue={filters.userId ?? ""}
-            key={filters.userId}
+            key={`${filters.userId}-${authorOptions.some((option) => option.value === filters.userId)}`}
             name="userId"
           >
             <option value="">모든 작성자</option>
@@ -103,7 +93,7 @@ export function PostFilters({
           />
         </label>
         <label>
-          <span>등록 시작일</span>
+          <span>등록 시작일 (한국 시간)</span>
           <input
             defaultValue={instantDate(filters.createdAtFrom)}
             key={filters.createdAtFrom}
@@ -112,7 +102,7 @@ export function PostFilters({
           />
         </label>
         <label>
-          <span>등록 종료일</span>
+          <span>등록 종료일 (한국 시간)</span>
           <input
             defaultValue={instantDate(filters.createdAtTo)}
             key={filters.createdAtTo}
@@ -149,8 +139,9 @@ export function PostFilters({
         </button>
       </div>
       <p className={styles.filterNotice}>
-        주제와 작성자는 현재 조건의 최근 게시물에서 선택할 수 있습니다.
+        최근 게시물의 주제·작성자를 표시합니다. 다른 대상은 사용자·주제 목록의 게시물 건수로 이동할 수 있습니다.
       </p>
     </form>
+    </details>
   );
 }

@@ -35,7 +35,7 @@ describe("admin topic API", () => {
     expect(created).toMatchObject({ title: mutation.title, phase: "BEFORE_OPEN" });
     await expect(updateAdminTopic(created.topicId, { ...mutation, title: "수정한 주제" })).resolves.toMatchObject({ title: "수정한 주제" });
     await expect(deleteAdminTopic(created.topicId, "편성 변경")).resolves.toBeUndefined();
-    await expect(fetchAdminTopic(created.topicId)).rejects.toMatchObject({ status: 404, errorCode: "TOPIC_NOT_FOUND" });
+    await expect(fetchAdminTopic(created.topicId)).rejects.toMatchObject({ status: 404, errorCode: "BUSINESS_ERROR" });
   });
 
   it("rejects changes after a topic has opened", async () => {
