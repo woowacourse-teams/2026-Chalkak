@@ -6,6 +6,7 @@ import java.time.LocalDate
 @Immutable
 data class PhotoUploadUiState(
     val selectedImage: String? = null,
+    val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
     val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
@@ -16,6 +17,13 @@ data class PhotoUploadUiState(
 ) {
     val canSubmit: Boolean
         get() = selectedImage != null && !isTopicLoading && !isSubmitting && completedSubmission == null
+}
+
+enum class ImagePreparationStatus {
+    Idle,
+    Preparing,
+    Ready,
+    Failed,
 }
 
 @Immutable

@@ -15,10 +15,13 @@ import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
+import com.stonefive.chalkak.domain.model.PostImagePreparation
+import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
 import java.io.File
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -37,24 +40,28 @@ class PostCreationRepositoryImplTest {
     private val uploader = FakePostImageUploader(events)
     private val requestedDate = LocalDate.of(2026, 8, 29)
     private val topic = Topic("topic-id", "바다", requestedDate)
+    private var nowNanos = 0L
     private val repository = PostCreationRepositoryImpl(
         remoteDataSource = remote,
         topicRemoteDataSource = topicRemote,
         imageEncoder = encoder,
         imageUploader = uploader,
+        nanoTime = { nowNanos },
     )
 
     @Test
-    fun `주제 조회부터 게시물 생성까지 순서와 인자를 전달한다`() = runTest {
+    fun `사진 선택 시 정책과 인코딩만 실행하고 제출 시 PUT과 게시물을 생성한다`() = runTest {
         val topicResult = repository.getCreationTopic(requestedDate)
-        val result = repository.createPost(
-            imageUri = "content://photo/1",
-            title = "   ",
-            topic = topic,
-        )
+        val preparation = prepare()
+
+        assertEquals(listOf("topic:$requestedDate", "upload-policy", "encode:content://photo/1:5242880"), events)
+        assertTrue(encoder.lastFile?.exists() == true)
+        assertTrue(uploader.calls.isEmpty())
+        assertTrue(remote.createdTitles.isEmpty())
+
+        val result = repository.createPost(preparation, "   ", topic)
 
         assertEquals(PostCreationTopicResult.Success(topic), topicResult)
-
         assertEquals(
             PostCreationResult.Success(
                 PostCreation(
@@ -80,7 +87,7 @@ class PostCreationRepositoryImplTest {
     }
 
     @Test
-    fun `주제 조회 실패 시 뒤 단계로 진행하지 않는다`() = runTest {
+    fun `주제 조회 실패 시 이미지 흐름과 무관하게 실패를 반환한다`() = runTest {
         topicRemote.result = ApiResult.Failure(ApiError.Network)
 
         assertEquals(
@@ -89,16 +96,15 @@ class PostCreationRepositoryImplTest {
         )
         assertEquals(listOf("topic:$requestedDate"), topicRemote.calls)
         assertTrue(encoder.calls.isEmpty())
-        assertTrue(uploader.calls.isEmpty())
     }
 
     @Test
-    fun `업로드 정책 실패 시 인코더와 PUT을 호출하지 않는다`() = runTest {
+    fun `업로드 정책 실패 시 인코더를 호출하지 않는다`() = runTest {
         remote.uploadPolicyResult = ApiResult.Failure(ApiError.Http(400, "BUSINESS_ERROR"))
 
         assertEquals(
-            PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost("content://photo/1", "제목", topic),
+            PostImagePreparationResult.Failure(PostCreationFailure.UploadRejected),
+            repository.prepareImage("content://photo/1"),
         )
         assertEquals(listOf("upload-policy"), remote.calls)
         assertTrue(encoder.calls.isEmpty())
@@ -106,26 +112,39 @@ class PostCreationRepositoryImplTest {
     }
 
     @Test
-    fun `인코딩 실패 시 PUT과 게시물 생성을 호출하지 않는다`() = runTest {
+    fun `인코딩 실패 시 준비가 실패하고 PUT을 호출하지 않는다`() = runTest {
         encoder.result = PostImageEncodeResult.DecodeFailed
 
         assertEquals(
-            PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost("content://photo/1", "제목", topic),
+            PostImagePreparationResult.Failure(PostCreationFailure.ImagePreparationFailed),
+            repository.prepareImage("content://photo/1"),
         )
-        assertEquals(listOf("upload-policy"), remote.calls)
         assertEquals(listOf("encode:content://photo/1:5242880"), encoder.calls)
         assertTrue(uploader.calls.isEmpty())
-        assertTrue(remote.createdTitles.isEmpty())
+    }
+
+    @Test
+    fun `준비 결과를 폐기하면 임시 파일을 삭제한다`() = runTest {
+        val preparation = prepare()
+        val file = encoder.lastFile
+
+        repository.discardPreparedImage(preparation)
+
+        assertFalse(file?.exists() == true)
+        assertEquals(
+            PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
+            repository.createPost(preparation, "제목", topic),
+        )
     }
 
     @Test
     fun `PUT 실패 시 게시물 생성을 호출하지 않고 임시 파일을 삭제한다`() = runTest {
         uploader.result = PostImageUploadResult.Rejected
+        val preparation = prepare()
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost("content://photo/1", "제목", topic),
+            repository.createPost(preparation, "제목", topic),
         )
         assertTrue(remote.createdTitles.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -134,10 +153,11 @@ class PostCreationRepositoryImplTest {
     @Test
     fun `게시물 생성 401은 재인증 실패로 매핑하고 파일을 삭제한다`() = runTest {
         remote.createResult = ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED"))
+        val preparation = prepare()
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ReauthenticationRequired),
-            repository.createPost("content://photo/1", "제목", topic),
+            repository.createPost(preparation, "제목", topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -154,7 +174,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted),
-            repository.createPost("content://photo/1", "제목", topic),
+            repository.createPost(prepare(), "제목", topic),
         )
     }
 
@@ -170,18 +190,16 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.TopicNotOpen),
-            repository.createPost("content://photo/1", "제목", topic),
+            repository.createPost(prepare(), "제목", topic),
         )
     }
 
     @Test
     fun `VALIDATING과 PENDING은 모두 생성 성공으로 처리한다`() = runTest {
         listOf("VALIDATING", "PENDING").forEach { status ->
-            remote.createResult = ApiResult.Success(
-                PostCreateResponse("post-$status", status),
-            )
+            remote.createResult = ApiResult.Success(PostCreateResponse("post-$status", status))
 
-            val result = repository.createPost("content://photo/1", "제목", topic)
+            val result = repository.createPost(prepare(), "제목", topic)
 
             assertTrue(result is PostCreationResult.Success)
             assertEquals(
@@ -194,21 +212,22 @@ class PostCreationRepositoryImplTest {
     @Test
     fun `알 수 없는 moderation status는 InvalidResponse이고 파일을 삭제한다`() = runTest {
         remote.createResult = ApiResult.Success(PostCreateResponse("post-id", "APPROVED"))
+        val preparation = prepare()
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost("content://photo/1", "제목", topic),
+            repository.createPost(preparation, "제목", topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
 
     @Test
-    fun `파일이 maxBytes를 넘으면 PUT하지 않는다`() = runTest {
+    fun `파일이 maxBytes를 넘으면 준비에 실패하고 파일을 삭제한다`() = runTest {
         encoder.fileBytes = ByteArray(5_242_881)
 
         assertEquals(
-            PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost("content://photo/1", "제목", topic),
+            PostImagePreparationResult.Failure(PostCreationFailure.ImagePreparationFailed),
+            repository.prepareImage("content://photo/1"),
         )
         assertTrue(uploader.calls.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -216,29 +235,55 @@ class PostCreationRepositoryImplTest {
 
     @Test
     fun `WebP가 아닌 Content-Type 정책은 인코딩 전에 거절한다`() = runTest {
-        remote.uploadPolicyResult = ApiResult.Success(
-            PostImageUploadResponse(
-                uploadId = "upload-id",
-                uploadUrl = "https://example.com/upload",
-                expiresInSeconds = 300,
-                contentType = "image/png",
-                maxBytes = 5_242_880,
-            ),
-        )
+        remote.uploadPolicyResult = ApiResult.Success(uploadPolicy(contentType = "image/png"))
 
         assertEquals(
-            PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost("content://photo/1", "제목", topic),
+            PostImagePreparationResult.Failure(PostCreationFailure.InvalidResponse),
+            repository.prepareImage("content://photo/1"),
         )
         assertTrue(encoder.calls.isEmpty())
-        assertTrue(uploader.calls.isEmpty())
+    }
+
+    @Test
+    fun `만료된 PUT URL은 새 정책을 발급하고 호환되는 준비 파일을 재사용한다`() = runTest {
+        val preparation = prepare()
+        remote.uploadPolicyResults += ApiResult.Success(uploadPolicy(uploadId = "upload-id-2"))
+        nowNanos = TimeUnit.SECONDS.toNanos(295)
+
+        val result = repository.createPost(preparation, "제목", topic)
+
+        assertTrue(result is PostCreationResult.Success)
+        assertEquals(2, remote.calls.count { it == "upload-policy" })
+        assertEquals(1, encoder.calls.size)
+        assertTrue(remote.calls.contains("create:topic-id:upload-id-2:제목"))
+    }
+
+    @Test
+    fun `새 정책 제한이 더 작으면 원본 URI를 다시 인코딩한다`() = runTest {
+        encoder.fileByteResults += byteArrayOf(1, 2, 3)
+        encoder.fileByteResults += byteArrayOf(1, 2)
+        val preparation = prepare()
+        remote.uploadPolicyResults += ApiResult.Success(
+            uploadPolicy(uploadId = "upload-id-2", maxBytes = 2),
+        )
+        nowNanos = TimeUnit.SECONDS.toNanos(295)
+
+        val result = repository.createPost(preparation, "제목", topic)
+
+        assertTrue(result is PostCreationResult.Success)
+        assertEquals(
+            listOf("encode:content://photo/1:5242880", "encode:content://photo/1:2"),
+            encoder.calls,
+        )
+        assertArrayEquals(byteArrayOf(1, 2), uploader.uploadedBytes)
     }
 
     @Test
     fun `PUT 중 취소되어도 임시 파일을 삭제한다`() = runTest {
         uploader.await = CompletableDeferred()
+        val preparation = prepare()
         val job = launch {
-            repository.createPost("content://photo/1", "제목", topic)
+            repository.createPost(preparation, "제목", topic)
         }
 
         while (uploader.calls.isEmpty()) testScheduler.runCurrent()
@@ -246,28 +291,37 @@ class PostCreationRepositoryImplTest {
 
         assertFalse(encoder.lastFile?.exists() == true)
     }
+
+    private suspend fun prepare(imageUri: String = "content://photo/1"): PostImagePreparation {
+        val result = repository.prepareImage(imageUri)
+        assertTrue(result is PostImagePreparationResult.Success)
+        return (result as PostImagePreparationResult.Success).value
+    }
+
+    private fun uploadPolicy(
+        uploadId: String = "upload-id",
+        contentType: String = "image/webp",
+        maxBytes: Long = 5_242_880,
+    ) = PostImageUploadResponse(
+        uploadId = uploadId,
+        uploadUrl = "https://example.com/upload/$uploadId",
+        expiresInSeconds = 300,
+        contentType = contentType,
+        maxBytes = maxBytes,
+    )
 }
 
 private class FakePostCreationRemoteDataSource(private val events: MutableList<String>) : PostCreationRemoteDataSource {
     val calls = mutableListOf<String>()
     val createdTitles = mutableListOf<String?>()
-    var uploadPolicyResult: ApiResult<PostImageUploadResponse> = ApiResult.Success(
-        PostImageUploadResponse(
-            uploadId = "upload-id",
-            uploadUrl = "https://example.com/upload",
-            expiresInSeconds = 300,
-            contentType = "image/webp",
-            maxBytes = 5_242_880,
-        ),
-    )
-    var createResult: ApiResult<PostCreateResponse> = ApiResult.Success(
-        PostCreateResponse("post-id", "VALIDATING"),
-    )
+    var uploadPolicyResult: ApiResult<PostImageUploadResponse> = ApiResult.Success(defaultUploadPolicy())
+    val uploadPolicyResults = ArrayDeque<ApiResult<PostImageUploadResponse>>()
+    var createResult: ApiResult<PostCreateResponse> = ApiResult.Success(PostCreateResponse("post-id", "VALIDATING"))
 
     override suspend fun createPostImageUpload(): ApiResult<PostImageUploadResponse> {
         calls += "upload-policy"
         events += "upload-policy"
-        return uploadPolicyResult
+        return if (uploadPolicyResults.isEmpty()) uploadPolicyResult else uploadPolicyResults.removeFirst()
     }
 
     override suspend fun createPost(
@@ -280,13 +334,21 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
         createdTitles += title
         return createResult
     }
+
+    private companion object {
+        fun defaultUploadPolicy() = PostImageUploadResponse(
+            uploadId = "upload-id",
+            uploadUrl = "https://example.com/upload",
+            expiresInSeconds = 300,
+            contentType = "image/webp",
+            maxBytes = 5_242_880,
+        )
+    }
 }
 
 private class FakeCreationTopicRemoteDataSource(private val events: MutableList<String>) : TopicRemoteDataSource {
     val calls = mutableListOf<String>()
-    var result: ApiResult<TopicResponse> = ApiResult.Success(
-        TopicResponse("topic-id", "바다", "2026-08-29"),
-    )
+    var result: ApiResult<TopicResponse> = ApiResult.Success(TopicResponse("topic-id", "바다", "2026-08-29"))
 
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> {
         calls += "topic:$date"
@@ -299,6 +361,7 @@ private class FakePostImageEncoder(private val events: MutableList<String>) : Po
     val calls = mutableListOf<String>()
     var result: PostImageEncodeResult? = null
     var fileBytes = byteArrayOf(1, 2, 3)
+    val fileByteResults = ArrayDeque<ByteArray>()
     var lastFile: File? = null
 
     override suspend fun encode(
@@ -309,7 +372,7 @@ private class FakePostImageEncoder(private val events: MutableList<String>) : Po
         events += "encode:$contentUri:$maxBytes"
         result?.let { return it }
         val file = File.createTempFile("post-repository-test", ".webp")
-        file.writeBytes(fileBytes)
+        file.writeBytes(if (fileByteResults.isEmpty()) fileBytes else fileByteResults.removeFirst())
         lastFile = file
         return PostImageEncodeResult.Success(file)
     }

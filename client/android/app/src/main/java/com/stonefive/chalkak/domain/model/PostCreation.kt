@@ -12,6 +12,14 @@ sealed interface PostCreationTopicResult {
     data class Failure(val reason: PostCreationFailure) : PostCreationTopicResult
 }
 
+data class PostImagePreparation(val id: String)
+
+sealed interface PostImagePreparationResult {
+    data class Success(val value: PostImagePreparation) : PostImagePreparationResult
+
+    data class Failure(val reason: PostCreationFailure) : PostImagePreparationResult
+}
+
 enum class PostModerationStatus {
     VALIDATING,
     PENDING,

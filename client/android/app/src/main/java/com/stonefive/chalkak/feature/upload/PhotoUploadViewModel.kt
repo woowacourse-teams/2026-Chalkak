@@ -9,10 +9,13 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
+import com.stonefive.chalkak.domain.model.PostImagePreparation
+import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +29,10 @@ class PhotoUploadViewModel(
     private val topicDate: LocalDate,
 ) : ViewModel() {
     private var creationTopic: Topic? = null
+    private var preparedImage: PostImagePreparation? = null
+    private var imageGeneration = 0L
+    private var preparationJob: Job? = null
+    private var submissionJob: Job? = null
     private val _uiState = MutableStateFlow(PhotoUploadUiState())
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
 
@@ -56,11 +63,17 @@ class PhotoUploadViewModel(
 
     fun onImageSelected(image: String) {
         if (_uiState.value.isSubmitting) return
-        _uiState.update { it.copy(selectedImage = image, errorMessage = null) }
+        replaceSelectedImage(image)
     }
 
     fun reset() {
+        clearImageWork()
         _uiState.value = PhotoUploadUiState()
+    }
+
+    override fun onCleared() {
+        clearImageWork()
+        super.onCleared()
     }
 
     private fun sendUiEvent(event: PhotoUploadUiEvent) {
@@ -85,12 +98,101 @@ class PhotoUploadViewModel(
             )
         }
 
-        viewModelScope.launch {
+        preparedImage?.let { preparation ->
+            submitPreparedImage(preparation, caption, topic)
+            return
+        }
+        if (preparationJob?.isActive != true) {
+            startImagePreparation(imageUri, imageGeneration)
+        }
+    }
+
+    private fun replaceSelectedImage(image: String) {
+        imageGeneration++
+        preparationJob?.cancel()
+        discardPreparedImage()
+        _uiState.update {
+            it.copy(
+                selectedImage = image,
+                imagePreparationStatus = ImagePreparationStatus.Preparing,
+                errorMessage = null,
+            )
+        }
+        startImagePreparation(image, imageGeneration)
+    }
+
+    private fun startImagePreparation(
+        imageUri: String,
+        generation: Long,
+    ) {
+        _uiState.update {
+            it.copy(
+                imagePreparationStatus = ImagePreparationStatus.Preparing,
+                errorMessage = null,
+            )
+        }
+        preparationJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.createPost(imageUri, caption, topic)) {
+                when (val result = postCreationRepository.prepareImage(imageUri)) {
+                    is PostImagePreparationResult.Success -> {
+                        if (generation != imageGeneration || _uiState.value.selectedImage != imageUri) {
+                            postCreationRepository.discardPreparedImage(result.value)
+                            return@launch
+                        }
+                        preparedImage = result.value
+                        _uiState.update {
+                            it.copy(imagePreparationStatus = ImagePreparationStatus.Ready)
+                        }
+                        if (_uiState.value.isSubmitting) {
+                            val topic = creationTopic
+                            if (topic == null) {
+                                loadCreationTopic(submitAfterLoad = true)
+                            } else {
+                                submitPreparedImage(result.value, _uiState.value.caption, topic)
+                            }
+                        }
+                    }
+
+                    is PostImagePreparationResult.Failure -> {
+                        if (generation == imageGeneration) {
+                            _uiState.update {
+                                it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
+                            }
+                            handleFailure(result.reason)
+                        }
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (generation == imageGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            imagePreparationStatus = ImagePreparationStatus.Failed,
+                            isSubmitting = false,
+                            errorMessage = GENERIC_ERROR_MESSAGE,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun submitPreparedImage(
+        preparation: PostImagePreparation,
+        caption: String,
+        topic: Topic,
+    ) {
+        if (preparedImage != preparation || submissionJob?.isActive == true) return
+        val imageUri = _uiState.value.selectedImage ?: return
+        preparedImage = null
+        submissionJob = viewModelScope.launch {
+            try {
+                when (val result = postCreationRepository.createPost(preparation, caption, topic)) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
+                                imagePreparationStatus = ImagePreparationStatus.Idle,
                                 isSubmitting = false,
                                 completedSubmission = PhotoUploadSubmission(
                                     imageModel = imageUri,
@@ -101,19 +203,39 @@ class PhotoUploadViewModel(
                         }
                     }
 
-                    is PostCreationResult.Failure -> handleFailure(result.reason)
+                    is PostCreationResult.Failure -> {
+                        _uiState.update {
+                            it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
+                        }
+                        handleFailure(result.reason)
+                    }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
                 _uiState.update {
                     it.copy(
+                        imagePreparationStatus = ImagePreparationStatus.Failed,
                         isSubmitting = false,
                         errorMessage = GENERIC_ERROR_MESSAGE,
                     )
                 }
             }
         }
+    }
+
+    private fun discardPreparedImage() {
+        preparedImage?.let(postCreationRepository::discardPreparedImage)
+        preparedImage = null
+    }
+
+    private fun clearImageWork() {
+        imageGeneration++
+        preparationJob?.cancel()
+        preparationJob = null
+        submissionJob?.cancel()
+        submissionJob = null
+        discardPreparedImage()
     }
 
     private fun loadCreationTopic(submitAfterLoad: Boolean = false) {

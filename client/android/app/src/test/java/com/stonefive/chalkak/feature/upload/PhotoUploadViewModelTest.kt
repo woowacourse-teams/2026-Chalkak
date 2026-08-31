@@ -5,6 +5,8 @@ import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
+import com.stonefive.chalkak.domain.model.PostImagePreparation
+import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
@@ -41,7 +43,73 @@ class PhotoUploadViewModelTest {
         viewModel.onImageSelected(image)
 
         assertSame(image, viewModel.uiState.value.selectedImage)
+        assertEquals(1, postCreationRepository.prepareCount)
+        assertEquals(ImagePreparationStatus.Ready, viewModel.uiState.value.imagePreparationStatus)
         assertTrue(viewModel.uiState.value.canSubmit)
+    }
+
+    @Test
+    fun `사진 준비 중 제출하면 완료를 기다린 뒤 자동 제출한다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        postCreationRepository.prepareAwait = gate
+        postCreationRepository.result = PostCreationResult.Success(
+            PostCreation(
+                postId = "post-id",
+                topic = postCreationRepository.defaultTopic,
+                moderationStatus = PostModerationStatus.VALIDATING,
+            ),
+        )
+
+        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(ImagePreparationStatus.Preparing, viewModel.uiState.value.imagePreparationStatus)
+        assertTrue(viewModel.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(1, postCreationRepository.callCount)
+        assertTrue(viewModel.uiState.value.completedSubmission != null)
+    }
+
+    @Test
+    fun `선제 준비 실패를 즉시 표시하고 제출로 다시 준비한다`() = runTest {
+        postCreationRepository.prepareResults += PostImagePreparationResult.Failure(
+            PostCreationFailure.NetworkUnavailable,
+        )
+        postCreationRepository.result = PostCreationResult.Success(
+            PostCreation(
+                postId = "post-id",
+                topic = postCreationRepository.defaultTopic,
+                moderationStatus = PostModerationStatus.VALIDATING,
+            ),
+        )
+
+        viewModel.onImageSelected("content://media/photo/1")
+
+        assertEquals(ImagePreparationStatus.Failed, viewModel.uiState.value.imagePreparationStatus)
+        assertEquals("네트워크 연결을 확인해 주세요.", viewModel.uiState.value.errorMessage)
+        assertTrue(viewModel.uiState.value.canSubmit)
+
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(2, postCreationRepository.prepareCount)
+        assertEquals(1, postCreationRepository.callCount)
+        assertTrue(viewModel.uiState.value.completedSubmission != null)
+    }
+
+    @Test
+    fun `사진을 교체하면 이전 준비 결과를 폐기한다`() {
+        viewModel.onImageSelected("content://media/photo/1")
+        val firstPreparation = postCreationRepository.preparations.single()
+
+        viewModel.onImageSelected("content://media/photo/2")
+
+        assertEquals(listOf(firstPreparation), postCreationRepository.discardedPreparations)
+        assertEquals("content://media/photo/2", viewModel.uiState.value.selectedImage)
+        assertEquals(2, postCreationRepository.prepareCount)
     }
 
     @Test
@@ -264,11 +332,13 @@ class PhotoUploadViewModelTest {
     @Test
     fun `초기화하면 사진과 캡션을 제거한다`() {
         viewModel.onImageSelected("content://media/photo/1")
+        val preparation = postCreationRepository.preparations.single()
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("오늘의 사진"))
 
         viewModel.reset()
 
         assertEquals(PhotoUploadUiState(), viewModel.uiState.value)
+        assertEquals(listOf(preparation), postCreationRepository.discardedPreparations)
     }
 }
 
@@ -280,22 +350,40 @@ private class FakePostCreationRepository : PostCreationRepository {
     )
     var topicResult: PostCreationTopicResult = PostCreationTopicResult.Success(defaultTopic)
     val topicResults = ArrayDeque<PostCreationTopicResult>()
+    val prepareResults = ArrayDeque<PostImagePreparationResult>()
+    var prepareAwait: CompletableDeferred<Unit>? = null
     var result: PostCreationResult = PostCreationResult.Failure(
         PostCreationFailure.NetworkUnavailable,
     )
     val results = ArrayDeque<PostCreationResult>()
     var await: CompletableDeferred<Unit>? = null
     var callCount = 0
+    var prepareCount = 0
     val requestedTopicDates = mutableListOf<LocalDate>()
     val requestedTopics = mutableListOf<Topic>()
+    val preparations = mutableListOf<PostImagePreparation>()
+    val discardedPreparations = mutableListOf<PostImagePreparation>()
 
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
         requestedTopicDates += topicDate
         return if (topicResults.isEmpty()) topicResult else topicResults.removeFirst()
     }
 
+    override suspend fun prepareImage(imageUri: String): PostImagePreparationResult {
+        prepareCount++
+        prepareAwait?.await()
+        if (prepareResults.isNotEmpty()) return prepareResults.removeFirst()
+        val preparation = PostImagePreparation("preparation-$prepareCount")
+        preparations += preparation
+        return PostImagePreparationResult.Success(preparation)
+    }
+
+    override fun discardPreparedImage(preparation: PostImagePreparation) {
+        discardedPreparations += preparation
+    }
+
     override suspend fun createPost(
-        imageUri: String,
+        preparation: PostImagePreparation,
         title: String?,
         topic: Topic,
     ): PostCreationResult {
