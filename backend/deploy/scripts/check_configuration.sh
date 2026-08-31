@@ -21,6 +21,7 @@ required_keys=(
   KAKAO_OIDC_APP_KEY
   SOCIAL_SIGNUP_TOKEN_SECRET
   ACCESS_TOKEN_SECRET
+  SOCIAL_IDENTITY_HMAC_SECRET
   ACCESS_TOKEN_EXPIRATION
   ADMIN_USERNAME
   ADMIN_PASSWORD_HASH
@@ -62,6 +63,7 @@ db_password="$(read_value DB_PASSWORD)"
 callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
 social_signup_token_secret="$(read_value SOCIAL_SIGNUP_TOKEN_SECRET)"
 access_token_secret="$(read_value ACCESS_TOKEN_SECRET)"
+social_identity_hmac_secret="$(read_value SOCIAL_IDENTITY_HMAC_SECRET)"
 admin_username="$(read_value ADMIN_USERNAME)"
 admin_password_hash="$(read_value ADMIN_PASSWORD_HASH)"
 admin_cors_allowed_origin="$(read_value ADMIN_CORS_ALLOWED_ORIGIN)"
@@ -96,9 +98,20 @@ if [[ ! "${access_token_secret}" =~ ^[0-9A-Fa-f]{64}$ ]]; then
   exit 1
 fi
 
+if [[ ! "${social_identity_hmac_secret}" =~ ^[0-9A-Fa-f]{64}$ ]]; then
+  echo "SOCIAL_IDENTITY_HMAC_SECRET must be exactly 64 hexadecimal characters." >&2
+  exit 1
+fi
+
 # 회원가입 토큰이 액세스 토큰으로 통과하지 않도록 두 서명 키를 반드시 분리한다.
 if [[ "${access_token_secret}" == "${social_signup_token_secret}" ]]; then
   echo "ACCESS_TOKEN_SECRET must differ from SOCIAL_SIGNUP_TOKEN_SECRET." >&2
+  exit 1
+fi
+
+if [[ "${social_identity_hmac_secret}" == "${social_signup_token_secret}"
+        || "${social_identity_hmac_secret}" == "${access_token_secret}" ]]; then
+  echo "SOCIAL_IDENTITY_HMAC_SECRET must differ from token secrets." >&2
   exit 1
 fi
 

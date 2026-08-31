@@ -27,7 +27,6 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     private static final UUID UNKNOWN_USER_ID =
             UUID.fromString("0198fd10-0000-7000-8000-000000000099");
     private static final String REASON = "반복적인 운영 정책 위반";
-
     @Autowired
     private AdminUserStatusService adminUserStatusService;
 
@@ -47,8 +46,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("관리자가 활성 사용자를 차단하면 상태와 감사 로그를 원자적으로 저장한다")
-    void updateStatus_activeToBanned_updatesUserAndAuditLog() {
+    @DisplayName("소셜 계정이 없는 활성 사용자도 관리자가 차단하면 상태와 감사 로그를 저장한다")
+    void updateStatus_activeUserWithoutSocialAccount_updatesStatusAndAuditLog() {
         // When
         AdminUserStatusResult result = adminUserStatusService.updateStatus(
                 USER_ID,
@@ -76,8 +75,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("관리자가 차단 사용자를 해제하면 ACTIVE 상태와 감사 로그를 저장한다")
-    void updateStatus_bannedToActive_updatesUserAndAuditLog() {
+    @DisplayName("소셜 계정이 없는 차단 사용자도 관리자가 차단 해제하면 상태와 감사 로그를 갱신한다")
+    void updateStatus_bannedUserWithoutSocialAccount_updatesStatusAndAuditLog() {
         // Given
         jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", USER_ID);
 

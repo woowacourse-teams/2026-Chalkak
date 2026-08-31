@@ -6,6 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.SocialAccount;
+import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -15,6 +19,7 @@ import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
@@ -42,6 +47,12 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
@@ -72,6 +83,31 @@ class UserServiceTest extends IntegrationTestSupport {
                 .isEqualTo("withdrawn/" + id);
         assertThat(withdrawn.getSignatureThumbnailStorageKey()).isNull();
         assertThat(withdrawn.isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 연결된 소셜 계정이 삭제된다")
+    void withdraw_activeUser_deletesSocialAccount() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.GOOGLE,
+                "google-subject");
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac));
+        flushAndClear();
+
+        // When
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // Then
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.GOOGLE,
+                subjectHmac))
+                .isEmpty();
     }
 
     @Test
@@ -1010,15 +1046,35 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("정지된 회원도 탈퇴할 수 있다")
-    void withdraw_bannedUser_withdrawsUser() {
+    @DisplayName("차단 회원이 탈퇴하면 재가입 차단을 위해 소셜 계정을 유지한다")
+    void withdraw_bannedUser_preservesSocialAccount() {
         // Given
-        UUID userId = userRepository.save(UserFixture.createBanned(null)).getId();
+        User user = userRepository.save(UserFixture.createBanned(null));
+        UUID userId = user.getId();
+        String subject = "banned-google-subject";
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.GOOGLE,
+                subject);
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac));
+        flushAndClear();
 
         // When
         userService.withdraw(userId);
+        flushAndClear();
 
         // Then
         assertThat(userRepository.findActiveById(userId)).isEmpty();
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac)
+                .orElseThrow();
+        assertThat(socialAccount.getUser().getId()).isEqualTo(userId);
+        assertThat(socialAccount.getUser().isDeleted()).isTrue();
+        assertThat(socialAccount.getUser().getStatus())
+                .isEqualTo(UserStatus.BANNED);
     }
 }
