@@ -302,6 +302,6 @@ class AndroidPostImageEncoder(
         const val MAX_RESCALE_ROUNDS = 3
         const val OUTPUT_PREFIX = "post-upload-"
         const val OUTPUT_SUFFIX = ".webp"
-        val QUALITY_LADDER = intArrayOf(90, 85, 80, 75, 70)
+        val QUALITY_LADDER = intArrayOf(90, 80, 60, 40)
     }
 }
