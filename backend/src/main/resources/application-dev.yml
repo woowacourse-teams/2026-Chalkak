@@ -23,9 +23,12 @@ management:
 
 chalkak:
   admin:
+    account:
+      username: ${ADMIN_USERNAME}
+      password-hash: ${ADMIN_PASSWORD_HASH}
     cors:
       allowed-origins:
         - http://localhost:3000
-        - https://chalkak-admin-web-git-admin-web-preview-chalkak.vercel.app
+        - ${ADMIN_CORS_ALLOWED_ORIGIN}
   image:
     environment: dev

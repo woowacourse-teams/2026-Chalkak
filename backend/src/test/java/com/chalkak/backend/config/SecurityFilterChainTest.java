@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
@@ -188,6 +189,40 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                         .queryParam("month", "8")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(notBlockedBySecurity());
+    }
+
+    @Test
+    @DisplayName("관리자 JWT를 일반 사용자 식별자로 해석해 캘린더를 조회할 수 없다")
+    void postCalendar_adminToken_returnsForbidden() throws Exception {
+        // Given
+        UUID adminId = UUID.randomUUID();
+        given(postQueryService.getMyPostCalendar(eq(adminId), any()))
+                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+        String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .queryParam("year", "2026")
+                        .queryParam("month", "8")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("선택적 회원 인증에서도 관리자 JWT를 일반 사용자로 해석하지 않는다")
+    void posts_adminToken_returnsForbidden() throws Exception {
+        // Given
+        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .queryParam("topicDate", "2026-08-12")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
     /**
