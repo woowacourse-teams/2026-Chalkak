@@ -218,7 +218,6 @@ class HomeViewModelTest {
                 .all { it.page == 1 && it.randomSeed == null },
         )
         assertEquals(PostSort.RANDOM, viewModel.uiState.value.selectedSort)
-        assertEquals(2, viewModel.uiState.value.refreshRevision)
     }
 
     @Test

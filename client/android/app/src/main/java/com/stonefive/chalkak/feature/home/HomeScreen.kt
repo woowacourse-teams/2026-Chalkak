@@ -75,7 +75,6 @@ fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
-    selectionSignal: Int = 0,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -99,18 +98,11 @@ fun HomeRoute(
         }
     }
 
-    LaunchedEffect(selectionSignal) {
-        if (selectionSignal > 0) {
-            viewModel.onAction(HomeUiAction.RefreshRequested)
-        }
-    }
-
     HomeScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
         onOpenFeed = onOpenFeed,
-        resetSignal = selectionSignal,
     )
 }
 
@@ -121,7 +113,6 @@ fun HomeScreen(
     onAction: (HomeUiAction) -> Unit,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
-    resetSignal: Int = 0,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -161,7 +152,6 @@ fun HomeScreen(
                     uiState = uiState,
                     onAction = onAction,
                     onOpenFeed = onOpenFeed,
-                    resetSignal = resetSignal,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -222,7 +212,6 @@ private fun HomeContent(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
     onOpenFeed: (Post, String, String) -> Unit,
-    resetSignal: Int,
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
@@ -250,13 +239,8 @@ private fun HomeContent(
     }
     val topBarBackgroundAlpha = topBarBackgroundAlpha(scrollState.collapsedTopAreaProgress)
 
-    LaunchedEffect(uiState.selectedSort, uiState.refreshRevision) {
-        scrollState.reset()
-        photoListState.scrollToItem(0)
-    }
-
-    LaunchedEffect(resetSignal, localResetSignal) {
-        if (resetSignal == 0 && localResetSignal == 0) return@LaunchedEffect
+    LaunchedEffect(localResetSignal) {
+        if (localResetSignal == 0) return@LaunchedEffect
         scrollState.reset()
         photoListState.animateScrollToItem(0)
     }

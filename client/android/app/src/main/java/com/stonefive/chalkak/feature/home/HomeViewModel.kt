@@ -104,7 +104,6 @@ class HomeViewModel(
     ) {
         val requestedDate = dateProvider()
         val generation = ++latestLoadGeneration
-        val refreshRevision = _uiState.value.refreshRevision
         val preservesContent = mode == FirstPageMode.Refresh &&
             _uiState.value.contentStatus == HomeContentStatus.Content
 
@@ -126,7 +125,6 @@ class HomeViewModel(
             _uiState.value = HomeUiState(
                 contentStatus = HomeContentStatus.Loading,
                 selectedSort = requestedSort,
-                refreshRevision = refreshRevision,
                 areLikesEnabled = false,
             )
         }
@@ -150,7 +148,6 @@ class HomeViewModel(
                 is HomeResult.Success -> applyFirstPage(
                     content = result.value,
                     requestedSort = requestedSort,
-                    refreshRevision = refreshRevision + if (mode == FirstPageMode.Refresh) 1 else 0,
                 )
 
                 is HomeResult.Failure -> {
@@ -168,7 +165,6 @@ class HomeViewModel(
                         _uiState.value = HomeUiState(
                             contentStatus = HomeContentStatus.Error(reason),
                             selectedSort = requestedSort,
-                            refreshRevision = refreshRevision,
                         )
                     }
                 }
@@ -179,7 +175,6 @@ class HomeViewModel(
     private fun applyFirstPage(
         content: PostContent,
         requestedSort: PostSort,
-        refreshRevision: Int,
     ) {
         loadedDate = content.topicDate
         homeContentRevision++
@@ -193,7 +188,6 @@ class HomeViewModel(
             currentPage = content.currentPage,
             hasNext = content.hasNext,
             randomSeed = content.randomSeed,
-            refreshRevision = refreshRevision,
         )
     }
 

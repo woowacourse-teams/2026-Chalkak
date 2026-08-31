@@ -169,11 +169,7 @@ fun ChalkakNavHost(
             }
         }
 
-        composable<Today> { backStackEntry ->
-            val homeSelectionSignal by backStackEntry.savedStateHandle
-                .getStateFlow(HOME_SELECTION_REQUEST_KEY, 0)
-                .collectAsStateWithLifecycle()
-
+        composable<Today> {
             HomeRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
@@ -185,7 +181,6 @@ fun ChalkakNavHost(
                         ),
                     )
                 },
-                selectionSignal = homeSelectionSignal,
             )
         }
 
@@ -334,12 +329,6 @@ fun ChalkakNavHost(
 }
 
 private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
-    if (item == ChalkakBottomBarItem.TODAY) {
-        val todayEntry = getBackStackEntry<Today>()
-        val currentSelectionSignal = todayEntry.savedStateHandle[HOME_SELECTION_REQUEST_KEY] ?: 0
-        todayEntry.savedStateHandle[HOME_SELECTION_REQUEST_KEY] = currentSelectionSignal + 1
-    }
-
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -356,7 +345,6 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
     }
 }
 
-private const val HOME_SELECTION_REQUEST_KEY = "home_selection_request"
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 
 private fun Post.toFeedRoute(
