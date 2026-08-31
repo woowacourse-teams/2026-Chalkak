@@ -24,6 +24,16 @@
 
 테스트를 파일 변경과 함께 반복 실행하려면 npm run test:watch 를 사용합니다.
 
+`npm run dev`에서는 `.env.example`의 Mock 설정을 사용할 수 있습니다. 빌드는 실제 API 모드와 올바른 HTTPS 주소를 명시해야 합니다. 설정을 `.env.local`에서 읽거나 명령 범위에 전달합니다. CI에서는 네트워크 요청이 없는 빌드용 예시 주소를 사용합니다.
+
+    NEXT_PUBLIC_API_MODE=real NEXT_PUBLIC_ADMIN_API_BASE_URL=https://admin-api.example.invalid/api/v1/admin npm run build
+
+빌드 후 [Gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1)로 비밀값 검사를 실행합니다. CI는 고정 버전과 SHA-256을 검증한 바이너리를 사용합니다.
+
+    npm run check:secrets -- /absolute/path/to/gitleaks
+
+이 검사는 관리자 웹/전용 CI의 커밋된 Git 이력과 현재 브라우저 번들(`.next/static`)을 확인합니다. 커밋하지 않은 소스나 백엔드 전체를 검증했다고 간주하지 않습니다. 출력은 완전히 마스킹하며, 실제 `.env` 파일을 읽거나 원문 비밀값 보고서를 만들지 않습니다. 의심 항목이 발견되면 배포를 멈추고 값이 아닌 위치·규칙만으로 확인합니다.
+
 ## 디렉터리
 
     src/
@@ -62,16 +72,18 @@
 
 중계 오류는 응답 계약 불일치(`ADMIN_INVALID_RESPONSE`), 백엔드 오류(`ADMIN_UPSTREAM_ERROR`), 연결 실패(`ADMIN_API_UNAVAILABLE`), 시간 초과(`ADMIN_API_TIMEOUT`)로 구분합니다. 진단을 위해 비밀번호·토큰·백엔드 응답 원문을 로그나 화면에 노출하지 않습니다.
 
-## Vercel Preview 배포
+## Vercel 배포
 
-실제 웹 로그인과 운영 연결 검증·승인 전에는 **Preview만** 사용합니다. `next.config.ts`의 `VERCEL_ENV=production` 빌드 차단을 유지합니다. Production 공개는 별도 승인 후 보호 장치를 제거하고 진행합니다.
+배포·Smoke test·롤백의 실행 순서는 [배포 점검표](docs/release.md)를 따릅니다. Vercel Production은 웹의 배포 환경이며 백엔드 prod와 같은 뜻이 아닙니다. 연결할 백엔드와 데이터 범위는 매번 명시적으로 승인받습니다.
 
-### 최초 프로젝트 연결
+`next.config.ts`는 운영 빌드와 Vercel Preview/Production에서 `NEXT_PUBLIC_API_MODE=real` 및 HTTPS 관리자 API 주소를 필수로 검사합니다. 주소의 사용자 정보·쿼리·해시와 잘못된 관리자 API 경로는 거부합니다. 임시로 모든 Production 배포를 막던 제한은 실제 설정 검증으로 교체했으며, Mock 허용으로 배포 오류를 우회할 수 없습니다.
+
+### 프로젝트와 환경 설정
 
 1. Vercel에서 이 GitHub 저장소를 Import합니다.
 2. 프로젝트 이름은 `chalkak-admin-web`, Framework Preset은 Next.js로 설정합니다.
 3. Root Directory를 `admin-web`으로 설정합니다.
-4. Production 환경변수는 비워 둡니다. Production 배포·운영 도메인·운영 API는 연결하지 않습니다.
+4. Production 환경변수는 승인된 배포 대상을 확정한 뒤 별도로 설정합니다. Preview 값이 자동으로 복사된다고 가정하지 않습니다.
 5. Preview 환경에 아래 공개 변수만 설정합니다.
 
        NEXT_PUBLIC_API_MODE=real
@@ -81,9 +93,9 @@
 6. Settings → Deployment Protection에서 Vercel Authentication과 Standard Protection을 켭니다.
 7. Git 브랜치 추적과 빌드 건너뛰기 설정은 Vercel 프로젝트 설정에서 확인합니다. 백엔드 PR에 Vercel 배포 검사를 추가하지 않도록 기존 팀 설정을 유지합니다.
 
-이 저장소는 `admin-web`과 `be/develop`을 분리해 사용합니다. 관리자 웹 PR의 대상은 `admin-web`입니다. 백엔드 브랜치에 Vercel 설정 파일을 추가하지 않습니다. 이 PR은 기존 Vercel 프로젝트 설정이나 자동 배포 설정을 변경하지 않습니다. 푸시만으로 배포된다고 가정하지 말고 실제 배포 커밋을 확인합니다.
+Production에도 `NEXT_PUBLIC_API_MODE=real`, 승인된 `NEXT_PUBLIC_ADMIN_API_BASE_URL`, 표기용 `NEXT_PUBLIC_APP_ENV=production`만 설정합니다. `NEXT_PUBLIC_APP_ENV` 자체는 현재 인증·API 환경 격리를 강제하지 않습니다. 개발 백엔드에 연결한 경우 배포 기록에 **개발 데이터 연결**임을 명시하고 운영 서비스 데이터 관리용으로 안내하지 않습니다.
 
-Production이 `admin-web` 브랜치를 추적하는 설정에서는 PR 병합 시 Production 빌드가 시도됩니다. 위 빌드 차단은 공개를 막지만 빌드 시도 자체를 막지는 않습니다. 병합과 정식 배포를 분리하려면 팀 승인하에 Vercel 프로젝트 설정에서 배포 보류 정책을 먼저 정합니다. 검증용 Preview의 실패/성공과 Production 공개 여부를 혼동하지 않습니다.
+이 저장소는 `admin-web`과 `be/develop`을 분리해 사용합니다. 관리자 웹 PR의 대상은 `admin-web`입니다. 백엔드 브랜치에 Vercel 설정 파일을 추가하지 않습니다. Preview 브랜치 추적 비활성화·수동 배포 및 Root Directory/변경 경로 기반 건너뛰기 정책은 기존 Vercel 설정을 유지합니다. Production이 `admin-web`을 추적하고 도메인 자동 할당이 켜져 있으면 병합이 공개 배포를 시작하므로 **설정과 검증을 병합 전에 끝냅니다**.
 
 `NEXT_PUBLIC_*` 값은 모두 브라우저에 공개됩니다. 비밀번호, API 토큰, AWS 자격증명, Webhook, FCM 등록값을 Vercel 공개 변수나 저장소에 넣지 않습니다. 개발 API 주소는 HTTPS여야 하며 개발 DB·개발 S3만 사용해야 합니다.
 
@@ -106,4 +118,4 @@ Preview에서 실제 계정 로그인 → 새로고침 세션 유지 → 목록�
 
     vercel redeploy <preview-url>
 
-Preview에서 문제가 생기면 직전 정상 커밋으로 새 Preview를 만들거나 해당 정상 배포 URL을 다시 사용합니다. `vercel rollback`은 Production용 명령이므로 Preview 운영에는 사용하지 않습니다. Production 승격은 실제 웹 로그인과 운영 연결 검증·승인 후 별도 배포 절차에서 수행합니다.
+Preview에서 문제가 생기면 직전 정상 커밋으로 새 Preview를 만들거나 해당 정상 배포 URL을 다시 사용합니다. `vercel rollback`은 Production용 명령이므로 Preview 운영에는 사용하지 않습니다. 정식 배포의 복구 절차, 첫 배포라 되돌릴 Production이 없는 경우의 대응, 복구 후 인증 재검증은 [배포 점검표](docs/release.md)를 확인합니다.

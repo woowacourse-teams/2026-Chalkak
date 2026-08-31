@@ -1,17 +1,8 @@
 import type { NextConfig } from "next";
 
-if (process.env.VERCEL_ENV === "production") {
-  throw new Error(
-    "실제 웹 로그인·운영 연결 검증과 승인 전에는 Vercel Production 배포를 허용하지 않습니다.",
-  );
-}
+import { assertDeploymentConfig } from "./src/shared/api/deployment-config";
 
-if (
-  process.env.NODE_ENV === "production" &&
-  process.env.NEXT_PUBLIC_API_MODE === "mock"
-) {
-  throw new Error("운영 빌드에서는 NEXT_PUBLIC_API_MODE=mock을 사용할 수 없습니다.");
-}
+assertDeploymentConfig(process.env);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
