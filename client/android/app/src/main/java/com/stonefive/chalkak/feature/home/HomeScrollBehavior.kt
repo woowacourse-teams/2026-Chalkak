@@ -40,6 +40,9 @@ class HomeScrollBehaviorState(
     private var isTopAreaTargetHidden by mutableStateOf(false)
     private var settleJob: Job? = null
 
+    private val canCollapseBars: Boolean
+        get() = photoListState.canScrollBackward || photoListState.canScrollForward
+
     val isTopAreaVisible: Boolean
         get() = topAreaHeight == 0 || topAreaOffset > -topAreaHeight.toFloat()
 
@@ -55,7 +58,11 @@ class HomeScrollBehaviorState(
             available: Offset,
             source: NestedScrollSource,
         ): Offset {
-            if (source == NestedScrollSource.UserInput && available.y != 0f) {
+            if (
+                source == NestedScrollSource.UserInput &&
+                available.y != 0f &&
+                canCollapseBars
+            ) {
                 bottomBarState.onScroll(
                     scrollDeltaY = available.y,
                     atTop = !photoListState.canScrollBackward && topAreaOffset == 0f,
@@ -64,6 +71,7 @@ class HomeScrollBehaviorState(
             }
 
             if (available.y < 0f &&
+                canCollapseBars &&
                 topAreaHeight > 0 &&
                 topAreaOffset > -topAreaHeight.toFloat()
             ) {

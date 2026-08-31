@@ -184,7 +184,11 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.RetryClicked)
 
         assertEquals(2, repository.homeQueries.size)
-        assertTrue(repository.homeQueries.all { it.page == 1 })
+        assertTrue(
+            repository.homeQueries.all {
+                it.sort == PostSort.LATEST && it.page == 1 && it.randomSeed == null
+            },
+        )
         assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
     }
 
