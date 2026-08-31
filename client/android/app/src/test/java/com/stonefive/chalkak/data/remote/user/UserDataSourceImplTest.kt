@@ -96,13 +96,21 @@ class UserDataSourceImplTest {
             MockResponse()
                 .setResponseCode(403)
                 .setHeader("Content-Type", "application/json")
-                .setBody("""{"message":"서비스를 이용할 수 없는 계정입니다."}"""),
+                .setBody(
+                    """{"errorCode":"ACCOUNT_SUSPENDED","message":"서비스를 이용할 수 없는 계정입니다."}""",
+                ),
         )
 
         val result = dataSource.getMySignature()
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(statusCode = 403, errorCode = null)),
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 403,
+                    errorCode = "ACCOUNT_SUSPENDED",
+                    message = "서비스를 이용할 수 없는 계정입니다.",
+                ),
+            ),
             result,
         )
         assertEquals(null, unauthorizedAccessToken)
@@ -122,7 +130,13 @@ class UserDataSourceImplTest {
         val result = dataSource.getMySignature()
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 401,
+                    errorCode = "UNAUTHORIZED",
+                    message = "인증 정보가 유효하지 않습니다.",
+                ),
+            ),
             result,
         )
         assertEquals("request-access-token", unauthorizedAccessToken)
@@ -211,14 +225,20 @@ class UserDataSourceImplTest {
         val result = dataSource.deleteMyAccount()
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(statusCode = 401, errorCode = "UNAUTHORIZED")),
+            ApiResult.Failure(
+                ApiError.Http(
+                    statusCode = 401,
+                    errorCode = "UNAUTHORIZED",
+                    message = "invalid",
+                ),
+            ),
             result,
         )
         assertEquals("request-access-token", unauthorizedAccessToken)
     }
 
     @Test
-    fun `회원탈퇴 404 응답은 회원 없음 HTTP 오류로 반환한다`() = runTest {
+    fun `회원탈퇴 오류 body가 없어도 HTTP 상태를 보존한다`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
 
         val result = dataSource.deleteMyAccount()

@@ -7,9 +7,5 @@ sealed interface PhotoUploadUiEvent {
 
     data object OpenCamera : PhotoUploadUiEvent
 
-    data class NavigateToSuccess(
-        val imageModel: String,
-        val caption: String,
-        val content: PhotoUploadSuccessContent,
-    ) : PhotoUploadUiEvent
+    data object ReauthenticationRequired : PhotoUploadUiEvent
 }

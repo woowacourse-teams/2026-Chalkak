@@ -60,6 +60,7 @@ class ApiRequestExecutor(
             ApiError.Http(
                 statusCode = response.code(),
                 errorCode = errorResponse?.errorCode,
+                message = errorResponse?.message,
             ),
         )
     }

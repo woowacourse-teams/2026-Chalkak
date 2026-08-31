@@ -45,14 +45,15 @@ class NetworkModule(
         onUnauthorized = sessionStore::clearIfAccessTokenMatches,
     )
 
-    val signatureUploadClient = OkHttpClient
+    val presignedUploadClient = OkHttpClient
         .Builder()
         .addInterceptor(createLoggingInterceptor())
         .build()
 
     private fun createLoggingInterceptor() = HttpLoggingInterceptor().apply {
+        redactHeader("Authorization")
         level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
+            HttpLoggingInterceptor.Level.HEADERS
         } else {
             HttpLoggingInterceptor.Level.NONE
         }

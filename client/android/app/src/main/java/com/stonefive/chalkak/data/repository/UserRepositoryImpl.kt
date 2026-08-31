@@ -40,7 +40,12 @@ class UserRepositoryImpl(
             is ApiResult.Failure -> return SignatureUpdateResult.Failure(result.error.toUpdateFailure())
         }
 
-        when (signatureUploader.upload(upload.uploadUrl, signaturePng)) {
+        when (
+            signatureUploader.upload(
+                uploadUrl = upload.uploadUrl,
+                signaturePng = signaturePng,
+            )
+        ) {
             SignatureUploadResult.Success -> Unit
 
             SignatureUploadResult.NetworkFailure -> {

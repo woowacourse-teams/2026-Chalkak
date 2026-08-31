@@ -56,14 +56,13 @@ data object Record
 data object Settings
 
 @Serializable
-data object PhotoUpload
+data class PhotoUpload(val topicDate: String)
 
 @Serializable
 data class PhotoUploadSuccess(
     val imageModel: String,
     val caption: String,
-    val dateLabel: String,
+    val date: String,
     val topic: String,
-    val nickname: String,
-    val exhibitionCount: Int,
+    val moderationStatus: String,
 )

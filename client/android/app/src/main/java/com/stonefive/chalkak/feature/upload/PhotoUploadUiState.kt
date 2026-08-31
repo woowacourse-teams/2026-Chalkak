@@ -1,23 +1,34 @@
 package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.runtime.Immutable
+import java.time.LocalDate
 
 @Immutable
 data class PhotoUploadUiState(
     val selectedImage: String? = null,
-    val signatureModel: String? = null,
+    val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
+    val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
-    val successContent: PhotoUploadSuccessContent = PhotoUploadSuccessContent(),
+    val isTopicLoading: Boolean = false,
+    val isSubmitting: Boolean = false,
+    val errorMessage: String? = null,
+    val completedSubmission: PhotoUploadSubmission? = null,
 ) {
     val canSubmit: Boolean
-        get() = selectedImage != null
+        get() = selectedImage != null && !isTopicLoading && !isSubmitting && completedSubmission == null
+}
+
+enum class ImagePreparationStatus {
+    Idle,
+    Preparing,
+    Ready,
+    Failed,
 }
 
 @Immutable
 data class PhotoUploadSuccessContent(
-    val dateLabel: String = "2025. 07. 18",
-    val topic: String = "주제",
-    val nickname: String = "@@",
-    val exhibitionCount: Int = 128,
+    val date: LocalDate,
+    val topic: String,
+    val moderationStatus: String,
 )

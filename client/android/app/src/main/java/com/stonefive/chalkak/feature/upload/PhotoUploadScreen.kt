@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -56,15 +57,20 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
 import java.io.File
+import java.time.LocalDate
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun PhotoUploadRoute(
+    topicDate: LocalDate,
     onBack: () -> Unit,
     onSubmitted: (PhotoUploadSubmission) -> Unit,
     modifier: Modifier = Modifier,
-    signatureModel: String? = drawableResourceUrl(R.drawable.preview_signature),
-    viewModel: PhotoUploadViewModel = viewModel(factory = PhotoUploadViewModel.Factory),
+    onReauthenticationRequired: () -> Unit = {},
+    viewModel: PhotoUploadViewModel = viewModel(
+        key = "photo-upload-$topicDate",
+        factory = PhotoUploadViewModel.factory(topicDate),
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val photoPickerState = rememberPhotoPickerState(viewModel::onImageSelected)
@@ -81,23 +87,20 @@ fun PhotoUploadRoute(
 
                 PhotoUploadUiEvent.OpenCamera -> photoPickerState.openCamera()
 
-                is PhotoUploadUiEvent.NavigateToSuccess -> {
-                    viewModel.reset()
-                    onSubmitted(
-                        PhotoUploadSubmission(
-                            imageModel = event.imageModel,
-                            caption = event.caption,
-                            content = event.content,
-                        ),
-                    )
-                }
+                PhotoUploadUiEvent.ReauthenticationRequired -> onReauthenticationRequired()
             }
+        }
+    }
+
+    LaunchedEffect(uiState.completedSubmission) {
+        uiState.completedSubmission?.let { submission ->
+            onSubmitted(submission)
+            viewModel.reset()
         }
     }
 
     PhotoUploadScreen(
         uiState = uiState.copy(
-            signatureModel = signatureModel,
             isCameraAvailable = photoPickerState.isCameraAvailable,
         ),
         onAction = viewModel::onAction,
@@ -204,7 +207,7 @@ fun PhotoUploadScreen(
             ) {
                 PhotoUploadImageArea(
                     selectedImage = uiState.selectedImage,
-                    signatureModel = uiState.signatureModel,
+                    topicTitle = uiState.topicTitle,
                     isCameraAvailable = uiState.isCameraAvailable,
                     onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
                     onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
@@ -214,28 +217,41 @@ fun PhotoUploadScreen(
                 Spacer(modifier = Modifier.height(34.dp))
 
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp),
                 ) {
                     ChalkakTextField(
                         value = uiState.caption,
                         onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 22.dp)
                             .onFocusChanged { isCaptionFocused = it.isFocused }
                             .testTag(PHOTO_UPLOAD_CAPTION_TAG),
                         placeholder = "작품 제목은 선택이에요.",
+                        enabled = !uiState.isSubmitting,
                         textStyle = ChalkakTheme.typography.subheadline,
                         minLines = 3,
                         maxLength = CAPTION_MAX_LENGTH,
                     )
+
+                    uiState.errorMessage?.let { errorMessage ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage,
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            style = ChalkakTheme.typography.footnote,
+                            color = ChalkakTheme.colors.error,
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
             ChalkakButton(
-                text = "전시하기",
+                text = if (uiState.isSubmitting) "전시 중..." else "전시하기",
                 onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -338,7 +354,6 @@ private fun PhotoUploadScreenSelectedPreview() {
         PhotoUploadScreen(
             uiState = PhotoUploadUiState(
                 selectedImage = drawableResourceUrl(R.drawable.preview_photo),
-                signatureModel = drawableResourceUrl(R.drawable.preview_signature),
                 caption = "전선 사이로 빠져나온 하늘",
             ),
             onAction = {},

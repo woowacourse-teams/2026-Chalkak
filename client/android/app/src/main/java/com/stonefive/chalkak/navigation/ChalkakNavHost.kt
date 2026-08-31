@@ -39,6 +39,7 @@ import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
 import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
 fun ChalkakNavHost(
@@ -174,7 +175,7 @@ fun ChalkakNavHost(
                 .collectAsStateWithLifecycle()
 
             HomeRoute(
-                onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
+                onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
                 onOpenFeed = { post, dateLabel, topic ->
                     navController.navigate(
@@ -192,7 +193,7 @@ fun ChalkakNavHost(
             val display = backStackEntry.toRoute<Display>()
 
             DisplayRoute(
-                onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
+                onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
                 initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
@@ -243,20 +244,9 @@ fun ChalkakNavHost(
             )
         }
 
-        composable<FeedById> { backStackEntry ->
-            val feed = backStackEntry.toRoute<FeedById>()
-
-            FeedRoute(
-                postId = feed.postId,
-                isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
-                onNavigateBack = { navController.popBackStack() },
-                onDeleteClick = { navController.popBackStack() },
-            )
-        }
-
         composable<Record> {
             RecordRoute(
-                onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
+                onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
                 onOpenFeed = { postId ->
                     navController.navigate(
@@ -294,22 +284,30 @@ fun ChalkakNavHost(
                     legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                 },
                 onNavigateToBottomBar = navController::navigateToBottomBar,
-                onOpenPhotoUpload = { navController.navigate(PhotoUpload) },
+                onOpenPhotoUpload = navController::navigateToPhotoUpload,
             )
         }
 
-        composable<PhotoUpload> {
+        composable<PhotoUpload> { backStackEntry ->
+            val upload = backStackEntry.toRoute<PhotoUpload>()
             PhotoUploadRoute(
+                topicDate = LocalDate.parse(upload.topicDate),
                 onBack = { navController.popBackStack() },
+                onReauthenticationRequired = {
+                    navController.navigate(Login) {
+                        popUpTo<Today> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onSubmitted = { submission ->
                     navController.navigate(
                         PhotoUploadSuccess(
                             imageModel = submission.imageModel,
                             caption = submission.caption,
-                            dateLabel = submission.content.dateLabel,
+                            date = submission.content.date
+                                .toString(),
                             topic = submission.content.topic,
-                            nickname = submission.content.nickname,
-                            exhibitionCount = submission.content.exhibitionCount,
+                            moderationStatus = submission.content.moderationStatus,
                         ),
                     )
                 },
@@ -323,16 +321,12 @@ fun ChalkakNavHost(
                 imageModel = success.imageModel,
                 caption = success.caption,
                 content = PhotoUploadSuccessContent(
-                    dateLabel = success.dateLabel,
+                    date = LocalDate.parse(success.date),
                     topic = success.topic,
-                    nickname = success.nickname,
-                    exhibitionCount = success.exhibitionCount,
+                    moderationStatus = success.moderationStatus,
                 ),
                 onConfirmClick = {
-                    navController.navigate(Display(date = "")) {
-                        popUpTo<PhotoUpload> { inclusive = true }
-                        launchSingleTop = true
-                    }
+                    navController.popBackStack<PhotoUpload>(inclusive = true)
                 },
             )
         }
@@ -387,6 +381,12 @@ private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
 }
 
+private fun NavHostController.navigateToPhotoUpload() {
+    navigate(PhotoUpload(topicDate = LocalDate.now(KST).toString()))
+}
+
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
     LocalDate.parse(this)
 }.getOrNull()
+
+private val KST: ZoneId = ZoneId.of("Asia/Seoul")

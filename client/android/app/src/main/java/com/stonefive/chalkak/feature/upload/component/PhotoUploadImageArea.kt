@@ -25,14 +25,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
 fun PhotoUploadImageArea(
     selectedImage: String?,
-    signatureModel: String?,
+    topicTitle: String?,
     isCameraAvailable: Boolean = true,
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
@@ -51,29 +50,23 @@ fun PhotoUploadImageArea(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    text = "주제 ‘틈’에 맞는 한 장",
-                    color = ChalkakTheme.colors.textSecondary,
-                    style = ChalkakTheme.typography.subheadline,
-                )
+                topicTitle?.let {
+                    Text(
+                        text = "주제 ‘$it’에 맞는 한 장",
+                        color = ChalkakTheme.colors.textSecondary,
+                        style = ChalkakTheme.typography.subheadline,
+                    )
+                }
                 Text(
                     text = "앨범에서 고르거나 지금 찍어요",
                     color = ChalkakTheme.colors.textMuted,
                     style = ChalkakTheme.typography.caption,
-                    modifier = Modifier.padding(top = 5.dp),
+                    modifier = Modifier.padding(top = if (topicTitle == null) 0.dp else 5.dp),
                 )
             }
-        } else if (signatureModel == null) {
+        } else {
             ChalkakImage(
                 model = selectedImage,
-                contentDescription = "선택한 사진",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            ChalkakSignedImage(
-                imageModel = selectedImage,
-                signatureModel = signatureModel,
                 contentDescription = "선택한 사진",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -108,7 +101,7 @@ private fun PhotoUploadImageAreaEmptyPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
-            signatureModel = null,
+            topicTitle = "틈",
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -121,7 +114,7 @@ private fun PhotoUploadImageAreaSelectedPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = drawableResourceUrl(R.drawable.preview_photo),
-            signatureModel = drawableResourceUrl(R.drawable.preview_signature),
+            topicTitle = "틈",
             onGalleryClick = {},
             onCameraClick = {},
         )
@@ -134,7 +127,7 @@ private fun PhotoUploadImageAreaWithoutCameraPreview() {
     ChalkakTheme {
         PhotoUploadImageArea(
             selectedImage = null,
-            signatureModel = null,
+            topicTitle = null,
             isCameraAvailable = false,
             onGalleryClick = {},
             onCameraClick = {},

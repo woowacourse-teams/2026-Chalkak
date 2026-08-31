@@ -99,6 +99,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.googleid)
     implementation(libs.kakao.user)
     implementation(libs.retrofit)

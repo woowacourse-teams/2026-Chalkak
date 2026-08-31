@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -27,7 +28,10 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
 
-class PostRepositoryImpl(private val remoteDataSource: PostRemoteDataSource) : PostRepository {
+class PostRepositoryImpl(
+    private val remoteDataSource: PostRemoteDataSource,
+    private val topicRemoteDataSource: TopicRemoteDataSource,
+) : PostRepository {
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> =
         when (val result = remoteDataSource.getPostCalendar(month)) {
             is ApiResult.Success -> result.value.toDomain(month)
@@ -41,7 +45,7 @@ class PostRepositoryImpl(private val remoteDataSource: PostRemoteDataSource) : P
         }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
-        val topic = when (val result = remoteDataSource.getTopic(query.date)) {
+        val topic = when (val result = topicRemoteDataSource.getTopic(query.date)) {
             is ApiResult.Success -> result.value
             is ApiResult.Failure -> return HomeResult.Failure(result.error.toDomain(isTopic = true))
         }

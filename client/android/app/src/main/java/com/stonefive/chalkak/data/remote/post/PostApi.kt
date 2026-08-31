@@ -1,12 +1,17 @@
 package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
+import com.stonefive.chalkak.data.remote.post.model.PostCreateRequest
+import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
+import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -17,6 +22,12 @@ interface PostApi {
         @Query("year") year: Int,
         @Query("month") month: Int,
     ): Response<PostCalendarResponse>
+
+    @POST("posts/uploads")
+    suspend fun createPostImageUpload(): Response<PostImageUploadResponse>
+
+    @POST("posts")
+    suspend fun createPost(@Body request: PostCreateRequest): Response<PostCreateResponse>
 
     @GET("posts/{postId}")
     suspend fun getPost(@Path("postId") postId: String): Response<PostDetailResponse>
