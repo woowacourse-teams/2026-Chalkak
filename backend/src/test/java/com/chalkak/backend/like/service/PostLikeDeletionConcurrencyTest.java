@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.like.infrastructure.persistence.PostLikeRepositoryImpl;
+import com.chalkak.backend.post.infrastructure.persistence.PostRepositoryImpl;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -53,7 +53,7 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
     private PlatformTransactionManager transactionManager;
 
     @MockitoSpyBean
-    private PostLikeRepositoryImpl postLikeRepository;
+    private PostRepositoryImpl postRepositorySpy;
 
     @BeforeEach
     void setUp() {
@@ -74,11 +74,12 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
     void likePost_startedAfterDeletion_rejectsLikeAndLeavesNoLike() throws Exception {
         // Given
         CountDownLatch deletionApplied = new CountDownLatch(1);
-        CountDownLatch likeReachedCreation = new CountDownLatch(1);
+        CountDownLatch likeStartedLockQuery = new CountDownLatch(1);
+        CountDownLatch deletionCanCommit = new CountDownLatch(1);
         doAnswer(invocation -> {
-            likeReachedCreation.countDown();
+            likeStartedLockQuery.countDown();
             return invocation.callRealMethod();
-        }).when(postLikeRepository).createIfAbsent(POST_ID, LIKER_ID);
+        }).when(postRepositorySpy).findVisibleByIdForShare(POST_ID);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
@@ -88,7 +89,9 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
             transactionTemplate.executeWithoutResult(status -> {
                 postCommandService.deletePost(AUTHOR_ID, POST_ID);
                 deletionApplied.countDown();
-                await(likeReachedCreation);
+                if (!await(deletionCanCommit, 5)) {
+                    throw new IllegalStateException("게시물 삭제 커밋이 허용되지 않았습니다.");
+                }
             });
             return null;
         });
@@ -104,12 +107,81 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
             }
         });
 
+        try {
+            if (!likeStartedLockQuery.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("좋아요 요청이 공유 락 조회를 시작하지 않았습니다.");
+            }
+            assertThat(like.isDone()).isFalse();
+        } finally {
+            deletionCanCommit.countDown();
+        }
+
         deletion.get(5, TimeUnit.SECONDS);
         String likeResult = like.get(5, TimeUnit.SECONDS);
         executor.shutdownNow();
 
         // Then
         assertThat(likeResult).isEqualTo("게시물을 찾을 수 없습니다.");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
+                Integer.class,
+                POST_ID
+        )).isZero();
+    }
+
+    @Test
+    @DisplayName("좋아요 등록이 시작된 뒤의 게시물 삭제는 좋아요 커밋 후 좋아요까지 제거한다")
+    void deletePost_startedAfterLikeLock_waitsAndDeletesLike() throws Exception {
+        // Given
+        CountDownLatch likeApplied = new CountDownLatch(1);
+        CountDownLatch likeCanCommit = new CountDownLatch(1);
+        CountDownLatch deletionStartedLockQuery = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            deletionStartedLockQuery.countDown();
+            return invocation.callRealMethod();
+        }).when(postRepositorySpy).findByIdForUpdate(POST_ID);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+
+        // When
+        Future<Void> like = executor.submit(() -> {
+            transactionTemplate.executeWithoutResult(status -> {
+                postLikeService.likePost(POST_ID, LIKER_ID);
+                likeApplied.countDown();
+                if (!await(likeCanCommit, 5)) {
+                    throw new IllegalStateException("좋아요 커밋이 허용되지 않았습니다.");
+                }
+            });
+            return null;
+        });
+        Future<Void> deletion = executor.submit(() -> {
+            if (!likeApplied.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("좋아요 등록이 시작되지 않았습니다.");
+            }
+            postCommandService.deletePost(AUTHOR_ID, POST_ID);
+            return null;
+        });
+
+        try {
+            if (!deletionStartedLockQuery.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("게시물 삭제가 쓰기 락 조회를 시작하지 않았습니다.");
+            }
+            assertThat(deletion.isDone()).isFalse();
+        } finally {
+            likeCanCommit.countDown();
+        }
+
+        like.get(5, TimeUnit.SECONDS);
+        deletion.get(5, TimeUnit.SECONDS);
+        executor.shutdownNow();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM posts WHERE id = ? AND deleted_at IS NOT NULL",
+                Integer.class,
+                POST_ID
+        )).isOne();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
                 Integer.class,
@@ -149,10 +221,6 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
 
         // Then
         assertThat(acquiredTogether).isTrue();
-    }
-
-    private boolean await(CountDownLatch latch) {
-        return await(latch, 1);
     }
 
     private boolean await(CountDownLatch latch, long timeoutSeconds) {
