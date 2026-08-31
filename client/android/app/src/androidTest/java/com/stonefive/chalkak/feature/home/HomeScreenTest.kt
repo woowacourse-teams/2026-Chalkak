@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -86,18 +87,11 @@ class HomeScreenTest {
     }
 
     @Test
-    fun tappingHomePhotoInvokesOpenFeedCallback() {
-        var selectedPhoto: Post? = null
-        setHomeContent(
-            uiState = contentUiState(),
-            onOpenFeed = { post, _, _ -> selectedPhoto = post },
-        )
-
+    fun homePhotoDoesNotExposeFeedNavigationClickAction() {
+        setHomeContent(uiState = contentUiState())
         composeRule
             .onNodeWithContentDescription("작품 이미지: 사진 0")
-            .performClick()
-
-        assertEquals("photo-0", selectedPhoto?.id)
+            .assertHasNoClickAction()
     }
 
     @Test
@@ -327,7 +321,6 @@ class HomeScreenTest {
     private fun setHomeContent(
         uiState: HomeUiState,
         onAction: (HomeUiAction) -> Unit = {},
-        onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -335,7 +328,6 @@ class HomeScreenTest {
                     uiState = uiState,
                     snackbarHostState = remember { SnackbarHostState() },
                     onAction = onAction,
-                    onOpenFeed = onOpenFeed,
                 )
             }
         }
