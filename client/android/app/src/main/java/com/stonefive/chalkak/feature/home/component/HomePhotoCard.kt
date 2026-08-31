@@ -41,7 +41,6 @@ fun HomePhotoCard(
     isLiked: Boolean,
     isLikeEnabled: Boolean,
     onLikeClick: () -> Unit,
-    onPhotoClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -63,12 +62,7 @@ fun HomePhotoCard(
                 .height(415.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = photo.contentDescription
-                }.clickable(
-                    interactionSource = null,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onPhotoClick,
-                ),
+                },
         )
         PhotoActionRow(
             photo = photo,
@@ -152,7 +146,6 @@ private fun HomePhotoCardPreview() {
             isLiked = true,
             isLikeEnabled = true,
             onLikeClick = {},
-            onPhotoClick = {},
             modifier = Modifier.padding(16.dp),
         )
     }
