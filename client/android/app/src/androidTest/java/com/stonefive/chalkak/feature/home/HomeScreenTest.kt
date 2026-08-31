@@ -187,6 +187,53 @@ class HomeScreenTest {
     }
 
     @Test
+    fun emptyFeedBlocksChromeCollapseAndStillAllowsPullToRefresh() {
+        val actions = mutableListOf<HomeUiAction>()
+        setHomeContent(
+            uiState = contentUiState(photos = emptyList()),
+            onAction = actions::add,
+        )
+        val photoList = composeRule.onNode(hasScrollAction())
+        val topic = composeRule.onNodeWithText("바다")
+        val today = composeRule.onNodeWithText("오늘")
+        val topicTopBefore = topic
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+        val todayTopBefore = today
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+
+        photoList.performTouchInput {
+            swipe(
+                start = center.copy(y = center.y * 1.5f),
+                end = center.copy(y = center.y * 0.5f),
+                durationMillis = 600,
+            )
+        }
+        composeRule.waitForIdle()
+
+        val topicTopAfter = topic
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+        val todayTopAfter = today
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+        assertEquals(topicTopBefore, topicTopAfter, 0.5f)
+        assertEquals(todayTopBefore, todayTopAfter, 0.5f)
+
+        photoList.performTouchInput {
+            swipe(
+                start = center.copy(y = center.y * 0.25f),
+                end = center.copy(y = center.y * 1.75f),
+                durationMillis = 600,
+            )
+        }
+        composeRule.waitUntil { HomeUiAction.RefreshRequested in actions }
+
+        assertEquals(1, actions.count { it == HomeUiAction.RefreshRequested })
+    }
+
+    @Test
     fun pageFailureHasNoRetryRowOrSnackbar() {
         val repository = PageFailurePostRepository()
         val viewModel = HomeViewModel(

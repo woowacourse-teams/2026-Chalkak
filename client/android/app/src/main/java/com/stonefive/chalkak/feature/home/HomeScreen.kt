@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,6 +23,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -223,6 +226,7 @@ private fun HomeContent(
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
+    val pullToRefreshState = rememberPullToRefreshState()
     var localResetSignal by remember { mutableIntStateOf(0) }
     val interactionScope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -257,8 +261,16 @@ private fun HomeContent(
         photoListState.animateScrollToItem(0)
     }
 
-    LaunchedEffect(photoListState.canScrollBackward, scrollState.topAreaOffset) {
-        scrollState.updateScrollToTopVisibility()
+    LaunchedEffect(
+        photoListState.canScrollBackward,
+        photoListState.canScrollForward,
+        scrollState.topAreaOffset,
+    ) {
+        if (!photoListState.canScrollBackward && !photoListState.canScrollForward) {
+            scrollState.reset()
+        } else {
+            scrollState.updateScrollToTopVisibility()
+        }
     }
 
     Box(
@@ -271,6 +283,16 @@ private fun HomeContent(
             isRefreshing = uiState.isRefreshing,
             onRefresh = { onAction(HomeUiAction.RefreshRequested) },
             modifier = Modifier.fillMaxSize(),
+            state = pullToRefreshState,
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullToRefreshState,
+                    isRefreshing = uiState.isRefreshing,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = photoListTopPadding),
+                )
+            },
         ) {
             HomePhotoList(
                 photos = uiState.photos,
