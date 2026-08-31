@@ -4,6 +4,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
@@ -181,6 +182,56 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeReselectionScrollsToTopAndDispatchesSelection() {
+        val actions = mutableListOf<HomeUiAction>()
+        setHomeContent(
+            uiState = contentUiState(photos = photos(20)),
+            onAction = actions::add,
+        )
+
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
+        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
+
+        composeRule.onNodeWithText("오늘").performClick()
+
+        composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
+        assertEquals(
+            1,
+            actions.count {
+                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
+            },
+        )
+    }
+
+    @Test
+    fun returningToHomePreservesSavedListPosition() {
+        var isHomeVisible by mutableStateOf(true)
+        val uiState = contentUiState(photos = photos(20))
+        composeRule.setContent {
+            val stateHolder = rememberSaveableStateHolder()
+            ChalkakTheme {
+                if (isHomeVisible) {
+                    stateHolder.SaveableStateProvider(HOME_STATE_KEY) {
+                        HomeScreen(
+                            uiState = uiState,
+                            snackbarHostState = remember { SnackbarHostState() },
+                            onAction = {},
+                        )
+                    }
+                }
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
+        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
+
+        composeRule.runOnIdle { isHomeVisible = false }
+        composeRule.runOnIdle { isHomeVisible = true }
+
+        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
+    }
+
+    @Test
     fun emptyFeedBlocksChromeCollapseAndStillAllowsPullToRefresh() {
         val actions = mutableListOf<HomeUiAction>()
         setHomeContent(
@@ -333,6 +384,8 @@ class HomeScreenTest {
         }
     }
 }
+
+private const val HOME_STATE_KEY = "home"
 
 private fun contentUiState(
     photos: List<Post> = photos(1),

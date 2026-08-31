@@ -17,7 +17,6 @@ data class HomeUiState(
     val isLoadingNext: Boolean = false,
     val isRefreshing: Boolean = false,
     val areLikesEnabled: Boolean = true,
-    val refreshRevision: Int = 0,
 )
 
 sealed interface HomeContentStatus {
