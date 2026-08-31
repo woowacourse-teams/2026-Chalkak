@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import styles from "./common-ui.module.css";
 
 interface ReasonField {
@@ -16,10 +16,31 @@ interface ConfirmDialogProps {
   description: string;
   confirmLabel: string;
   reasonField?: ReasonField;
+  error?: string | null;
   pending?: boolean;
   destructive?: boolean;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
+}
+
+function subscribeToVisualViewport(onChange: () => void) {
+  const viewport = window.visualViewport;
+  viewport?.addEventListener("resize", onChange);
+  viewport?.addEventListener("scroll", onChange);
+  return () => {
+    viewport?.removeEventListener("resize", onChange);
+    viewport?.removeEventListener("scroll", onChange);
+  };
+}
+
+function getVisualViewportSnapshot() {
+  const viewport = window.visualViewport;
+  // A primitive snapshot stays stable until either browser value changes.
+  return viewport ? `${viewport.height}:${viewport.offsetTop}` : null;
+}
+
+function getServerViewportSnapshot() {
+  return null;
 }
 
 export function ConfirmDialog({ open, ...props }: ConfirmDialogProps) {
@@ -31,6 +52,7 @@ function DialogContent({
   description,
   confirmLabel,
   reasonField,
+  error,
   pending = false,
   destructive = false,
   onCancel,
@@ -38,10 +60,17 @@ function DialogContent({
 }: Omit<ConfirmDialogProps, "open">) {
   const [reason, setReason] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const id = useId();
   const normalizedReason = reason.trim();
   const reasonMissing = Boolean(reasonField?.required && !normalizedReason);
+  const viewport = useSyncExternalStore(
+    subscribeToVisualViewport,
+    getVisualViewportSnapshot,
+    getServerViewportSnapshot,
+  );
+  const [viewportHeight, viewportTop] = viewport?.split(":").map(Number) ?? [];
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -65,6 +94,10 @@ function DialogContent({
     if (pending) headingRef.current?.focus();
   }, [pending]);
 
+  useEffect(() => {
+    if (error && !pending) errorRef.current?.focus();
+  }, [error, pending]);
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -81,7 +114,7 @@ function DialogContent({
       event.preventDefault();
       return;
     }
-    if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current)) {
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current || document.activeElement === errorRef.current)) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
@@ -91,9 +124,12 @@ function DialogContent({
   }
 
   return (
-    <div className={styles.dialogLayer}>
+    <div
+      className={styles.dialogLayer}
+      style={viewport === null ? undefined : { top: viewportTop, height: viewportHeight }}
+    >
       <div
-        aria-describedby={id + "-description"}
+        aria-describedby={id + "-description" + (error ? " " + id + "-error" : "")}
         aria-labelledby={id + "-title"}
         aria-modal="true"
         className={styles.dialog}
@@ -101,21 +137,27 @@ function DialogContent({
         ref={dialogRef}
         role="dialog"
       >
-        <h2 id={id + "-title"} ref={headingRef} tabIndex={-1}>{title}</h2>
-        <p id={id + "-description"}>{description}</p>
-        {reasonField ? (
-          <label className={styles.reasonField}>
-            <span>{reasonField.label}</span>
-            <input
-              disabled={pending}
-              maxLength={reasonField.maxLength}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder={reasonField.placeholder}
-              required={reasonField.required}
-              value={reason}
-            />
-          </label>
-        ) : null}
+        <div className={styles.dialogBody}>
+          <h2 id={id + "-title"} ref={headingRef} tabIndex={-1}>{title}</h2>
+          <p className={styles.dialogDescription} id={id + "-description"}>{description}</p>
+          {error ? (
+            <p className={styles.dialogError} id={id + "-error"} ref={errorRef} role="alert" tabIndex={-1}>{error}</p>
+          ) : null}
+          {reasonField ? (
+            <label className={styles.reasonField}>
+              <span>{reasonField.label}</span>
+              <textarea
+                disabled={pending}
+                maxLength={reasonField.maxLength}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder={reasonField.placeholder}
+                required={reasonField.required}
+                rows={3}
+                value={reason}
+              />
+            </label>
+          ) : null}
+        </div>
         <div className={styles.dialogActions}>
           <button disabled={pending} onClick={onCancel} type="button">취소</button>
           <button

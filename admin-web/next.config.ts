@@ -15,6 +15,8 @@ if (
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep local mobile action bars unobstructed; runtime error overlays still work.
+  devIndicators: false,
   images: {
     remotePatterns: [
       {

@@ -11,6 +11,13 @@
   }
 }
 
+@media (max-width: 1024px) {
+  body:has([data-review-mode="true"]) {
+    --admin-bottom-nav-height: 0px;
+    --admin-bottom-actions-height: calc(77px + env(safe-area-inset-bottom));
+  }
+}
+
 * {
   box-sizing: border-box;
   padding: 0;

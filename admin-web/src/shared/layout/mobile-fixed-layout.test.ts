@@ -17,17 +17,18 @@ describe("mobile fixed-control spacing", () => {
     expect(shellCss).toMatch(/\.navigation\s*\{[^}]*min-height:\s*var\(--admin-bottom-nav-height\)/);
   });
 
-  it("keeps post actions above navigation and reserves their own height only once", () => {
+  it("uses a focused review bar instead of navigation through tablet and landscape widths", () => {
     expect(globalCss).toMatch(/--admin-bottom-actions-height:\s*0px/);
-    expect(postCss).toMatch(/:global\(body\):has\(\.detailActions\)\s*\{\s*--admin-bottom-actions-height:\s*69px/);
-    expect(postCss).toMatch(/\.detailActions\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*var\(--admin-bottom-nav-height\)/);
-    expect(postCss).toMatch(/\.detailActions\s*\{[^}]*position:\s*fixed;[^}]*padding:\s*10px 16px 10px/);
-    expect(postCss).not.toContain("env(safe-area-inset-bottom)");
+    expect(globalCss).toMatch(/@media\s*\(max-width:\s*1024px\)\s*\{\s*body:has\(\[data-review-mode="true"\]\)\s*\{\s*--admin-bottom-nav-height:\s*0px/);
+    expect(globalCss).toContain("--admin-bottom-actions-height: calc(77px + env(safe-area-inset-bottom))");
+    expect(shellCss).toMatch(/\.shell:has\(\[data-review-mode="true"\]\) \.navigation\s*\{\s*display:\s*none/);
+    expect(postCss).toMatch(/\.detailActions\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*0/);
+    expect(postCss).toContain("padding: 12px 16px calc(12px + env(safe-area-inset-bottom))");
     expect(postCss).toMatch(/\.detailPage:has\(\.detailActions\)\s*\{\s*padding-bottom:\s*var\(--admin-bottom-actions-height\)/);
-    expect(postCss).toMatch(/\.detailActions button\s*\{[^}]*min-height:\s*48px/);
+    expect(postCss).toMatch(/\.detailActions button\s*\{[^}]*min-height:\s*52px/);
   });
 
   it("positions mobile toasts above both fixed bars across the navigation breakpoint", () => {
-    expect(commonCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{\s*\.toastRegion\s*\{[^}]*bottom:\s*calc\(var\(--admin-bottom-nav-height\) \+ var\(--admin-bottom-actions-height\) \+ 16px\)/);
+    expect(commonCss).toMatch(/@media\s*\(max-width:\s*1024px\)\s*\{\s*\.toastRegion\s*\{[^}]*bottom:\s*calc\(var\(--admin-bottom-nav-height\) \+ var\(--admin-bottom-actions-height\) \+ 16px\)/);
   });
 });

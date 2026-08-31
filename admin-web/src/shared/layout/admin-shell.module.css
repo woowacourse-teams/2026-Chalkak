@@ -43,3 +43,20 @@
   .mainContent { padding: 20px 16px 28px; }
   .demoNotice { padding: 8px 16px; font-size: 10px; }
 }
+
+@media (max-width: 1024px) {
+  .shell:has([data-review-mode="true"]) .navigation { display: none; }
+  .shell:has([data-review-mode="true"]) .header { min-height: 56px; padding-block: 6px; }
+  .shell:has([data-review-mode="true"]) .mainContent { padding: 12px 16px 24px; }
+}
+
+@media (max-width: 1024px) and (max-height: 500px) and (orientation: landscape) {
+  .shell:has([data-review-mode="true"]) {
+    --review-landscape-top-space: 64px;
+    --review-landscape-photo-height: max(120px, calc(100svh - var(--admin-bottom-actions-height) - var(--review-landscape-top-space)));
+  }
+  .shell:has([data-review-mode="true"]):has(.demoNotice) { --review-landscape-top-space: 89px; }
+  .shell:has([data-review-mode="true"]) .header { display: none; }
+  .shell:has([data-review-mode="true"]) .mainContent { padding: 4px 16px 8px; }
+  .shell:has([data-review-mode="true"]) .demoNotice { padding: 4px 16px; font-size: 10px; line-height: 16px; }
+}
