@@ -22,5 +22,10 @@ management:
       show-details: never
 
 chalkak:
+  admin:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - https://chalkak-admin-web-git-admin-web-preview-chalkak.vercel.app
   image:
     environment: dev
