@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -22,7 +23,7 @@ class VersionGateViewModel(
     private val appUpdateGateway: AppUpdateGateway,
     connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow<VersionGateUiState>(VersionGateUiState.Checking)
+    private val _uiState = MutableStateFlow(VersionGateUiState())
     val uiState: StateFlow<VersionGateUiState> = _uiState.asStateFlow()
 
     private var checkJob: Job? = null
@@ -60,7 +61,7 @@ class VersionGateViewModel(
 
     fun onImmediateUpdateStarted() {
         isImmediateUpdateFlowActive = true
-        _uiState.value = VersionGateUiState.UpdateInProgress
+        updateStatus(VersionGateStatus.UpdateInProgress)
     }
 
     fun onImmediateUpdateFinished() {
@@ -73,7 +74,7 @@ class VersionGateViewModel(
     }
 
     fun onResume() {
-        if (_uiState.value == VersionGateUiState.UpdateInProgress) {
+        if (_uiState.value.status == VersionGateStatus.UpdateInProgress) {
             isImmediateUpdateFlowActive = false
             if (isOnline) {
                 checkForUpdate(force = true)
@@ -85,10 +86,10 @@ class VersionGateViewModel(
 
     private fun checkForUpdate(force: Boolean = false) {
         if (!isOnline || checkJob?.isActive == true) return
-        if (!force && _uiState.value == VersionGateUiState.UpdateInProgress) return
+        if (!force && _uiState.value.status == VersionGateStatus.UpdateInProgress) return
 
         checkJob = viewModelScope.launch {
-            _uiState.value = VersionGateUiState.Checking
+            updateStatus(VersionGateStatus.Checking)
 
             val result = try {
                 appUpdateGateway.checkForUpdate()
@@ -100,18 +101,28 @@ class VersionGateViewModel(
 
             if (!isActive) return@launch
 
-            _uiState.value = when (result) {
-                AppUpdateCheckResult.NoUpdate -> VersionGateUiState.Accessible
-                AppUpdateCheckResult.ImmediateUpdateRequired -> VersionGateUiState.UpdateRequired
-                AppUpdateCheckResult.Failed -> VersionGateUiState.CheckFailed
+            val status = when (result) {
+                AppUpdateCheckResult.NoUpdate -> VersionGateStatus.Accessible
+                AppUpdateCheckResult.ImmediateUpdateRequired -> VersionGateStatus.UpdateRequired
+                AppUpdateCheckResult.Failed -> VersionGateStatus.CheckFailed
             }
+            updateStatus(status)
         }
     }
 
     private fun handleOffline() {
         checkJob?.cancel()
-        if (!isImmediateUpdateFlowActive && _uiState.value != VersionGateUiState.UpdateRequired) {
-            _uiState.value = VersionGateUiState.Accessible
+        if (!isImmediateUpdateFlowActive && _uiState.value.status != VersionGateStatus.UpdateRequired) {
+            updateStatus(VersionGateStatus.Accessible)
+        }
+    }
+
+    private fun updateStatus(status: VersionGateStatus) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                status = status,
+                hasPassedVersionGate = currentState.hasPassedVersionGate || status == VersionGateStatus.Accessible,
+            )
         }
     }
 
@@ -128,14 +139,19 @@ class VersionGateViewModel(
     }
 }
 
-sealed interface VersionGateUiState {
-    data object Checking : VersionGateUiState
+data class VersionGateUiState(
+    val status: VersionGateStatus = VersionGateStatus.Checking,
+    val hasPassedVersionGate: Boolean = false,
+)
 
-    data object Accessible : VersionGateUiState
+sealed interface VersionGateStatus {
+    data object Checking : VersionGateStatus
 
-    data object UpdateRequired : VersionGateUiState
+    data object Accessible : VersionGateStatus
 
-    data object UpdateInProgress : VersionGateUiState
+    data object UpdateRequired : VersionGateStatus
 
-    data object CheckFailed : VersionGateUiState
+    data object UpdateInProgress : VersionGateStatus
+
+    data object CheckFailed : VersionGateStatus
 }

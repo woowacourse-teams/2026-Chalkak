@@ -16,9 +16,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -31,7 +28,7 @@ import com.stonefive.chalkak.feature.authgate.AuthGateUiState
 import com.stonefive.chalkak.feature.authgate.AuthGateViewModel
 import com.stonefive.chalkak.feature.versiongate.VersionCheckFailureScreen
 import com.stonefive.chalkak.feature.versiongate.VersionGateLoadingScreen
-import com.stonefive.chalkak.feature.versiongate.VersionGateUiState
+import com.stonefive.chalkak.feature.versiongate.VersionGateStatus
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 import com.stonefive.chalkak.navigation.ChalkakNavHost
 import com.stonefive.chalkak.navigation.Login
@@ -91,7 +88,6 @@ private fun ChalkakApp(
 ) {
     val versionGateUiState by versionGateViewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
-    var hasPassedVersionGate by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, versionGateViewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -103,12 +99,8 @@ private fun ChalkakApp(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(versionGateUiState) {
-        if (versionGateUiState == VersionGateUiState.Accessible) {
-            hasPassedVersionGate = true
-        }
-
-        if (versionGateUiState == VersionGateUiState.UpdateRequired) {
+    LaunchedEffect(versionGateUiState.status) {
+        if (versionGateUiState.status == VersionGateStatus.UpdateRequired) {
             if (onStartImmediateUpdate()) {
                 versionGateViewModel.onImmediateUpdateStarted()
             } else {
@@ -117,25 +109,25 @@ private fun ChalkakApp(
         }
     }
 
-    if (hasPassedVersionGate) {
+    if (versionGateUiState.hasPassedVersionGate) {
         Box(modifier = Modifier.fillMaxSize()) {
             AuthGateContent()
 
-            when (versionGateUiState) {
-                VersionGateUiState.Accessible -> Unit
+            when (versionGateUiState.status) {
+                VersionGateStatus.Accessible -> Unit
 
-                VersionGateUiState.CheckFailed -> VersionCheckFailureScreen(
+                VersionGateStatus.CheckFailed -> VersionCheckFailureScreen(
                     onRetryClick = versionGateViewModel::retry,
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                VersionGateUiState.Checking,
-                VersionGateUiState.UpdateRequired,
-                VersionGateUiState.UpdateInProgress,
+                VersionGateStatus.Checking,
+                VersionGateStatus.UpdateRequired,
+                VersionGateStatus.UpdateInProgress,
                 -> VersionGateLoadingScreen(modifier = Modifier.fillMaxSize())
             }
         }
-    } else if (versionGateUiState == VersionGateUiState.CheckFailed) {
+    } else if (versionGateUiState.status == VersionGateStatus.CheckFailed) {
         VersionCheckFailureScreen(onRetryClick = versionGateViewModel::retry)
     } else {
         VersionGateLoadingScreen()

@@ -39,14 +39,34 @@ class VersionGateViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.Accessible, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
         assertEquals(0, gateway.checkCount)
 
         connectivityObserver.mutableStatus.value = ConnectivityStatus.Online
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.Accessible, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
         assertEquals(1, gateway.checkCount)
+    }
+
+    @Test
+    fun `앱 진입 후 업데이트가 발견되어도 통과 이력을 유지한다`() = runTest {
+        val gateway = FakeAppUpdateGateway(AppUpdateCheckResult.ImmediateUpdateRequired)
+        val connectivityObserver = FakeConnectivityObserver(ConnectivityStatus.Offline)
+        val viewModel = VersionGateViewModel(gateway, connectivityObserver)
+
+        advanceUntilIdle()
+
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
+
+        connectivityObserver.mutableStatus.value = ConnectivityStatus.Online
+        advanceUntilIdle()
+
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
     }
 
     @Test
@@ -57,11 +77,13 @@ class VersionGateViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.UpdateRequired, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
+        assertFalse(viewModel.uiState.value.hasPassedVersionGate)
 
         viewModel.onImmediateUpdateStarted()
 
-        assertEquals(VersionGateUiState.UpdateInProgress, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.UpdateInProgress, viewModel.uiState.value.status)
+        assertFalse(viewModel.uiState.value.hasPassedVersionGate)
     }
 
     @Test
@@ -75,7 +97,7 @@ class VersionGateViewModelTest {
         viewModel.onResume()
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.UpdateRequired, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
         assertEquals(2, gateway.checkCount)
     }
 
@@ -87,13 +109,15 @@ class VersionGateViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.CheckFailed, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.CheckFailed, viewModel.uiState.value.status)
+        assertFalse(viewModel.uiState.value.hasPassedVersionGate)
 
         gateway.result = AppUpdateCheckResult.NoUpdate
         viewModel.retry()
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.Accessible, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
         assertEquals(2, gateway.checkCount)
     }
 
@@ -108,7 +132,7 @@ class VersionGateViewModelTest {
         viewModel.onImmediateUpdateFinished()
         advanceUntilIdle()
 
-        assertEquals(VersionGateUiState.UpdateRequired, viewModel.uiState.value)
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
         assertTrue(gateway.checkCount >= 2)
     }
 }
