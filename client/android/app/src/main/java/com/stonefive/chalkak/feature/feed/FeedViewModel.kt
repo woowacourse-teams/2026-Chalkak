@@ -26,6 +26,7 @@ class FeedViewModel(
     private val repository: PostRepository,
     private val initialContent: FeedContentState.Success? = null,
     private val postId: String? = initialContent?.post?.id,
+    private val isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -211,7 +212,7 @@ class FeedViewModel(
             signatureThumbnailImageUrl = detail.post.signatureThumbnailImageUrl
                 ?: previousPost?.signatureThumbnailImageUrl,
             submittedAt = detail.post.submittedAt ?: previousPost?.submittedAt,
-            isOwnedByCurrentUser = previousPost?.isOwnedByCurrentUser == true,
+            isOwnedByCurrentUser = previousPost?.isOwnedByCurrentUser ?: isOwnedByCurrentUser,
         )
         val updatedContent = FeedContentState.Success(
             dateLabel = detail.topicDate.toFeedDateLabel(),
@@ -249,6 +250,7 @@ class FeedViewModel(
         fun factory(
             postId: String? = null,
             initialContent: FeedContentState.Success? = null,
+            isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
         ) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
@@ -256,6 +258,7 @@ class FeedViewModel(
                     repository = application.appContainer.postRepository,
                     initialContent = initialContent,
                     postId = postId,
+                    isOwnedByCurrentUser = isOwnedByCurrentUser,
                 )
             }
         }

@@ -13,6 +13,7 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
@@ -56,6 +57,16 @@ class PostRemoteDataSourceImplTest {
 
         assertTrue(result is ApiResult.Success<*>)
         assertEquals("/api/v1/posts/$POST_ID", server.takeRequest().path)
+    }
+
+    @Test
+    fun `게시물 캘린더 요청은 조회 연월을 query로 전송한다`() = runTest {
+        server.enqueue(jsonResponse(CALENDAR_BODY))
+
+        val result = dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+        assertTrue(result is ApiResult.Success<*>)
+        assertEquals("/api/v1/posts/calendar?year=2026&month=8", server.takeRequest().path)
     }
 
     @Test
@@ -381,6 +392,8 @@ class PostRemoteDataSourceImplTest {
             """{"id":"$POST_ID","topic":{"id":"topic-id","title":"바다","topicDate":"2026-08-28"},"originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","title":"바다 사진","likeCount":3,"isLiked":false}"""
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
+        const val CALENDAR_BODY =
+            """{"year":2026,"month":8,"posts":[{"topicDate":"2026-08-31","postId":"$POST_ID","thumbnailImageUrl":"https://example.com/thumbnail.jpg","status":"APPROVED"}]}"""
     }
 }
 

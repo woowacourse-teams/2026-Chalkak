@@ -3,6 +3,8 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -12,10 +14,13 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostStatus
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +35,46 @@ class PostRepositoryImplTest {
         sort = PostSort.LATEST,
         page = 1,
     )
+
+    @Test
+    fun `게시물 캘린더 응답을 날짜순 도메인 모델로 변환한다`() = runTest {
+        remoteDataSource.calendarResult = ApiResult.Success(
+            calendarResponse(
+                posts = listOf(
+                    calendarPost(day = 31, status = "APPROVED"),
+                    calendarPost(day = 2, status = "NEW_SERVER_STATUS"),
+                ),
+            ),
+        )
+
+        val result = repository.getPostCalendar(YearMonth.of(2026, 8)) as HomeResult.Success<PostCalendar>
+
+        assertEquals(
+            listOf(2, 31),
+            result.value.posts
+                .map { it.topicDate.dayOfMonth },
+        )
+        assertEquals(
+            PostStatus.UNKNOWN,
+            result.value.posts[0]
+                .status,
+        )
+        assertEquals(
+            PostStatus.APPROVED,
+            result.value.posts[1]
+                .status,
+        )
+    }
+
+    @Test
+    fun `요청 월과 다른 캘린더 응답은 InvalidResponse다`() = runTest {
+        remoteDataSource.calendarResult = ApiResult.Success(calendarResponse(month = 7))
+
+        assertEquals(
+            HomeResult.Failure(HomeFailure.InvalidResponse),
+            repository.getPostCalendar(YearMonth.of(2026, 8)),
+        )
+    }
 
     @Test
     fun `게시물 상세 응답을 Feed 도메인 모델로 변환한다`() = runTest {
@@ -296,6 +341,7 @@ class PostRepositoryImplTest {
 private class FakePostRemoteDataSource : PostRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
     var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
+    var calendarResult: ApiResult<PostCalendarResponse> = ApiResult.Success(calendarResponse())
     var topicResult: ApiResult<TopicResponse> = ApiResult.Success(
         TopicResponse(
             id = "topic-id",
@@ -312,6 +358,8 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
         ),
     )
 
+    override suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse> = calendarResult
+
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
 
     override suspend fun getTopic(date: LocalDate): ApiResult<TopicResponse> = topicResult
@@ -326,6 +374,25 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
         isLiked: Boolean,
     ): ApiResult<PostLikeResponse> = likeResult
 }
+
+private fun calendarResponse(
+    month: Int = 8,
+    posts: List<PostCalendarItemResponse> = listOf(calendarPost()),
+) = PostCalendarResponse(
+    year = 2026,
+    month = month,
+    posts = posts,
+)
+
+private fun calendarPost(
+    day: Int = 31,
+    status: String = "APPROVED",
+) = PostCalendarItemResponse(
+    topicDate = "2026-08-${day.toString().padStart(2, '0')}",
+    postId = "post-$day",
+    thumbnailImageUrl = "https://example.com/post-$day-thumbnail.jpg",
+    status = status,
+)
 
 private fun postPage(
     posts: List<PostResponse> = listOf(

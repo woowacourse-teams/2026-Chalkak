@@ -26,7 +26,8 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.RecordPhoto
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -41,11 +42,11 @@ private val DateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Loc
 @Composable
 fun RecordCalendarGrid(
     month: YearMonth,
-    photos: List<RecordPhoto>,
+    posts: List<PostCalendarItem>,
     onDateClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val photosByDate = photos.associateBy(RecordPhoto::date)
+    val postsByDate = posts.associateBy(PostCalendarItem::topicDate)
     val leadingEmptyCells = month
         .atDay(1)
         .dayOfWeek.value % 7
@@ -96,8 +97,8 @@ fun RecordCalendarGrid(
                     horizontalArrangement = Arrangement.spacedBy(CalendarGridItemPadding),
                 ) {
                     week.forEach { date ->
-                        val photo = date?.let { photosByDate[it] }
-                        if (photo == null) {
+                        val post = date?.let { postsByDate[it] }
+                        if (post == null) {
                             Spacer(
                                 modifier = Modifier
                                     .weight(1f)
@@ -105,8 +106,8 @@ fun RecordCalendarGrid(
                             )
                         } else {
                             RecordDayCell(
-                                photo = photo,
-                                onClick = { onDateClick(photo.date) },
+                                post = post,
+                                onClick = { onDateClick(post.topicDate) },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -119,7 +120,7 @@ fun RecordCalendarGrid(
 
 @Composable
 private fun RecordDayCell(
-    photo: RecordPhoto,
+    post: PostCalendarItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -128,11 +129,11 @@ private fun RecordDayCell(
         .aspectRatio(CALENDAR_PHOTO_ASPECT_RATIO)
         .clip(shape)
         .background(ChalkakTheme.colors.calendarCell)
-        .semantics { contentDescription = "${photo.date.format(DateFormatter)} 사진" }
+        .semantics { contentDescription = "${post.topicDate.format(DateFormatter)} 사진" }
         .clickable(onClick = onClick)
     Box(modifier = cellModifier) {
         ChalkakImage(
-            model = photo.imageUrl,
+            model = post.thumbnailImageUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
@@ -144,18 +145,17 @@ private fun RecordDayCell(
 @Composable
 private fun RecordCalendarGridPreview() {
     val month = YearMonth.of(2026, 8)
-    val photo = RecordPhoto(
-        date = month.atDay(2),
-        imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-        signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-        contentDescription = "노을과 전신주",
-        title = "물결",
+    val post = PostCalendarItem(
+        postId = "preview-post",
+        topicDate = month.atDay(2),
+        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+        status = PostStatus.APPROVED,
     )
 
     ChalkakTheme {
         RecordCalendarGrid(
             month = month,
-            photos = listOf(photo),
+            posts = listOf(post),
             onDateClick = {},
             modifier = Modifier
                 .fillMaxWidth()

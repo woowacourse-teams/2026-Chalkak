@@ -1,9 +1,17 @@
 package com.stonefive.chalkak.feature.record
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.RecordContent
-import com.stonefive.chalkak.domain.model.RecordPhoto
-import com.stonefive.chalkak.domain.repository.RecordRepository
+import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeLike
+import com.stonefive.chalkak.domain.model.HomeQuery
+import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.PostCalendar
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostContent
+import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostPage
+import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -18,13 +26,17 @@ class RecordViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var repository: FakeRecordRepository
+    private lateinit var repository: FakePostRepository
     private lateinit var viewModel: RecordViewModel
 
     @Before
     fun setUp() {
-        repository = FakeRecordRepository()
-        viewModel = RecordViewModel(repository, RecordTestMonth)
+        repository = FakePostRepository()
+        viewModel = RecordViewModel(
+            repository = repository,
+            initialMonth = RecordTestMonth,
+            latestMonth = RecordLatestMonth,
+        )
     }
 
     @Test
@@ -37,12 +49,12 @@ class RecordViewModelTest {
             viewModel.uiState.value.selectedDate
                 ?.dayOfMonth,
         )
-        assertEquals(2, viewModel.uiState.value.photos.size)
+        assertEquals(2, viewModel.uiState.value.posts.size)
         assertEquals(listOf(RecordTestMonth), repository.requests)
     }
 
     @Test
-    fun selectsPhotoDate() = runTest {
+    fun selectsPostDate() = runTest {
         advanceUntilIdle()
 
         val selectedDate = RecordTestMonth.atDay(5)
@@ -52,7 +64,7 @@ class RecordViewModelTest {
     }
 
     @Test
-    fun keepsSelectionForDateWithoutPhoto() = runTest {
+    fun keepsSelectionForDateWithoutPost() = runTest {
         advanceUntilIdle()
 
         viewModel.selectDate(RecordTestMonth.atDay(6))
@@ -61,71 +73,94 @@ class RecordViewModelTest {
     }
 
     @Test
-    fun disablesMonthsWithoutPhotosBeforeNavigation() = runTest {
+    fun movesToPreviousMonthEvenWhenItHasNoPosts() = runTest {
         advanceUntilIdle()
-
-        assertEquals(false, viewModel.uiState.value.canGoPrevious)
-        assertEquals(false, viewModel.uiState.value.canGoNext)
 
         viewModel.moveToPreviousMonth()
-        viewModel.moveToNextMonth()
         advanceUntilIdle()
 
-        assertEquals(RecordTestMonth, viewModel.uiState.value.month)
-        assertEquals(listOf(RecordTestMonth), repository.requests)
+        assertEquals(RecordTestMonth.minusMonths(1), viewModel.uiState.value.month)
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
     }
 
     @Test
-    fun movesOnlyToAvailableAdjacentMonth() = runTest {
-        val nextMonth = RecordTestMonth.plusMonths(1)
-        repository = FakeRecordRepository(
-            availableMonths = setOf(RecordTestMonth, nextMonth),
-        )
-        viewModel = RecordViewModel(repository, RecordTestMonth)
+    fun failedMonthLoadClearsPreviousMonthContent() = runTest {
+        advanceUntilIdle()
+        val failedMonth = RecordTestMonth.minusMonths(1)
+        repository.failureMonth = failedMonth
+
+        viewModel.moveToPreviousMonth()
+        advanceUntilIdle()
+
+        assertEquals(failedMonth, viewModel.uiState.value.month)
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals("조회할 수 없는 연월이에요", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun movesToNextMonthOnlyUpToLatestMonth() = runTest {
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.canGoNext)
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+
+        assertEquals(RecordLatestMonth, viewModel.uiState.value.month)
+        assertEquals(false, viewModel.uiState.value.canGoNext)
 
         viewModel.moveToNextMonth()
         advanceUntilIdle()
 
-        assertEquals(nextMonth, viewModel.uiState.value.month)
-        assertEquals(false, viewModel.uiState.value.canGoNext)
-        assertEquals(true, viewModel.uiState.value.canGoPrevious)
-        assertEquals(listOf(RecordTestMonth, nextMonth), repository.requests)
+        assertEquals(listOf(RecordTestMonth, RecordLatestMonth), repository.requests)
     }
 }
 
 private val RecordTestMonth = YearMonth.of(2026, 8)
+private val RecordLatestMonth = YearMonth.of(2026, 9)
 
-private class FakeRecordRepository(private val availableMonths: Set<YearMonth> = setOf(RecordTestMonth)) :
-    RecordRepository {
+private class FakePostRepository : PostRepository {
     val requests = mutableListOf<YearMonth>()
+    var failureMonth: YearMonth? = null
 
-    override suspend fun getRecord(month: YearMonth): RecordContent {
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> {
         requests += month
-        return RecordContent(
-            month = month,
-            photos = if (month in availableMonths) {
-                listOf(
-                    recordPhoto(month = month, day = 2),
-                    recordPhoto(month = month, day = 5),
-                )
-            } else {
-                emptyList()
-            },
-            availableMonths = availableMonths,
+        if (month == failureMonth) return HomeResult.Failure(HomeFailure.Http(400))
+
+        return HomeResult.Success(
+            PostCalendar(
+                month = month,
+                posts = if (month == RecordTestMonth) {
+                    listOf(
+                        calendarPost(month, day = 2),
+                        calendarPost(month, day = 5),
+                    )
+                } else {
+                    emptyList()
+                },
+            ),
         )
     }
 
-    private fun recordPhoto(
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")
+
+    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): HomeResult<HomeLike> = error("unused")
+
+    private fun calendarPost(
         month: YearMonth,
         day: Int,
-    ): RecordPhoto = RecordPhoto(
-        date = month.atDay(day),
-        imageUrl = "photo-$day",
-        signatureUrl = "signature-$day",
-        contentDescription = "사진 $day",
-        title = "물결",
+    ) = PostCalendarItem(
+        postId = "post-$day",
+        topicDate = month.atDay(day),
+        thumbnailImageUrl = "photo-$day",
+        status = PostStatus.APPROVED,
     )
 }

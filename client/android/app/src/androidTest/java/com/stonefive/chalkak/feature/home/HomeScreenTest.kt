@@ -25,6 +25,7 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
@@ -32,6 +33,7 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -323,6 +325,8 @@ private fun photos(count: Int) = List(count) { index ->
 private class GuestPostRepository : PostRepository {
     var likeRequestCount = 0
 
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
@@ -350,6 +354,8 @@ private class GuestPostRepository : PostRepository {
 private class PageFailurePostRepository : PostRepository {
     val pageResult = CompletableDeferred<HomeResult<PostPage>>()
     var pageRequestCount = 0
+
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 

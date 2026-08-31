@@ -6,12 +6,14 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -260,6 +262,8 @@ private class FakePostRepository : PostRepository {
             randomSeed = null,
         ),
     )
+
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 

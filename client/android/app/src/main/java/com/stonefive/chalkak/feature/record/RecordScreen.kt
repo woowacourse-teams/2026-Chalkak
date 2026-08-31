@@ -42,7 +42,8 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.RecordPhoto
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
 import com.stonefive.chalkak.feature.record.component.RecordPhotoActions
 import com.stonefive.chalkak.feature.record.component.RecordSelectedPhoto
@@ -61,7 +62,7 @@ fun RecordRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
-    onOpenFeed: (RecordPhoto) -> Unit = {},
+    onOpenFeed: (String) -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
@@ -90,7 +91,7 @@ fun RecordScreen(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenFeed: (RecordPhoto) -> Unit = {},
+    onOpenFeed: (String) -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
@@ -207,13 +208,13 @@ fun RecordScreen(
 
                         RecordCalendarGrid(
                             month = uiState.month,
-                            photos = uiState.photos,
+                            posts = uiState.posts,
                             onDateClick = onDateClick,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = RecordHorizontalPadding),
                         )
-                        if (uiState.selectedPhoto != null) {
+                        if (uiState.selectedPost != null) {
                             Spacer(modifier = Modifier.height(36.dp))
                         }
                     }
@@ -234,18 +235,18 @@ fun RecordScreen(
                 )
             }
             if (uiState.errorMessage == null) {
-                val selectedPhoto = uiState.selectedPhoto
+                val selectedPost = uiState.selectedPost
                 RecordSelectedPhoto(
-                    photo = selectedPhoto,
+                    post = selectedPost,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (selectedPhoto != null) {
+                if (selectedPost?.status == PostStatus.APPROVED) {
                     RecordPhotoActions(
                         onFeedClick = {
-                            onOpenFeed(selectedPhoto)
+                            onOpenFeed(selectedPost.postId)
                         },
                         onDisplayClick = {
-                            onOpenDisplay(selectedPhoto.date)
+                            onOpenDisplay(selectedPost.topicDate)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -272,20 +273,19 @@ fun RecordScreen(
 @Preview(showBackground = true, widthDp = 402, heightDp = 1000)
 @Composable
 private fun RecordScreenPreview() {
-    val photo = RecordPhoto(
-        date = LocalDate.of(2026, 8, 2),
-        imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-        signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-        contentDescription = "노을과 전신주",
-        title = "물결",
+    val post = PostCalendarItem(
+        postId = "preview-post",
+        topicDate = LocalDate.of(2026, 8, 2),
+        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+        status = PostStatus.APPROVED,
     )
 
     ChalkakTheme {
         RecordScreen(
             uiState = RecordUiState(
                 isLoading = false,
-                photos = listOf(photo),
-                selectedDate = photo.date,
+                posts = listOf(post),
+                selectedDate = post.topicDate,
             ),
             onPreviousMonthClick = {},
             onNextMonthClick = {},
