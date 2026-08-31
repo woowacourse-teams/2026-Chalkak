@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,9 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedB
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.UserProfile
+
+private val PreviewSignatureWidth = 112.dp
+private val PreviewSignatureHeight = 84.dp
 
 @Composable
 fun OnboardingSignaturePreviewRoute(
@@ -133,6 +137,10 @@ fun SignaturePreviewScreen(
             imageModel = imageModel,
             signatureModel = signatureModel,
             contentDescription = "사진에 사인이 적용된 모습",
+            signatureModifier = Modifier.size(
+                width = PreviewSignatureWidth,
+                height = PreviewSignatureHeight,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(5f / 6f)
