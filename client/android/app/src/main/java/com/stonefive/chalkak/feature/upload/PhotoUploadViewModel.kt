@@ -33,7 +33,11 @@ class PhotoUploadViewModel(
     private var imageGeneration = 0L
     private var preparationJob: Job? = null
     private var submissionJob: Job? = null
-    private val _uiState = MutableStateFlow(PhotoUploadUiState())
+    private val _uiState = MutableStateFlow(
+        PhotoUploadUiState(
+            topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
+        ),
+    )
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
 
     private val _uiEvent = Channel<PhotoUploadUiEvent>(Channel.BUFFERED)
@@ -67,8 +71,9 @@ class PhotoUploadViewModel(
     }
 
     fun reset() {
+        val topicTitle = _uiState.value.topicTitle
         clearImageWork()
-        _uiState.value = PhotoUploadUiState()
+        _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
     }
 
     override fun onCleared() {
@@ -247,7 +252,16 @@ class PhotoUploadViewModel(
                 when (val result = postCreationRepository.getCreationTopic(topicDate)) {
                     is PostCreationTopicResult.Success -> {
                         creationTopic = result.value
-                        _uiState.update { it.copy(isTopicLoading = false, topicTitle = result.value.title) }
+                        _uiState.update { state ->
+                            state.copy(
+                                isTopicLoading = false,
+                                topicTitle = if (state.topicTitle == result.value.title) {
+                                    state.topicTitle
+                                } else {
+                                    result.value.title
+                                },
+                            )
+                        }
                         if (submitAfterLoad) submit()
                     }
 

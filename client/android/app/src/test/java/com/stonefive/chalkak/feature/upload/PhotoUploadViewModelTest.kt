@@ -37,6 +37,43 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `캐시가 있으면 즉시 노출하고 재조회한 주제가 다르면 교체한다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakePostCreationRepository().apply {
+            cachedTopic = Topic("cached-topic-id", "틈", uploadTopicDate)
+            topicAwait = gate
+            topicResult = PostCreationTopicResult.Success(Topic("fresh-topic-id", "빛", uploadTopicDate))
+        }
+
+        val cachedViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
+
+        assertEquals("틈", cachedViewModel.uiState.value.topicTitle)
+        assertTrue(cachedViewModel.uiState.value.isTopicLoading)
+
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("빛", cachedViewModel.uiState.value.topicTitle)
+        assertFalse(cachedViewModel.uiState.value.isTopicLoading)
+    }
+
+    @Test
+    fun `캐시가 없으면 재조회 완료 전까지 주제 문구를 노출하지 않는다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakePostCreationRepository().apply { topicAwait = gate }
+
+        val uncachedViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
+
+        assertEquals(null, uncachedViewModel.uiState.value.topicTitle)
+        assertTrue(uncachedViewModel.uiState.value.isTopicLoading)
+
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(repository.defaultTopic.title, uncachedViewModel.uiState.value.topicTitle)
+    }
+
+    @Test
     fun `사진을 선택하면 제출할 수 있다`() {
         val image = "content://media/photo/1"
 
@@ -337,7 +374,10 @@ class PhotoUploadViewModelTest {
 
         viewModel.reset()
 
-        assertEquals(PhotoUploadUiState(), viewModel.uiState.value)
+        assertEquals(
+            PhotoUploadUiState(topicTitle = postCreationRepository.defaultTopic.title),
+            viewModel.uiState.value,
+        )
         assertEquals(listOf(preparation), postCreationRepository.discardedPreparations)
     }
 }
@@ -351,6 +391,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     var topicResult: PostCreationTopicResult = PostCreationTopicResult.Success(defaultTopic)
     var cachedTopic: Topic? = null
     val topicResults = ArrayDeque<PostCreationTopicResult>()
+    var topicAwait: CompletableDeferred<Unit>? = null
     val prepareResults = ArrayDeque<PostImagePreparationResult>()
     var prepareAwait: CompletableDeferred<Unit>? = null
     var result: PostCreationResult = PostCreationResult.Failure(
@@ -369,6 +410,7 @@ private class FakePostCreationRepository : PostCreationRepository {
 
     override suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult {
         requestedTopicDates += topicDate
+        topicAwait?.await()
         return if (topicResults.isEmpty()) topicResult else topicResults.removeFirst()
     }
 

@@ -50,16 +50,18 @@ fun PhotoUploadImageArea(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    text = topicTitle?.let { "주제 ‘$it’에 맞는 한 장" } ?: "오늘의 주제에 맞는 한 장",
-                    color = ChalkakTheme.colors.textSecondary,
-                    style = ChalkakTheme.typography.subheadline,
-                )
+                topicTitle?.let {
+                    Text(
+                        text = "주제 ‘$it’에 맞는 한 장",
+                        color = ChalkakTheme.colors.textSecondary,
+                        style = ChalkakTheme.typography.subheadline,
+                    )
+                }
                 Text(
                     text = "앨범에서 고르거나 지금 찍어요",
                     color = ChalkakTheme.colors.textMuted,
                     style = ChalkakTheme.typography.caption,
-                    modifier = Modifier.padding(top = 5.dp),
+                    modifier = Modifier.padding(top = if (topicTitle == null) 0.dp else 5.dp),
                 )
             }
         } else {

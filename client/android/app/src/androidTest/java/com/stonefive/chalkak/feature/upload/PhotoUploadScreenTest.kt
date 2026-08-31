@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -43,7 +44,33 @@ class PhotoUploadScreenTest {
             .onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG)
             .assertIsDisplayed()
             .assertIsNotEnabled()
-        composeRule.onNodeWithText("오늘의 주제에 맞는 한 장").assertIsDisplayed()
+        assertTrue(
+            composeRule
+                .onAllNodesWithText("오늘의 주제에 맞는 한 장")
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
+        composeRule.onNodeWithText("앨범에서 고르거나 지금 찍어요").assertIsDisplayed()
+    }
+
+    @Test
+    fun cachedTopicIsDisplayedWithoutGenericFallback() {
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = PhotoUploadUiState(topicTitle = "틈"),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").assertIsDisplayed()
+        assertTrue(
+            composeRule
+                .onAllNodesWithText("오늘의 주제에 맞는 한 장")
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -192,7 +219,7 @@ class PhotoUploadScreenTest {
             .performClick()
             .assertIsFocused()
 
-        composeRule.onNodeWithText("오늘의 주제에 맞는 한 장").performTouchInput {
+        composeRule.onNodeWithText("앨범에서 고르거나 지금 찍어요").performTouchInput {
             click()
         }
 
