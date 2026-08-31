@@ -22,7 +22,6 @@ import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.RecordPhoto
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -249,8 +248,13 @@ fun ChalkakNavHost(
             RecordRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
-                onOpenFeed = { photo ->
-                    navController.navigate(photo.toFeedRoute())
+                onOpenFeed = { postId ->
+                    navController.navigate(
+                        FeedById(
+                            postId = postId,
+                            isOwnedByCurrentUser = true,
+                        ),
+                    )
                 },
                 onOpenDisplay = { date ->
                     navController.navigateToDisplay(date)
@@ -380,20 +384,6 @@ private fun NavHostController.navigateToDisplay(date: LocalDate) {
 private fun NavHostController.navigateToPhotoUpload() {
     navigate(PhotoUpload(topicDate = LocalDate.now(KST).toString()))
 }
-
-private fun RecordPhoto.toFeedRoute(): Feed = Feed(
-    postId = "record-$date",
-    originalImageUrl = imageUrl,
-    thumbnailImageUrl = imageUrl,
-    signatureOriginalImageUrl = signatureUrl,
-    signatureThumbnailImageUrl = signatureUrl,
-    contentDescription = contentDescription,
-    title = title,
-    likeCount = 0,
-    dateLabel = "${date.monthValue}월 ${date.dayOfMonth}일의 주제",
-    topic = title?.takeIf(String::isNotBlank) ?: "오늘의 기록",
-    fetchDetail = false,
-)
 
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
     LocalDate.parse(this)

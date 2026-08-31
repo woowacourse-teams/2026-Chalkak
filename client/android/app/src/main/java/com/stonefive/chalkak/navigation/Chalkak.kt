@@ -44,6 +44,12 @@ data class Feed(
 )
 
 @Serializable
+data class FeedById(
+    val postId: String,
+    val isOwnedByCurrentUser: Boolean,
+)
+
+@Serializable
 data object Record
 
 @Serializable

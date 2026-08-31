@@ -3,6 +3,8 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
@@ -13,19 +15,29 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
+import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeParseException
 
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
     private val topicRemoteDataSource: TopicRemoteDataSource,
 ) : PostRepository {
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> =
+        when (val result = remoteDataSource.getPostCalendar(month)) {
+            is ApiResult.Success -> result.value.toDomain(month)
+            is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        }
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
         when (val result = remoteDataSource.getPostDetail(postId)) {
             is ApiResult.Success -> result.value.toDomain(postId)
@@ -108,6 +120,46 @@ class PostRepositoryImpl(
                 hasNext = hasNext,
                 randomSeed = effectiveSeed,
             ),
+        )
+    }
+
+    private fun PostCalendarResponse.toDomain(requestedMonth: YearMonth): HomeResult<PostCalendar> {
+        val responseMonth = runCatching { YearMonth.of(year, month) }.getOrNull()
+            ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
+        if (responseMonth != requestedMonth) return HomeResult.Failure(HomeFailure.InvalidResponse)
+
+        val mappedPosts = buildList {
+            for (post in posts) {
+                add(post.toCalendarDomain(responseMonth) ?: return HomeResult.Failure(HomeFailure.InvalidResponse))
+            }
+        }
+        if (
+            mappedPosts
+                .map(PostCalendarItem::topicDate)
+                .distinct()
+                .size != mappedPosts.size
+        ) {
+            return HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+
+        return HomeResult.Success(
+            PostCalendar(
+                month = responseMonth,
+                posts = mappedPosts.sortedBy(PostCalendarItem::topicDate),
+            ),
+        )
+    }
+
+    private fun PostCalendarItemResponse.toCalendarDomain(month: YearMonth): PostCalendarItem? {
+        val date = runCatching { LocalDate.parse(topicDate) }.getOrNull() ?: return null
+        if (YearMonth.from(date) != month || postId.isBlank() || thumbnailImageUrl.isBlank()) return null
+
+        return PostCalendarItem(
+            postId = postId,
+            topicDate = date,
+            thumbnailImageUrl = thumbnailImageUrl,
+            status = runCatching { PostStatus.valueOf(status.uppercase()) }
+                .getOrDefault(PostStatus.UNKNOWN),
         )
     }
 

@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.remote.post
 
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCreateRequest
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
@@ -16,6 +17,12 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PostApi {
+    @GET("posts/calendar")
+    suspend fun getPostCalendar(
+        @Query("year") year: Int,
+        @Query("month") month: Int,
+    ): Response<PostCalendarResponse>
+
     @POST("posts/uploads")
     suspend fun createPostImageUpload(): Response<PostImageUploadResponse>
 

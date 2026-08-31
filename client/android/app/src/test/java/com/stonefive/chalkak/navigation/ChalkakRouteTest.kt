@@ -27,6 +27,16 @@ class ChalkakRouteTest {
     }
 
     @Test
+    fun `feed by id route preserves calendar post context after serialization`() {
+        val route = FeedById(
+            postId = "post-42",
+            isOwnedByCurrentUser = true,
+        )
+
+        assertEquals(route, roundTrip(route))
+    }
+
+    @Test
     fun `display route preserves selected date after serialization`() {
         val route = Display(date = "2026-08-02")
 

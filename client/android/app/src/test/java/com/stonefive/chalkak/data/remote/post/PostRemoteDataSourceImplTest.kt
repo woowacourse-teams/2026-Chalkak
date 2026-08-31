@@ -1,19 +1,24 @@
 package com.stonefive.chalkak.data.remote.post
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
+import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.UserIdHeaderInterceptor
+import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -51,6 +56,16 @@ class PostRemoteDataSourceImplTest {
 
         assertTrue(result is ApiResult.Success<*>)
         assertEquals("/api/v1/posts/$POST_ID", server.takeRequest().path)
+    }
+
+    @Test
+    fun `게시물 캘린더 요청은 조회 연월을 query로 전송한다`() = runTest {
+        server.enqueue(jsonResponse(CALENDAR_BODY))
+
+        val result = dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+        assertTrue(result is ApiResult.Success<*>)
+        assertEquals("/api/v1/posts/calendar?year=2026&month=8", server.takeRequest().path)
     }
 
     @Test
@@ -148,15 +163,17 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `인증된 게시물 요청은 기존 인터셉터의 user id 헤더를 사용한다`() = runTest {
+    fun `인증된 게시물 요청은 Authorization bearer 헤더를 사용한다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "access-token",
+        )
         dataSource = createDataSource(
             client = OkHttpClient
                 .Builder()
-                .addInterceptor(
-                    UserIdHeaderInterceptor(
-                        TestSessionStore(UserSessionState.Authenticated("user-id")),
-                    ),
-                ).build(),
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
+                .build(),
+            sessionStore = sessionStore,
         )
         server.enqueue(jsonResponse(POSTS_BODY))
 
@@ -168,7 +185,104 @@ class PostRemoteDataSourceImplTest {
             ),
         )
 
-        assertEquals("user-id", server.takeRequest().headers["X-User-Id"])
+        val request = server.takeRequest()
+        assertEquals("Bearer access-token", request.headers["Authorization"])
+        assertNull(request.headers["X-User-Id"])
+    }
+
+    @Test
+    fun `Post API가 401이면 세션을 무효화한다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "access-token",
+        )
+        dataSource = createDataSource(
+            client = OkHttpClient
+                .Builder()
+                .addInterceptor(testAuthorizationInterceptor("access-token"))
+                .build(),
+            sessionStore = sessionStore,
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"UNAUTHORIZED"}"""),
+        )
+
+        val result = dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+        assertEquals(ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED")), result)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+        assertEquals(LocalSession.SignedOut, sessionStore.session.value)
+    }
+
+    @Test
+    fun `이전 access token 요청의 401은 새 세션을 무효화하지 않는다`() = runTest {
+        val sessionStore = TestSessionStore(
+            initialState = UserSessionState.Authenticated("user-id"),
+            initialAccessToken = "old-access-token",
+        )
+        val newCredentials = SessionCredentials(
+            userId = "user-id",
+            accessToken = "new-access-token",
+            expiresAtEpochSeconds = Long.MAX_VALUE,
+        )
+        dataSource = createDataSource(
+            client = OkHttpClient
+                .Builder()
+                .addInterceptor(testAuthorizationInterceptor("old-access-token"))
+                .addInterceptor { chain ->
+                    val response = chain.proceed(chain.request())
+                    runBlocking { sessionStore.saveSession(newCredentials) }
+                    response
+                }.build(),
+            sessionStore = sessionStore,
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"errorCode":"UNAUTHORIZED"}"""),
+        )
+
+        dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+        assertEquals(LocalSession.Authenticated(newCredentials), sessionStore.session.value)
+    }
+
+    @Test
+    fun `HTTP 실패 상태를 보존한다`() = runTest {
+        listOf(404, 401, 500, 400).forEach { statusCode ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(statusCode)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("""{"errorCode":"ERROR_$statusCode"}"""),
+            )
+
+            val result = dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+            assertEquals(
+                ApiResult.Failure(ApiError.Http(statusCode, "ERROR_$statusCode")),
+                result,
+            )
+        }
+    }
+
+    @Test
+    fun `빈 성공 body와 깨진 JSON은 invalid response다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+        server.enqueue(jsonResponse("{"))
+
+        assertEquals(
+            ApiResult.Failure(ApiError.InvalidResponse),
+            dataSource.getPostCalendar(YearMonth.of(2026, 8)),
+        )
+        assertEquals(
+            ApiResult.Failure(ApiError.InvalidResponse),
+            dataSource.getPostCalendar(YearMonth.of(2026, 8)),
+        )
     }
 
     @Test
@@ -225,7 +339,19 @@ class PostRemoteDataSourceImplTest {
         }
     }
 
-    private fun createDataSource(client: OkHttpClient = OkHttpClient()): PostRemoteDataSourceImpl {
+    @Test
+    fun `서버 연결 실패는 network failure다`() = runTest {
+        server.shutdown()
+
+        val result = dataSource.getPostCalendar(YearMonth.of(2026, 8))
+
+        assertEquals(ApiResult.Failure(ApiError.Network), result)
+    }
+
+    private fun createDataSource(
+        client: OkHttpClient = OkHttpClient(),
+        sessionStore: TestSessionStore = TestSessionStore(UserSessionState.SignedOut),
+    ): PostRemoteDataSourceImpl {
         val json = Json { ignoreUnknownKeys = true }
         val retrofit = Retrofit
             .Builder()
@@ -235,7 +361,7 @@ class PostRemoteDataSourceImplTest {
             .build()
         return PostRemoteDataSourceImpl(
             postApi = retrofit.create(PostApi::class.java),
-            requestExecutor = ApiRequestExecutor(json, onUnauthorized = {}),
+            requestExecutor = ApiRequestExecutor(json, sessionStore::clearIfAccessTokenMatches),
         )
     }
 
@@ -252,23 +378,66 @@ class PostRemoteDataSourceImplTest {
             """{"id":"$POST_ID","topic":{"id":"topic-id","title":"바다","topicDate":"2026-08-28"},"originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","title":"바다 사진","likeCount":3,"isLiked":false}"""
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
+        const val CALENDAR_BODY =
+            """{"year":2026,"month":8,"posts":[{"topicDate":"2026-08-31","postId":"$POST_ID","thumbnailImageUrl":"https://example.com/thumbnail.jpg","status":"APPROVED"}]}"""
     }
 }
 
-private class TestSessionStore(initialState: UserSessionState) : SessionStore {
-    private val mutableSessionState = MutableStateFlow(initialState)
+private fun testAuthorizationInterceptor(accessToken: String) = Interceptor { chain ->
+    val request = chain
+        .request()
+        .newBuilder()
+        .header("Authorization", "Bearer $accessToken")
+        .tag(
+            AuthorizationRequestContext::class.java,
+            AuthorizationRequestContext(accessToken),
+        ).build()
+    chain.proceed(request)
+}
 
+private class TestSessionStore(
+    initialState: UserSessionState,
+    initialAccessToken: String? = null,
+) : SessionStore {
+    private val mutableSessionState = MutableStateFlow(initialState)
+    private val mutableSession = MutableStateFlow<LocalSession>(
+        when (initialState) {
+            UserSessionState.Loading -> LocalSession.Loading
+
+            UserSessionState.SignedOut -> LocalSession.SignedOut
+
+            UserSessionState.Guest -> LocalSession.Guest
+
+            is UserSessionState.Authenticated -> LocalSession.Authenticated(
+                SessionCredentials(
+                    userId = initialState.userId,
+                    accessToken = requireNotNull(initialAccessToken),
+                    expiresAtEpochSeconds = Long.MAX_VALUE,
+                ),
+            )
+        },
+    )
+
+    override val session: StateFlow<LocalSession> = mutableSession
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     override suspend fun continueAsGuest() {
+        mutableSession.value = LocalSession.Guest
         mutableSessionState.value = UserSessionState.Guest
     }
 
-    override suspend fun saveUserId(userId: String) {
-        mutableSessionState.value = UserSessionState.Authenticated(userId)
+    override suspend fun saveSession(credentials: SessionCredentials) {
+        mutableSession.value = LocalSession.Authenticated(credentials)
+        mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
     override suspend fun clear() {
+        mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
+        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
+        if (currentToken == accessToken) clear()
     }
 }

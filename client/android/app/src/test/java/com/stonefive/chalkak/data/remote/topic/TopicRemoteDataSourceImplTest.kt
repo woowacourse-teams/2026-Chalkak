@@ -82,7 +82,7 @@ class TopicRemoteDataSourceImplTest {
         )
 
         assertEquals(
-            ApiResult.Failure(ApiError.Http(400, null)),
+            ApiResult.Failure(ApiError.Http(400, "BUSINESS_ERROR")),
             dataSource.getTopic(LocalDate.of(2026, 8, 28)),
         )
     }

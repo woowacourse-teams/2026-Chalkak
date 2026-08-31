@@ -3,11 +3,13 @@ package com.stonefive.chalkak.data.remote.post
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -28,9 +30,23 @@ class PostCreationRemoteDataSourceImplTest {
         server = MockWebServer()
         server.start()
         val json = Json { ignoreUnknownKeys = true }
+        val client = OkHttpClient
+            .Builder()
+            .addInterceptor { chain ->
+                val request = chain
+                    .request()
+                    .newBuilder()
+                    .header("Authorization", "Bearer access-token")
+                    .tag(
+                        AuthorizationRequestContext::class.java,
+                        AuthorizationRequestContext("access-token"),
+                    ).build()
+                chain.proceed(request)
+            }.build()
         val retrofit = Retrofit
             .Builder()
             .baseUrl(server.url("/api/v1/"))
+            .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
         unauthorizedHandled = false
