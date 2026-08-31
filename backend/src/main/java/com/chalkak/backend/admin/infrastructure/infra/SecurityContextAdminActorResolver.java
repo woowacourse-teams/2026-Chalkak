@@ -35,7 +35,7 @@ public class SecurityContextAdminActorResolver implements AdminActorResolver {
             );
         }
         boolean adminAuthority = authentication.getAuthorities().stream()
-                .anyMatch(authority -> AccessTokenScope.ADMIN.authority()
+                .anyMatch(authority -> AccessTokenScope.ADMIN.toAuthority()
                         .equals(authority.getAuthority()));
         if (!adminAuthority) {
             throw new ForbiddenException(

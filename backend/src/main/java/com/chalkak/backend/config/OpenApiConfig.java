@@ -8,7 +8,10 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import java.util.List;
 import java.util.Set;
@@ -118,9 +121,15 @@ public class OpenApiConfig {
 
     private void customizeAdminSecurity(OpenAPI openApi) {
         openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations()
-                .forEach(operation -> operation.setSecurity(List.of(
-                        new SecurityRequirement().addList("adminAccessToken")
-                ))));
+                .forEach(operation -> {
+                    operation.setSecurity(List.of(
+                            new SecurityRequirement().addList("adminAccessToken")
+                    ));
+                    operation.getResponses().putIfAbsent("401", new ApiResponse()
+                            .description("관리자 인증 필요")
+                            .content(new Content().addMediaType("application/json", new MediaType()
+                                    .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse")))));
+                }));
 
         PathItem loginPath = openApi.getPaths().get("/api/v1/admin/auth/login");
         if (loginPath != null && loginPath.getPost() != null) {

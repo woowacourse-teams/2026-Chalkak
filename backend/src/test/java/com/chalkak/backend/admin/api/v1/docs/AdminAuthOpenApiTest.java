@@ -33,6 +33,16 @@ class AdminAuthOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/auth/logout'].post.security[0]"
                         + ".adminAccessToken").isArray())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get.security[0]"
-                        + ".adminAccessToken").isArray());
+                        + ".adminAccessToken").isArray())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/auth/me'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/auth/logout'].post.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].get.responses['401']"
+                        + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ErrorResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/auth/me'].get.responses['403']"
+                        + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ErrorResponse"));
     }
 }

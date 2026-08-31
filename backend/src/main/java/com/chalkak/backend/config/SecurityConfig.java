@@ -9,6 +9,8 @@ import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvid
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -45,8 +47,10 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtAccessTokenProvider accessTokenProvider,
             AuthenticationErrorResponder responder,
-            AdminAuthenticationProperties adminAuthenticationProperties
+            AdminAuthenticationProperties adminAuthenticationProperties,
+            Environment environment
     ) throws Exception {
+        validateDevelopmentBypass(adminAuthenticationProperties, environment);
         UnauthorizedEntryPoint entryPoint = new UnauthorizedEntryPoint(responder);
 
         return http
@@ -76,10 +80,9 @@ public class SecurityConfig {
                     if (adminAuthenticationProperties.developmentBypassEnabled()) {
                         // local/test에서 명시적으로 켠 경우에만 고정 개발 관리자를 사용한다.
                         request.requestMatchers("/api/v1/admin/**").permitAll();
-                    } else {
-                        request.requestMatchers("/api/v1/admin/**")
-                                .hasAuthority(AccessTokenScope.ADMIN.authority());
                     }
+                    request.requestMatchers("/api/v1/admin/**")
+                            .hasAuthority(AccessTokenScope.ADMIN.toAuthority());
                     request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                         // 새 API에 인증을 붙이는 것을 잊어도 기본값이 차단이 되도록 한다.
                         .anyRequest().authenticated();
@@ -104,5 +107,15 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private void validateDevelopmentBypass(
+            AdminAuthenticationProperties properties,
+            Environment environment
+    ) {
+        if (properties.developmentBypassEnabled()
+                && !environment.acceptsProfiles(Profiles.of("!dev & !prod & (local | test)"))) {
+            throw new IllegalStateException("개발 관리자 인증 우회는 local/test에서만 사용할 수 있습니다.");
+        }
     }
 }

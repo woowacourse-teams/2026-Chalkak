@@ -2,125 +2,143 @@ package com.chalkak.backend.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.AdminRepository;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.service.AccessTokenIssuer;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
-import java.time.Duration;
-import java.util.Optional;
+import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.annotation.Transactional;
 
-class AdminAuthenticationServiceTest {
+@Transactional
+class AdminAuthenticationServiceTest extends IntegrationTestSupport {
 
-    private static final String USERNAME = "operator";
-    private static final String RAW_PASSWORD = "safe-password";
-    private static final String PASSWORD_HASH =
-            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    private static final String USERNAME = "auth-operator";
+    private static final String RAW_PASSWORD = "test-password";
     private static final String FAILURE_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
 
-    private AdminRepository adminRepository;
-    private PasswordEncoder passwordEncoder;
-    private AccessTokenIssuer accessTokenIssuer;
+    @Autowired
     private AdminAuthenticationService service;
 
-    @BeforeEach
-    void setUp() {
-        adminRepository = mock(AdminRepository.class);
-        passwordEncoder = mock(PasswordEncoder.class);
-        accessTokenIssuer = mock(AccessTokenIssuer.class);
-        service = new AdminAuthenticationService(
-                adminRepository,
-                passwordEncoder,
-                accessTokenIssuer
-        );
-    }
+    @Autowired
+    private AdminRepository adminRepository;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @MockitoSpyBean
+    private PasswordEncoder passwordEncoder;
 
     @Test
-    @DisplayName("아이디와 비밀번호가 일치하면 관리자 액세스 토큰을 발급한다")
+    @DisplayName("실제 저장된 계정의 비밀번호가 일치하면 검증 가능한 관리자 JWT를 발급한다")
     void login_validCredentials_returnsAdminAccessToken() {
         // Given
-        UUID adminId = UUID.randomUUID();
-        Admin admin = mock(Admin.class);
-        IssuedAccessToken token = new IssuedAccessToken("admin-token", Duration.ofHours(1));
-        given(admin.getId()).willReturn(adminId);
-        given(admin.getUsername()).willReturn(USERNAME);
-        given(admin.getPasswordHash()).willReturn(PASSWORD_HASH);
-        given(adminRepository.findByUsername(USERNAME)).willReturn(Optional.of(admin));
-        given(passwordEncoder.matches(RAW_PASSWORD, PASSWORD_HASH)).willReturn(true);
-        given(accessTokenIssuer.issue(adminId, AccessTokenScope.ADMIN)).willReturn(token);
+        Admin admin = persistAdmin(RAW_PASSWORD);
 
         // When
         AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
+        Jwt jwt = accessTokenProvider.jwtDecoder().decode(result.accessToken().value());
 
         // Then
-        assertThat(result.adminId()).isEqualTo(adminId);
+        assertThat(result.adminId()).isEqualTo(admin.getId());
         assertThat(result.username()).isEqualTo(USERNAME);
-        assertThat(result.accessToken()).isEqualTo(token);
+        assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
+        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
     }
 
     @Test
-    @DisplayName("비밀번호가 다르면 공통 인증 실패 응답을 반환한다")
+    @DisplayName("잘못된 비밀번호는 공통 인증 실패 응답으로 거부한다")
     void login_wrongPassword_throwsCommonUnauthorized() {
         // Given
-        Admin admin = mock(Admin.class);
-        given(admin.getPasswordHash()).willReturn(PASSWORD_HASH);
-        given(adminRepository.findByUsername(USERNAME)).willReturn(Optional.of(admin));
-        given(passwordEncoder.matches(RAW_PASSWORD, PASSWORD_HASH)).willReturn(false);
+        persistAdmin(RAW_PASSWORD);
 
         // When & Then
-        assertCommonAuthenticationFailure(() -> service.login(USERNAME, RAW_PASSWORD));
-        then(accessTokenIssuer).shouldHaveNoInteractions();
+        assertCommonAuthenticationFailure(() -> service.login(USERNAME, "wrong-password"));
     }
 
     @Test
-    @DisplayName("존재하지 않는 아이디도 비밀번호 검증을 수행한 뒤 같은 인증 실패 응답을 반환한다")
+    @DisplayName("없는 아이디도 BCrypt 비교를 수행하고 같은 인증 실패 응답으로 거부한다")
     void login_unknownUsername_hidesAccountExistence() {
-        // Given
-        given(adminRepository.findByUsername(USERNAME)).willReturn(Optional.empty());
-        given(passwordEncoder.matches(eq(RAW_PASSWORD), anyString())).willReturn(false);
-
         // When & Then
         assertCommonAuthenticationFailure(() -> service.login(USERNAME, RAW_PASSWORD));
-        then(passwordEncoder).should().matches(RAW_PASSWORD, PASSWORD_HASH);
-        then(accessTokenIssuer).shouldHaveNoInteractions();
+        then(passwordEncoder).should().matches(
+                RAW_PASSWORD, AdminAuthenticationService.DUMMY_PASSWORD_HASH);
     }
 
     @Test
-    @DisplayName("인증된 관리자 식별자로 현재 관리자 정보를 조회한다")
+    @DisplayName("인증된 관리자 식별자로 DB의 관리자 정보를 조회한다")
     void getCurrentAdmin_existingAdmin_returnsCurrentAdmin() {
         // Given
-        UUID adminId = UUID.randomUUID();
-        Admin admin = mock(Admin.class);
-        given(admin.getId()).willReturn(adminId);
-        given(admin.getUsername()).willReturn(USERNAME);
-        given(adminRepository.findById(adminId)).willReturn(Optional.of(admin));
+        Admin admin = persistAdmin(RAW_PASSWORD);
 
         // When
-        CurrentAdminResult result = service.getCurrentAdmin(adminId);
+        CurrentAdminResult result = service.getCurrentAdmin(admin.getId());
 
         // Then
-        assertThat(result).isEqualTo(new CurrentAdminResult(adminId, USERNAME));
+        assertThat(result).isEqualTo(new CurrentAdminResult(admin.getId(), USERNAME));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 관리자 식별자는 인증 실패로 거부한다")
+    void getCurrentAdmin_missingAdmin_throwsUnauthorized() {
+        // When & Then
+        assertCommonAuthenticationFailure(() -> service.getCurrentAdmin(UUID.randomUUID()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {71, 72})
+    @DisplayName("BCrypt의 바이트 길이 한도 직전과 경계 비밀번호로 로그인할 수 있다")
+    void login_passwordWithinByteLimit_succeeds(int length) {
+        // Given
+        String password = "a".repeat(length);
+        persistAdmin(password);
+
+        // When
+        AdminLoginResult result = service.login(USERNAME, password);
+
+        // Then
+        assertThat(result.username()).isEqualTo(USERNAME);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"a", "가"})
+    @DisplayName("BCrypt의 72바이트를 넘는 로그인 비밀번호는 500 대신 인증 실패로 거부한다")
+    void login_passwordExceedsByteLimit_throwsUnauthorized(String character) {
+        // Given
+        persistAdmin(RAW_PASSWORD);
+        String password = character.repeat(73);
+
+        // When & Then
+        assertCommonAuthenticationFailure(() -> service.login(USERNAME, password));
+    }
+
+    private Admin persistAdmin(String password) {
+        Admin admin = adminRepository.save(Admin.create(USERNAME, passwordEncoder.encode(password)));
+        entityManager.flush();
+        entityManager.clear();
+        return admin;
     }
 
     private void assertCommonAuthenticationFailure(Runnable action) {
         assertThatThrownBy(action::run)
                 .isInstanceOf(UnauthorizedException.class)
-                .satisfies(exception -> assertThat(
-                        ((UnauthorizedException) exception).getErrorCode()
-                ).isEqualTo(ErrorCode.UNAUTHORIZED))
+                .satisfies(exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.UNAUTHORIZED))
                 .hasMessage(FAILURE_MESSAGE);
     }
 }

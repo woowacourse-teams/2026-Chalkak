@@ -72,7 +72,7 @@ class SecurityContextAdminActorResolverTest {
         );
         JwtAuthenticationToken authentication = new JwtAuthenticationToken(
                 jwt,
-                List.of(new SimpleGrantedAuthority(scope.authority()))
+                List.of(new SimpleGrantedAuthority(scope.toAuthority()))
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }

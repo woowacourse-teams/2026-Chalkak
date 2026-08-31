@@ -6,6 +6,7 @@ import com.chalkak.backend.admin.api.v1.dto.response.AdminLoginResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.CurrentAdminResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -46,20 +47,32 @@ public interface AdminAuthApiDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "현재 관리자 조회 성공", useReturnTypeSchema = true),
-            @ApiResponse(responseCode = "401", description = "관리자 인증 필요"),
-            @ApiResponse(responseCode = "403", description = "관리자 권한 없음")
+            @ApiResponse(responseCode = "401", description = "관리자 인증 필요",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<CurrentAdminResponse> getCurrentAdmin(AuthenticatedAdmin authenticatedAdmin);
+    ResponseEntity<CurrentAdminResponse> getCurrentAdmin(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin
+    );
 
     @Operation(
             summary = "관리자 로그아웃",
-            description = "서버는 stateless Bearer 토큰을 사용하므로 응답 후 클라이언트가 토큰을 폐기합니다.",
+            description = "응답 후 클라이언트가 토큰을 폐기합니다. 서버에서 이미 발급한 JWT를 즉시 무효화하지는 않습니다.",
             security = @SecurityRequirement(name = "adminAccessToken")
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "로그아웃 처리 성공"),
-            @ApiResponse(responseCode = "401", description = "관리자 인증 필요"),
-            @ApiResponse(responseCode = "403", description = "관리자 권한 없음")
+            @ApiResponse(responseCode = "401", description = "관리자 인증 필요",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<Void> logout(AuthenticatedAdmin authenticatedAdmin);
+    ResponseEntity<Void> logout(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin
+    );
 }

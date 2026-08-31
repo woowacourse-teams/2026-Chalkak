@@ -4,7 +4,7 @@ public enum AccessTokenScope {
     USER,
     ADMIN;
 
-    public String authority() {
+    public String toAuthority() {
         return "SCOPE_" + name();
     }
 }

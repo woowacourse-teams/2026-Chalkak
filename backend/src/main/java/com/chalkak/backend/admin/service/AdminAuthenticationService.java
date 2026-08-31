@@ -37,7 +37,7 @@ public class AdminAuthenticationService {
         boolean passwordMatches = passwordEncoder.matches(password, passwordHash);
 
         if (foundAdmin.isEmpty() || !passwordMatches) {
-            throw authenticationFailure();
+            throw createAuthenticationFailure();
         }
 
         Admin admin = foundAdmin.orElseThrow();
@@ -54,11 +54,11 @@ public class AdminAuthenticationService {
 
     public CurrentAdminResult getCurrentAdmin(UUID adminId) {
         Admin admin = adminRepository.findById(adminId)
-                .orElseThrow(this::authenticationFailure);
+                .orElseThrow(this::createAuthenticationFailure);
         return new CurrentAdminResult(admin.getId(), admin.getUsername());
     }
 
-    private UnauthorizedException authenticationFailure() {
+    private UnauthorizedException createAuthenticationFailure() {
         return new UnauthorizedException(
                 ErrorCode.UNAUTHORIZED,
                 AUTHENTICATION_FAILURE_MESSAGE
