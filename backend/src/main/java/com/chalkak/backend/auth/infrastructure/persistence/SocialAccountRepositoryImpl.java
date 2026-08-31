@@ -3,7 +3,6 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +26,6 @@ public class SocialAccountRepositoryImpl implements SocialAccountRepository {
     @Override
     public Optional<SocialAccount> findByUserId(UUID userId) {
         return socialAccountJpaRepository.findByUserId(userId);
-    }
-
-    @Override
-    public List<SocialAccount> findAllBySubjectHmacIsNull() {
-        return socialAccountJpaRepository.findAllBySubjectHmacIsNull();
     }
 
     @Override

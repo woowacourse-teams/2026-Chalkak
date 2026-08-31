@@ -2,7 +2,6 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,8 +22,6 @@ public interface SocialAccountJpaRepository extends JpaRepository<SocialAccount,
             @Param("subjectHmac") String subjectHmac);
 
     Optional<SocialAccount> findByUserId(UUID userId);
-
-    List<SocialAccount> findAllBySubjectHmacIsNull();
 
     void deleteByUserId(UUID userId);
 }
