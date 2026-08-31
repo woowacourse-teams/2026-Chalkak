@@ -11,7 +11,6 @@
 > 시작한다. 실제 S3 전송은 사용자가 `전시하기`를 누른 뒤에만 수행한다.
 
 구현: `data/post/AndroidPostImageEncoder.kt`
-계측: `androidTest .../data/post/AndroidPostImageEncoderCoverageTest.kt`
 
 ## 배경
 
@@ -75,9 +74,10 @@ maxBytes에 맞춰 로컬 WebP 선제 준비 (S3 PUT은 하지 않음)
 - 하한을 40까지 내려, 압축이 어려운 대형 사진도 **resize로 해상도를 깎기 전에** 품질만으로 용량을 맞춘다.
 - 칸 수를 5→4로 줄여 라운드당 인코딩 시도 횟수를 낮춘다(시간 단축).
 
-## Before / After 측정
+## Before / After 측정 기록
 
-- 기기: 에뮬레이터 `Medium_Phone`. **절대값은 기기마다 다르므로 SLA가 아니라 상대 비교용**이다.
+- 품질 사다리 변경 당시 수행한 일회성 계측 결과다. 기기는 에뮬레이터 `Medium_Phone`이며,
+  **절대값은 기기마다 다르므로 SLA가 아니라 상대 비교용**이다.
   (`bitmap.compress(WEBP)`는 하드웨어 가속이 없는 CPU 연산이라, 시간은 "인코딩 시도 횟수 × 픽셀 수"에
   비례한다는 구조만 기기 무관하게 유지된다.)
 - 입력은 **순수 난수 노이즈** = 실제 카메라가 만들 수 없는 압축 최악 케이스(실측의 상한). 실제 사진은
@@ -113,15 +113,6 @@ maxBytes에 맞춰 로컬 WebP 선제 준비 (S3 PUT은 하지 않음)
 - **회귀 없음**: 쉬운/현실 케이스(`smooth`, `noise-16mp`)는 여전히 q90 첫 시도에 끝나 시간·품질 변화 없음.
 - **커버리지**: before/after 모두 전 케이스 성공. 순수 노이즈조차 5MB 안에 들어오며, resize 예비
   라운드도 남는다. 실제 사진에서 `SizeLimitExceeded`는 사실상 발생하지 않는다.
-
-## 재현
-
-```bash
-# 에뮬레이터/기기 연결 후
-./gradlew connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.stonefive.chalkak.data.post.AndroidPostImageEncoderCoverageTest
-adb logcat -d -s EncoderCoverage:I   # 결과 표 출력
-```
 
 ## 남은 판단거리
 
