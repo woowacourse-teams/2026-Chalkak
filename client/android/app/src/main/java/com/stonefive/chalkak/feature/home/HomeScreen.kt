@@ -74,7 +74,6 @@ const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
-    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -102,7 +101,6 @@ fun HomeRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
-        onOpenFeed = onOpenFeed,
     )
 }
 
@@ -111,7 +109,6 @@ fun HomeScreen(
     uiState: HomeUiState,
     snackbarHostState: SnackbarHostState,
     onAction: (HomeUiAction) -> Unit,
-    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -151,7 +148,6 @@ fun HomeScreen(
                 HomeContentStatus.Content -> HomeContent(
                     uiState = uiState,
                     onAction = onAction,
-                    onOpenFeed = onOpenFeed,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -211,7 +207,6 @@ private fun HomeInitialStatus(
 private fun HomeContent(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
-    onOpenFeed: (Post, String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
@@ -284,15 +279,6 @@ private fun HomeContent(
                 isLoadingNext = uiState.isLoadingNext,
                 areLikesEnabled = uiState.areLikesEnabled,
                 onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-                onPhotoClick = { post ->
-                    onOpenFeed(
-                        post,
-                        uiState.topicDate
-                            ?.let { "${it.monthValue}월 ${it.dayOfMonth}일의 주제" }
-                            .orEmpty(),
-                        uiState.topic,
-                    )
-                },
                 onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
                 modifier = Modifier.fillMaxSize(),
                 state = photoListState,

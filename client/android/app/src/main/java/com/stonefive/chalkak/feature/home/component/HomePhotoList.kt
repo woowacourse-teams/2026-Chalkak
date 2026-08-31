@@ -34,7 +34,6 @@ fun HomePhotoList(
     areLikesEnabled: Boolean,
     onLikeClick: (String) -> Unit,
     onEndThresholdChanged: (Boolean) -> Unit,
-    onPhotoClick: (Post) -> Unit = {},
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
     topContentPadding: Dp = 0.dp,
@@ -63,7 +62,6 @@ fun HomePhotoList(
                 isLiked = photo.id in likedPhotoIds,
                 isLikeEnabled = areLikesEnabled,
                 onLikeClick = { onLikeClick(photo.id) },
-                onPhotoClick = { onPhotoClick(photo) },
             )
         }
         if (isLoadingNext) {
@@ -122,7 +120,6 @@ private fun HomePhotoListPreview() {
             isLoadingNext = true,
             areLikesEnabled = true,
             onLikeClick = {},
-            onPhotoClick = {},
             onEndThresholdChanged = {},
             modifier = Modifier
                 .fillMaxWidth()

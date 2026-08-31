@@ -173,14 +173,6 @@ fun ChalkakNavHost(
             HomeRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = navController::navigateToBottomBar,
-                onOpenFeed = { post, dateLabel, topic ->
-                    navController.navigate(
-                        post.toFeedRoute(
-                            dateLabel = dateLabel,
-                            topic = topic,
-                        ),
-                    )
-                },
             )
         }
 
@@ -346,24 +338,6 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
 }
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
-
-private fun Post.toFeedRoute(
-    dateLabel: String,
-    topic: String,
-): Feed = Feed(
-    postId = id,
-    originalImageUrl = originalImageUrl,
-    thumbnailImageUrl = thumbnailImageUrl,
-    signatureOriginalImageUrl = signatureOriginalImageUrl,
-    signatureThumbnailImageUrl = signatureThumbnailImageUrl,
-    contentDescription = contentDescription,
-    title = title,
-    likeCount = likeCount,
-    isLiked = isLiked,
-    dateLabel = dateLabel,
-    topic = topic,
-    isOwnedByCurrentUser = isOwnedByCurrentUser,
-)
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
