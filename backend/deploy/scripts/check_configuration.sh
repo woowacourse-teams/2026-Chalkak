@@ -23,6 +23,9 @@ required_keys=(
   ACCESS_TOKEN_SECRET
   SOCIAL_IDENTITY_HMAC_SECRET
   ACCESS_TOKEN_EXPIRATION
+  ADMIN_USERNAME
+  ADMIN_PASSWORD_HASH
+  ADMIN_CORS_ALLOWED_ORIGIN
   DB_HOST
   DB_PORT
   DB_NAME
@@ -61,6 +64,9 @@ callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
 social_signup_token_secret="$(read_value SOCIAL_SIGNUP_TOKEN_SECRET)"
 access_token_secret="$(read_value ACCESS_TOKEN_SECRET)"
 social_identity_hmac_secret="$(read_value SOCIAL_IDENTITY_HMAC_SECRET)"
+admin_username="$(read_value ADMIN_USERNAME)"
+admin_password_hash="$(read_value ADMIN_PASSWORD_HASH)"
+admin_cors_allowed_origin="$(read_value ADMIN_CORS_ALLOWED_ORIGIN)"
 
 if [[ "${server_port}" != 8080 ]]; then
   echo "SERVER_PORT must be 8080 for the configured health check." >&2
@@ -106,6 +112,21 @@ fi
 if [[ "${social_identity_hmac_secret}" == "${social_signup_token_secret}"
         || "${social_identity_hmac_secret}" == "${access_token_secret}" ]]; then
   echo "SOCIAL_IDENTITY_HMAC_SECRET must differ from token secrets." >&2
+  exit 1
+fi
+
+if [[ -z "${admin_username//[[:space:]]/}" || "${#admin_username}" -gt 100 ]]; then
+  echo "ADMIN_USERNAME must contain 1 to 100 non-blank characters." >&2
+  exit 1
+fi
+
+if [[ ! "${admin_password_hash}" =~ ^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$ ]]; then
+  echo "ADMIN_PASSWORD_HASH must be a BCrypt hash, never a plaintext password." >&2
+  exit 1
+fi
+
+if [[ ! "${admin_cors_allowed_origin}" =~ ^https://[^,[:space:]*]+$ ]]; then
+  echo "ADMIN_CORS_ALLOWED_ORIGIN must be one exact HTTPS origin without wildcards." >&2
   exit 1
 fi
 

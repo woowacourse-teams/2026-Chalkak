@@ -140,6 +140,9 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - `SOCIAL_SIGNUP_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. 값을 바꾸면 기존 회원가입 토큰이 무효화된다.
 - `ACCESS_TOKEN_SECRET`는 `openssl rand -hex 32`로 생성하고 dev·prod에서 서로 다른 값을 사용한다. `SOCIAL_SIGNUP_TOKEN_SECRET`와도 반드시 다른 값을 쓴다. 값을 바꾸면 발급된 액세스 토큰이 모두 무효화되어 사용자가 다시 로그인해야 한다.
 - `ACCESS_TOKEN_EXPIRATION`은 필수 값이며 생략하면 애플리케이션이 기동되지 않는다. `30m`, `PT1H` 형식을 모두 받는다.
+- `ADMIN_USERNAME`은 단일 관리자 로그인 아이디다.
+- `ADMIN_PASSWORD_HASH`에는 `htpasswd -nBC 12 <ADMIN_USERNAME>`로 대화형 생성한 BCrypt 해시만 넣는다. 평문 비밀번호를 파일이나 명령줄 인자에 기록하지 않는다. 기존 계정의 해시는 애플리케이션 시작 시 자동 변경되지 않는다.
+- `ADMIN_CORS_ALLOWED_ORIGIN`에는 해당 환경의 Vercel 관리자 웹 Origin 하나를 `https://`부터 정확히 입력한다. 쉼표 목록과 와일드카드는 허용하지 않는다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
 - `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성한다. Lambda의
   `IMAGE_PROCESSING_API_SECRET`에는 이 값과 동일한 값을 설정한다.

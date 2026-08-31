@@ -27,6 +27,10 @@ extract_placeholders() {
   local file
 
   for file in "$@"; do
+    if [[ ! -f "${file}" ]]; then
+      echo "Missing environment configuration file: ${file}" >&2
+      return 1
+    fi
     grep -Eho '\$\{[A-Z][A-Z0-9_]*(:[^}]*)?\}' "${file}" || true
   done \
     | sed -E 's/^\$\{//; s/:.*\}$//; s/\}$//' \
