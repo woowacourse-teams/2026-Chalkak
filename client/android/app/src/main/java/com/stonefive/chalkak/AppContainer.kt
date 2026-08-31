@@ -2,8 +2,12 @@ package com.stonefive.chalkak
 
 import android.content.Context
 import androidx.credentials.CredentialManager
+import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
+import com.stonefive.chalkak.core.appupdate.PlayAppUpdateGateway
 import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
+import com.stonefive.chalkak.core.network.AndroidConnectivityObserver
+import com.stonefive.chalkak.core.network.ConnectivityObserver
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
@@ -28,6 +32,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class AppContainer(context: Context) {
+    val appUpdateGateway: AppUpdateGateway by lazy {
+        PlayAppUpdateGateway(context)
+    }
+
+    val connectivityObserver: ConnectivityObserver by lazy {
+        AndroidConnectivityObserver(context)
+    }
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sessionStore = UserSessionStore(context, applicationScope)
     private val networkModule = NetworkModule(

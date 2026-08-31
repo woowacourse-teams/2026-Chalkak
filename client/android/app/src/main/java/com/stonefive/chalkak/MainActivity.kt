@@ -1,27 +1,37 @@
 package com.stonefive.chalkak
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.authgate.AuthGateUiState
-import com.stonefive.chalkak.feature.authgate.AuthGateViewModel
-import com.stonefive.chalkak.navigation.ChalkakNavHost
-import com.stonefive.chalkak.navigation.Login
-import com.stonefive.chalkak.navigation.Today
+import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 
 class MainActivity : ComponentActivity() {
+    private val versionGateViewModel: VersionGateViewModel by viewModels {
+        VersionGateViewModel.Factory
+    }
+
+    private val appUpdateGateway: AppUpdateGateway
+        get() = (application as ChalkakApplication).appContainer.appUpdateGateway
+
+    // MainActivity는 ComponentActivity를 상속하므로, 해당 Activity 결과 API는 FragmentActivity를 사용하지 않는다.
+    @Suppress("InvalidFragmentVersionForActivityResult")
+    private val updateLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            versionGateViewModel.onImmediateUpdateFinished()
+        } else {
+            finish()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -36,31 +46,14 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                ChalkakApp()
+                ChalkakApp(
+                    versionGateViewModel = versionGateViewModel,
+                    onStartImmediateUpdate = {
+                        appUpdateGateway.startImmediateUpdate(updateLauncher)
+                    },
+                    onImmediateUpdateStartFailed = ::finish,
+                )
             }
-        }
-    }
-}
-
-@Composable
-private fun ChalkakApp(viewModel: AuthGateViewModel = viewModel(factory = AuthGateViewModel.Factory)) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    when (uiState) {
-        AuthGateUiState.Loading -> {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(ChalkakTheme.colors.background),
-            )
-        }
-
-        AuthGateUiState.LoginRequired -> key(AuthGateUiState.LoginRequired) {
-            ChalkakNavHost(startDestination = Login)
-        }
-
-        AuthGateUiState.AppAccessible -> key(AuthGateUiState.AppAccessible) {
-            ChalkakNavHost(startDestination = Today)
         }
     }
 }
