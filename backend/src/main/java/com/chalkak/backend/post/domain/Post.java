@@ -151,12 +151,21 @@ public class Post {
     }
 
     private void validateAdminDeletionStatus() {
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED
+                || moderationStatus == ModerationStatus.REJECTED) {
+            return;
+        }
         if (moderationStatus == ModerationStatus.VALIDATING) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "이미지 처리 중인 게시물은 삭제할 수 없습니다."
             );
         }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "현재 상태의 게시물은 삭제할 수 없습니다."
+        );
     }
 
     private void validateAuthor(UUID authorId) {
@@ -169,6 +178,9 @@ public class Post {
     }
 
     private void validateAuthorDeletionStatus() {
+        if (moderationStatus == ModerationStatus.PENDING || moderationStatus == ModerationStatus.APPROVED) {
+            return;
+        }
         if (moderationStatus == ModerationStatus.REJECTED) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
@@ -181,6 +193,10 @@ public class Post {
                     "이미지 처리 중인 게시물은 삭제할 수 없습니다."
             );
         }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "현재 상태의 게시물은 삭제할 수 없습니다."
+        );
     }
 
     private void deleteIfNotDeleted(Instant deletedAt) {
