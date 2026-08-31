@@ -103,12 +103,12 @@ function upstreamUrl(path: string, search: string) {
   return url.toString();
 }
 
-async function readBoundedText(source: Request | Response, limit: number) {
+async function readBoundedBody(source: Request | Response, limit: number) {
   const declaredLength = source.headers.get("Content-Length");
   if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > limit)) {
     throw new RelayError(413, "ADMIN_BODY_TOO_LARGE", "요청 본문이 너무 큽니다.");
   }
-  if (!source.body) return "";
+  if (!source.body) return { text: "", byteLength: 0 };
   const reader = source.body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
@@ -124,10 +124,14 @@ async function readBoundedText(source: Request | Response, limit: number) {
       }
       text += decoder.decode(chunk.value, { stream: true });
     }
-    return text + decoder.decode();
+    return { text: text + decoder.decode(), byteLength: bytes };
   } finally {
     reader.releaseLock();
   }
+}
+
+async function readBoundedText(source: Request | Response, limit: number) {
+  return (await readBoundedBody(source, limit)).text;
 }
 
 function isJson(contentType: string | null) {
@@ -154,7 +158,7 @@ async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boo
   if (isLogout && !request.headers.has("Content-Type") && (!encoding || encoding === "identity")) {
     try {
       // Node route handlers can represent a bodyless POST with a non-null empty stream.
-      if (await readBoundedText(request, MAX_BODY_BYTES) === "") return undefined;
+      if ((await readBoundedBody(request, MAX_BODY_BYTES)).byteLength === 0) return undefined;
     } catch (error) {
       if (error instanceof RelayError) throw error;
       // An unreadable untyped body still fails the Content-Type check below.

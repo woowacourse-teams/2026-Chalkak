@@ -87,6 +87,22 @@ describe("admin login relay", () => {
     expect(response.headers.get("Set-Cookie")).toContain("Secure");
   });
 
+  it("preserves UTF-8 BOM handling for JSON requests and responses", async () => {
+    fetchMock.mockResolvedValue(new Response(`\uFEFF${JSON.stringify(loginPayload)}`, {
+      headers: { "Content-Type": "application/json" },
+    }));
+    const loginRequest = new NextRequest(`${origin}/api/admin/auth/login`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: `\uFEFF${JSON.stringify(credentials)}`,
+    });
+
+    const response = await relayAdminRequest(loginRequest, ["auth", "login"]);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ adminId, username: "test-admin", expiresIn: 3600 });
+    expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify(credentials));
+  });
+
   it("caps the browser session at seven days without rejecting longer backend expiry", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...loginPayload, expiresIn: 86400 * 30 }));
     const response = await relay("auth/login", { method: "POST", body: credentials });
@@ -435,12 +451,14 @@ describe("upstream safety and logout", () => {
   it.each([
     ["nonempty untyped body", new TextEncoder().encode("{}"), new Headers({ "Content-Length": "0" }), 415],
     ["whitespace-only untyped body", new TextEncoder().encode(" "), new Headers(), 415],
+    ["UTF-8 BOM-only body", new Uint8Array([0xef, 0xbb, 0xbf]), new Headers(), 415],
     ["invalid UTF-8 untyped body", new Uint8Array([0xff]), new Headers(), 415],
     ["unsupported content type", new Uint8Array(), new Headers({ "Content-Type": "text/plain" }), 415],
     ["unsupported encoding", new Uint8Array(), new Headers({ "Content-Encoding": "gzip" }), 415],
     ["oversized actual body", new Uint8Array(65537), new Headers({ "Content-Length": "0" }), 413],
     ["oversized declared body", new Uint8Array(), new Headers({ "Content-Length": "65537" }), 413],
   ] as const)("rejects a logout with %s before forwarding", async (_label, bytes, extraHeaders, status) => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     const headers = new Headers(extraHeaders);
     headers.set("Origin", origin);
     headers.set("Cookie", `${cookieName}=${token}`);
@@ -455,6 +473,26 @@ describe("upstream safety and logout", () => {
     expectClearedCookie(response);
     expect(fetchMock).not.toHaveBeenCalled();
     expect((await response.json()).errorCode).toBe(status === 413 ? "ADMIN_BODY_TOO_LARGE" : "ADMIN_JSON_REQUIRED");
+  });
+
+  it("rejects a nonempty logout BOM split across stream chunks", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const logoutRequest = new NextRequest(`${origin}/api/admin/auth/logout`, {
+      method: "POST", headers: { Origin: origin, Cookie: `${cookieName}=${token}` },
+      body: new ReadableStream({
+        start(controller) {
+          for (const byte of [0xef, 0xbb, 0xbf]) controller.enqueue(new Uint8Array([byte]));
+          controller.close();
+        },
+      }),
+    });
+
+    const response = await relayAdminRequest(logoutRequest, ["auth", "logout"]);
+
+    expect(response.status).toBe(415);
+    expectClearedCookie(response);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await response.json()).errorCode).toBe("ADMIN_JSON_REQUIRED");
   });
 
   it("distinguishes an invalid successful logout response and still clears the local cookie", async () => {
