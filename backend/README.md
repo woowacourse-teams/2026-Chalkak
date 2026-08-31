@@ -249,6 +249,49 @@ htpasswd -nBC 12 operator
 `ADMIN_USERNAME`이 DB에 없을 때만 계정을 생성하며, 이미 있으면 저장된 해시를 덮어쓰지 않는다.
 따라서 비밀번호 변경은 환경변수만 바꾸지 말고 별도 변경 절차로 DB의 해시도 갱신해야 한다.
 
+### 로컬에서 실제 관리자 로그인 검증
+
+`backend/.env.example`의 관리자 항목을 참고해 개인 `backend/.env`에 다음 키를 추가한다.
+기존 `.env`를 예제 파일로 덮어쓰지 않고 누락된 키만 추가한다.
+
+```dotenv
+ADMIN_DEVELOPMENT_BYPASS_ENABLED=false
+ADMIN_USERNAME=operator
+ADMIN_PASSWORD_HASH=REPLACE_WITH_BCRYPT_HASH
+```
+
+- `operator`는 예시다. 고정 개발 계정 `dev-admin`과 다른, 사용할 새 아이디로 바꾼다.
+- `ADMIN_PASSWORD_HASH`에는 위 `htpasswd` 명령 결과의 콜론 뒤 해시만 넣는다.
+  `.env`는 Spring properties로도 읽으므로 해시의 `$`를 그대로 쓰고 따옴표로 감싸지 않는다.
+- `ADMIN_DEVELOPMENT_BYPASS_ENABLED=false`이면 local에서도 해당 계정을 최초 생성하고
+  관리자 JWT 인증을 사용한다. 로그인 API에는 해시가 아닌 원래 비밀번호를 입력한다.
+- 로컬 우회 기본값과 예제 기본값은 `true`다. 실제 로그인을 시험할 때만 `false`로 바꾼다.
+  test 프로필은 기존 개발 우회를 유지하며, dev/prod는 이 로컬 전용 환경변수를 사용하지 않는다.
+- localhost 관리자 웹 Origin은 이미 허용돼 있으므로 로컬 `.env`에는
+  `ADMIN_CORS_ALLOWED_ORIGIN`을 추가하지 않는다. 이 키는 dev/prod 배포 설정용이다.
+- 관리자 JWT도 기존 액세스 토큰 설정을 사용하므로 `ACCESS_TOKEN_SECRET`,
+  `ACCESS_TOKEN_EXPIRATION` 등 나머지 `.env.example` 항목도 필요하다.
+
+설정 후 `backend` 디렉터리에서 `./gradlew bootRun`으로 실행한다. 이미 실행 중이면 종료 후
+다시 실행해야 변경된 `.env`를 읽는다. 초기 계정 생성 외 기존 계정의 해시는 변경하지 않는다.
+이 단계는 백엔드 로그인 API 검증이며, 관리자 웹의 로그인 화면·세션 연결은 #186에서 진행한다.
+
+### 환경변수 자동 검사
+
+`./gradlew test`, `./gradlew check`, `./gradlew build`는 환경변수 계약 검사를 먼저 실행한다.
+GitHub CI와 CodeBuild도 기존 `./gradlew clean test bootJar --no-daemon` 경로를 통해 같은
+검사를 실행하므로 실제 관리자 비밀번호나 해시를 CI 비밀변수에 추가할 필요가 없다.
+
+검사는 Spring 설정의 변수 이름, 로컬·dev·prod 예제, CD 필수 키 목록을 대조한다. 개인 `.env`가
+있으면 그 파일의 키 누락·중복·불필요한 키도 검사한다. 키가 맞지 않으면 테스트 실행 전에
+실패하므로 최신 예제와 맞춰야 한다. 값 자체는 로그에 출력하거나 파일에 복사하지 않는다.
+CI처럼 `.env`가 없으면 개인 파일 비교만 생략한다.
+검사기 자체도 합성 설정으로 누락·중복·불필요한 키·잘못된 형식·필수 파일 누락·값 미출력을
+검증한다. 이 회귀 테스트는 개인 `.env`를 읽거나 복사하지 않는다.
+
+이 검사는 **키 계약**을 확인한다. placeholder가 실제 값으로 교체됐는지, EC2 설정이 준비됐는지,
+로그인에 성공하는지까지 보장하지는 않는다. 설정한 해시는 애플리케이션 시작 시 별도로 검증한다.
+
 ### 관리자 웹 연결 순서
 
 1. #223: 백엔드 관리자 인증·인가를 검증하고, dev 서버 환경변수 준비 후 병합·배포한다.

@@ -13,7 +13,10 @@ spring:
 chalkak:
   admin:
     authentication:
-      development-bypass-enabled: true
+      development-bypass-enabled: ${ADMIN_DEVELOPMENT_BYPASS_ENABLED:true}
+    account:
+      username: ${ADMIN_USERNAME:}
+      password-hash: ${ADMIN_PASSWORD_HASH:}
   image:
     environment: local
     bucket: ${S3_BUCKET:chalkak-local-images}

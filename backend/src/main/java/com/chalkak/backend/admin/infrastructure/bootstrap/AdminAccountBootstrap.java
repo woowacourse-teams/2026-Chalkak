@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@Profile("dev | prod")
+@Profile("local | dev | prod")
 @ConditionalOnProperty(
         prefix = "chalkak.admin.authentication",
         name = "development-bypass-enabled",
