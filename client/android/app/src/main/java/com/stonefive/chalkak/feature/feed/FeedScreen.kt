@@ -34,11 +34,13 @@ fun FeedRoute(
     modifier: Modifier = Modifier,
     postId: String? = null,
     initialContent: FeedContentState.Success? = null,
+    isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     viewModel: FeedViewModel = viewModel(
         key = "feed-${postId ?: initialContent?.post?.id ?: "latest"}",
         factory = FeedViewModel.factory(
             postId = postId,
             initialContent = initialContent,
+            isOwnedByCurrentUser = isOwnedByCurrentUser,
         ),
     ),
 ) {

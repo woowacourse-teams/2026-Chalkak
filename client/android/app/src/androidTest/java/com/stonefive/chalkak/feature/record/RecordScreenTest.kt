@@ -9,7 +9,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.RecordPhoto
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -30,8 +31,8 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(selectedPhoto),
-                        selectedDate = selectedPhoto.date,
+                        posts = listOf(selectedPhoto),
+                        selectedDate = selectedPhoto.topicDate,
                     ),
                     onPreviousMonthClick = {},
                     onNextMonthClick = {},
@@ -47,7 +48,7 @@ class RecordScreenTest {
         composeRule.onNodeWithText("이미지로 저장").assertIsDisplayed()
         composeRule.onNodeWithText("피드에서 보기").assertIsDisplayed()
         composeRule.onNodeWithText("전시 보러가기").assertIsDisplayed()
-        composeRule.onNodeWithText("8월 2일 · 물결").assertIsDisplayed()
+        composeRule.onNodeWithText("8월 2일").assertIsDisplayed()
         composeRule
             .onNodeWithContentDescription("2026년 8월 2일 사진")
             .assertIsDisplayed()
@@ -70,7 +71,7 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(photo),
+                        posts = listOf(photo),
                         selectedDate = null,
                     ),
                     onPreviousMonthClick = {},
@@ -84,7 +85,7 @@ class RecordScreenTest {
 
         composeRule.onNodeWithContentDescription("2026년 8월 5일 사진").performClick()
 
-        assertEquals(photo.date, selectedDate)
+        assertEquals(photo.topicDate, selectedDate)
     }
 
     @Test
@@ -98,12 +99,9 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(recordPhoto(day = 2)),
+                        posts = listOf(recordPhoto(day = 2)),
                         selectedDate = LocalDate.of(2026, 8, 2),
-                        availableMonths = setOf(
-                            RecordTestMonth.minusMonths(1),
-                            RecordTestMonth.plusMonths(1),
-                        ),
+                        latestMonth = RecordTestMonth.plusMonths(1),
                     ),
                     onPreviousMonthClick = { previousMonthClicked = true },
                     onNextMonthClick = { nextMonthClicked = true },
@@ -147,7 +145,7 @@ class RecordScreenTest {
     @Test
     fun selectedPhotoOpensInFeed() {
         val photo = recordPhoto(day = 2)
-        var openedPhoto: RecordPhoto? = null
+        var openedPostId: String? = null
 
         composeRule.setContent {
             ChalkakTheme {
@@ -155,22 +153,22 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(photo),
-                        selectedDate = photo.date,
+                        posts = listOf(photo),
+                        selectedDate = photo.topicDate,
                     ),
                     onPreviousMonthClick = {},
                     onNextMonthClick = {},
                     onDateClick = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
-                    onOpenFeed = { openedPhoto = it },
+                    onOpenFeed = { openedPostId = it },
                 )
             }
         }
 
         composeRule.onNodeWithText("피드에서 보기").performClick()
 
-        assertEquals(photo, openedPhoto)
+        assertEquals(photo.postId, openedPostId)
     }
 
     @Test
@@ -184,8 +182,8 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(photo),
-                        selectedDate = photo.date,
+                        posts = listOf(photo),
+                        selectedDate = photo.topicDate,
                     ),
                     onPreviousMonthClick = {},
                     onNextMonthClick = {},
@@ -212,8 +210,8 @@ class RecordScreenTest {
                     uiState = RecordUiState(
                         month = RecordTestMonth,
                         isLoading = false,
-                        photos = listOf(photo),
-                        selectedDate = photo.date,
+                        posts = listOf(photo),
+                        selectedDate = photo.topicDate,
                     ),
                     onPreviousMonthClick = {},
                     onNextMonthClick = {},
@@ -227,16 +225,15 @@ class RecordScreenTest {
 
         composeRule.onNodeWithText("전시 보러가기").performClick()
 
-        assertEquals(photo.date, openedDate)
+        assertEquals(photo.topicDate, openedDate)
     }
 }
 
 private val RecordTestMonth = YearMonth.of(2026, 8)
 
-private fun recordPhoto(day: Int): RecordPhoto = RecordPhoto(
-    date = RecordTestMonth.atDay(day),
-    imageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
-    signatureUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
-    contentDescription = "노을과 전신주",
-    title = "물결",
+private fun recordPhoto(day: Int): PostCalendarItem = PostCalendarItem(
+    postId = "post-$day",
+    topicDate = RecordTestMonth.atDay(day),
+    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
+    status = PostStatus.APPROVED,
 )

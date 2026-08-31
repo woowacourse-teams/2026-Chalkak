@@ -1,25 +1,25 @@
 package com.stonefive.chalkak.feature.record
 
-import com.stonefive.chalkak.domain.model.RecordPhoto
+import com.stonefive.chalkak.domain.model.PostCalendarItem
 import java.time.LocalDate
 import java.time.YearMonth
 
 data class RecordUiState(
     val month: YearMonth = INITIAL_RECORD_MONTH,
-    val photos: List<RecordPhoto> = emptyList(),
+    val posts: List<PostCalendarItem> = emptyList(),
     val selectedDate: LocalDate? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
-    val availableMonths: Set<YearMonth> = emptySet(),
+    val latestMonth: YearMonth = INITIAL_RECORD_MONTH,
 ) {
-    val selectedPhoto: RecordPhoto?
-        get() = photos.firstOrNull { it.date == selectedDate }
+    val selectedPost: PostCalendarItem?
+        get() = posts.firstOrNull { it.topicDate == selectedDate }
 
     val canGoPrevious: Boolean
-        get() = !isLoading && month.minusMonths(1) in availableMonths
+        get() = !isLoading
 
     val canGoNext: Boolean
-        get() = !isLoading && month.plusMonths(1) in availableMonths
+        get() = !isLoading && month < latestMonth
 }
 
 val INITIAL_RECORD_MONTH: YearMonth = YearMonth.now()

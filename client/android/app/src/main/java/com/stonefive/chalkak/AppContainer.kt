@@ -8,17 +8,14 @@ import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
-import com.stonefive.chalkak.data.remote.record.MockRecordRemoteDataSource
 import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
-import com.stonefive.chalkak.data.repository.RecordRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
-import com.stonefive.chalkak.domain.repository.RecordRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,12 +68,6 @@ class AppContainer(context: Context) {
                 postApi = networkModule.postApi,
                 requestExecutor = networkModule.apiRequestExecutor,
             ),
-        )
-    }
-
-    val recordRepository: RecordRepository by lazy {
-        RecordRepositoryImpl(
-            remoteDataSource = MockRecordRemoteDataSource(),
         )
     }
 }

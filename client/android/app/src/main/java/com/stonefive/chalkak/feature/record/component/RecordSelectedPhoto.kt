@@ -11,9 +11,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.RecordPhoto
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -22,27 +23,20 @@ private val SelectedPhotoDateFormatter = DateTimeFormatter.ofPattern("M월 d일"
 
 @Composable
 fun RecordSelectedPhoto(
-    photo: RecordPhoto?,
+    post: PostCalendarItem?,
     modifier: Modifier = Modifier,
 ) {
-    if (photo == null) return
+    if (post == null) return
 
     Box(modifier = modifier) {
-        ChalkakSignedImage(
-            imageModel = photo.imageUrl,
-            signatureModel = photo.signatureUrl,
-            contentDescription = photo.contentDescription,
+        ChalkakImage(
+            model = post.thumbnailImageUrl,
+            contentDescription = "${post.topicDate.format(SelectedPhotoDateFormatter)} 기록 사진",
             contentScale = ContentScale.FillWidth,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = buildString {
-                append(photo.date.format(SelectedPhotoDateFormatter))
-                photo.title?.takeIf(String::isNotBlank)?.let {
-                    append(" · ")
-                    append(it)
-                }
-            },
+            text = post.topicDate.format(SelectedPhotoDateFormatter),
             color = ChalkakTheme.colors.textOnImage,
             style = ChalkakTheme.typography.body,
             modifier = Modifier
@@ -60,12 +54,11 @@ fun RecordSelectedPhoto(
 private fun RecordSelectedPhotoPreview() {
     ChalkakTheme {
         RecordSelectedPhoto(
-            photo = RecordPhoto(
-                date = LocalDate.of(2026, 8, 2),
-                imageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                contentDescription = "노을과 전신주",
-                title = "물결",
+            post = PostCalendarItem(
+                postId = "preview-post",
+                topicDate = LocalDate.of(2026, 8, 2),
+                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                status = PostStatus.APPROVED,
             ),
             modifier = Modifier.fillMaxWidth(),
         )

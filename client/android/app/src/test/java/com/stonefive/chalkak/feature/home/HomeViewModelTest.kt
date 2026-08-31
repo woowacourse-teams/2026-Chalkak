@@ -7,6 +7,7 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
@@ -14,6 +15,7 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -636,6 +638,8 @@ class HomeViewModelTest {
         val uncaught = mutableListOf<Throwable>()
         val viewModel = homeViewModel(
             repository = object : PostRepository {
+                override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
+
                 override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
                 override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -774,6 +778,8 @@ private class RecordingPostRepository(
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
 
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -804,6 +810,8 @@ private class ControlledPostRepository(autoInitial: PostContent? = null) : PostR
     val homeQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
+
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 

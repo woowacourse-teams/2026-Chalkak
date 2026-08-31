@@ -6,12 +6,14 @@ import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -85,6 +87,38 @@ class FeedViewModelTest {
         assertEquals("8월 5일의 주제", content.dateLabel)
         assertEquals("바다", content.topic)
         assertTrue(selectedRepository.requestedQueries.isEmpty())
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `기록에서 연 게시물은 상세 조회 후에도 소유권을 유지한다`() = runTest {
+        val selectedPost = feedContent()
+            .photos
+            .single()
+            .copy(id = "record-post")
+        val selectedRepository = FakePostRepository().apply {
+            detailResult = HomeResult.Success(
+                PostDetail(
+                    post = selectedPost,
+                    topic = "바다",
+                    topicDate = LocalDate.of(2026, 8, 5),
+                ),
+            )
+        }
+
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            postId = selectedPost.id,
+            isOwnedByCurrentUser = true,
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(
+            selectedViewModel.uiState.value.content
+                ?.post
+                ?.isOwnedByCurrentUser == true,
+        )
     }
 
     @Test
@@ -311,6 +345,8 @@ private class FakePostRepository : PostRepository {
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
 
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = detailRequest?.await() ?: detailResult
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -335,6 +371,8 @@ private class FakePostRepository : PostRepository {
 
 private class ControlledPostRepository : PostRepository {
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
+
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
 
