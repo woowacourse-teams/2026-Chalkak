@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
     private val appUpdateGateway: AppUpdateGateway
         get() = (application as ChalkakApplication).appContainer.appUpdateGateway
 
-    // MainActivity extends ComponentActivity, so this Activity Result API call does not use FragmentActivity.
+    // MainActivity는 ComponentActivity를 상속하므로, 해당 Activity 결과 API는 FragmentActivity를 사용하지 않는다.
     @Suppress("InvalidFragmentVersionForActivityResult")
     private val updateLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
