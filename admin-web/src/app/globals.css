@@ -1,6 +1,21 @@
 :root {
   --background: #f5f6f2;
   --foreground: #151712;
+  --admin-bottom-nav-height: 0px;
+  --admin-bottom-actions-height: 0px;
+}
+
+@media (max-width: 800px) {
+  :root {
+    --admin-bottom-nav-height: calc(69px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 1024px) {
+  body:has([data-review-mode="true"]) {
+    --admin-bottom-nav-height: 0px;
+    --admin-bottom-actions-height: calc(77px + env(safe-area-inset-bottom));
+  }
 }
 
 * {
@@ -18,8 +33,12 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family:
-    Arial,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    "Malgun Gothic",
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -34,4 +53,28 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.session-loading {
+  display: grid;
+  min-height: 100vh;
+  align-content: center;
+  justify-items: center;
+  gap: 20px;
+  background: #fff;
+  padding: 32px 24px;
+  color: #626b78;
+  font-size: 14px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.session-loading > button {
+  min-height: 44px;
+  border: 1px solid #d4d9e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 10px 16px;
+  color: #434a56;
+  cursor: pointer;
 }

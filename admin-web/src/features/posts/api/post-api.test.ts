@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 
 import { ApiError } from "@/shared/api/errors";
-import { postIds } from "@/mocks/fixtures";
+import type { AdminPostDetailResponse } from "@/shared/api/contracts";
+import { postDetailFixtures, postIds } from "@/mocks/fixtures";
+import { server } from "@/mocks/server";
 
 import {
   deleteAdminPost,
@@ -35,6 +38,28 @@ describe("admin post API", () => {
     expect(response.posts[0]?.postId).toBe(postIds.pending);
   });
 
+  it("uses the backend READY image-upload status in the review fixture", async () => {
+    const response = await fetchAdminPost(postIds.pending);
+
+    expect(response.imageUpload?.status).toBe("READY");
+  });
+
+  it("accepts absent photo metadata fields and a missing image-upload record", async () => {
+    const fixture = postDetailFixtures[postIds.pending];
+    const response = {
+      ...fixture,
+      photo: fixture.photo ? { ...fixture.photo, metadata: {} } : null,
+      imageUpload: null,
+    } satisfies AdminPostDetailResponse;
+    server.use(http.get("*/api/v1/admin/posts/:postId", () => HttpResponse.json(response)));
+
+    const post = await fetchAdminPost(postIds.pending);
+
+    expect(post.photo?.metadata).toEqual({});
+    expect(post.photo?.metadata.byteSize).toBeUndefined();
+    expect(post.imageUpload).toBeNull();
+  });
+
   it("approves a pending post and rejects a duplicate decision", async () => {
     await expect(
       moderateAdminPost(postIds.pending, "APPROVED"),
@@ -57,24 +82,21 @@ describe("admin post API", () => {
     });
   });
 
-  it("soft deletes a post but rejects a validating post", async () => {
+  it("soft deletes a post and allows idempotent repeated deletion", async () => {
     await deleteAdminPost(postIds.approved, "운영 정책 위반");
 
     const deleted = await fetchAdminPost(postIds.approved);
     expect(deleted.deletedAt).toMatch(/Z$/);
     expect(deleted.photo?.originalImageUrl).toContain("https://");
 
-    await expect(
-      deleteAdminPost(postIds.validating, "잘못된 이미지"),
-    ).rejects.toMatchObject({
-      errorCode: "RESOURCE_STATE_CHANGED",
-    } satisfies Partial<ApiError>);
+    await expect(deleteAdminPost(postIds.approved, "운영 정책 위반")).resolves.toBeUndefined();
+    expect((await fetchAdminPost(postIds.approved)).deletedAt).toBe(deleted.deletedAt);
   });
 
   it("explains a missing post with a 404 error", async () => {
     await expect(fetchAdminPost("missing")).rejects.toMatchObject({
       status: 404,
-      errorCode: "POST_NOT_FOUND",
+      errorCode: "BUSINESS_ERROR",
     } satisfies Partial<ApiError>);
   });
 });

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { ApiError } from "@/shared/api/errors";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { getSafeReturnTo } from "@/features/auth/model/return-to";
 import {
-  EmptyState,
   ErrorState,
   LoadingSkeleton,
 } from "@/shared/ui/feedback-states";
@@ -24,32 +25,50 @@ import {
   getPostDisplayStatus,
   getPostErrorMessage,
 } from "../model/post-display";
-import { PostThumbnail } from "./post-thumbnail";
+import { PostImageViewer } from "./post-image-viewer";
 import styles from "./posts.module.css";
 
 type PendingAction = "approve" | "reject" | "delete" | null;
 
 function safeReturnTo(value: string | null) {
-  return value?.startsWith("/posts") ? value : "/posts";
+  const safe = getSafeReturnTo(value);
+  return /^\/(?:posts|audit-logs)(?:\?|$)/.test(safe) ? safe : "/posts?status=PENDING";
 }
 
 export function PostDetailScreen({ postId }: { postId: string }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const postQuery = useAdminPost(postId);
   const moderation = useModerateAdminPost();
   const deletion = useDeleteAdminPost();
   const { showToast } = useToast();
   const [action, setAction] = useState<PendingAction>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const requestLockRef = useRef(false);
-  const isProcessing = moderation.isPending || deletion.isPending;
+  const isProcessing = isConfirming || moderation.isPending || deletion.isPending;
   const returnTo = safeReturnTo(searchParams.get("returnTo"));
+
+  const openAction = (next: PendingAction) => {
+    setActionError(null);
+    setAction(next);
+  };
 
   if (postQuery.isPending) {
     return <LoadingSkeleton rows={6} />;
   }
 
-  if (postQuery.isError || !postQuery.data) {
+  // A temporary refresh failure must not discard an in-progress reason.
+  // Access errors and unavailable posts still use the error screen.
+  const keepDialogOnRefreshFailure = action !== null && postQuery.isRefetchError &&
+    postQuery.error instanceof ApiError && (
+      postQuery.error.kind === "network" || postQuery.error.kind === "timeout" ||
+      (postQuery.error.status ?? 0) >= 500
+    );
+  if ((postQuery.isError && !keepDialogOnRefreshFailure) || !postQuery.data) {
     return (
+      <div className={styles.detailPage}>
+      <Link className={styles.backLink} href={returnTo}>← 이전 목록으로 돌아가기</Link>
       <ErrorState
         description={getPostErrorMessage(postQuery.error)}
         onRetry={() => postQuery.refetch()}
@@ -59,19 +78,11 @@ export function PostDetailScreen({ postId }: { postId: string }) {
             : "게시물 상세를 불러오지 못했습니다"
         }
       />
+      </div>
     );
   }
 
   const post = postQuery.data;
-
-  if (post.moderationStatus === "VALIDATING") {
-    return (
-      <EmptyState
-        description="이미지 처리가 완료되면 검수 대기 목록에서 확인할 수 있습니다."
-        title="아직 검수할 수 없는 게시물입니다"
-      />
-    );
-  }
 
   const status = getPostDisplayStatus(post);
   const canModerate =
@@ -84,6 +95,8 @@ export function PostDetailScreen({ postId }: { postId: string }) {
     }
 
     requestLockRef.current = true;
+    setIsConfirming(true);
+    setActionError(null);
     try {
       if (action === "approve") {
         await moderation.mutateAsync({ postId, status: "APPROVED" });
@@ -100,11 +113,18 @@ export function PostDetailScreen({ postId }: { postId: string }) {
         showToast("게시물을 삭제했습니다.", "success");
       }
       setAction(null);
+      router.push(returnTo);
     } catch (error) {
-      showToast(getPostErrorMessage(error), "error");
-      await postQuery.refetch();
+      const message = getPostErrorMessage(error);
+      setActionError(message);
+      const latest = await postQuery.refetch();
+      if (latest.data && (latest.data.deletedAt || (action !== "delete" && latest.data.moderationStatus !== "PENDING"))) {
+        setAction(null);
+        showToast(message, "error");
+      }
     } finally {
       requestLockRef.current = false;
+      setIsConfirming(false);
     }
   };
 
@@ -141,67 +161,50 @@ export function PostDetailScreen({ postId }: { postId: string }) {
           };
 
   return (
-    <div className={styles.detailPage}>
+    <div className={styles.detailPage} data-review-mode={canModerate}>
       <div className={styles.detailTopBar}>
         <Link className={styles.backLink} href={returnTo}>
-          ← 목록과 필터로 돌아가기
+          ← 이전 목록으로 돌아가기
         </Link>
-        <span className={styles.secondaryText}>{post.postId}</span>
+        <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
       </div>
 
       <div className={styles.detailGrid}>
-        <PostThumbnail
-          alt={(post.title ?? "제목 없는 게시물") + " 원본 이미지"}
-          detail
-          src={post.photo?.originalImageUrl}
-        />
+        <div className={styles.reviewHeading}>
+          <h2>{post.title ?? "제목 없음"}</h2>
+          {post.topic ? <Link className={styles.topicContext} href={"/topics/" + post.topic.topicId + "?" + new URLSearchParams({ returnTo })}>{post.topic.title} · {post.topic.topicDate}</Link> : <p className={styles.topicContext}>연결된 주제 없음</p>}
+        </div>
+        <section className={styles.photoColumn} aria-label="검수 사진">
+          <PostImageViewer
+            key={post.photo?.originalImageUrl ?? "missing"}
+            alt={(post.title ?? "제목 없는 게시물") + " 원본 이미지"}
+            src={post.photo?.originalImageUrl}
+          />
+        </section>
         <section className={styles.detailPanel}>
-          <p className={styles.detailEyebrow}>POST REVIEW</p>
-          <div className={styles.detailTitleRow}>
-            <h2>{post.title ?? "제목 없음"}</h2>
-            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          </div>
+          <h3 className={styles.infoTitle}>게시물 정보</h3>
 
           <dl className={styles.detailMeta}>
             <div>
-              <dt>주제</dt>
-              <dd>
-                {post.topic?.title ?? "없음"}
-                {post.topic ? " · " + post.topic.topicDate : ""}
-              </dd>
-            </div>
-            <div>
               <dt>작성자</dt>
-              <dd>{post.author?.email ?? "탈퇴/정보 없음"}</dd>
+              <dd>{post.author ? <Link className={styles.relatedLink} href={"/users/" + post.author.userId + "?" + new URLSearchParams({ returnTo })}>{post.author.email ?? "이메일 정보 없음"}</Link> : "탈퇴/정보 없음"}</dd>
             </div>
             <div>
               <dt>등록 시각</dt>
               <dd>{formatInstant(post.createdAt)}</dd>
             </div>
-            <div>
-              <dt>처리 시각</dt>
-              <dd>{formatInstant(post.moderatedAt)}</dd>
-            </div>
-            <div>
-              <dt>사진 크기</dt>
-              <dd>
-                {post.photo?.metadata.width ?? "—"} ×{" "}
-                {post.photo?.metadata.height ?? "—"} px
-              </dd>
-            </div>
-            <div>
-              <dt>파일 크기</dt>
-              <dd>{formatFileSize(post.photo?.metadata.byteSize)}</dd>
-            </div>
-            <div>
-              <dt>좋아요</dt>
-              <dd>{post.likeCount.toLocaleString("ko-KR")}개</dd>
-            </div>
-            <div>
-              <dt>이미지 처리</dt>
-              <dd>{post.imageUpload?.status ?? "정보 없음"}</dd>
-            </div>
           </dl>
+          <details className={styles.extraInfo}>
+            <summary>추가 정보</summary>
+            <dl className={styles.detailMeta}>
+              <div><dt>처리 시각</dt><dd>{formatInstant(post.moderatedAt)}</dd></div>
+              <div><dt>게시물 ID</dt><dd>{post.postId}</dd></div>
+              <div><dt>사진 크기</dt><dd>{post.photo?.metadata.width ?? "—"} × {post.photo?.metadata.height ?? "—"} px</dd></div>
+              <div><dt>파일 크기</dt><dd>{formatFileSize(post.photo?.metadata.byteSize)}</dd></div>
+              <div><dt>좋아요</dt><dd>{post.likeCount.toLocaleString("ko-KR")}개</dd></div>
+            </dl>
+            {canDelete ? <button className={styles.deleteButton} disabled={isProcessing} onClick={() => openAction("delete")} type="button">게시물 삭제</button> : null}
+          </details>
 
           {post.rejectionReason ? (
             <p className={styles.moderationNote}>
@@ -214,38 +217,24 @@ export function PostDetailScreen({ postId }: { postId: string }) {
             </p>
           ) : null}
 
-          <div className={styles.detailActions}>
-            {canModerate ? (
-              <>
-                <button
-                  className={styles.approveButton}
-                  disabled={isProcessing}
-                  onClick={() => setAction("approve")}
-                  type="button"
-                >
-                  승인
-                </button>
+          {canModerate ? <div aria-label="게시물 작업" className={styles.detailActions} role="group">
                 <button
                   className={styles.rejectButton}
                   disabled={isProcessing}
-                  onClick={() => setAction("reject")}
+                  onClick={() => openAction("reject")}
                   type="button"
                 >
                   거절
                 </button>
-              </>
-            ) : null}
-            {canDelete ? (
-              <button
-                className={styles.deleteButton}
-                disabled={isProcessing}
-                onClick={() => setAction("delete")}
-                type="button"
-              >
-                삭제
-              </button>
-            ) : null}
-          </div>
+                <button
+                  className={styles.approveButton}
+                  disabled={isProcessing}
+                  onClick={() => openAction("approve")}
+                  type="button"
+                >
+                  승인
+                </button>
+          </div> : null}
         </section>
       </div>
 
@@ -253,7 +242,8 @@ export function PostDetailScreen({ postId }: { postId: string }) {
         confirmLabel={dialog.confirmLabel}
         description={dialog.description}
         destructive={action === "reject" || action === "delete"}
-        onCancel={() => setAction(null)}
+        error={actionError}
+        onCancel={() => openAction(null)}
         onConfirm={confirmAction}
         open={action !== null}
         pending={isProcessing}

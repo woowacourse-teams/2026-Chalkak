@@ -23,13 +23,28 @@ describe("admin API mock fixtures", () => {
 
     expect(badRequest.status).toBe(400);
     await expect(badRequest.json()).resolves.toEqual({
-      errorCode: "INVALID_REQUEST",
+      errorCode: "BUSINESS_ERROR",
       message: "조회 조건이 올바르지 않습니다.",
     });
     expect(notFound.status).toBe(404);
     await expect(notFound.json()).resolves.toEqual({
-      errorCode: "POST_NOT_FOUND",
+      errorCode: "BUSINESS_ERROR",
       message: "게시물을 찾을 수 없습니다.",
     });
+  });
+
+  it.each([
+    ["users", "사용자를 찾을 수 없습니다."],
+    ["topics", "주제를 찾을 수 없습니다."],
+  ])("uses the backend 404 contract for missing %s", async (resource, message) => {
+    const response = await fetch("http://localhost:8080/api/v1/admin/" + resource + "/missing");
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ errorCode: "BUSINESS_ERROR", message });
+  });
+
+  it("uses the backend forbidden error code", async () => {
+    const response = await fetch("http://localhost:8080/api/v1/admin/posts?scenario=forbidden");
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ errorCode: "FORBIDDEN" });
   });
 });

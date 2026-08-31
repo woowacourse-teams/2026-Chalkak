@@ -16,7 +16,7 @@ describe("readAdminUserFilters", () => {
   it("falls back safely for invalid values", () => {
     expect(readAdminUserFilters(new URLSearchParams("status=UNKNOWN&page=-1&pageSize=500"))).toEqual({
       email: undefined,
-      status: undefined,
+      status: "ACTIVE",
       sort: "createdAtDesc",
       page: 1,
       pageSize: 100,

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { AdminAccessBoundary } from "@/features/auth/admin-access-boundary";
-import { AdminShell } from "@/shared/layout/admin-shell";
 import { ToastProvider } from "@/shared/ui/toast";
 
 import { AppProviders } from "./providers";
@@ -22,11 +21,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ko">
       <body>
         <AppProviders>
-          <AdminAccessBoundary>
-            <ToastProvider>
-              <AdminShell>{children}</AdminShell>
-            </ToastProvider>
-          </AdminAccessBoundary>
+          <ToastProvider>
+            <Suspense fallback={<main className="session-loading" role="status">관리자 화면을 준비하고 있습니다.</main>}>
+              <AdminAccessBoundary>{children}</AdminAccessBoundary>
+            </Suspense>
+          </ToastProvider>
         </AppProviders>
       </body>
     </html>

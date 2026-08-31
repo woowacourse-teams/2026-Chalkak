@@ -1,6 +1,8 @@
 import { delay, http, HttpResponse } from "msw";
 
 import type {
+  AdminAuditLogResponse,
+  AdminPostCounts,
   AdminPostDetailResponse,
   AdminPostListItem,
   AdminPostListResponse,
@@ -19,14 +21,57 @@ import {
 } from "./fixtures";
 
 const adminApi = "*/api/v1/admin";
+// Local-only demonstration state. It is never used by the real server relay.
+let mockAdminSignedIn = false;
+const mockAdmin = { adminId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", username: "demo-admin" };
 let postStore = structuredClone(postDetailFixtures);
 let userStore = structuredClone(userDetailFixtures);
 let topicStore = structuredClone(topicDetailFixtures);
+let auditStore: AdminAuditLogResponse[] = [];
 
 export function resetMockData() {
+  mockAdminSignedIn = false;
+  auditStore = [];
   postStore = structuredClone(postDetailFixtures);
   userStore = structuredClone(userDetailFixtures);
   topicStore = structuredClone(topicDetailFixtures);
+}
+
+function recordAudit(
+  action: string,
+  targetType: AdminAuditLogResponse["targetType"],
+  targetId: string,
+  reason: string | null,
+  beforeState: Record<string, unknown>,
+  afterState: Record<string, unknown>,
+) {
+  auditStore.unshift({
+    auditLogId: crypto.randomUUID(),
+    actorAdminId: mockAdmin.adminId,
+    actorUsername: mockAdmin.username,
+    action, targetType, targetId, reason, beforeState, afterState,
+    occurredAt: new Date().toISOString(),
+    requestId: crypto.randomUUID(),
+  });
+}
+
+function updatePostCounts(before: AdminPostDetailResponse, after: AdminPostDetailResponse) {
+  const update = (counts: AdminPostCounts): AdminPostCounts => {
+    const next = { ...counts };
+    if (!before.deletedAt) {
+      const key = before.moderationStatus.toLowerCase() as keyof AdminPostCounts;
+      next[key] = Math.max(0, next[key] - 1);
+    }
+    if (!after.deletedAt) {
+      const key = after.moderationStatus.toLowerCase() as keyof AdminPostCounts;
+      next[key] += 1;
+    }
+    return next;
+  };
+  const user = before.author ? userStore[before.author.userId] : undefined;
+  if (user) userStore[user.userId] = { ...user, postCounts: update(user.postCounts) };
+  const topic = before.topic ? topicStore[before.topic.topicId] : undefined;
+  if (topic) topicStore[topic.topicId] = { ...topic, postCounts: update(topic.postCounts) };
 }
 
 function withoutSignature(user: AdminUserDetailResponse) {
@@ -38,7 +83,7 @@ function withoutSignature(user: AdminUserDetailResponse) {
 function listUsers(request: Request): AdminUserListResponse {
   const params = new URL(request.url).searchParams;
   const email = params.get("email")?.toLowerCase();
-  const status = params.get("status");
+  const status = params.get("status") || "ACTIVE";
   const sort = params.get("sort") ?? "createdAtDesc";
   const page = Math.max(1, Number(params.get("page") ?? 1));
   const pageSize = Math.min(100, Math.max(1, Number(params.get("pageSize") ?? 20)));
@@ -159,18 +204,43 @@ function listPosts(request: Request): AdminPostListResponse {
 }
 
 export const handlers = [
+  http.get(adminApi + "/audit-logs", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const page = Math.max(1, Number(params.get("page") ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(params.get("pageSize") ?? 20)));
+    const rows = auditStore
+      .filter((log) => !params.get("action") || log.action === params.get("action"))
+      .filter((log) => !params.get("targetType") || log.targetType === params.get("targetType"));
+    const start = (page - 1) * pageSize;
+    return HttpResponse.json({ currentPage: page, pageSize, hasNext: start + pageSize < rows.length, auditLogs: rows.slice(start, start + pageSize) });
+  }),
+  http.post(adminApi + "/auth/login", async ({ request }) => {
+    const body = await request.json() as { username?: string; password?: string };
+    if (body.username !== "demo-admin" || body.password !== "demo-only") {
+      return HttpResponse.json({ errorCode: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 });
+    }
+    mockAdminSignedIn = true;
+    return HttpResponse.json({ ...mockAdmin, expiresIn: 3600 });
+  }),
+  http.get(adminApi + "/auth/me", () => mockAdminSignedIn
+    ? HttpResponse.json(mockAdmin)
+    : HttpResponse.json({ errorCode: "UNAUTHORIZED", message: "로그인이 필요합니다." }, { status: 401 })),
+  http.post(adminApi + "/auth/logout", () => {
+    mockAdminSignedIn = false;
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(adminApi + "/users", ({ request }) => HttpResponse.json(listUsers(request))),
   http.get(adminApi + "/users/:userId", ({ params }) => {
     const user = userStore[String(params.userId)];
     return user
       ? HttpResponse.json(user)
-      : HttpResponse.json({ ...errorFixtures.notFound, errorCode: "USER_NOT_FOUND" }, { status: 404 });
+      : HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "사용자를 찾을 수 없습니다." }, { status: 404 });
   }),
   http.patch(adminApi + "/users/:userId/status", async ({ params, request }) => {
     const userId = String(params.userId);
     const user = userStore[userId];
     if (!user) {
-      return HttpResponse.json({ ...errorFixtures.notFound, errorCode: "USER_NOT_FOUND" }, { status: 404 });
+      return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "사용자를 찾을 수 없습니다." }, { status: 404 });
     }
     const body = await request.json() as { status?: "ACTIVE" | "BANNED"; reason?: string };
     if (user.status === "WITHDRAWN" || user.status === body.status) {
@@ -180,6 +250,7 @@ export const handlers = [
       return HttpResponse.json(errorFixtures.badRequest, { status: 400 });
     }
     userStore[userId] = { ...user, status: body.status, updatedAt: new Date().toISOString() };
+    recordAudit(body.status === "BANNED" ? "USER_BANNED" : "USER_UNBANNED", "USER", userId, body.reason.trim(), { status: user.status }, { status: body.status });
     return HttpResponse.json({ userId, status: body.status });
   }),
   http.get(adminApi + "/topics", ({ request }) => HttpResponse.json(listTopics(request))),
@@ -187,7 +258,7 @@ export const handlers = [
     const topic = topicStore[String(params.topicId)];
     return topic
       ? HttpResponse.json(topic)
-      : HttpResponse.json({ ...errorFixtures.notFound, errorCode: "TOPIC_NOT_FOUND" }, { status: 404 });
+      : HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "주제를 찾을 수 없습니다." }, { status: 404 });
   }),
   http.post(adminApi + "/topics", async ({ request }) => {
     const body = await request.json();
@@ -198,31 +269,34 @@ export const handlers = [
       topicId,
       ...body,
       phase: "BEFORE_OPEN",
-      postCounts: { total: 0, validating: 0, pending: 0, approved: 0, rejected: 0 },
+      postCounts: { pending: 0, approved: 0, rejected: 0 },
       createdAt: now,
       updatedAt: now,
     };
     topicStore[topicId] = topic;
+    recordAudit("TOPIC_CREATED", "TOPIC", topicId, null, {}, { title: topic.title, topicDate: topic.topicDate });
     return HttpResponse.json(topic, { status: 201 });
   }),
   http.put(adminApi + "/topics/:topicId", async ({ params, request }) => {
     const topicId = String(params.topicId);
     const topic = topicStore[topicId];
-    if (!topic) return HttpResponse.json({ ...errorFixtures.notFound, errorCode: "TOPIC_NOT_FOUND" }, { status: 404 });
+    if (!topic) return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "주제를 찾을 수 없습니다." }, { status: 404 });
     if (topic.phase !== "BEFORE_OPEN") return HttpResponse.json({ errorCode: "RESOURCE_STATE_CHANGED", message: "공개 전 주제만 변경할 수 있습니다." }, { status: 400 });
     const body = await request.json();
     if (!isTopicMutation(body)) return HttpResponse.json(errorFixtures.badRequest, { status: 400 });
     topicStore[topicId] = { ...topic, ...body, updatedAt: new Date().toISOString() };
+    recordAudit("TOPIC_UPDATED", "TOPIC", topicId, null, { title: topic.title, topicDate: topic.topicDate }, { title: body.title, topicDate: body.topicDate });
     return HttpResponse.json(topicStore[topicId]);
   }),
   http.delete(adminApi + "/topics/:topicId", async ({ params, request }) => {
     const topicId = String(params.topicId);
     const topic = topicStore[topicId];
-    if (!topic) return HttpResponse.json({ ...errorFixtures.notFound, errorCode: "TOPIC_NOT_FOUND" }, { status: 404 });
+    if (!topic) return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "주제를 찾을 수 없습니다." }, { status: 404 });
     if (topic.phase !== "BEFORE_OPEN") return HttpResponse.json({ errorCode: "RESOURCE_STATE_CHANGED", message: "공개 전 주제만 삭제할 수 있습니다." }, { status: 400 });
     const body = await request.json() as { reason?: string };
     if (!body.reason?.trim()) return HttpResponse.json(errorFixtures.badRequest, { status: 400 });
     delete topicStore[topicId];
+    recordAudit("TOPIC_DELETED", "TOPIC", topicId, body.reason.trim(), { deletedAt: null }, { deletedAt: new Date().toISOString() });
     return new HttpResponse(null, { status: 204 });
   }),
   http.get(adminApi + "/posts", async ({ request }) => {
@@ -293,6 +367,10 @@ export const handlers = [
           body.status === "REJECTED" ? body.rejectionReason?.trim() ?? null : null,
         updatedAt: moderatedAt,
       };
+      updatePostCounts(post, postStore[postId]);
+      recordAudit(body.status === "APPROVED" ? "POST_APPROVED" : "POST_REJECTED", "POST", postId,
+        body.status === "REJECTED" ? body.rejectionReason?.trim() ?? null : null,
+        { moderationStatus: post.moderationStatus }, { moderationStatus: body.status });
 
       return HttpResponse.json({
         postId,
@@ -309,16 +387,6 @@ export const handlers = [
     if (!post) {
       return HttpResponse.json(errorFixtures.notFound, { status: 404 });
     }
-    if (post.moderationStatus === "VALIDATING") {
-      return HttpResponse.json(
-        {
-          errorCode: "RESOURCE_STATE_CHANGED",
-          message: "이미지 처리 중인 게시물은 삭제할 수 없습니다.",
-        },
-        { status: 400 },
-      );
-    }
-
     const body = (await request.json()) as { reason?: string };
     if (!body.reason?.trim()) {
       return HttpResponse.json(errorFixtures.badRequest, { status: 400 });
@@ -331,6 +399,8 @@ export const handlers = [
         updatedAt: deletedAt,
         photo: post.photo ? { ...post.photo, deletedAt } : null,
       };
+      updatePostCounts(post, postStore[postId]);
+      recordAudit("POST_DELETED", "POST", postId, body.reason.trim(), { deletedAt: null }, { deletedAt });
     }
 
     return new HttpResponse(null, { status: 204 });

@@ -1,53 +1,23 @@
+import type { AdminIconName } from "@/shared/ui/admin-icon";
+
 export interface AdminNavigationItem {
   href: string;
   label: string;
-  shortLabel: string;
-  description: string;
+  icon: AdminIconName;
 }
 
-export const adminNavigation = [
-  {
-    href: "/",
-    label: "대시보드",
-    shortLabel: "DB",
-    description: "서비스 운영 현황",
-  },
-  {
-    href: "/posts",
-    label: "게시물",
-    shortLabel: "PO",
-    description: "게시물 검수와 처리",
-  },
-  {
-    href: "/users",
-    label: "사용자",
-    shortLabel: "US",
-    description: "사용자 상태 관리",
-  },
-  {
-    href: "/topics",
-    label: "주제",
-    shortLabel: "TO",
-    description: "오늘의 주제 관리",
-  },
-  {
-    href: "/pushes",
-    label: "푸시",
-    shortLabel: "PU",
-    description: "사용자 알림 발송",
-  },
-  {
-    href: "/audit-logs",
-    label: "감사 로그",
-    shortLabel: "AL",
-    description: "관리자 작업 이력",
-  },
-] satisfies AdminNavigationItem[];
+export const adminNavigation: AdminNavigationItem[] = [
+  { href: "/posts", label: "게시물", icon: "image" },
+  { href: "/users", label: "사용자", icon: "users" },
+  { href: "/topics", label: "주제", icon: "topic" },
+  { href: "/audit-logs", label: "처리 이력", icon: "shield" },
+];
 
-export function getCurrentNavigation(pathname: string) {
-  return (
-    adminNavigation.find((item) =>
-      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
-    ) ?? adminNavigation[0]
-  );
+export function getCurrentNavigation(pathname: string): AdminNavigationItem {
+  if (pathname === "/pushes" || pathname.startsWith("/pushes/")) {
+    return { href: "/pushes", label: "알림", icon: "clock" };
+  }
+  return adminNavigation.find((item) =>
+    pathname === item.href || pathname.startsWith(`${item.href}/`),
+  ) ?? adminNavigation[0];
 }

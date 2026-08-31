@@ -1,11 +1,9 @@
-import { SectionPlaceholder } from "@/shared/ui/section-placeholder";
+import { Suspense } from "react";
+import { AuditLogScreen } from "@/features/audit-logs/ui/audit-log-screen";
+import { LoadingSkeleton } from "@/shared/ui/feedback-states";
 
 export default function AuditLogsPage() {
   return (
-    <SectionPlaceholder
-      description="관리자 작업 이력과 변경 사유 조회를 후속 단계에서 연결합니다."
-      eyebrow="AUDIT TRAIL"
-      title="감사 로그"
-    />
+    <Suspense fallback={<LoadingSkeleton />}><AuditLogScreen /></Suspense>
   );
 }

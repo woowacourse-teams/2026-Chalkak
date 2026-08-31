@@ -7,19 +7,17 @@ export interface ApiErrorResponse {
 }
 
 export type ModerationStatus =
-  | "VALIDATING"
   | "PENDING"
   | "APPROVED"
   | "REJECTED";
 
 export type UserStatus = "ACTIVE" | "BANNED" | "WITHDRAWN";
 export type TopicStatus = "BEFORE_OPEN" | "OPEN" | "CLOSED";
-export type SocialProvider = "GOOGLE" | "KAKAO";
+export type SocialProvider = "GOOGLE" | "KAKAO" | "APPLE";
 export type ImageUploadStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "FAILED";
+  | "ISSUED"
+  | "READY"
+  | "REJECTED";
 
 export interface AdminPostAuthor {
   userId: string;
@@ -113,8 +111,6 @@ export interface AdminPostModerationResponse {
 }
 
 export interface AdminPostCounts {
-  total: number;
-  validating: number;
   pending: number;
   approved: number;
   rejected: number;
@@ -180,12 +176,23 @@ export interface AdminDashboardResponse {
 
 export interface AdminAuditLogResponse {
   auditLogId: string;
+  actorAdminId: string;
+  actorUsername: string;
   action: string;
-  targetType: string;
+  targetType: "POST" | "USER" | "TOPIC";
   targetId: string;
-  actorId: string;
   reason: string | null;
-  createdAt: Instant;
+  beforeState: Record<string, unknown>;
+  afterState: Record<string, unknown>;
+  occurredAt: Instant;
+  requestId: string;
+}
+
+export interface AdminAuditLogListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  auditLogs: AdminAuditLogResponse[];
 }
 
 export type PushStatus = "PENDING" | "SENDING" | "SUCCEEDED" | "FAILED";

@@ -58,9 +58,12 @@ export function useModerateAdminPost() {
               }
             : current,
       );
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.posts.lists,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.posts.lists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.topics.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.auditLogs }),
+      ]);
     },
   });
 }
@@ -71,12 +74,12 @@ export function useDeleteAdminPost() {
   return useMutation({
     mutationFn: ({ postId, reason }: { postId: string; reason: string }) =>
       deleteAdminPost(postId, reason),
-    onSuccess: async (_, { postId }) => {
+    onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.posts.all }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.posts.detail(postId),
-        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.topics.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.auditLogs }),
       ]);
     },
   });

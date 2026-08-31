@@ -7,7 +7,6 @@ import type {
 } from "@/shared/api/contracts";
 
 export const postIds = {
-  validating: "00000000-0000-4000-8000-000000000000",
   pending: "11111111-1111-4111-8111-111111111111",
   approved: "22222222-2222-4222-8222-222222222222",
   rejected: "33333333-3333-4333-8333-333333333333",
@@ -22,8 +21,8 @@ const author = {
 } as const;
 
 const topic = {
-  topicId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-  title: "여름의 한 장면",
+  topicId: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
+  title: "오늘의 빛",
   topicDate: "2026-08-28",
 } as const;
 
@@ -32,22 +31,6 @@ export const postListFixture = {
   pageSize: 20,
   hasNext: false,
   posts: [
-    {
-      postId: postIds.validating,
-      title: "이미지 처리 중",
-      moderationStatus: "VALIDATING",
-      author,
-      topic,
-      photo: {
-        photoId: "c0000000-0000-4000-8000-000000000000",
-        originalImageUrl: "https://images.unsplash.com/photo-1497250681960-ef046c08a56e",
-        thumbnailImageUrl: null,
-      },
-      likeCount: 0,
-      createdAt: "2026-08-28T05:00:00Z",
-      moderatedAt: null,
-      deletedAt: null,
-    },
     {
       postId: postIds.pending,
       title: "한강의 노을",
@@ -155,7 +138,7 @@ export const postDetailFixtures: Record<string, AdminPostDetailResponse> =
           : null,
         imageUpload: {
           uploadId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-          status: "COMPLETED",
+          status: "READY",
           rejectionReason: null,
           createdAt: post.createdAt,
           updatedAt: post.createdAt,
@@ -172,15 +155,15 @@ export const postDetailFixtures: Record<string, AdminPostDetailResponse> =
 
 export const errorFixtures = {
   badRequest: {
-    errorCode: "INVALID_REQUEST",
+    errorCode: "BUSINESS_ERROR",
     message: "조회 조건이 올바르지 않습니다.",
   },
   forbidden: {
-    errorCode: "ADMIN_FORBIDDEN",
+    errorCode: "FORBIDDEN",
     message: "관리자 API에 접근할 수 없습니다.",
   },
   notFound: {
-    errorCode: "POST_NOT_FOUND",
+    errorCode: "BUSINESS_ERROR",
     message: "게시물을 찾을 수 없습니다.",
   },
 } satisfies Record<string, ApiErrorResponse>;
@@ -198,7 +181,7 @@ export const userDetailFixtures: Record<string, AdminUserDetailResponse> = {
     status: "ACTIVE",
     appVersion: "1.4.0",
     socialProvider: "GOOGLE",
-    postCounts: { total: 14, validating: 1, pending: 2, approved: 10, rejected: 1 },
+    postCounts: { pending: 2, approved: 10, rejected: 1 },
     signature: {
       originalImageUrl: null,
       thumbnailImageUrl: null,
@@ -213,7 +196,7 @@ export const userDetailFixtures: Record<string, AdminUserDetailResponse> = {
     status: "BANNED",
     appVersion: "1.3.2",
     socialProvider: "KAKAO",
-    postCounts: { total: 5, validating: 0, pending: 0, approved: 3, rejected: 2 },
+    postCounts: { pending: 0, approved: 3, rejected: 2 },
     signature: {
       originalImageUrl: null,
       thumbnailImageUrl: null,
@@ -228,7 +211,7 @@ export const userDetailFixtures: Record<string, AdminUserDetailResponse> = {
     status: "WITHDRAWN",
     appVersion: null,
     socialProvider: null,
-    postCounts: { total: 0, validating: 0, pending: 0, approved: 0, rejected: 0 },
+    postCounts: { pending: 0, approved: 0, rejected: 0 },
     signature: {
       originalImageUrl: null,
       thumbnailImageUrl: null,
@@ -253,7 +236,7 @@ export const topicDetailFixtures: Record<string, AdminTopicDetailResponse> = {
     startsAt: "2099-08-31T15:00:00Z",
     endsAt: "2099-09-01T14:59:59Z",
     phase: "BEFORE_OPEN",
-    postCounts: { total: 0, validating: 0, pending: 0, approved: 0, rejected: 0 },
+    postCounts: { pending: 0, approved: 0, rejected: 0 },
     createdAt: "2026-08-20T03:00:00Z",
     updatedAt: "2026-08-20T03:00:00Z",
   },
@@ -264,7 +247,7 @@ export const topicDetailFixtures: Record<string, AdminTopicDetailResponse> = {
     startsAt: "2026-08-27T15:00:00Z",
     endsAt: "2099-08-28T14:59:59Z",
     phase: "OPEN",
-    postCounts: { total: 18, validating: 1, pending: 4, approved: 11, rejected: 2 },
+    postCounts: { pending: 4, approved: 11, rejected: 2 },
     createdAt: "2026-08-01T02:00:00Z",
     updatedAt: "2026-08-27T01:00:00Z",
   },
@@ -275,7 +258,7 @@ export const topicDetailFixtures: Record<string, AdminTopicDetailResponse> = {
     startsAt: "2026-07-09T15:00:00Z",
     endsAt: "2026-07-10T14:59:59Z",
     phase: "CLOSED",
-    postCounts: { total: 23, validating: 0, pending: 0, approved: 19, rejected: 4 },
+    postCounts: { pending: 0, approved: 19, rejected: 4 },
     createdAt: "2026-07-01T01:00:00Z",
     updatedAt: "2026-07-10T15:00:00Z",
   },
