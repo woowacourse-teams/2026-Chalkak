@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -23,7 +24,7 @@ class PhotoUploadSuccessScreenTest {
                     imageModel = R.drawable.preview_photo,
                     caption = "한낮의 다리",
                     content = PhotoUploadSuccessContent(
-                        dateLabel = "2026. 08. 29",
+                        date = LocalDate.of(2026, 8, 29),
                         topic = "바다",
                         moderationStatus = "PENDING",
                     ),
