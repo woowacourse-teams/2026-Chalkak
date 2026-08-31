@@ -48,7 +48,10 @@ public class SocialAccount {
     @Column(name = "provider", nullable = false, updatable = false)
     private SocialProvider provider;
 
-    @Column(name = "subject_hmac", nullable = false, updatable = false, length = 64)
+    @Column(name = "subject", nullable = false, updatable = false, length = 255)
+    private String subject;
+
+    @Column(name = "subject_hmac", length = 64)
     private String subjectHmac;
 
     @CreationTimestamp
@@ -58,14 +61,38 @@ public class SocialAccount {
     public static SocialAccount create(
             User user,
             SocialProvider provider,
-            String subjectHmac) {
+            String subject,
+            String subjectHmac
+    ) {
         SocialAccount socialAccount = new SocialAccount();
         socialAccount.validateAssociation(user, provider);
         socialAccount.validateSubjectHmac(subjectHmac);
         socialAccount.user = user;
         socialAccount.provider = provider;
+        socialAccount.subject = subject;
         socialAccount.subjectHmac = subjectHmac;
         return socialAccount;
+    }
+
+    /**
+     * 전환 기간의 기존 호출부를 메서드 단위로 변경한 뒤 제거한다.
+     */
+    @Deprecated(forRemoval = true)
+    public static SocialAccount create(
+            User user,
+            SocialProvider provider,
+            String subjectHmac
+    ) {
+        return create(user, provider, subjectHmac, subjectHmac);
+    }
+
+    public void backfillSubjectHmac(String subjectHmac) {
+        if (this.subjectHmac != null) {
+            return;
+        }
+
+        validateSubjectHmac(subjectHmac);
+        this.subjectHmac = subjectHmac;
     }
 
     private void validateAssociation(User user, SocialProvider provider) {
