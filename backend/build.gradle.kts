@@ -50,7 +50,27 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.withType<Test> {
+val testEnvContract = tasks.register<Exec>("testEnvContract") {
+    group = "verification"
+    description = "Tests environment contract checks with synthetic fixtures."
+    workingDir(projectDir)
+    commandLine("bash", "deploy/scripts/check_env_contract_test.sh")
+}
+
+val checkEnvContract = tasks.register<Exec>("checkEnvContract") {
+    dependsOn(testEnvContract)
+    group = "verification"
+    description = "Checks environment variable contracts without exposing values."
+    workingDir(projectDir)
+    commandLine("bash", "deploy/scripts/check_env_contract.sh")
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(checkEnvContract)
     useJUnitPlatform()
     systemProperty("spring.profiles.active", "test")
+}
+
+tasks.named("check") {
+    dependsOn(checkEnvContract)
 }

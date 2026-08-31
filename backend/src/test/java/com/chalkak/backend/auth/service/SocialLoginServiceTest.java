@@ -11,11 +11,11 @@ import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvid
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +41,12 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private SocialAccountRepository socialAccountRepository;
 
     @Autowired
+    private UserService userService;
+
+    @Autowired
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
@@ -60,7 +66,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When
@@ -92,8 +98,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴한 회원에 연결된 소셜 계정의 로그인은 거부한다")
-    void login_withdrawnUser_throwsUnauthorizedException() {
+    @DisplayName("탈퇴한 회원이 동일한 소셜 계정으로 로그인하면 회원가입 필요 상태를 반환한다")
+    void login_withdrawnUser_returnsSignUpRequired() {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
@@ -102,7 +108,33 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // When
+        SocialLoginResult result = socialLoginService.login(
+                SocialProvider.GOOGLE,
+                ID_TOKEN);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        assertThat(result.userId()).isNull();
+    }
+
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤 동일한 소셜 계정으로 로그인하면 거부한다")
+    void login_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.ban();
         user.withdraw();
         flushAndClear();
 
@@ -110,8 +142,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN))
-                .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("탈퇴한 회원은 로그인할 수 없습니다.");
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
     }
 
     @Test
@@ -127,7 +159,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When & Then
@@ -150,7 +182,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         flushAndClear();
 
         // When
@@ -187,6 +219,10 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 "user@chalkak.test");
+    }
+
+    private String subjectHmac() {
+        return fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT);
     }
 
     private void flushAndClear() {

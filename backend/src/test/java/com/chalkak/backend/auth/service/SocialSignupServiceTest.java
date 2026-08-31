@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
@@ -18,7 +19,6 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
@@ -28,6 +28,7 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.Optional;
@@ -59,6 +60,12 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -101,7 +108,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Then
         User user = userRepository.findById(userId).orElseThrow();
         SocialAccount socialAccount = socialAccountRepository
-                .findByProviderAndSubject(SocialProvider.GOOGLE, SUBJECT)
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac())
                 .orElseThrow();
         assertThat(user.getEmail()).isEqualTo(EMAIL);
         assertThat(user.getSignatureOriginalStorageKey())
@@ -109,6 +118,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThat(user.getSignatureThumbnailStorageKey())
                 .isEqualTo(storageKeys.thumbnailStorageKey());
         assertThat(socialAccount.getUser().getId()).isEqualTo(userId);
+        assertThat(socialAccount.getSubjectHmac()).isEqualTo(subjectHmac());
     }
 
     @Test
@@ -144,7 +154,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 existingUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -156,25 +166,49 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴 회원에 연결된 소셜 계정은 회원가입을 재요청할 수 없다")
-    void signup_withdrawnSocialAccount_throwsUnauthorizedException() {
+    @DisplayName("탈퇴 후 동일한 소셜 계정으로 회원가입하면 새로운 회원을 생성한다")
+    void signup_withdrawnSocialAccount_createsNewUser() {
         // Given
         UUID uploadId = UUID.randomUUID();
+        SignatureStorageKeys storageKeys = storageKeys(uploadId);
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
         User withdrawnUser = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 withdrawnUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
-        withdrawnUser.withdraw();
+                subjectHmac()));
+        UUID withdrawnUserId = withdrawnUser.getId();
+        userService.withdraw(withdrawnUserId);
         entityManager.flush();
         entityManager.clear();
 
-        // When & Then
-        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
-                .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("탈퇴한 회원은 회원가입할 수 없습니다.");
+        // When
+        UUID newUserId = socialSignupService.signup(SIGNUP_TOKEN).userId();
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        User oldUser = userRepository.findById(withdrawnUserId).orElseThrow();
+        User newUser = userRepository.findById(newUserId).orElseThrow();
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.GOOGLE,
+                        subjectHmac())
+                .orElseThrow();
+
+        assertThat(newUserId).isNotEqualTo(withdrawnUserId);
+        assertThat(oldUser.isDeleted()).isTrue();
+        assertThat(oldUser.getEmail())
+                .isEqualTo("withdrawn+" + withdrawnUserId + "@chalkak.invalid");
+        assertThat(oldUser.getSignatureOriginalStorageKey())
+                .isEqualTo("withdrawn/" + withdrawnUserId);
+        assertThat(newUser.getEmail()).isEqualTo(EMAIL);
+        assertThat(socialAccount.getUser().getId()).isEqualTo(newUserId);
     }
 
     @Test
@@ -190,7 +224,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -198,6 +232,61 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤에는 기존 회원가입 토큰으로 재가입할 수 없다")
+    void signup_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.ban();
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageStorage);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 일반 회원의 소셜 계정 행이 남아 있으면 회원가입을 완료하지 않는다")
+    void signup_withdrawnUserWithSocialAccount_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorCode",
+                        ErrorCode.BUSINESS_ERROR)
+                .hasMessage("이미 가입된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageStorage);
     }
 
     @Test
@@ -349,7 +438,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
 
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
@@ -357,6 +446,32 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 ID_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴했지만 소셜 계정 행이 남아 있으면 회원가입용 서명 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_withdrawnUserWithSocialAccount_throwsBusinessException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
+                .hasMessage("이미 가입된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
     }
 
     @Test
@@ -372,7 +487,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                SUBJECT));
+                subjectHmac()));
         entityManager.flush();
         entityManager.clear();
 
@@ -384,11 +499,41 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("차단 회원이 탈퇴한 뒤에는 회원가입용 서명 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_withdrawnBannedUser_throwsForbiddenException() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        user.ban();
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.GOOGLE,
+                ID_TOKEN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("차단된 소셜 계정입니다.");
+        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
+    }
+
     private VerifiedSocialIdentity identity() {
         return new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 EMAIL);
+    }
+
+    private String subjectHmac() {
+        return fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT);
     }
 
     private VerifiedSocialSignupToken verifiedSignupToken(

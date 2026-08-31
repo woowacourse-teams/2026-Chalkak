@@ -193,6 +193,9 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 
 액세스 토큰은 HS256으로 서명한 JWT이며 `sub`에 회원 식별자를 담는다. 회원가입 토큰과는 서명 키,
 `aud`, `purpose` 세 가지로 분리해, 키를 같은 값으로 잘못 설정해도 서로를 대신할 수 없게 한다.
+일반 사용자 토큰에는 `USER`, 관리자 로그인 토큰에는 `ADMIN` scope를 서명해 같은 JWT 검증 계약을
+재사용하면서 `/api/v1/admin/**`의 권한을 구분한다. 기존에 발급한 scope 없는 회원 토큰도 유지한다.
+관리자 토큰의 식별자는 회원 식별자로 사용하지 않으며, 회원 인증 주체가 필요한 API에서는 403으로 거부한다.
 
 | 대상 | 역할 |
 |---|---|
@@ -200,6 +203,7 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 | `JwtAccessTokenProvider` | 액세스 토큰 발급과 검증용 `JwtDecoder` 제공 |
 | `LoginUserArgumentResolver` | 인증 주체를 `AuthenticatedUser`로 변환. 인증이 없으면 401 |
 | `OptionalLoginUserArgumentResolver` | 공개 API에서 인증이 없으면 비로그인으로 처리 |
+| `SecurityContextAdminActorResolver` | `ADMIN` scope를 가진 인증 주체를 `AuthenticatedAdmin`으로 변환 |
 | `UnauthorizedEntryPoint` | 필터 단계의 401을 공통 에러 형식으로 응답 |
 
 공개 경로는 소셜 로그인·회원가입(`/api/v1/auth/**`), 주제와 게시물 조회(`GET`), Lambda 콜백
@@ -207,14 +211,95 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 
 Bearer 토큰을 쓰는 stateless API라 CSRF 보호는 끈다. 켜 두면 모든 쓰기 요청이 403이 된다.
 
+관리자는 `POST /api/v1/admin/auth/login`으로 로그인한 뒤 응답의 액세스 토큰을 같은 방식으로
+전달한다. 로그인만 공개이며 현재 관리자 조회, 로그아웃과 나머지 관리자 API는 모두 `ADMIN`
+scope가 필요하다. 로그아웃 응답을 받으면 브라우저가 Bearer 토큰을 폐기한다.
+서버가 발급한 JWT 자체를 즉시 무효화하지는 않으므로 이미 복사된 토큰은 만료까지 유효하다.
+MVP에는 refresh token, 토큰 폐기 목록, 서버 세션을 별도로 추가하지 않는다.
+
+local과 test는 `chalkak.admin.authentication.development-bypass-enabled=true`를 명시해 기존
+`dev-admin`을 사용할 수 있다. dev와 prod의 기본값은 false이며 실제 관리자 로그인을 거쳐야 한다.
+dev/prod를 포함한 local/test 외 환경에서 이 값을 true로 설정하면 서버 시작을 실패시킨다.
+dev/prod와 local/test 프로필을 함께 활성화해도 인증 우회를 허용하지 않는다.
+
 규칙:
 
-- **`@LoginUser`를 쓰는 컨트롤러에는 반드시 `@Profile("!prod")`를 붙인다.** 빠뜨리면 prod에 리졸버가 없어 `AuthenticatedUser`가 `@ModelAttribute`로 바인딩되고 userId가 null인 채 동작할 수 있다.
-- `WebMvcConfig`의 생성자 파라미터를 `Optional`이나 `ObjectProvider`로 바꾸지 않는다. 비운영 프로파일에서 리졸버가 사라지면 기동 단계에서 드러나야 한다.
-- 컨트롤러는 헤더를 직접 읽지 않고 `@LoginUser AuthenticatedUser`를 받는다.
-- 로그인 여부에 따라 응답만 개인화하는 공개 API는 `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다. 헤더가 없으면 비로그인으로 처리하고, 임시 헤더를 신뢰하지 않는 prod에서는 항상 비로그인으로 처리한다.
+- 컨트롤러는 헤더를 직접 읽지 않고 회원은 `@LoginUser AuthenticatedUser`, 관리자는
+  `@CurrentAdmin AuthenticatedAdmin`을 받는다.
+- 로그인 여부에 따라 응답만 개인화하는 공개 API는
+  `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다.
+- 정지 회원의 쓰기 동작처럼 메서드별 정책이 필요한 곳만 `@RequiresUsableUser`를 붙인다.
+- 일반 사용자 토큰은 관리자 API에서 403, 토큰이 없는 요청은 401을 받는다.
 
-Spring Security를 도입할 때 리졸버가 `SecurityContextHolder`를 읽도록 바꾸고 `@Profile`을 제거한다. **컨트롤러 시그니처와 Service는 바뀌지 않는다.** 도입 이슈는 아직 생성되지 않았다.
+### 관리자 초기 계정
+
+MVP는 운영자가 준비한 단일 관리자 계정으로 운영한다. 관리자 회원가입, 여러 관리자 역할,
+비밀번호 찾기·변경 UI, MFA, 관리자 소셜 로그인은 범위에 포함하지 않는다.
+DB 전체 행 수를 하나로 제한하거나 기존 개발 관리자·감사 기록을 삭제하는 방식은 아니다.
+
+dev와 prod는 `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`로 초기 관리자 계정을 준비한다. 서버에는
+평문 비밀번호가 아니라 BCrypt 해시만 저장한다. `htpasswd`가 설치된 안전한 관리 단말에서 다음
+명령을 실행하면 비밀번호를 대화형으로 입력해 해시를 만들 수 있다.
+
+```bash
+htpasswd -nBC 12 operator
+```
+
+출력에서 콜론 뒤의 BCrypt 해시만 `ADMIN_PASSWORD_HASH`에 넣는다. 애플리케이션은 해당
+`ADMIN_USERNAME`이 DB에 없을 때만 계정을 생성하며, 이미 있으면 저장된 해시를 덮어쓰지 않는다.
+따라서 비밀번호 변경은 환경변수만 바꾸지 말고 별도 변경 절차로 DB의 해시도 갱신해야 한다.
+
+### 로컬에서 실제 관리자 로그인 검증
+
+`backend/.env.example`의 관리자 항목을 참고해 개인 `backend/.env`에 다음 키를 추가한다.
+기존 `.env`를 예제 파일로 덮어쓰지 않고 누락된 키만 추가한다.
+
+```dotenv
+ADMIN_DEVELOPMENT_BYPASS_ENABLED=false
+ADMIN_USERNAME=operator
+ADMIN_PASSWORD_HASH=REPLACE_WITH_BCRYPT_HASH
+```
+
+- `operator`는 예시다. 고정 개발 계정 `dev-admin`과 다른, 사용할 새 아이디로 바꾼다.
+- `ADMIN_PASSWORD_HASH`에는 위 `htpasswd` 명령 결과의 콜론 뒤 해시만 넣는다.
+  `.env`는 Spring properties로도 읽으므로 해시의 `$`를 그대로 쓰고 따옴표로 감싸지 않는다.
+- `ADMIN_DEVELOPMENT_BYPASS_ENABLED=false`이면 local에서도 해당 계정을 최초 생성하고
+  관리자 JWT 인증을 사용한다. 로그인 API에는 해시가 아닌 원래 비밀번호를 입력한다.
+- 로컬 우회 기본값과 예제 기본값은 `true`다. 실제 로그인을 시험할 때만 `false`로 바꾼다.
+  test 프로필은 기존 개발 우회를 유지하며, dev/prod는 이 로컬 전용 환경변수를 사용하지 않는다.
+- localhost 관리자 웹 Origin은 이미 허용돼 있으므로 로컬 `.env`에는
+  `ADMIN_CORS_ALLOWED_ORIGIN`을 추가하지 않는다. 이 키는 dev/prod 배포 설정용이다.
+- 관리자 JWT도 기존 액세스 토큰 설정을 사용하므로 `ACCESS_TOKEN_SECRET`,
+  `ACCESS_TOKEN_EXPIRATION` 등 나머지 `.env.example` 항목도 필요하다.
+
+설정 후 `backend` 디렉터리에서 `./gradlew bootRun`으로 실행한다. 이미 실행 중이면 종료 후
+다시 실행해야 변경된 `.env`를 읽는다. 초기 계정 생성 외 기존 계정의 해시는 변경하지 않는다.
+이 단계는 백엔드 로그인 API 검증이며, 관리자 웹의 로그인 화면·세션 연결은 #186에서 진행한다.
+
+### 환경변수 자동 검사
+
+`./gradlew test`, `./gradlew check`, `./gradlew build`는 환경변수 계약 검사를 먼저 실행한다.
+GitHub CI와 CodeBuild도 기존 `./gradlew clean test bootJar --no-daemon` 경로를 통해 같은
+검사를 실행하므로 실제 관리자 비밀번호나 해시를 CI 비밀변수에 추가할 필요가 없다.
+
+검사는 Spring 설정의 변수 이름, 로컬·dev·prod 예제, CD 필수 키 목록을 대조한다. 개인 `.env`가
+있으면 그 파일의 키 누락·중복·불필요한 키도 검사한다. 키가 맞지 않으면 테스트 실행 전에
+실패하므로 최신 예제와 맞춰야 한다. 값 자체는 로그에 출력하거나 파일에 복사하지 않는다.
+CI처럼 `.env`가 없으면 개인 파일 비교만 생략한다.
+검사기 자체도 합성 설정으로 누락·중복·불필요한 키·잘못된 형식·필수 파일 누락·값 미출력을
+검증한다. 이 회귀 테스트는 개인 `.env`를 읽거나 복사하지 않는다.
+
+이 검사는 **키 계약**을 확인한다. placeholder가 실제 값으로 교체됐는지, EC2 설정이 준비됐는지,
+로그인에 성공하는지까지 보장하지는 않는다. 설정한 해시는 애플리케이션 시작 시 별도로 검증한다.
+
+### 관리자 웹 연결 순서
+
+1. #223: 백엔드 관리자 인증·인가를 검증하고, dev 서버 환경변수 준비 후 병합·배포한다.
+2. #186: 관리자 웹 로그인·세션 처리와 만료·401·403 처리를 연결한다.
+3. #207: 인증된 Preview에서 실제 API와 모바일 화면을 검증한 뒤 관리자 웹을 병합한다.
+4. 나머지 기능과 운영 배포를 검증한다. 알림 기능은 뒤로 미룬다.
+
+백엔드 인증 PR은 `be/develop`, 관리자 웹 PR은 `admin-web`을 기준으로 진행한다.
 
 ## 이미지 저장소
 

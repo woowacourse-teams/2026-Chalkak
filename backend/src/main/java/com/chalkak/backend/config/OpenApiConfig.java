@@ -8,7 +8,10 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +34,13 @@ import org.springframework.context.annotation.Profile;
         bearerFormat = "JWT",
         description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰"
 )
+@SecurityScheme(
+        name = "adminAccessToken",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT",
+        description = "관리자 로그인 응답으로 받은 관리자 액세스 토큰"
+)
 @Configuration(proxyBeanMethods = false)
 @Profile("!prod")
 public class OpenApiConfig {
@@ -50,6 +60,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("admin-api")
                 .pathsToMatch("/api/v1/admin/**")
+                .addOpenApiCustomizer(this::customizeAdminSecurity)
                 .addOpenApiCustomizer(this::customizeAdminPostNullableSchemas)
                 .build();
     }
@@ -106,5 +117,23 @@ public class OpenApiConfig {
         }
 
         security.addFirst(new SecurityRequirement());
+    }
+
+    private void customizeAdminSecurity(OpenAPI openApi) {
+        openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations()
+                .forEach(operation -> {
+                    operation.setSecurity(List.of(
+                            new SecurityRequirement().addList("adminAccessToken")
+                    ));
+                    operation.getResponses().putIfAbsent("401", new ApiResponse()
+                            .description("관리자 인증 필요")
+                            .content(new Content().addMediaType("application/json", new MediaType()
+                                    .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse")))));
+                }));
+
+        PathItem loginPath = openApi.getPaths().get("/api/v1/admin/auth/login");
+        if (loginPath != null && loginPath.getPost() != null) {
+            loginPath.getPost().setSecurity(List.of());
+        }
     }
 }

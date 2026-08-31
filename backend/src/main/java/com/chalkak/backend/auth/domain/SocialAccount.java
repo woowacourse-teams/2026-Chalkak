@@ -14,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,8 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SocialAccount {
 
-    private static final int SUBJECT_MAX_LENGTH = 255;
+    private static final Pattern SUBJECT_HMAC_PATTERN =
+            Pattern.compile("^[0-9a-f]{64}$");
 
     @Id
     @Generated
@@ -49,6 +51,9 @@ public class SocialAccount {
     @Column(name = "subject", nullable = false, updatable = false, length = 255)
     private String subject;
 
+    @Column(name = "subject_hmac", length = 64)
+    private String subjectHmac;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -56,14 +61,38 @@ public class SocialAccount {
     public static SocialAccount create(
             User user,
             SocialProvider provider,
-            String subject) {
+            String subject,
+            String subjectHmac
+    ) {
         SocialAccount socialAccount = new SocialAccount();
         socialAccount.validateAssociation(user, provider);
-        socialAccount.validateSubject(subject);
+        socialAccount.validateSubjectHmac(subjectHmac);
         socialAccount.user = user;
         socialAccount.provider = provider;
         socialAccount.subject = subject;
+        socialAccount.subjectHmac = subjectHmac;
         return socialAccount;
+    }
+
+    /**
+     * 전환 기간의 기존 호출부를 메서드 단위로 변경한 뒤 제거한다.
+     */
+    @Deprecated(forRemoval = true)
+    public static SocialAccount create(
+            User user,
+            SocialProvider provider,
+            String subjectHmac
+    ) {
+        return create(user, provider, subjectHmac, subjectHmac);
+    }
+
+    public void backfillSubjectHmac(String subjectHmac) {
+        if (this.subjectHmac != null) {
+            return;
+        }
+
+        validateSubjectHmac(subjectHmac);
+        this.subjectHmac = subjectHmac;
     }
 
     private void validateAssociation(User user, SocialProvider provider) {
@@ -74,10 +103,9 @@ public class SocialAccount {
         }
     }
 
-    private void validateSubject(String subject) {
-        if (subject == null
-                || subject.isBlank()
-                || subject.length() > SUBJECT_MAX_LENGTH) {
+    private void validateSubjectHmac(String subjectHmac) {
+        if (subjectHmac == null
+                || !SUBJECT_HMAC_PATTERN.matcher(subjectHmac).matches()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "소셜 계정 식별 정보가 올바르지 않습니다.");

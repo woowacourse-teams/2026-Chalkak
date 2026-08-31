@@ -35,7 +35,15 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token 또는 탈퇴 회원",
+                    description = "유효하지 않은 ID Token",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "차단된 소셜 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -66,6 +74,14 @@ public interface AuthApiDocs {
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "차단된 소셜 계정",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
             )
     })
     ResponseEntity<SocialSignupSignatureUploadResponse>
@@ -90,7 +106,15 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않거나 만료된 회원가입 토큰 또는 탈퇴 회원",
+                    description = "유효하지 않거나 만료된 회원가입 토큰",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "차단된 소셜 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

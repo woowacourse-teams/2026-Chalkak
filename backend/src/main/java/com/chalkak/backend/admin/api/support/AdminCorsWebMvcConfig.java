@@ -3,7 +3,6 @@ package com.chalkak.backend.admin.api.support;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.servlet.config.annotation.CorsRegistration;
@@ -11,10 +10,9 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!prod & (local | dev | test)")
 @EnableConfigurationProperties(AdminCorsProperties.class)
 @RequiredArgsConstructor
-public class DevelopmentAdminCorsWebMvcConfig implements WebMvcConfigurer {
+public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
 
     private static final String ADMIN_API_PATH = "/api/v1/admin";
     private static final String ADMIN_API_PATH_PATTERN = ADMIN_API_PATH + "/**";

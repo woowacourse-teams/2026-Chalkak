@@ -11,9 +11,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
+@TestPropertySource(properties =
+        "chalkak.admin.authentication.development-bypass-enabled=true")
 class DevelopmentAdminBootstrapTest extends IntegrationTestSupport {
 
     @Autowired

@@ -10,11 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -138,6 +140,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("DB 무결성 오류는 내부 정보를 노출하지 않고 일반 서버 오류로 응답한다")
+    void handleUnexpectedException_dataIntegrityViolation_returnsSanitizedInternalError()
+            throws Exception {
+        mockMvc.perform(get("/test/data-integrity-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("서버에서 요청을 처리하지 못했습니다."));
+    }
+
+    @Test
     void serverSideStandardException() throws Exception {
         mockMvc.perform(get("/test/server-error-response"))
                 .andExpect(status().isServiceUnavailable())
@@ -175,6 +187,13 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/unexpected-error")
         void unexpectedError() {
             throw new RuntimeException("예상치 못한 예외");
+        }
+
+        @GetMapping("/data-integrity-error")
+        void dataIntegrityError() {
+            throw new DataIntegrityViolationException(
+                    "duplicate key violates constraint secret_database_constraint"
+            );
         }
 
         @GetMapping("/server-error-response")

@@ -36,7 +36,6 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
             UUID.fromString("0198fd11-0000-7000-8000-000000000099");
     private static final UUID USER_ID =
             UUID.fromString("0198fd11-0000-7000-8000-000000000003");
-
     @Autowired
     private AdminUserStatusService adminUserStatusService;
 

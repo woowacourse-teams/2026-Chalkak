@@ -165,9 +165,15 @@ class AdminUserQueryRepositoryTest {
 
     private void insertSocialAccounts() {
         jdbcTemplate.update("""
-                INSERT INTO social_accounts (user_id, provider, subject)
-                VALUES (?, 'GOOGLE', 'active-subject'), (?, 'KAKAO', 'banned-subject')
-                """, ACTIVE_USER_ID, BANNED_USER_ID);
+                INSERT INTO social_accounts (user_id, provider, subject, subject_hmac)
+                VALUES (?, 'GOOGLE', ?, ?), (?, 'KAKAO', ?, ?)
+                """,
+                ACTIVE_USER_ID,
+                "active-google-subject",
+                "a".repeat(64),
+                BANNED_USER_ID,
+                "banned-kakao-subject",
+                "b".repeat(64));
     }
 
     private void insertPostsForActiveUser() {

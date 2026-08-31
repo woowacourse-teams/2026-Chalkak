@@ -24,6 +24,8 @@ spring:
 
 chalkak:
   admin:
+    authentication:
+      development-bypass-enabled: false
     cors:
       allowed-origins:
         - http://localhost:3000
@@ -38,6 +40,8 @@ chalkak:
       audience: chalkak-social-signup
       expiration: 5m
       secret: ${SOCIAL_SIGNUP_TOKEN_SECRET}
+    social-identity-hmac:
+      secret: ${SOCIAL_IDENTITY_HMAC_SECRET}
     oidc:
       google:
         issuer: https://accounts.google.com
