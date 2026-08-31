@@ -1,7 +1,9 @@
 package com.chalkak.backend.topic.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.exception.BusinessException;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,5 +79,19 @@ class ParticipationPeriodTest {
 
         // Then
         assertThat(phase).isEqualTo(TopicPhase.CLOSED);
+    }
+
+    @Test
+    @DisplayName("참여 종료 시각은 시작 시각보다 뒤여야 한다")
+    void create_invalidRange_throwsBusinessException() {
+        assertThatThrownBy(() -> new ParticipationPeriod(STARTS_AT, STARTS_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("참여 기간 시각은 필수다")
+    void create_nullBoundary_throwsBusinessException() {
+        assertThatThrownBy(() -> new ParticipationPeriod(null, ENDS_AT))
+                .isInstanceOf(BusinessException.class);
     }
 }

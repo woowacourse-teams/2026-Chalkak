@@ -10,4 +10,12 @@ public interface TopicRepository {
     Optional<Topic> findActiveById(UUID topicId);
 
     Optional<Topic> findActiveByTopicDate(LocalDate topicDate);
+
+    Optional<Topic> findActiveByIdForUpdate(UUID topicId);
+
+    boolean existsActiveByTopicDate(LocalDate topicDate);
+
+    boolean existsActiveByTopicDateExcludingId(LocalDate topicDate, UUID topicId);
+
+    Topic saveAndFlush(Topic topic);
 }
