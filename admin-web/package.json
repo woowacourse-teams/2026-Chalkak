@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:secrets": "bash scripts/scan-secrets.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",
