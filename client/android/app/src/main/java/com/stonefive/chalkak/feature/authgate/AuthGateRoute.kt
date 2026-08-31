@@ -10,12 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.navigation.ChalkakNavHost
-import com.stonefive.chalkak.navigation.Login
-import com.stonefive.chalkak.navigation.Today
 
 @Composable
 fun AuthGateRoute(
+    loginRequiredContent: @Composable (Modifier) -> Unit,
+    appAccessibleContent: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AuthGateViewModel = viewModel(factory = AuthGateViewModel.Factory),
 ) {
@@ -23,6 +22,8 @@ fun AuthGateRoute(
 
     AuthGateContent(
         uiState = uiState,
+        loginRequiredContent = loginRequiredContent,
+        appAccessibleContent = appAccessibleContent,
         modifier = modifier,
     )
 }
@@ -30,6 +31,8 @@ fun AuthGateRoute(
 @Composable
 private fun AuthGateContent(
     uiState: AuthGateUiState,
+    loginRequiredContent: @Composable (Modifier) -> Unit,
+    appAccessibleContent: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -42,17 +45,11 @@ private fun AuthGateContent(
         }
 
         AuthGateUiState.LoginRequired -> key(AuthGateUiState.LoginRequired) {
-            ChalkakNavHost(
-                modifier = modifier,
-                startDestination = Login,
-            )
+            loginRequiredContent(modifier)
         }
 
         AuthGateUiState.AppAccessible -> key(AuthGateUiState.AppAccessible) {
-            ChalkakNavHost(
-                modifier = modifier,
-                startDestination = Today,
-            )
+            appAccessibleContent(modifier)
         }
     }
 }

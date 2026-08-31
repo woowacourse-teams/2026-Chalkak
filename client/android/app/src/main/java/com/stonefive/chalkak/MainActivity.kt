@@ -10,8 +10,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.feature.authgate.AuthGateRoute
-import com.stonefive.chalkak.feature.versiongate.VersionGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 
 class MainActivity : ComponentActivity() {
@@ -48,15 +46,13 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ChalkakTheme {
-                VersionGateRoute(
-                    viewModel = versionGateViewModel,
+                ChalkakApp(
+                    versionGateViewModel = versionGateViewModel,
                     onStartImmediateUpdate = {
                         appUpdateGateway.startImmediateUpdate(updateLauncher)
                     },
                     onImmediateUpdateStartFailed = ::finish,
-                ) {
-                    AuthGateRoute()
-                }
+                )
             }
         }
     }
