@@ -19,10 +19,15 @@ data class DisplayUiState(
     val pendingMessage: UiMessage? = null,
 ) {
     val canGoPrevious: Boolean
-        get() = selectedDate != null && (earliestDate == null || selectedDate > earliestDate)
+        get() = content !is DisplayContentState.Loading &&
+            selectedDate != null &&
+            (earliestDate == null || selectedDate > earliestDate)
 
     val canGoNext: Boolean
-        get() = selectedDate != null && latestDate != null && selectedDate < latestDate
+        get() = content !is DisplayContentState.Loading &&
+            selectedDate != null &&
+            latestDate != null &&
+            selectedDate < latestDate
 }
 
 sealed interface DisplayContentState {

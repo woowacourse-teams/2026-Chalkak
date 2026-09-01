@@ -46,6 +46,7 @@ class DisplayViewModel(
 
     fun moveToPreviousDate() {
         val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
         val selectedDate = state.selectedDate ?: return
         val targetDate = state.earliestDate
             ?.let { selectedDate.minusDays(1).coerceAtLeast(it) }
@@ -57,6 +58,7 @@ class DisplayViewModel(
 
     fun moveToNextDate() {
         val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
         val selectedDate = state.selectedDate ?: return
         val latestDate = state.latestDate ?: return
         val targetDate = selectedDate.plusDays(1).coerceAtMost(latestDate)

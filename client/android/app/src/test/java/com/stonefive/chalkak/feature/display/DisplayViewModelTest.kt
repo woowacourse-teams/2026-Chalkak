@@ -15,6 +15,7 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -292,6 +293,26 @@ class DisplayViewModelTest {
         assertEquals(EARLIEST_DATE, state.earliestDate)
         assertTrue(state.canGoPrevious)
     }
+
+    @Test
+    fun `날짜를 불러오는 중에는 중복 날짜 요청을 막고 실패하면 기존 전시를 복원한다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+
+        viewModel.moveToPreviousDate()
+
+        assertFalse(viewModel.uiState.value.canGoPrevious)
+        assertFalse(viewModel.uiState.value.canGoNext)
+        viewModel.moveToNextDate()
+        assertEquals(2, repository.requests.size)
+
+        pendingResult.complete(HomeResult.Failure(HomeFailure.Network))
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+    }
 }
 
 private val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
@@ -305,6 +326,7 @@ private class FakePostRepository : PostRepository {
     var firstPageRandomSeed: String? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
     var firstPageFailure: HomeFailure? = null
+    var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -323,6 +345,7 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requests += query
+        pendingContentResult?.let { return it.await() }
         firstPageFailure?.let { return HomeResult.Failure(it) }
         val selectedDate = query.date
         if (selectedDate in topicNotFoundDates) {
