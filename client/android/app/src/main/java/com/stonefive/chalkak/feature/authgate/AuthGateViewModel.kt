@@ -23,11 +23,8 @@ class AuthGateViewModel(authRepository: AuthRepository) : ViewModel() {
                 .collect { sessionState ->
                     _uiState.value = when (sessionState) {
                         UserSessionState.Loading -> AuthGateUiState.Loading
-
                         UserSessionState.SignedOut -> AuthGateUiState.LoginRequired
-
                         UserSessionState.Guest -> AuthGateUiState.AppAccessible
-
                         is UserSessionState.Authenticated -> AuthGateUiState.Authenticated
                     }
                 }
