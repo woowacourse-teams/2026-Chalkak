@@ -44,6 +44,12 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
+    override suspend fun deletePost(postId: String): HomeResult<Unit> =
+        when (val result = remoteDataSource.deletePost(postId)) {
+            is ApiResult.Success -> HomeResult.Success(Unit)
+            is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        }
+
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         val topic = when (val result = topicRemoteDataSource.getTopic(query.date)) {
             is ApiResult.Success -> result.value

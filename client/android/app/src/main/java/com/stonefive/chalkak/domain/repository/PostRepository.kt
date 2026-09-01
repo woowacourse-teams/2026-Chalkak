@@ -14,6 +14,8 @@ interface PostRepository {
 
     suspend fun getPostDetail(postId: String): HomeResult<PostDetail>
 
+    suspend fun deletePost(postId: String): HomeResult<Unit>
+
     suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent>
 
     suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage>

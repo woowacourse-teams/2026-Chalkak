@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -169,6 +170,36 @@ class RecordScreenTest {
         composeRule.onNodeWithText("피드에서 보기").performClick()
 
         assertEquals(photo.postId, openedPostId)
+    }
+
+    @Test
+    fun pendingPhotoOpensInFeedWithoutDisplayAction() {
+        val photo = recordPhoto(day = 2).copy(status = PostStatus.PENDING)
+        var openedPostId: String? = null
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        month = RecordTestMonth,
+                        isLoading = false,
+                        posts = listOf(photo),
+                        selectedDate = photo.topicDate,
+                    ),
+                    onPreviousMonthClick = {},
+                    onNextMonthClick = {},
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                    onOpenFeed = { openedPostId = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("피드에서 보기").performClick()
+
+        assertEquals(photo.postId, openedPostId)
+        composeRule.onAllNodesWithText("전시 보러가기").assertCountEquals(0)
     }
 
     @Test

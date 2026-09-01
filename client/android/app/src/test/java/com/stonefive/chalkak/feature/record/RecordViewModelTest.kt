@@ -115,6 +115,20 @@ class RecordViewModelTest {
 
         assertEquals(listOf(RecordTestMonth, RecordLatestMonth), repository.requests)
     }
+
+    @Test
+    fun `삭제 완료된 게시물을 기록에서 제거하고 다음 게시물을 선택한다`() = runTest {
+        advanceUntilIdle()
+
+        viewModel.removeDeletedPost("post-2")
+
+        assertEquals(
+            listOf("post-5"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+    }
 }
 
 private val RecordTestMonth = YearMonth.of(2026, 8)
@@ -144,6 +158,8 @@ private class FakePostRepository : PostRepository {
     }
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")
 

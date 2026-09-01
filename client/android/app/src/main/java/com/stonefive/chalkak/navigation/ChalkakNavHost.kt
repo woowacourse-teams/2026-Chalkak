@@ -250,11 +250,38 @@ fun ChalkakNavHost(
                     isLiked = false,
                 ),
                 onNavigateBack = { navController.popBackStack() },
-                onDeleteClick = { navController.popBackStack() },
+                onPostDeleted = { postId ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        POST_DELETED_KEY,
+                        postId,
+                    )
+                    navController.popBackStack()
+                },
             )
         }
 
-        composable<Record> {
+        composable<FeedById> { backStackEntry ->
+            val feed = backStackEntry.toRoute<FeedById>()
+
+            FeedRoute(
+                postId = feed.postId,
+                isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                onNavigateBack = { navController.popBackStack() },
+                onPostDeleted = { postId ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        POST_DELETED_KEY,
+                        postId,
+                    )
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable<Record> { backStackEntry ->
+            val deletedPostId by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(POST_DELETED_KEY, null)
+                .collectAsStateWithLifecycle()
+
             RecordRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
                 onNavigateToBottomBar = { item ->
@@ -270,6 +297,10 @@ fun ChalkakNavHost(
                 },
                 onOpenDisplay = { date ->
                     navController.navigateToDisplay(date)
+                },
+                deletedPostId = deletedPostId,
+                onDeletedPostConsumed = {
+                    backStackEntry.savedStateHandle[POST_DELETED_KEY] = null
                 },
             )
         }
@@ -392,6 +423,7 @@ private data class AnalyticsScreen(
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
+private const val POST_DELETED_KEY = "post_deleted"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
