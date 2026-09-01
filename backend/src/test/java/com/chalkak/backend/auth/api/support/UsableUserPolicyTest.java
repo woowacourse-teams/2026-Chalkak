@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -36,7 +40,7 @@ class UsableUserPolicyTest {
     void validateUsable_suspendedUser_throwsForbiddenException() {
         // Given
         UUID userId = UUID.randomUUID();
-        given(userRepository.findActiveById(userId))
+        given(userRepository.findById(userId))
                 .willReturn(Optional.of(UserFixture.createBanned(userId)));
 
         // When & Then
@@ -53,24 +57,72 @@ class UsableUserPolicyTest {
         // Given
         UUID userId = UUID.randomUUID();
         User user = UserFixture.create(userId);
-        given(userRepository.findActiveById(userId)).willReturn(Optional.of(user));
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
         // When & Then
         assertThat(policy.validateUsable(authenticationOf(userId))).isTrue();
     }
 
     /**
-     * 없는 회원은 여기서 판단하지 않는다. 각 서비스가 자기 맥락에 맞는 메시지로 이미 처리한다.
+     * 없는 회원은 인증 정보가 가리키는 대상이 사라졌다는 뜻이므로 인가가 아니라 인증의 실패다.
+     * 각 서비스가 자기 맥락의 404로 답하면 같은 원인이 화면마다 다른 문구로 흩어진다.
      */
     @Test
-    @DisplayName("저장소에 없는 회원은 서비스가 판단하도록 통과시킨다")
-    void validateUsable_unknownUser_returnsTrue() {
+    @DisplayName("저장소에 없는 회원은 거부한다")
+    void validateUsable_unknownUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
-        given(userRepository.findActiveById(userId)).willReturn(Optional.empty());
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
 
         // When & Then
-        assertThat(policy.validateUsable(authenticationOf(userId))).isTrue();
+        assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    /**
+     * 탈퇴 회원은 저장소에 남아 있지만 인증 주체로는 없는 회원과 같다. 남아 있다는 사실이
+     * 응답에 드러나지 않도록 없는 회원과 같은 답을 준다.
+     */
+    @Test
+    @DisplayName("탈퇴한 회원은 거부한다")
+    void validateUsable_withdrawnUser_throwsUnauthorizedException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        User user = UserFixture.create(userId);
+        user.withdraw();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // When & Then
+        assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    /**
+     * 관리자 토큰의 {@code sub}는 회원 식별자가 아니라서 저장소에는 없다. 없는 회원으로 접어
+     * 401로 답하면 권한 문제가 인증 문제로 바뀌므로, 저장소를 읽기 전에 걸러야 한다.
+     */
+    @Test
+    @DisplayName("관리자 토큰은 일반 사용자 권한 부족으로 거부한다")
+    void validateUsable_adminToken_throwsForbiddenException() {
+        // Given
+        Authentication authentication = authenticationOf(
+                UUID.randomUUID(),
+                List.of(new SimpleGrantedAuthority(AccessTokenScope.ADMIN.toAuthority())));
+
+        // When & Then
+        assertThatThrownBy(() -> policy.validateUsable(authentication))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("일반 사용자 권한이 필요합니다.")
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     /**
@@ -100,6 +152,12 @@ class UsableUserPolicyTest {
     }
 
     private Authentication authenticationOf(UUID userId) {
+        return authenticationOf(userId, List.of());
+    }
+
+    private Authentication authenticationOf(
+            UUID userId,
+            Collection<? extends GrantedAuthority> authorities) {
         Instant issuedAt = Instant.now();
         Jwt jwt = Jwt.withTokenValue("access-token")
                 .header("alg", "HS256")
@@ -109,6 +167,6 @@ class UsableUserPolicyTest {
                 .claim("purpose", "ACCESS")
                 .build();
 
-        return new JwtAuthenticationToken(jwt, List.of());
+        return new JwtAuthenticationToken(jwt, authorities);
     }
 }
