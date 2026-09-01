@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum ChalkakImageSource {
+enum ChalkakImageSource: Equatable, Sendable {
     case asset(String)
     case system(String)
     case remote(URL?)
