@@ -55,14 +55,11 @@ fun FeedRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
+    val snackbarHostState = remember { SnackbarHostState() }
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown, snackbarHostState)
 
-    LaunchedEffect(viewModel) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                is FeedUiEvent.Deleted -> onPostDeleted(event.postId)
-            }
-        }
+    LaunchedEffect(uiState.deleteSuccessPostId) {
+        uiState.deleteSuccessPostId?.let(onPostDeleted)
     }
 
     FeedScreen(
@@ -70,6 +67,7 @@ fun FeedRoute(
         onNavigateBack = onNavigateBack,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
+        snackbarHostState = snackbarHostState,
         onRetryClick = viewModel::retry,
         modifier = modifier,
     )
@@ -81,15 +79,11 @@ fun FeedScreen(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     onLikeClick: () -> Unit,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     onRetryClick: () -> Unit = {},
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.deleteErrorMessage) {
-        uiState.deleteErrorMessage?.let { snackbarHostState.showSnackbar(it) }
-    }
 
     if (showDeleteDialog) {
         ChalkakConfirmDialog(
@@ -198,6 +192,7 @@ private fun FeedScreenPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onLikeClick = {},
+            snackbarHostState = remember { SnackbarHostState() },
         )
     }
 }

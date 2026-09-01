@@ -3,7 +3,6 @@ package com.stonefive.chalkak.feature.record
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -44,6 +43,7 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
@@ -72,6 +72,7 @@ fun RecordRoute(
     },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(deletedPostId) {
         deletedPostId?.let {
@@ -90,6 +91,8 @@ fun RecordRoute(
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = onOpenFeed,
         onOpenDisplay = onOpenDisplay,
+        onCalendarImageSaved = viewModel::onCalendarImageSaved,
+        onStoragePermissionDenied = viewModel::onStoragePermissionDenied,
         modifier = modifier,
     )
 }
@@ -102,6 +105,8 @@ fun RecordScreen(
     onDateClick: (LocalDate) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onCalendarImageSaved: (Boolean) -> Unit = {},
+    onStoragePermissionDenied: () -> Unit = {},
     modifier: Modifier = Modifier,
     onRetryClick: () -> Unit = {},
     onOpenFeed: (String) -> Unit = {},
@@ -123,8 +128,7 @@ fun RecordScreen(
                     month = uiState.month,
                 )
             }
-            val message = if (saved) "달력을 이미지로 저장했어요" else "이미지 저장에 실패했어요"
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            onCalendarImageSaved(saved)
         }
     }
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -133,7 +137,7 @@ fun RecordScreen(
         if (isGranted) {
             saveCalendarImageNow()
         } else {
-            Toast.makeText(context, "이미지 저장 권한이 필요해요", Toast.LENGTH_SHORT).show()
+            onStoragePermissionDenied()
         }
     }
     val saveCalendarImage: () -> Unit = {

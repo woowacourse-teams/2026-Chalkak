@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.feature.home
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -79,16 +77,11 @@ fun HomeRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
-    val context = LocalContext.current
 
-    LaunchedEffect(viewModel, context) {
+    LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
             when (event) {
                 HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
-
-                HomeUiEvent.ShowGuestLikeMessage ->
-                    Toast.makeText(context, GUEST_LIKE_MESSAGE, Toast.LENGTH_SHORT).show()
-
                 is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
             }
         }

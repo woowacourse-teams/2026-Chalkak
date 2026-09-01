@@ -17,11 +17,9 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -40,9 +38,6 @@ class FeedViewModel(
         ),
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
-
-    private val _uiEvent = Channel<FeedUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLikeGeneration = 0
     private var nextMessageId = 0L
@@ -135,7 +130,7 @@ class FeedViewModel(
         _uiState.update {
             it.copy(
                 isDeleting = true,
-                deleteErrorMessage = null,
+                deleteSuccessPostId = null,
             )
         }
         viewModelScope.launch {
@@ -149,14 +144,18 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> {
-                    _uiState.update { it.copy(isDeleting = false) }
-                    _uiEvent.send(FeedUiEvent.Deleted(post.id))
+                    _uiState.update {
+                        it.copy(
+                            isDeleting = false,
+                            deleteSuccessPostId = post.id,
+                        )
+                    }
                 }
 
                 is HomeResult.Failure -> _uiState.update {
                     it.copy(
                         isDeleting = false,
-                        deleteErrorMessage = result.reason.toDeleteErrorMessage(),
+                        pendingMessage = nextSnackbar(result.reason.toDeleteErrorMessage()),
                     )
                 }
             }
@@ -354,6 +353,11 @@ class FeedViewModel(
     }
 
     private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
+
+    private fun nextSnackbar(text: String): UiMessage.Snackbar = UiMessage.Snackbar(
         id = nextMessageId++,
         text = text,
     )

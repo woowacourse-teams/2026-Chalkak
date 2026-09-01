@@ -8,14 +8,10 @@ data class FeedUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val isDeleting: Boolean = false,
-    val deleteErrorMessage: String? = null,
+    val deleteSuccessPostId: String? = null,
     val errorMessage: String? = null,
     val pendingMessage: UiMessage? = null,
 )
-
-sealed interface FeedUiEvent {
-    data class Deleted(val postId: String) : FeedUiEvent
-}
 
 sealed interface FeedContentState {
     data class Success(

@@ -288,7 +288,7 @@ class HomeViewModel(
         if (isFirstPageRequestPending) return
 
         if (sessionState.value !is UserSessionState.Authenticated) {
-            sendUiEvent(HomeUiEvent.ShowGuestLikeMessage)
+            _uiState.update { it.copy(pendingMessage = nextToast(GUEST_LIKE_MESSAGE)) }
             return
         }
 

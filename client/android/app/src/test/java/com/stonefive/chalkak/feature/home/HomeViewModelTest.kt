@@ -673,7 +673,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `게스트 좋아요는 정확한 snackbar 이벤트만 보내고 상태와 저장소를 바꾸지 않는다`() = runTest {
+    fun `게스트 좋아요는 토스트 상태만 만들고 콘텐츠와 저장소를 바꾸지 않는다`() = runTest {
         val repository = RecordingPostRepository()
         val viewModel = homeViewModel(
             repository = repository,
@@ -683,9 +683,13 @@ class HomeViewModelTest {
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
 
-        assertEquals(before, viewModel.uiState.value)
+        assertEquals(before.photos, viewModel.uiState.value.photos)
+        assertEquals(before.likedPhotoIds, viewModel.uiState.value.likedPhotoIds)
         assertTrue(repository.likeRequests.isEmpty())
-        assertEquals(HomeUiEvent.ShowGuestLikeMessage, viewModel.uiEvent.first())
+        assertEquals(
+            GUEST_LIKE_MESSAGE,
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test

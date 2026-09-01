@@ -1,15 +1,14 @@
 package com.stonefive.chalkak.navigation
 
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination
@@ -26,6 +25,8 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
+import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
@@ -54,15 +55,28 @@ fun ChalkakNavHost(
     startDestination: Any = Login,
     signUpViewModel: SignUpViewModel? = null,
 ) {
-    val context = LocalContext.current
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
+    var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
+    var nextMessageId by remember { mutableLongStateOf(0L) }
+
+    UiMessageEffect(
+        message = pendingMessage,
+        onMessageShown = { messageId ->
+            if (pendingMessage?.id == messageId) pendingMessage = null
+        },
+    )
+
+    val showToast: (String) -> Unit = { text ->
+        pendingMessage = UiMessage.Toast(id = nextMessageId++, text = text)
+    }
+
     val legalDocumentLauncher = remember {
         LegalDocumentLauncher(
             showLegalDocument = { selectedLegalDocument = it },
             onOpenFailed = {
-                Toast.makeText(context, "문서를 열 수 없어요", Toast.LENGTH_SHORT).show()
+                showToast("문서를 열 수 없어요")
             },
         )
     }
@@ -246,6 +260,7 @@ fun ChalkakNavHost(
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onPostDeleted = { postId ->
+                    showToast(POST_DELETED_MESSAGE)
                     navController.previousBackStackEntry?.savedStateHandle?.set(
                         POST_DELETED_KEY,
                         postId,
@@ -263,6 +278,7 @@ fun ChalkakNavHost(
                 isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                 onNavigateBack = { navController.popBackStack() },
                 onPostDeleted = { postId ->
+                    showToast(POST_DELETED_MESSAGE)
                     navController.previousBackStackEntry?.savedStateHandle?.set(
                         POST_DELETED_KEY,
                         postId,
@@ -419,6 +435,7 @@ private data class AnalyticsScreen(
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val POST_DELETED_KEY = "post_deleted"
+private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))

@@ -385,7 +385,7 @@ class FeedViewModelTest {
         advanceUntilIdle()
 
         assertEquals(PHOTO_ID, repository.deletedPostId)
-        assertEquals(FeedUiEvent.Deleted(PHOTO_ID), selectedViewModel.uiEvent.first())
+        assertEquals(PHOTO_ID, selectedViewModel.uiState.value.deleteSuccessPostId)
         assertFalse(selectedViewModel.uiState.value.isDeleting)
     }
 
@@ -417,7 +417,10 @@ class FeedViewModelTest {
         selectedViewModel.deletePost()
         advanceUntilIdle()
 
-        assertEquals("본인이 작성한 게시물만 삭제할 수 있어요", selectedViewModel.uiState.value.deleteErrorMessage)
+        assertEquals(
+            "본인이 작성한 게시물만 삭제할 수 있어요",
+            (selectedViewModel.uiState.value.pendingMessage as UiMessage.Snackbar).text,
+        )
         assertFalse(selectedViewModel.uiState.value.isDeleting)
     }
 }
