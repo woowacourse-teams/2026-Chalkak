@@ -2,10 +2,12 @@ package com.chalkak.backend.post.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
@@ -18,6 +20,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class PostTest {
 
+    private static final UUID AUTHOR_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID OTHER_USER_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID UPLOAD_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
     private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
@@ -255,18 +261,119 @@ class PostTest {
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
     }
 
+    @Test
+    @DisplayName("작성자는 검수 대기 게시물을 삭제할 수 있다")
+    void deleteByAuthor_pendingPost_softDeletesPost() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+
+        // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("작성자는 승인된 게시물을 사진과 함께 삭제할 수 있다")
+    void deleteByAuthor_approvedPost_softDeletesPostAndPhoto() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+        post.approve(Instant.parse("2026-08-20T00:00:00Z"));
+
+        // When
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+
+        // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("작성자가 삭제를 반복해도 최초 삭제 시각을 유지한다")
+    void deleteByAuthor_alreadyDeletedPost_keepsFirstDeletionTime() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+
+        // When
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT.plusSeconds(60));
+
+        // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자는 게시물을 삭제할 수 없다")
+    void deleteByAuthor_otherUser_throwsForbiddenException() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(() -> post.deleteByAuthor(OTHER_USER_ID, DELETED_AT))
+                .isInstanceOfSatisfying(ForbiddenException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
+                .hasMessage("본인의 게시물만 삭제할 수 있습니다.");
+        assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getPhoto().getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("작성자는 거절된 게시물을 삭제할 수 없다")
+    void deleteByAuthor_rejectedPost_throwsBusinessException() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        post.failImageProcessing();
+
+        // When & Then
+        assertThatThrownBy(() -> post.deleteByAuthor(AUTHOR_ID, DELETED_AT))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR))
+                .hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
+        assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getPhoto().getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("작성자는 이미지 처리 중인 게시물을 삭제할 수 없다")
+    void deleteByAuthor_validatingPost_throwsBusinessException() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.deleteByAuthor(AUTHOR_ID, DELETED_AT))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR))
+                .hasMessage("이미지 처리 중인 게시물은 삭제할 수 없습니다.");
+        assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getPhoto().getDeletedAt()).isNull();
+    }
+
     @ParameterizedTest
     @EnumSource(
             value = ModerationStatus.class,
             names = {"PENDING", "APPROVED", "REJECTED"}
     )
     @DisplayName("관리자가 삭제할 수 있는 상태의 게시물은 사진과 함께 soft delete한다")
-    void deletePost_deletableStatus_softDeletesPostAndPhoto(ModerationStatus status) {
+    void deleteByAdmin_deletableStatus_softDeletesPostAndPhoto(ModerationStatus status) {
         // Given
         Post post = createPostWithStatus(status);
 
         // When
-        post.delete(DELETED_AT);
+        post.deleteByAdmin(DELETED_AT);
 
         // Then
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
@@ -275,12 +382,12 @@ class PostTest {
 
     @Test
     @DisplayName("이미지 처리 중인 게시물은 기본 비즈니스 오류로 삭제를 거부한다")
-    void deletePost_validatingPost_throwsBusinessException() {
+    void deleteByAdmin_validatingPost_throwsBusinessException() {
         // Given
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
 
         // When & Then
-        assertThatThrownBy(() -> post.delete(DELETED_AT))
+        assertThatThrownBy(() -> post.deleteByAdmin(DELETED_AT))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR));
@@ -290,13 +397,13 @@ class PostTest {
 
     @Test
     @DisplayName("이미 삭제된 게시물을 다시 삭제해도 최초 삭제 시각을 유지한다")
-    void deletePost_alreadyDeletedPost_keepsFirstDeletionTime() {
+    void deleteByAdmin_alreadyDeletedPost_keepsFirstDeletionTime() {
         // Given
         Post post = createPostWithStatus(ModerationStatus.PENDING);
-        post.delete(DELETED_AT);
+        post.deleteByAdmin(DELETED_AT);
 
         // When
-        post.delete(DELETED_AT.plusSeconds(60));
+        post.deleteByAdmin(DELETED_AT.plusSeconds(60));
 
         // Then
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);

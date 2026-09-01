@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -505,6 +506,41 @@ class PostControllerTest {
                 PHOTO_UPLOAD_ID,
                 "오늘의 기록"
         );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("인증된 사용자가 본인 게시물을 삭제하면 204를 반환한다")
+    void deletePost_validRequest_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/posts/{postId}", POST_ID))
+                .andExpect(status().isNoContent());
+
+        then(postCommandService).should().deletePost(USER_ID, POST_ID);
+    }
+
+    @Test
+    @DisplayName("인증 정보 없이 게시물을 삭제하면 401을 반환한다")
+    void deletePost_unauthenticated_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/posts/{postId}", POST_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("삭제할 게시물 ID 형식이 올바르지 않으면 400을 반환한다")
+    void deletePost_invalidPostId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/posts/{postId}", "invalid-post-id"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
     }
 
     @Test

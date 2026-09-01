@@ -140,6 +140,15 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("정지 회원도 본인 게시물을 삭제할 수 있다")
+    void deletePost_suspendedUser_isNotForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/posts/{postId}", POST_ID)
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(notSuspended());
+    }
+
+    @Test
     @DisplayName("정지 회원도 탈퇴할 수 있다")
     void withdraw_suspendedUser_isNotForbidden() throws Exception {
         // When & Then

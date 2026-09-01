@@ -23,7 +23,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class PostLikeRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID SECOND_USER_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID SECOND_POST_ID =
+            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
 
     @Autowired
     private PostLikeRepository postLikeRepository;
@@ -39,14 +43,23 @@ class PostLikeRepositoryTest {
         jdbcTemplate.update("""
                 INSERT INTO users (
                     id, email, status, signature_original_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    'post-like-repository@example.com',
-                    'ACTIVE',
-                    'chalkak/dev/signatures/post-like-repository.png',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
+                ) VALUES
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                        'post-like-repository@example.com',
+                        'ACTIVE',
+                        'chalkak/dev/signatures/post-like-repository.png',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    ),
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                        'second-post-like-repository@example.com',
+                        'ACTIVE',
+                        'chalkak/dev/signatures/second-post-like-repository.png',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
                 """);
         jdbcTemplate.update("""
                 INSERT INTO topics (
@@ -64,26 +77,44 @@ class PostLikeRepositoryTest {
         jdbcTemplate.update("""
                 INSERT INTO photos (
                     id, original_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    'chalkak/dev/posts/post-like-repository.jpg',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
+                ) VALUES
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                        'chalkak/dev/posts/post-like-repository.jpg',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    ),
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                        'chalkak/dev/posts/second-post-like-repository.jpg',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
                 """);
         jdbcTemplate.update("""
                 INSERT INTO posts (
                     id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    '오늘의 순간',
-                    'APPROVED',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
+                ) VALUES
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                        '오늘의 순간',
+                        'APPROVED',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    ),
+                    (
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                        '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                        '다른 게시물',
+                        'APPROVED',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
                 """);
 
         entityManager.flush();
@@ -144,6 +175,27 @@ class PostLikeRepositoryTest {
         // Then
         assertThat(deletedCount).isZero();
         assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("게시물의 모든 좋아요만 일괄 삭제한다")
+    void deleteByPostId_existingPostLikes_deletesOnlyTargetPostLikes() {
+        // Given
+        postLikeRepository.createIfAbsent(POST_ID, USER_ID);
+        postLikeRepository.createIfAbsent(POST_ID, SECOND_USER_ID);
+        postLikeRepository.createIfAbsent(SECOND_POST_ID, USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        int deletedCount = postLikeRepository.deleteByPostId(POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(deletedCount).isEqualTo(2);
+        assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
+        assertThat(postLikeRepository.countByPostId(SECOND_POST_ID)).isOne();
     }
 
     @Test

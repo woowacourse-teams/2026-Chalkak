@@ -6,6 +6,7 @@ import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Instant;
@@ -25,6 +26,7 @@ public class AdminPostDeletionService {
             "게시물 삭제 요청이 올바르지 않습니다.";
 
     private final PostRepository postRepository;
+    private final PostLikeRepository postLikeRepository;
     private final AdminAuditLogService adminAuditLogService;
 
     @Transactional
@@ -42,7 +44,8 @@ public class AdminPostDeletionService {
         }
 
         AdminAuditSnapshot beforeState = deletionState(post);
-        post.delete(requestedAt);
+        post.deleteByAdmin(requestedAt);
+        postLikeRepository.deleteByPostId(postId);
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.POST_DELETED,

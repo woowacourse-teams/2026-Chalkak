@@ -10,6 +10,8 @@ public interface PostLikeRepository {
 
     int deleteByPostIdAndUserId(UUID postId, UUID userId);
 
+    int deleteByPostId(UUID postId);
+
     long countByPostId(UUID postId);
 
     List<PostLikeCount> countByPostIds(List<UUID> postIds);

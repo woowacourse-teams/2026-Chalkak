@@ -120,6 +120,29 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("관리자가 승인 게시물을 삭제하면 연결된 좋아요도 제거한다")
+    void deletePost_approvedPost_deletesPostLikes() {
+        // Given
+        insertPost(ModerationStatus.APPROVED);
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                POST_ID,
+                USER_ID
+        );
+
+        // When
+        adminPostDeletionService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
+
+        // Then
+        SoftDeletionRow softDeletion = findSoftDeletion();
+        assertThat(softDeletion.postDeletedAt()).isNotNull();
+        assertThat(softDeletion.photoDeletedAt()).isEqualTo(softDeletion.postDeletedAt());
+        assertThat(countPostLikes()).isZero();
+        assertThat(countAudits()).isEqualTo(1);
+        then(postImageStorage).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("이미지 처리 중인 게시물은 기본 비즈니스 오류로 삭제를 거부한다")
     void deletePost_validatingPost_throwsBusinessException() {
         // Given
@@ -281,8 +304,17 @@ class AdminPostDeletionServiceTest extends IntegrationTestSupport {
                 """, Integer.class, POST_ID);
     }
 
+    private int countPostLikes() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
+                Integer.class,
+                POST_ID
+        );
+    }
+
     private void cleanUp() {
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
+        jdbcTemplate.update("DELETE FROM post_likes WHERE post_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM post_image_uploads WHERE id = ?", UPLOAD_ID);

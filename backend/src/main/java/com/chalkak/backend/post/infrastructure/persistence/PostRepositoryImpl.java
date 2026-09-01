@@ -79,6 +79,11 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findVisibleByIdForShare(UUID postId) {
+        return postJpaRepository.findVisibleByIdForShare(postId, ModerationStatus.APPROVED);
+    }
+
+    @Override
     public Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId) {
         return postJpaRepository.findByPostImageUploadIdForUpdate(
                 postImageUploadId,

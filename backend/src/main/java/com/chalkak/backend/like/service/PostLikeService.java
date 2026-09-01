@@ -53,7 +53,7 @@ public class PostLikeService {
     }
 
     private void validatePost(UUID postId) {
-        postRepository.findVisibleById(postId)
+        postRepository.findVisibleByIdForShare(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."

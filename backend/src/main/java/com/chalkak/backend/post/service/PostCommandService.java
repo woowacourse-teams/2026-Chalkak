@@ -3,6 +3,7 @@ package com.chalkak.backend.post.service;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.post.domain.Post;
@@ -37,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PostCommandService {
 
     private final PostRepository postRepository;
+    private final PostLikeRepository postLikeRepository;
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
     private final PhotoRepository photoRepository;
@@ -115,6 +117,12 @@ public class PostCommandService {
         return new PostCreationResult(savedPost.getId(), savedPost.getModerationStatus());
     }
 
+    public void deletePost(UUID authorId, UUID postId) {
+        Post post = getPostForDeletion(postId);
+        post.deleteByAuthor(authorId, Instant.now());
+        postLikeRepository.deleteByPostId(postId);
+    }
+
     /**
      * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
      * 요청이 READY를 보고 사진 처리를 반영한 뒤 관리자 검수 대기 상태로 만든다.
@@ -161,6 +169,14 @@ public class PostCommandService {
 
     private Optional<Post> findValidatingPost(UUID uploadId) {
         return postRepository.findValidatingByPostImageUploadIdForUpdate(uploadId);
+    }
+
+    private Post getPostForDeletion(UUID postId) {
+        return postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "게시물을 찾을 수 없습니다."
+                ));
     }
 
     private User getPostableUser(UUID userId, String message) {
