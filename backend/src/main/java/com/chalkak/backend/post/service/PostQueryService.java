@@ -178,7 +178,8 @@ public class PostQueryService {
                     randomSeed,
                     imageUrlProvider,
                     Map.of(),
-                    Set.of()
+                    Set.of(),
+                    userId
             );
         }
 
@@ -198,7 +199,8 @@ public class PostQueryService {
                 randomSeed,
                 imageUrlProvider,
                 likeCounts,
-                likedPostIds
+                likedPostIds,
+                userId
         );
     }
 

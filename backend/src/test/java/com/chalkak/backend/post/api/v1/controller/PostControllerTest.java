@@ -90,6 +90,7 @@ class PostControllerTest {
                         "오늘의 순간",
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
+                        false,
                         false
                 ))
         );
@@ -127,7 +128,8 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts[0].submittedAt")
                         .value("2026-08-12T03:30:00Z"))
                 .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
-                .andExpect(jsonPath("$.posts[0].isLiked").value(false));
+                .andExpect(jsonPath("$.posts[0].isLiked").value(false))
+                .andExpect(jsonPath("$.posts[0].isMine").value(false));
     }
 
     @Test
@@ -150,6 +152,7 @@ class PostControllerTest {
                         "오늘의 순간",
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
+                        true,
                         true
                 ))
         );
@@ -167,7 +170,8 @@ class PostControllerTest {
                         .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
-                .andExpect(jsonPath("$.posts[0].isLiked").value(true));
+                .andExpect(jsonPath("$.posts[0].isLiked").value(true))
+                .andExpect(jsonPath("$.posts[0].isMine").value(true));
     }
 
     @Test

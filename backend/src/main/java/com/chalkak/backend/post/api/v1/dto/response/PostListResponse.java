@@ -41,7 +41,9 @@ public record PostListResponse(
             String title,
             Instant submittedAt,
             long likeCount,
-            boolean isLiked
+            boolean isLiked,
+            @Schema(description = "조회자가 작성한 게시물인지 여부로, 인증 정보가 없으면 항상 false")
+            boolean isMine
     ) {
 
         private static PostResponse fromPostListResult(PostListResult.PostSummary post) {
@@ -54,7 +56,8 @@ public record PostListResponse(
                     post.title(),
                     post.submittedAt(),
                     post.likeCount(),
-                    post.isLiked()
+                    post.isLiked(),
+                    post.isMine()
             );
         }
     }

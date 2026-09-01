@@ -6,6 +6,7 @@ import com.chalkak.backend.post.repository.PostSlice;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,7 +25,8 @@ public record PostListResult(
             String randomSeed,
             ImageUrlProvider imageUrlProvider,
             Map<UUID, Long> likeCounts,
-            Set<UUID> likedPostIds
+            Set<UUID> likedPostIds,
+            Optional<UUID> viewerId
     ) {
         return new PostListResult(
                 currentPage,
@@ -36,10 +38,17 @@ public record PostListResult(
                                 post,
                                 imageUrlProvider,
                                 likeCounts.getOrDefault(post.getId(), 0L),
-                                likedPostIds.contains(post.getId())
+                                likedPostIds.contains(post.getId()),
+                                isAuthoredBy(post, viewerId)
                         ))
                         .toList()
         );
+    }
+
+    private static boolean isAuthoredBy(Post post, Optional<UUID> viewerId) {
+        return viewerId
+                .map(post.getAuthor().getId()::equals)
+                .orElse(false);
     }
 
     public record PostSummary(
@@ -51,14 +60,16 @@ public record PostListResult(
             String title,
             Instant submittedAt,
             long likeCount,
-            boolean isLiked
+            boolean isLiked,
+            boolean isMine
     ) {
 
         private static PostSummary fromPost(
                 Post post,
                 ImageUrlProvider imageUrlProvider,
                 long likeCount,
-                boolean isLiked
+                boolean isLiked,
+                boolean isMine
         ) {
             return new PostSummary(
                     post.getId(),
@@ -69,7 +80,8 @@ public record PostListResult(
                     post.getTitle(),
                     post.getCreatedAt(),
                     likeCount,
-                    isLiked
+                    isLiked,
+                    isMine
             );
         }
     }
