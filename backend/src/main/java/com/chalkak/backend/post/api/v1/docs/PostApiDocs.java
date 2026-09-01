@@ -58,14 +58,6 @@ public interface PostApiDocs {
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "사진을 업로드할 회원을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
             )
     })
     ResponseEntity<PostImageUploadResponse> createPostImageUpload(
@@ -109,7 +101,7 @@ public interface PostApiDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "회원, 주제 또는 업로드 사진을 찾을 수 없음",
+                    description = "주제 또는 업로드 사진을 찾을 수 없음",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -192,6 +184,14 @@ public interface PostApiDocs {
             @ApiResponse(
                     responseCode = "400",
                     description = "잘못된 조회 조건",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
