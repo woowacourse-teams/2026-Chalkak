@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
@@ -17,8 +18,14 @@ class MainActivity : ComponentActivity() {
         VersionGateViewModel.Factory
     }
 
+    private val appContainer: AppContainer
+        get() = (application as ChalkakApplication).appContainer
+
     private val appUpdateGateway: AppUpdateGateway
-        get() = (application as ChalkakApplication).appContainer.appUpdateGateway
+        get() = appContainer.appUpdateGateway
+
+    private val analyticsTracker: AnalyticsTracker
+        get() = appContainer.analyticsTracker
 
     // MainActivity는 ComponentActivity를 상속하므로, 해당 Activity 결과 API는 FragmentActivity를 사용하지 않는다.
     @Suppress("InvalidFragmentVersionForActivityResult")
@@ -48,6 +55,7 @@ class MainActivity : ComponentActivity() {
             ChalkakTheme {
                 ChalkakApp(
                     versionGateViewModel = versionGateViewModel,
+                    analyticsTracker = analyticsTracker,
                     onStartImmediateUpdate = {
                         appUpdateGateway.startImmediateUpdate(updateLauncher)
                     },
