@@ -287,12 +287,12 @@ class PhotoUploadViewModel(
 
     private fun handleTransientFailure(failure: PostCreationFailure) {
         if (failure == PostCreationFailure.ReauthenticationRequired) {
-            _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
+            _uiState.update { it.copy(isSubmitting = false) }
             sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
             return
         }
 
-        _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
+        _uiState.update { it.copy(isSubmitting = false) }
         messageEmitter.showToast(failure.toMessage())
     }
 

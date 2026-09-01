@@ -390,6 +390,24 @@ class PhotoUploadViewModelTest {
         )
         assertEquals(listOf(preparation), postCreationRepository.discardedPreparations)
     }
+
+    @Test
+    fun `주제 조회 대기 중 이미지 준비가 실패해도 주제 로딩 상태를 유지한다`() = runTest {
+        val topicGate = CompletableDeferred<Unit>()
+        val repository = FakePostCreationRepository().apply {
+            topicAwait = topicGate
+            prepareResults += PostImagePreparationResult.Failure(PostCreationFailure.NetworkUnavailable)
+        }
+        val pendingViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
+        val message = async(start = CoroutineStart.UNDISPATCHED) { pendingViewModel.uiMessage.first() }
+
+        pendingViewModel.onImageSelected("content://media/photo/1")
+
+        assertEquals(UiMessage.Toast("네트워크 연결을 확인해 주세요."), message.await())
+        assertTrue(pendingViewModel.uiState.value.isTopicLoading)
+        assertFalse(pendingViewModel.uiState.value.canSubmit)
+        assertEquals(listOf(uploadTopicDate), repository.requestedTopicDates)
+    }
 }
 
 private class FakePostCreationRepository : PostCreationRepository {
