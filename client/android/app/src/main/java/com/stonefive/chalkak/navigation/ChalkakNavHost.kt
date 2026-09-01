@@ -319,6 +319,12 @@ fun ChalkakNavHost(
                 onOpenDisplay = { date ->
                     navController.navigateToDisplay(date)
                 },
+                onNavigateToLogin = {
+                    navController.navigate(Login) {
+                        popUpTo<Today> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 deletedPostId = deletedPostId,
                 onDeletedPostConsumed = {
                     backStackEntry.savedStateHandle[POST_DELETED_KEY] = null

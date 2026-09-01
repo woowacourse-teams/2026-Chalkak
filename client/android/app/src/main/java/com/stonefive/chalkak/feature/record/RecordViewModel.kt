@@ -109,6 +109,7 @@ class RecordViewModel(
                 selectedDate = null,
                 isLoading = true,
                 errorMessage = null,
+                isLoginRequired = false,
             )
         }
 
@@ -127,6 +128,7 @@ class RecordViewModel(
                                     ?.topicDate,
                                 isLoading = false,
                                 errorMessage = null,
+                                isLoginRequired = false,
                             )
                         }
 
@@ -134,6 +136,7 @@ class RecordViewModel(
                             it.copy(
                                 isLoading = false,
                                 errorMessage = content.reason.toRecordMessage(),
+                                isLoginRequired = content.reason == HomeFailure.Unauthorized,
                             )
                         }
                     }
@@ -144,6 +147,7 @@ class RecordViewModel(
                         it.copy(
                             isLoading = false,
                             errorMessage = error.message ?: "기록을 불러오지 못했어요",
+                            isLoginRequired = false,
                         )
                     }
                 }

@@ -62,6 +62,7 @@ private val RecordHorizontalPadding = 20.dp
 fun RecordRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
     onOpenFeed: (String) -> Unit = {},
@@ -89,6 +90,7 @@ fun RecordRoute(
         onRetryClick = viewModel::retryCurrentMonth,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
+        onNavigateToLogin = onNavigateToLogin,
         onOpenFeed = onOpenFeed,
         onOpenDisplay = onOpenDisplay,
         onCalendarImageSaved = viewModel::onCalendarImageSaved,
@@ -105,6 +107,7 @@ fun RecordScreen(
     onDateClick: (LocalDate) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onNavigateToLogin: () -> Unit = {},
     onCalendarImageSaved: (Boolean) -> Unit = {},
     onStoragePermissionDenied: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -277,9 +280,15 @@ fun RecordScreen(
                         style = ChalkakTheme.typography.body,
                         modifier = Modifier.padding(horizontal = RecordHorizontalPadding),
                     )
-                    TextButton(onClick = onRetryClick) {
+                    TextButton(
+                        onClick = if (uiState.isLoginRequired) {
+                            onNavigateToLogin
+                        } else {
+                            onRetryClick
+                        },
+                    ) {
                         Text(
-                            text = "다시 시도",
+                            text = if (uiState.isLoginRequired) "로그인 하기" else "다시 시도",
                             color = ChalkakTheme.colors.actionPrimary,
                             style = ChalkakTheme.typography.body,
                         )

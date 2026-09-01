@@ -118,6 +118,19 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `인증되지 않은 기록 조회는 로그인 필요 상태로 표시한다`() = runTest {
+        advanceUntilIdle()
+        val unauthorizedMonth = RecordTestMonth.minusMonths(1)
+        repository.unauthorizedMonth = unauthorizedMonth
+
+        viewModel.moveToPreviousMonth()
+        advanceUntilIdle()
+
+        assertEquals("로그인이 필요해요", viewModel.uiState.value.errorMessage)
+        assertEquals(true, viewModel.uiState.value.isLoginRequired)
+    }
+
+    @Test
     fun movesToNextMonthOnlyUpToLatestMonth() = runTest {
         advanceUntilIdle()
 
@@ -177,9 +190,11 @@ private val RecordLatestMonth = YearMonth.of(2026, 9)
 private class FakePostRepository : PostRepository {
     val requests = mutableListOf<YearMonth>()
     var failureMonth: YearMonth? = null
+    var unauthorizedMonth: YearMonth? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> {
         requests += month
+        if (month == unauthorizedMonth) return HomeResult.Failure(HomeFailure.Unauthorized)
         if (month == failureMonth) return HomeResult.Failure(HomeFailure.Http(400))
 
         return HomeResult.Success(
