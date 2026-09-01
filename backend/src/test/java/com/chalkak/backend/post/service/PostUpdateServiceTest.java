@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -58,7 +58,6 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.postId()).isEqualTo(POST_ID);
         assertThat(result.title()).isEqualTo("수정 제목");
-        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.PENDING);
 
         Map<String, Object> updated = jdbcTemplate.queryForMap("""
                 SELECT title, moderation_status
@@ -89,7 +88,6 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
 
         // Then
         Map<String, Object> afterUpdate = findPostState();
-        assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.APPROVED);
         assertThat(afterUpdate.get("title")).isEqualTo("승인 제목");
         assertThat(afterUpdate.get("moderation_status").toString()).isEqualTo("APPROVED");
         assertThat(afterUpdate.get("created_at")).isEqualTo(beforeUpdate.get("created_at"));
@@ -131,6 +129,26 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴한 작성자의 인증 정보로 게시물 제목을 수정할 수 없다")
+    void updatePost_withdrawnAuthor_throwsUnauthorizedException() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                AUTHOR_ID
+        );
+
+        // When
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
+                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목")
+        );
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     private void insertAuthor() {

@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
+import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.auth.api.support.OptionalLoginUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
@@ -10,17 +11,20 @@ import com.chalkak.backend.post.api.v1.docs.PostApiDocs;
 import com.chalkak.backend.post.api.v1.dto.request.PostCalendarRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
+import com.chalkak.backend.post.api.v1.dto.request.PostUpdateRequest;
 import com.chalkak.backend.post.api.v1.dto.response.PostCalendarResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
 import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.post.service.PostCreationResult;
 import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostQueryService;
+import com.chalkak.backend.post.service.PostUpdateResult;
 import jakarta.validation.Valid;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -73,6 +78,24 @@ public class PostController implements PostApiDocs {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(PostCreateResponse.from(result));
+    }
+
+    @Override
+    @RequiresUsableUser
+    @PutMapping("/{postId}")
+    public ResponseEntity<PostUpdateResponse> updatePost(
+            @PathVariable String postId,
+            @LoginUser AuthenticatedUser loginUser,
+            @Valid @RequestBody PostUpdateRequest request
+    ) {
+        UUID parsedPostId = CanonicalUuidParser.parse(postId);
+        PostUpdateResult result = postCommandService.updatePost(
+                loginUser.userId(),
+                parsedPostId,
+                request.title()
+        );
+
+        return ResponseEntity.ok(PostUpdateResponse.from(result));
     }
 
     @Override

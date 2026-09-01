@@ -3,6 +3,7 @@ package com.chalkak.backend.post.service;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
@@ -124,12 +125,12 @@ public class PostCommandService {
     }
 
     public PostUpdateResult updatePost(UUID authorId, UUID postId, String title) {
+        validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
         post.updateTitle(authorId, title, Instant.now());
         return new PostUpdateResult(
                 post.getId(),
-                post.getTitle(),
-                post.getModerationStatus()
+                post.getTitle()
         );
     }
 
@@ -195,6 +196,15 @@ public class PostCommandService {
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."
                 ));
+    }
+
+    private void validateUpdatableUser(UUID userId) {
+        User user = userRepository.findActiveById(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."
+                ));
+        user.validateAccessible();
     }
 
     private User getPostableUser(UUID userId, String message) {
