@@ -59,6 +59,18 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
+    fun `게시물 삭제는 postId 경로로 DELETE하고 204를 성공 처리한다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = dataSource.deletePost(POST_ID)
+        val request = server.takeRequest()
+
+        assertEquals(ApiResult.Success(Unit), result)
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/posts/$POST_ID", request.path)
+    }
+
+    @Test
     fun `게시물 캘린더 요청은 조회 연월을 query로 전송한다`() = runTest {
         server.enqueue(jsonResponse(CALENDAR_BODY))
 

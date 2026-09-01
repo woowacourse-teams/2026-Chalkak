@@ -27,6 +27,7 @@ fun FeedTopBar(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     isDeleteVisible: Boolean,
+    isDeleteEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -58,6 +59,7 @@ fun FeedTopBar(
                     .size(44.dp)
                     .semantics { contentDescription = "삭제" }
                     .clickable(
+                        enabled = isDeleteEnabled,
                         interactionSource = null,
                         indication = null,
                         role = Role.Button,

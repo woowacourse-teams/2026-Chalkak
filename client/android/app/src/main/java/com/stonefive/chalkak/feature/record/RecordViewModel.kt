@@ -57,6 +57,18 @@ class RecordViewModel(
         _uiState.update { it.copy(selectedDate = date) }
     }
 
+    fun removeDeletedPost(postId: String) {
+        _uiState.update { state ->
+            val updatedPosts = state.posts.filterNot { it.postId == postId }
+            state.copy(
+                posts = updatedPosts,
+                selectedDate = state.selectedDate
+                    ?.takeIf { selectedDate -> updatedPosts.any { it.topicDate == selectedDate } }
+                    ?: updatedPosts.firstOrNull()?.topicDate,
+            )
+        }
+    }
+
     private fun loadRecord(month: YearMonth) {
         val generation = ++latestLoadGeneration
         _uiState.update {

@@ -16,9 +16,11 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -37,6 +39,9 @@ class FeedViewModel(
         ),
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+
+    private val _uiEvent = Channel<FeedUiEvent>(Channel.BUFFERED)
+    val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLikeGeneration = 0
 
@@ -106,6 +111,42 @@ class FeedViewModel(
                 }
 
                 is HomeResult.Failure -> rollbackLike(generation, content)
+            }
+        }
+    }
+
+    fun deletePost() {
+        val state = _uiState.value
+        val post = state.content?.post ?: return
+        if (!post.isOwnedByCurrentUser || state.isDeleting) return
+
+        _uiState.update {
+            it.copy(
+                isDeleting = true,
+                deleteErrorMessage = null,
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                repository.deletePost(post.id)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                HomeResult.Failure(HomeFailure.Network)
+            }
+
+            when (result) {
+                is HomeResult.Success -> {
+                    _uiState.update { it.copy(isDeleting = false) }
+                    _uiEvent.send(FeedUiEvent.Deleted(post.id))
+                }
+
+                is HomeResult.Failure -> _uiState.update {
+                    it.copy(
+                        isDeleting = false,
+                        deleteErrorMessage = result.reason.toDeleteErrorMessage(),
+                    )
+                }
             }
         }
     }
@@ -240,6 +281,21 @@ class FeedViewModel(
         HomeFailure.InvalidResponse -> "게시물 정보를 불러오지 못했어요"
 
         else -> "게시물을 불러오지 못했어요"
+    }
+
+    private fun HomeFailure.toDeleteErrorMessage(): String = when (this) {
+        is HomeFailure.Http -> when (statusCode) {
+            400 -> "삭제할 수 없는 상태의 게시물이에요"
+            403 -> "본인이 작성한 게시물만 삭제할 수 있어요"
+            404 -> "게시물을 찾을 수 없어요"
+            else -> "게시물을 삭제하지 못했어요"
+        }
+
+        HomeFailure.Unauthorized -> "로그인이 필요해요"
+
+        HomeFailure.Network -> "네트워크 연결을 확인해 주세요"
+
+        else -> "게시물을 삭제하지 못했어요"
     }
 
     private fun HomeFailure.isPostNotFound(): Boolean = this is HomeFailure.Http && statusCode == 404

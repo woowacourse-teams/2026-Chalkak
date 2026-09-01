@@ -120,6 +120,18 @@ class PostRepositoryImplTest {
     }
 
     @Test
+    fun `게시물 삭제 성공과 권한 실패를 도메인 결과로 변환한다`() = runTest {
+        remoteDataSource.deleteResult = ApiResult.Success(Unit)
+        assertEquals(HomeResult.Success(Unit), repository.deletePost("photo-1"))
+
+        remoteDataSource.deleteResult = ApiResult.Failure(ApiError.Http(403, "FORBIDDEN"))
+        assertEquals(
+            HomeResult.Failure(HomeFailure.Http(403)),
+            repository.deletePost("photo-1"),
+        )
+    }
+
+    @Test
     fun `토픽과 첫 게시물 페이지를 Home 도메인 콘텐츠로 변환한다`() = runTest {
         topicRemoteDataSource.result = ApiResult.Success(
             TopicResponse(
@@ -345,6 +357,7 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
     var calendarResult: ApiResult<PostCalendarResponse> = ApiResult.Success(calendarResponse())
     var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
+    var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit)
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
         PostLikeResponse(
             postId = "photo-1",
@@ -356,6 +369,8 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     override suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse> = calendarResult
 
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
+
+    override suspend fun deletePost(postId: String): ApiResult<Unit> = deleteResult
 
     override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> {
         postsQueries += query

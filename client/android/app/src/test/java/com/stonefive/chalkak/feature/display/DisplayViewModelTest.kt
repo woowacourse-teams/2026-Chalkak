@@ -267,6 +267,8 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
+
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requests += query
         val selectedDate = query.date

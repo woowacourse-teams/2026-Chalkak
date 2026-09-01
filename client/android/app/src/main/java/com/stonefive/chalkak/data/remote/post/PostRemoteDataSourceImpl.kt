@@ -25,6 +25,10 @@ class PostRemoteDataSourceImpl(
         postApi.getPost(postId)
     }
 
+    override suspend fun deletePost(postId: String): ApiResult<Unit> = requestExecutor.executeNoContent {
+        postApi.deletePost(postId)
+    }
+
     override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> = requestExecutor.execute {
         postApi.getPosts(
             topicDate = query.date.toString(),

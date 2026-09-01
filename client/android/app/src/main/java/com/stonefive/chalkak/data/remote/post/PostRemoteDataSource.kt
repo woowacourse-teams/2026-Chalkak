@@ -13,6 +13,8 @@ interface PostRemoteDataSource {
 
     suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse>
 
+    suspend fun deletePost(postId: String): ApiResult<Unit>
+
     suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse>
 
     suspend fun updateLike(
