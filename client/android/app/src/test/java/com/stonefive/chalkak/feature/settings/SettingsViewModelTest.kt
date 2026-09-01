@@ -93,6 +93,45 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `서명 조회가 인증 외 오류면 로그인 상태를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        val gate = CompletableDeferred<Unit>()
+        userRepository.profileAwait = gate
+        userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.NETWORK)
+        val viewModel = createViewModel()
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(
+            UiMessage.Toast("사인을 불러오지 못했어요. 다시 시도해 주세요."),
+            message.await(),
+        )
+    }
+
+    @Test
+    fun `계정 작업 실패 시 로그인 상태를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        authRepository.logoutError = IllegalStateException("failure")
+        val viewModel = createViewModel()
+        viewModel.showLogoutDialog()
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
+
+        viewModel.confirmAccountAction()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(authRepository.logoutCalled)
+        assertEquals(
+            UiMessage.Toast("요청을 처리하지 못했어요. 다시 시도해 주세요."),
+            message.await(),
+        )
+    }
+
+    @Test
     fun `로그아웃 API 성공 후 로그인 화면으로 이동한다`() = runTest {
         authRepository.setAuthenticated()
         val viewModel = createViewModel()
@@ -143,6 +182,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     var logoutCalled: Boolean = false
+    var logoutError: Throwable? = null
 
     fun setAuthenticated() {
         mutableSessionState.value = UserSessionState.Authenticated("user-id")
@@ -160,6 +200,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     }
 
     override suspend fun logout() {
+        logoutError?.let { throw it }
         logoutCalled = true
         mutableSessionState.value = UserSessionState.SignedOut
     }

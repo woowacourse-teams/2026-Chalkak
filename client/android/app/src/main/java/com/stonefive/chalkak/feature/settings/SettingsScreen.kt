@@ -49,16 +49,6 @@ fun SettingsRoute(
         signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
     }
 
-    LaunchedEffect(viewModel) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                SettingsUiEvent.AccountActionFailed -> {
-                    // 스낵바 등 사용자 안내 필요
-                }
-            }
-        }
-    }
-
     SettingsScreen(
         uiState = uiState,
         onLoginClick = onNavigateToLogin,

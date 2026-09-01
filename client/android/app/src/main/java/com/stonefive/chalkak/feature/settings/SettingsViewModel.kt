@@ -9,15 +9,14 @@ import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
+import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -35,9 +34,6 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private val messageEmitter = UiMessageEmitter()
     val uiMessage = messageEmitter.messages
-
-    private val _uiEvent = Channel<SettingsUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
 
     init {
         loadProfile()
@@ -92,7 +88,7 @@ class SettingsViewModel(
                 throw error
             } catch (error: Exception) {
                 _uiState.update { it.copy(isAccountActionInProgress = false) }
-                _uiEvent.send(SettingsUiEvent.AccountActionFailed)
+                messageEmitter.showToast(ACCOUNT_ACTION_ERROR_MESSAGE)
             }
         }
     }
@@ -122,12 +118,23 @@ class SettingsViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: UserProfileLoadException) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isLoggedIn = false,
-                        signatureUrl = null,
-                    )
+                if (error.reason == UserProfileLoadFailure.UNAUTHORIZED) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoggedIn = false,
+                            signatureUrl = null,
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            signatureUrl = null,
+                        )
+                    }
+                    messageEmitter.showToast(SIGNATURE_LOAD_ERROR_MESSAGE)
                 }
             } catch (error: Exception) {
                 _uiState.update {
@@ -137,7 +144,7 @@ class SettingsViewModel(
                         signatureUrl = null,
                     )
                 }
-                messageEmitter.showToast("사인을 불러오지 못했어요. 다시 시도해 주세요.")
+                messageEmitter.showToast(SIGNATURE_LOAD_ERROR_MESSAGE)
             }
         }
     }
@@ -155,3 +162,6 @@ class SettingsViewModel(
         }
     }
 }
+
+private const val SIGNATURE_LOAD_ERROR_MESSAGE = "사인을 불러오지 못했어요. 다시 시도해 주세요."
+private const val ACCOUNT_ACTION_ERROR_MESSAGE = "요청을 처리하지 못했어요. 다시 시도해 주세요."
