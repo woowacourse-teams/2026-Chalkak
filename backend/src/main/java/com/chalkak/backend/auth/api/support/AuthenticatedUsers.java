@@ -27,12 +27,19 @@ final class AuthenticatedUsers {
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
             return Optional.empty();
         }
-        // 기존 scope 없는 회원 토큰은 유지하되 관리자 식별자를 회원 식별자로 사용하지 않는다.
+        validateNotAdmin(authentication);
+        return Optional.of(new AuthenticatedUser(UUID.fromString(jwt.getSubject())));
+    }
+
+    /**
+     * 기존 scope 없는 회원 토큰은 유지하되 관리자 식별자를 회원 식별자로 사용하지 않는다.
+     * 회원 저장소를 읽는 지점보다 먼저 걸러야 관리자 토큰이 없는 회원으로 접히지 않는다.
+     */
+    static void validateNotAdmin(Authentication authentication) {
         if (authentication.getAuthorities().stream()
                 .anyMatch(authority -> AccessTokenScope.ADMIN.toAuthority()
                         .equals(authority.getAuthority()))) {
             throw new ForbiddenException(ErrorCode.FORBIDDEN, "일반 사용자 권한이 필요합니다.");
         }
-        return Optional.of(new AuthenticatedUser(UUID.fromString(jwt.getSubject())));
     }
 }

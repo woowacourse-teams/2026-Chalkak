@@ -35,9 +35,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 필터 체인이 실제로 무엇을 막고 무엇을 여는지 고정한다. 여기서 열려 있어야 할 경로가 막히면
@@ -46,6 +48,7 @@ import org.springframework.test.web.servlet.ResultMatcher;
  * <p>서비스는 모두 모킹한다. 비즈니스 계층이 던지는 401과 필터가 막아 낸 401을 구별하지 못하면
  * 통과 여부를 잘못 읽는다.
  */
+@Transactional
 @AutoConfigureMockMvc
 class SecurityFilterChainTest extends IntegrationTestSupport {
 
@@ -53,6 +56,9 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
@@ -82,11 +88,16 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
     }
 
+    /**
+     * 좋아요는 {@link com.chalkak.backend.auth.api.support.RequiresUsableUser}가 붙어 있어
+     * 저장소에 없는 회원이면 인가 단계에서 401로 끝난다. 여기서 볼 것은 필터가 유효한 토큰을
+     * 막지 않는다는 사실이므로 회원을 실제로 넣어 인가가 통과하도록 둔다.
+     */
     @Test
     @DisplayName("유효한 액세스 토큰이 있으면 보호된 API를 호출할 수 있다")
     void protectedApi_validAccessToken_reachesController() throws Exception {
         // Given
-        UUID userId = UUID.randomUUID();
+        UUID userId = createUser();
         UUID postId = UUID.randomUUID();
         given(postLikeService.likePost(postId, userId))
                 .willReturn(new PostLikeResult(postId, 1L, true));
@@ -326,5 +337,22 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     private ResultMatcher notBlockedBySecurity() {
         return result -> assertThat(result.getResponse().getStatus())
                 .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
+    }
+
+    private UUID createUser() {
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status,
+                    signature_original_storage_key, signature_thumbnail_storage_key,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, 'filter-chain@chalkak.test', 'ACTIVE',
+                    'chalkak/signatures/original/filter-chain.png',
+                    'chalkak/signatures/thumbnail/filter-chain.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, userId);
+        return userId;
     }
 }
