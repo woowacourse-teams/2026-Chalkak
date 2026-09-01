@@ -112,6 +112,23 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun `같은 문구가 다시 발생해도 새 ID를 만들고 이전 consume은 최신 메시지를 지우지 않는다`() {
+        viewModel.credentialRequestFailed("동일한 오류")
+        val first = viewModel.uiState.value.pendingMessage as UiMessage.Toast
+
+        viewModel.credentialRequestFailed("동일한 오류")
+        val second = viewModel.uiState.value.pendingMessage as UiMessage.Toast
+
+        assertTrue(first.id != second.id)
+
+        viewModel.onMessageShown(first.id)
+        assertEquals(second, viewModel.uiState.value.pendingMessage)
+
+        viewModel.onMessageShown(second.id)
+        assertEquals(null, viewModel.uiState.value.pendingMessage)
+    }
+
+    @Test
     fun `비회원으로 계속하면 게스트 세션으로 전환한다`() = runTest {
         viewModel.continueAsGuest()
 

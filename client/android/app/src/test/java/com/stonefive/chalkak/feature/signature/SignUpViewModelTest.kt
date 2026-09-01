@@ -1,8 +1,10 @@
 package com.stonefive.chalkak.feature.signature
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
+import com.stonefive.chalkak.domain.model.SocialSignUpFailure
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
@@ -31,12 +33,29 @@ class SignUpViewModelTest {
         assertArrayEquals(signaturePng, repository.completedSignaturePng)
         assertFalse(viewModel.uiState.value.isSubmitting)
     }
+
+    @Test
+    fun `회원가입 실패는 재시도 상태와 pending 메시지를 함께 제공한다`() = runTest {
+        val repository = FakeSignUpRepository().apply {
+            signUpResult = SocialSignUpResult.Failure(SocialSignUpFailure.NETWORK_UNAVAILABLE)
+        }
+        val viewModel = SignUpViewModel(repository)
+
+        viewModel.completeSignUp(byteArrayOf(1))
+
+        assertEquals(SignUpStatus.Idle, viewModel.uiState.value.status)
+        assertEquals(
+            "네트워크 연결을 확인해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
 }
 
 private class FakeSignUpRepository : AuthRepository {
     override val sessionState: StateFlow<UserSessionState> =
         MutableStateFlow(UserSessionState.SignedOut)
     var completedSignaturePng = ByteArray(0)
+    var signUpResult: SocialSignUpResult = SocialSignUpResult.Success("user-id")
 
     override suspend fun login(
         provider: SocialLoginProvider,
@@ -45,7 +64,7 @@ private class FakeSignUpRepository : AuthRepository {
 
     override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult {
         completedSignaturePng = signaturePng
-        return SocialSignUpResult.Success("user-id")
+        return signUpResult
     }
 
     override suspend fun continueAsGuest() = Unit
