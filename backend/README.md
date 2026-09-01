@@ -204,6 +204,7 @@ curl -X PUT localhost:8080/api/v1/users/me/signature \
 | `LoginUserArgumentResolver` | 인증 주체를 `AuthenticatedUser`로 변환. 인증이 없으면 401 |
 | `OptionalLoginUserArgumentResolver` | 공개 API에서 인증이 없으면 비로그인으로 처리 |
 | `SecurityContextAdminActorResolver` | `ADMIN` scope를 가진 인증 주체를 `AuthenticatedAdmin`으로 변환 |
+| `UsableUserPolicy` | 토큰이 가리키는 회원의 상태를 판정. 없거나 탈퇴하면 401, 정지면 403 |
 | `UnauthorizedEntryPoint` | 필터 단계의 401을 공통 에러 형식으로 응답 |
 
 공개 경로는 소셜 로그인·회원가입(`/api/v1/auth/**`), 주제와 게시물 조회(`GET`), Lambda 콜백
@@ -228,7 +229,13 @@ dev/prod와 local/test 프로필을 함께 활성화해도 인증 우회를 허�
   `@CurrentAdmin AuthenticatedAdmin`을 받는다.
 - 로그인 여부에 따라 응답만 개인화하는 공개 API는
   `@OptionalLoginUser Optional<AuthenticatedUser>`를 받는다.
-- 정지 회원의 쓰기 동작처럼 메서드별 정책이 필요한 곳만 `@RequiresUsableUser`를 붙인다.
+- 인증이 필요한 모든 엔드포인트에 회원 상태 판정을 붙인다. 쓰기는 `@RequiresUsableUser`
+  (탈퇴 401 · 정지 403), 조회와 자기 데이터 정리는 `@RequiresExistingUser`(탈퇴 401, 정지는
+  통과)를 쓴다. 정지 회원도 탈퇴와 자기 정리는 할 수 있어야 하기 때문이다.
+- `GET /api/v1/posts`만 익명 호출이 가능하므로 애노테이션을 붙이지 않고 `PostQueryService`가
+  판정한다.
+- 토큰이 가리키는 회원이 없거나 탈퇴했으면 404가 아니라 401을 응답한다. 404는 실제로 없는
+  자원에만 쓴다. 부재는 401, 정지는 403, 리소스 없음은 404다.
 - 일반 사용자 토큰은 관리자 API에서 403, 토큰이 없는 요청은 401을 받는다.
 
 ### 관리자 초기 계정
