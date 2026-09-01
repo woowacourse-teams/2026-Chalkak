@@ -3,6 +3,7 @@ package com.chalkak.backend.post.service;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
@@ -48,7 +49,7 @@ public class PostCommandService {
     private final PostProcessingPolicy postProcessingPolicy;
 
     public PostImageUploadResult createPostImageUpload(UUID userId) {
-        User uploader = getPostableUser(userId, "사진을 업로드할 회원을 찾을 수 없습니다.");
+        User uploader = getPostableUser(userId);
 
         PostImageUpload upload = postImageUploadRepository.save(
                 PostImageUpload.createPostImageUpload(uploader, Instant.now())
@@ -74,7 +75,7 @@ public class PostCommandService {
             UUID photoUploadId,
             String title
     ) {
-        User author = getPostableUser(userId, "게시물을 작성할 회원을 찾을 수 없습니다.");
+        User author = getPostableUser(userId);
         Topic topic = topicRepository.findActiveById(topicId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -179,9 +180,16 @@ public class PostCommandService {
                 ));
     }
 
-    private User getPostableUser(UUID userId, String message) {
+    /**
+     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은
+     * 판정과 이 시점 사이에 회원이 사라질 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
+     */
+    private User getPostableUser(UUID userId) {
         return userRepository.findActiveById(userId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR, message));
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."
+                ));
     }
 
     private void validateTopicOpen(Topic topic) {

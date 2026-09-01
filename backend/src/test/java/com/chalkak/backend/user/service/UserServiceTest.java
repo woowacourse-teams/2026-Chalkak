@@ -13,6 +13,7 @@ import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -127,20 +128,20 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원의 탈퇴는 거부한다")
-    void withdraw_notExistingUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 회원의 탈퇴는 인증 실패로 거부한다")
+    void withdraw_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID notExistingId = UUID.randomUUID();
 
         // When & Then
         assertThatThrownBy(() -> userService.withdraw(notExistingId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("탈퇴할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
-    @DisplayName("이미 탈퇴한 회원은 존재하지 않는 회원과 동일하게 거부한다")
-    void withdraw_alreadyWithdrawnUser_throwsNotFoundException() {
+    @DisplayName("이미 탈퇴한 회원은 존재하지 않는 회원과 동일하게 인증 실패로 거부한다")
+    void withdraw_alreadyWithdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
         userService.withdraw(id);
@@ -148,8 +149,8 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> userService.withdraw(id))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("탈퇴할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
@@ -175,21 +176,21 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원은 사인 업로드 URL을 발급받을 수 없다")
-    void createSignatureUpload_notExistingUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 회원의 사인 업로드 URL 발급은 인증 실패로 거부한다")
+    void createSignatureUpload_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
 
         // When & Then
         assertThatThrownBy(() -> userService.createSignatureUpload(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
         verifyNoInteractions(signatureImageUploadIssuer);
     }
 
     @Test
-    @DisplayName("탈퇴한 회원은 사인 업로드 URL을 발급받을 수 없다")
-    void createSignatureUpload_withdrawnUser_throwsNotFoundException() {
+    @DisplayName("탈퇴한 회원의 사인 업로드 URL 발급은 인증 실패로 거부한다")
+    void createSignatureUpload_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID userId = userRepository.save(UserFixture.create()).getId();
         userService.withdraw(userId);
@@ -197,8 +198,8 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> userService.createSignatureUpload(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
         verifyNoInteractions(signatureImageUploadIssuer);
     }
 
@@ -307,15 +308,15 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("사인을 조회할 회원이 없으면 조회를 거부한다")
-    void getSignature_notExistingUser_throwsNotFoundException() {
+    @DisplayName("사인을 조회할 회원이 없으면 인증 실패로 거부한다")
+    void getSignature_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
 
         // When & Then
         assertThatThrownBy(() -> userService.getSignature(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 조회할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
@@ -794,8 +795,8 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원의 사인 교체는 거부한다")
-    void updateSignature_notExistingUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 회원의 사인 교체는 인증 실패로 거부한다")
+    void updateSignature_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID notExistingId = UUID.randomUUID();
         UUID uploadId = UUID.randomUUID();
@@ -806,13 +807,13 @@ class UserServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() ->
                 userService.updateSignature(notExistingId, uploadId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 교체할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
-    @DisplayName("탈퇴한 회원의 사인 교체는 거부한다")
-    void updateSignature_withdrawnUser_throwsNotFoundException() {
+    @DisplayName("탈퇴한 회원의 사인 교체는 인증 실패로 거부한다")
+    void updateSignature_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
         userService.withdraw(id);
@@ -825,8 +826,8 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 교체할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
