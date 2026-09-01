@@ -43,7 +43,7 @@ public class SocialLoginService {
 
     private SocialLoginResult toLoginResult(SocialAccount socialAccount) {
         User user = socialAccount.getUser();
-        if (user.getStatus() == UserStatus.BANNED) {
+        if (user.isDeleted() && user.getStatus() == UserStatus.BANNED) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
                     "차단된 소셜 계정입니다.");
