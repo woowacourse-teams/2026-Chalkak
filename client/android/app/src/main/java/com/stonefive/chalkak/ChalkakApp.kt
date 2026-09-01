@@ -2,6 +2,7 @@ package com.stonefive.chalkak
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.feature.authgate.AuthGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
@@ -12,6 +13,7 @@ import com.stonefive.chalkak.navigation.Today
 @Composable
 fun ChalkakApp(
     versionGateViewModel: VersionGateViewModel,
+    analyticsTracker: AnalyticsTracker,
     onStartImmediateUpdate: () -> Boolean,
     onImmediateUpdateStartFailed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -25,12 +27,14 @@ fun ChalkakApp(
         AuthGateRoute(
             loginRequiredContent = { contentModifier ->
                 ChalkakNavHost(
+                    analyticsTracker = analyticsTracker,
                     modifier = contentModifier,
                     startDestination = Login,
                 )
             },
             appAccessibleContent = { contentModifier ->
                 ChalkakNavHost(
+                    analyticsTracker = analyticsTracker,
                     modifier = contentModifier,
                     startDestination = Today,
                 )

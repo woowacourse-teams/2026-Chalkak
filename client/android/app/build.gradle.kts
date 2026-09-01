@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.google.services)
 }
 
 fun Properties.requiredProperty(name: String): String = getProperty(name)
@@ -80,6 +81,7 @@ android {
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
+    implementation(platform(libs.firebase.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
@@ -102,6 +104,7 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.play.app.update)
     implementation(libs.play.app.update.ktx)
+    implementation(libs.firebase.analytics)
     implementation(libs.googleid)
     implementation(libs.kakao.user)
     implementation(libs.retrofit)

@@ -2,6 +2,8 @@ package com.stonefive.chalkak
 
 import android.content.Context
 import androidx.credentials.CredentialManager
+import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.analytics.FirebaseAnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.appupdate.PlayAppUpdateGateway
 import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
@@ -32,6 +34,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class AppContainer(context: Context) {
+    val analyticsTracker: AnalyticsTracker by lazy {
+        FirebaseAnalyticsTracker(context)
+    }
+
     val appUpdateGateway: AppUpdateGateway by lazy {
         PlayAppUpdateGateway(context)
     }

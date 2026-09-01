@@ -2,6 +2,7 @@ package com.stonefive.chalkak.navigation
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,12 +12,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
@@ -43,12 +48,14 @@ import java.time.ZoneId
 
 @Composable
 fun ChalkakNavHost(
+    analyticsTracker: AnalyticsTracker,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     startDestination: Any = Login,
     signUpViewModel: SignUpViewModel? = null,
 ) {
     val context = LocalContext.current
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
     val legalDocumentLauncher = remember {
@@ -63,6 +70,18 @@ fun ChalkakNavHost(
                     ).show()
             },
         )
+    }
+
+    LaunchedEffect(currentBackStackEntry) {
+        currentBackStackEntry
+            ?.destination
+            ?.analyticsScreen()
+            ?.let { screen ->
+                analyticsTracker.trackScreenView(
+                    screenName = screen.name,
+                    screenClass = screen.screenClass,
+                )
+            }
     }
 
     selectedLegalDocument?.let { document ->
@@ -172,7 +191,9 @@ fun ChalkakNavHost(
         composable<Today> {
             HomeRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = navController::navigateToBottomBar,
+                onNavigateToBottomBar = { item ->
+                    navController.navigateToBottomBar(item, analyticsTracker)
+                },
             )
         }
 
@@ -181,7 +202,9 @@ fun ChalkakNavHost(
 
             DisplayRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = navController::navigateToBottomBar,
+                onNavigateToBottomBar = { item ->
+                    navController.navigateToBottomBar(item, analyticsTracker)
+                },
                 initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
                     navController.navigate(
@@ -234,7 +257,9 @@ fun ChalkakNavHost(
         composable<Record> {
             RecordRoute(
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = navController::navigateToBottomBar,
+                onNavigateToBottomBar = { item ->
+                    navController.navigateToBottomBar(item, analyticsTracker)
+                },
                 onOpenFeed = { postId ->
                     navController.navigate(
                         FeedById(
@@ -270,7 +295,9 @@ fun ChalkakNavHost(
                 onOpenTerms = {
                     legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                 },
-                onNavigateToBottomBar = navController::navigateToBottomBar,
+                onNavigateToBottomBar = { item ->
+                    navController.navigateToBottomBar(item, analyticsTracker)
+                },
                 onOpenPhotoUpload = navController::navigateToPhotoUpload,
             )
         }
@@ -320,7 +347,12 @@ fun ChalkakNavHost(
     }
 }
 
-private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
+private fun NavHostController.navigateToBottomBar(
+    item: ChalkakBottomBarItem,
+    analyticsTracker: AnalyticsTracker,
+) {
+    analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
+
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -336,6 +368,28 @@ private fun NavHostController.navigateToBottomBar(item: ChalkakBottomBarItem) {
         }
     }
 }
+
+private val ChalkakBottomBarItem.analyticsName: String
+    get() = when (this) {
+        ChalkakBottomBarItem.TODAY -> "today"
+        ChalkakBottomBarItem.DISPLAY -> "display"
+        ChalkakBottomBarItem.RECORD -> "record"
+        ChalkakBottomBarItem.SETTINGS -> "settings"
+    }
+
+private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
+    hasRoute<Today>() -> AnalyticsScreen(name = "today", screenClass = "Today")
+    hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
+    hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
+    hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")
+    hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    else -> null
+}
+
+private data class AnalyticsScreen(
+    val name: String,
+    val screenClass: String,
+)
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 
