@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -38,6 +39,7 @@ class SignatureFlowTest {
         composeRule.activity.setContent {
             ChalkakTheme {
                 ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
                     startDestination = Terms,
                     signUpViewModel = signUpViewModel,
                 )
@@ -123,4 +125,13 @@ private class FakeSignUpRepository : AuthRepository {
     override suspend fun continueAsGuest() = Unit
 
     override suspend fun logout() = Unit
+}
+
+private object NoOpAnalyticsTracker : AnalyticsTracker {
+    override fun trackScreenView(
+        screenName: String,
+        screenClass: String,
+    ) = Unit
+
+    override fun trackBottomNavigationSelection(destination: String) = Unit
 }
