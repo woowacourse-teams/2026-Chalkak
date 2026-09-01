@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -11,8 +12,11 @@ import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +24,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -52,7 +57,6 @@ class SettingsViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.isLoggedIn)
-        assertEquals(null, viewModel.uiState.value.signatureErrorMessage)
         assertEquals(null, viewModel.uiState.value.signatureUrl)
     }
 
@@ -63,6 +67,62 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.isLoggedIn)
         assertEquals(0, userRepository.getMySignatureCalled)
+    }
+
+    @Test
+    fun `일반 서명 조회 실패는 설정을 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        val gate = CompletableDeferred<Unit>()
+        userRepository.profileAwait = gate
+        userRepository.profileError = IllegalStateException("failure")
+        val viewModel = createViewModel()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(
+            "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `서명 조회가 인증 외 오류면 로그인 상태를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        val gate = CompletableDeferred<Unit>()
+        userRepository.profileAwait = gate
+        userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.NETWORK)
+        val viewModel = createViewModel()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(
+            "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `계정 작업 실패 시 로그인 상태를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        authRepository.logoutError = IllegalStateException("failure")
+        val viewModel = createViewModel()
+        viewModel.showLogoutDialog()
+
+        viewModel.confirmAccountAction()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(authRepository.logoutCalled)
+        assertEquals(
+            "요청을 처리하지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test
@@ -116,6 +176,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
 
     var logoutCalled: Boolean = false
+    var logoutError: Throwable? = null
 
     fun setAuthenticated() {
         mutableSessionState.value = UserSessionState.Authenticated("user-id")
@@ -133,6 +194,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     }
 
     override suspend fun logout() {
+        logoutError?.let { throw it }
         logoutCalled = true
         mutableSessionState.value = UserSessionState.SignedOut
     }
@@ -148,11 +210,13 @@ private class FakeSettingsUserRepository(private val onWithdraw: () -> Unit) : U
         signatureThumbnailUrl = "signature-thumbnail-url",
     )
     var profileError: Throwable? = null
+    var profileAwait: CompletableDeferred<Unit>? = null
     var getMySignatureCalled: Int = 0
     var withdrawCalled: Boolean = false
 
     override suspend fun getMySignature(): UserProfile {
         getMySignatureCalled += 1
+        profileAwait?.await()
         profileError?.let { throw it }
         return profile
     }

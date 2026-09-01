@@ -258,6 +258,35 @@ class RecordScreenTest {
 
         assertEquals(photo.topicDate, openedDate)
     }
+
+    @Test
+    fun unauthorizedRecordShowsLoginButtonAndNavigatesToLogin() {
+        var loginClicked = false
+
+        composeRule.setContent {
+            ChalkakTheme {
+                RecordScreen(
+                    uiState = RecordUiState(
+                        month = RecordTestMonth,
+                        isLoading = false,
+                        errorMessage = "로그인이 필요해요",
+                        isLoginRequired = true,
+                    ),
+                    onPreviousMonthClick = {},
+                    onNextMonthClick = {},
+                    onDateClick = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                    onNavigateToLogin = { loginClicked = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("로그인 하기").performClick()
+
+        assertEquals(true, loginClicked)
+        composeRule.onAllNodesWithText("다시 시도").assertCountEquals(0)
+    }
 }
 
 private val RecordTestMonth = YearMonth.of(2026, 8)

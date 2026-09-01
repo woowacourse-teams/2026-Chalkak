@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.display
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -14,6 +15,7 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -61,6 +63,24 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `초기 전시 실패도 요청 날짜를 유지하고 지속 오류로 표시한다`() = runTest {
+        val selectedRepository = FakePostRepository().apply {
+            firstPageFailure = HomeFailure.Network
+        }
+
+        val selectedViewModel = displayViewModel(
+            repository = selectedRepository,
+            initialDate = ARCHIVE_DATE,
+        )
+
+        assertEquals(ARCHIVE_DATE, selectedViewModel.uiState.value.selectedDate)
+        assertEquals(
+            DisplayContentState.Error("전시를 불러오지 못했어요"),
+            selectedViewModel.uiState.value.content,
+        )
+    }
+
+    @Test
     fun `이전 날짜로 이동하면 과거 전시 상태를 만든다`() = runTest {
         viewModel.moveToPreviousDate()
 
@@ -89,6 +109,20 @@ class DisplayViewModelTest {
         val content = viewModel.uiState.value.content as DisplayContentState.Latest
         assertEquals(PostSort.POPULAR, content.selectedSort)
         assertEquals(firstPageQuery(LATEST_DATE, PostSort.POPULAR), repository.requests.last())
+    }
+
+    @Test
+    fun `정렬 갱신 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        repository.firstPageFailure = HomeFailure.Network
+
+        viewModel.selectSort(PostSort.POPULAR)
+
+        assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test
@@ -220,6 +254,24 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `이전 날짜 요청이 네트워크 오류로 실패하면 최초 전시일을 확정하지 않는다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        repository.firstPageFailure = HomeFailure.Network
+
+        viewModel.moveToPreviousDate()
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+        assertEquals(null, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
     fun `다음 날짜에 주제가 없어도 기존 최초 전시일은 보존한다`() = runTest {
         val archiveRepository = FakePostRepository().apply {
             topicNotFoundDates = setOf(EARLIEST_DATE.minusDays(1))
@@ -241,6 +293,26 @@ class DisplayViewModelTest {
         assertEquals(EARLIEST_DATE, state.earliestDate)
         assertTrue(state.canGoPrevious)
     }
+
+    @Test
+    fun `날짜를 불러오는 중에는 중복 날짜 요청을 막고 실패하면 기존 전시를 복원한다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+
+        viewModel.moveToPreviousDate()
+
+        assertFalse(viewModel.uiState.value.canGoPrevious)
+        assertFalse(viewModel.uiState.value.canGoNext)
+        viewModel.moveToNextDate()
+        assertEquals(2, repository.requests.size)
+
+        pendingResult.complete(HomeResult.Failure(HomeFailure.Network))
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+    }
 }
 
 private val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
@@ -253,6 +325,8 @@ private class FakePostRepository : PostRepository {
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
+    var firstPageFailure: HomeFailure? = null
+    var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -271,6 +345,8 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requests += query
+        pendingContentResult?.let { return it.await() }
+        firstPageFailure?.let { return HomeResult.Failure(it) }
         val selectedDate = query.date
         if (selectedDate in topicNotFoundDates) {
             return HomeResult.Failure(HomeFailure.TopicNotFound)

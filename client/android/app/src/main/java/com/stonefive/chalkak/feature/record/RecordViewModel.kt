@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -31,6 +32,7 @@ class RecordViewModel(
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
+    private var nextMessageId = 0L
 
     init {
         loadRecord(initialMonth)
@@ -57,6 +59,10 @@ class RecordViewModel(
         _uiState.update { it.copy(selectedDate = date) }
     }
 
+    fun retryCurrentMonth() {
+        loadRecord(_uiState.value.month)
+    }
+
     fun removeDeletedPost(postId: String) {
         _uiState.update { state ->
             val updatedPosts = state.posts.filterNot { it.postId == postId }
@@ -69,6 +75,31 @@ class RecordViewModel(
         }
     }
 
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
+    }
+
+    fun onCalendarImageSaved(saved: Boolean) {
+        val message = if (saved) {
+            "달력을 이미지로 저장했어요"
+        } else {
+            "이미지 저장에 실패했어요"
+        }
+        _uiState.update { it.copy(pendingMessage = nextToast(message)) }
+    }
+
+    fun onStoragePermissionDenied() {
+        _uiState.update {
+            it.copy(pendingMessage = nextToast("이미지 저장 권한이 필요해요"))
+        }
+    }
+
     private fun loadRecord(month: YearMonth) {
         val generation = ++latestLoadGeneration
         _uiState.update {
@@ -78,6 +109,7 @@ class RecordViewModel(
                 selectedDate = null,
                 isLoading = true,
                 errorMessage = null,
+                isLoginRequired = false,
             )
         }
 
@@ -96,6 +128,7 @@ class RecordViewModel(
                                     ?.topicDate,
                                 isLoading = false,
                                 errorMessage = null,
+                                isLoginRequired = false,
                             )
                         }
 
@@ -103,6 +136,7 @@ class RecordViewModel(
                             it.copy(
                                 isLoading = false,
                                 errorMessage = content.reason.toRecordMessage(),
+                                isLoginRequired = content.reason == HomeFailure.Unauthorized,
                             )
                         }
                     }
@@ -113,11 +147,17 @@ class RecordViewModel(
                         it.copy(
                             isLoading = false,
                             errorMessage = error.message ?: "기록을 불러오지 못했어요",
+                            isLoginRequired = false,
                         )
                     }
                 }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 
     companion object {
         val Factory = viewModelFactory {

@@ -1,16 +1,15 @@
 package com.stonefive.chalkak.feature.login
 
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 
 data class LoginUiState(
     val status: LoginStatus = LoginStatus.Idle,
     val activeProvider: SocialLoginProvider? = null,
+    val pendingMessage: UiMessage? = null,
 ) {
     val canSubmit: Boolean
-        get() = status is LoginStatus.Idle || status is LoginStatus.Failed
-
-    val errorMessage: String?
-        get() = (status as? LoginStatus.Failed)?.message
+        get() = status is LoginStatus.Idle
 }
 
 sealed interface LoginStatus {
@@ -23,6 +22,4 @@ sealed interface LoginStatus {
     data object GuestAccessGranted : LoginStatus
 
     data object SignUpRequired : LoginStatus
-
-    data class Failed(val message: String) : LoginStatus
 }

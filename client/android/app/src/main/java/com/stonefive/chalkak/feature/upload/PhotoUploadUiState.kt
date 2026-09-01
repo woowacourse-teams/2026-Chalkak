@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.runtime.Immutable
+import com.stonefive.chalkak.core.ui.UiMessage
 import java.time.LocalDate
 
 @Immutable
@@ -12,11 +13,16 @@ data class PhotoUploadUiState(
     val isCameraAvailable: Boolean = true,
     val isTopicLoading: Boolean = false,
     val isSubmitting: Boolean = false,
-    val errorMessage: String? = null,
+    val topicErrorMessage: String? = null,
     val completedSubmission: PhotoUploadSubmission? = null,
+    val pendingMessage: UiMessage? = null,
 ) {
     val canSubmit: Boolean
-        get() = selectedImage != null && !isTopicLoading && !isSubmitting && completedSubmission == null
+        get() = selectedImage != null &&
+            !isTopicLoading &&
+            !isSubmitting &&
+            topicErrorMessage == null &&
+            completedSubmission == null
 }
 
 enum class ImagePreparationStatus {

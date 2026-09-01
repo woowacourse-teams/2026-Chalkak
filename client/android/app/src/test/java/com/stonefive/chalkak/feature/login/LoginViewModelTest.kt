@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.login
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -20,7 +21,9 @@ class LoginViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository = FakeLoginRepository()
-    private val viewModel = LoginViewModel(authRepository = repository)
+    private val viewModel = LoginViewModel(
+        authRepository = repository,
+    )
 
     @Test
     fun `기존 회원 로그인 성공 시 인증 세션으로 전환한다`() = runTest {
@@ -82,27 +85,47 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun `백엔드 인증 실패를 사용자 메시지로 변환한다`() {
+    fun `백엔드 인증 실패를 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
 
         viewModel.login(SocialLoginProvider.GOOGLE, "id-token")
 
         assertEquals(
             "Google 계정을 확인할 수 없어요. 다시 시도해 주세요.",
-            viewModel.uiState.value.errorMessage,
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
+        assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.canSubmit)
     }
 
     @Test
-    fun `Kakao 백엔드 인증 실패를 카카오 사용자 메시지로 변환한다`() {
+    fun `Kakao 백엔드 인증 실패를 카카오 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
 
         viewModel.login(SocialLoginProvider.KAKAO, "id-token")
 
         assertEquals(
             "카카오 계정을 확인할 수 없어요. 다시 시도해 주세요.",
-            viewModel.uiState.value.errorMessage,
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
+        assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
+    }
+
+    @Test
+    fun `같은 문구가 다시 발생해도 새 ID를 만들고 이전 consume은 최신 메시지를 지우지 않는다`() {
+        viewModel.credentialRequestFailed("동일한 오류")
+        val first = viewModel.uiState.value.pendingMessage as UiMessage.Toast
+
+        viewModel.credentialRequestFailed("동일한 오류")
+        val second = viewModel.uiState.value.pendingMessage as UiMessage.Toast
+
+        assertTrue(first.id != second.id)
+
+        viewModel.onMessageShown(first.id)
+        assertEquals(second, viewModel.uiState.value.pendingMessage)
+
+        viewModel.onMessageShown(second.id)
+        assertEquals(null, viewModel.uiState.value.pendingMessage)
     }
 
     @Test

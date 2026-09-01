@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
@@ -14,11 +15,23 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SignatureChangeViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(SignatureChangeUiState())
     val uiState: StateFlow<SignatureChangeUiState> = _uiState.asStateFlow()
+    private var nextMessageId = 0L
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
+    }
 
     fun updateSignature(signaturePng: ByteArray) {
         if (_uiState.value.isSubmitting) return
@@ -34,21 +47,21 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
                     }
 
                     is SignatureUpdateResult.Failure -> {
-                        _uiState.value = SignatureChangeUiState(
-                            status = SignatureChangeStatus.Failed(result.reason.toMessage()),
-                        )
+                        showFailure(result.reason.toMessage())
                     }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Throwable) {
-                _uiState.value = SignatureChangeUiState(
-                    status = SignatureChangeStatus.Failed(
-                        "사인을 저장하지 못했어요. 다시 시도해 주세요.",
-                    ),
-                )
+                showFailure("사인을 저장하지 못했어요. 다시 시도해 주세요.")
             }
         }
+    }
+
+    private fun showFailure(message: String) {
+        _uiState.value = SignatureChangeUiState(
+            pendingMessage = nextToast(message),
+        )
     }
 
     private fun SignatureUpdateFailure.toMessage(): String = when (this) {
@@ -64,18 +77,25 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
-                SignatureChangeViewModel(application.appContainer.userRepository)
+                SignatureChangeViewModel(
+                    userRepository = application.appContainer.userRepository,
+                )
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
 
-data class SignatureChangeUiState(val status: SignatureChangeStatus = SignatureChangeStatus.Idle) {
+data class SignatureChangeUiState(
+    val status: SignatureChangeStatus = SignatureChangeStatus.Idle,
+    val pendingMessage: UiMessage? = null,
+) {
     val isSubmitting: Boolean
         get() = status == SignatureChangeStatus.Submitting
-
-    val errorMessage: String?
-        get() = (status as? SignatureChangeStatus.Failed)?.message
 }
 
 sealed interface SignatureChangeStatus {
@@ -84,6 +104,4 @@ sealed interface SignatureChangeStatus {
     data object Submitting : SignatureChangeStatus
 
     data class Completed(val profile: UserProfile) : SignatureChangeStatus
-
-    data class Failed(val message: String) : SignatureChangeStatus
 }

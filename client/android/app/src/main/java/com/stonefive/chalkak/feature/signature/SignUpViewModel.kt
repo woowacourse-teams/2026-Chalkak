@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialSignUpFailure
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.repository.AuthRepository
@@ -13,11 +14,23 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(SignUpUiState())
     val uiState: StateFlow<SignUpUiState> = _uiState.asStateFlow()
+    private var nextMessageId = 0L
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
+    }
 
     fun completeSignUp(signaturePng: ByteArray) {
         if (_uiState.value.isSubmitting) return
@@ -35,11 +48,7 @@ class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() 
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                _uiState.value = SignUpUiState(
-                    status = SignUpStatus.Failed(
-                        "회원가입을 완료하지 못했어요. 다시 시도해 주세요.",
-                    ),
-                )
+                showFailure("회원가입을 완료하지 못했어요. 다시 시도해 주세요.")
             }
         }
     }
@@ -53,7 +62,13 @@ class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() 
             return
         }
 
-        _uiState.value = SignUpUiState(status = SignUpStatus.Failed(failure.toMessage()))
+        showFailure(failure.toMessage())
+    }
+
+    private fun showFailure(message: String) {
+        _uiState.value = SignUpUiState(
+            pendingMessage = nextToast(message),
+        )
     }
 
     private fun SocialSignUpFailure.toMessage(): String = when (this) {
@@ -78,8 +93,15 @@ class SignUpViewModel(private val authRepository: AuthRepository) : ViewModel() 
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
-                SignUpViewModel(application.appContainer.authRepository)
+                SignUpViewModel(
+                    authRepository = application.appContainer.authRepository,
+                )
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }

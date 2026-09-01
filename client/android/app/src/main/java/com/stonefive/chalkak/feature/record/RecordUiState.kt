@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.record
 
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import java.time.LocalDate
 import java.time.YearMonth
@@ -10,6 +11,8 @@ data class RecordUiState(
     val selectedDate: LocalDate? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val isLoginRequired: Boolean = false,
+    val pendingMessage: UiMessage? = null,
     val latestMonth: YearMonth = INITIAL_RECORD_MONTH,
 ) {
     val selectedPost: PostCalendarItem?

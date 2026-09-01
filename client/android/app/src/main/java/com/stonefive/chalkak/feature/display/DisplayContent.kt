@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ fun DisplayBody(
     gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     onPhotoClick: (Post) -> Unit = {},
     topContentPadding: Dp = 0.dp,
+    onRetryClick: () -> Unit = {},
 ) {
     when (content) {
         DisplayContentState.Loading -> DisplayLoadingContent(
@@ -58,6 +60,7 @@ fun DisplayBody(
 
         is DisplayContentState.Error -> DisplayErrorContent(
             message = content.message,
+            onRetryClick = onRetryClick,
             modifier = modifier.padding(top = topContentPadding),
         )
     }
@@ -157,16 +160,26 @@ const val DISPLAY_EMPTY_TEST_TAG = "display-empty"
 @Composable
 fun DisplayErrorContent(
     message: String,
+    onRetryClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = message,
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = message,
+                color = ChalkakTheme.colors.textSecondary,
+                style = ChalkakTheme.typography.body,
+            )
+            TextButton(onClick = onRetryClick) {
+                Text(
+                    text = "다시 시도",
+                    color = ChalkakTheme.colors.actionPrimary,
+                    style = ChalkakTheme.typography.body,
+                )
+            }
+        }
     }
 }

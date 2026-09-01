@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -246,10 +247,11 @@ class HomeViewModelTest {
 
         repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
 
-        assertEquals(before.copy(isRefreshing = false), viewModel.uiState.value)
+        val state = viewModel.uiState.value
+        assertEquals(before.copy(isRefreshing = false), state.copy(pendingMessage = null))
         assertEquals(
-            HomeUiEvent.ShowRefreshFailure(HomeInitialError.Network),
-            viewModel.uiEvent.first(),
+            HomeInitialError.Network.message,
+            (state.pendingMessage as UiMessage.Toast).text,
         )
     }
 
@@ -459,8 +461,13 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.RefreshRequested)
         repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
 
-        assertEquals(before, viewModel.uiState.value)
-        assertFalse(viewModel.uiState.value.isLoadingNext)
+        val state = viewModel.uiState.value
+        assertEquals(before, state.copy(pendingMessage = null))
+        assertEquals(
+            HomeInitialError.Network.message,
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+        assertFalse(state.isLoadingNext)
 
         viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
@@ -666,7 +673,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `게스트 좋아요는 정확한 snackbar 이벤트만 보내고 상태와 저장소를 바꾸지 않는다`() = runTest {
+    fun `게스트 좋아요는 토스트 상태만 만들고 콘텐츠와 저장소를 바꾸지 않는다`() = runTest {
         val repository = RecordingPostRepository()
         val viewModel = homeViewModel(
             repository = repository,
@@ -676,9 +683,13 @@ class HomeViewModelTest {
 
         viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
 
-        assertEquals(before, viewModel.uiState.value)
+        assertEquals(before.photos, viewModel.uiState.value.photos)
+        assertEquals(before.likedPhotoIds, viewModel.uiState.value.likedPhotoIds)
         assertTrue(repository.likeRequests.isEmpty())
-        assertEquals(HomeUiEvent.ShowGuestLikeMessage, viewModel.uiEvent.first())
+        assertEquals(
+            GUEST_LIKE_MESSAGE,
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test

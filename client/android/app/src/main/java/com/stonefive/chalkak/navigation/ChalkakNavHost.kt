@@ -1,9 +1,9 @@
 package com.stonefive.chalkak.navigation
 
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,13 +20,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
+import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -54,20 +58,31 @@ fun ChalkakNavHost(
     startDestination: Any = Login,
     signUpViewModel: SignUpViewModel? = null,
 ) {
-    val context = LocalContext.current
+    val application = LocalContext.current.applicationContext as ChalkakApplication
+    val sessionState by application.appContainer.authRepository.sessionState
+        .collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
+    var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
+    var nextMessageId by remember { mutableLongStateOf(0L) }
+
+    UiMessageEffect(
+        message = pendingMessage,
+        onMessageShown = { messageId ->
+            if (pendingMessage?.id == messageId) pendingMessage = null
+        },
+    )
+
+    val showToast: (String) -> Unit = { text ->
+        pendingMessage = UiMessage.Toast(id = nextMessageId++, text = text)
+    }
+
     val legalDocumentLauncher = remember {
         LegalDocumentLauncher(
             showLegalDocument = { selectedLegalDocument = it },
             onOpenFailed = {
-                Toast
-                    .makeText(
-                        context,
-                        "문서를 열 수 없어요",
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                showToast("문서를 열 수 없어요")
             },
         )
     }
@@ -207,22 +222,26 @@ fun ChalkakNavHost(
                 },
                 initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
-                    navController.navigate(
-                        Feed(
-                            postId = post.id,
-                            originalImageUrl = post.originalImageUrl,
-                            thumbnailImageUrl = post.thumbnailImageUrl,
-                            signatureOriginalImageUrl = post.signatureOriginalImageUrl,
-                            signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
-                            contentDescription = post.contentDescription,
-                            title = post.title,
-                            likeCount = post.likeCount,
-                            isLiked = post.isLiked,
-                            dateLabel = dateLabel,
-                            topic = topic,
-                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                        ),
-                    )
+                    if (sessionState is UserSessionState.Authenticated) {
+                        navController.navigate(
+                            Feed(
+                                postId = post.id,
+                                originalImageUrl = post.originalImageUrl,
+                                thumbnailImageUrl = post.thumbnailImageUrl,
+                                signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                                signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
+                                contentDescription = post.contentDescription,
+                                title = post.title,
+                                likeCount = post.likeCount,
+                                isLiked = post.isLiked,
+                                dateLabel = dateLabel,
+                                topic = topic,
+                                isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                            ),
+                        )
+                    } else {
+                        showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                    }
                 },
             )
         }
@@ -251,6 +270,7 @@ fun ChalkakNavHost(
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onPostDeleted = { postId ->
+                    showToast(POST_DELETED_MESSAGE)
                     navController.previousBackStackEntry?.savedStateHandle?.set(
                         POST_DELETED_KEY,
                         postId,
@@ -268,6 +288,7 @@ fun ChalkakNavHost(
                 isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                 onNavigateBack = { navController.popBackStack() },
                 onPostDeleted = { postId ->
+                    showToast(POST_DELETED_MESSAGE)
                     navController.previousBackStackEntry?.savedStateHandle?.set(
                         POST_DELETED_KEY,
                         postId,
@@ -297,6 +318,12 @@ fun ChalkakNavHost(
                 },
                 onOpenDisplay = { date ->
                     navController.navigateToDisplay(date)
+                },
+                onNavigateToLogin = {
+                    navController.navigate(Login) {
+                        popUpTo<Today> { inclusive = true }
+                        launchSingleTop = true
+                    }
                 },
                 deletedPostId = deletedPostId,
                 onDeletedPostConsumed = {
@@ -424,6 +451,8 @@ private data class AnalyticsScreen(
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val POST_DELETED_KEY = "post_deleted"
+private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
+private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))

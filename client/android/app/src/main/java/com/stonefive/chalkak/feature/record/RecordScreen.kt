@@ -3,7 +3,6 @@ package com.stonefive.chalkak.feature.record
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -22,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +43,7 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
@@ -61,6 +62,7 @@ private val RecordHorizontalPadding = 20.dp
 fun RecordRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
     onOpenFeed: (String) -> Unit = {},
@@ -71,6 +73,7 @@ fun RecordRoute(
     },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(deletedPostId) {
         deletedPostId?.let {
@@ -84,10 +87,14 @@ fun RecordRoute(
         onPreviousMonthClick = viewModel::moveToPreviousMonth,
         onNextMonthClick = viewModel::moveToNextMonth,
         onDateClick = viewModel::selectDate,
+        onRetryClick = viewModel::retryCurrentMonth,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
+        onNavigateToLogin = onNavigateToLogin,
         onOpenFeed = onOpenFeed,
         onOpenDisplay = onOpenDisplay,
+        onCalendarImageSaved = viewModel::onCalendarImageSaved,
+        onStoragePermissionDenied = viewModel::onStoragePermissionDenied,
         modifier = modifier,
     )
 }
@@ -100,7 +107,11 @@ fun RecordScreen(
     onDateClick: (LocalDate) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onNavigateToLogin: () -> Unit = {},
+    onCalendarImageSaved: (Boolean) -> Unit = {},
+    onStoragePermissionDenied: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onRetryClick: () -> Unit = {},
     onOpenFeed: (String) -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
@@ -120,16 +131,7 @@ fun RecordScreen(
                     month = uiState.month,
                 )
             }
-            Toast
-                .makeText(
-                    context,
-                    if (saved) {
-                        "달력을 이미지로 저장했어요"
-                    } else {
-                        "이미지 저장에 실패했어요"
-                    },
-                    Toast.LENGTH_SHORT,
-                ).show()
+            onCalendarImageSaved(saved)
         }
     }
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -138,12 +140,7 @@ fun RecordScreen(
         if (isGranted) {
             saveCalendarImageNow()
         } else {
-            Toast
-                .makeText(
-                    context,
-                    "이미지 저장 권한이 필요해요",
-                    Toast.LENGTH_SHORT,
-                ).show()
+            onStoragePermissionDenied()
         }
     }
     val saveCalendarImage: () -> Unit = {
@@ -273,12 +270,30 @@ fun RecordScreen(
                     )
                 }
             } else {
-                Text(
-                    text = uiState.errorMessage,
-                    color = ChalkakTheme.colors.textSecondary,
-                    style = ChalkakTheme.typography.body,
-                    modifier = Modifier.padding(RecordHorizontalPadding),
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = uiState.errorMessage,
+                        color = ChalkakTheme.colors.textSecondary,
+                        style = ChalkakTheme.typography.body,
+                        modifier = Modifier.padding(horizontal = RecordHorizontalPadding),
+                    )
+                    TextButton(
+                        onClick = if (uiState.isLoginRequired) {
+                            onNavigateToLogin
+                        } else {
+                            onRetryClick
+                        },
+                    ) {
+                        Text(
+                            text = if (uiState.isLoginRequired) "로그인 하기" else "다시 시도",
+                            color = ChalkakTheme.colors.actionPrimary,
+                            style = ChalkakTheme.typography.body,
+                        )
+                    }
+                }
             }
         }
     }

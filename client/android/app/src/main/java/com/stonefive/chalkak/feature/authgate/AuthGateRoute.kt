@@ -51,5 +51,9 @@ private fun AuthGateContent(
         AuthGateUiState.AppAccessible -> key(AuthGateUiState.AppAccessible) {
             appAccessibleContent(modifier)
         }
+
+        AuthGateUiState.Authenticated -> key(AuthGateUiState.Authenticated) {
+            appAccessibleContent(modifier)
+        }
     }
 }

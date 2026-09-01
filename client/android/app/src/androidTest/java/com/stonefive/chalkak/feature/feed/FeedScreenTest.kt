@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.feed
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -104,6 +105,7 @@ class FeedScreenTest {
                     onNavigateBack = onNavigateBack,
                     onDeleteClick = onDeleteClick,
                     onLikeClick = onLikeClick,
+                    snackbarHostState = SnackbarHostState(),
                 )
             }
         }

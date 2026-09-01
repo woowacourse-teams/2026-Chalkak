@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.display
 
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
@@ -15,12 +16,18 @@ data class DisplayUiState(
     val hasNext: Boolean = false,
     val randomSeed: String? = null,
     val isLoadingNext: Boolean = false,
+    val pendingMessage: UiMessage? = null,
 ) {
     val canGoPrevious: Boolean
-        get() = selectedDate != null && (earliestDate == null || selectedDate > earliestDate)
+        get() = content !is DisplayContentState.Loading &&
+            selectedDate != null &&
+            (earliestDate == null || selectedDate > earliestDate)
 
     val canGoNext: Boolean
-        get() = selectedDate != null && latestDate != null && selectedDate < latestDate
+        get() = content !is DisplayContentState.Loading &&
+            selectedDate != null &&
+            latestDate != null &&
+            selectedDate < latestDate
 }
 
 sealed interface DisplayContentState {

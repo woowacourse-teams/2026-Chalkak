@@ -21,7 +21,7 @@ class AuthGateViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `로그아웃 상태는 로그인을 요구하고 게스트와 회원은 앱에 진입시킨다`() = runTest {
+    fun `로그아웃과 게스트와 회원 상태를 서로 구분해 앱 진입 상태를 만든다`() = runTest {
         val repository = FakeAuthGateRepository()
         val viewModel = AuthGateViewModel(repository)
 
@@ -34,7 +34,7 @@ class AuthGateViewModelTest {
 
         repository.mutableSessionState.value = UserSessionState.Authenticated("user-id")
         advanceUntilIdle()
-        assertEquals(AuthGateUiState.AppAccessible, viewModel.uiState.value)
+        assertEquals(AuthGateUiState.Authenticated, viewModel.uiState.value)
     }
 }
 

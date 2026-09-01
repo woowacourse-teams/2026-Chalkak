@@ -1,9 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
@@ -53,7 +51,6 @@ class HomeScreenTest {
             ChalkakTheme {
                 HomeScreen(
                     uiState = uiState,
-                    snackbarHostState = remember { SnackbarHostState() },
                     onAction = {},
                 )
             }
@@ -132,7 +129,6 @@ class HomeScreenTest {
             ChalkakTheme {
                 HomeScreen(
                     uiState = uiState,
-                    snackbarHostState = remember { SnackbarHostState() },
                     onAction = {},
                 )
             }
@@ -214,7 +210,6 @@ class HomeScreenTest {
                     stateHolder.SaveableStateProvider(HOME_STATE_KEY) {
                         HomeScreen(
                             uiState = uiState,
-                            snackbarHostState = remember { SnackbarHostState() },
                             onAction = {},
                         )
                     }
@@ -333,7 +328,6 @@ class HomeScreenTest {
 
         composeRule.onNodeWithContentDescription("좋아요 17").performClick()
 
-        composeRule.onAllNodesWithText(GUEST_LIKE_MESSAGE).assertCountEquals(1)
         assertEquals(0, repository.likeRequestCount)
         composeRule.onAllNodesWithText("로그인 없이 사진 둘러보기").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그인").assertCountEquals(0)
@@ -377,7 +371,6 @@ class HomeScreenTest {
             ChalkakTheme {
                 HomeScreen(
                     uiState = uiState,
-                    snackbarHostState = remember { SnackbarHostState() },
                     onAction = onAction,
                 )
             }

@@ -35,6 +35,7 @@ import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThres
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
@@ -56,6 +57,7 @@ fun DisplayRoute(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     DisplayScreen(
         uiState = uiState,
@@ -64,6 +66,7 @@ fun DisplayRoute(
         onSortSelected = viewModel::selectSort,
         onFeaturedPageChanged = viewModel::updateFeaturedPage,
         onEndThresholdChanged = viewModel::updateEndThreshold,
+        onRetryClick = viewModel::retry,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = onOpenFeed,
@@ -83,6 +86,7 @@ fun DisplayScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+    onRetryClick: () -> Unit = {},
 ) {
     val gridState = rememberLazyStaggeredGridState()
     val settleScope = rememberCoroutineScope()
@@ -128,6 +132,7 @@ fun DisplayScreen(
             content = uiState.content,
             onFeaturedPageChanged = onFeaturedPageChanged,
             onEndThresholdChanged = onEndThresholdChanged,
+            onRetryClick = onRetryClick,
             isLoadingNext = uiState.isLoadingNext,
             gridState = gridState,
             onPhotoClick = { photo ->

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
@@ -33,6 +34,7 @@ class PhotoUploadViewModel(
     private var imageGeneration = 0L
     private var preparationJob: Job? = null
     private var submissionJob: Job? = null
+    private var nextMessageId = 0L
     private val _uiState = MutableStateFlow(
         PhotoUploadUiState(
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
@@ -58,7 +60,7 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                _uiState.update { it.copy(caption = action.caption, errorMessage = null) }
+                _uiState.update { it.copy(caption = action.caption) }
             }
 
             PhotoUploadUiAction.SubmitClicked -> submit()
@@ -68,6 +70,20 @@ class PhotoUploadViewModel(
     fun onImageSelected(image: String) {
         if (_uiState.value.isSubmitting) return
         replaceSelectedImage(image)
+    }
+
+    fun retryTopicLoad() {
+        loadCreationTopic()
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
     }
 
     fun reset() {
@@ -99,7 +115,6 @@ class PhotoUploadViewModel(
         _uiState.update {
             it.copy(
                 isSubmitting = true,
-                errorMessage = null,
             )
         }
 
@@ -120,7 +135,6 @@ class PhotoUploadViewModel(
             it.copy(
                 selectedImage = image,
                 imagePreparationStatus = ImagePreparationStatus.Preparing,
-                errorMessage = null,
             )
         }
         startImagePreparation(image, imageGeneration)
@@ -133,7 +147,6 @@ class PhotoUploadViewModel(
         _uiState.update {
             it.copy(
                 imagePreparationStatus = ImagePreparationStatus.Preparing,
-                errorMessage = null,
             )
         }
         preparationJob = viewModelScope.launch {
@@ -163,7 +176,7 @@ class PhotoUploadViewModel(
                             _uiState.update {
                                 it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
                             }
-                            handleFailure(result.reason)
+                            handleTransientFailure(result.reason)
                         }
                     }
                 }
@@ -171,11 +184,12 @@ class PhotoUploadViewModel(
                 throw error
             } catch (_: Exception) {
                 if (generation == imageGeneration) {
+                    val pendingMessage = nextToast(GENERIC_ERROR_MESSAGE)
                     _uiState.update {
                         it.copy(
                             imagePreparationStatus = ImagePreparationStatus.Failed,
                             isSubmitting = false,
-                            errorMessage = GENERIC_ERROR_MESSAGE,
+                            pendingMessage = pendingMessage,
                         )
                     }
                 }
@@ -212,17 +226,18 @@ class PhotoUploadViewModel(
                         _uiState.update {
                             it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
                         }
-                        handleFailure(result.reason)
+                        handleTransientFailure(result.reason)
                     }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
+                val pendingMessage = nextToast(GENERIC_ERROR_MESSAGE)
                 _uiState.update {
                     it.copy(
                         imagePreparationStatus = ImagePreparationStatus.Failed,
                         isSubmitting = false,
-                        errorMessage = GENERIC_ERROR_MESSAGE,
+                        pendingMessage = pendingMessage,
                     )
                 }
             }
@@ -245,7 +260,7 @@ class PhotoUploadViewModel(
 
     private fun loadCreationTopic(submitAfterLoad: Boolean = false) {
         if (_uiState.value.isTopicLoading) return
-        _uiState.update { it.copy(isTopicLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(isTopicLoading = true, topicErrorMessage = null) }
 
         viewModelScope.launch {
             try {
@@ -255,6 +270,7 @@ class PhotoUploadViewModel(
                         _uiState.update { state ->
                             state.copy(
                                 isTopicLoading = false,
+                                topicErrorMessage = null,
                                 topicTitle = if (state.topicTitle == result.value.title) {
                                     state.topicTitle
                                 } else {
@@ -265,7 +281,7 @@ class PhotoUploadViewModel(
                         if (submitAfterLoad) submit()
                     }
 
-                    is PostCreationTopicResult.Failure -> handleFailure(result.reason)
+                    is PostCreationTopicResult.Failure -> handleTopicFailure(result.reason)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -273,14 +289,30 @@ class PhotoUploadViewModel(
                 _uiState.update {
                     it.copy(
                         isTopicLoading = false,
-                        errorMessage = GENERIC_ERROR_MESSAGE,
+                        topicErrorMessage = GENERIC_ERROR_MESSAGE,
                     )
                 }
             }
         }
     }
 
-    private fun handleFailure(failure: PostCreationFailure) {
+    private fun handleTransientFailure(failure: PostCreationFailure) {
+        if (failure == PostCreationFailure.ReauthenticationRequired) {
+            _uiState.update { it.copy(isSubmitting = false) }
+            sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
+            return
+        }
+
+        val pendingMessage = nextToast(failure.toMessage())
+        _uiState.update {
+            it.copy(
+                isSubmitting = false,
+                pendingMessage = pendingMessage,
+            )
+        }
+    }
+
+    private fun handleTopicFailure(failure: PostCreationFailure) {
         if (failure == PostCreationFailure.ReauthenticationRequired) {
             _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
             sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
@@ -291,7 +323,7 @@ class PhotoUploadViewModel(
             it.copy(
                 isTopicLoading = false,
                 isSubmitting = false,
-                errorMessage = failure.toMessage(),
+                topicErrorMessage = failure.toMessage(),
             )
         }
     }
@@ -326,4 +358,9 @@ class PhotoUploadViewModel(
 
         private const val GENERIC_ERROR_MESSAGE = "전시를 완료하지 못했어요. 다시 시도해 주세요."
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }

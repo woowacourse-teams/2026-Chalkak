@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.feed
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -230,6 +231,35 @@ class FeedViewModelTest {
 
     @Test
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `상세 갱신 실패는 기존 콘텐츠를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply { detailRequest = detailResult }
+        val initial = FeedContentState.Success(
+            dateLabel = "8월 5일의 주제",
+            topic = "바다",
+            post = feedContent().photos.single(),
+            isLiked = false,
+        )
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = initial,
+            postId = initial.post.id,
+        )
+
+        detailResult.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        assertSame(initial, selectedViewModel.uiState.value.content)
+        assertEquals(null, selectedViewModel.uiState.value.errorMessage)
+        assertFalse(selectedViewModel.uiState.value.isRefreshing)
+        assertEquals(
+            "게시물을 불러오지 못했어요",
+            (selectedViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun `좋아요 이후 도착한 이전 상세 응답은 최신 좋아요 상태를 덮어쓰지 않는다`() = runTest {
         val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
         val selectedRepository = FakePostRepository().apply {
@@ -355,7 +385,7 @@ class FeedViewModelTest {
         advanceUntilIdle()
 
         assertEquals(PHOTO_ID, repository.deletedPostId)
-        assertEquals(FeedUiEvent.Deleted(PHOTO_ID), selectedViewModel.uiEvent.first())
+        assertEquals(PHOTO_ID, selectedViewModel.uiState.value.deleteSuccessPostId)
         assertFalse(selectedViewModel.uiState.value.isDeleting)
     }
 
@@ -387,7 +417,10 @@ class FeedViewModelTest {
         selectedViewModel.deletePost()
         advanceUntilIdle()
 
-        assertEquals("본인이 작성한 게시물만 삭제할 수 있어요", selectedViewModel.uiState.value.deleteErrorMessage)
+        assertEquals(
+            "본인이 작성한 게시물만 삭제할 수 있어요",
+            (selectedViewModel.uiState.value.pendingMessage as UiMessage.Snackbar).text,
+        )
         assertFalse(selectedViewModel.uiState.value.isDeleting)
     }
 }

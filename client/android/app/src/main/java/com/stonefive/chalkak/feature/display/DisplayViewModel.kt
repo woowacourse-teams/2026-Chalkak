@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -37,6 +38,7 @@ class DisplayViewModel(
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
     private var nextPageJob: Job? = null
+    private var nextMessageId = 0L
 
     init {
         loadDisplay(date = initialDate)
@@ -44,6 +46,7 @@ class DisplayViewModel(
 
     fun moveToPreviousDate() {
         val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
         val selectedDate = state.selectedDate ?: return
         val targetDate = state.earliestDate
             ?.let { selectedDate.minusDays(1).coerceAtLeast(it) }
@@ -55,6 +58,7 @@ class DisplayViewModel(
 
     fun moveToNextDate() {
         val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
         val selectedDate = state.selectedDate ?: return
         val latestDate = state.latestDate ?: return
         val targetDate = selectedDate.plusDays(1).coerceAtMost(latestDate)
@@ -68,9 +72,24 @@ class DisplayViewModel(
         val latestContent = state.content as? DisplayContentState.Latest ?: return
         if (sort == latestContent.selectedSort) return
 
+        val previousState = state
         selectedSort = sort
         _uiState.update { it.copy(content = DisplayContentState.Loading) }
-        loadDisplay(state.selectedDate)
+        loadDisplay(state.selectedDate, previousState = previousState)
+    }
+
+    fun retry() {
+        loadDisplay(_uiState.value.selectedDate)
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
     }
 
     fun updateFeaturedPage(page: Int) {
@@ -122,7 +141,13 @@ class DisplayViewModel(
         isEndThresholdReached = false
 
         viewModelScope.launch {
-            _uiState.update { it.copy(content = DisplayContentState.Loading) }
+            _uiState.update {
+                it.copy(
+                    selectedDate = requestedDate,
+                    latestDate = latestDate,
+                    content = DisplayContentState.Loading,
+                )
+            }
             val result = try {
                 repository.getPostContent(
                     HomeQuery(
@@ -141,10 +166,13 @@ class DisplayViewModel(
             when (result) {
                 is HomeResult.Success -> applyFirstPage(result.value, latestDate)
 
-                is HomeResult.Failure -> if (
-                    result.reason == HomeFailure.TopicNotFound && previousState != null
-                ) {
-                    val isPreviousDateRequest = requireNotNull(date) < requireNotNull(previousState.selectedDate)
+                is HomeResult.Failure -> if (previousState != null) {
+                    val isPreviousDateRequest = result.reason == HomeFailure.TopicNotFound &&
+                        requireNotNull(date) < requireNotNull(previousState.selectedDate)
+                    selectedSort = (previousState.content as? DisplayContentState.Latest)
+                        ?.selectedSort
+                        ?: selectedSort
+                    val pendingMessage = nextToast(DISPLAY_ERROR_MESSAGE)
                     _uiState.update {
                         it.copy(
                             selectedDate = previousState.selectedDate,
@@ -160,13 +188,14 @@ class DisplayViewModel(
                             } else {
                                 previousState.earliestDate
                             },
+                            pendingMessage = pendingMessage,
                         )
                     }
                 } else {
                     _uiState.update {
                         it.copy(
                             content = DisplayContentState.Error(
-                                message = "전시를 불러오지 못했어요",
+                                message = DISPLAY_ERROR_MESSAGE,
                             ),
                         )
                     }
@@ -304,4 +333,11 @@ class DisplayViewModel(
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
         private const val FEATURED_PHOTO_COUNT = 5
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
+
+private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"

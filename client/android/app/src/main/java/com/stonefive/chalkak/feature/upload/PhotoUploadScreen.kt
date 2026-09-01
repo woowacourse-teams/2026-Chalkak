@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -54,6 +55,7 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
 import java.io.File
@@ -73,6 +75,7 @@ fun PhotoUploadRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val photoPickerState = rememberPhotoPickerState(viewModel::onImageSelected)
 
     LaunchedEffect(viewModel, photoPickerState) {
@@ -104,6 +107,7 @@ fun PhotoUploadRoute(
             isCameraAvailable = photoPickerState.isCameraAvailable,
         ),
         onAction = viewModel::onAction,
+        onRetryTopicLoad = viewModel::retryTopicLoad,
         modifier = modifier,
     )
 }
@@ -129,6 +133,7 @@ fun PhotoUploadScreen(
     uiState: PhotoUploadUiState,
     onAction: (PhotoUploadUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    onRetryTopicLoad: () -> Unit = {},
 ) {
     val captionScrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
@@ -235,7 +240,7 @@ fun PhotoUploadScreen(
                         maxLength = CAPTION_MAX_LENGTH,
                     )
 
-                    uiState.errorMessage?.let { errorMessage ->
+                    uiState.topicErrorMessage?.let { errorMessage ->
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = errorMessage,
@@ -244,6 +249,13 @@ fun PhotoUploadScreen(
                             style = ChalkakTheme.typography.footnote,
                             color = ChalkakTheme.colors.error,
                         )
+                        TextButton(onClick = onRetryTopicLoad) {
+                            Text(
+                                text = "다시 시도",
+                                color = ChalkakTheme.colors.actionPrimary,
+                                style = ChalkakTheme.typography.body,
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

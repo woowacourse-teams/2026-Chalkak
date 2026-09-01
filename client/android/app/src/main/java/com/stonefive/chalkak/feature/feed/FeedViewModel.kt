@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -16,11 +17,9 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -40,10 +39,8 @@ class FeedViewModel(
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
 
-    private val _uiEvent = Channel<FeedUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
-
     private var latestLikeGeneration = 0
+    private var nextMessageId = 0L
 
     init {
         if (postId != null) {
@@ -58,6 +55,16 @@ class FeedViewModel(
             loadPostDetail(postId)
         } else {
             loadFeed()
+        }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
         }
     }
 
@@ -123,7 +130,7 @@ class FeedViewModel(
         _uiState.update {
             it.copy(
                 isDeleting = true,
-                deleteErrorMessage = null,
+                deleteSuccessPostId = null,
             )
         }
         viewModelScope.launch {
@@ -137,14 +144,18 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> {
-                    _uiState.update { it.copy(isDeleting = false) }
-                    _uiEvent.send(FeedUiEvent.Deleted(post.id))
+                    _uiState.update {
+                        it.copy(
+                            isDeleting = false,
+                            deleteSuccessPostId = post.id,
+                        )
+                    }
                 }
 
                 is HomeResult.Failure -> _uiState.update {
                     it.copy(
                         isDeleting = false,
-                        deleteErrorMessage = result.reason.toDeleteErrorMessage(),
+                        pendingMessage = nextSnackbar(result.reason.toDeleteErrorMessage()),
                     )
                 }
             }
@@ -225,16 +236,33 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart)
-
-                is HomeResult.Failure -> _uiState.update {
-                    it.copy(
-                        content = if (result.reason.isPostNotFound()) null else it.content,
-                        isLoading = false,
-                        isRefreshing = false,
-                        errorMessage = result.reason.toFeedErrorMessage(),
-                    )
-                }
+                is HomeResult.Failure -> handleDetailFailure(result.reason)
             }
+        }
+    }
+
+    private fun handleDetailFailure(failure: HomeFailure) {
+        val current = _uiState.value
+        if (current.content != null && !failure.isPostNotFound()) {
+            val pendingMessage = nextToast(failure.toFeedErrorMessage())
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isRefreshing = false,
+                    errorMessage = null,
+                    pendingMessage = pendingMessage,
+                )
+            }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                content = if (failure.isPostNotFound()) null else it.content,
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = failure.toFeedErrorMessage(),
+            )
         }
     }
 
@@ -323,4 +351,14 @@ class FeedViewModel(
 
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
+
+    private fun nextSnackbar(text: String): UiMessage.Snackbar = UiMessage.Snackbar(
+        id = nextMessageId++,
+        text = text,
+    )
 }

@@ -7,17 +7,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,9 +32,7 @@ class SettingsViewModel(
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-
-    private val _uiEvent = Channel<SettingsUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
+    private var nextMessageId = 0L
 
     init {
         loadProfile()
@@ -53,13 +50,22 @@ class SettingsViewModel(
         _uiState.update {
             it.copy(
                 signatureUrl = signatureUrl,
-                signatureErrorMessage = null,
             )
         }
     }
 
     fun dismissAccountDialog() {
         _uiState.update { it.copy(accountDialog = null) }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
     }
 
     fun confirmAccountAction() {
@@ -90,8 +96,13 @@ class SettingsViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                _uiState.update { it.copy(isAccountActionInProgress = false) }
-                _uiEvent.send(SettingsUiEvent.AccountActionFailed)
+                val pendingMessage = nextToast(ACCOUNT_ACTION_ERROR_MESSAGE)
+                _uiState.update {
+                    it.copy(
+                        isAccountActionInProgress = false,
+                        pendingMessage = pendingMessage,
+                    )
+                }
             }
         }
     }
@@ -116,41 +127,42 @@ class SettingsViewModel(
                         isLoading = false,
                         isLoggedIn = true,
                         signatureUrl = profile.signatureThumbnailUrl,
-                        signatureErrorMessage = null,
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: UserProfileLoadException) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isLoggedIn = false,
-                        signatureUrl = null,
-                        signatureErrorMessage = null,
-                    )
+                if (error.reason == UserProfileLoadFailure.UNAUTHORIZED) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoggedIn = false,
+                            signatureUrl = null,
+                        )
+                    }
+                } else {
+                    val pendingMessage = nextToast(SIGNATURE_LOAD_ERROR_MESSAGE)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            signatureUrl = null,
+                            pendingMessage = pendingMessage,
+                        )
+                    }
                 }
             } catch (error: Exception) {
+                val pendingMessage = nextToast(SIGNATURE_LOAD_ERROR_MESSAGE)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         isLoggedIn = true,
                         signatureUrl = null,
-                        signatureErrorMessage = "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+                        pendingMessage = pendingMessage,
                     )
                 }
             }
         }
-    }
-
-    private fun UserProfileLoadFailure.toMessage(): String = when (this) {
-        UserProfileLoadFailure.UNAUTHORIZED -> "유효하지 않은 인증 정보입니다."
-
-        UserProfileLoadFailure.FORBIDDEN -> "서비스를 이용할 수 없는 계정입니다."
-
-        UserProfileLoadFailure.NETWORK,
-        UserProfileLoadFailure.UNKNOWN,
-        -> "사인을 불러오지 못했어요. 다시 시도해 주세요."
     }
 
     companion object {
@@ -165,4 +177,12 @@ class SettingsViewModel(
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
+
+private const val SIGNATURE_LOAD_ERROR_MESSAGE = "사인을 불러오지 못했어요. 다시 시도해 주세요."
+private const val ACCOUNT_ACTION_ERROR_MESSAGE = "요청을 처리하지 못했어요. 다시 시도해 주세요."

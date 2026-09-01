@@ -27,7 +27,6 @@ fun SettingsSignatureCard(
     signatureUrl: String?,
     onChangeClick: () -> Unit,
     modifier: Modifier = Modifier,
-    errorMessage: String? = null,
 ) {
     SettingsCard(modifier = modifier) {
         Row(
@@ -69,13 +68,7 @@ fun SettingsSignatureCard(
                 ).background(ChalkakTheme.colors.actionPrimary),
             contentAlignment = Alignment.Center,
         ) {
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage,
-                    color = ChalkakTheme.colors.error,
-                    style = ChalkakTheme.typography.caption,
-                )
-            } else if (signatureUrl != null) {
+            if (signatureUrl != null) {
                 ChalkakImage(
                     model = signatureUrl,
                     contentDescription = "현재 사인",
