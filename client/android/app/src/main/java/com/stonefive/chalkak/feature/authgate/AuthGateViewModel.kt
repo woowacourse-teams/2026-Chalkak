@@ -26,9 +26,9 @@ class AuthGateViewModel(authRepository: AuthRepository) : ViewModel() {
 
                         UserSessionState.SignedOut -> AuthGateUiState.LoginRequired
 
-                        UserSessionState.Guest,
-                        is UserSessionState.Authenticated,
-                        -> AuthGateUiState.AppAccessible
+                        UserSessionState.Guest -> AuthGateUiState.AppAccessible
+
+                        is UserSessionState.Authenticated -> AuthGateUiState.Authenticated
                     }
                 }
         }
@@ -50,4 +50,6 @@ sealed interface AuthGateUiState {
     data object LoginRequired : AuthGateUiState
 
     data object AppAccessible : AuthGateUiState
+
+    data object Authenticated : AuthGateUiState
 }
