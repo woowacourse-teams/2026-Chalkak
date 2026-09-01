@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -31,6 +32,8 @@ class DisplayViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DisplayUiState())
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     private var latestLoadGeneration = 0
     private var selectedSort = PostSort.LATEST
@@ -68,9 +71,14 @@ class DisplayViewModel(
         val latestContent = state.content as? DisplayContentState.Latest ?: return
         if (sort == latestContent.selectedSort) return
 
+        val previousState = state
         selectedSort = sort
         _uiState.update { it.copy(content = DisplayContentState.Loading) }
-        loadDisplay(state.selectedDate)
+        loadDisplay(state.selectedDate, previousState = previousState)
+    }
+
+    fun retry() {
+        loadDisplay(_uiState.value.selectedDate)
     }
 
     fun updateFeaturedPage(page: Int) {
@@ -122,7 +130,13 @@ class DisplayViewModel(
         isEndThresholdReached = false
 
         viewModelScope.launch {
-            _uiState.update { it.copy(content = DisplayContentState.Loading) }
+            _uiState.update {
+                it.copy(
+                    selectedDate = requestedDate,
+                    latestDate = latestDate,
+                    content = DisplayContentState.Loading,
+                )
+            }
             val result = try {
                 repository.getPostContent(
                     HomeQuery(
@@ -141,10 +155,11 @@ class DisplayViewModel(
             when (result) {
                 is HomeResult.Success -> applyFirstPage(result.value, latestDate)
 
-                is HomeResult.Failure -> if (
-                    result.reason == HomeFailure.TopicNotFound && previousState != null
-                ) {
+                is HomeResult.Failure -> if (previousState != null) {
                     val isPreviousDateRequest = requireNotNull(date) < requireNotNull(previousState.selectedDate)
+                    selectedSort = (previousState.content as? DisplayContentState.Latest)
+                        ?.selectedSort
+                        ?: selectedSort
                     _uiState.update {
                         it.copy(
                             selectedDate = previousState.selectedDate,
@@ -162,11 +177,12 @@ class DisplayViewModel(
                             },
                         )
                     }
+                    messageEmitter.showToast(DISPLAY_ERROR_MESSAGE)
                 } else {
                     _uiState.update {
                         it.copy(
                             content = DisplayContentState.Error(
-                                message = "전시를 불러오지 못했어요",
+                                message = DISPLAY_ERROR_MESSAGE,
                             ),
                         )
                     }
@@ -305,3 +321,5 @@ class DisplayViewModel(
         private const val FEATURED_PHOTO_COUNT = 5
     }
 }
+
+private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"

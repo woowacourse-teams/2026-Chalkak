@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.component.FeedContent
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
@@ -45,6 +46,7 @@ fun FeedRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(viewModel.uiMessage)
 
     FeedScreen(
         uiState = uiState,

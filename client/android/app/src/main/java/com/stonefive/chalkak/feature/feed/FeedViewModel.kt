@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -37,6 +38,8 @@ class FeedViewModel(
         ),
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     private var latestLikeGeneration = 0
 
@@ -184,16 +187,28 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart)
-
-                is HomeResult.Failure -> _uiState.update {
-                    it.copy(
-                        content = if (result.reason.isPostNotFound()) null else it.content,
-                        isLoading = false,
-                        isRefreshing = false,
-                        errorMessage = result.reason.toFeedErrorMessage(),
-                    )
-                }
+                is HomeResult.Failure -> handleDetailFailure(result.reason)
             }
+        }
+    }
+
+    private fun handleDetailFailure(failure: HomeFailure) {
+        val current = _uiState.value
+        if (current.content != null && !failure.isPostNotFound()) {
+            _uiState.update {
+                it.copy(isLoading = false, isRefreshing = false, errorMessage = null)
+            }
+            messageEmitter.showToast(failure.toFeedErrorMessage())
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                content = if (failure.isPostNotFound()) null else it.content,
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = failure.toFeedErrorMessage(),
+            )
         }
     }
 

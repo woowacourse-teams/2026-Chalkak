@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.display
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -14,6 +15,9 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -61,6 +65,24 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `초기 전시 실패도 요청 날짜를 유지하고 지속 오류로 표시한다`() = runTest {
+        val selectedRepository = FakePostRepository().apply {
+            firstPageFailure = HomeFailure.Network
+        }
+
+        val selectedViewModel = displayViewModel(
+            repository = selectedRepository,
+            initialDate = ARCHIVE_DATE,
+        )
+
+        assertEquals(ARCHIVE_DATE, selectedViewModel.uiState.value.selectedDate)
+        assertEquals(
+            DisplayContentState.Error("전시를 불러오지 못했어요"),
+            selectedViewModel.uiState.value.content,
+        )
+    }
+
+    @Test
     fun `이전 날짜로 이동하면 과거 전시 상태를 만든다`() = runTest {
         viewModel.moveToPreviousDate()
 
@@ -89,6 +111,18 @@ class DisplayViewModelTest {
         val content = viewModel.uiState.value.content as DisplayContentState.Latest
         assertEquals(PostSort.POPULAR, content.selectedSort)
         assertEquals(firstPageQuery(LATEST_DATE, PostSort.POPULAR), repository.requests.last())
+    }
+
+    @Test
+    fun `정렬 갱신 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        repository.firstPageFailure = HomeFailure.Network
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
+
+        viewModel.selectSort(PostSort.POPULAR)
+
+        assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(UiMessage.Toast("전시를 불러오지 못했어요"), message.await())
     }
 
     @Test
@@ -253,6 +287,7 @@ private class FakePostRepository : PostRepository {
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
+    var firstPageFailure: HomeFailure? = null
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -269,6 +304,7 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requests += query
+        firstPageFailure?.let { return HomeResult.Failure(it) }
         val selectedDate = query.date
         if (selectedDate in topicNotFoundDates) {
             return HomeResult.Failure(HomeFailure.TopicNotFound)

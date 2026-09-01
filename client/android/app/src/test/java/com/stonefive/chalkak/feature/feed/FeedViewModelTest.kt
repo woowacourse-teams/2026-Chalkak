@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.feed
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -15,6 +16,9 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -224,6 +228,35 @@ class FeedViewModelTest {
 
         assertSame(initialContent, selectedViewModel.uiState.value.content)
         assertFalse(selectedViewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun `상세 갱신 실패는 기존 콘텐츠를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply { detailRequest = detailResult }
+        val initial = FeedContentState.Success(
+            dateLabel = "8월 5일의 주제",
+            topic = "바다",
+            post = feedContent().photos.single(),
+            isLiked = false,
+        )
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = initial,
+            postId = initial.post.id,
+        )
+        val message = async(start = CoroutineStart.UNDISPATCHED) {
+            selectedViewModel.uiMessage.first()
+        }
+
+        detailResult.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        assertSame(initial, selectedViewModel.uiState.value.content)
+        assertEquals(null, selectedViewModel.uiState.value.errorMessage)
+        assertFalse(selectedViewModel.uiState.value.isRefreshing)
+        assertEquals(UiMessage.Toast("게시물을 불러오지 못했어요"), message.await())
     }
 
     @Test
