@@ -254,6 +254,22 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `이전 날짜 요청이 네트워크 오류로 실패하면 최초 전시일을 확정하지 않는다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        repository.firstPageFailure = HomeFailure.Network
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
+
+        viewModel.moveToPreviousDate()
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+        assertEquals(null, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+        assertEquals(UiMessage.Toast("전시를 불러오지 못했어요"), message.await())
+    }
+
+    @Test
     fun `다음 날짜에 주제가 없어도 기존 최초 전시일은 보존한다`() = runTest {
         val archiveRepository = FakePostRepository().apply {
             topicNotFoundDates = setOf(EARLIEST_DATE.minusDays(1))

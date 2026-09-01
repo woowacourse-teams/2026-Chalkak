@@ -156,7 +156,8 @@ class DisplayViewModel(
                 is HomeResult.Success -> applyFirstPage(result.value, latestDate)
 
                 is HomeResult.Failure -> if (previousState != null) {
-                    val isPreviousDateRequest = requireNotNull(date) < requireNotNull(previousState.selectedDate)
+                    val isPreviousDateRequest = result.reason == HomeFailure.TopicNotFound &&
+                        requireNotNull(date) < requireNotNull(previousState.selectedDate)
                     selectedSort = (previousState.content as? DisplayContentState.Latest)
                         ?.selectedSort
                         ?: selectedSort
