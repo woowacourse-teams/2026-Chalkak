@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination
@@ -19,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
@@ -28,6 +30,7 @@ import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -55,6 +58,9 @@ fun ChalkakNavHost(
     startDestination: Any = Login,
     signUpViewModel: SignUpViewModel? = null,
 ) {
+    val application = LocalContext.current.applicationContext as ChalkakApplication
+    val sessionState by application.appContainer.authRepository.sessionState
+        .collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
@@ -216,22 +222,26 @@ fun ChalkakNavHost(
                 },
                 initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
-                    navController.navigate(
-                        Feed(
-                            postId = post.id,
-                            originalImageUrl = post.originalImageUrl,
-                            thumbnailImageUrl = post.thumbnailImageUrl,
-                            signatureOriginalImageUrl = post.signatureOriginalImageUrl,
-                            signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
-                            contentDescription = post.contentDescription,
-                            title = post.title,
-                            likeCount = post.likeCount,
-                            isLiked = post.isLiked,
-                            dateLabel = dateLabel,
-                            topic = topic,
-                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                        ),
-                    )
+                    if (sessionState is UserSessionState.Authenticated) {
+                        navController.navigate(
+                            Feed(
+                                postId = post.id,
+                                originalImageUrl = post.originalImageUrl,
+                                thumbnailImageUrl = post.thumbnailImageUrl,
+                                signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                                signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
+                                contentDescription = post.contentDescription,
+                                title = post.title,
+                                likeCount = post.likeCount,
+                                isLiked = post.isLiked,
+                                dateLabel = dateLabel,
+                                topic = topic,
+                                isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                            ),
+                        )
+                    } else {
+                        showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                    }
                 },
             )
         }
@@ -436,6 +446,7 @@ private data class AnalyticsScreen(
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
+private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
