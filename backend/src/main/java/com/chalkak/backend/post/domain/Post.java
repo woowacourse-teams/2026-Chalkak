@@ -5,6 +5,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -18,6 +19,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -139,6 +141,21 @@ public class Post {
         this.moderatedAt = null;
     }
 
+    public void updateTitle(
+            UUID authorId,
+            String title,
+            Instant now
+    ) {
+        validateTitleUpdateAuthor(authorId);
+        validateTitleUpdateStatus();
+        validateTitleUpdatePeriod(now);
+        String normalizedTitle = normalizeUpdatedTitle(title);
+        if (Objects.equals(this.title, normalizedTitle)) {
+            return;
+        }
+        this.title = normalizedTitle;
+    }
+
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
@@ -175,6 +192,36 @@ public class Post {
                     "본인의 게시물만 삭제할 수 있습니다."
             );
         }
+    }
+
+    private void validateTitleUpdateAuthor(UUID authorId) {
+        if (!author.getId().equals(authorId)) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "본인의 게시물만 수정할 수 있습니다."
+            );
+        }
+    }
+
+    private void validateTitleUpdateStatus() {
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "현재 상태의 게시물은 수정할 수 없습니다."
+        );
+    }
+
+    private void validateTitleUpdatePeriod(Instant now) {
+        if (now != null && topic.phaseAt(now) == TopicPhase.OPEN) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "참여 기간이 종료된 게시물은 수정할 수 없습니다."
+        );
     }
 
     private void validateAuthorDeletionStatus() {
@@ -258,5 +305,22 @@ public class Post {
             );
         }
         return title;
+    }
+
+    private static String normalizeUpdatedTitle(String title) {
+        if (title == null) {
+            return null;
+        }
+        String normalizedTitle = title.strip();
+        if (normalizedTitle.isEmpty()) {
+            return null;
+        }
+        if (normalizedTitle.codePointCount(0, normalizedTitle.length()) > MAX_TITLE_LENGTH) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "제목은 10자 이하여야 합니다."
+            );
+        }
+        return normalizedTitle;
     }
 }

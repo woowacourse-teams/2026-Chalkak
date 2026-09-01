@@ -123,6 +123,16 @@ public class PostCommandService {
         postLikeRepository.deleteByPostId(postId);
     }
 
+    public PostUpdateResult updatePost(UUID authorId, UUID postId, String title) {
+        Post post = getActivePostForUpdate(postId);
+        post.updateTitle(authorId, title, Instant.now());
+        return new PostUpdateResult(
+                post.getId(),
+                post.getTitle(),
+                post.getModerationStatus()
+        );
+    }
+
     /**
      * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
      * 요청이 READY를 보고 사진 처리를 반영한 뒤 관리자 검수 대기 상태로 만든다.
@@ -173,6 +183,14 @@ public class PostCommandService {
 
     private Post getPostForDeletion(UUID postId) {
         return postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "게시물을 찾을 수 없습니다."
+                ));
+    }
+
+    private Post getActivePostForUpdate(UUID postId) {
+        return postRepository.findActiveByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."

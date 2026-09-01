@@ -2,6 +2,8 @@ package com.chalkak.backend.post.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.chalkak.backend.topic.domain.TopicPhase.CLOSED;
+import static com.chalkak.backend.topic.domain.TopicPhase.OPEN;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -17,6 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PostTest {
 
@@ -27,6 +31,7 @@ class PostTest {
     private static final UUID UPLOAD_ID =
             UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
     private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
+    private static final Instant UPDATED_AT = Instant.parse("2026-08-20T00:30:00Z");
 
     private final User author = mock(User.class);
     private final Topic topic = mock(Topic.class);
@@ -106,6 +111,160 @@ class PostTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
     }
+
+    @Test
+    @DisplayName("작성자는 참여 기간 중인 검수 대기 게시물의 제목을 수정한다")
+    void updateTitle_pendingPostDuringOpenPeriod_updatesTitle() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "기존 제목");
+        post.requestModeration();
+
+        // When
+        post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("작성자는 참여 기간 중인 승인 게시물의 제목을 수정한다")
+    void updateTitle_approvedPostDuringOpenPeriod_updatesTitle() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+        post.approve(Instant.parse("2026-08-20T00:10:00Z"));
+
+        // When
+        post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
+        assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.APPROVED);
+        assertThat(post.getModeratedAt()).isEqualTo(Instant.parse("2026-08-20T00:10:00Z"));
+    }
+
+    @Test
+    @DisplayName("제목을 수정할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
+    void updateTitle_titleWithSurroundingSpaces_normalizesTitle() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When
+        post.updateTitle(AUTHOR_ID, "  수정 제목  ", UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "　　"})
+    @DisplayName("null, 빈 문자열, 공백 제목은 제목 없음으로 수정한다")
+    void updateTitle_emptyTitle_normalizesTitleToNull(String title) {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When
+        post.updateTitle(AUTHOR_ID, title, UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isNull();
+    }
+
+    @Test
+    @DisplayName("제목을 수정할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
+    void updateTitle_tenCharacterNormalizedTitle_updatesTitle() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When
+        post.updateTitle(AUTHOR_ID, "  1234567890  ", UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("1234567890");
+    }
+
+    @Test
+    @DisplayName("제목을 수정할 때 Unicode code point 기준 10자를 초과하면 거부한다")
+    void updateTitle_tooLongNormalizedTitle_throwsBusinessException() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.updateTitle(
+                AUTHOR_ID,
+                "  " + "📸".repeat(11) + "  ",
+                UPDATED_AT
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목은 10자 이하여야 합니다.");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자는 게시물 제목을 수정할 수 없다")
+    void updateTitle_otherUser_throwsForbiddenException() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When & Then
+        assertThatThrownBy(() -> post.updateTitle(OTHER_USER_ID, "수정 제목", UPDATED_AT))
+                .isInstanceOfSatisfying(ForbiddenException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
+                .hasMessage("본인의 게시물만 수정할 수 있습니다.");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ModerationStatus.class,
+            names = {"VALIDATING", "REJECTED"}
+    )
+    @DisplayName("수정할 수 없는 검수 상태의 게시물은 제목을 수정할 수 없다")
+    void updateTitle_uneditableStatus_throwsBusinessException(ModerationStatus status) {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = createPostWithStatus(status);
+
+        // When & Then
+        assertThatThrownBy(() -> post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("현재 상태의 게시물은 수정할 수 없습니다.");
+        assertThat(post.getTitle()).isEqualTo("제목");
+    }
+
+    @Test
+    @DisplayName("주제 참여 기간이 종료되면 게시물 제목을 수정할 수 없다")
+    void updateTitle_closedTopic_throwsBusinessException() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        given(topic.phaseAt(UPDATED_AT)).willReturn(CLOSED);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "기존 제목");
+        post.requestModeration();
+
+        // When & Then
+        assertThatThrownBy(() -> post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("참여 기간이 종료된 게시물은 수정할 수 없습니다.");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
+    }
+
+    @Test
+    @DisplayName("정규화된 제목이 기존 제목과 같으면 제목 값을 다시 할당하지 않는다")
+    void updateTitle_sameNormalizedTitle_keepsOriginalTitleInstance() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("수정 제목");
+        String originalTitle = post.getTitle();
+
+        // When
+        post.updateTitle(AUTHOR_ID, new String("  수정 제목  "), UPDATED_AT);
+
+        // Then
+        assertThat(post.getTitle()).isSameAs(originalTitle);
+    }
+
     @Test
     @DisplayName("이미지 처리가 끝나면 관리자 검수 대기 상태가 된다")
     void requestModeration_validatingPost_becomesPending() {
@@ -412,6 +571,9 @@ class PostTest {
 
     private Post createPostWithStatus(ModerationStatus status) {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "제목");
+        if (status == ModerationStatus.VALIDATING) {
+            return post;
+        }
         if (status == ModerationStatus.REJECTED) {
             post.failImageProcessing();
             return post;
@@ -420,6 +582,14 @@ class PostTest {
         if (status == ModerationStatus.APPROVED) {
             post.approve(Instant.parse("2026-08-20T00:00:00Z"));
         }
+        return post;
+    }
+
+    private Post createPendingPostDuringOpenPeriod(String title) {
+        given(author.getId()).willReturn(AUTHOR_ID);
+        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
+        post.requestModeration();
         return post;
     }
 }
