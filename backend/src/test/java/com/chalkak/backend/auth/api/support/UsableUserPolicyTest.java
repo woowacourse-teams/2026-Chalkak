@@ -151,6 +151,90 @@ class UsableUserPolicyTest {
                 .isInstanceOf(ForbiddenException.class);
     }
 
+    @Test
+    @DisplayName("정상 회원은 통과시킨다")
+    void validateExisting_activeUser_returnsTrue() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId))
+                .willReturn(Optional.of(UserFixture.create(userId)));
+
+        // when
+        boolean result = policy.validateExisting(authenticationOf(userId));
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    /**
+     * 정지 회원도 탈퇴와 자기 데이터 정리는 할 수 있어야 하므로, 이 판정은 정지를 막지 않는다.
+     * 여기서 막으면 정지된 회원이 서비스를 떠날 방법 자체가 사라진다.
+     */
+    @Test
+    @DisplayName("정지된 회원도 통과시킨다")
+    void validateExisting_suspendedUser_returnsTrue() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId))
+                .willReturn(Optional.of(UserFixture.createBanned(userId)));
+
+        // when
+        boolean result = policy.validateExisting(authenticationOf(userId));
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 거부한다")
+    void validateExisting_withdrawnUser_throwsUnauthorizedException() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = UserFixture.create(userId);
+        user.withdraw();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when & then
+        assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    @Test
+    @DisplayName("저장소에 없는 회원은 거부한다")
+    void validateExisting_unknownUser_throwsUnauthorizedException() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    @Test
+    @DisplayName("관리자 토큰은 일반 사용자 권한 부족으로 거부한다")
+    void validateExisting_adminToken_throwsForbiddenException() {
+        // given
+        Authentication authentication = authenticationOf(
+                UUID.randomUUID(),
+                List.of(new SimpleGrantedAuthority(AccessTokenScope.ADMIN.toAuthority())));
+
+        // when & then
+        assertThatThrownBy(() -> policy.validateExisting(authentication))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("일반 사용자 권한이 필요합니다.")
+                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
     private Authentication authenticationOf(UUID userId) {
         return authenticationOf(userId, List.of());
     }

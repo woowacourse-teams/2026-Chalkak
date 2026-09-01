@@ -35,6 +35,18 @@ public class UsableUserPolicy {
     }
 
     /**
+     * 회원이 있는지만 보고 정지는 통과시킨다. 정지 회원도 탈퇴와 자기 데이터 정리는 할 수 있어야
+     * 하므로, 조회와 정리 경로에는 부재만 막고 정지는 그대로 통과시킨다.
+     *
+     * <p>{@link #validateUsable}로 대신할 수 없다. 그쪽은 정지를 403으로 막으므로 붙이는 순간
+     * 정지된 회원이 서비스를 떠날 방법이 사라진다.
+     */
+    public boolean validateExisting(Authentication authentication) {
+        getUser(authentication).validateNotWithdrawn();
+        return true;
+    }
+
+    /**
      * 탈퇴 회원까지 읽어야 이미 없는 회원과 구분할 수 있으므로 활성 회원만 거르지 않는다.
      */
     private User getUser(Authentication authentication) {
