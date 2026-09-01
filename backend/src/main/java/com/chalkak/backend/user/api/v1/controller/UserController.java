@@ -2,6 +2,7 @@ package com.chalkak.backend.user.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
+import com.chalkak.backend.auth.api.support.RequiresExistingUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
@@ -30,6 +31,7 @@ public class UserController implements UserApiDocs {
     private final UserService userService;
 
     @Override
+    @RequiresExistingUser
     @DeleteMapping("/me")
     public ResponseEntity<Void> withdraw(@LoginUser AuthenticatedUser loginUser) {
         userService.withdraw(loginUser.userId());
@@ -49,6 +51,7 @@ public class UserController implements UserApiDocs {
     }
 
     @Override
+    @RequiresExistingUser
     @GetMapping("/me/signature")
     public ResponseEntity<UserSignatureDetailResponse> getSignature(
             @LoginUser AuthenticatedUser loginUser

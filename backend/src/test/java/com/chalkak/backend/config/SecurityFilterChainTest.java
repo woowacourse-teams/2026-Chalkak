@@ -185,11 +185,16 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * 캘린더는 {@link com.chalkak.backend.auth.api.support.RequiresExistingUser}가 붙어 있어
+     * 저장소에 없는 회원이면 인가 단계에서 401로 끝난다. 여기서 볼 것은 필터가 유효한 토큰을
+     * 막지 않는다는 사실이므로 회원을 실제로 넣어 인가가 통과하도록 둔다.
+     */
     @Test
     @DisplayName("유효한 토큰이면 내 게시물 캘린더를 조회할 수 있다")
     void postCalendar_validAccessToken_reachesController() throws Exception {
         // Given
-        UUID userId = UUID.randomUUID();
+        UUID userId = createUser();
         given(postQueryService.getMyPostCalendar(eq(userId), any()))
                 .willReturn(new PostCalendarResult(2026, 8, List.of()));
         String token = accessTokenProvider.issue(userId).value();
