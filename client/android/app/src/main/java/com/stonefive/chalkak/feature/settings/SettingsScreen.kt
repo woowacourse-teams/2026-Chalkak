@@ -43,7 +43,7 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(signatureUpdateUrl) {
         signatureUpdateUrl?.let(viewModel::applySignatureUpdate)

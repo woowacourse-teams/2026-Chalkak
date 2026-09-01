@@ -37,7 +37,7 @@ fun LoginRoute(
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val loginWithGoogle = rememberGoogleLoginAction(
         onStart = { viewModel.startCredentialRequest(SocialLoginProvider.GOOGLE) },
         onSuccess = { idToken ->

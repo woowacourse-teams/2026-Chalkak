@@ -1,6 +1,11 @@
 package com.stonefive.chalkak.feature.signature
 
-data class SignUpUiState(val status: SignUpStatus = SignUpStatus.Idle) {
+import com.stonefive.chalkak.core.ui.UiMessage
+
+data class SignUpUiState(
+    val status: SignUpStatus = SignUpStatus.Idle,
+    val pendingMessage: UiMessage? = null,
+) {
     val isSubmitting: Boolean
         get() = status == SignUpStatus.Submitting
 }

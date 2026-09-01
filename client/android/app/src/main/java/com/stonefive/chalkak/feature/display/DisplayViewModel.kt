@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -32,14 +32,13 @@ class DisplayViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DisplayUiState())
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
 
     private var latestLoadGeneration = 0
     private var selectedSort = PostSort.LATEST
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
     private var nextPageJob: Job? = null
+    private var nextMessageId = 0L
 
     init {
         loadDisplay(date = initialDate)
@@ -79,6 +78,16 @@ class DisplayViewModel(
 
     fun retry() {
         loadDisplay(_uiState.value.selectedDate)
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
     }
 
     fun updateFeaturedPage(page: Int) {
@@ -161,6 +170,7 @@ class DisplayViewModel(
                     selectedSort = (previousState.content as? DisplayContentState.Latest)
                         ?.selectedSort
                         ?: selectedSort
+                    val pendingMessage = nextToast(DISPLAY_ERROR_MESSAGE)
                     _uiState.update {
                         it.copy(
                             selectedDate = previousState.selectedDate,
@@ -176,9 +186,9 @@ class DisplayViewModel(
                             } else {
                                 previousState.earliestDate
                             },
+                            pendingMessage = pendingMessage,
                         )
                     }
-                    messageEmitter.showToast(DISPLAY_ERROR_MESSAGE)
                 } else {
                     _uiState.update {
                         it.copy(
@@ -321,6 +331,11 @@ class DisplayViewModel(
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
         private const val FEATURED_PHOTO_COUNT = 5
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
 
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"

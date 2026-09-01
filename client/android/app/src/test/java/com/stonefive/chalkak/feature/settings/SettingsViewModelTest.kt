@@ -13,12 +13,9 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -79,7 +76,6 @@ class SettingsViewModelTest {
         userRepository.profileAwait = gate
         userRepository.profileError = IllegalStateException("failure")
         val viewModel = createViewModel()
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         gate.complete(Unit)
         advanceUntilIdle()
@@ -87,8 +83,8 @@ class SettingsViewModelTest {
         assertTrue(viewModel.uiState.value.isLoggedIn)
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals(
-            UiMessage.Toast("사인을 불러오지 못했어요. 다시 시도해 주세요."),
-            message.await(),
+            "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
 
@@ -99,7 +95,6 @@ class SettingsViewModelTest {
         userRepository.profileAwait = gate
         userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.NETWORK)
         val viewModel = createViewModel()
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         gate.complete(Unit)
         advanceUntilIdle()
@@ -107,8 +102,8 @@ class SettingsViewModelTest {
         assertTrue(viewModel.uiState.value.isLoggedIn)
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals(
-            UiMessage.Toast("사인을 불러오지 못했어요. 다시 시도해 주세요."),
-            message.await(),
+            "사인을 불러오지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
 
@@ -118,7 +113,6 @@ class SettingsViewModelTest {
         authRepository.logoutError = IllegalStateException("failure")
         val viewModel = createViewModel()
         viewModel.showLogoutDialog()
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.confirmAccountAction()
         advanceUntilIdle()
@@ -126,8 +120,8 @@ class SettingsViewModelTest {
         assertTrue(viewModel.uiState.value.isLoggedIn)
         assertFalse(authRepository.logoutCalled)
         assertEquals(
-            UiMessage.Toast("요청을 처리하지 못했어요. 다시 시도해 주세요."),
-            message.await(),
+            "요청을 처리하지 못했어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
 

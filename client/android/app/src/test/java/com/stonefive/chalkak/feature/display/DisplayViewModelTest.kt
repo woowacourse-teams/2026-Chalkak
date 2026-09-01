@@ -15,9 +15,6 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -117,12 +114,14 @@ class DisplayViewModelTest {
     fun `정렬 갱신 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
         val previousContent = viewModel.uiState.value.content
         repository.firstPageFailure = HomeFailure.Network
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.selectSort(PostSort.POPULAR)
 
         assertEquals(previousContent, viewModel.uiState.value.content)
-        assertEquals(UiMessage.Toast("전시를 불러오지 못했어요"), message.await())
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test
@@ -257,7 +256,6 @@ class DisplayViewModelTest {
     fun `이전 날짜 요청이 네트워크 오류로 실패하면 최초 전시일을 확정하지 않는다`() = runTest {
         val previousContent = viewModel.uiState.value.content
         repository.firstPageFailure = HomeFailure.Network
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.moveToPreviousDate()
 
@@ -266,7 +264,10 @@ class DisplayViewModelTest {
         assertEquals(previousContent, state.content)
         assertEquals(null, state.earliestDate)
         assertTrue(state.canGoPrevious)
-        assertEquals(UiMessage.Toast("전시를 불러오지 못했어요"), message.await())
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test

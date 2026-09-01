@@ -1,10 +1,12 @@
 package com.stonefive.chalkak.feature.login
 
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 
 data class LoginUiState(
     val status: LoginStatus = LoginStatus.Idle,
     val activeProvider: SocialLoginProvider? = null,
+    val pendingMessage: UiMessage? = null,
 ) {
     val canSubmit: Boolean
         get() = status is LoginStatus.Idle

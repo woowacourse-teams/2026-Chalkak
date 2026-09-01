@@ -57,7 +57,7 @@ fun DisplayRoute(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     DisplayScreen(
         uiState = uiState,

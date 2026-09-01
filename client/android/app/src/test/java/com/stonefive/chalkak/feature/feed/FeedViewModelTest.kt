@@ -16,8 +16,6 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -247,9 +245,6 @@ class FeedViewModelTest {
             initialContent = initial,
             postId = initial.post.id,
         )
-        val message = async(start = CoroutineStart.UNDISPATCHED) {
-            selectedViewModel.uiMessage.first()
-        }
 
         detailResult.complete(HomeResult.Failure(HomeFailure.Network))
         advanceUntilIdle()
@@ -257,7 +252,10 @@ class FeedViewModelTest {
         assertSame(initial, selectedViewModel.uiState.value.content)
         assertEquals(null, selectedViewModel.uiState.value.errorMessage)
         assertFalse(selectedViewModel.uiState.value.isRefreshing)
-        assertEquals(UiMessage.Toast("게시물을 불러오지 못했어요"), message.await())
+        assertEquals(
+            "게시물을 불러오지 못했어요",
+            (selectedViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
     }
 
     @Test

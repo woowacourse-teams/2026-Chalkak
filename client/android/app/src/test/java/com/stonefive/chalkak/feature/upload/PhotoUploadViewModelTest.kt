@@ -13,8 +13,6 @@ import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -126,12 +124,13 @@ class PhotoUploadViewModelTest {
                 moderationStatus = PostModerationStatus.VALIDATING,
             ),
         )
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
-
         viewModel.onImageSelected("content://media/photo/1")
 
         assertEquals(ImagePreparationStatus.Failed, viewModel.uiState.value.imagePreparationStatus)
-        assertEquals(UiMessage.Toast("네트워크 연결을 확인해 주세요."), message.await())
+        assertEquals(
+            "네트워크 연결을 확인해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
         assertTrue(viewModel.uiState.value.canSubmit)
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
@@ -313,13 +312,14 @@ class PhotoUploadViewModelTest {
         val image = "content://media/photo/1"
         viewModel.onImageSelected(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
-
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertEquals(image, viewModel.uiState.value.selectedImage)
         assertEquals("제목", viewModel.uiState.value.caption)
-        assertEquals(UiMessage.Toast("네트워크 연결을 확인해 주세요."), message.await())
+        assertEquals(
+            "네트워크 연결을 확인해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
         assertTrue(viewModel.uiState.value.canSubmit)
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
@@ -334,11 +334,12 @@ class PhotoUploadViewModelTest {
         val image = "content://media/photo/1"
         viewModel.onImageSelected(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
-
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
-        assertEquals(UiMessage.Toast("이미 이 주제에 전시한 사진이 있어요."), message.await())
+        assertEquals(
+            "이미 이 주제에 전시한 사진이 있어요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
         assertEquals(image, viewModel.uiState.value.selectedImage)
         assertEquals("제목", viewModel.uiState.value.caption)
     }
@@ -349,13 +350,11 @@ class PhotoUploadViewModelTest {
         val image = "content://media/photo/1"
         viewModel.onImageSelected(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
-
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertEquals(
-            UiMessage.Toast("주제가 변경되어 전시할 수 없어요."),
-            message.await(),
+            "주제가 변경되어 전시할 수 없어요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
         assertEquals(image, viewModel.uiState.value.selectedImage)
         assertEquals("제목", viewModel.uiState.value.caption)
@@ -399,11 +398,12 @@ class PhotoUploadViewModelTest {
             prepareResults += PostImagePreparationResult.Failure(PostCreationFailure.NetworkUnavailable)
         }
         val pendingViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
-        val message = async(start = CoroutineStart.UNDISPATCHED) { pendingViewModel.uiMessage.first() }
-
         pendingViewModel.onImageSelected("content://media/photo/1")
 
-        assertEquals(UiMessage.Toast("네트워크 연결을 확인해 주세요."), message.await())
+        assertEquals(
+            "네트워크 연결을 확인해 주세요.",
+            (pendingViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
         assertTrue(pendingViewModel.uiState.value.isTopicLoading)
         assertFalse(pendingViewModel.uiState.value.canSubmit)
         assertEquals(listOf(uploadTopicDate), repository.requestedTopicDates)

@@ -44,7 +44,7 @@ fun OnboardingSignaturePreviewRoute(
     viewModel: SignUpViewModel = viewModel(factory = SignUpViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(uiState.status) {
         when (uiState.status) {
@@ -73,7 +73,7 @@ fun ChangeSignaturePreviewRoute(
     viewModel: SignatureChangeViewModel = viewModel(factory = SignatureChangeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(uiState.status) {
         val status = uiState.status

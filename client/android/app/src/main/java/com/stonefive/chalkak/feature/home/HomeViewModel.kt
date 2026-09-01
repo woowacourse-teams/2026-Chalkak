@@ -7,7 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -46,9 +46,6 @@ class HomeViewModel(
     private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
-
     private var latestLoadGeneration = 0
     private var homeContentRevision = 0
     private var loadedDate: LocalDate? = null
@@ -58,6 +55,7 @@ class HomeViewModel(
     private var nextPageJob: Job? = null
     private val latestLikeGenerationByPhotoId = mutableMapOf<String, Int>()
     private val likeJobsByPhotoId = mutableMapOf<String, MutableSet<Job>>()
+    private var nextMessageId = 0L
 
     init {
         loadHome()
@@ -82,6 +80,16 @@ class HomeViewModel(
             is HomeUiAction.EndThresholdChanged -> updateEndThreshold(action.isReached)
 
             is HomeUiAction.LikeClicked -> updateLike(action.photoId)
+        }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
         }
     }
 
@@ -157,14 +165,15 @@ class HomeViewModel(
                 is HomeResult.Failure -> {
                     val reason = result.reason.toInitialError()
                     if (preservesContent) {
+                        val pendingMessage = nextToast(reason.message)
                         _uiState.update {
                             it.copy(
                                 isRefreshing = false,
                                 isLoadingNext = false,
                                 areLikesEnabled = true,
+                                pendingMessage = pendingMessage,
                             )
                         }
-                        messageEmitter.showToast(reason.message)
                     } else {
                         _uiState.value = HomeUiState(
                             contentStatus = HomeContentStatus.Error(reason),
@@ -422,4 +431,9 @@ class HomeViewModel(
         Load,
         Refresh,
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }

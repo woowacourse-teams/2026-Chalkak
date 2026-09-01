@@ -7,7 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
@@ -32,8 +32,7 @@ class SettingsViewModel(
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
+    private var nextMessageId = 0L
 
     init {
         loadProfile()
@@ -57,6 +56,16 @@ class SettingsViewModel(
 
     fun dismissAccountDialog() {
         _uiState.update { it.copy(accountDialog = null) }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
     }
 
     fun confirmAccountAction() {
@@ -87,8 +96,13 @@ class SettingsViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                _uiState.update { it.copy(isAccountActionInProgress = false) }
-                messageEmitter.showToast(ACCOUNT_ACTION_ERROR_MESSAGE)
+                val pendingMessage = nextToast(ACCOUNT_ACTION_ERROR_MESSAGE)
+                _uiState.update {
+                    it.copy(
+                        isAccountActionInProgress = false,
+                        pendingMessage = pendingMessage,
+                    )
+                }
             }
         }
     }
@@ -127,24 +141,26 @@ class SettingsViewModel(
                         )
                     }
                 } else {
+                    val pendingMessage = nextToast(SIGNATURE_LOAD_ERROR_MESSAGE)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isLoggedIn = true,
                             signatureUrl = null,
+                            pendingMessage = pendingMessage,
                         )
                     }
-                    messageEmitter.showToast(SIGNATURE_LOAD_ERROR_MESSAGE)
                 }
             } catch (error: Exception) {
+                val pendingMessage = nextToast(SIGNATURE_LOAD_ERROR_MESSAGE)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         isLoggedIn = true,
                         signatureUrl = null,
+                        pendingMessage = pendingMessage,
                     )
                 }
-                messageEmitter.showToast(SIGNATURE_LOAD_ERROR_MESSAGE)
             }
         }
     }
@@ -161,6 +177,11 @@ class SettingsViewModel(
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
 
 private const val SIGNATURE_LOAD_ERROR_MESSAGE = "사인을 불러오지 못했어요. 다시 시도해 주세요."

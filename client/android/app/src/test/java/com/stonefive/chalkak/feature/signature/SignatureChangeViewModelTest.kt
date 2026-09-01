@@ -6,10 +6,7 @@ import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.repository.UserRepository
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -51,14 +48,13 @@ class SignatureChangeViewModelTest {
             SignatureUpdateFailure.NETWORK_UNAVAILABLE,
         )
         val viewModel = SignatureChangeViewModel(userRepository)
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.updateSignature(byteArrayOf(1))
         advanceUntilIdle()
 
         assertEquals(
-            UiMessage.Toast("네트워크 연결을 확인해 주세요."),
-            message.await(),
+            "네트워크 연결을 확인해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
         assertEquals(SignatureChangeStatus.Idle, viewModel.uiState.value.status)
         assertFalse(viewModel.uiState.value.isSubmitting)

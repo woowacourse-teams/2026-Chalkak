@@ -8,11 +8,8 @@ import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,7 +21,9 @@ class LoginViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository = FakeLoginRepository()
-    private val viewModel = LoginViewModel(authRepository = repository)
+    private val viewModel = LoginViewModel(
+        authRepository = repository,
+    )
 
     @Test
     fun `기존 회원 로그인 성공 시 인증 세션으로 전환한다`() = runTest {
@@ -88,13 +87,12 @@ class LoginViewModelTest {
     @Test
     fun `백엔드 인증 실패를 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.login(SocialLoginProvider.GOOGLE, "id-token")
 
         assertEquals(
-            UiMessage.Toast("Google 계정을 확인할 수 없어요. 다시 시도해 주세요."),
-            message.await(),
+            "Google 계정을 확인할 수 없어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
         assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
         assertTrue(viewModel.uiState.value.canSubmit)
@@ -103,13 +101,12 @@ class LoginViewModelTest {
     @Test
     fun `Kakao 백엔드 인증 실패를 카카오 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
-        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.login(SocialLoginProvider.KAKAO, "id-token")
 
         assertEquals(
-            UiMessage.Toast("카카오 계정을 확인할 수 없어요. 다시 시도해 주세요."),
-            message.await(),
+            "카카오 계정을 확인할 수 없어요. 다시 시도해 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
         assertEquals(LoginStatus.Idle, viewModel.uiState.value.status)
     }

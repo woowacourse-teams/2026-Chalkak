@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -40,13 +40,12 @@ class FeedViewModel(
         ),
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
 
     private val _uiEvent = Channel<FeedUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLikeGeneration = 0
+    private var nextMessageId = 0L
 
     init {
         if (postId != null) {
@@ -61,6 +60,16 @@ class FeedViewModel(
             loadPostDetail(postId)
         } else {
             loadFeed()
+        }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
         }
     }
 
@@ -236,10 +245,15 @@ class FeedViewModel(
     private fun handleDetailFailure(failure: HomeFailure) {
         val current = _uiState.value
         if (current.content != null && !failure.isPostNotFound()) {
+            val pendingMessage = nextToast(failure.toFeedErrorMessage())
             _uiState.update {
-                it.copy(isLoading = false, isRefreshing = false, errorMessage = null)
+                it.copy(
+                    isLoading = false,
+                    isRefreshing = false,
+                    errorMessage = null,
+                    pendingMessage = pendingMessage,
+                )
             }
-            messageEmitter.showToast(failure.toFeedErrorMessage())
             return
         }
 
@@ -338,4 +352,9 @@ class FeedViewModel(
 
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }

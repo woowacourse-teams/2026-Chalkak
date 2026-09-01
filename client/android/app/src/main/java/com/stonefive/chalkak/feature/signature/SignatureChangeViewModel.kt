@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
@@ -15,13 +15,23 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SignatureChangeViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(SignatureChangeUiState())
     val uiState: StateFlow<SignatureChangeUiState> = _uiState.asStateFlow()
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
+    private var nextMessageId = 0L
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
+    }
 
     fun updateSignature(signaturePng: ByteArray) {
         if (_uiState.value.isSubmitting) return
@@ -49,8 +59,9 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
     }
 
     private fun showFailure(message: String) {
-        _uiState.value = SignatureChangeUiState()
-        messageEmitter.showToast(message)
+        _uiState.value = SignatureChangeUiState(
+            pendingMessage = nextToast(message),
+        )
     }
 
     private fun SignatureUpdateFailure.toMessage(): String = when (this) {
@@ -66,13 +77,23 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
-                SignatureChangeViewModel(application.appContainer.userRepository)
+                SignatureChangeViewModel(
+                    userRepository = application.appContainer.userRepository,
+                )
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }
 
-data class SignatureChangeUiState(val status: SignatureChangeStatus = SignatureChangeStatus.Idle) {
+data class SignatureChangeUiState(
+    val status: SignatureChangeStatus = SignatureChangeStatus.Idle,
+    val pendingMessage: UiMessage? = null,
+) {
     val isSubmitting: Boolean
         get() = status == SignatureChangeStatus.Submitting
 }

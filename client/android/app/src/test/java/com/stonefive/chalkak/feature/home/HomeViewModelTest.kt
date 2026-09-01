@@ -19,8 +19,6 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -247,15 +245,13 @@ class HomeViewModelTest {
                 .randomSeed,
         )
 
-        val message = async(start = CoroutineStart.UNDISPATCHED) {
-            viewModel.uiMessage.first()
-        }
         repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
 
-        assertEquals(before.copy(isRefreshing = false), viewModel.uiState.value)
+        val state = viewModel.uiState.value
+        assertEquals(before.copy(isRefreshing = false), state.copy(pendingMessage = null))
         assertEquals(
-            UiMessage.Toast(HomeInitialError.Network.message),
-            message.await(),
+            HomeInitialError.Network.message,
+            (state.pendingMessage as UiMessage.Toast).text,
         )
     }
 
@@ -465,8 +461,13 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.RefreshRequested)
         repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
 
-        assertEquals(before, viewModel.uiState.value)
-        assertFalse(viewModel.uiState.value.isLoadingNext)
+        val state = viewModel.uiState.value
+        assertEquals(before, state.copy(pendingMessage = null))
+        assertEquals(
+            HomeInitialError.Network.message,
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+        assertFalse(state.isLoadingNext)
 
         viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
         viewModel.onAction(HomeUiAction.EndThresholdChanged(true))

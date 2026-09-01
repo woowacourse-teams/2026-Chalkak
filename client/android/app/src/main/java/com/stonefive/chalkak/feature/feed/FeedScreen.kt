@@ -55,7 +55,7 @@ fun FeedRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->

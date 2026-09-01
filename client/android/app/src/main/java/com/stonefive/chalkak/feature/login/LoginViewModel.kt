@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.ui.UiMessageEmitter
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -15,13 +15,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
-    private val messageEmitter = UiMessageEmitter()
-    val uiMessage = messageEmitter.messages
+    private var nextMessageId = 0L
 
     fun startCredentialRequest(provider: SocialLoginProvider): Boolean {
         if (!_uiState.value.canSubmit) return false
@@ -83,6 +83,16 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
 
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) {
+                state.copy(pendingMessage = null)
+            } else {
+                state
+            }
+        }
+    }
+
     fun continueAsGuest() {
         if (!_uiState.value.canSubmit) return
 
@@ -100,8 +110,9 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
 
     private fun showFailure(message: String) {
-        _uiState.value = LoginUiState()
-        messageEmitter.showToast(message)
+        _uiState.value = LoginUiState(
+            pendingMessage = nextToast(message),
+        )
     }
 
     private fun SocialAuthFailure.toMessage(provider: SocialLoginProvider): String = when (this) {
@@ -133,4 +144,9 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
             }
         }
     }
+
+    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
+        id = nextMessageId++,
+        text = text,
+    )
 }

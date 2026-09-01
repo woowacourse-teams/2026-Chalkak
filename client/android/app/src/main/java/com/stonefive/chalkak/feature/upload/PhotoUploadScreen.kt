@@ -75,7 +75,7 @@ fun PhotoUploadRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(viewModel.uiMessage)
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val photoPickerState = rememberPhotoPickerState(viewModel::onImageSelected)
 
     LaunchedEffect(viewModel, photoPickerState) {

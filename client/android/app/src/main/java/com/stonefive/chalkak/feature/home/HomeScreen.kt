@@ -78,8 +78,8 @@ fun HomeRoute(
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val context = LocalContext.current
-    UiMessageEffect(viewModel.uiMessage)
 
     LaunchedEffect(viewModel, context) {
         viewModel.uiEvent.collect { event ->
