@@ -7,7 +7,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
-import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -140,16 +139,14 @@ private fun Context.openExternalLink(uri: Uri) {
             Intent(Intent.ACTION_VIEW, uri)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
-    } catch (exception: ActivityNotFoundException) {
-        Log.w(LOG_TAG, "외부 링크를 처리할 앱을 찾지 못했습니다.", exception)
-    } catch (exception: SecurityException) {
-        Log.w(LOG_TAG, "외부 링크를 열 권한이 없습니다.", exception)
+    } catch (_: ActivityNotFoundException) {
+        return
+    } catch (_: SecurityException) {
+        return
     }
 }
 
 private val NOTION_ALLOWED_HOSTS = listOf("notion.com", "notion.so", "notion.site")
-
-private const val LOG_TAG = "LegalDocumentWebView"
 
 private const val NOTION_WEB_VIEW_LAYOUT_FIX_SCRIPT = """
     (() => {
