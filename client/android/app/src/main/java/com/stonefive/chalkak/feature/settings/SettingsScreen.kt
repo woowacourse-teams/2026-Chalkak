@@ -24,6 +24,7 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.settings.component.SettingsAccountCard
 import com.stonefive.chalkak.feature.settings.component.SettingsInformationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsLoginButton
@@ -42,6 +43,7 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(viewModel.uiMessage)
 
     LaunchedEffect(signatureUpdateUrl) {
         signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
@@ -129,7 +131,6 @@ fun SettingsScreen(
 
                 uiState.isLoggedIn -> SettingsSignatureCard(
                     signatureUrl = uiState.signatureUrl,
-                    errorMessage = uiState.signatureErrorMessage,
                     onChangeClick = onChangeSignatureClick,
                     modifier = Modifier.fillMaxWidth(),
                 )

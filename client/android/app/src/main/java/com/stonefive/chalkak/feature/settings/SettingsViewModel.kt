@@ -7,8 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
-import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
@@ -33,6 +33,8 @@ class SettingsViewModel(
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     private val _uiEvent = Channel<SettingsUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
@@ -53,7 +55,6 @@ class SettingsViewModel(
         _uiState.update {
             it.copy(
                 signatureUrl = signatureUrl,
-                signatureErrorMessage = null,
             )
         }
     }
@@ -116,7 +117,6 @@ class SettingsViewModel(
                         isLoading = false,
                         isLoggedIn = true,
                         signatureUrl = profile.signatureThumbnailUrl,
-                        signatureErrorMessage = null,
                     )
                 }
             } catch (error: CancellationException) {
@@ -127,7 +127,6 @@ class SettingsViewModel(
                         isLoading = false,
                         isLoggedIn = false,
                         signatureUrl = null,
-                        signatureErrorMessage = null,
                     )
                 }
             } catch (error: Exception) {
@@ -136,21 +135,11 @@ class SettingsViewModel(
                         isLoading = false,
                         isLoggedIn = true,
                         signatureUrl = null,
-                        signatureErrorMessage = "사인을 불러오지 못했어요. 다시 시도해 주세요.",
                     )
                 }
+                messageEmitter.showToast("사인을 불러오지 못했어요. 다시 시도해 주세요.")
             }
         }
-    }
-
-    private fun UserProfileLoadFailure.toMessage(): String = when (this) {
-        UserProfileLoadFailure.UNAUTHORIZED -> "유효하지 않은 인증 정보입니다."
-
-        UserProfileLoadFailure.FORBIDDEN -> "서비스를 이용할 수 없는 계정입니다."
-
-        UserProfileLoadFailure.NETWORK,
-        UserProfileLoadFailure.UNKNOWN,
-        -> "사인을 불러오지 못했어요. 다시 시도해 주세요."
     }
 
     companion object {

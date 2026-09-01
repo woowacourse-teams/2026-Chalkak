@@ -1,11 +1,15 @@
 package com.stonefive.chalkak.feature.signature
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,19 +46,21 @@ class SignatureChangeViewModelTest {
     }
 
     @Test
-    fun `사인 변경 실패 시 프리뷰에 오류 메시지를 제공한다`() = runTest {
+    fun `사인 변경 실패 시 Toast 메시지를 제공하고 재시도 상태로 돌아간다`() = runTest {
         userRepository.result = SignatureUpdateResult.Failure(
             SignatureUpdateFailure.NETWORK_UNAVAILABLE,
         )
         val viewModel = SignatureChangeViewModel(userRepository)
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
 
         viewModel.updateSignature(byteArrayOf(1))
         advanceUntilIdle()
 
         assertEquals(
-            SignatureChangeStatus.Failed("네트워크 연결을 확인해 주세요."),
-            viewModel.uiState.value.status,
+            UiMessage.Toast("네트워크 연결을 확인해 주세요."),
+            message.await(),
         )
+        assertEquals(SignatureChangeStatus.Idle, viewModel.uiState.value.status)
         assertFalse(viewModel.uiState.value.isSubmitting)
     }
 }

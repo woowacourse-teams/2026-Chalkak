@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
@@ -36,6 +37,7 @@ fun LoginRoute(
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(viewModel.uiMessage)
     val loginWithGoogle = rememberGoogleLoginAction(
         onStart = { viewModel.startCredentialRequest(SocialLoginProvider.GOOGLE) },
         onSuccess = { idToken ->
@@ -70,7 +72,6 @@ fun LoginRoute(
         onContinueAsGuestClick = viewModel::continueAsGuest,
         modifier = modifier,
         enabled = uiState.canSubmit,
-        errorMessage = uiState.errorMessage,
     )
 }
 
@@ -80,7 +81,6 @@ fun LoginScreen(
     onContinueAsGuestClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    errorMessage: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -93,7 +93,6 @@ fun LoginScreen(
             onSocialLoginClick = onSocialLoginClick,
             onContinueAsGuestClick = onContinueAsGuestClick,
             enabled = enabled,
-            errorMessage = errorMessage,
             modifier = Modifier.weight(1f),
         )
     }
@@ -133,7 +132,6 @@ private fun LoginActions(
     onSocialLoginClick: (SocialLoginProvider) -> Unit,
     onContinueAsGuestClick: () -> Unit,
     enabled: Boolean,
-    errorMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     val providers = remember { SocialLoginProvider.entries }
@@ -154,14 +152,6 @@ private fun LoginActions(
                 onClick = { onSocialLoginClick(provider) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = enabled,
-            )
-        }
-
-        errorMessage?.let { message ->
-            Text(
-                text = message,
-                color = ChalkakTheme.colors.error,
-                style = ChalkakTheme.typography.footnote,
             )
         }
 

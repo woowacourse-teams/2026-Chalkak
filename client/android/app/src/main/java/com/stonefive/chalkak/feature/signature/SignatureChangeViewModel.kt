@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
@@ -19,6 +20,8 @@ import kotlinx.coroutines.launch
 class SignatureChangeViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(SignatureChangeUiState())
     val uiState: StateFlow<SignatureChangeUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     fun updateSignature(signaturePng: ByteArray) {
         if (_uiState.value.isSubmitting) return
@@ -34,21 +37,20 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
                     }
 
                     is SignatureUpdateResult.Failure -> {
-                        _uiState.value = SignatureChangeUiState(
-                            status = SignatureChangeStatus.Failed(result.reason.toMessage()),
-                        )
+                        showFailure(result.reason.toMessage())
                     }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Throwable) {
-                _uiState.value = SignatureChangeUiState(
-                    status = SignatureChangeStatus.Failed(
-                        "사인을 저장하지 못했어요. 다시 시도해 주세요.",
-                    ),
-                )
+                showFailure("사인을 저장하지 못했어요. 다시 시도해 주세요.")
             }
         }
+    }
+
+    private fun showFailure(message: String) {
+        _uiState.value = SignatureChangeUiState()
+        messageEmitter.showToast(message)
     }
 
     private fun SignatureUpdateFailure.toMessage(): String = when (this) {
@@ -73,9 +75,6 @@ class SignatureChangeViewModel(private val userRepository: UserRepository) : Vie
 data class SignatureChangeUiState(val status: SignatureChangeStatus = SignatureChangeStatus.Idle) {
     val isSubmitting: Boolean
         get() = status == SignatureChangeStatus.Submitting
-
-    val errorMessage: String?
-        get() = (status as? SignatureChangeStatus.Failed)?.message
 }
 
 sealed interface SignatureChangeStatus {
@@ -84,6 +83,4 @@ sealed interface SignatureChangeStatus {
     data object Submitting : SignatureChangeStatus
 
     data class Completed(val profile: UserProfile) : SignatureChangeStatus
-
-    data class Failed(val message: String) : SignatureChangeStatus
 }

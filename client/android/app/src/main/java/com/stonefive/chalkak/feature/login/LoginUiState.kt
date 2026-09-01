@@ -7,10 +7,7 @@ data class LoginUiState(
     val activeProvider: SocialLoginProvider? = null,
 ) {
     val canSubmit: Boolean
-        get() = status is LoginStatus.Idle || status is LoginStatus.Failed
-
-    val errorMessage: String?
-        get() = (status as? LoginStatus.Failed)?.message
+        get() = status is LoginStatus.Idle
 }
 
 sealed interface LoginStatus {
@@ -23,6 +20,4 @@ sealed interface LoginStatus {
     data object GuestAccessGranted : LoginStatus
 
     data object SignUpRequired : LoginStatus
-
-    data class Failed(val message: String) : LoginStatus
 }

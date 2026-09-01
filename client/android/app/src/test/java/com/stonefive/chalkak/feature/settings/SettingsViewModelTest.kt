@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -11,8 +12,14 @@ import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -52,7 +60,6 @@ class SettingsViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.isLoggedIn)
-        assertEquals(null, viewModel.uiState.value.signatureErrorMessage)
         assertEquals(null, viewModel.uiState.value.signatureUrl)
     }
 
@@ -63,6 +70,26 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.isLoggedIn)
         assertEquals(0, userRepository.getMySignatureCalled)
+    }
+
+    @Test
+    fun `일반 서명 조회 실패는 설정을 유지하고 Toast 메시지를 보낸다`() = runTest {
+        authRepository.setAuthenticated()
+        val gate = CompletableDeferred<Unit>()
+        userRepository.profileAwait = gate
+        userRepository.profileError = IllegalStateException("failure")
+        val viewModel = createViewModel()
+        val message = async(start = CoroutineStart.UNDISPATCHED) { viewModel.uiMessage.first() }
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isLoggedIn)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(
+            UiMessage.Toast("사인을 불러오지 못했어요. 다시 시도해 주세요."),
+            message.await(),
+        )
     }
 
     @Test
@@ -148,11 +175,13 @@ private class FakeSettingsUserRepository(private val onWithdraw: () -> Unit) : U
         signatureThumbnailUrl = "signature-thumbnail-url",
     )
     var profileError: Throwable? = null
+    var profileAwait: CompletableDeferred<Unit>? = null
     var getMySignatureCalled: Int = 0
     var withdrawCalled: Boolean = false
 
     override suspend fun getMySignature(): UserProfile {
         getMySignatureCalled += 1
+        profileAwait?.await()
         profileError?.let { throw it }
         return profile
     }

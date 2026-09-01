@@ -27,6 +27,7 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.UserProfile
 
 private val PreviewSignatureWidth = 112.dp
@@ -43,6 +44,7 @@ fun OnboardingSignaturePreviewRoute(
     viewModel: SignUpViewModel = viewModel(factory = SignUpViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(viewModel.uiMessage)
 
     LaunchedEffect(uiState.status) {
         when (uiState.status) {
@@ -59,7 +61,6 @@ fun OnboardingSignaturePreviewRoute(
         onStartClick = { viewModel.completeSignUp(signaturePng) },
         modifier = modifier,
         isSubmitting = uiState.isSubmitting,
-        errorMessage = uiState.errorMessage,
     )
 }
 
@@ -72,6 +73,7 @@ fun ChangeSignaturePreviewRoute(
     viewModel: SignatureChangeViewModel = viewModel(factory = SignatureChangeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(viewModel.uiMessage)
 
     LaunchedEffect(uiState.status) {
         val status = uiState.status
@@ -87,7 +89,6 @@ fun ChangeSignaturePreviewRoute(
         onStartClick = { viewModel.updateSignature(signaturePng) },
         modifier = modifier,
         isSubmitting = uiState.isSubmitting,
-        errorMessage = uiState.errorMessage,
         confirmText = "사인 변경하기",
         noticeText = "사인 변경까지 시간이 조금 걸릴 수 있어요",
     )
@@ -101,7 +102,6 @@ fun SignaturePreviewScreen(
     onStartClick: () -> Unit,
     modifier: Modifier = Modifier,
     isSubmitting: Boolean = false,
-    errorMessage: String? = null,
     confirmText: String = "시작하기",
     noticeText: String? = null,
 ) {
@@ -148,17 +148,6 @@ fun SignaturePreviewScreen(
         )
 
         Spacer(modifier = Modifier.weight(1f))
-
-        errorMessage?.let { message ->
-            Text(
-                text = message,
-                modifier = Modifier.fillMaxWidth(),
-                color = ChalkakTheme.colors.error,
-                style = ChalkakTheme.typography.footnote,
-            )
-
-            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.md))
-        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

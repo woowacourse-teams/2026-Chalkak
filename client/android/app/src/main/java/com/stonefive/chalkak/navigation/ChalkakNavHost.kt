@@ -62,12 +62,7 @@ fun ChalkakNavHost(
         LegalDocumentLauncher(
             showLegalDocument = { selectedLegalDocument = it },
             onOpenFailed = {
-                Toast
-                    .makeText(
-                        context,
-                        "문서를 열 수 없어요",
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                Toast.makeText(context, "문서를 열 수 없어요", Toast.LENGTH_SHORT).show()
             },
         )
     }

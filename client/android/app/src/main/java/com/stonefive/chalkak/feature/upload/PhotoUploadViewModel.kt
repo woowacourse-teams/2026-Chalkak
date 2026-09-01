@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
@@ -39,6 +40,8 @@ class PhotoUploadViewModel(
         ),
     )
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     private val _uiEvent = Channel<PhotoUploadUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
@@ -58,7 +61,7 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                _uiState.update { it.copy(caption = action.caption, errorMessage = null) }
+                _uiState.update { it.copy(caption = action.caption) }
             }
 
             PhotoUploadUiAction.SubmitClicked -> submit()
@@ -68,6 +71,10 @@ class PhotoUploadViewModel(
     fun onImageSelected(image: String) {
         if (_uiState.value.isSubmitting) return
         replaceSelectedImage(image)
+    }
+
+    fun retryTopicLoad() {
+        loadCreationTopic()
     }
 
     fun reset() {
@@ -99,7 +106,6 @@ class PhotoUploadViewModel(
         _uiState.update {
             it.copy(
                 isSubmitting = true,
-                errorMessage = null,
             )
         }
 
@@ -120,7 +126,6 @@ class PhotoUploadViewModel(
             it.copy(
                 selectedImage = image,
                 imagePreparationStatus = ImagePreparationStatus.Preparing,
-                errorMessage = null,
             )
         }
         startImagePreparation(image, imageGeneration)
@@ -133,7 +138,6 @@ class PhotoUploadViewModel(
         _uiState.update {
             it.copy(
                 imagePreparationStatus = ImagePreparationStatus.Preparing,
-                errorMessage = null,
             )
         }
         preparationJob = viewModelScope.launch {
@@ -163,7 +167,7 @@ class PhotoUploadViewModel(
                             _uiState.update {
                                 it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
                             }
-                            handleFailure(result.reason)
+                            handleTransientFailure(result.reason)
                         }
                     }
                 }
@@ -175,9 +179,9 @@ class PhotoUploadViewModel(
                         it.copy(
                             imagePreparationStatus = ImagePreparationStatus.Failed,
                             isSubmitting = false,
-                            errorMessage = GENERIC_ERROR_MESSAGE,
                         )
                     }
+                    messageEmitter.showToast(GENERIC_ERROR_MESSAGE)
                 }
             }
         }
@@ -212,7 +216,7 @@ class PhotoUploadViewModel(
                         _uiState.update {
                             it.copy(imagePreparationStatus = ImagePreparationStatus.Failed)
                         }
-                        handleFailure(result.reason)
+                        handleTransientFailure(result.reason)
                     }
                 }
             } catch (error: CancellationException) {
@@ -222,9 +226,9 @@ class PhotoUploadViewModel(
                     it.copy(
                         imagePreparationStatus = ImagePreparationStatus.Failed,
                         isSubmitting = false,
-                        errorMessage = GENERIC_ERROR_MESSAGE,
                     )
                 }
+                messageEmitter.showToast(GENERIC_ERROR_MESSAGE)
             }
         }
     }
@@ -245,7 +249,7 @@ class PhotoUploadViewModel(
 
     private fun loadCreationTopic(submitAfterLoad: Boolean = false) {
         if (_uiState.value.isTopicLoading) return
-        _uiState.update { it.copy(isTopicLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(isTopicLoading = true, topicErrorMessage = null) }
 
         viewModelScope.launch {
             try {
@@ -255,6 +259,7 @@ class PhotoUploadViewModel(
                         _uiState.update { state ->
                             state.copy(
                                 isTopicLoading = false,
+                                topicErrorMessage = null,
                                 topicTitle = if (state.topicTitle == result.value.title) {
                                     state.topicTitle
                                 } else {
@@ -265,7 +270,7 @@ class PhotoUploadViewModel(
                         if (submitAfterLoad) submit()
                     }
 
-                    is PostCreationTopicResult.Failure -> handleFailure(result.reason)
+                    is PostCreationTopicResult.Failure -> handleTopicFailure(result.reason)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -273,14 +278,25 @@ class PhotoUploadViewModel(
                 _uiState.update {
                     it.copy(
                         isTopicLoading = false,
-                        errorMessage = GENERIC_ERROR_MESSAGE,
+                        topicErrorMessage = GENERIC_ERROR_MESSAGE,
                     )
                 }
             }
         }
     }
 
-    private fun handleFailure(failure: PostCreationFailure) {
+    private fun handleTransientFailure(failure: PostCreationFailure) {
+        if (failure == PostCreationFailure.ReauthenticationRequired) {
+            _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
+            sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
+            return
+        }
+
+        _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
+        messageEmitter.showToast(failure.toMessage())
+    }
+
+    private fun handleTopicFailure(failure: PostCreationFailure) {
         if (failure == PostCreationFailure.ReauthenticationRequired) {
             _uiState.update { it.copy(isTopicLoading = false, isSubmitting = false) }
             sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
@@ -291,7 +307,7 @@ class PhotoUploadViewModel(
             it.copy(
                 isTopicLoading = false,
                 isSubmitting = false,
-                errorMessage = failure.toMessage(),
+                topicErrorMessage = failure.toMessage(),
             )
         }
     }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -19,6 +20,8 @@ import kotlinx.coroutines.launch
 class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     fun startCredentialRequest(provider: SocialLoginProvider): Boolean {
         if (!_uiState.value.canSubmit) return false
@@ -55,19 +58,13 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
                     }
 
                     is SocialLoginResult.Failure -> {
-                        _uiState.value = LoginUiState(
-                            status = LoginStatus.Failed(result.reason.toMessage(provider)),
-                            activeProvider = provider,
-                        )
+                        showFailure(result.reason.toMessage(provider))
                     }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                _uiState.value = LoginUiState(
-                    status = LoginStatus.Failed("로그인하지 못했어요. 다시 시도해 주세요."),
-                    activeProvider = provider,
-                )
+                showFailure("로그인하지 못했어요. 다시 시도해 주세요.")
             }
         }
     }
@@ -77,9 +74,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
 
     fun credentialRequestFailed(message: String) {
-        _uiState.value = _uiState.value.copy(
-            status = LoginStatus.Failed(message),
-        )
+        showFailure(message)
     }
 
     fun signUpRequiredHandled() {
@@ -99,11 +94,14 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                _uiState.value = LoginUiState(
-                    status = LoginStatus.Failed("화면을 불러오지 못했어요. 다시 시도해 주세요."),
-                )
+                showFailure("화면을 불러오지 못했어요. 다시 시도해 주세요.")
             }
         }
+    }
+
+    private fun showFailure(message: String) {
+        _uiState.value = LoginUiState()
+        messageEmitter.showToast(message)
     }
 
     private fun SocialAuthFailure.toMessage(provider: SocialLoginProvider): String = when (this) {

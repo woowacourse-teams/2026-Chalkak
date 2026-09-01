@@ -165,20 +165,19 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun submissionErrorIsDisplayedWithoutDisablingRetry() {
+    fun transientSubmissionErrorDoesNotReserveLayoutSpace() {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
                     uiState = PhotoUploadUiState(
                         selectedImage = PREVIEW_PHOTO_URI,
-                        errorMessage = "전시를 완료하지 못했어요.",
                     ),
                     onAction = {},
                 )
             }
         }
 
-        composeRule.onNodeWithText("전시를 완료하지 못했어요.").assertIsDisplayed()
+        composeRule.onNodeWithText("전시를 완료하지 못했어요.").assertDoesNotExist()
         composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsEnabled()
     }
 
