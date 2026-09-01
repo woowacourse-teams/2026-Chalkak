@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,6 +75,7 @@ fun RecordRoute(
         onPreviousMonthClick = viewModel::moveToPreviousMonth,
         onNextMonthClick = viewModel::moveToNextMonth,
         onDateClick = viewModel::selectDate,
+        onRetryClick = viewModel::retryCurrentMonth,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = onOpenFeed,
@@ -91,6 +93,7 @@ fun RecordScreen(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
+    onRetryClick: () -> Unit = {},
     onOpenFeed: (String) -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
@@ -110,16 +113,8 @@ fun RecordScreen(
                     month = uiState.month,
                 )
             }
-            Toast
-                .makeText(
-                    context,
-                    if (saved) {
-                        "달력을 이미지로 저장했어요"
-                    } else {
-                        "이미지 저장에 실패했어요"
-                    },
-                    Toast.LENGTH_SHORT,
-                ).show()
+            val message = if (saved) "달력을 이미지로 저장했어요" else "이미지 저장에 실패했어요"
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -128,12 +123,7 @@ fun RecordScreen(
         if (isGranted) {
             saveCalendarImageNow()
         } else {
-            Toast
-                .makeText(
-                    context,
-                    "이미지 저장 권한이 필요해요",
-                    Toast.LENGTH_SHORT,
-                ).show()
+            Toast.makeText(context, "이미지 저장 권한이 필요해요", Toast.LENGTH_SHORT).show()
         }
     }
     val saveCalendarImage: () -> Unit = {
@@ -259,12 +249,24 @@ fun RecordScreen(
                     )
                 }
             } else {
-                Text(
-                    text = uiState.errorMessage,
-                    color = ChalkakTheme.colors.textSecondary,
-                    style = ChalkakTheme.typography.body,
-                    modifier = Modifier.padding(RecordHorizontalPadding),
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = uiState.errorMessage,
+                        color = ChalkakTheme.colors.textSecondary,
+                        style = ChalkakTheme.typography.body,
+                        modifier = Modifier.padding(horizontal = RecordHorizontalPadding),
+                    )
+                    TextButton(onClick = onRetryClick) {
+                        Text(
+                            text = "다시 시도",
+                            color = ChalkakTheme.colors.actionPrimary,
+                            style = ChalkakTheme.typography.body,
+                        )
+                    }
+                }
             }
         }
     }

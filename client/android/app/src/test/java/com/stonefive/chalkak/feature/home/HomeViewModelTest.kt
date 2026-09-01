@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -18,6 +19,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -244,12 +247,15 @@ class HomeViewModelTest {
                 .randomSeed,
         )
 
+        val message = async(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.uiMessage.first()
+        }
         repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
 
         assertEquals(before.copy(isRefreshing = false), viewModel.uiState.value)
         assertEquals(
-            HomeUiEvent.ShowRefreshFailure(HomeInitialError.Network),
-            viewModel.uiEvent.first(),
+            UiMessage.Toast(HomeInitialError.Network.message),
+            message.await(),
         )
     }
 

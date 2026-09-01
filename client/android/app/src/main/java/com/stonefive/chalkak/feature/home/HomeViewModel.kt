@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.ui.UiMessageEmitter
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -44,6 +45,9 @@ class HomeViewModel(
 
     private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
+
+    private val messageEmitter = UiMessageEmitter()
+    val uiMessage = messageEmitter.messages
 
     private var latestLoadGeneration = 0
     private var homeContentRevision = 0
@@ -160,7 +164,7 @@ class HomeViewModel(
                                 areLikesEnabled = true,
                             )
                         }
-                        sendUiEvent(HomeUiEvent.ShowRefreshFailure(reason))
+                        messageEmitter.showToast(reason.message)
                     } else {
                         _uiState.value = HomeUiState(
                             contentStatus = HomeContentStatus.Error(reason),

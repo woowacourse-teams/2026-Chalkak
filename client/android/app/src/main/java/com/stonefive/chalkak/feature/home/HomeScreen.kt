@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.home
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +20,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -38,6 +37,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -54,6 +54,7 @@ import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThres
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.home.component.HomePhotoList
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
@@ -77,20 +78,16 @@ fun HomeRoute(
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    UiMessageEffect(viewModel.uiMessage)
 
-    LaunchedEffect(viewModel, snackbarHostState) {
+    LaunchedEffect(viewModel, context) {
         viewModel.uiEvent.collect { event ->
             when (event) {
                 HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
 
-                HomeUiEvent.ShowGuestLikeMessage -> launch {
-                    snackbarHostState.showSnackbar(GUEST_LIKE_MESSAGE)
-                }
-
-                is HomeUiEvent.ShowRefreshFailure -> launch {
-                    snackbarHostState.showSnackbar(event.reason.message)
-                }
+                HomeUiEvent.ShowGuestLikeMessage ->
+                    Toast.makeText(context, GUEST_LIKE_MESSAGE, Toast.LENGTH_SHORT).show()
 
                 is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
             }
@@ -99,7 +96,6 @@ fun HomeRoute(
 
     HomeScreen(
         uiState = uiState,
-        snackbarHostState = snackbarHostState,
         onAction = viewModel::onAction,
     )
 }
@@ -107,7 +103,6 @@ fun HomeRoute(
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
-    snackbarHostState: SnackbarHostState,
     onAction: (HomeUiAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -115,7 +110,6 @@ fun HomeScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             if (uiState.contentStatus != HomeContentStatus.Content) {
                 ChalkakBottomBar(
@@ -408,7 +402,6 @@ private fun HomeScreenPreview() {
                     ),
                 ),
             ),
-            snackbarHostState = remember { SnackbarHostState() },
             onAction = {},
         )
     }

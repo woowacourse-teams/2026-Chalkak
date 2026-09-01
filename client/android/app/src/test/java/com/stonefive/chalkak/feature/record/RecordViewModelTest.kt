@@ -100,6 +100,23 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `실패한 현재 월을 재시도해 복구한다`() = runTest {
+        advanceUntilIdle()
+        val failedMonth = RecordTestMonth.minusMonths(1)
+        repository.failureMonth = failedMonth
+        viewModel.moveToPreviousMonth()
+        advanceUntilIdle()
+        repository.failureMonth = null
+
+        viewModel.retryCurrentMonth()
+        advanceUntilIdle()
+
+        assertEquals(listOf(RecordTestMonth, failedMonth, failedMonth), repository.requests)
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+        assertEquals(failedMonth, viewModel.uiState.value.month)
+    }
+
+    @Test
     fun movesToNextMonthOnlyUpToLatestMonth() = runTest {
         advanceUntilIdle()
 

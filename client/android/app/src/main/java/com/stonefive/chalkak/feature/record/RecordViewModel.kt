@@ -57,6 +57,10 @@ class RecordViewModel(
         _uiState.update { it.copy(selectedDate = date) }
     }
 
+    fun retryCurrentMonth() {
+        loadRecord(_uiState.value.month)
+    }
+
     private fun loadRecord(month: YearMonth) {
         val generation = ++latestLoadGeneration
         _uiState.update {
