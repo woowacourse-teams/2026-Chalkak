@@ -82,6 +82,36 @@ struct HomeViewModelBehaviorTests {
     }
 
     @MainActor
+    @Test("같은 사진의 좋아요 요청은 진행 중에 중복 실행하지 않는다")
+    func preventsConcurrentLikeRequestsForSamePhoto() async {
+        let request = SuspendedLikeRequest()
+        let viewModel = HomeViewModel(
+            initialState: HomeViewState(
+                contentStatus: .content,
+                photos: [Self.photo(id: "photo-1")],
+                areLikesEnabled: true
+            ),
+            isAuthenticated: { true },
+            likeHandler: { photoID, isLiked in
+                await request.handle(photoID: photoID, isLiked: isLiked)
+            }
+        )
+
+        let firstTap = Task { await viewModel.toggleLike(photoID: "photo-1") }
+        await request.waitUntilStarted()
+        let secondTap = Task { await viewModel.toggleLike(photoID: "photo-1") }
+        await secondTap.value
+
+        #expect(request.callCount == 1)
+
+        request.complete()
+        await firstTap.value
+
+        #expect(viewModel.viewState.likedPhotoIDs == ["photo-1"])
+        #expect(viewModel.viewState.photos.first?.likeCount == 2)
+    }
+
+    @MainActor
     @Test("새로고침은 랜덤 정렬 결과로 콘텐츠를 교체한다")
     func refreshReplacesContentWithRandomSortResult() async {
         let viewModel = HomeViewModel(
@@ -143,6 +173,44 @@ struct HomeViewModelBehaviorTests {
             title: "테스트 제목",
             likeCount: 1
         )
+    }
+}
+
+@MainActor
+private final class SuspendedLikeRequest {
+    private(set) var callCount = 0
+    private var didStart = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var requestContinuation: CheckedContinuation<Void, Never>?
+
+    func waitUntilStarted() async {
+        guard !didStart else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func handle(photoID: HomePhoto.ID, isLiked: Bool) async -> Result<HomeLikeUpdate, HomeInitialError> {
+        callCount += 1
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+
+        await withCheckedContinuation { continuation in
+            requestContinuation = continuation
+        }
+        return .success(
+            HomeLikeUpdate(
+                photoID: photoID,
+                isLiked: isLiked,
+                likeCount: 2
+            )
+        )
+    }
+
+    func complete() {
+        requestContinuation?.resume()
+        requestContinuation = nil
     }
 }
 

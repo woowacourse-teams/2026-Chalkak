@@ -18,6 +18,7 @@ final class HomeViewModel {
     private let isAuthenticated: AuthenticationProvider
 
     private var isEndThresholdReached = false
+    private var likingPhotoIDs: Set<HomePhoto.ID> = []
 
     init(
         initialState: HomeViewState,
@@ -60,6 +61,8 @@ final class HomeViewModel {
             return
         }
         guard let photoIndex = viewState.photos.firstIndex(where: { $0.id == photoID }) else { return }
+        guard likingPhotoIDs.insert(photoID).inserted else { return }
+        defer { likingPhotoIDs.remove(photoID) }
 
         let previousPhoto = viewState.photos[photoIndex]
         let wasLiked = viewState.likedPhotoIDs.contains(photoID)
