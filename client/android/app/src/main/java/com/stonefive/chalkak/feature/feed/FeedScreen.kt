@@ -11,9 +11,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -21,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -31,7 +40,7 @@ import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 @Composable
 fun FeedRoute(
     onNavigateBack: () -> Unit,
-    onDeleteClick: () -> Unit,
+    onPostDeleted: (String) -> Unit,
     modifier: Modifier = Modifier,
     postId: String? = null,
     initialContent: FeedContentState.Success? = null,
@@ -48,10 +57,18 @@ fun FeedRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     UiMessageEffect(viewModel.uiMessage)
 
+    LaunchedEffect(viewModel) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is FeedUiEvent.Deleted -> onPostDeleted(event.postId)
+            }
+        }
+    }
+
     FeedScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
-        onDeleteClick = onDeleteClick,
+        onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
         onRetryClick = viewModel::retry,
         modifier = modifier,
@@ -67,17 +84,41 @@ fun FeedScreen(
     modifier: Modifier = Modifier,
     onRetryClick: () -> Unit = {},
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.deleteErrorMessage) {
+        uiState.deleteErrorMessage?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    if (showDeleteDialog) {
+        ChalkakConfirmDialog(
+            title = "게시물 삭제",
+            message = "게시물을 삭제하시겠어요?",
+            confirmText = "삭제",
+            onConfirm = {
+                showDeleteDialog = false
+                onDeleteClick()
+            },
+            onDismiss = { showDeleteDialog = false },
+            modifier = Modifier.fillMaxWidth(0.81f),
+            confirmStyle = ChalkakConfirmDialogStyle.DESTRUCTIVE,
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
-                onDeleteClick = onDeleteClick,
+                onDeleteClick = { showDeleteDialog = true },
                 isDeleteVisible = uiState.content
                     ?.post
                     ?.isOwnedByCurrentUser == true,
+                isDeleteEnabled = !uiState.isDeleting,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()

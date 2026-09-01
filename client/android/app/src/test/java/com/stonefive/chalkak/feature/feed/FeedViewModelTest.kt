@@ -29,6 +29,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class FeedViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -365,6 +366,62 @@ class FeedViewModelTest {
         assertFalse(content.isLiked)
         assertEquals(24, content.post.likeCount)
     }
+
+    @Test
+    fun `기록에서 연 내 게시물 삭제 성공 시 완료 이벤트를 보낸다`() = runTest {
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        val selectedViewModel = FeedViewModel(
+            repository = repository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 3일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+            ),
+        )
+
+        selectedViewModel.deletePost()
+        advanceUntilIdle()
+
+        assertEquals(PHOTO_ID, repository.deletedPostId)
+        assertEquals(FeedUiEvent.Deleted(PHOTO_ID), selectedViewModel.uiEvent.first())
+        assertFalse(selectedViewModel.uiState.value.isDeleting)
+    }
+
+    @Test
+    fun `다른 사용자 게시물은 삭제 요청을 보내지 않는다`() = runTest {
+        viewModel.deletePost()
+        advanceUntilIdle()
+
+        assertEquals(null, repository.deletedPostId)
+    }
+
+    @Test
+    fun `게시물 삭제 권한 실패는 화면을 유지하고 오류를 표시한다`() = runTest {
+        repository.deleteResult = HomeResult.Failure(HomeFailure.Http(403))
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        val selectedViewModel = FeedViewModel(
+            repository = repository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 3일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+            ),
+        )
+
+        selectedViewModel.deletePost()
+        advanceUntilIdle()
+
+        assertEquals("본인이 작성한 게시물만 삭제할 수 있어요", selectedViewModel.uiState.value.deleteErrorMessage)
+        assertFalse(selectedViewModel.uiState.value.isDeleting)
+    }
 }
 
 private const val PHOTO_ID = "photo-1"
@@ -377,10 +434,17 @@ private class FakePostRepository : PostRepository {
     var likeResult: HomeResult<HomeLike>? = null
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
+    var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
+    var deletedPostId: String? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = detailRequest?.await() ?: detailResult
+
+    override suspend fun deletePost(postId: String): HomeResult<Unit> {
+        deletedPostId = postId
+        return deleteResult
+    }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         requestedQueries += query
@@ -408,6 +472,8 @@ private class ControlledPostRepository : PostRepository {
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
+
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 

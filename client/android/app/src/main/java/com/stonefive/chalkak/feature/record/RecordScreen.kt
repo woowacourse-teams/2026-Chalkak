@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -64,11 +65,20 @@ fun RecordRoute(
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
     onOpenFeed: (String) -> Unit = {},
+    deletedPostId: String? = null,
+    onDeletedPostConsumed: () -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(deletedPostId) {
+        deletedPostId?.let {
+            viewModel.removeDeletedPost(it)
+            onDeletedPostConsumed()
+        }
+    }
 
     RecordScreen(
         uiState = uiState,
@@ -230,7 +240,10 @@ fun RecordScreen(
                     post = selectedPost,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (selectedPost?.status == PostStatus.APPROVED) {
+                if (
+                    selectedPost != null &&
+                    selectedPost.status in setOf(PostStatus.PENDING, PostStatus.APPROVED)
+                ) {
                     RecordPhotoActions(
                         onFeedClick = {
                             onOpenFeed(selectedPost.postId)
@@ -238,6 +251,7 @@ fun RecordScreen(
                         onDisplayClick = {
                             onOpenDisplay(selectedPost.topicDate)
                         },
+                        isDisplayVisible = selectedPost.status == PostStatus.APPROVED,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(

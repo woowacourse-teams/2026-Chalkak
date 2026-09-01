@@ -414,6 +414,8 @@ private class GuestPostRepository : PostRepository {
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
+
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(
             topicDate = LocalDate.of(2026, 8, 28),
@@ -443,6 +445,8 @@ private class PageFailurePostRepository : PostRepository {
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
         PostContent(

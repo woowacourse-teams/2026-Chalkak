@@ -32,6 +32,9 @@ interface PostApi {
     @GET("posts/{postId}")
     suspend fun getPost(@Path("postId") postId: String): Response<PostDetailResponse>
 
+    @DELETE("posts/{postId}")
+    suspend fun deletePost(@Path("postId") postId: String): Response<Unit>
+
     @GET("posts")
     suspend fun getPosts(
         @Query("topicDate") topicDate: String,

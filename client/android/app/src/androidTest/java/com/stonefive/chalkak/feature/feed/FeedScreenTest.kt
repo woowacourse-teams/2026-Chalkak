@@ -6,11 +6,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -45,7 +48,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun tappingDeleteButtonInvokesCallback() {
+    fun confirmingDeleteInvokesCallback() {
         var deleteClicked = false
         setFeedContent(onDeleteClick = { deleteClicked = true })
 
@@ -53,6 +56,10 @@ class FeedScreenTest {
             .onNodeWithContentDescription("삭제")
             .assertHasClickAction()
             .performClick()
+
+        assertFalse(deleteClicked)
+        composeRule.onNodeWithText("게시물을 삭제하시겠어요?").assertIsDisplayed()
+        composeRule.onNodeWithTag(CONFIRM_BUTTON_TEST_TAG).performClick()
 
         assertTrue(deleteClicked)
     }
