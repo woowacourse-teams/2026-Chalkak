@@ -173,6 +173,7 @@ private struct SignatureCanvas: View {
                     }
             )
             .accessibilityLabel("사인 입력창")
+            .accessibilityDirectTouch()
         }
     }
 
