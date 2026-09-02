@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:chalkak}
+    username: ${POSTGRES_USER:chalkak}
+    password: ${POSTGRES_PASSWORD:local-password}
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: ${ADMIN_DEVELOPMENT_BYPASS_ENABLED:true}
+    account:
+      username: ${ADMIN_USERNAME:}
+      password-hash: ${ADMIN_PASSWORD_HASH:}
+    notification:
+      delivery-enabled: ${ADMIN_NOTIFICATION_DELIVERY_ENABLED:false}
+      admin-web-base-url: ${ADMIN_WEB_BASE_URL:http://localhost:3000}
+      slack:
+        webhook-url: ${ADMIN_SLACK_WEBHOOK_URL:https://REPLACE_WITH_SLACK_WEBHOOK_URL}
+  image:
+    environment: local
+    bucket: ${S3_BUCKET:chalkak-local-images}
+    base-url: ${CLOUDFRONT_BASE_URL:http://localhost:4566}
+    root-prefix: ${S3_PREFIX:chalkak}
+    # 개인 IAM 자격증명 발급이 불가해 버킷의 공개 읽기 권한으로 조회한다.
+    anonymous-access: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug

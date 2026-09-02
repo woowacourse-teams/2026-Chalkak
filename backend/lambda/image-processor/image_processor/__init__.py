@@ -1,0 +1,1 @@
+"""Chalkak image processing Lambda."""

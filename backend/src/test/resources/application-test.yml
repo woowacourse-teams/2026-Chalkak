@@ -1,0 +1,51 @@
+CLOUDFRONT_BASE_URL: https://cdn.example.com
+CLOUDFRONT_ORIGIN_PATH: /chalkak
+IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
+SOCIAL_SIGNUP_TOKEN_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+ACCESS_TOKEN_SECRET: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+SOCIAL_IDENTITY_HMAC_SECRET: aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${TEST_POSTGRES_PORT:5433}/${TEST_POSTGRES_DB:chalkak_test}
+    username: ${TEST_POSTGRES_USER:chalkak}
+    password: ${TEST_POSTGRES_PASSWORD:test-password}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
+
+  jpa:
+    show-sql: false
+
+# 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
+chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: true
+    notification:
+      delivery-enabled: true
+      admin-web-base-url: https://admin.test.chalkak
+      slack:
+        webhook-url: https://hooks.slack.com/services/TEST/TEST/TEST
+  auth:
+    access-token:
+      expiration: 1h
+    oidc:
+      google:
+        client-id: test-google-client-id
+      kakao:
+        app-key: test-kakao-app-key
+  image:
+    environment: test
+    bucket: test-bucket
+    base-url: https://cdn.test.chalkak
+    root-prefix: chalkak
+
+  callback:
+    max-body-bytes: 65536
+
+  post:
+    image-processing-timeout: 7m
+
+  user:
+    signature-processing-timeout: 7m

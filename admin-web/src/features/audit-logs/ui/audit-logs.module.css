@@ -1,0 +1,30 @@
+.page { display: grid; gap: 20px; }
+.pageTitle { margin: 0; color: #252631; font-size: 22px; font-weight: 700; }
+.description { margin: 0; color: #666; font-size: 14px; line-height: 1.6; }
+.filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.filters label { display: grid; gap: 6px; font-size: 13px; color: #555; }
+.filters select, .filters button { min-height: 44px; border: 1px solid #d9dde1; background: white; border-radius: 6px; padding: 9px 12px; color: #23262a; font: inherit; font-size: 14px; }
+.filters select { min-width: 140px; }
+.filters button { cursor: pointer; padding-inline: 20px; }
+.list { padding: 0; margin: 0; list-style: none; border-block: 1px solid #dfe2e5; }
+.entry { padding: 20px 0; border-bottom: 1px solid #e9ebed; }
+.entry:last-child { border: 0; }
+.entryHeading { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.entryHeading strong { font-size: 15px; font-weight: 600; }
+.entryHeading time { color: #767b81; font-size: 12px; }
+.entryMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 6px; font-size: 13px; color: #666; overflow-wrap: anywhere; }
+.entryMeta a { color: #3f509c; text-decoration: underline; text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
+.reason { font-size: 14px; margin: 4px 0 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.states summary { cursor: pointer; display: list-item; min-height: 44px; align-content: center; color: #626970; font-size: 13px; }
+.states > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.states section { min-width: 0; background: #f5f6f7; padding: 12px; border-radius: 6px; }
+.states h2 { font-size: 12px; margin: 0 0 8px; color: #666; font-weight: 500; }
+.states pre { font-size: 12px; line-height: 1.6; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .filters label { min-width: 0; }
+  .filters select { min-width: 0; width: 100%; font-size: 16px; }
+  .filters button { grid-column: 1 / -1; }
+  .entryHeading { align-items: flex-start; flex-direction: column; }
+  .states > div { grid-template-columns: 1fr; }
+}

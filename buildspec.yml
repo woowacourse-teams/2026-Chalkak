@@ -1,0 +1,67 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto25
+    commands:
+      - java -version
+      - docker version
+
+  pre_build:
+    commands:
+      - >-
+        docker run --detach --rm
+        --name chalkak-codebuild-postgres
+        --env POSTGRES_DB=chalkak_test
+        --env POSTGRES_USER=chalkak
+        --env POSTGRES_PASSWORD=test-password
+        --publish 5432:5432
+        postgres:18.4
+      - |
+        for attempt in $(seq 1 30); do
+          if docker exec chalkak-codebuild-postgres pg_isready -U chalkak -d chalkak_test; then
+            break
+          fi
+          if [[ "${attempt}" -eq 30 ]]; then
+            docker logs chalkak-codebuild-postgres
+            exit 1
+          fi
+          sleep 2
+        done
+
+  build:
+    commands:
+      - cd backend
+      - chmod +x gradlew
+      - >-
+        TEST_POSTGRES_DB=chalkak_test
+        TEST_POSTGRES_USER=chalkak
+        TEST_POSTGRES_PASSWORD=test-password
+        TEST_POSTGRES_PORT=5432
+        ./gradlew clean test bootJar --no-daemon
+      - application_jar="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)"
+      - test -n "${application_jar}"
+      - rm -rf build/codedeploy-bundle
+      - mkdir -p build/codedeploy-bundle/deploy
+      - install -m 0644 "${application_jar}" build/codedeploy-bundle/application.jar
+      - install -m 0644 deploy/appspec.yml build/codedeploy-bundle/appspec.yml
+      - cp -R deploy/compose.dev.yml deploy/scripts deploy/systemd build/codedeploy-bundle/deploy/
+      - chmod 0755 build/codedeploy-bundle/deploy/scripts/*.sh
+    finally:
+      - docker rm --force chalkak-codebuild-postgres 2>/dev/null || true
+
+artifacts:
+  files:
+    - "**/*"
+  base-directory: backend/build/codedeploy-bundle
+  discard-paths: no
+
+cache:
+  paths:
+    - "/root/.gradle/caches/**/*"
+    - "/root/.gradle/wrapper/**/*"
+    - "/root/.gradle/jdks/**/*"

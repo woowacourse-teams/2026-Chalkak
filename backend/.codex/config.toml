@@ -1,0 +1,9 @@
+default_permissions = "backend-only"
+
+[permissions.backend-only]
+description = "Allow Codex to edit backend while keeping files outside the backend workspace read-only."
+extends = ":workspace"
+
+[permissions.backend-only.filesystem]
+":root" = "read"
+":minimal" = "read"

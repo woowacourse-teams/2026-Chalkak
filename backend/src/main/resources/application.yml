@@ -1,0 +1,100 @@
+spring:
+  application:
+    name: backend
+
+  config:
+    import: "optional:file:.env[.properties]"
+
+  profiles:
+    default: local
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    clean-disabled: true
+    default-schema: public
+    validate-migration-naming: true
+
+chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: false
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+    notification:
+      slack:
+        connect-timeout: 2s
+        read-timeout: 3s
+  auth:
+    access-token:
+      issuer: chalkak-backend
+      audience: chalkak-access
+      expiration: ${ACCESS_TOKEN_EXPIRATION}
+      secret: ${ACCESS_TOKEN_SECRET}
+    social-signup-token:
+      issuer: chalkak-backend
+      audience: chalkak-social-signup
+      expiration: 5m
+      secret: ${SOCIAL_SIGNUP_TOKEN_SECRET}
+    social-identity-hmac:
+      secret: ${SOCIAL_IDENTITY_HMAC_SECRET}
+    oidc:
+      google:
+        issuer: https://accounts.google.com
+        jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+        client-id: ${GOOGLE_OIDC_CLIENT_ID}
+      kakao:
+        issuer: https://kauth.kakao.com
+        jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+        app-key: ${KAKAO_OIDC_APP_KEY}
+  image:
+    bucket: ${S3_BUCKET}
+    region: ${AWS_REGION:ap-northeast-2}
+    base-url: ${CLOUDFRONT_BASE_URL}
+    root-prefix: ${S3_PREFIX}
+    signature:
+      max-bytes: 1048576
+      allowed-content-types:
+        - image/png
+      cache-control: public, max-age=86400
+    post:
+      max-bytes: 5242880
+      cache-control: public, max-age=86400
+
+  callback:
+    # 이미지 처리 콜백 본문 상한. @RequestBody는 컨트롤러보다 먼저 채워지므로 본문이 HMAC 검증보다
+    # 앞서 메모리에 올라간다. 서명 없는 요청이 큰 본문만으로 자원을 쓰지 못하게 인증 이전에 끊는다.
+    # 정상 콜백은 metaAttributes 8KB 상한을 포함해도 수 KB 수준이다.
+    max-body-bytes: ${CALLBACK_MAX_BODY_BYTES}
+
+  post:
+    # 이미지 처리 완료 콜백을 언제까지 기다릴지. 이 시간을 넘긴 검수 대기 게시물은 다음 게시물 생성
+    # 시점에 거절 처리해, 콜백이 유실돼도 작성자가 같은 주제에 다시 올릴 수 있게 한다.
+    # 7m, 1h, PT7M 형식을 모두 받는다.
+    image-processing-timeout: ${POST_IMAGE_PROCESSING_TIMEOUT}
+
+  user:
+    # 사인 처리 완료 콜백을 기다리는 시간. 이 시간을 넘긴 처리는 조회 시 재등록 대상으로 판단하고,
+    # 이후 도착한 성공 콜백은 무시한다. 7m, 1h, PT7M 형식을 모두 받는다.
+    signature-processing-timeout: ${SIGNATURE_PROCESSING_TIMEOUT}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    urls-primary-name: user-api
