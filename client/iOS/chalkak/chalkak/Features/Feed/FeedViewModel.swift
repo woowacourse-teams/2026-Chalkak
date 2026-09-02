@@ -50,10 +50,17 @@ final class FeedViewModel {
         if viewState.content == nil {
             viewState.contentStatus = .loading
         }
+        let likeGenerationAtStart = likeGeneration
 
         switch await detailHandler(postID) {
         case let .success(content):
-            viewState.content = content
+            var merged = content
+            // 상세 요청 중 좋아요가 토글됐다면 낙관적 좋아요 상태를 상세 응답으로 덮어쓰지 않는다.
+            if likeGeneration != likeGenerationAtStart, let current = viewState.content {
+                merged.post.isLiked = current.post.isLiked
+                merged.post.likeCount = current.post.likeCount
+            }
+            viewState.content = merged
             viewState.contentStatus = .loaded
         case let .failure(error):
             // 이미 시드된 콘텐츠가 있으면 갱신 실패는 무시하고 그대로 보여준다.
