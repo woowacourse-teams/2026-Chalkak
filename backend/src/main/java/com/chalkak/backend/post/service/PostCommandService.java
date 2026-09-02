@@ -4,8 +4,10 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.notification.service.NotificationOutboxService;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
@@ -46,6 +48,7 @@ public class PostCommandService {
     private final PostImageUploadRepository postImageUploadRepository;
     private final PostImageUploadIssuer postImageUploadIssuer;
     private final PostProcessingPolicy postProcessingPolicy;
+    private final NotificationOutboxService notificationOutboxService;
 
     public PostImageUploadResult createPostImageUpload(UUID userId) {
         User uploader = getPostableUser(userId, "사진을 업로드할 회원을 찾을 수 없습니다.");
@@ -113,6 +116,9 @@ public class PostCommandService {
             post.requestModeration();
         }
         Post savedPost = postRepository.save(post);
+        if (savedPost.getModerationStatus() == ModerationStatus.PENDING) {
+            notificationOutboxService.enqueuePostModerationPending(savedPost.getId());
+        }
 
         return new PostCreationResult(savedPost.getId(), savedPost.getModerationStatus());
     }
@@ -152,6 +158,7 @@ public class PostCommandService {
                     upload.getImageMetadata()
             );
             post.requestModeration();
+            notificationOutboxService.enqueuePostModerationPending(post.getId());
         });
     }
 

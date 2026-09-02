@@ -169,6 +169,24 @@ class NotificationOutboxRepositoryTest extends IntegrationTestSupport {
         )).isEqualTo(NotificationOutboxStatus.SENT.name());
     }
 
+    @Test
+    @DisplayName("게시물을 물리 삭제하면 더 이상 의미가 없는 Outbox도 함께 삭제한다")
+    void deletePost_existingOutbox_cascadesOutboxDeletion() {
+        // Given
+        notificationOutboxRepository.createPostModerationPending(POST_ID, NOW);
+
+        // When
+        int deletedPosts = jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
+
+        // Then
+        assertThat(deletedPosts).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notification_outboxes WHERE post_id = ?",
+                Integer.class,
+                POST_ID
+        )).isZero();
+    }
+
     private UUID insertOutbox(
             String status,
             Instant nextAttemptAt,

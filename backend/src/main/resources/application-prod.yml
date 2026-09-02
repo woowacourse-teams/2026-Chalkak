@@ -26,6 +26,11 @@ chalkak:
     cors:
       allowed-origins:
         - ${ADMIN_CORS_ALLOWED_ORIGIN}
+    notification:
+      delivery-enabled: ${ADMIN_NOTIFICATION_DELIVERY_ENABLED}
+      admin-web-base-url: ${ADMIN_WEB_BASE_URL}
+      slack:
+        webhook-url: ${ADMIN_SLACK_WEBHOOK_URL}
   image:
     environment: prod
 

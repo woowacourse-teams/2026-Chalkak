@@ -81,7 +81,7 @@ public class NotificationOutbox {
     @Column(name = "lease_expires_at")
     private Instant leaseExpiresAt;
 
-    @Column(name = "last_error", length = 1000)
+    @Column(name = "last_error", length = 100)
     private String lastError;
 
     @Column(name = "created_at", nullable = false, updatable = false)

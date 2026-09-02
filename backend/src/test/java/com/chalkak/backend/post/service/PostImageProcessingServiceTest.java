@@ -161,6 +161,7 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         assertThat(post.get("moderated_at")).isNull();
         assertThat(post.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(post.get("metadata_height")).isEqualTo("3024");
+        assertThat(notificationOutboxCount(postId)).isEqualTo(1);
     }
 
     @Test
@@ -253,6 +254,18 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
         assertThat(post.get("moderated_at")).isNull();
         assertThat(findUpload().get("metadata_width")).isEqualTo("4032");
+        assertThat(notificationOutboxCount(postId)).isEqualTo(1);
+    }
+
+    private int notificationOutboxCount(UUID postId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM notification_outboxes
+                WHERE post_id = ?
+                  AND type = 'POST_MODERATION_PENDING'
+                  AND channel = 'SLACK'
+                  AND target = 'ADMIN_MODERATION_REVIEWERS'
+                """, Integer.class, postId);
     }
 
     @Test

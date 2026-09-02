@@ -29,6 +29,16 @@ chalkak:
     cors:
       allowed-origins:
         - http://localhost:3000
+    notification:
+      poll-interval: 10s
+      processing-lease: 30s
+      batch-size: 20
+      max-attempts: 5
+      initial-retry-delay: 30s
+      max-retry-delay: 10m
+      slack:
+        connect-timeout: 2s
+        read-timeout: 3s
   auth:
     access-token:
       issuer: chalkak-backend

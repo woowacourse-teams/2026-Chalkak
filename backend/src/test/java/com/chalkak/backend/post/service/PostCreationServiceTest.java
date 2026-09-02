@@ -136,6 +136,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         assertThat(saved.get("original_storage_key")).isEqualTo(ORIGINAL_STORAGE_KEY);
         assertThat(saved.get("thumbnail_storage_key")).isNull();
         assertThat(saved.get("metadata").toString()).isEqualTo("{}");
+        assertThat(notificationOutboxCount(result.postId())).isZero();
     }
 
     @Test
@@ -576,11 +577,23 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         assertThat(saved.get("moderated_at")).isNull();
         assertThat(saved.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(saved.get("metadata_width")).isEqualTo("4032");
+        assertThat(notificationOutboxCount(result.postId())).isEqualTo(1);
         then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
 
         assertThatThrownBy(() -> postQueryService.getPost(result.postId(), USER_ID))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("게시물을 찾을 수 없습니다.");
+    }
+
+    private int notificationOutboxCount(UUID postId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM notification_outboxes
+                WHERE post_id = ?
+                  AND type = 'POST_MODERATION_PENDING'
+                  AND channel = 'SLACK'
+                  AND target = 'ADMIN_MODERATION_REVIEWERS'
+                """, Integer.class, postId);
     }
 
     @Test
