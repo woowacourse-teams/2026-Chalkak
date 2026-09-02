@@ -8,14 +8,34 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var homeViewModel = Self.makeHomeViewModel()
+    @State private var displayViewModel = Self.makeDisplayViewModel()
 
     var body: some View {
-        HomeScreen(viewModel: homeViewModel)
-            .task {
-                guard homeViewModel.viewState.contentStatus == .loading else { return }
-                await homeViewModel.retry()
+        Group {
+            switch selectedTab {
+            case .display:
+                DisplayScreen(
+                    viewModel: displayViewModel,
+                    onSelectBottomBarItem: select
+                )
+            default:
+                HomeScreen(
+                    viewModel: homeViewModel,
+                    onNavigateToBottomBar: select
+                )
+                .task {
+                    guard homeViewModel.viewState.contentStatus == .loading else { return }
+                    await homeViewModel.retry()
+                }
             }
+        }
+    }
+
+    private func select(_ item: ChalkakBottomBarItem) {
+        guard item == .today || item == .display else { return }
+        selectedTab = item
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -39,6 +59,10 @@ struct ContentView: View {
                 }
             }
         )
+    }
+
+    private static func makeDisplayViewModel() -> DisplayViewModel {
+        DisplayViewModel(apiClient: DisplayAPIClient())
     }
 }
 
