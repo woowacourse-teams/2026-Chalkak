@@ -8,27 +8,42 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
 
     var body: some View {
         Group {
-            switch selectedTab {
-            case .display:
-                DisplayScreen(
-                    viewModel: displayViewModel,
-                    onSelectBottomBarItem: select
+            switch route {
+            case .login:
+                LoginView(
+                    onAuthenticated: showHome,
+                    onGuestAccessGranted: showHome
                 )
-            default:
-                HomeScreen(
-                    viewModel: homeViewModel,
-                    onNavigateToBottomBar: select
-                )
-                .task {
-                    guard homeViewModel.viewState.contentStatus == .loading else { return }
-                    await homeViewModel.retry()
-                }
+            case .home:
+                mainTab
+            }
+        }
+        .animation(.default, value: route)
+    }
+
+    @ViewBuilder
+    private var mainTab: some View {
+        switch selectedTab {
+        case .display:
+            DisplayScreen(
+                viewModel: displayViewModel,
+                onSelectBottomBarItem: select
+            )
+        default:
+            HomeScreen(
+                viewModel: homeViewModel,
+                onNavigateToBottomBar: select
+            )
+            .task {
+                guard homeViewModel.viewState.contentStatus == .loading else { return }
+                await homeViewModel.retry()
             }
         }
     }
@@ -38,11 +53,17 @@ struct ContentView: View {
         selectedTab = item
     }
 
+    private func showHome() {
+        route = .home
+    }
+
     private static func makeHomeViewModel() -> HomeViewModel {
-        let apiClient = HomeAPIClient()
+        let apiClient = HomeAPIClient(
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
         return HomeViewModel(
             initialState: HomeViewState(),
-            isAuthenticated: { false },
+            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
             refreshHandler: { sort in
                 await apiResult {
                     try await apiClient.fetchHome(date: Date(), sort: sort)
@@ -66,10 +87,13 @@ struct ContentView: View {
     }
 }
 
+private enum AppRoute: Equatable {
+    case login
+    case home
+}
+
 #Preview {
-    HomeScreen(
-        viewModel: HomeViewModel(initialState: HomePreviewData.contentState)
-    )
+    ContentView()
         .chalkakTheme(.light)
 }
 
