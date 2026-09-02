@@ -199,12 +199,11 @@ public class PostCommandService {
     }
 
     private void validateUpdatableUser(UUID userId) {
-        User user = userRepository.findActiveById(userId)
+        userRepository.findActiveById(userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
                         "유효하지 않은 인증 정보입니다."
                 ));
-        user.validateAccessible();
     }
 
     private User getPostableUser(UUID userId, String message) {

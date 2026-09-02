@@ -252,20 +252,6 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("정규화된 제목이 기존 제목과 같으면 제목 값을 다시 할당하지 않는다")
-    void updateTitle_sameNormalizedTitle_keepsOriginalTitleInstance() {
-        // Given
-        Post post = createPendingPostDuringOpenPeriod("수정 제목");
-        String originalTitle = post.getTitle();
-
-        // When
-        post.updateTitle(AUTHOR_ID, new String("  수정 제목  "), UPDATED_AT);
-
-        // Then
-        assertThat(post.getTitle()).isSameAs(originalTitle);
-    }
-
-    @Test
     @DisplayName("이미지 처리가 끝나면 관리자 검수 대기 상태가 된다")
     void requestModeration_validatingPost_becomesPending() {
         // Given

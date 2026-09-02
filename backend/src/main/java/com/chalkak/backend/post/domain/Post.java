@@ -19,7 +19,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -149,11 +148,7 @@ public class Post {
         validateTitleUpdateAuthor(authorId);
         validateTitleUpdateStatus();
         validateTitleUpdatePeriod(now);
-        String normalizedTitle = normalizeUpdatedTitle(title);
-        if (Objects.equals(this.title, normalizedTitle)) {
-            return;
-        }
-        this.title = normalizedTitle;
+        this.title = normalizeUpdatedTitle(title);
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
@@ -215,7 +210,7 @@ public class Post {
     }
 
     private void validateTitleUpdatePeriod(Instant now) {
-        if (now != null && topic.phaseAt(now) == TopicPhase.OPEN) {
+        if (topic.phaseAt(now) == TopicPhase.OPEN) {
             return;
         }
         throw new BusinessException(
