@@ -574,7 +574,8 @@ class PostControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("제목 정보가 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message")
+                        .value("JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다."));
 
         then(postCommandService).shouldHaveNoInteractions();
     }
