@@ -142,7 +142,7 @@ struct PhotoUploadAPIRepository: Sendable {
         case .invalidResponse:
             return .invalidResponse
         case .http:
-            return .postCreationRejected
+            return .topicLoadFailed
         }
     }
 

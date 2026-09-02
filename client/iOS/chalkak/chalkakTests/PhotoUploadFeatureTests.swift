@@ -318,6 +318,66 @@ struct PhotoUploadAPIClientTests {
 }
 
 @MainActor
+@Suite(.serialized)
+struct PhotoUploadAPIRepositoryTests {
+    @Test("주제 조회 HTTP 오류는 전시 완료 오류가 아닌 주제 조회 오류로 매핑한다")
+    func mapsTopicHTTPFailure() async {
+        let client = makeClient { request in
+            Self.response(
+                for: request,
+                statusCode: 500,
+                body: #"{"errorCode":"SERVER_ERROR","message":"일시적인 오류입니다."}"#
+            )
+        }
+
+        let result = await PhotoUploadAPIRepository(apiClient: client)
+            .getCreationTopic(Self.date(2026, 9, 2))
+
+        switch result {
+        case let .success(topic):
+            Issue.record("주제 조회가 성공하면 안 됩니다: \(topic)")
+        case let .failure(failure):
+            #expect(failure == .topicLoadFailed)
+            #expect(failure.message == "주제를 불러오지 못했어요. 다시 시도해 주세요.")
+        }
+    }
+
+    private func makeClient(
+        handler: @escaping PhotoUploadRepositoryMockURLProtocol.Handler
+    ) -> PhotoUploadAPIClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoUploadRepositoryMockURLProtocol.self]
+        PhotoUploadRepositoryMockURLProtocol.handler = handler
+        return PhotoUploadAPIClient(
+            configuration: PhotoUploadAPIConfiguration(
+                baseURL: URL(string: "https://example.com/api/v1/")!
+            ),
+            session: URLSession(configuration: configuration)
+        )
+    }
+
+    nonisolated private static func response(
+        for request: URLRequest,
+        statusCode: Int,
+        body: String
+    ) -> (HTTPURLResponse, Data) {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        return (response, Data(body.utf8))
+    }
+
+    private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = PhotoUploadDate.timeZone
+        return calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+}
+
+@MainActor
 struct PhotoUploadScreenTests {
     @Test("업로드 화면은 iPhone 폭에서 Android와 같은 전체 레이아웃으로 렌더링된다")
     func rendersAtIPhoneWidth() {
@@ -452,6 +512,35 @@ private actor PhotoUploadSelectionGate {
 }
 
 private final class PhotoUploadMockURLProtocol: URLProtocol, @unchecked Sendable {
+    typealias Handler = @Sendable (URLRequest) async throws -> (HTTPURLResponse, Data)
+
+    nonisolated(unsafe) static var handler: Handler?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        Task {
+            do {
+                let (response, data) = try await handler(request)
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: data)
+                client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                client?.urlProtocol(self, didFailWithError: error)
+            }
+        }
+    }
+
+    override func stopLoading() {}
+}
+
+private final class PhotoUploadRepositoryMockURLProtocol: URLProtocol, @unchecked Sendable {
     typealias Handler = @Sendable (URLRequest) async throws -> (HTTPURLResponse, Data)
 
     nonisolated(unsafe) static var handler: Handler?

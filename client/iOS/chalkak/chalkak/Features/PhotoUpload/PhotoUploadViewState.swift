@@ -83,6 +83,7 @@ enum PhotoUploadFailure: Error, Equatable, Sendable {
     case postCreationRejected
     case alreadySubmitted
     case topicNotOpen
+    case topicLoadFailed
     case invalidResponse
 
     var message: String {
@@ -101,6 +102,8 @@ enum PhotoUploadFailure: Error, Equatable, Sendable {
             "이미 이 주제에 전시한 사진이 있어요."
         case .topicNotOpen:
             "주제가 변경되어 전시할 수 없어요."
+        case .topicLoadFailed:
+            "주제를 불러오지 못했어요. 다시 시도해 주세요."
         case .invalidResponse:
             "전시를 완료하지 못했어요. 다시 시도해 주세요."
         }
