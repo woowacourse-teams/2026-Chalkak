@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import chalkak
 
@@ -62,4 +63,67 @@ struct OnboardingSignatureModelTests {
 
         #expect(!stroke.isEmpty)
     }
+}
+
+@MainActor
+struct SignUpViewModelTests {
+    @Test("회원가입 중 화면이 사라지면 작업을 취소하고 뷰 모델을 해제한다")
+    func cancelsSignUpWhenViewModelIsReleased() async {
+        let repository = SuspendingSignUpAuthRepository()
+        weak var releasedViewModel: SignUpViewModel?
+        var viewModel: SignUpViewModel? = SignUpViewModel(
+            authRepository: repository,
+            pngEncoder: StubSignaturePngEncoder()
+        )
+        releasedViewModel = viewModel
+
+        viewModel?.completeSignUp(strokes: [
+            OnboardingSignatureStroke(
+                points: [OnboardingSignaturePoint(xRatio: 0.5, yRatio: 0.5)]
+            )
+        ])
+        await waitUntil { repository.didStartSignUp }
+
+        viewModel = nil
+        await waitUntil { releasedViewModel == nil && repository.wasCancelled }
+
+        #expect(releasedViewModel == nil)
+        #expect(repository.wasCancelled)
+    }
+
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async {
+        for _ in 0..<100 {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+}
+
+private struct StubSignaturePngEncoder: OnboardingSignaturePngEncoder {
+    func encode(_ strokes: [OnboardingSignatureStroke]) throws -> Data {
+        Data([0x01])
+    }
+}
+
+@MainActor
+private final class SuspendingSignUpAuthRepository: AuthRepository {
+    private(set) var didStartSignUp = false
+    private(set) var wasCancelled = false
+
+    func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
+        .signUpRequired
+    }
+
+    func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult {
+        didStartSignUp = true
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+            return .failure(.unknown)
+        } catch is CancellationError {
+            wasCancelled = true
+            throw CancellationError()
+        }
+    }
+
+    func continueAsGuest() async throws {}
 }

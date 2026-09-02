@@ -42,14 +42,15 @@ final class SignUpViewModel: ObservableObject {
               strokes.contains(where: { !$0.isEmpty }) else { return }
 
         state = SignUpViewState(status: .submitting)
+        let authRepository = authRepository
+        let pngEncoder = pngEncoder
         signUpTask = Task { [weak self] in
-            guard let self else { return }
-
             do {
                 let signaturePNG = try pngEncoder.encode(strokes)
                 let result = try await authRepository.completeSocialSignUp(
                     signaturePNG: signaturePNG
                 )
+                guard let self else { return }
                 switch result {
                 case .success:
                     state = SignUpViewState(status: .completed)
@@ -57,9 +58,9 @@ final class SignUpViewModel: ObservableObject {
                     handle(failure)
                 }
             } catch is CancellationError {
-                state = SignUpViewState()
+                self?.state = SignUpViewState()
             } catch {
-                state = SignUpViewState(
+                self?.state = SignUpViewState(
                     errorMessage: "회원가입을 완료하지 못했어요. 다시 시도해 주세요."
                 )
             }
