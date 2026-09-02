@@ -31,11 +31,13 @@ import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -54,6 +56,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private UserRepository userRepository;
@@ -119,6 +124,12 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .isEqualTo(storageKeys.thumbnailStorageKey());
         assertThat(socialAccount.getUser().getId()).isEqualTo(userId);
         assertThat(socialAccount.getSubjectHmac()).isEqualTo(subjectHmac());
+        List<String> storedHashes = jdbcTemplate.queryForList(
+                "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
+                String.class,
+                userId);
+        assertThat(storedHashes).hasSize(1);
+        assertThat(storedHashes.getFirst()).matches("^[0-9a-f]{64}$");
     }
 
     @Test

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
@@ -36,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class AuthControllerTest {
 
     private static final String ACCESS_TOKEN = "chalkak-access-token";
+    private static final String REFRESH_TOKEN = "chalkak-refresh-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,7 +56,8 @@ class AuthControllerTest {
         given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15))));
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
+                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -69,7 +72,9 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.status").value("LOGIN_SUCCESS"))
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.expiresIn").value(900));
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000));
     }
 
     @Test
@@ -216,7 +221,8 @@ class AuthControllerTest {
         given(socialSignupService.signup("social-signup-token"))
                 .willReturn(new SocialSignupResult(
                         userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15))));
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
+                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
@@ -229,7 +235,9 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.expiresIn").value(900));
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000));
     }
 
     @Test
