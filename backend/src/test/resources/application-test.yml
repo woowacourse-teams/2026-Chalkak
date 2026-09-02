@@ -23,10 +23,10 @@ chalkak:
     authentication:
       development-bypass-enabled: true
     notification:
-      delivery-enabled: false
+      delivery-enabled: true
       admin-web-base-url: https://admin.test.chalkak
       slack:
-        webhook-url: https://REPLACE_WITH_SLACK_WEBHOOK_URL
+        webhook-url: https://hooks.slack.com/services/TEST/TEST/TEST
   auth:
     access-token:
       expiration: 1h

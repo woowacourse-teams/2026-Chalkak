@@ -16,9 +16,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
+@RecordApplicationEvents
 class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID =
@@ -45,6 +48,9 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @MockitoBean
     private ImageUrlProvider imageUrlProvider;
@@ -161,7 +167,9 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         assertThat(post.get("moderated_at")).isNull();
         assertThat(post.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(post.get("metadata_height")).isEqualTo("3024");
-        assertThat(notificationOutboxCount(postId)).isEqualTo(1);
+        assertThat(applicationEvents.stream(PostModerationPendingEvent.class))
+                .singleElement()
+                .satisfies(event -> assertThat(event.postId()).isEqualTo(postId));
     }
 
     @Test
@@ -254,18 +262,9 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
         assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
         assertThat(post.get("moderated_at")).isNull();
         assertThat(findUpload().get("metadata_width")).isEqualTo("4032");
-        assertThat(notificationOutboxCount(postId)).isEqualTo(1);
-    }
-
-    private int notificationOutboxCount(UUID postId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM notification_outboxes
-                WHERE post_id = ?
-                  AND type = 'POST_MODERATION_PENDING'
-                  AND channel = 'SLACK'
-                  AND target = 'ADMIN_MODERATION_REVIEWERS'
-                """, Integer.class, postId);
+        assertThat(applicationEvents.stream(PostModerationPendingEvent.class))
+                .singleElement()
+                .satisfies(event -> assertThat(event.postId()).isEqualTo(postId));
     }
 
     @Test

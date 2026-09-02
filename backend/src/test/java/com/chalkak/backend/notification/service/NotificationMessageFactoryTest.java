@@ -2,10 +2,7 @@ package com.chalkak.backend.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.notification.domain.NotificationChannel;
-import com.chalkak.backend.notification.domain.NotificationDispatch;
-import com.chalkak.backend.notification.domain.NotificationTarget;
-import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.post.service.PostModerationPendingEvent;
 import java.net.URI;
 import java.time.Instant;
 import java.util.UUID;
@@ -20,14 +17,8 @@ class NotificationMessageFactoryTest {
         // Given
         UUID postId = UUID.fromString("0199a000-0000-7000-8000-000000000001");
         Instant createdAt = Instant.parse("2026-09-02T00:00:00Z");
-        NotificationDispatch dispatch = new NotificationDispatch(
-                UUID.randomUUID(),
+        PostModerationPendingEvent event = new PostModerationPendingEvent(
                 postId,
-                NotificationType.POST_MODERATION_PENDING,
-                NotificationChannel.SLACK,
-                NotificationTarget.ADMIN_MODERATION_REVIEWERS,
-                1,
-                UUID.randomUUID(),
                 createdAt
         );
         NotificationMessageFactory factory = new NotificationMessageFactory(
@@ -35,7 +26,7 @@ class NotificationMessageFactoryTest {
         );
 
         // When
-        NotificationMessage message = factory.create(dispatch);
+        NotificationMessage message = factory.create(event);
 
         // Then
         assertThat(message.title()).isEqualTo("새 게시물 검수 요청");
@@ -51,14 +42,8 @@ class NotificationMessageFactoryTest {
     void create_baseUrlWithTrailingSlash_doesNotDuplicateSlash() {
         // Given
         UUID postId = UUID.fromString("0199a000-0000-7000-8000-000000000001");
-        NotificationDispatch dispatch = new NotificationDispatch(
-                UUID.randomUUID(),
+        PostModerationPendingEvent event = new PostModerationPendingEvent(
                 postId,
-                NotificationType.POST_MODERATION_PENDING,
-                NotificationChannel.SLACK,
-                NotificationTarget.ADMIN_MODERATION_REVIEWERS,
-                1,
-                UUID.randomUUID(),
                 Instant.parse("2026-09-02T00:00:00Z")
         );
         NotificationMessageFactory factory = new NotificationMessageFactory(
@@ -66,7 +51,7 @@ class NotificationMessageFactoryTest {
         );
 
         // When & Then
-        assertThat(factory.create(dispatch).actionUri().toString())
+        assertThat(factory.create(event).actionUri().toString())
                 .isEqualTo("https://admin.example.com/posts/" + postId);
     }
 }

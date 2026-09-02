@@ -4,7 +4,6 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
-import com.chalkak.backend.notification.service.NotificationOutboxService;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.post.domain.ModerationStatus;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +48,7 @@ public class PostCommandService {
     private final PostImageUploadRepository postImageUploadRepository;
     private final PostImageUploadIssuer postImageUploadIssuer;
     private final PostProcessingPolicy postProcessingPolicy;
-    private final NotificationOutboxService notificationOutboxService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public PostImageUploadResult createPostImageUpload(UUID userId) {
         User uploader = getPostableUser(userId, "사진을 업로드할 회원을 찾을 수 없습니다.");
@@ -117,7 +117,7 @@ public class PostCommandService {
         }
         Post savedPost = postRepository.save(post);
         if (savedPost.getModerationStatus() == ModerationStatus.PENDING) {
-            notificationOutboxService.enqueuePostModerationPending(savedPost.getId());
+            publishPostModerationPending(savedPost.getId());
         }
 
         return new PostCreationResult(savedPost.getId(), savedPost.getModerationStatus());
@@ -158,8 +158,14 @@ public class PostCommandService {
                     upload.getImageMetadata()
             );
             post.requestModeration();
-            notificationOutboxService.enqueuePostModerationPending(post.getId());
+            publishPostModerationPending(post.getId());
         });
+    }
+
+    private void publishPostModerationPending(UUID postId) {
+        applicationEventPublisher.publishEvent(
+                new PostModerationPendingEvent(postId, Instant.now())
+        );
     }
 
     private void failProcessedUpload(
