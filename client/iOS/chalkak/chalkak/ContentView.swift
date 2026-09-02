@@ -9,7 +9,9 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
+    @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var homeViewModel = Self.makeHomeViewModel()
+    @State private var displayViewModel = Self.makeDisplayViewModel()
 
     var body: some View {
         Group {
@@ -20,14 +22,39 @@ struct ContentView: View {
                     onGuestAccessGranted: showHome
                 )
             case .home:
-                HomeScreen(viewModel: homeViewModel)
-                    .task {
-                        guard homeViewModel.viewState.contentStatus == .loading else { return }
-                        await homeViewModel.retry()
-                    }
+                mainTab
             }
         }
         .animation(.default, value: route)
+    }
+
+    @ViewBuilder
+    private var mainTab: some View {
+        switch selectedTab {
+        case .display:
+            DisplayScreen(
+                viewModel: displayViewModel,
+                onSelectBottomBarItem: select
+            )
+        default:
+            HomeScreen(
+                viewModel: homeViewModel,
+                onNavigateToBottomBar: select
+            )
+            .task {
+                guard homeViewModel.viewState.contentStatus == .loading else { return }
+                await homeViewModel.retry()
+            }
+        }
+    }
+
+    private func select(_ item: ChalkakBottomBarItem) {
+        guard item == .today || item == .display else { return }
+        selectedTab = item
+    }
+
+    private func showHome() {
+        route = .home
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -55,8 +82,8 @@ struct ContentView: View {
         )
     }
 
-    private func showHome() {
-        route = .home
+    private static func makeDisplayViewModel() -> DisplayViewModel {
+        DisplayViewModel(apiClient: DisplayAPIClient())
     }
 }
 

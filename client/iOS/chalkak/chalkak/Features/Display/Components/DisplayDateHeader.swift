@@ -1,0 +1,103 @@
+import SwiftUI
+
+struct DisplayDateHeader: View {
+    @Environment(\.chalkakTheme) private var theme
+    let date: Date?
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: theme.spacing.none) {
+            navigationButton(
+                systemName: "chevron.left",
+                label: "이전 날짜 전시",
+                isEnabled: canGoPrevious,
+                action: onPrevious
+            )
+
+            Text(dateText)
+                .font(theme.typography.headline)
+                .foregroundStyle(theme.colors.textPrimary)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+
+            navigationButton(
+                systemName: "chevron.right",
+                label: "다음 날짜 전시",
+                isEnabled: canGoNext,
+                action: onNext
+            )
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, -Metrics.edgeCorrection)
+        .frame(height: Metrics.height)
+    }
+
+    private func navigationButton(
+        systemName: String,
+        label: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: Metrics.chevronSize, weight: .medium))
+                .foregroundStyle(
+                    isEnabled ? theme.colors.iconSecondary : theme.colors.textInactive
+                )
+                .frame(width: Metrics.touchSize, height: Metrics.touchSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(label)
+    }
+
+    private var dateText: String {
+        guard let date else { return "" }
+        return DisplayDateFormatter.shared.string(from: date)
+    }
+}
+
+private enum DisplayDateFormatter {
+    static let shared: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.dateFormat = "M월 d일"
+        return formatter
+    }()
+}
+
+private enum Metrics {
+    static let height: CGFloat = 52
+    static let chevronSize: CGFloat = 16
+    static let touchSize: CGFloat = 44
+    // 44pt 터치 영역을 유지하면서 chevron 글리프를 화면 콘텐츠 가장자리에 맞춘다.
+    static let edgeCorrection: CGFloat = 13
+}
+
+#Preview("Date Header", traits: .sizeThatFitsLayout) {
+    VStack(spacing: 24) {
+        DisplayDateHeader(
+            date: DisplayPreviewData.latestState.selectedDate,
+            canGoPrevious: true,
+            canGoNext: false,
+            onPrevious: {},
+            onNext: {}
+        )
+        DisplayDateHeader(
+            date: DisplayPreviewData.archiveState.selectedDate,
+            canGoPrevious: false,
+            canGoNext: true,
+            onPrevious: {},
+            onNext: {}
+        )
+    }
+    .padding(.horizontal, ChalkakTheme.light.spacing.screenHorizontal)
+    .background(ChalkakTheme.light.colors.background)
+    .chalkakTheme(.light)
+}
