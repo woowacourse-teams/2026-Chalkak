@@ -14,8 +14,8 @@ struct OnboardingRoute: View {
         authRepository: AuthRepository,
         onFinish: @escaping () -> Void,
         onReauthenticationRequired: @escaping () -> Void = {},
-        onServiceTermsView: @escaping () -> Void = {},
-        onPrivacyPolicyView: @escaping () -> Void = {}
+        onServiceTermsView: @escaping () -> Void,
+        onPrivacyPolicyView: @escaping () -> Void
     ) {
         _signUpViewModel = StateObject(
             wrappedValue: SignUpViewModel(authRepository: authRepository)
@@ -110,7 +110,9 @@ private enum OnboardingStep: Equatable {
 #Preview("Onboarding route") {
     OnboardingRoute(
         authRepository: APIAuthRepository(baseURL: AppConfiguration().apiBaseURL),
-        onFinish: {}
+        onFinish: {},
+        onServiceTermsView: {},
+        onPrivacyPolicyView: {}
     )
         .chalkakTheme(.light)
 }

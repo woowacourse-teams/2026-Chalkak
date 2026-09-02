@@ -65,6 +65,35 @@ struct OnboardingSignatureModelTests {
     }
 }
 
+struct LegalDocumentTests {
+    @Test("안드로이드와 동일한 법률 문서 주소를 사용한다")
+    func usesSharedLegalDocumentURLs() {
+        #expect(
+            LegalDocument.termsOfService.url.absoluteString
+                == "https://app.notion.com/p/3c66b8e8e3678064b543c26b5c0f932d?source=copy_link"
+        )
+        #expect(
+            LegalDocument.privacyPolicy.url.absoluteString
+                == "https://app.notion.com/p/3b56b8e8e36780af8ec8ea0bf92b97a9?source=copy_link"
+        )
+    }
+
+    @Test("Notion HTTPS 링크만 문서 시트 안에서 연다")
+    func allowsOnlySecureNotionLinksInWebView() throws {
+        let notionURL = try #require(URL(string: "https://www.notion.so/legal"))
+        let notionSubdomainURL = try #require(URL(string: "https://team.notion.site/privacy"))
+        let insecureURL = try #require(URL(string: "http://notion.com/legal"))
+        let deceptiveURL = try #require(URL(string: "https://notion.com.example.com/legal"))
+        let externalURL = try #require(URL(string: "https://example.com/legal"))
+
+        #expect(LegalDocumentNavigationPolicy.allows(notionURL))
+        #expect(LegalDocumentNavigationPolicy.allows(notionSubdomainURL))
+        #expect(!LegalDocumentNavigationPolicy.allows(insecureURL))
+        #expect(!LegalDocumentNavigationPolicy.allows(deceptiveURL))
+        #expect(!LegalDocumentNavigationPolicy.allows(externalURL))
+    }
+}
+
 @MainActor
 struct SignUpViewModelTests {
     @Test("회원가입 중 화면이 사라지면 작업을 취소하고 뷰 모델을 해제한다")

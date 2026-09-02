@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
+    @State private var selectedLegalDocument: LegalDocument?
 
     var body: some View {
         Group {
@@ -30,13 +31,20 @@ struct ContentView: View {
                 OnboardingRoute(
                     authRepository: authRepository,
                     onFinish: showHome,
-                    onReauthenticationRequired: showLogin
+                    onReauthenticationRequired: showLogin,
+                    onServiceTermsView: showServiceTerms,
+                    onPrivacyPolicyView: showPrivacyPolicy
                 )
             case .home:
                 mainTab
             }
         }
         .animation(.default, value: route)
+        .sheet(item: $selectedLegalDocument) { document in
+            LegalDocumentSheet(document: document)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
     }
 
     @ViewBuilder
@@ -74,6 +82,14 @@ struct ContentView: View {
 
     private func showLogin() {
         route = .login
+    }
+
+    private func showServiceTerms() {
+        selectedLegalDocument = .termsOfService
+    }
+
+    private func showPrivacyPolicy() {
+        selectedLegalDocument = .privacyPolicy
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
