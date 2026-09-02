@@ -8,24 +8,56 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(\.chalkakTheme) private var theme
+    @State private var homeViewModel = Self.makeHomeViewModel()
 
     var body: some View {
-        VStack(spacing: theme.spacing.md) {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(theme.colors.iconPrimary)
-            Text("Hello, world!")
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.textPrimary)
-        }
-        .padding(theme.spacing.screenHorizontal)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.colors.background)
+        HomeScreen(viewModel: homeViewModel)
+            .task {
+                guard homeViewModel.viewState.contentStatus == .loading else { return }
+                await homeViewModel.retry()
+            }
+    }
+
+    private static func makeHomeViewModel() -> HomeViewModel {
+        let apiClient = HomeAPIClient()
+        return HomeViewModel(
+            initialState: HomeViewState(),
+            isAuthenticated: { false },
+            refreshHandler: { sort in
+                await apiResult {
+                    try await apiClient.fetchHome(date: Date(), sort: sort)
+                }
+            },
+            nextPageHandler: { state in
+                await apiResult {
+                    try await apiClient.fetchNextPage(state: state)
+                }
+            },
+            likeHandler: { photoID, isLiked in
+                await apiResult {
+                    try await apiClient.updateLike(photoID: photoID, isLiked: isLiked)
+                }
+            }
+        )
     }
 }
 
 #Preview {
-    ContentView()
+    HomeScreen(
+        viewModel: HomeViewModel(initialState: HomePreviewData.contentState)
+    )
         .chalkakTheme(.light)
+}
+
+@MainActor
+private func apiResult<Value: Sendable>(
+    _ operation: () async throws -> Value
+) async -> Result<Value, HomeInitialError> {
+    do {
+        return .success(try await operation())
+    } catch let error as HomeAPIError {
+        return .failure(error.initialError)
+    } catch {
+        return .failure(.generic)
+    }
 }
