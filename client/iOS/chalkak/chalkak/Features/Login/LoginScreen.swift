@@ -43,6 +43,17 @@ struct LoginScreen: View {
     }
 
     private var actions: some View {
+        ViewThatFits(in: .vertical) {
+            actionsContent
+
+            ScrollView {
+                actionsContent
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    private var actionsContent: some View {
         VStack(spacing: 0) {
             VStack(spacing: theme.spacing.md) {
                 ForEach(SocialLoginProvider.allCases, id: \.self) { provider in
@@ -68,6 +79,7 @@ struct LoginScreen: View {
         .padding(.top, Metrics.actionTopPadding)
         .padding(.bottom, Metrics.actionBottomPadding)
         .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
