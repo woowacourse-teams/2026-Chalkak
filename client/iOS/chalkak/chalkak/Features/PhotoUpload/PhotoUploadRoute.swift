@@ -12,6 +12,7 @@ struct PhotoUploadRoute: View {
     @State private var isGalleryPresented = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isCameraPresented = false
+    @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
 
     var body: some View {
         PhotoUploadScreen(
@@ -25,6 +26,9 @@ struct PhotoUploadRoute: View {
         }
         .onChange(of: selectedPhotoItem) { _, item in
             loadSelectedPhoto(item)
+        }
+        .onDisappear {
+            photoSelectionLoader.cancel()
         }
         .onChange(of: viewModel.viewState.completedSubmission?.id) { _, _ in
             guard let submission = viewModel.viewState.completedSubmission else { return }
@@ -62,6 +66,7 @@ struct PhotoUploadRoute: View {
             viewModel.reset()
             onBack()
         case .openGallery:
+            photoSelectionLoader.cancel()
             selectedPhotoItem = nil
             isGalleryPresented = true
         case .openCamera:
@@ -74,23 +79,75 @@ struct PhotoUploadRoute: View {
     }
 
     private func loadSelectedPhoto(_ item: PhotosPickerItem?) {
-        guard let item else { return }
+        guard let item else {
+            photoSelectionLoader.cancel()
+            return
+        }
 
-        Task { @MainActor in
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data)
-                else {
+        photoSelectionLoader.start(
+            load: { try await item.loadTransferable(type: Data.self) },
+            onLoaded: { data in
+                guard let image = UIImage(data: data) else {
                     viewModel.showImageSelectionFailure()
                     return
                 }
                 viewModel.selectImage(data: data, preview: image)
+            },
+            onFailure: viewModel.showImageSelectionFailure
+        )
+    }
+}
+
+@MainActor
+final class PhotoUploadSelectionLoader {
+    typealias DataLoader = @MainActor () async throws -> Data?
+
+    private var generation = 0
+    private var task: Task<Void, Never>?
+
+    func start(
+        load: @escaping DataLoader,
+        onLoaded: @escaping (Data) -> Void,
+        onFailure: @escaping () -> Void
+    ) {
+        cancel()
+        generation += 1
+        let currentGeneration = generation
+
+        task = Task { @MainActor [weak self] in
+            defer {
+                if let self, self.generation == currentGeneration {
+                    self.task = nil
+                }
+            }
+
+            do {
+                guard let data = try await load() else {
+                    guard let self, self.generation == currentGeneration else { return }
+                    onFailure()
+                    return
+                }
+                guard let self,
+                      self.generation == currentGeneration,
+                      !Task.isCancelled
+                else { return }
+                onLoaded(data)
             } catch is CancellationError {
                 return
             } catch {
-                viewModel.showImageSelectionFailure()
+                guard let self,
+                      self.generation == currentGeneration,
+                      !Task.isCancelled
+                else { return }
+                onFailure()
             }
         }
+    }
+
+    func cancel() {
+        generation += 1
+        task?.cancel()
+        task = nil
     }
 }
 

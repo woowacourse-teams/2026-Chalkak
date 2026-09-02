@@ -158,6 +158,51 @@ struct PhotoUploadViewModelTests {
 
 @MainActor
 @Suite(.serialized)
+struct PhotoUploadSelectionLoaderTests {
+    @Test("새 사진을 선택하면 이전 사진의 늦은 로딩 결과를 반영하지 않는다")
+    func ignoresStaleSelectionResult() async {
+        let firstGate = PhotoUploadSelectionGate()
+        let secondGate = PhotoUploadSelectionGate()
+        let loader = PhotoUploadSelectionLoader()
+        var loadedData: [Data] = []
+        var failureCount = 0
+
+        loader.start(
+            load: { try await firstGate.wait() },
+            onLoaded: { loadedData.append($0) },
+            onFailure: { failureCount += 1 }
+        )
+        await firstGate.waitUntilRequested()
+
+        loader.start(
+            load: { try await secondGate.wait() },
+            onLoaded: { loadedData.append($0) },
+            onFailure: { failureCount += 1 }
+        )
+        await secondGate.waitUntilRequested()
+
+        await firstGate.resume(with: Data([0x01]))
+        await secondGate.resume(with: Data([0x02]))
+        await waitUntil { loadedData == [Data([0x02])] }
+
+        #expect(loadedData == [Data([0x02])])
+        #expect(failureCount == 0)
+        loader.cancel()
+    }
+
+    private func waitUntil(
+        _ condition: @escaping @MainActor () -> Bool
+    ) async {
+        for _ in 0..<100 {
+            if condition() { return }
+            await Task.yield()
+        }
+        Issue.record("조건이 제한 시간 안에 충족되지 않았습니다")
+    }
+}
+
+@MainActor
+@Suite(.serialized)
 struct PhotoUploadAPIClientTests {
     @Test("업로드 정책, presigned PUT, 게시물 생성 요청을 Android 계약대로 보낸다")
     func sendsCompleteUploadRequestSequence() async throws {
@@ -352,6 +397,32 @@ private actor PhotoUploadRequestRecorder {
 
     func append(_ request: URLRequest) {
         requests.append(request)
+    }
+}
+
+private actor PhotoUploadSelectionGate {
+    private var continuations: [CheckedContinuation<Data?, Error>] = []
+
+    func wait() async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func waitUntilRequested() async {
+        for _ in 0..<100 {
+            if !continuations.isEmpty { return }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        Issue.record("사진 로더가 대기 상태가 되지 않았습니다")
+    }
+
+    func resume(with data: Data?) {
+        guard continuations.isEmpty == false else {
+            Issue.record("사진 로더의 대기 작업이 없습니다")
+            return
+        }
+        continuations.removeFirst().resume(returning: data)
     }
 }
 
