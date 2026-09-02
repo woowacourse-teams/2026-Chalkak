@@ -8,21 +8,31 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(\.chalkakTheme) private var theme
+    @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
 
     var body: some View {
-        VStack(spacing: theme.spacing.md) {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(theme.colors.iconPrimary)
-            Text("Hello, world!")
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.textPrimary)
+        Group {
+            switch route {
+            case .login:
+                LoginView(
+                    onAuthenticated: showHome,
+                    onGuestAccessGranted: showHome
+                )
+            case .home:
+                HomeView()
+            }
         }
-        .padding(theme.spacing.screenHorizontal)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.colors.background)
+        .animation(.default, value: route)
     }
+
+    private func showHome() {
+        route = .home
+    }
+}
+
+private enum AppRoute: Equatable {
+    case login
+    case home
 }
 
 #Preview {
