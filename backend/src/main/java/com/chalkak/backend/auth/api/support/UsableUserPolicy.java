@@ -64,9 +64,6 @@ public class UsableUserPolicy {
     /**
      * 이 판정은 인증이 끝난 엔드포인트에만 붙인다. 주체를 읽을 수 없다는 것은 표시가 잘못 붙었다는
      * 뜻이므로 통과시키지 않고 막는다.
-     *
-     * <p>관리자 토큰의 {@code sub}는 회원 식별자가 아니라 회원 저장소에 없다. 그대로 조회하면
-     * 권한 부족이 없는 회원으로 접혀 403이 401로 바뀌므로, 식별자를 돌려주기 전에 걸러낸다.
      */
     private Optional<UUID> findUserId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -75,7 +72,6 @@ public class UsableUserPolicy {
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
             return Optional.empty();
         }
-        AuthenticatedUsers.validateNotAdmin(authentication);
         return Optional.of(UUID.fromString(jwt.getSubject()));
     }
 }

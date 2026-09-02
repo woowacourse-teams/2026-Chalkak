@@ -12,7 +12,6 @@ import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -103,26 +101,6 @@ class UsableUserPolicyTest {
                 .satisfies(exception ->
                         assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
-    }
-
-    /**
-     * 관리자 토큰의 {@code sub}는 회원 식별자가 아니라서 저장소에는 없다. 없는 회원으로 접어
-     * 401로 답하면 권한 문제가 인증 문제로 바뀌므로, 저장소를 읽기 전에 걸러야 한다.
-     */
-    @Test
-    @DisplayName("관리자 토큰은 일반 사용자 권한 부족으로 거부한다")
-    void validateUsable_adminToken_throwsForbiddenException() {
-        // Given
-        Authentication authentication = authenticationOf(
-                UUID.randomUUID(),
-                List.of(new SimpleGrantedAuthority(AccessTokenScope.ADMIN.toAuthority())));
-
-        // When & Then
-        assertThatThrownBy(() -> policy.validateUsable(authentication))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessage("일반 사용자 권한이 필요합니다.")
-                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     /**
@@ -219,29 +197,7 @@ class UsableUserPolicyTest {
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
-    @Test
-    @DisplayName("관리자 토큰은 일반 사용자 권한 부족으로 거부한다")
-    void validateExisting_adminToken_throwsForbiddenException() {
-        // given
-        Authentication authentication = authenticationOf(
-                UUID.randomUUID(),
-                List.of(new SimpleGrantedAuthority(AccessTokenScope.ADMIN.toAuthority())));
-
-        // when & then
-        assertThatThrownBy(() -> policy.validateExisting(authentication))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessage("일반 사용자 권한이 필요합니다.")
-                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.FORBIDDEN));
-    }
-
     private Authentication authenticationOf(UUID userId) {
-        return authenticationOf(userId, List.of());
-    }
-
-    private Authentication authenticationOf(
-            UUID userId,
-            Collection<? extends GrantedAuthority> authorities) {
         Instant issuedAt = Instant.now();
         Jwt jwt = Jwt.withTokenValue("access-token")
                 .header("alg", "HS256")
@@ -249,8 +205,11 @@ class UsableUserPolicyTest {
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("purpose", "ACCESS")
+                .claim("scope", AccessTokenScope.USER.name())
                 .build();
 
-        return new JwtAuthenticationToken(jwt, authorities);
+        return new JwtAuthenticationToken(
+                jwt,
+                List.of(new SimpleGrantedAuthority(AccessTokenScope.USER.toAuthority())));
     }
 }

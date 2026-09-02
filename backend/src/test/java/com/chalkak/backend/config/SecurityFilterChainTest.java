@@ -16,6 +16,7 @@ import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.infrastructure.infra.access.AccessTokenProperties;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.infrastructure.infra.signup.JwtSocialSignupTokenProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
@@ -26,8 +27,14 @@ import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.nimbusds.jose.proc.SecurityContext;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +43,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
@@ -62,6 +75,9 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private AccessTokenProperties accessTokenProperties;
 
     @Autowired
     private JwtSocialSignupTokenProvider socialSignupTokenProvider;
@@ -207,6 +223,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(notBlockedBySecurity());
     }
 
+    /**
+     * 회원 API의 통과 조건은 {@code SCOPE_USER}이므로 관리자 토큰은 컨트롤러에 닿기 전에 막힌다.
+     * 관리자 토큰의 {@code sub}는 회원 식별자가 아니라서, 통과시키면 없는 회원을 조회한 결과가
+     * 그 관리자의 캘린더인 것처럼 응답된다.
+     */
     @Test
     @DisplayName("관리자 JWT를 일반 사용자 식별자로 해석해 캘린더를 조회할 수 없다")
     void postCalendar_adminToken_returnsForbidden() throws Exception {
@@ -222,9 +243,29 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                         .queryParam("month", "8")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
     }
 
+    @Test
+    @DisplayName("관리자 JWT로는 좋아요를 남길 수 없다")
+    void protectedApi_adminToken_returnsForbidden() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN)
+                .value();
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    /**
+     * 비로그인 조회를 허용하는 경로는 익명과 회원만 받는다. 관리자 토큰까지 통과시키면 선택적
+     * 회원 인증이 관리자 식별자를 회원 식별자로 읽어, 관리자에게 남의 좋아요 상태를 계산해 준다.
+     */
     @Test
     @DisplayName("선택적 회원 인증에서도 관리자 JWT를 일반 사용자로 해석하지 않는다")
     void posts_adminToken_returnsForbidden() throws Exception {
@@ -238,7 +279,26 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                         .queryParam("topicDate", "2026-08-12")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    /**
+     * scope는 회원 여부를 가리는 유일한 근거인데, 디코더는 서명과 만료만 본다. scope가 없는
+     * 토큰을 회원으로 접으면 앞으로 추가될 다른 종류의 토큰이 회원 API를 그대로 통과한다.
+     */
+    @Test
+    @DisplayName("scope가 없는 액세스 토큰은 회원 API에서 거부한다")
+    void protectedApi_tokenWithoutScope_returnsForbidden() throws Exception {
+        // Given
+        String token = issueTokenWithoutScope(UUID.randomUUID());
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
     }
 
     /**
@@ -342,6 +402,33 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     private ResultMatcher notBlockedBySecurity() {
         return result -> assertThat(result.getResponse().getStatus())
                 .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
+    }
+
+    /**
+     * {@link JwtAccessTokenProvider}는 언제나 scope를 담으므로 여기서만 직접 서명한다. 서명과
+     * 나머지 클레임이 모두 유효한데 scope만 없어야 필터가 무엇을 보고 막는지 드러난다.
+     */
+    private String issueTokenWithoutScope(UUID subjectId) {
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(accessTokenProperties.issuer())
+                .audience(List.of(accessTokenProperties.audience()))
+                .subject(subjectId.toString())
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plus(accessTokenProperties.expiration()))
+                .id(UUID.randomUUID().toString())
+                .claim("purpose", "ACCESS")
+                .build();
+        SecretKey secretKey = new SecretKeySpec(
+                HexFormat.of().parseHex(accessTokenProperties.secret()),
+                "HmacSHA256");
+        JwtEncoder jwtEncoder = new NimbusJwtEncoder(
+                new ImmutableSecret<SecurityContext>(secretKey));
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type("JWT")
+                .build();
+
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 
     private UUID createUser() {
