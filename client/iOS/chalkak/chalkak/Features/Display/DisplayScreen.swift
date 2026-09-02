@@ -11,17 +11,7 @@ struct DisplayScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DisplayDateHeader(
-                date: viewModel.viewState.selectedDate,
-                canGoPrevious: viewModel.viewState.canGoPrevious,
-                canGoNext: viewModel.viewState.canGoNext,
-                onPrevious: { Task { await viewModel.moveToPreviousDate() } },
-                onNext: { Task { await viewModel.moveToNextDate() } }
-            )
-            .padding(.horizontal, theme.spacing.screenHorizontal)
-            .background(theme.colors.background)
-            .overlay(alignment: .bottom) { divider }
-
+            header
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -44,6 +34,42 @@ struct DisplayScreen: View {
         .onDisappear {
             messageDismissTask?.cancel()
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisplayDateHeader(
+                date: viewModel.viewState.selectedDate,
+                canGoPrevious: viewModel.viewState.canGoPrevious,
+                canGoNext: viewModel.viewState.canGoNext,
+                onPrevious: { Task { await viewModel.moveToPreviousDate() } },
+                onNext: { Task { await viewModel.moveToNextDate() } }
+            )
+
+            if isLoaded {
+                DisplayTopic(
+                    topic: viewModel.viewState.topic,
+                    description: topicDescription
+                )
+                .padding(.top, Metrics.dateToTopicSpacing)
+                .padding(.bottom, Metrics.topicToDividerSpacing)
+            }
+        }
+        .padding(.horizontal, theme.spacing.screenHorizontal)
+        .background(theme.colors.background)
+        .overlay(alignment: .bottom) {
+            if isLoaded {
+                Rectangle()
+                    .fill(theme.colors.border)
+                    .frame(height: Metrics.dividerHeight)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var isLoaded: Bool {
+        viewModel.viewState.contentStatus == .latest
+            || viewModel.viewState.contentStatus == .archive
     }
 
     @ViewBuilder
@@ -85,12 +111,7 @@ struct DisplayScreen: View {
 
     private var loadedContent: some View {
         ScrollView {
-            VStack(spacing: theme.spacing.xl) {
-                DisplayTopic(
-                    topic: viewModel.viewState.topic,
-                    caption: caption
-                )
-
+            VStack(spacing: 0) {
                 if viewModel.viewState.contentStatus == .archive,
                    !viewModel.viewState.featuredPhotos.isEmpty {
                     DisplayFeaturedCarousel(
@@ -98,9 +119,15 @@ struct DisplayScreen: View {
                         currentPage: viewModel.viewState.featuredPage,
                         onPageChange: { viewModel.updateFeaturedPage($0) }
                     )
+                    // 페이저가 이웃 카드를 화면 폭까지 peek 하도록 화면 좌우 여백을 상쇄한다.
+                    .padding(.horizontal, -theme.spacing.screenHorizontal)
+                    .padding(.top, Metrics.featuredTopSpacing)
+                    .padding(.bottom, Metrics.featuredBottomSpacing)
                 }
 
                 if viewModel.viewState.contentStatus == .latest {
+                    // ChalkakSortSelector는 44pt 최소 터치 높이로 텍스트를 세로 중앙 정렬하므로
+                    // 구분선 바로 아래에 붙이면 Android 필터 top 12dp와 맞는다.
                     ChalkakSortSelector(
                         options: DisplaySort.allCases,
                         selectedOption: viewModel.viewState.selectedSort,
@@ -120,13 +147,20 @@ struct DisplayScreen: View {
                             Task { await viewModel.didReachEndThreshold(isReached) }
                         }
                     )
+                    .padding(.top, gridTopSpacing)
                 }
             }
             .padding(.horizontal, theme.spacing.screenHorizontal)
-            .padding(.top, theme.spacing.lg)
             .padding(.bottom, theme.spacing.xxl)
         }
         .background(theme.colors.background)
+    }
+
+    // 구분선/featured 아래 그리드 시작 간격. Android 값과 맞춘다.
+    private var gridTopSpacing: CGFloat {
+        viewModel.viewState.contentStatus == .archive
+            ? Metrics.gridTopAfterFeatured
+            : Metrics.gridTopAfterFilter
     }
 
     private var emptyContent: some View {
@@ -146,20 +180,13 @@ struct DisplayScreen: View {
         .accessibilityIdentifier("display-empty")
     }
 
-    private var caption: String {
+    private var topicDescription: String {
         switch viewModel.viewState.contentStatus {
         case .archive:
-            "지난 전시"
+            "가장 사람들이 좋아했던 사진들이에요"
         default:
-            "오늘의 전시"
+            "같은 주제에서 다른 시선을 느껴보세요"
         }
-    }
-
-    private var divider: some View {
-        Rectangle()
-            .fill(theme.colors.border)
-            .frame(height: Metrics.dividerHeight)
-            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -215,8 +242,16 @@ private enum Metrics {
     static let retryButtonSize: CGFloat = 48
     static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 96
-    static let dividerHeight: CGFloat = 0.5
     static let toastBottomPadding: CGFloat = 88
+    static let dividerHeight: CGFloat = 0.5
+    // Android DisplayDateHeader / DisplayScreen 간격.
+    static let dateToTopicSpacing: CGFloat = 15
+    static let topicToDividerSpacing: CGFloat = 24
+    // 필터 텍스트→그리드 22dp. SortSelector 내부 중앙정렬(~11)을 고려한 보정값.
+    static let gridTopAfterFilter: CGFloat = 11
+    static let featuredTopSpacing: CGFloat = 15
+    static let featuredBottomSpacing: CGFloat = 8
+    static let gridTopAfterFeatured: CGFloat = 4
 }
 
 private extension DisplaySort {

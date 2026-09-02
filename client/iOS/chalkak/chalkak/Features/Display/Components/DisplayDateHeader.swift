@@ -19,9 +19,7 @@ struct DisplayDateHeader: View {
 
             Text(dateText)
                 .font(theme.typography.headline)
-                .fontWeight(.semibold)
                 .foregroundStyle(theme.colors.textPrimary)
-                .frame(maxWidth: .infinity)
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
 
@@ -31,7 +29,10 @@ struct DisplayDateHeader: View {
                 isEnabled: canGoNext,
                 action: onNext
             )
+
+            Spacer(minLength: 0)
         }
+        .padding(.leading, -Metrics.edgeCorrection)
         .frame(height: Metrics.height)
     }
 
@@ -43,9 +44,9 @@ struct DisplayDateHeader: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: Metrics.chevronSize, weight: .semibold))
+                .font(.system(size: Metrics.chevronSize, weight: .medium))
                 .foregroundStyle(
-                    isEnabled ? theme.colors.iconPrimary : theme.colors.textInactive
+                    isEnabled ? theme.colors.iconSecondary : theme.colors.textInactive
                 )
                 .frame(width: Metrics.touchSize, height: Metrics.touchSize)
                 .contentShape(Rectangle())
@@ -66,15 +67,17 @@ private enum DisplayDateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
         formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
-        formatter.dateFormat = "yyyy년 M월 d일"
+        formatter.dateFormat = "M월 d일"
         return formatter
     }()
 }
 
 private enum Metrics {
     static let height: CGFloat = 52
-    static let chevronSize: CGFloat = 17
+    static let chevronSize: CGFloat = 16
     static let touchSize: CGFloat = 44
+    // 44pt 터치 영역을 유지하면서 chevron 글리프를 화면 콘텐츠 가장자리에 맞춘다.
+    static let edgeCorrection: CGFloat = 13
 }
 
 #Preview("Date Header", traits: .sizeThatFitsLayout) {

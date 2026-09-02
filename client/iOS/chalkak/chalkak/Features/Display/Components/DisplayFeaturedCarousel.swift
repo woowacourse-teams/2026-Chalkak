@@ -6,43 +6,46 @@ struct DisplayFeaturedCarousel: View {
     let currentPage: Int
     let onPageChange: (Int) -> Void
 
-    @State private var selection = 0
+    @State private var scrollID: Int?
 
     var body: some View {
-        VStack(spacing: theme.spacing.md) {
-            TabView(selection: $selection) {
-                ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                    DisplayFeaturedCard(photo: photo)
-                        .padding(.horizontal, theme.spacing.xs)
-                        .tag(index)
+        VStack(spacing: theme.spacing.lg) {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: Metrics.pageSpacing) {
+                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                        DisplayFeaturedCard(photo: photo)
+                            .containerRelativeFrame(.horizontal)
+                            .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                content
+                                    .scaleEffect(1 - CGFloat(min(abs(phase.value), 1)) * Metrics.scaleFalloff)
+                                    .opacity(1 - min(abs(phase.value), 1) * Double(Metrics.opacityFalloff))
+                            }
+                            .id(index)
+                    }
                 }
+                .scrollTargetLayout()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+            .contentMargins(.horizontal, Metrics.peekMargin, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $scrollID, anchor: .center)
+            .scrollIndicators(.hidden)
+            .padding(.horizontal, Metrics.hardMargin)
 
-            pageIndicator
-        }
-        .onChange(of: selection) { _, newValue in
-            onPageChange(newValue)
+            DisplayPageIndicator(pageCount: photos.count, selectedPage: selectedPage)
         }
         .onAppear {
-            selection = min(currentPage, max(0, photos.count - 1))
+            if scrollID == nil {
+                scrollID = currentPage.coerced(to: 0...max(0, photos.count - 1))
+            }
+        }
+        .onChange(of: scrollID) { _, newValue in
+            guard let newValue else { return }
+            onPageChange(newValue)
         }
     }
 
-    private var pageIndicator: some View {
-        HStack(spacing: Metrics.dotSpacing) {
-            ForEach(photos.indices, id: \.self) { index in
-                Circle()
-                    .fill(
-                        index == selection
-                            ? theme.colors.actionPrimary
-                            : theme.colors.textInactive.opacity(Metrics.inactiveDotOpacity)
-                    )
-                    .frame(width: Metrics.dotSize, height: Metrics.dotSize)
-            }
-        }
-        .accessibilityHidden(true)
+    private var selectedPage: Int {
+        (scrollID ?? currentPage).coerced(to: 0...max(0, photos.count - 1))
     }
 }
 
@@ -51,51 +54,84 @@ private struct DisplayFeaturedCard: View {
     let photo: DisplayPhoto
 
     var body: some View {
-        ChalkakSignedImage(
-            imageSource: photo.originalImageSource,
-            signatureSource: photo.signatureOriginalImageSource,
-            contentDescription: photo.contentDescription,
-            contentMode: .fill
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.large))
-        .overlay(alignment: .bottomLeading) {
-            caption
+        ZStack {
+            Color.black
+
+            ChalkakSignedImage(
+                imageSource: photo.originalImageSource,
+                signatureSource: photo.signatureOriginalImageSource,
+                contentDescription: photo.contentDescription,
+                contentMode: .fit,
+                signatureSize: Metrics.signatureSize
+            )
         }
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var caption: some View {
-        let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        HStack(spacing: theme.spacing.sm) {
-            Image(systemName: "heart.fill")
-                .font(.system(size: Metrics.heartSize))
-                .accessibilityHidden(true)
-
-            Text("\(photo.likeCount)")
-                .font(theme.typography.footnote)
-
-            if let title, !title.isEmpty {
+        .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
+        .overlay(alignment: .bottomLeading) {
+            DisplayLikeBadge(likeCount: photo.likeCount)
+                .padding(Metrics.badgeInset)
+        }
+        .overlay(alignment: .bottom) {
+            if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !title.isEmpty {
                 Text(title)
-                    .font(theme.typography.footnote)
+                    .font(theme.typography.handwriting)
+                    .foregroundStyle(theme.colors.textOnImage)
                     .lineLimit(1)
+                    .padding(.bottom, Metrics.titleBottomPadding)
+                    .accessibilityHidden(true)
             }
         }
-        .foregroundStyle(theme.colors.textOnImage)
-        .padding(.horizontal, theme.spacing.md)
-        .padding(.vertical, theme.spacing.sm)
-        .background(theme.colors.scrim, in: Capsule())
-        .padding(theme.spacing.md)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
+    }
+}
+
+struct DisplayPageIndicator: View {
+    @Environment(\.chalkakTheme) private var theme
+    let pageCount: Int
+    let selectedPage: Int
+
+    var body: some View {
+        HStack(spacing: Metrics.dotSpacing) {
+            ForEach(0..<pageCount, id: \.self) { page in
+                Capsule()
+                    .fill(
+                        page == selectedPage
+                            ? theme.colors.actionPrimary
+                            : theme.colors.textMuted.opacity(Metrics.inactiveDotOpacity)
+                    )
+                    .frame(
+                        width: page == selectedPage ? Metrics.selectedDotWidth : Metrics.dotSize,
+                        height: Metrics.dotSize
+                    )
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
 private enum Metrics {
-    static let aspectRatio: CGFloat = 4.0 / 5.0
-    static let dotSpacing: CGFloat = 6
-    static let dotSize: CGFloat = 6
-    static let inactiveDotOpacity: CGFloat = 0.6
-    static let heartSize: CGFloat = 13
+    static let aspectRatio: CGFloat = 3.0 / 4.0
+    static let pageSpacing: CGFloat = 5
+    // Android DisplayFeaturedPager 기준: 그리드 좌우 여백(22) + 페이저 콘텐츠 패딩(32).
+    static let hardMargin: CGFloat = 22
+    static let peekMargin: CGFloat = 32
+    static let scaleFalloff: CGFloat = 0.08
+    static let opacityFalloff: CGFloat = 0.12
+    static let signatureSize = CGSize(width: 48, height: 36)
+    static let badgeInset: CGFloat = 10
+    static let titleBottomPadding: CGFloat = 10
+    static let dotSpacing: CGFloat = 8
+    static let dotSize: CGFloat = 7
+    static let selectedDotWidth: CGFloat = 24
+    static let inactiveDotOpacity: CGFloat = 0.45
+}
+
+private extension Int {
+    func coerced(to range: ClosedRange<Int>) -> Int {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
 }
 
 #Preview("Featured Carousel") {
@@ -104,7 +140,6 @@ private enum Metrics {
         currentPage: 0,
         onPageChange: { _ in }
     )
-    .padding(.horizontal, ChalkakTheme.light.spacing.screenHorizontal)
     .background(ChalkakTheme.light.colors.background)
     .chalkakTheme(.light)
 }
