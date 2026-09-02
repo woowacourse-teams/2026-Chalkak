@@ -57,7 +57,20 @@ chalkak:
         # 만료·폐기된 토큰을 지우는 정리 작업 하나만 켜고 끈다. 다른 주기 작업에는 영향이 없다.
         # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
         enabled: true
+    apple:
+      token:
+        team-id: ${APPLE_TEAM_ID}
+        key-id: ${APPLE_KEY_ID}
+        private-key-base64: ${APPLE_PRIVATE_KEY_BASE64}
+        token-uri: https://appleid.apple.com/auth/token
+        revoke-uri: https://appleid.apple.com/auth/revoke
+      refresh-token-encryption:
+        key: ${APPLE_REFRESH_TOKEN_ENCRYPTION_KEY}
     oidc:
+      apple:
+        issuer: https://appleid.apple.com
+        jwk-set-uri: https://appleid.apple.com/auth/keys
+        client-id: ${APPLE_OIDC_CLIENT_ID}
       google:
         issuer: https://accounts.google.com
         jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs

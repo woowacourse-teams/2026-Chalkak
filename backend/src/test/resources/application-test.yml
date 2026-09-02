@@ -38,7 +38,17 @@ chalkak:
         # 정리 작업 자체는 켜 둔다. 테스트가 스케줄러 빈을 주입받아 메서드를 직접 부르기 때문이다.
         # 실제 시각으로 도는 것은 아래 chalkak.scheduling.enabled: false가 막는다.
         enabled: true
+      expiration: 1h
+    apple:
+      token:
+        team-id: test-team-id
+        key-id: test-key-id
+        private-key-base64: dGVzdC1wcml2YXRlLWtleQ==
+      refresh-token-encryption:
+        key: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
     oidc:
+      apple:
+        client-id: test-apple-client-id
       google:
         client-id: test-google-client-id
       kakao:
