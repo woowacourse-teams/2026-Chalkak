@@ -153,8 +153,13 @@ enum KeychainSessionStore {
             throw AuthRepositoryError.invalidResponse
         }
 
+        let (expiresAt, overflow) = Int64(Date().timeIntervalSince1970)
+            .addingReportingOverflow(Int64(expiresIn))
+        guard !overflow else {
+            throw AuthRepositoryError.invalidResponse
+        }
+
         clearKeychainCredentials()
-        let expiresAt = Int64(Date().timeIntervalSince1970) + Int64(expiresIn)
         try save(value: userID, account: userIDAccount)
         try save(value: accessToken, account: accessTokenAccount)
         try save(value: String(expiresAt), account: expiresAtAccount)
