@@ -6,10 +6,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.RefreshTokenHasher;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -27,6 +30,7 @@ import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -34,6 +38,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +59,15 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @Autowired
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private RefreshTokenHasher refreshTokenHasher;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
@@ -125,6 +139,48 @@ class UserServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(userRepository.findActiveById(id)).isEmpty();
         assertThat(userRepository.findById(id)).isPresent();
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 모든 기기의 리프레시 토큰이 폐기되고 다른 회원의 토큰은 그대로 남는다")
+    void withdraw_activeUser_revokesEveryRefreshTokenOfThatUser() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        User otherUser = userRepository.save(UserFixture.create());
+        flushAndClear();
+        IssuedRefreshToken firstDevice = userRefreshTokenService.issue(user);
+        IssuedRefreshToken secondDevice = userRefreshTokenService.issue(user);
+        IssuedRefreshToken otherUserDevice = userRefreshTokenService.issue(otherUser);
+        flushAndClear();
+
+        // When
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // Then
+        assertThat(countLiveRefreshTokens(user.getId())).isZero();
+        assertThat(findRefreshTokenRevokedAt(firstDevice.value())).isNotNull();
+        assertThat(findRefreshTokenRevokedAt(secondDevice.value())).isNotNull();
+        assertThat(findRefreshTokenRevokedAt(otherUserDevice.value())).isNull();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 리프레시 토큰으로 재발급하면 재로그인을 요구한다")
+    void withdraw_activeUser_blocksRefreshWithIssuedToken() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        flushAndClear();
+        IssuedRefreshToken issued = userRefreshTokenService.issue(user);
+        flushAndClear();
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userRefreshTokenService.refresh(issued.value()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("다시 로그인해 주세요.")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.REAUTHENTICATION_REQUIRED);
     }
 
     @Test
@@ -1034,6 +1090,21 @@ class UserServiceTest extends IntegrationTestSupport {
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    private int countLiveRefreshTokens(UUID userId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_refresh_tokens
+                WHERE user_id = ? AND revoked_at IS NULL
+                """, Integer.class, userId);
+    }
+
+    private Timestamp findRefreshTokenRevokedAt(String token) {
+        return jdbcTemplate.queryForObject("""
+                        SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
+                        """,
+                Timestamp.class,
+                refreshTokenHasher.encode(token));
     }
 
     private SignatureStorageKeys storageKeys(UUID uploadId) {
