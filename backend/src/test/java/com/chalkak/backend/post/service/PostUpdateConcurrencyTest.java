@@ -27,6 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 class PostUpdateConcurrencyTest extends IntegrationTestSupport {
 
     private static final String UPDATE_THREAD = "post-title-update";
+    private static final String SECOND_UPDATE_THREAD = "post-title-second-update";
     private static final String MODERATION_THREAD = "post-title-moderation";
     private static final String DELETION_THREAD = "post-title-deletion";
     private static final UUID ADMIN_ID =
@@ -234,6 +235,54 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
         Map<String, Object> post = findPostState();
         assertThat(post.get("title")).isEqualTo("기존 제목");
         assertThat(post.get("deleted_at")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("서로 다른 제목 수정은 게시물 락 순서대로 처리되어 마지막 제목을 저장한다")
+    void updateAndUpdate_firstUpdateLocksFirst_appliesSecondTitleLast()
+            throws Exception {
+        // Given
+        CountDownLatch firstUpdateLocked = new CountDownLatch(1);
+        CountDownLatch secondUpdateStarted = new CountDownLatch(1);
+        CountDownLatch firstUpdateCanCommit = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            if (Thread.currentThread().getName().equals(SECOND_UPDATE_THREAD)) {
+                secondUpdateStarted.countDown();
+            }
+            Object result = invocation.callRealMethod();
+            if (Thread.currentThread().getName().equals(UPDATE_THREAD)) {
+                firstUpdateLocked.countDown();
+                await(firstUpdateCanCommit, "첫 번째 제목 수정 커밋이 허용되지 않았습니다.");
+            }
+            return result;
+        }).when(postRepositorySpy).findActiveByIdForUpdate(POST_ID);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        Future<Void> firstUpdate = executor.submit(() -> runNamed(UPDATE_THREAD, () -> {
+            postCommandService.updatePost(AUTHOR_ID, POST_ID, "첫 번째 제목");
+            return null;
+        }));
+        await(firstUpdateLocked, "첫 번째 제목 수정이 게시물 락을 획득하지 못했습니다.");
+        Future<Void> secondUpdate = executor.submit(() -> runNamed(SECOND_UPDATE_THREAD, () -> {
+            postCommandService.updatePost(AUTHOR_ID, POST_ID, "두 번째 제목");
+            return null;
+        }));
+
+        // When
+        try {
+            await(secondUpdateStarted, "두 번째 제목 수정이 게시물 락 조회를 시작하지 못했습니다.");
+            assertThat(secondUpdate.isDone()).isFalse();
+        } finally {
+            firstUpdateCanCommit.countDown();
+        }
+        firstUpdate.get(5, TimeUnit.SECONDS);
+        secondUpdate.get(5, TimeUnit.SECONDS);
+        shutdown(executor);
+
+        // Then
+        Map<String, Object> post = findPostState();
+        assertThat(post.get("title")).isEqualTo("두 번째 제목");
+        assertThat(post.get("moderation_status").toString()).isEqualTo("PENDING");
     }
 
     private <T> T runNamed(String threadName, Task<T> task) throws Exception {

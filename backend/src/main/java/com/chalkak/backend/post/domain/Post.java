@@ -145,14 +145,14 @@ public class Post {
             String title,
             Instant now
     ) {
-        validateTitleUpdateAuthor(authorId);
+        validateAuthor(authorId, "수정");
         validateTitleUpdateStatus();
         validateTitleUpdatePeriod(now);
         this.title = normalizeUpdatedTitle(title);
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
-        validateAuthor(authorId);
+        validateAuthor(authorId, "삭제");
         validateAuthorDeletionStatus();
         deleteIfNotDeleted(deletedAt);
     }
@@ -180,20 +180,11 @@ public class Post {
         );
     }
 
-    private void validateAuthor(UUID authorId) {
+    private void validateAuthor(UUID authorId, String action) {
         if (!author.getId().equals(authorId)) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "본인의 게시물만 삭제할 수 있습니다."
-            );
-        }
-    }
-
-    private void validateTitleUpdateAuthor(UUID authorId) {
-        if (!author.getId().equals(authorId)) {
-            throw new ForbiddenException(
-                    ErrorCode.FORBIDDEN,
-                    "본인의 게시물만 수정할 수 있습니다."
+                    "본인의 게시물만 %s할 수 있습니다.".formatted(action)
             );
         }
     }
