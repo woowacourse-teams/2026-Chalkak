@@ -30,6 +30,10 @@ chalkak:
   auth:
     access-token:
       expiration: 15m
+    refresh-token:
+      cleanup:
+        # 테스트는 자기 시계를 고정하므로 실제 시각으로 도는 정리 작업이 같은 DB의 행을 지우면 안 된다.
+        enabled: false
     oidc:
       google:
         client-id: test-google-client-id
