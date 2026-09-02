@@ -1,7 +1,0 @@
-<resources>
-    <string name="app_name">Chalkak</string>
-    <string name="bottom_bar_today">오늘</string>
-    <string name="bottom_bar_display">전시</string>
-    <string name="bottom_bar_record">기록</string>
-    <string name="bottom_bar_settings">설정</string>
-</resources>
