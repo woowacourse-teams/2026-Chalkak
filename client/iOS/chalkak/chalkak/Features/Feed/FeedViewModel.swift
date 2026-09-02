@@ -13,6 +13,8 @@ final class FeedViewModel {
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private var likeGeneration = 0
+    // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
+    private var likeTask: Task<Void, Never>?
 
     init(
         postID: String,
@@ -82,7 +84,7 @@ final class FeedViewModel {
         await load()
     }
 
-    func toggleLike() async {
+    func toggleLike() {
         guard viewState.isLikeEnabled, let current = viewState.content else { return }
 
         let liked = !current.post.isLiked
@@ -93,17 +95,26 @@ final class FeedViewModel {
 
         likeGeneration += 1
         let generation = likeGeneration
-        let result = await likeHandler(postID, liked)
-        guard generation == likeGeneration else { return }
+        let rollback = current
+        let previousTask = likeTask
+        likeTask = Task { [weak self] in
+            // 직전 좋아요 요청이 끝난 뒤 보내 동시 PUT/DELETE를 막는다(직렬화).
+            await previousTask?.value
+            guard let self else { return }
 
-        switch result {
-        case let .success(update):
-            guard var latest = viewState.content else { return }
-            latest.post.isLiked = update.isLiked
-            latest.post.likeCount = update.likeCount
-            viewState.content = latest
-        case .failure:
-            viewState.content = current
+            let result = await self.likeHandler(self.postID, liked)
+            // 최신 의도가 아니면 UI에 반영하지 않는다.
+            guard generation == self.likeGeneration else { return }
+
+            switch result {
+            case let .success(update):
+                guard var latest = self.viewState.content else { return }
+                latest.post.isLiked = update.isLiked
+                latest.post.likeCount = update.likeCount
+                self.viewState.content = latest
+            case .failure:
+                self.viewState.content = rollback
+            }
         }
     }
 }
