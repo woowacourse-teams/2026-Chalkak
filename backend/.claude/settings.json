@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(../client/**)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "denyWrite": [
+        "../client"
+      ]
+    }
+  }
+}

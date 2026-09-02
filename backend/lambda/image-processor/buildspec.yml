@@ -1,0 +1,50 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    commands:
+      # 이 빌드 이미지는 runtime-versions를 지원하지 않는다(빌드 로그의 WARN). 이미지에 설치된
+      # 파이썬을 그대로 쓰고, Lambda에 올릴 의존성은 아래에서 대상 환경을 직접 지정해 고정한다.
+      - python --version
+      - python -m pip install --upgrade pip
+
+  pre_build:
+    commands:
+      - cd backend/lambda/image-processor
+      - rm -rf build/package
+      - mkdir -p build/package
+      # 배포할 패키지를 여기서 한 번만 만들고, 테스트도 이 패키지로 돌린다. 검증한 것과 배포하는 것이
+      # 같아야 한다.
+      #
+      # --only-binary 은 소스 빌드를 막는다. Pillow는 소스로 빌드될 때 시스템에 없는 코덱을
+      # 에러 없이 빼고 만들기 때문에, WebP가 빠진 결과물이 조용히 배포될 수 있다.
+      # --platform 이하는 빌드 호스트의 태그 판정에 기대지 않고 Lambda가 실행할 환경의 휠을
+      # 직접 고른다. 이 휠은 libwebp를 함께 담고 있어 실행 환경에 시스템 라이브러리가 필요 없다.
+      - >-
+        python -m pip install
+        --requirement requirements.txt
+        --target build/package
+        --no-cache-dir
+        --only-binary=:all:
+        --platform manylinux_2_28_x86_64
+        --implementation cp
+        --python-version 3.14
+      - >-
+        PYTHONPATH=build/package python -c
+        "from PIL import features; assert features.check('webp'), 'Pillow에 WebP 지원이 없다'"
+      - PYTHONPATH=build/package python -m unittest discover --start-directory tests --verbose
+
+  build:
+    commands:
+      - install -m 0644 handler.py build/package/handler.py
+      - cp -R image_processor build/package/image_processor
+      - python -m compileall -q build/package/handler.py build/package/image_processor
+
+artifacts:
+  files:
+    - "**/*"
+  base-directory: backend/lambda/image-processor/build/package
+  discard-paths: no
