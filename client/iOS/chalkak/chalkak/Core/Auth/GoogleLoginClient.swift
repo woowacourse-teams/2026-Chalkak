@@ -48,6 +48,10 @@ final class GoogleLoginClient: SocialLoginClient {
 
             logger.debug("Google ID token received, length=\(idToken.count, privacy: .public)")
             return idToken
+        } catch let error as NSError where
+            error.domain == kGIDSignInErrorDomain &&
+            error.code == GIDSignInError.Code.canceled.rawValue {
+            throw SocialLoginError.cancelled
         } catch is CancellationError {
             throw CancellationError()
         } catch {
