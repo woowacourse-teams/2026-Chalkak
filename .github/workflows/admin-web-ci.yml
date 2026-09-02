@@ -5,9 +5,7 @@ on:
   pull_request:
     branches:
       - admin-web
-    paths:
-      - "admin-web/**"
-      - ".github/workflows/admin-web-ci.yml"
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,8 +16,50 @@ defaults:
     working-directory: admin-web
 
 jobs:
+  detect-admin-web-changes:
+    name: Detect admin web changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      admin_web: ${{ steps.changes.outputs.admin_web }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect admin web changes
+        id: changes
+        working-directory: .
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EVENT_NAME}" != pull_request ]]; then
+            echo "admin_web=true" >> "${GITHUB_OUTPUT}"
+          else
+            merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
+            changed_files="$(git diff --name-only "${merge_base}" "${HEAD_SHA}" -- \
+              admin-web \
+              .github/workflows/admin-web-ci.yml)"
+
+            if [[ -n "${changed_files}" ]]; then
+              echo "admin_web=true" >> "${GITHUB_OUTPUT}"
+            else
+              echo "admin_web=false" >> "${GITHUB_OUTPUT}"
+            fi
+          fi
+
   verify:
     name: Verify admin web
+    needs: detect-admin-web-changes
+    if: needs.detect-admin-web-changes.outputs.admin_web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -82,3 +122,48 @@ jobs:
 
       - name: Scan tracked history and browser bundle (fully redacted)
         run: npm run check:secrets -- "${{ runner.temp }}/chalkak-gitleaks/gitleaks"
+
+  admin-web-ci:
+    name: Admin Web CI
+    needs:
+      - detect-admin-web-changes
+      - verify
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Confirm admin web verification
+        working-directory: .
+        shell: bash
+        env:
+          DETECTION_RESULT: ${{ needs.detect-admin-web-changes.result }}
+          ADMIN_WEB_CHANGED: ${{ needs.detect-admin-web-changes.outputs.admin_web }}
+          VERIFICATION_RESULT: ${{ needs.verify.result }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${DETECTION_RESULT}" != success ]]; then
+            echo "Admin web change detection failed." >&2
+            exit 1
+          fi
+
+          case "${ADMIN_WEB_CHANGED}" in
+            true)
+              if [[ "${VERIFICATION_RESULT}" != success ]]; then
+                echo "Admin web verification did not succeed." >&2
+                exit 1
+              fi
+              ;;
+            false)
+              if [[ "${VERIFICATION_RESULT}" != skipped ]]; then
+                echo "Unexpected admin web verification result." >&2
+                exit 1
+              fi
+              echo "No admin web changes; build and tests were skipped."
+              ;;
+            *)
+              echo "Invalid admin web change detection output." >&2
+              exit 1
+              ;;
+          esac
