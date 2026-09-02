@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import chalkak
 
@@ -95,5 +96,9 @@ private final class MockAuthRepository: AuthRepository {
 
     func continueAsGuest() async throws {
         didContinueAsGuest = true
+    }
+
+    func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult {
+        .failure(.unknown)
     }
 }

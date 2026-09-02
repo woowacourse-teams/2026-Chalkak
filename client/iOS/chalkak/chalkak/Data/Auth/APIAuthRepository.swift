@@ -2,17 +2,27 @@ import Foundation
 import OSLog
 import Security
 
+@MainActor
 final class APIAuthRepository: AuthRepository {
     private let baseURL: URL?
     private let session: URLSession
     private let decoder = JSONDecoder()
+    private let retryDelay: AuthRetryDelay
+    private var pendingLogin: PendingSocialLogin?
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "stonefive.chalkak",
         category: "AuthAPI"
     )
 
-    init(baseURL: URL?, session: URLSession? = nil) {
+    init(
+        baseURL: URL?,
+        session: URLSession? = nil,
+        retryDelay: @escaping AuthRetryDelay = { milliseconds in
+            try await Task.sleep(nanoseconds: milliseconds * 1_000_000)
+        }
+    ) {
         self.baseURL = baseURL
+        self.retryDelay = retryDelay
         self.session = session ?? URLSession(
             configuration: .default,
             delegate: HTTPSRedirectDelegate(),
@@ -21,23 +31,221 @@ final class APIAuthRepository: AuthRepository {
     }
 
     func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
-        guard let baseURL else {
-            logger.error("Social login skipped because API_BASE_URL is missing")
-            throw AuthRepositoryError.configuration
+        let loginResponse = try await requestLogin(provider: provider, idToken: idToken)
+        logger.debug(
+            "Social login response result=\(loginResponse.status, privacy: .public)"
+        )
+        switch loginResponse.status {
+        case "LOGIN_SUCCESS":
+            let credentials = try loginResponse.validatedCredentials()
+            try KeychainSessionStore.save(
+                userID: credentials.userID,
+                accessToken: credentials.accessToken,
+                expiresIn: credentials.expiresIn
+            )
+            pendingLogin = nil
+            return .authenticated(userID: credentials.userID)
+        case "SIGN_UP_REQUIRED":
+            pendingLogin = PendingSocialLogin(provider: provider, idToken: idToken)
+            return .signUpRequired
+        default:
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult {
+        guard let pendingLogin else {
+            return .failure(.missingLoginContext)
+        }
+        guard signaturePNG.count <= Constants.maxSignatureBytes else {
+            return .failure(.signatureTooLarge)
         }
 
-        let endpoint = baseURL.appendingPathComponent("auth/social-login")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try JSONEncoder().encode(
-            SocialLoginRequest(provider: provider.rawValue, idToken: idToken)
-        )
+        do {
+            let upload = try await createSignatureUpload(for: pendingLogin)
+            try await uploadSignature(signaturePNG, to: upload.uploadURL)
 
+            for attempt in 0..<Constants.signUpAttempts {
+                do {
+                    let response = try await completeSignUp(signupToken: upload.signupToken)
+                    guard !response.userID.isEmpty else {
+                        throw AuthRepositoryError.invalidResponse
+                    }
+
+                    // Android clears the pending context before re-authentication. This
+                    // prevents a failed re-authentication from submitting the same signup
+                    // context a second time.
+                    self.pendingLogin = nil
+                    return try await authenticateAfterSignUp(
+                        userID: response.userID,
+                        login: pendingLogin
+                    )
+                } catch let error as AuthRepositoryError {
+                    guard error.isSignatureProcessingPending else {
+                        return .failure(error.signUpFailure)
+                    }
+                    guard attempt < Constants.signUpAttempts - 1 else {
+                        return .failure(.signatureProcessingTimeout)
+                    }
+                    try await retryDelay(Constants.signUpRetryDelayMilliseconds)
+                }
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as SignatureUploadError {
+            return .failure(error.signUpFailure)
+        } catch let error as AuthRepositoryError {
+            return .failure(error.signUpFailure)
+        } catch {
+            return .failure(.unknown)
+        }
+
+        return .failure(.unknown)
+    }
+
+    func continueAsGuest() async throws {
+        pendingLogin = nil
+        KeychainSessionStore.saveGuestAccess()
+    }
+
+    private func requestLogin(
+        provider: SocialLoginProvider,
+        idToken: String
+    ) async throws -> SocialLoginResponse {
+        let endpoint = try apiURL(path: "auth/social-login")
         logger.debug(
             "Social login request provider=\(provider.rawValue, privacy: .public), url=\(endpoint.absoluteString, privacy: .public), idTokenLength=\(idToken.count, privacy: .public)"
         )
+        let data = try await requestData(
+            url: endpoint,
+            body: try JSONEncoder().encode(
+                SocialLoginRequest(provider: provider.rawValue, idToken: idToken)
+            )
+        )
+        do {
+            return try decoder.decode(SocialLoginResponse.self, from: data)
+        } catch {
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    private func createSignatureUpload(
+        for login: PendingSocialLogin
+    ) async throws -> SignatureUploadResponse {
+        let endpoint = try apiURL(path: "auth/social-signup/signature/uploads")
+        let data = try await requestData(
+            url: endpoint,
+            body: try JSONEncoder().encode(
+                SignatureUploadRequest(provider: login.provider.rawValue, idToken: login.idToken)
+            )
+        )
+        do {
+            let response = try decoder.decode(SignatureUploadResponse.self, from: data)
+            guard !response.uploadID.isEmpty,
+                  let uploadURL = URL(string: response.uploadURL),
+                  uploadURL.scheme?.lowercased() == "https",
+                  uploadURL.host?.isEmpty == false,
+                  response.expiresInSeconds > 0,
+                  !response.signupToken.isEmpty,
+                  response.signupTokenExpiresInSeconds == nil
+                      || response.signupTokenExpiresInSeconds! > 0 else {
+                throw AuthRepositoryError.invalidResponse
+            }
+            return response
+        } catch let error as AuthRepositoryError {
+            throw error
+        } catch {
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    private func uploadSignature(_ signaturePNG: Data, to uploadURL: String) async throws {
+        guard let url = URL(string: uploadURL),
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false else {
+            throw SignatureUploadError.invalidUploadURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("image/png", forHTTPHeaderField: "Content-Type")
+        request.httpBody = signaturePNG
+
+        let response: URLResponse
+        do {
+            (_, response) = try await session.data(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw SignatureUploadError.network
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SignatureUploadError.network
+        }
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw SignatureUploadError.rejected
+        }
+    }
+
+    private func completeSignUp(signupToken: String) async throws -> SocialSignUpResponse {
+        let endpoint = try apiURL(path: "auth/social-signup")
+        let data = try await requestData(
+            url: endpoint,
+            body: try JSONEncoder().encode(SocialSignUpRequest(signupToken: signupToken))
+        )
+        do {
+            return try decoder.decode(SocialSignUpResponse.self, from: data)
+        } catch {
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    private func authenticateAfterSignUp(
+        userID: String,
+        login: PendingSocialLogin
+    ) async throws -> SocialSignUpResult {
+        let response = try await requestLogin(provider: login.provider, idToken: login.idToken)
+        switch response.status {
+        case "LOGIN_SUCCESS":
+            let credentials = try response.validatedCredentials()
+            guard credentials.userID == userID else {
+                return .failure(.reauthenticationRequired)
+            }
+            try KeychainSessionStore.save(
+                userID: credentials.userID,
+                accessToken: credentials.accessToken,
+                expiresIn: credentials.expiresIn
+            )
+            return .success(userID: userID)
+        case "SIGN_UP_REQUIRED":
+            return .failure(.reauthenticationRequired)
+        default:
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    private func apiURL(path: String) throws -> URL {
+        guard let baseURL else {
+            logger.error("Auth request skipped because API_BASE_URL is missing")
+            throw AuthRepositoryError.configuration
+        }
+        let endpoint = baseURL.appendingPathComponent(path)
+        guard endpoint.scheme?.lowercased() == "https", endpoint.host?.isEmpty == false else {
+            throw AuthRepositoryError.configuration
+        }
+        return endpoint
+    }
+
+    private func requestData(
+        url: URL,
+        body: Data
+    ) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = body
 
         let data: Data
         let response: URLResponse
@@ -46,21 +254,16 @@ final class APIAuthRepository: AuthRepository {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            logger.error(
-                "Social login transport error: \(String(describing: error), privacy: .public)"
-            )
             throw AuthRepositoryError.requestFailed
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            logger.error("Social login returned a non-HTTP response")
             throw AuthRepositoryError.requestFailed
         }
-
         guard 200..<300 ~= httpResponse.statusCode else {
             let serverError = try? decoder.decode(APIErrorResponse.self, from: data)
             logger.error(
-                "Social login response status=\(httpResponse.statusCode, privacy: .public), errorCode=\(serverError?.errorCode ?? "unknown", privacy: .public), message=\(serverError?.message ?? "unknown", privacy: .public)"
+                "Auth response status=\(httpResponse.statusCode, privacy: .public), errorCode=\(serverError?.errorCode ?? "unknown", privacy: .public), message=\(serverError?.message ?? "unknown", privacy: .public)"
             )
             throw AuthRepositoryError.server(
                 statusCode: httpResponse.statusCode,
@@ -68,37 +271,21 @@ final class APIAuthRepository: AuthRepository {
                 message: serverError?.message
             )
         }
-
-        let loginResponse = try decoder.decode(SocialLoginResponse.self, from: data)
-        logger.debug(
-            "Social login response status=\(httpResponse.statusCode, privacy: .public), result=\(loginResponse.status, privacy: .public)"
-        )
-        switch loginResponse.status {
-        case "LOGIN_SUCCESS":
-            guard let userID = loginResponse.userID,
-                  let accessToken = loginResponse.accessToken,
-                  let expiresIn = loginResponse.expiresIn,
-                  !userID.isEmpty,
-                  !accessToken.isEmpty,
-                  expiresIn > 0 else {
-                throw AuthRepositoryError.invalidResponse
-            }
-            try KeychainSessionStore.save(
-                userID: userID,
-                accessToken: accessToken,
-                expiresIn: expiresIn
-            )
-            return .authenticated(userID: userID)
-        case "SIGN_UP_REQUIRED":
-            return .signUpRequired
-        default:
-            throw AuthRepositoryError.invalidResponse
-        }
+        return data
     }
+}
 
-    func continueAsGuest() async throws {
-        KeychainSessionStore.saveGuestAccess()
-    }
+typealias AuthRetryDelay = @Sendable (UInt64) async throws -> Void
+
+private struct PendingSocialLogin {
+    let provider: SocialLoginProvider
+    let idToken: String
+}
+
+private enum SignatureUploadError: Error {
+    case network
+    case invalidUploadURL
+    case rejected
 }
 
 private final class HTTPSRedirectDelegate: NSObject, URLSessionTaskDelegate {
@@ -122,6 +309,15 @@ private struct SocialLoginRequest: Encodable {
     let idToken: String
 }
 
+private struct SignatureUploadRequest: Encodable {
+    let provider: String
+    let idToken: String
+}
+
+private struct SocialSignUpRequest: Encodable {
+    let signupToken: String
+}
+
 private struct SocialLoginResponse: Decodable {
     let status: String
     let userID: String?
@@ -134,11 +330,106 @@ private struct SocialLoginResponse: Decodable {
         case accessToken
         case expiresIn
     }
+
+    func validatedCredentials() throws -> LoginCredentials {
+        guard let userID,
+              let accessToken,
+              let expiresIn,
+              !userID.isEmpty,
+              !accessToken.isEmpty,
+              expiresIn > 0 else {
+            throw AuthRepositoryError.invalidResponse
+        }
+        return LoginCredentials(
+            userID: userID,
+            accessToken: accessToken,
+            expiresIn: expiresIn
+        )
+    }
+}
+
+private struct LoginCredentials {
+    let userID: String
+    let accessToken: String
+    let expiresIn: Int
+}
+
+private struct SignatureUploadResponse: Decodable {
+    let uploadID: String
+    let uploadURL: String
+    let expiresInSeconds: Int
+    let signupToken: String
+    let signupTokenExpiresInSeconds: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case uploadID = "uploadId"
+        case uploadURL = "uploadUrl"
+        case expiresInSeconds
+        case signupToken
+        case signupTokenExpiresInSeconds
+    }
+}
+
+private struct SocialSignUpResponse: Decodable {
+    let userID: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "userId"
+    }
 }
 
 private struct APIErrorResponse: Decodable {
     let errorCode: String?
     let message: String?
+}
+
+private extension AuthRepositoryError {
+    var signUpFailure: SocialSignUpFailure {
+        switch self {
+        case .requestFailed:
+            .networkUnavailable
+        case .invalidResponse, .configuration:
+            .unknown
+        case let .server(statusCode, _, _):
+            switch statusCode {
+            case 401:
+                .reauthenticationRequired
+            case 404:
+                .signatureNotFound
+            case 400:
+                .invalidSignature
+            default:
+                .unknown
+            }
+        }
+    }
+
+    var isSignatureProcessingPending: Bool {
+        if case let .server(_, errorCode, _) = self {
+            return errorCode == Constants.signatureProcessingPending
+        }
+        return false
+    }
+}
+
+private extension SignatureUploadError {
+    var signUpFailure: SocialSignUpFailure {
+        switch self {
+        case .network:
+            .networkUnavailable
+        case .invalidUploadURL:
+            .unknown
+        case .rejected:
+            .invalidSignature
+        }
+    }
+}
+
+private enum Constants {
+    static let maxSignatureBytes = 1024 * 1024
+    static let signUpAttempts = 10
+    static let signUpRetryDelayMilliseconds: UInt64 = 1_000
+    static let signatureProcessingPending = "SIGNATURE_PROCESSING_PENDING"
 }
 
 enum AuthRepositoryError: LocalizedError {
