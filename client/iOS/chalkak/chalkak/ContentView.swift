@@ -8,24 +8,43 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
+    @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
+    @State private var authRepository = APIAuthRepository(
+        baseURL: AppConfiguration().apiBaseURL
+    )
+    @State private var selectedLegalDocument: LegalDocument?
 
     var body: some View {
         Group {
             switch route {
             case .login:
                 LoginView(
+                    authRepository: authRepository,
                     onAuthenticated: showHome,
-                    onGuestAccessGranted: showHome
+                    onGuestAccessGranted: showHome,
+                    onSignUpRequired: showOnboarding
+                )
+            case .onboarding:
+                OnboardingRoute(
+                    authRepository: authRepository,
+                    onFinish: showHome,
+                    onReauthenticationRequired: showLogin,
+                    onServiceTermsView: showServiceTerms,
+                    onPrivacyPolicyView: showPrivacyPolicy
                 )
             case .home:
                 mainTab
             }
         }
         .animation(.default, value: route)
+        .sheet(item: $selectedLegalDocument) { document in
+            LegalDocumentSheet(document: document)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
     }
 
     @ViewBuilder
@@ -57,6 +76,22 @@ struct ContentView: View {
         route = .home
     }
 
+    private func showOnboarding() {
+        route = .onboarding
+    }
+
+    private func showLogin() {
+        route = .login
+    }
+
+    private func showServiceTerms() {
+        selectedLegalDocument = .termsOfService
+    }
+
+    private func showPrivacyPolicy() {
+        selectedLegalDocument = .privacyPolicy
+    }
+
     private static func makeHomeViewModel() -> HomeViewModel {
         let apiClient = HomeAPIClient(
             accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -85,10 +120,20 @@ struct ContentView: View {
     private static func makeDisplayViewModel() -> DisplayViewModel {
         DisplayViewModel(apiClient: DisplayAPIClient())
     }
+
+    private static var initialRoute: AppRoute {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
+            return .onboarding
+        }
+#endif
+        return KeychainSessionStore.hasActiveSession() ? .home : .login
+    }
 }
 
 private enum AppRoute: Equatable {
     case login
+    case onboarding
     case home
 }
 
