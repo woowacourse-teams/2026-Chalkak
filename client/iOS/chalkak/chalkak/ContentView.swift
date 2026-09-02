@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
     @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
 
@@ -22,7 +23,12 @@ struct ContentView: View {
                     onGuestAccessGranted: showHome
                 )
             case .home:
-                mainTab
+                NavigationStack {
+                    mainTab
+                        .navigationDestination(item: $selectedFeed) { target in
+                            FeedScreen(viewModel: makeFeedViewModel(target))
+                        }
+                }
             }
         }
         .animation(.default, value: route)
@@ -34,18 +40,29 @@ struct ContentView: View {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
-                onSelectBottomBarItem: select
+                onSelectBottomBarItem: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
             .task {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
                 await homeViewModel.retry()
             }
         }
+    }
+
+    private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
+        FeedViewModel(
+            target: target,
+            apiClient: FeedAPIClient(
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
     }
 
     private func select(_ item: ChalkakBottomBarItem) {

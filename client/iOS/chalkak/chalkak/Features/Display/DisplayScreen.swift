@@ -5,9 +5,29 @@ struct DisplayScreen: View {
     @Bindable var viewModel: DisplayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
+    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+
+    private func feedTarget(for photo: DisplayPhoto) -> FeedTarget {
+        let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
+        return FeedTarget(
+            seed: FeedContent(
+                dateLabel: dateLabel,
+                topic: viewModel.viewState.topic,
+                post: FeedPost(
+                    id: photo.id,
+                    originalImageSource: photo.originalImageSource,
+                    signatureImageSource: photo.signatureOriginalImageSource,
+                    contentDescription: photo.contentDescription,
+                    title: photo.title,
+                    likeCount: photo.likeCount,
+                    isLiked: false
+                )
+            )
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -145,7 +165,8 @@ struct DisplayScreen: View {
                         isLoadingNext: viewModel.viewState.isLoadingNext,
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
-                        }
+                        },
+                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                     .padding(.top, gridTopSpacing)
                 }

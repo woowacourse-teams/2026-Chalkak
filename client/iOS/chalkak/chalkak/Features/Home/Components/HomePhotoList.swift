@@ -10,6 +10,7 @@ struct HomePhotoList: View {
     var bottomContentPadding: CGFloat = 0
     let onLike: (HomePhoto.ID) -> Void
     let onEndThreshold: (Bool) -> Void
+    var onSelect: (HomePhoto) -> Void = { _ in }
 
     var body: some View {
         LazyVStack(spacing: theme.spacing.xxl) {
@@ -22,7 +23,8 @@ struct HomePhotoList: View {
                     photo: photo,
                     isLiked: likedPhotoIDs.contains(photo.id),
                     isLikeEnabled: areLikesEnabled,
-                    onLike: { onLike(photo.id) }
+                    onLike: { onLike(photo.id) },
+                    onSelect: { onSelect(photo) }
                 )
                 .onAppear {
                     onEndThreshold(index >= photos.count - HomePhotoListMetrics.endThreshold)
