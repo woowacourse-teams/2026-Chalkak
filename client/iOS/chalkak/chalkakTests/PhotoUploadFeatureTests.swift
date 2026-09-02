@@ -390,6 +390,31 @@ struct PhotoUploadImageEncoderTests {
         #expect(encoded.prefix(4) == Data("RIFF".utf8))
         #expect(encoded.subdata(in: 8..<12) == Data("WEBP".utf8))
     }
+
+    @Test("취소된 이미지 인코딩은 결과를 반환하지 않는다")
+    func throwsCancellation() async {
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 80)).image { context in
+            UIColor.systemPink.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 120, height: 80))
+        }
+        let sourceData = sourceImage.jpegData(compressionQuality: 1)!
+        let task = Task {
+            try await PhotoUploadImageEncoder.encode(
+                sourceData: sourceData,
+                maxBytes: 1
+            )
+        }
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("취소된 인코딩이 결과를 반환했습니다")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            Issue.record("예상하지 못한 오류: \(error)")
+        }
+    }
 }
 
 private actor PhotoUploadRequestRecorder {

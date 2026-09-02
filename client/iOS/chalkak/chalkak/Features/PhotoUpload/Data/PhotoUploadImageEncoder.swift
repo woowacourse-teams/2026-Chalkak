@@ -15,16 +15,25 @@ enum PhotoUploadImageEncoder {
         guard maxBytes > 0, sourceData.isEmpty == false else {
             throw PhotoUploadImageEncodingError.invalidSource
         }
+        try Task.checkCancellation()
 
-        return try await Task.detached(priority: .userInitiated) {
+        let encodingTask = Task.detached(priority: .userInitiated) {
             try encodeOnBackgroundThread(sourceData: sourceData, maxBytes: maxBytes)
-        }.value
+        }
+        return try await withTaskCancellationHandler(operation: {
+            let encodedData = try await encodingTask.value
+            try Task.checkCancellation()
+            return encodedData
+        }, onCancel: {
+            encodingTask.cancel()
+        })
     }
 
     private nonisolated static func encodeOnBackgroundThread(
         sourceData: Data,
         maxBytes: Int64
     ) throws -> Data {
+        try Task.checkCancellation()
         guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
               let image = CGImageSourceCreateThumbnailAtIndex(
                   source,
@@ -44,6 +53,7 @@ enum PhotoUploadImageEncoder {
 
         for round in 0...Constants.maxRescaleRounds {
             for quality in Constants.qualityLadder {
+                try Task.checkCancellation()
                 guard let encoded = SDImageWebPCoder.shared.encodedData(
                     with: normalizedImage,
                     format: .webP,
@@ -61,6 +71,7 @@ enum PhotoUploadImageEncoder {
                 guard isWebP(encoded) else {
                     throw PhotoUploadImageEncodingError.unsupported
                 }
+                try Task.checkCancellation()
 
                 if Int64(encoded.count) <= maxBytes {
                     return encoded
@@ -68,6 +79,7 @@ enum PhotoUploadImageEncoder {
             }
 
             if round < Constants.maxRescaleRounds {
+                try Task.checkCancellation()
                 maxPixelSize = max(
                     1,
                     Int(Double(maxPixelSize) * Constants.rescaleFactor)
