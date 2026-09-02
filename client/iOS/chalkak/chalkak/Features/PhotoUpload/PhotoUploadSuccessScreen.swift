@@ -47,7 +47,7 @@ struct PhotoUploadSuccessScreen: View {
             ChalkakButton(
                 title: "확인했어요.",
                 action: onConfirmClick,
-                isFullWidth: true
+                fillsWidth: true
             )
             .padding(.horizontal, theme.spacing.xl)
             .padding(.bottom, 26)

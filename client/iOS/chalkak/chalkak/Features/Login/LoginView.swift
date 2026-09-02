@@ -9,13 +9,15 @@ struct LoginView: View {
 
     init(
         configuration: AppConfiguration = AppConfiguration(),
+        authRepository: AuthRepository? = nil,
         onAuthenticated: @escaping () -> Void = {},
         onGuestAccessGranted: @escaping () -> Void = {},
         onSignUpRequired: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(
             wrappedValue: LoginViewModel(
-                authRepository: APIAuthRepository(baseURL: configuration.apiBaseURL),
+                authRepository: authRepository
+                    ?? APIAuthRepository(baseURL: configuration.apiBaseURL),
                 googleLoginClient: GoogleLoginClient(
                     clientID: configuration.googleClientID,
                     serverClientID: configuration.googleServerClientID

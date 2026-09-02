@@ -6,8 +6,26 @@ enum SocialLoginResult: Equatable {
     case signUpRequired
 }
 
+enum SocialSignUpResult: Equatable {
+    case success(userID: String)
+    case failure(SocialSignUpFailure)
+}
+
+enum SocialSignUpFailure: Equatable {
+    case missingLoginContext
+    case signatureTooLarge
+    case signatureProcessingTimeout
+    case signatureNotFound
+    case invalidSignature
+    case reauthenticationRequired
+    case networkUnavailable
+    case unknown
+}
+
+@MainActor
 protocol AuthRepository {
     func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult
+    func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult
     func continueAsGuest() async throws
 }
 

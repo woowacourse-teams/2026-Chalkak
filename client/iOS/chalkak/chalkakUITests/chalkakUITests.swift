@@ -34,6 +34,33 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testTermsViewButtonsOpenTheirLegalDocumentSheets() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-show-onboarding"]
+        app.launch()
+
+        let viewButtons = app.buttons.matching(
+            NSPredicate(format: "label == %@", "보기")
+        )
+        XCTAssertEqual(viewButtons.count, 2)
+
+        viewButtons.element(boundBy: 0).tap()
+        let termsSheet = app.descendants(matching: .any)[
+            "legalDocumentSheet.termsOfService"
+        ]
+        XCTAssertTrue(termsSheet.waitForExistence(timeout: 3))
+
+        app.buttons["닫기"].tap()
+        XCTAssertTrue(termsSheet.waitForNonExistence(timeout: 3))
+
+        viewButtons.element(boundBy: 1).tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["legalDocumentSheet.privacyPolicy"]
+                .waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

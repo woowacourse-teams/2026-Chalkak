@@ -87,7 +87,7 @@ struct PhotoUploadScreen: View {
                 title: viewState.isSubmitting ? "전시 중..." : "전시하기",
                 action: { onAction(.submitClicked) },
                 isEnabled: viewState.canSubmit,
-                isFullWidth: true
+                fillsWidth: true
             )
             .padding(.horizontal, 26)
             .padding(.bottom, 26)
