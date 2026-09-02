@@ -8,21 +8,35 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
     @State private var homeViewModel = Self.makeHomeViewModel()
 
     var body: some View {
-        HomeScreen(viewModel: homeViewModel)
-            .task {
-                guard homeViewModel.viewState.contentStatus == .loading else { return }
-                await homeViewModel.retry()
+        Group {
+            switch route {
+            case .login:
+                LoginView(
+                    onAuthenticated: showHome,
+                    onGuestAccessGranted: showHome
+                )
+            case .home:
+                HomeScreen(viewModel: homeViewModel)
+                    .task {
+                        guard homeViewModel.viewState.contentStatus == .loading else { return }
+                        await homeViewModel.retry()
+                    }
             }
+        }
+        .animation(.default, value: route)
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
-        let apiClient = HomeAPIClient()
+        let apiClient = HomeAPIClient(
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
         return HomeViewModel(
             initialState: HomeViewState(),
-            isAuthenticated: { false },
+            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
             refreshHandler: { sort in
                 await apiResult {
                     try await apiClient.fetchHome(date: Date(), sort: sort)
@@ -40,12 +54,19 @@ struct ContentView: View {
             }
         )
     }
+
+    private func showHome() {
+        route = .home
+    }
+}
+
+private enum AppRoute: Equatable {
+    case login
+    case home
 }
 
 #Preview {
-    HomeScreen(
-        viewModel: HomeViewModel(initialState: HomePreviewData.contentState)
-    )
+    ContentView()
         .chalkakTheme(.light)
 }
 
