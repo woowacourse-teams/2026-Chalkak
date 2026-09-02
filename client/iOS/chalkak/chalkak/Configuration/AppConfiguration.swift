@@ -33,6 +33,9 @@ private extension Bundle {
         guard let value = configuredValue(forKey: key), let url = URL(string: value) else {
             return nil
         }
+        guard url.scheme?.lowercased() == "https", url.host?.isEmpty == false else {
+            return nil
+        }
         return url
     }
 }

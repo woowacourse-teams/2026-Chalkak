@@ -11,9 +11,13 @@ final class APIAuthRepository: AuthRepository {
         category: "AuthAPI"
     )
 
-    init(baseURL: URL?, session: URLSession = .shared) {
+    init(baseURL: URL?, session: URLSession? = nil) {
         self.baseURL = baseURL
-        self.session = session
+        self.session = session ?? URLSession(
+            configuration: .default,
+            delegate: HTTPSRedirectDelegate(),
+            delegateQueue: nil
+        )
     }
 
     func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
@@ -94,6 +98,22 @@ final class APIAuthRepository: AuthRepository {
 
     func continueAsGuest() async throws {
         KeychainSessionStore.saveGuestAccess()
+    }
+}
+
+private final class HTTPSRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard request.url?.scheme?.lowercased() == "https" else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
     }
 }
 
