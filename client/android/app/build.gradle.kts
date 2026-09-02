@@ -44,8 +44,8 @@ android {
         applicationId = "com.stonefive.chalkak"
         minSdk = 26
         targetSdk = 37
-        versionCode = 14
-        versionName = "0.0.13"
+        versionCode = 20
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", apiBaseUrl.toBuildConfigString())
