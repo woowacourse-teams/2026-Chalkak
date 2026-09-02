@@ -54,7 +54,7 @@ class AuthControllerTest {
         given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -69,7 +69,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.status").value("LOGIN_SUCCESS"))
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.expiresIn").value(900));
     }
 
     @Test
@@ -216,7 +216,7 @@ class AuthControllerTest {
         given(socialSignupService.signup("social-signup-token"))
                 .willReturn(new SocialSignupResult(
                         userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
@@ -229,7 +229,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.expiresIn").value(900));
     }
 
     @Test

@@ -12,7 +12,7 @@ public record SocialSignupResponse(
 
         @Schema(
                 description = "발급 시점부터의 액세스 토큰 유효 시간(초)",
-                example = "3600"
+                example = "900"
         )
         Long expiresIn
 ) {

@@ -60,7 +60,7 @@ class AdminAuthControllerTest {
                 .willReturn(new AdminLoginResult(
                         ADMIN_ID,
                         USERNAME,
-                        new IssuedAccessToken("admin-token", Duration.ofHours(1))
+                        new IssuedAccessToken("admin-token", Duration.ofMinutes(15))
                 ));
 
         // When & Then
@@ -76,7 +76,7 @@ class AdminAuthControllerTest {
                 .andExpect(jsonPath("$.adminId").value(ADMIN_ID.toString()))
                 .andExpect(jsonPath("$.username").value(USERNAME))
                 .andExpect(jsonPath("$.accessToken").value("admin-token"))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.expiresIn").value(900));
     }
 
     @Test

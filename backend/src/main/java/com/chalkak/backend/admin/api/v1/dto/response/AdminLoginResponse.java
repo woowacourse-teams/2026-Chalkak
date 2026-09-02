@@ -11,7 +11,7 @@ public record AdminLoginResponse(
         @Schema(description = "Authorization: Bearer 헤더에 사용할 관리자 액세스 토큰")
         String accessToken,
 
-        @Schema(description = "발급 시점부터의 액세스 토큰 유효 시간(초)", example = "3600")
+        @Schema(description = "발급 시점부터의 액세스 토큰 유효 시간(초)", example = "900")
         long expiresIn
 ) {
 

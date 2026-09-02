@@ -29,7 +29,7 @@ chalkak:
         webhook-url: https://hooks.slack.com/services/TEST/TEST/TEST
   auth:
     access-token:
-      expiration: 1h
+      expiration: 15m
     oidc:
       google:
         client-id: test-google-client-id
