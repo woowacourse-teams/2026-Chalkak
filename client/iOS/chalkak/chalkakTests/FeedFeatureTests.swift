@@ -17,9 +17,11 @@ struct FeedViewStateTests {
 @MainActor
 @Suite(.serialized)
 struct FeedViewModelTests {
-    @Test("상세 조회 중 완료된 좋아요를 상세 응답이 덮어쓰지 않는다")
+    @Test("상세 조회 중 완료된 좋아요의 성공 응답을 상세 응답이 덮어쓰지 않는다")
     func detailDoesNotOverwriteInFlightLike() async {
         let gate = AsyncGate()
+        // 낙관적 값(11)·좋아요 성공 응답 값(42)·상세 응답 값(10)을 모두 다르게 둬서
+        // '좋아요 성공 응답이 반영된 뒤 상세가 덮어쓰지 않는지'를 명확히 검증한다.
         let viewModel = FeedViewModel(
             postID: "post-1",
             seed: Self.content(isLiked: false, likeCount: 10),
@@ -30,25 +32,30 @@ struct FeedViewModelTests {
                 return .success(Self.content(isLiked: false, likeCount: 10, topic: "갱신됨"))
             },
             likeHandler: { _, isLiked in
-                .success(FeedLikeUpdate(postID: "post-1", isLiked: isLiked, likeCount: 11))
+                .success(FeedLikeUpdate(postID: "post-1", isLiked: isLiked, likeCount: 42))
             }
         )
 
         let loadTask = Task { await viewModel.load() }
         await gate.waitUntilEntered()
 
-        // 상세 조회가 진행 중인 사이 좋아요를 누른다.
+        // 상세 조회가 진행 중인 사이 좋아요를 누른다(낙관적: 선택됨/11).
         viewModel.toggleLike()
         #expect(viewModel.viewState.content?.post.isLiked == true)
         #expect(viewModel.viewState.content?.post.likeCount == 11)
 
-        // 상세 응답 도착 후에도 좋아요 상태가 유지되어야 한다.
+        // 좋아요 성공 응답(선택됨/42)이 반영될 때까지 기다린 뒤에야 상세 응답을 푼다.
+        await Self.waitUntil { viewModel.viewState.content?.post.likeCount == 42 }
+        #expect(viewModel.viewState.content?.post.isLiked == true)
+        #expect(viewModel.viewState.content?.post.likeCount == 42)
+
+        // 상세 응답이 도착해도 좋아요 성공 값(선택됨/42)이 유지되어야 한다.
         gate.release()
         await loadTask.value
 
         #expect(viewModel.viewState.contentStatus == .loaded)
         #expect(viewModel.viewState.content?.post.isLiked == true)
-        #expect(viewModel.viewState.content?.post.likeCount == 11)
+        #expect(viewModel.viewState.content?.post.likeCount == 42)
         #expect(viewModel.viewState.content?.topic == "갱신됨")
     }
 
@@ -73,6 +80,17 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.isLikeEnabled)
         #expect(viewModel.viewState.content?.post.isLiked == true)
         #expect(viewModel.viewState.content?.post.likeCount == 5)
+    }
+
+    /// 별도 Task에서 갱신되는 상태가 조건을 만족할 때까지 협조적으로 양보하며 대기한다.
+    private static func waitUntil(
+        _ condition: () -> Bool,
+        maxYields: Int = 1000
+    ) async {
+        for _ in 0..<maxYields {
+            if condition() { return }
+            await Task.yield()
+        }
     }
 
     private static func content(
