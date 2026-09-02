@@ -15,6 +15,7 @@ import com.chalkak.backend.admin.service.AdminAuthenticationService;
 import com.chalkak.backend.admin.service.AdminLoginResult;
 import com.chalkak.backend.admin.service.CurrentAdminResult;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Duration;
 import java.util.UUID;
@@ -53,14 +54,15 @@ class AdminAuthControllerTest {
     }
 
     @Test
-    @DisplayName("관리자 로그인에 성공하면 액세스 토큰과 관리자 정보를 반환한다")
-    void login_validRequest_returnsAccessToken() throws Exception {
+    @DisplayName("관리자 로그인에 성공하면 액세스 토큰과 리프레시 토큰을 함께 반환한다")
+    void login_validRequest_returnsAccessTokenAndRefreshToken() throws Exception {
         // Given
         given(service.login(USERNAME, "safe-password"))
                 .willReturn(new AdminLoginResult(
                         ADMIN_ID,
                         USERNAME,
-                        new IssuedAccessToken("admin-token", Duration.ofMinutes(15))
+                        new IssuedAccessToken("admin-token", Duration.ofMinutes(15)),
+                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30))
                 ));
 
         // When & Then
@@ -76,7 +78,9 @@ class AdminAuthControllerTest {
                 .andExpect(jsonPath("$.adminId").value(ADMIN_ID.toString()))
                 .andExpect(jsonPath("$.username").value(USERNAME))
                 .andExpect(jsonPath("$.accessToken").value("admin-token"))
-                .andExpect(jsonPath("$.expiresIn").value(900));
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.refreshToken").value("admin-refresh-token"))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000));
     }
 
     @Test
