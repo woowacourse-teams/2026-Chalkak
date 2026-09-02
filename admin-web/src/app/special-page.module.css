@@ -1,0 +1,60 @@
+.specialPage,
+.globalError {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  align-content: center;
+  border: 1px solid #dce2d6;
+  border-radius: 24px;
+  background: #ffffff;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.globalError {
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+  background: #f4f6f0;
+}
+
+.specialPage p,
+.globalError p {
+  color: #6d845f;
+  font-family: Georgia, serif;
+  font-size: 46px;
+  font-weight: 700;
+}
+
+.globalError p {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+}
+
+.specialPage h2,
+.globalError h1 {
+  margin-top: 16px;
+  color: #26362b;
+  font-size: clamp(24px, 4vw, 36px);
+}
+
+.specialPage span,
+.globalError span {
+  margin-top: 12px;
+  color: #737e72;
+  font-size: 13px;
+}
+
+.specialPage a,
+.globalError button {
+  min-height: 42px;
+  margin-top: 24px;
+  border: 1px solid #294a35;
+  border-radius: 12px;
+  background: #294a35;
+  padding: 12px 18px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}

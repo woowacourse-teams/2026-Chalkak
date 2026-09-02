@@ -1,0 +1,40 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const globalCss = readFileSync(resolve("src/app/globals.css"), "utf8");
+const shellCss = readFileSync(resolve("src/shared/layout/admin-shell.module.css"), "utf8");
+const postCss = readFileSync(resolve("src/features/posts/ui/posts.module.css"), "utf8");
+const commonCss = readFileSync(resolve("src/shared/ui/common-ui.module.css"), "utf8");
+
+// jsdom does not calculate layout. These assertions preserve the fixed-bar
+// spacing contract; they do not replace mobile browser layout verification.
+describe("mobile fixed-control spacing", () => {
+  it("keeps wrapped author and topic links inside one touch target", () => {
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*display:\s*inline-block/);
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*max-width:\s*100%/);
+    expect(postCss).toMatch(/\.relatedLink\s*\{[^}]*min-height:\s*44px/);
+  });
+
+  it("shares the safe-area-aware navigation height with the shell reserve", () => {
+    expect(globalCss).toMatch(/--admin-bottom-nav-height:\s*0px/);
+    expect(globalCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{\s*:root\s*\{\s*--admin-bottom-nav-height:\s*calc\(69px \+ env\(safe-area-inset-bottom\)\)/);
+    expect(shellCss).toMatch(/\.shell\s*\{[^}]*padding-bottom:\s*var\(--admin-bottom-nav-height\)/);
+    expect(shellCss).toMatch(/\.navigation\s*\{[^}]*min-height:\s*var\(--admin-bottom-nav-height\)/);
+  });
+
+  it("uses a focused review bar instead of navigation through tablet and landscape widths", () => {
+    expect(globalCss).toMatch(/--admin-bottom-actions-height:\s*0px/);
+    expect(globalCss).toMatch(/@media\s*\(max-width:\s*1024px\)\s*\{\s*body:has\(\[data-review-mode="true"\]\)\s*\{\s*--admin-bottom-nav-height:\s*0px/);
+    expect(globalCss).toContain("--admin-bottom-actions-height: calc(77px + env(safe-area-inset-bottom))");
+    expect(shellCss).toMatch(/\.shell:has\(\[data-review-mode="true"\]\) \.navigation\s*\{\s*display:\s*none/);
+    expect(postCss).toMatch(/\.detailActions\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*0/);
+    expect(postCss).toContain("padding: 12px 16px calc(12px + env(safe-area-inset-bottom))");
+    expect(postCss).toMatch(/\.detailPage:has\(\.detailActions\)\s*\{\s*padding-bottom:\s*var\(--admin-bottom-actions-height\)/);
+    expect(postCss).toMatch(/\.detailActions button\s*\{[^}]*min-height:\s*52px/);
+  });
+
+  it("positions mobile toasts above both fixed bars across the navigation breakpoint", () => {
+    expect(commonCss).toMatch(/@media\s*\(max-width:\s*1024px\)\s*\{\s*\.toastRegion\s*\{[^}]*bottom:\s*calc\(var\(--admin-bottom-nav-height\) \+ var\(--admin-bottom-actions-height\) \+ 16px\)/);
+  });
+});
