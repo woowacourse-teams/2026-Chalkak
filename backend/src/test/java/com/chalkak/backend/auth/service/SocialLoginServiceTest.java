@@ -134,7 +134,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         user.ban();
-        user.withdraw();
+        userService.withdraw(user.getId());
         flushAndClear();
 
         // When & Then
@@ -142,7 +142,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage("차단된 소셜 계정입니다.");
+                .hasMessage("탈퇴한 차단 소셜 계정입니다.");
     }
 
     @Test
