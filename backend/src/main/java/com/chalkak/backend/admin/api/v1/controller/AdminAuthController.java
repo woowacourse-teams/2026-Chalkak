@@ -4,9 +4,12 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminAuthApiDocs;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminLoginRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminRefreshTokenRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminLoginResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.AdminTokenRefreshResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.CurrentAdminResponse;
 import com.chalkak.backend.admin.service.AdminAuthenticationService;
+import com.chalkak.backend.admin.service.AdminRefreshTokenService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminAuthController implements AdminAuthApiDocs {
 
     private final AdminAuthenticationService service;
+    private final AdminRefreshTokenService adminRefreshTokenService;
 
     @Override
     @PostMapping("/login")
@@ -44,10 +48,22 @@ public class AdminAuthController implements AdminAuthApiDocs {
     }
 
     @Override
+    @PostMapping("/refresh")
+    public ResponseEntity<AdminTokenRefreshResponse> refresh(
+            @Valid @RequestBody AdminRefreshTokenRequest request
+    ) {
+        return ResponseEntity.ok(AdminTokenRefreshResponse.from(
+                adminRefreshTokenService.refresh(request.refreshToken())
+        ));
+    }
+
+    @Override
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin
+            @Valid @RequestBody AdminRefreshTokenRequest request
     ) {
+        adminRefreshTokenService.logout(request.refreshToken());
+
         return ResponseEntity.noContent().build();
     }
 }
