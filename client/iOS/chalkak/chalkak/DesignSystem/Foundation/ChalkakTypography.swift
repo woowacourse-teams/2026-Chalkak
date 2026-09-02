@@ -13,6 +13,7 @@ struct ChalkakTypography {
     let caption: Font
     let brand: Font
     let handwriting: Font
+    let photoCardTitle: Font
 
     init(
         display: Font,
@@ -26,7 +27,8 @@ struct ChalkakTypography {
         footnote: Font,
         caption: Font,
         brand: Font,
-        handwriting: Font
+        handwriting: Font,
+        photoCardTitle: Font
     ) {
         self.display = display
         self.title1 = title1
@@ -40,6 +42,7 @@ struct ChalkakTypography {
         self.caption = caption
         self.brand = brand
         self.handwriting = handwriting
+        self.photoCardTitle = photoCardTitle
     }
 
     init() {
@@ -67,6 +70,11 @@ struct ChalkakTypography {
         size: 20,
         relativeTo: .title3
     )
+    static let photoCardTitle = Font.custom(
+        "GriunXHangeulBanguri-Regular",
+        size: 19,
+        relativeTo: .title3
+    )
 
     static let standard = ChalkakTypography(
         display: display,
@@ -80,7 +88,8 @@ struct ChalkakTypography {
         footnote: footnote,
         caption: caption,
         brand: brand,
-        handwriting: handwriting
+        handwriting: handwriting,
+        photoCardTitle: photoCardTitle
     )
 
     private static func pretendard(
