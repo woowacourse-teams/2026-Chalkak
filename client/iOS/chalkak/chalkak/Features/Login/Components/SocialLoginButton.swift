@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct SocialLoginButton: View {
@@ -7,7 +8,22 @@ struct SocialLoginButton: View {
     let action: () -> Void
     var isEnabled = true
 
+    @ViewBuilder
     var body: some View {
+        switch provider {
+        case .apple:
+            AppleAuthorizationButton(
+                action: action,
+                isEnabled: isEnabled,
+                cornerRadius: theme.shapes.button
+            )
+            .frame(height: Metrics.buttonHeight)
+        case .google, .kakao:
+            brandedButton
+        }
+    }
+
+    private var brandedButton: some View {
         Button(action: action) {
             HStack(spacing: theme.spacing.md) {
                 provider.icon
@@ -35,16 +51,50 @@ struct SocialLoginButton: View {
     }
 }
 
+private struct AppleAuthorizationButton: UIViewRepresentable {
+    let action: () -> Void
+    let isEnabled: Bool
+    let cornerRadius: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(type: .continue, style: .whiteOutline)
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.performAction),
+            for: .touchUpInside
+        )
+        return button
+    }
+
+    func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
+        context.coordinator.action = action
+        button.isEnabled = isEnabled
+        button.cornerRadius = cornerRadius
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction() {
+            action()
+        }
+    }
+}
+
 private extension SocialLoginProvider {
     @ViewBuilder
     var icon: some View {
         switch self {
         case .apple:
-            Image("apple_logo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: Metrics.logoSize, height: Metrics.logoSize)
-                .accessibilityHidden(true)
+            EmptyView()
         case .google:
             Image("img_google_logo")
                 .resizable()
