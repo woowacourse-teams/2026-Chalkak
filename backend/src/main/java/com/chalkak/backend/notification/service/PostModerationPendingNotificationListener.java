@@ -9,9 +9,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 public class PostModerationPendingNotificationListener {
 
-    private static final String DELIVERY_FAILED = "NOTIFICATION_DELIVERY_FAILED";
-    private static final String DELIVERY_ERROR = "NOTIFICATION_DELIVERY_ERROR";
-
     private final NotificationMessageFactory messageFactory;
     private final NotificationSender sender;
 
@@ -31,7 +28,7 @@ public class PostModerationPendingNotificationListener {
                 log.warn(
                         "관리자 알림 발송 실패: postId={}, failureCode={}",
                         event.postId(),
-                        DELIVERY_FAILED
+                        "NOTIFICATION_DELIVERY_FAILED"
                 );
             }
         } catch (RuntimeException exception) {
@@ -39,7 +36,7 @@ public class PostModerationPendingNotificationListener {
             log.warn(
                     "관리자 알림 발송 오류: postId={}, failureCode={}",
                     event.postId(),
-                    DELIVERY_ERROR
+                    "NOTIFICATION_DELIVERY_ERROR"
             );
         }
     }
