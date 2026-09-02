@@ -1,0 +1,92 @@
+.visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+.tableScroll { width: 100%; min-width: 0; overflow-x: auto; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; }
+.table { width: 100%; min-width: 720px; border-collapse: collapse; }
+.table th { border-bottom: 1px solid #e3e4ed; background: #f8f8fa; padding: 12px 16px; color: #656776; font-size: 12px; font-weight: 600; }
+.table td { border-bottom: 1px solid #eeeeF3; padding: 12px 16px; color: #41434f; font-size: 13px; }
+.table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover { background: #fcfcfe; }
+.left { text-align: left; }
+.center { text-align: center; }
+.right { text-align: right; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; }
+.pagination button, .feedbackState button { min-height: 44px; border: 1px solid #d4d5df; border-radius: 6px; background: #fff; padding: 8px 14px; color: #41434f; cursor: pointer; font-size: 13px; }
+.pagination button:disabled { cursor: not-allowed; opacity: .42; }
+.pagination span { min-width: 60px; color: #656776; font-size: 13px; text-align: center; }
+.statusBadge { display: inline-flex; min-height: 24px; align-items: center; border-radius: 4px; padding: 4px 7px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.neutral { background: #f0f0f3; color: #656776; }
+.info { background: #eeedf9; color: #5557a1; }
+.warning { background: #fff3d6; color: #805c16; }
+.success { background: #eaf3e8; color: #40673e; }
+.danger, .error { background: #fae9e5; color: #963e32; }
+.feedbackState { display: grid; min-height: 220px; place-items: center; align-content: center; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 28px; text-align: center; }
+.feedbackState h2 { margin: 14px 0 8px; color: #252631; font-size: 18px; }
+.feedbackState p { max-width: 420px; color: #77798d; font-size: 13px; line-height: 1.65; }
+.feedbackState button { margin-top: 20px; }
+.stateMark, .errorMark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 6px; background: #f0f0f5; color: #656776; font-size: 18px; font-weight: 700; }
+.errorMark { background: #fae9e5; color: #963e32; }
+.skeleton { display: grid; gap: 12px; padding: 2px; }
+.skeleton span { display: block; height: 60px; border-radius: 6px; background: #ececf2; animation: pulse 1.4s ease-in-out infinite alternate; }
+.toastRegion { position: fixed; z-index: 100; right: 20px; bottom: 20px; display: grid; width: min(360px, calc(100vw - 32px)); gap: 10px; }
+.toast { border: 1px solid #d4d5df; border-radius: 6px; background: #fff; padding: 14px 16px; color: #41434f; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.dialogLayer {
+  position: fixed;
+  z-index: 150;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: grid;
+  height: 100dvh;
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgb(20 21 30 / 40%);
+  padding: 20px;
+}
+.dialog {
+  display: flex;
+  width: min(100%, 460px);
+  min-width: 0;
+  max-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e3e4ed;
+  border-radius: 8px;
+  background: #fff;
+}
+.dialogBody {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+}
+.dialog h2 { margin: 0; color: #252631; font-size: 20px; line-height: 1.4; overflow-wrap: anywhere; outline: none; }
+.dialogDescription { margin: 10px 0 0; color: #656776; font-size: 13px; line-height: 1.65; }
+.dialogError { margin: 16px 0 0; border-left: 3px solid #b44236; padding-left: 10px; color: #963e32; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; outline: none; }
+.reasonField { display: grid; min-width: 0; gap: 8px; margin-top: 20px; }
+.reasonField span { color: #41434f; font-size: 13px; font-weight: 600; }
+.reasonField textarea { width: 100%; min-width: 0; min-height: 96px; resize: vertical; border: 1px solid #d4d5df; border-radius: 6px; padding: 8px 10px; color: #252631; font: inherit; font-size: 14px; line-height: 1.5; }
+.reasonField textarea:focus { outline: 2px solid #6262d9; outline-offset: 2px; }
+.reasonField textarea:disabled { background: #f6f6f9; opacity: .6; }
+.dialogActions { display: flex; flex-shrink: 0; justify-content: flex-end; gap: 8px; border-top: 1px solid #e3e4ed; background: #fff; padding: 16px 24px; }
+.dialogActions button { min-height: 44px; border: 1px solid #d4d5df; border-radius: 6px; background: #fff; padding: 8px 16px; color: #41434f; cursor: pointer; font-size: 13px; font-weight: 600; }
+.dialogActions button:disabled { cursor: not-allowed; opacity: .5; }
+.dialogActions .primaryButton { border-color: #5353bc; background: #5353bc; color: #fff; }
+.dialogActions .destructiveButton { border-color: #963e32; background: #963e32; color: #fff; }
+.dialogActions button:focus-visible, .pagination button:focus-visible, .feedbackState button:focus-visible { outline: 2px solid #6262d9; outline-offset: 3px; }
+
+@keyframes pulse { to { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .skeleton span { animation: none; } }
+@media (max-width: 1024px) {
+  .dialogLayer { padding: 16px; }
+  .dialogBody { padding: 20px; }
+  .dialogActions { padding: 14px 20px; }
+  .dialogActions button { flex: 1; min-height: 48px; }
+  .reasonField textarea { font-size: 16px; }
+}
+@media (max-width: 1024px) {
+  .toastRegion { right: 16px; bottom: calc(var(--admin-bottom-nav-height) + var(--admin-bottom-actions-height) + 16px); }
+}
+@media (max-width: 700px) {
+  .feedbackState { padding: 22px 16px; }
+}

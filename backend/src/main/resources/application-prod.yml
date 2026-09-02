@@ -1,0 +1,41 @@
+# 배포 환경 프로필.
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    show-sql: false
+
+  flyway:
+    baseline-on-migrate: false
+    out-of-order: false
+    validate-on-migrate: true
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+chalkak:
+  admin:
+    account:
+      username: ${ADMIN_USERNAME}
+      password-hash: ${ADMIN_PASSWORD_HASH}
+    cors:
+      allowed-origins:
+        - ${ADMIN_CORS_ALLOWED_ORIGIN}
+    notification:
+      delivery-enabled: ${ADMIN_NOTIFICATION_DELIVERY_ENABLED}
+      admin-web-base-url: ${ADMIN_WEB_BASE_URL}
+      slack:
+        webhook-url: ${ADMIN_SLACK_WEBHOOK_URL}
+  image:
+    environment: prod
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
