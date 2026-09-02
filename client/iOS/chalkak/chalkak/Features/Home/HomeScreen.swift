@@ -159,7 +159,9 @@ private struct HomeContent: View {
                     likeCount: photo.likeCount,
                     isLiked: state.likedPhotoIDs.contains(photo.id)
                 )
-            )
+            ),
+            // 홈은 실제 좋아요 값을 알고 있어 즉시 좋아요를 허용한다.
+            isLikeConfirmed: true
         )
     }
 

@@ -15,7 +15,11 @@ enum FeedPreviewData {
         )
     )
 
-    static let loadedState = FeedViewState(contentStatus: .loaded, content: content)
+    static let loadedState = FeedViewState(
+        contentStatus: .loaded,
+        content: content,
+        isLikeEnabled: true
+    )
 
     static let loadingState = FeedViewState(contentStatus: .loading, content: nil)
 

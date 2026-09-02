@@ -17,6 +17,7 @@ final class FeedViewModel {
     init(
         postID: String,
         seed: FeedContent? = nil,
+        isLikeConfirmed: Bool = false,
         initialState: FeedViewState? = nil,
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
@@ -25,7 +26,11 @@ final class FeedViewModel {
         if let initialState {
             self.viewState = initialState
         } else if let seed {
-            self.viewState = FeedViewState(contentStatus: .loaded, content: seed)
+            self.viewState = FeedViewState(
+                contentStatus: .loaded,
+                content: seed,
+                isLikeEnabled: isLikeConfirmed
+            )
         } else {
             self.viewState = FeedViewState(contentStatus: .loading, content: nil)
         }
@@ -37,6 +42,7 @@ final class FeedViewModel {
         self.init(
             postID: target.id,
             seed: target.seed,
+            isLikeConfirmed: target.isLikeConfirmed,
             detailHandler: { postID in
                 await feedResult { try await apiClient.fetchPostDetail(postID: postID) }
             },
@@ -62,6 +68,8 @@ final class FeedViewModel {
             }
             viewState.content = merged
             viewState.contentStatus = .loaded
+            // 상세 조회로 실제 좋아요 값이 확정되면 좋아요 동작을 허용한다.
+            viewState.isLikeEnabled = true
         case let .failure(error):
             // 이미 시드된 콘텐츠가 있으면 갱신 실패는 무시하고 그대로 보여준다.
             if viewState.content == nil {
@@ -75,7 +83,7 @@ final class FeedViewModel {
     }
 
     func toggleLike() async {
-        guard let current = viewState.content else { return }
+        guard viewState.isLikeEnabled, let current = viewState.content else { return }
 
         let liked = !current.post.isLiked
         var optimistic = current

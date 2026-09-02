@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedPhoto: View {
     let post: FeedPost
+    var isLikeEnabled: Bool = true
     let onLike: () -> Void
 
     var body: some View {
@@ -23,6 +24,7 @@ struct FeedPhoto: View {
             FeedLikeRow(
                 likeCount: post.likeCount,
                 isLiked: post.isLiked,
+                isEnabled: isLikeEnabled,
                 onLike: onLike
             )
         }
@@ -33,6 +35,7 @@ private struct FeedLikeRow: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
     let isLiked: Bool
+    let isEnabled: Bool
     let onLike: () -> Void
 
     var body: some View {
@@ -63,6 +66,7 @@ private struct FeedLikeRow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .accessibilityLabel("좋아요 \(likeCount)")
         .accessibilityValue(isLiked ? "선택됨" : "")
     }

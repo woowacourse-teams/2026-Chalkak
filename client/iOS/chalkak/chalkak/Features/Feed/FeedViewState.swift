@@ -47,6 +47,9 @@ struct FeedContent: Equatable, Sendable {
 struct FeedViewState: Equatable, Sendable {
     var contentStatus: FeedContentStatus = .loading
     var content: FeedContent?
+    // 시드 좋아요 값이 신뢰 가능한지. 전시에서 온 시드는 좋아요 여부를 몰라
+    // 상세 조회로 확정되기 전까지 좋아요 동작을 막는다.
+    var isLikeEnabled = false
 }
 
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.
@@ -55,10 +58,13 @@ struct FeedViewState: Equatable, Sendable {
 struct FeedTarget: Hashable, Identifiable, Sendable {
     let id: String
     let seed: FeedContent
+    // 시드의 좋아요 값이 실제 값인지(홈)·미상인지(전시) 구분.
+    let isLikeConfirmed: Bool
 
-    init(seed: FeedContent) {
+    init(seed: FeedContent, isLikeConfirmed: Bool) {
         self.id = seed.post.id
         self.seed = seed
+        self.isLikeConfirmed = isLikeConfirmed
     }
 
     static func == (lhs: FeedTarget, rhs: FeedTarget) -> Bool {

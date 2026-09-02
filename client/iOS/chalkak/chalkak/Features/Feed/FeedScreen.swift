@@ -60,6 +60,7 @@ struct FeedScreen: View {
 
                 FeedPhoto(
                     post: content.post,
+                    isLikeEnabled: viewModel.viewState.isLikeEnabled,
                     onLike: { Task { await viewModel.toggleLike() } }
                 )
 
