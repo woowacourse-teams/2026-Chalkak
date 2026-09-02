@@ -26,6 +26,9 @@ required_keys=(
   ADMIN_USERNAME
   ADMIN_PASSWORD_HASH
   ADMIN_CORS_ALLOWED_ORIGIN
+  ADMIN_NOTIFICATION_DELIVERY_ENABLED
+  ADMIN_SLACK_WEBHOOK_URL
+  ADMIN_WEB_BASE_URL
   DB_HOST
   DB_PORT
   DB_NAME
@@ -67,6 +70,9 @@ social_identity_hmac_secret="$(read_value SOCIAL_IDENTITY_HMAC_SECRET)"
 admin_username="$(read_value ADMIN_USERNAME)"
 admin_password_hash="$(read_value ADMIN_PASSWORD_HASH)"
 admin_cors_allowed_origin="$(read_value ADMIN_CORS_ALLOWED_ORIGIN)"
+admin_notification_delivery_enabled="$(read_value ADMIN_NOTIFICATION_DELIVERY_ENABLED)"
+admin_slack_webhook_url="$(read_value ADMIN_SLACK_WEBHOOK_URL)"
+admin_web_base_url="$(read_value ADMIN_WEB_BASE_URL)"
 
 if [[ "${server_port}" != 8080 ]]; then
   echo "SERVER_PORT must be 8080 for the configured health check." >&2
@@ -128,6 +134,29 @@ fi
 if [[ ! "${admin_cors_allowed_origin}" =~ ^https://[^,[:space:]*]+$ ]]; then
   echo "ADMIN_CORS_ALLOWED_ORIGIN must be one exact HTTPS origin without wildcards." >&2
   exit 1
+fi
+
+if [[ "${admin_notification_delivery_enabled}" != true
+      && "${admin_notification_delivery_enabled}" != false ]]; then
+  echo "ADMIN_NOTIFICATION_DELIVERY_ENABLED must be true or false." >&2
+  exit 1
+fi
+
+if [[ "${admin_notification_delivery_enabled}" == true ]]; then
+  if [[ ! "${admin_web_base_url}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]]; then
+    echo "ADMIN_WEB_BASE_URL must be one exact HTTPS origin without a path." >&2
+    exit 1
+  fi
+
+  if [[ "${admin_web_base_url}" != "${admin_cors_allowed_origin}" ]]; then
+    echo "ADMIN_WEB_BASE_URL must match ADMIN_CORS_ALLOWED_ORIGIN." >&2
+    exit 1
+  fi
+
+  if [[ ! "${admin_slack_webhook_url}" =~ ^https://hooks\.slack\.com/services/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$ ]]; then
+    echo "ADMIN_SLACK_WEBHOOK_URL must be a Slack Incoming Webhook HTTPS URL." >&2
+    exit 1
+  fi
 fi
 
 case "${profile}" in

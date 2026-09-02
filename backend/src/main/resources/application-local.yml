@@ -17,6 +17,11 @@ chalkak:
     account:
       username: ${ADMIN_USERNAME:}
       password-hash: ${ADMIN_PASSWORD_HASH:}
+    notification:
+      delivery-enabled: ${ADMIN_NOTIFICATION_DELIVERY_ENABLED:false}
+      admin-web-base-url: ${ADMIN_WEB_BASE_URL:http://localhost:3000}
+      slack:
+        webhook-url: ${ADMIN_SLACK_WEBHOOK_URL:https://REPLACE_WITH_SLACK_WEBHOOK_URL}
   image:
     environment: local
     bucket: ${S3_BUCKET:chalkak-local-images}
