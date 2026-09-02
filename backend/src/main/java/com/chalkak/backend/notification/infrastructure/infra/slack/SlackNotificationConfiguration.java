@@ -1,4 +1,4 @@
-package com.chalkak.backend.notification.infrastructure.infra;
+package com.chalkak.backend.notification.infrastructure.infra.slack;
 
 import com.chalkak.backend.notification.service.NotificationSender;
 import java.net.http.HttpClient;

@@ -1,4 +1,4 @@
-package com.chalkak.backend.notification.infrastructure.infra;
+package com.chalkak.backend.notification.infrastructure.infra.slack;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 

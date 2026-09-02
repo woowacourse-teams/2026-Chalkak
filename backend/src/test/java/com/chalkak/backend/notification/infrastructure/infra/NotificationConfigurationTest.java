@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.infrastructure.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.notification.infrastructure.infra.slack.SlackNotificationProperties;
 import com.chalkak.backend.notification.service.NotificationMessageFactory;
 import com.chalkak.backend.notification.service.NotificationSender;
 import com.chalkak.backend.notification.service.PostModerationPendingNotificationListener;

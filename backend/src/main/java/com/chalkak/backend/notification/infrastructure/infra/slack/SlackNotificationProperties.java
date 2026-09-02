@@ -1,4 +1,4 @@
-package com.chalkak.backend.notification.infrastructure.infra;
+package com.chalkak.backend.notification.infrastructure.infra.slack;
 
 import java.net.URI;
 import java.time.Duration;
