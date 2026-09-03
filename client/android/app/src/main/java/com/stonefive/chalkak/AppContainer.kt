@@ -5,6 +5,7 @@ import androidx.credentials.CredentialManager
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.analytics.FirebaseAnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
+import com.stonefive.chalkak.core.appupdate.DisabledAppUpdateGateway
 import com.stonefive.chalkak.core.appupdate.PlayAppUpdateGateway
 import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
@@ -39,7 +40,11 @@ class AppContainer(context: Context) {
     }
 
     val appUpdateGateway: AppUpdateGateway by lazy {
-        PlayAppUpdateGateway(context)
+        if (BuildConfig.DEBUG) {
+            DisabledAppUpdateGateway()
+        } else {
+            PlayAppUpdateGateway(context)
+        }
     }
 
     val connectivityObserver: ConnectivityObserver by lazy {
