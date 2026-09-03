@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 월 단위 사진 달력 그리드.
 /// Android `RecordCalendarGrid`와 레이아웃을 맞춘다.
@@ -11,6 +12,19 @@ struct RecordCalendarGrid: View {
     let month: RecordMonth
     let posts: [RecordPost]
     let onDateClick: (Date) -> Void
+    let thumbnailImages: [RecordPost.ID: UIImage]?
+
+    init(
+        month: RecordMonth,
+        posts: [RecordPost],
+        onDateClick: @escaping (Date) -> Void,
+        thumbnailImages: [RecordPost.ID: UIImage]? = nil
+    ) {
+        self.month = month
+        self.posts = posts
+        self.onDateClick = onDateClick
+        self.thumbnailImages = thumbnailImages
+    }
 
     private var postsByDate: [Date: RecordPost] {
         Dictionary(posts.map { ($0.topicDate, $0) }, uniquingKeysWith: { first, _ in first })
@@ -68,11 +82,7 @@ struct RecordCalendarGrid: View {
     }
 
     private func photoCell(_ post: RecordPost) -> some View {
-        return ChalkakImage(
-            source: post.thumbnailImageSource,
-            contentDescription: nil,
-            contentMode: .fill
-        )
+        photoImage(for: post)
         // Android ContentScale.Crop — 정사각 셀을 채우고 넘치는 부분은 잘라낸다.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.calendarCell)
@@ -80,6 +90,29 @@ struct RecordCalendarGrid: View {
         .accessibilityElement()
         .accessibilityLabel("\(Self.dateFormatter.string(from: post.topicDate)) 사진")
         .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func photoImage(for post: RecordPost) -> some View {
+        if let image = thumbnailImages?[post.id] {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else if thumbnailImages != nil, case .remote = post.thumbnailImageSource {
+            // 스냅샷은 원격 이미지 로드가 끝난 뒤 동기적으로 렌더링한다.
+            // 실패한 원격 이미지는 AsyncImage 대신 고정 플레이스홀더를 사용한다.
+            ChalkakImage(
+                source: .system("photo"),
+                contentDescription: nil,
+                contentMode: .fit
+            )
+        } else {
+            ChalkakImage(
+                source: post.thumbnailImageSource,
+                contentDescription: nil,
+                contentMode: .fill
+            )
+        }
     }
 
     private static let dateFormatter: DateFormatter = {

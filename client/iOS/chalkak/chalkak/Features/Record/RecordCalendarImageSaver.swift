@@ -1,5 +1,6 @@
 import Photos
 import SwiftUI
+import UIKit
 
 /// "이미지로 저장"에서 사진 앱에 저장하는 대상 스냅샷.
 /// Android가 캡처하는 영역(상단바 + 요일 헤더 + 그리드)과 구성을 맞춘다.
@@ -11,6 +12,23 @@ struct RecordCalendarSnapshot: View {
     let canGoPrevious: Bool
     let canGoNext: Bool
     let width: CGFloat
+    let thumbnailImages: [RecordPost.ID: UIImage]?
+
+    init(
+        month: RecordMonth,
+        posts: [RecordPost],
+        canGoPrevious: Bool,
+        canGoNext: Bool,
+        width: CGFloat,
+        thumbnailImages: [RecordPost.ID: UIImage]? = nil
+    ) {
+        self.month = month
+        self.posts = posts
+        self.canGoPrevious = canGoPrevious
+        self.canGoNext = canGoNext
+        self.width = width
+        self.thumbnailImages = thumbnailImages
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +47,12 @@ struct RecordCalendarSnapshot: View {
 
             Spacer().frame(height: Metrics.weekdayToGrid)
 
-            RecordCalendarGrid(month: month, posts: posts, onDateClick: { _ in })
+            RecordCalendarGrid(
+                month: month,
+                posts: posts,
+                onDateClick: { _ in },
+                thumbnailImages: thumbnailImages
+            )
                 .padding(.horizontal, Metrics.horizontalPadding)
 
             Spacer().frame(height: Metrics.bottomPadding)

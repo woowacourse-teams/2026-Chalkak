@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct RecordScreen: View {
     @Environment(\.chalkakTheme) private var theme
@@ -179,23 +180,27 @@ struct RecordScreen: View {
     private func saveCalendarImage() {
         let width = calendarWidth > 0 ? calendarWidth : UIScreen.main.bounds.width
         let state = viewModel.viewState
-        let snapshot = RecordCalendarSnapshot(
-            month: state.month,
-            posts: state.posts,
-            canGoPrevious: state.canGoPrevious,
-            canGoNext: state.canGoNext,
-            width: width
-        )
-        .chalkakTheme(theme)
 
-        let renderer = ImageRenderer(content: snapshot)
-        renderer.scale = displayScale
-        guard let image = renderer.uiImage else {
-            viewModel.onCalendarImageSaved(false)
-            return
-        }
+        Task { @MainActor in
+            let thumbnailData = await RecordCalendarThumbnailLoader.loadData(for: state.posts)
+            let thumbnailImages = thumbnailData.compactMapValues(UIImage.init(data:))
+            let snapshot = RecordCalendarSnapshot(
+                month: state.month,
+                posts: state.posts,
+                canGoPrevious: state.canGoPrevious,
+                canGoNext: state.canGoNext,
+                width: width,
+                thumbnailImages: thumbnailImages
+            )
+            .chalkakTheme(theme)
 
-        Task {
+            let renderer = ImageRenderer(content: snapshot)
+            renderer.scale = displayScale
+            guard let image = renderer.uiImage else {
+                viewModel.onCalendarImageSaved(false)
+                return
+            }
+
             let result = await RecordCalendarImageSaver.save(image)
             switch result {
             case .saved:
