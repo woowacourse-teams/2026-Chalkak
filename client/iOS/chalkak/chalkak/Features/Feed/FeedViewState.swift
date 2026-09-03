@@ -57,7 +57,8 @@ struct FeedViewState: Equatable, Sendable {
 /// 동일성/해시는 게시물 id만으로 판단해 시드에 이미지 소스가 있어도 Hashable을 만족한다.
 struct FeedTarget: Hashable, Identifiable, Sendable {
     let id: String
-    let seed: FeedContent
+    // 시드가 없으면(기록에서 진입) Feed가 상세 조회로 콘텐츠를 채운다.
+    let seed: FeedContent?
     // 시드의 좋아요 값이 실제 값인지(홈)·미상인지(전시) 구분.
     let isLikeConfirmed: Bool
 
@@ -65,6 +66,13 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
         self.id = seed.post.id
         self.seed = seed
         self.isLikeConfirmed = isLikeConfirmed
+    }
+
+    /// 게시물 id만으로 진입한다(기록 화면). 시드가 없어 Feed가 상세를 로드한다.
+    init(postID: String) {
+        self.id = postID
+        self.seed = nil
+        self.isLikeConfirmed = false
     }
 
     static func == (lhs: FeedTarget, rhs: FeedTarget) -> Bool {

@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
+    @State private var recordViewModel = Self.makeRecordViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -97,6 +98,15 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select
             )
+        case .record:
+            RecordScreen(
+                viewModel: recordViewModel,
+                onOpenPhotoUpload: { openPhotoUpload(from: .record) },
+                onSelectBottomBarItem: select,
+                onOpenDisplay: openDisplay,
+                onOpenFeed: { selectedFeed = FeedTarget(postID: $0) },
+                onNavigateToLogin: showLogin
+            )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
@@ -121,8 +131,13 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display || item == .settings else { return }
+        guard item == .today || item == .display || item == .record || item == .settings else { return }
         selectedTab = item
+    }
+
+    private func openDisplay(at date: Date) {
+        displayViewModel = Self.makeDisplayViewModel(initialDate: date)
+        selectedTab = .display
     }
 
     private func showHome() {
@@ -179,6 +194,7 @@ struct ContentView: View {
         selectedFeed = nil
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
+        recordViewModel = Self.makeRecordViewModel()
         settingsViewModel = Self.makeSettingsViewModel()
     }
 
@@ -207,8 +223,16 @@ struct ContentView: View {
         )
     }
 
-    private static func makeDisplayViewModel() -> DisplayViewModel {
-        DisplayViewModel(apiClient: DisplayAPIClient())
+    private static func makeDisplayViewModel(initialDate: Date? = nil) -> DisplayViewModel {
+        DisplayViewModel(initialDate: initialDate, apiClient: DisplayAPIClient())
+    }
+
+    private static func makeRecordViewModel() -> RecordViewModel {
+        RecordViewModel(
+            apiClient: RecordAPIClient(
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
     }
 
     private static func makeSettingsViewModel() -> SettingsViewModel {
