@@ -92,6 +92,7 @@ class AppleHttpTokenClientTest {
         // Then
         assertThat(result.idToken()).isEqualTo("apple-id-token");
         assertThat(result.refreshToken()).isEqualTo("apple-refresh-token");
+        assertThat(result.clientId()).isEqualTo("com.chalkak.ios");
     }
 
     @ParameterizedTest

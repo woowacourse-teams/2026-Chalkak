@@ -122,7 +122,8 @@ public class AppleHttpTokenClient implements AppleTokenClient {
         }
         return new AppleTokenExchangeResult(
                 response.idToken(),
-                response.refreshToken());
+                response.refreshToken(),
+                clientId);
     }
 
     private RuntimeException mapBadRequest(HttpClientErrorException.BadRequest exception) {
