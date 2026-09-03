@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
+    @State private var settingsViewModel = Self.makeSettingsViewModel()
+    @State private var selectedLegalDocument: LegalDocument?
 
     var body: some View {
         Group {
@@ -26,6 +28,11 @@ struct ContentView: View {
             }
         }
         .animation(.default, value: route)
+        .sheet(item: $selectedLegalDocument) { document in
+            LegalDocumentSheet(document: document)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
     }
 
     @ViewBuilder
@@ -35,6 +42,15 @@ struct ContentView: View {
             DisplayScreen(
                 viewModel: displayViewModel,
                 onSelectBottomBarItem: select
+            )
+        case .settings:
+            SettingsScreen(
+                viewModel: settingsViewModel,
+                onLogin: showLogin,
+                onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
+                onTerms: { selectedLegalDocument = .termsOfService },
+                onSignedOut: showLogin,
+                onNavigateToBottomBar: select
             )
         default:
             HomeScreen(
@@ -49,12 +65,26 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display else { return }
+        guard item == .today || item == .display || item == .settings else { return }
         selectedTab = item
     }
 
     private func showHome() {
+        resetMainState()
         route = .home
+    }
+
+    private func showLogin() {
+        selectedLegalDocument = nil
+        resetMainState()
+        route = .login
+    }
+
+    private func resetMainState() {
+        selectedTab = .today
+        homeViewModel = Self.makeHomeViewModel()
+        displayViewModel = Self.makeDisplayViewModel()
+        settingsViewModel = Self.makeSettingsViewModel()
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -84,6 +114,24 @@ struct ContentView: View {
 
     private static func makeDisplayViewModel() -> DisplayViewModel {
         DisplayViewModel(apiClient: DisplayAPIClient())
+    }
+
+    private static func makeSettingsViewModel() -> SettingsViewModel {
+        let apiClient = SettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return SettingsViewModel(
+            initialState: SettingsViewState(version: SettingsScreen.appVersion),
+            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
+            loadSignature: { try await apiClient.fetchSignature() },
+            updateSignature: { try await apiClient.updateSignature(pngData: $0) },
+            logout: { KeychainSessionStore.delete() },
+            withdraw: {
+                try await apiClient.withdraw()
+                KeychainSessionStore.delete()
+            }
+        )
     }
 }
 
