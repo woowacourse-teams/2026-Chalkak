@@ -74,9 +74,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpClientErrorException.BadRequest exception) {
-            throw new IllegalStateException(
-                    "Apple 토큰 폐기 요청이 올바르지 않습니다.",
-                    exception);
+            validateAlreadyInvalidatedToken(exception);
         } catch (RestClientException exception) {
             throw new IllegalStateException(
                     "Apple 토큰 서버와 통신할 수 없습니다.",
@@ -124,6 +122,23 @@ public class AppleHttpTokenClient implements AppleTokenClient {
                 response.idToken(),
                 response.refreshToken(),
                 clientId);
+    }
+
+    /**
+     * 이미 무효한 RT는 폐기하려던 상태에 이미 도달한 것이므로 정상 종료한다. 이를 실패로 다루면
+     * 사용자가 그 토큰 때문에 영영 탈퇴하지 못한다. 반면 {@code invalid_client}는 우리 설정이
+     * 틀려 요청이 받아들여지지 않은 것이라 토큰이 그대로 살아 있으므로 그대로 던진다.
+     */
+    private void validateAlreadyInvalidatedToken(
+            HttpClientErrorException.BadRequest exception
+    ) {
+        AppleErrorResponse response = getErrorResponse(exception);
+        if (response != null && INVALID_GRANT.equals(response.error())) {
+            return;
+        }
+        throw new IllegalStateException(
+                "Apple 토큰 폐기 요청이 올바르지 않습니다.",
+                exception);
     }
 
     private RuntimeException mapBadRequest(HttpClientErrorException.BadRequest exception) {

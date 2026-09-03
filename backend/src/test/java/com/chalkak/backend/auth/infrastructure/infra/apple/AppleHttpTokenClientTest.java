@@ -209,6 +209,32 @@ class AppleHttpTokenClientTest {
     }
 
     @Test
+    @DisplayName("이미 무효한 Refresh Token의 폐기 요청은 성공으로 처리한다")
+    void revokeRefreshToken_alreadyInvalidatedRefreshToken_completesRevocation() {
+        // Given
+        server.expect(requestTo(REVOKE_URI))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(APPLICATION_JSON)
+                        .body("{\"error\":\"invalid_grant\"}"));
+
+        // When & Then
+        tokenClient.revokeRefreshToken("apple-refresh-token");
+    }
+
+    @Test
+    @DisplayName("본문을 읽을 수 없는 Apple 토큰 폐기 실패는 서버 설정 오류로 처리한다")
+    void revokeRefreshToken_unreadableBadRequestBody_throwsIllegalStateException() {
+        // Given
+        server.expect(requestTo(REVOKE_URI))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Apple 토큰 폐기 요청이 올바르지 않습니다.");
+    }
+
+    @Test
     @DisplayName("잘못된 Apple 토큰 폐기 요청은 서버 설정 오류로 처리한다")
     void revokeRefreshToken_badRequest_throwsIllegalStateException() {
         // Given
