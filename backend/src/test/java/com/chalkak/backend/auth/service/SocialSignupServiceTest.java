@@ -8,12 +8,15 @@ import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -65,6 +68,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private AppleAuthorizationRepository appleAuthorizationRepository;
 
     @Autowired
     private UserService userService;
@@ -130,6 +136,48 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 userId);
         assertThat(storedHashes).hasSize(1);
         assertThat(storedHashes.getFirst()).matches("^[0-9a-f]{64}$");
+    }
+
+    @Test
+    @DisplayName("Apple 회원가입을 완료하면 암호화된 RT를 정식 인증 정보로 저장한다")
+    void signup_appleSignupToken_savesAppleAuthorization() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(new VerifiedSocialSignupToken(
+                        SocialProvider.APPLE,
+                        "apple-subject",
+                        uploadId,
+                        "user@privaterelay.appleid.com",
+                        new AppleSignupAuthorization(
+                                "com.chalkak.ios",
+                                "encrypted-apple-refresh-token")));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+
+        // When
+        socialSignupService.signup(SIGNUP_TOKEN);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        String appleSubjectHmac = fingerprintEncoder.encode(
+                SocialProvider.APPLE,
+                "apple-subject");
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(
+                        SocialProvider.APPLE,
+                        appleSubjectHmac)
+                .orElseThrow();
+        AppleAuthorization authorization = appleAuthorizationRepository
+                .findAllBySocialAccountId(socialAccount.getId())
+                .getFirst();
+        assertThat(authorization.getClientId()).isEqualTo("com.chalkak.ios");
+        assertThat(authorization.getEncryptedRefreshToken())
+                .isEqualTo("encrypted-apple-refresh-token");
     }
 
     @Test

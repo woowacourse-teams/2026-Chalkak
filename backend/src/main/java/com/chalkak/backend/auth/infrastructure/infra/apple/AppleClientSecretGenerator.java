@@ -18,9 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
-import org.springframework.stereotype.Component;
 
-@Component
 public class AppleClientSecretGenerator {
 
     private static final String APPLE_AUDIENCE = "https://appleid.apple.com";
@@ -35,13 +33,6 @@ public class AppleClientSecretGenerator {
     private volatile ECPrivateKey privateKey;
 
     public AppleClientSecretGenerator(
-            AppleTokenProperties tokenProperties,
-            AppleOidcProperties oidcProperties
-    ) {
-        this(tokenProperties, oidcProperties, Clock.systemUTC());
-    }
-
-    AppleClientSecretGenerator(
             AppleTokenProperties tokenProperties,
             AppleOidcProperties oidcProperties,
             Clock clock

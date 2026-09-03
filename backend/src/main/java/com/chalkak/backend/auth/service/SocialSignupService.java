@@ -1,10 +1,13 @@
 package com.chalkak.backend.auth.service;
 
+import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -31,6 +34,7 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
+    private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -95,10 +99,11 @@ public class SocialSignupService {
         User user = userRepository.save(User.create(
                 verifiedToken.email(),
                 storageKeys));
-        socialAccountRepository.save(SocialAccount.create(
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 verifiedToken.provider(),
                 subjectHmac));
+        saveAppleAuthorization(verifiedToken, socialAccount);
 
         return toSignupResult(user);
     }
@@ -112,6 +117,26 @@ public class SocialSignupService {
                 user.getId(),
                 accessTokenIssuer.issue(user.getId()),
                 userRefreshTokenService.issue(user));
+    }
+
+    private void saveAppleAuthorization(
+            VerifiedSocialSignupToken verifiedToken,
+            SocialAccount socialAccount
+    ) {
+        if (verifiedToken.provider() != SocialProvider.APPLE) {
+            return;
+        }
+        AppleSignupAuthorization signupAuthorization =
+                verifiedToken.appleAuthorization();
+        if (signupAuthorization == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "Apple 회원가입 인증 정보가 없습니다.");
+        }
+        appleAuthorizationRepository.save(AppleAuthorization.create(
+                socialAccount,
+                signupAuthorization.clientId(),
+                signupAuthorization.encryptedRefreshToken()));
     }
 
     private User getExistingUser(SocialAccount socialAccount) {

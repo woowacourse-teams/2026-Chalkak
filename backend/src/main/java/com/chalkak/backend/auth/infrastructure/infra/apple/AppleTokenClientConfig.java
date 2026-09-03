@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.infra.apple;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
 import com.chalkak.backend.auth.service.AppleTokenClient;
 import java.net.http.HttpClient;
+import java.time.Clock;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -34,6 +35,17 @@ public class AppleTokenClientConfig {
         return RestClient.builder()
                 .requestFactory(requestFactory)
                 .build();
+    }
+
+    @Bean
+    public AppleClientSecretGenerator appleClientSecretGenerator(
+            AppleTokenProperties tokenProperties,
+            AppleOidcProperties oidcProperties
+    ) {
+        return new AppleClientSecretGenerator(
+                tokenProperties,
+                oidcProperties,
+                Clock.systemUTC());
     }
 
     @Bean
