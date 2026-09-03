@@ -34,17 +34,19 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `topicId` | UUID | 예 | 게시물을 등록할 주제 ID |
 | `photoUploadId` | UUID | 예 | staging에 업로드한 포스트 이미지 ID |
-| `title` | String | 아니요 | 최대 10자. 생략, `null`, 빈 문자열, 공백 문자열은 제목 없음으로 처리 |
+| `title` | String | 아니요 | 앞뒤 공백을 제거한 뒤 최대 10자. 생략, `null`, 빈 문자열, 공백 문자열은 제목 없음으로 처리 |
 
 작성자 ID, bucket, prefix, staging key, final key는 본문으로 받지 않는다.
 `title`은 API 계층에서 최대 길이를 검증하고 도메인에서도 같은 불변식을
-방어한다. 빈 문자열과 공백 문자열은 `null`로 정규화하여 저장한다.
+방어한다. 앞뒤 공백은 제거하고 가운데 공백은 유지하며, 제거 후 빈 문자열이
+되면 `null`로 정규화하여 저장한다. 생성과 수정이 같은 규칙을 쓴다.
 
 길이는 UTF-16 code unit이 아니라 **code point로 센다.** 이모지 한 글자는
 code unit 두 칸을 쓰므로 `String.length()`로 재면 사용자가 입력한 글자 수보다
 길게 계산된다. `posts.title`도 문자 수를 세는 `VARCHAR(10)`이므로 이 기준이
 DB 컬럼과 일치한다. 따라서 `📸` 10개짜리 제목은 허용한다. 두 계층이 어긋나지
-않도록 `Post.MAX_TITLE_LENGTH` 상수를 공유한다.
+않도록 정규화·길이 규칙을 `PostTitle` 값 객체 한곳에 정의하고, 요청 DTO와
+도메인이 각각 여기에 위임한다.
 
 ### 2.2 성공 응답
 
