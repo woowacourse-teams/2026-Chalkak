@@ -37,6 +37,8 @@
 </array>
 <key>API_BASE_URL</key>
 <string>https://chalkak-dev.pysun.kr/api/v1/</string>
+	<key>NSCameraUsageDescription</key>
+	<string>사진을 촬영해 전시하려면 카메라 접근이 필요해요.</string>
 	<key>GOOGLE_IOS_CLIENT_ID</key>
 	<string>494523834439-9v8c1nbhdhvujrnfh95b61vc7hsjamad.apps.googleusercontent.com</string>
 	<key>GOOGLE_SERVER_CLIENT_ID</key>

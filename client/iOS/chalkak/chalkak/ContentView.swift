@@ -16,6 +16,9 @@ struct ContentView: View {
         baseURL: AppConfiguration().apiBaseURL
     )
     @State private var selectedLegalDocument: LegalDocument?
+    @State private var photoUploadViewModel: PhotoUploadViewModel?
+    @State private var successSubmission: PhotoUploadSubmission?
+    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
 
     var body: some View {
         Group {
@@ -37,6 +40,27 @@ struct ContentView: View {
                 )
             case .home:
                 mainTab
+            case .photoUpload:
+                if let photoUploadViewModel {
+                    PhotoUploadRoute(
+                        viewModel: photoUploadViewModel,
+                        onBack: showPhotoUploadOrigin,
+                        onSubmitted: showPhotoUploadSuccess,
+                        onReauthenticationRequired: showLogin
+                    )
+                } else {
+                    Color.clear
+                        .task { showHome() }
+                }
+            case .photoUploadSuccess:
+                if let successSubmission {
+                    PhotoUploadSuccessScreen(
+                        submission: successSubmission,
+                        onConfirmClick: closePhotoUploadSuccess
+                    )
+                } else {
+                    mainTab
+                }
             }
         }
         .animation(.default, value: route)
@@ -53,11 +77,13 @@ struct ContentView: View {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
+                onOpenPhotoUpload: { openPhotoUpload(from: .display) },
                 onSelectBottomBarItem: select
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
+                onOpenPhotoUpload: { openPhotoUpload(from: .today) },
                 onNavigateToBottomBar: select
             )
             .task {
@@ -80,7 +106,33 @@ struct ContentView: View {
         route = .onboarding
     }
 
+    private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
+        photoUploadReturnTab = tab
+        photoUploadViewModel = Self.makePhotoUploadViewModel(
+            topicDate: PhotoUploadDate.today()
+        )
+        route = .photoUpload
+    }
+
+    private func showPhotoUploadSuccess(_ submission: PhotoUploadSubmission) {
+        successSubmission = submission
+        route = .photoUploadSuccess
+    }
+
+    private func closePhotoUploadSuccess() {
+        successSubmission = nil
+        photoUploadViewModel = nil
+        showPhotoUploadOrigin()
+    }
+
+    private func showPhotoUploadOrigin() {
+        route = .home
+        selectedTab = photoUploadReturnTab
+    }
+
     private func showLogin() {
+        photoUploadViewModel = nil
+        selectedTab = .today
         route = .login
     }
 
@@ -121,6 +173,21 @@ struct ContentView: View {
         DisplayViewModel(apiClient: DisplayAPIClient())
     }
 
+    private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+        let appConfiguration = AppConfiguration()
+        let apiClient = PhotoUploadAPIClient(
+            configuration: PhotoUploadAPIConfiguration(
+                baseURL: appConfiguration.apiBaseURL
+                    ?? PhotoUploadAPIConfiguration.development.baseURL
+            ),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return PhotoUploadViewModel(
+            topicDate: topicDate,
+            repository: .api(client: apiClient)
+        )
+    }
+
     private static var initialRoute: AppRoute {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
@@ -135,6 +202,8 @@ private enum AppRoute: Equatable {
     case login
     case onboarding
     case home
+    case photoUpload
+    case photoUploadSuccess
 }
 
 #Preview {
