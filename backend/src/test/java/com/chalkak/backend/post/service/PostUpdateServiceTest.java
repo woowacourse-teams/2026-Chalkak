@@ -14,6 +14,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,6 +112,27 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.title()).isEqualTo("기존 제목");
         assertThat(findUpdatedAt()).isEqualTo(updatedAt);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    @DisplayName("null, 빈 문자열, 공백 제목으로 수정하면 DB에 NULL로 저장한다")
+    void updatePost_emptyTitle_storesNullTitle(String title) {
+        // When
+        var result = postCommandService.updatePost(AUTHOR_ID, POST_ID, title);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.title()).isNull();
+
+        Map<String, Object> updated = jdbcTemplate.queryForMap("""
+                SELECT title
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
+        assertThat(updated.get("title")).isNull();
     }
 
     @Test
