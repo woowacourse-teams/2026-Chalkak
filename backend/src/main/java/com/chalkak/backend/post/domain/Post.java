@@ -148,7 +148,7 @@ public class Post {
         validateAuthor(authorId);
         validateTitleUpdateStatus();
         validateTitleUpdatePeriod(now);
-        this.title = normalizeUpdatedTitle(title);
+        this.title = normalizeTitle(title);
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
@@ -277,23 +277,13 @@ public class Post {
     }
 
     /**
-     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자 수보다 길게
+     * 생성과 수정이 {@code posts.title}에 같은 규칙을 적용하도록 정규화를 한곳에서 처리한다. 앞뒤 공백은 제거하고
+     * 가운데 공백은 유지하며, 제거 후 빈 문자열이면 제목 없음으로 본다.
+     *
+     * <p>이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자 수보다 길게
      * 계산된다. {@code posts.title}이 code point를 세는 {@code VARCHAR(10)}이므로 길이도 code point로 판정한다.
      */
     private static String normalizeTitle(String title) {
-        if (title == null || title.isBlank()) {
-            return null;
-        }
-        if (title.codePointCount(0, title.length()) > MAX_TITLE_LENGTH) {
-            throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "제목은 10자 이하여야 합니다."
-            );
-        }
-        return title;
-    }
-
-    private static String normalizeUpdatedTitle(String title) {
         if (title == null) {
             return null;
         }
@@ -303,8 +293,8 @@ public class Post {
         }
         if (normalizedTitle.codePointCount(0, normalizedTitle.length()) > MAX_TITLE_LENGTH) {
             throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "제목은 10자 이하여야 합니다."
+                ErrorCode.BUSINESS_ERROR,
+                "제목은 10자 이하여야 합니다."
             );
         }
         return normalizedTitle;
