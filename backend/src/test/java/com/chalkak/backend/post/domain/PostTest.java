@@ -213,7 +213,7 @@ class PostTest {
         assertThatThrownBy(() -> post.updateTitle(OTHER_USER_ID, "수정 제목", UPDATED_AT))
                 .isInstanceOfSatisfying(ForbiddenException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
-                .hasMessage("본인의 게시물만 수정할 수 있습니다.");
+                .hasMessage("본인의 게시물만 접근할 수 있습니다.");
         assertThat(post.getTitle()).isEqualTo("기존 제목");
     }
 
@@ -467,7 +467,7 @@ class PostTest {
         assertThatThrownBy(() -> post.deleteByAuthor(OTHER_USER_ID, DELETED_AT))
                 .isInstanceOfSatisfying(ForbiddenException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
-                .hasMessage("본인의 게시물만 삭제할 수 있습니다.");
+                .hasMessage("본인의 게시물만 접근할 수 있습니다.");
         assertThat(post.getDeletedAt()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }
