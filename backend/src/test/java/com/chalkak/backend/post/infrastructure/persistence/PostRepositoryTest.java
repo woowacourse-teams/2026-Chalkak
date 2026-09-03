@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostTitle;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
@@ -430,6 +431,36 @@ class PostRepositoryTest {
 
         // Then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("제목이 있는 게시물은 PostTitle로 복원한다")
+    void findVisibleById_postWithTitle_mapsTitleToPostTitle() {
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo(new PostTitle("오늘의 순간"));
+        assertThat(post.titleValue()).isEqualTo("오늘의 순간");
+    }
+
+    /**
+     * {@code posts.title}이 NULL이면 Hibernate가 임베디드 필드 자체를 null로 복원한다. 값이 null인
+     * {@link PostTitle}이 만들어지지 않아야 저장 직후 객체와 조회한 객체의 모양이 같아진다.
+     */
+    @Test
+    @DisplayName("제목이 없는 게시물은 PostTitle 자체가 null로 복원된다")
+    void findVisibleById_postWithoutTitle_mapsTitleToNull() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET title = NULL WHERE id = ?", POST_ID);
+        entityManager.clear();
+
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getTitle()).isNull();
+        assertThat(post.titleValue()).isNull();
     }
 
     @Test

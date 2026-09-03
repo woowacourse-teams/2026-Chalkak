@@ -136,7 +136,7 @@ public class PostCommandService {
         post.updateTitle(authorId, title, Instant.now());
         return new PostUpdateResult(
                 post.getId(),
-                post.getTitle()
+                post.titleValue()
         );
     }
 

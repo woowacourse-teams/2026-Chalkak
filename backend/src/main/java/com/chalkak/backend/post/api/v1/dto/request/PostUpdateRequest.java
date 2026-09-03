@@ -1,6 +1,6 @@
 package com.chalkak.backend.post.api.v1.dto.request;
 
-import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostTitle;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -22,11 +22,6 @@ public record PostUpdateRequest(
     @Schema(hidden = true)
     @AssertTrue(message = "제목은 10자 이하여야 합니다.")
     public boolean isTitleLengthValid() {
-        if (title == null) {
-            return true;
-        }
-        String normalizedTitle = title.strip();
-        return normalizedTitle.codePointCount(0, normalizedTitle.length())
-                <= Post.MAX_TITLE_LENGTH;
+        return PostTitle.isValid(title);
     }
 }

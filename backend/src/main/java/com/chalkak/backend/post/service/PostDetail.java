@@ -29,7 +29,7 @@ public record PostDetail(
                 imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                 imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                 imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
-                post.getTitle(),
+                post.titleValue(),
                 likeCount,
                 isLiked
         );

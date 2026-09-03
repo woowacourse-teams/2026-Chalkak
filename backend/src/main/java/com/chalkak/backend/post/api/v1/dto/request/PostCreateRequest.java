@@ -1,6 +1,6 @@
 package com.chalkak.backend.post.api.v1.dto.request;
 
-import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostTitle;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
@@ -31,20 +31,12 @@ public record PostCreateRequest(
 ) {
 
     /**
-     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 code point로 세어야 사용자가 입력한 글자 수와 같아진다.
-     * {@link Post#MAX_TITLE_LENGTH}를 공유해 도메인 불변식과 판정 기준을 일치시킨다.
-     *
-     * <p>도메인이 앞뒤 공백을 제거한 뒤 길이를 판정하므로 여기서도 제거 후 기준으로 센다. 공백만 있는 제목은 도메인이
-     * 제목 없음으로 정규화하므로 길이를 재지 않는다.
+     * 필드 단위 400 응답을 위한 빠른 실패. 판정 기준은 {@link PostTitle}에 위임해 도메인 불변식과 어긋나지 않게 한다.
      */
     @JsonIgnore
     @Schema(hidden = true)
     @AssertTrue(message = "제목은 10자 이하여야 합니다.")
     public boolean isTitleLengthValid() {
-        if (title == null) {
-            return true;
-        }
-        String normalizedTitle = title.strip();
-        return normalizedTitle.codePointCount(0, normalizedTitle.length()) <= Post.MAX_TITLE_LENGTH;
+        return PostTitle.isValid(title);
     }
 }
