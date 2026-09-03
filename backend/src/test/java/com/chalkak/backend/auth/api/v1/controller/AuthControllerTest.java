@@ -75,7 +75,7 @@ class AuthControllerTest {
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
 
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/login")
+        mockMvc.perform(post("/api/v1/auth/apple/social-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -104,7 +104,7 @@ class AuthControllerTest {
                         new IssuedSocialSignupToken("apple-signup-token")));
 
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/login")
+        mockMvc.perform(post("/api/v1/auth/apple/social-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -126,7 +126,7 @@ class AuthControllerTest {
     @DisplayName("Apple 로그인 필수 값이 비어 있으면 400을 반환한다")
     void appleLogin_blankRequiredValues_returnsBadRequest() throws Exception {
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/login")
+        mockMvc.perform(post("/api/v1/auth/apple/social-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -157,7 +157,7 @@ class AuthControllerTest {
                         new IssuedSocialSignupToken("apple-signup-token")));
 
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/signup/signature/uploads")
+        mockMvc.perform(post("/api/v1/auth/apple/social-signup/signature/uploads")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -178,7 +178,7 @@ class AuthControllerTest {
     void createAppleSignupSignatureUpload_missingToken_returnsBadRequest()
             throws Exception {
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/signup/signature/uploads")
+        mockMvc.perform(post("/api/v1/auth/apple/social-signup/signature/uploads")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())

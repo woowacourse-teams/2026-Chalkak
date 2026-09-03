@@ -51,7 +51,7 @@ public class AuthController implements AuthApiDocs {
     }
 
     @Override
-    @PostMapping("/apple/login")
+    @PostMapping("/apple/social-login")
     public ResponseEntity<AppleLoginResponse> appleLogin(
             @Valid @RequestBody AppleLoginRequest request
     ) {
@@ -64,7 +64,7 @@ public class AuthController implements AuthApiDocs {
     }
 
     @Override
-    @PostMapping("/apple/signup/signature/uploads")
+    @PostMapping("/apple/social-signup/signature/uploads")
     public ResponseEntity<SocialSignupSignatureUploadResponse>
             createAppleSignupSignatureUpload(
                     @Valid @RequestBody AppleSignupSignatureUploadRequest request
