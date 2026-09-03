@@ -41,9 +41,9 @@ struct ChalkakImage: View {
                 case .failure:
                     imagePlaceholder(systemName: "photo.badge.exclamationmark")
                 case .empty:
-                    imagePlaceholder(systemName: "photo")
+                    ChalkakSkeleton()
                 @unknown default:
-                    imagePlaceholder(systemName: "photo")
+                    ChalkakSkeleton()
                 }
             }
         }
