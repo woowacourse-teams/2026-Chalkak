@@ -154,6 +154,10 @@ public class UserService {
      * 새로 추가됐다면 대조가 실패해 트랜잭션이 롤백되므로, 폐기되지 않은 RT가 삭제로
      * 함께 사라지는 일이 없다. 이 검증을 삭제문 하나에만 걸면 소셜 계정을 지울 때 함께
      * 딸려가는 FK CASCADE 삭제까지는 보호하지 못하므로, 트랜잭션 맨 앞에서 한 번에 막는다.
+     *
+     * <p>Apple에 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로 탈퇴 요청은
+     * 그쪽을 거쳐야 한다. 이 메서드를 직접 호출하면 폐기 없이 탈퇴가 진행될 수 있다.
+     * 인증 정보가 남아 있는 회원은 위 대조에 걸리지만, 그 실패에 기대는 구조는 아니다.
      */
     @Transactional
     public void withdraw(UUID userId, List<AppleAuthorizationSnapshot> revokedAuthorizations) {
