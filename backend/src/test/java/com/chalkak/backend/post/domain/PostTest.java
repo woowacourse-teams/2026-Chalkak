@@ -51,11 +51,13 @@ class PostTest {
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
     }
 
-    @Test
-    @DisplayName("제목이 공백이면 제목 없는 게시물로 생성한다")
-    void createPost_blankTitle_normalizesTitleToNull() {
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "　　"})
+    @DisplayName("null, 빈 문자열, 공백 제목은 제목 없는 게시물로 생성한다")
+    void createPost_blankTitle_normalizesTitleToNull(String title) {
         // When
-        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "   ");
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
         assertThat(post.getTitle()).isNull();
@@ -105,6 +107,38 @@ class PostTest {
     void createPost_tooLongTitle_throwsBusinessException() {
         // Given
         String title = "12345678901";
+
+        // When & Then
+        assertThatThrownBy(() -> Post.createPost(author, topic, photo, UPLOAD_ID, title))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목은 10자 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("제목을 생성할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
+    void createPost_titleWithSurroundingSpaces_normalizesTitle() {
+        // When
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "  오늘의  기록  ");
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
+    }
+
+    @Test
+    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
+    void createPost_tenCharacterNormalizedTitle_createsPost() {
+        // When
+        Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "  1234567890  ");
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("1234567890");
+    }
+
+    @Test
+    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 Unicode code point 기준 10자를 초과하면 거부한다")
+    void createPost_tooLongNormalizedTitle_throwsBusinessException() {
+        // Given
+        String title = "  " + "📸".repeat(11) + "  ";
 
         // When & Then
         assertThatThrownBy(() -> Post.createPost(author, topic, photo, UPLOAD_ID, title))

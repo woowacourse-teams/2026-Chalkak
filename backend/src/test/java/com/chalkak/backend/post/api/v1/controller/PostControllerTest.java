@@ -757,6 +757,61 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 앞뒤 공백을 제거한 제목이 10자를 초과하면 400을 반환한다")
+    void createPost_tooLongNormalizedTitle_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "  12345678901  "
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목은 10자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 앞뒤 공백을 포함해 10자를 넘어도 제거 후 10자면 서비스로 전달한다")
+    void createPost_tenCharacterNormalizedTitle_returnsCreatedPost() throws Exception {
+        // Given
+        String paddedTitle = "  1234567890  ";
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                paddedTitle
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "topicId": "%s",
+                                  "photoUploadId": "%s",
+                                  "title": "%s"
+                                }
+                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, paddedTitle)))
+                .andExpect(status().isCreated());
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                paddedTitle
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("이모지 제목은 코드 포인트 기준 10자까지 서비스로 전달한다")
     void createPost_tenCodePointEmojiTitle_returnsCreatedPost() throws Exception {
         // Given
