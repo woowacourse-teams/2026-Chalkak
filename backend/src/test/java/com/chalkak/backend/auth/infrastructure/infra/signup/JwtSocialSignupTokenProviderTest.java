@@ -62,6 +62,8 @@ class JwtSocialSignupTokenProviderTest {
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
         assertThat(verifiedToken.email()).isEqualTo("user@chalkak.test");
         assertThat(verifiedToken.appleAuthorization()).isNull();
+        assertThat(verifiedToken.tokenId()).isNotBlank();
+        assertThat(verifiedToken.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
     }
 
     @Test
@@ -93,6 +95,25 @@ class JwtSocialSignupTokenProviderTest {
         assertThat(verifiedToken.subject()).isEqualTo("apple-subject");
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
         assertThat(verifiedToken.appleAuthorization()).isEqualTo(authorization);
+        assertThat(verifiedToken.tokenId()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("발급할 때마다 서로 다른 토큰 식별자를 부여한다")
+    void issue_calledTwice_generatesDistinctTokenIds() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+
+        // When
+        VerifiedSocialSignupToken first = provider.verify(
+                provider.issue(identity(), UUID.randomUUID()).value());
+        VerifiedSocialSignupToken second = provider.verify(
+                provider.issue(identity(), UUID.randomUUID()).value());
+
+        // Then
+        assertThat(first.tokenId()).isNotEqualTo(second.tokenId());
     }
 
     @Test
@@ -249,6 +270,20 @@ class JwtSocialSignupTokenProviderTest {
                 NOW,
                 ZoneOffset.UTC));
         String token = createSignedToken("OTHER_PURPOSE", true);
+
+        // When & Then
+        assertInvalidSignupToken(() -> provider.verify(token));
+    }
+
+    @Test
+    @DisplayName("토큰 식별자가 없는 회원가입 토큰은 검증할 수 없다")
+    void verify_missingTokenId_throwsUnauthorizedException() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+        // createSignedToken은 실제 발급 경로와 달리 jti를 채우지 않는다.
+        String token = createSignedToken("SOCIAL_SIGNUP", true);
 
         // When & Then
         assertInvalidSignupToken(() -> provider.verify(token));

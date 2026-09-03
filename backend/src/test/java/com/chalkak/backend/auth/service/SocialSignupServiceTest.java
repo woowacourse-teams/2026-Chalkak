@@ -34,6 +34,8 @@ import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -144,14 +146,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         UUID uploadId = UUID.randomUUID();
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
-                .willReturn(new VerifiedSocialSignupToken(
-                        SocialProvider.APPLE,
-                        "apple-subject",
-                        uploadId,
-                        "user@privaterelay.appleid.com",
-                        new AppleSignupAuthorization(
-                                "com.chalkak.ios",
-                                "encrypted-apple-refresh-token")));
+                .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
         given(signatureImageStorage.findUploadedImage(uploadId))
                 .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
@@ -268,6 +263,95 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .isEqualTo("withdrawn/" + withdrawnUserId);
         assertThat(newUser.getEmail()).isEqualTo(EMAIL);
         assertThat(socialAccount.getUser().getId()).isEqualTo(newUserId);
+    }
+
+    @Test
+    @DisplayName("탈퇴 후 같은 회원가입 토큰을 다시 제시하면 새 회원을 만들지 못한다")
+    void signup_replayedTokenAfterWithdrawal_throwsBusinessException() {
+        // Given
+        // signupToken은 상태를 서버가 추적하지 않는 JWT라 만료 전까지 몇 번이든 검증을
+        // 통과한다. stub 하나(=같은 jti)를 두 번째 signup() 호출에도 그대로 재사용해,
+        // 같은 토큰이 재전송되는 상황을 흉내낸다.
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+
+        UUID firstUserId = socialSignupService.signup(SIGNUP_TOKEN).userId();
+        entityManager.flush();
+        entityManager.clear();
+        userService.withdraw(firstUserId, List.of());
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        // 중복 저장 시도가 DB 유니크 제약을 건드리면 Postgres가 이 트랜잭션 자체를
+        // aborted 상태로 만든다. 이후 같은 트랜잭션(테스트 전체)에서 다른 조회를 더 하면
+        // 그 위반과 무관하게 실패하므로, 이 검증 뒤에는 DB를 더 건드리지 않는다.
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
+                .hasMessage("이미 사용된 회원가입 토큰입니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴로 폐기된 Apple 인증 정보는 같은 토큰으로 재가입해도 되살아나지 않는다")
+    void signup_appleTokenReplayedAfterWithdrawal_doesNotResurrectAuthorization() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+
+        UUID firstUserId = socialSignupService.signup(SIGNUP_TOKEN).userId();
+        entityManager.flush();
+        entityManager.clear();
+
+        String appleSubjectHmac = fingerprintEncoder.encode(
+                SocialProvider.APPLE,
+                "apple-subject");
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(SocialProvider.APPLE, appleSubjectHmac)
+                .orElseThrow();
+        UUID socialAccountId = socialAccount.getId();
+        AppleAuthorization authorization = appleAuthorizationRepository
+                .findAllBySocialAccountId(socialAccountId)
+                .getFirst();
+
+        // 탈퇴 처리. Apple revoke 호출은 UserWithdrawalService의 책임이라 이 테스트에서는
+        // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
+        userService.withdraw(firstUserId, List.of(new AppleAuthorizationSnapshot(
+                authorization.getId(),
+                authorization.getClientId(),
+                authorization.getEncryptedRefreshToken())));
+        entityManager.flush();
+        entityManager.clear();
+
+        // 탈퇴 직후 상태를 확인해 둔다. 재전송이 막히지 않는다면 바로 이 소셜 계정과
+        // 인증 정보가 다시 채워져야 할 자리다.
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.APPLE,
+                appleSubjectHmac))
+                .isEmpty();
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .isEmpty();
+
+        // When & Then
+        // 같은 signupToken을 재전송하면, 이미 Apple에 폐기 요청까지 보냈던 RT가 새 계정에
+        // 다시 저장되는 대신 거부돼야 한다. 중복 저장 시도가 DB 유니크 제약을 건드리면
+        // Postgres가 이 트랜잭션 자체를 aborted 상태로 만들므로, 이후 같은 트랜잭션(테스트
+        // 전체)에서 DB를 더 조회하지 않는다.
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 사용된 회원가입 토큰입니다.");
     }
 
     @Test
@@ -644,7 +728,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 SUBJECT,
                 uploadId,
-                email);
+                email,
+                newTokenId(),
+                defaultTokenExpiresAt());
     }
 
     private VerifiedSocialSignupToken verifiedAppleSignupToken(UUID uploadId) {
@@ -655,7 +741,22 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 "user@privaterelay.appleid.com",
                 new AppleSignupAuthorization(
                         "com.chalkak.ios",
-                        "encrypted-apple-refresh-token"));
+                        "encrypted-apple-refresh-token"),
+                newTokenId(),
+                defaultTokenExpiresAt());
+    }
+
+    /**
+     * 매번 새 jti를 만든다. 재전송 테스트는 stub 하나를 여러 번 호출해 같은 객체(=같은
+     * jti)를 재사용하는 방식으로 검증하므로, 기본값이 매번 고유해야 서로 다른 테스트가
+     * 우연히 같은 jti로 충돌하지 않는다.
+     */
+    private String newTokenId() {
+        return UUID.randomUUID().toString();
+    }
+
+    private Instant defaultTokenExpiresAt() {
+        return Instant.now().plus(Duration.ofMinutes(5));
     }
 
     private SignatureStorageKeys storageKeys(UUID uploadId) {

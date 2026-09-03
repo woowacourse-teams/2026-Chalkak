@@ -151,7 +151,9 @@ public class JwtSocialSignupTokenProvider implements
                     getSubject(jwt),
                     getUploadId(jwt),
                     getEmail(jwt),
-                    getAppleAuthorization(jwt, provider));
+                    getAppleAuthorization(jwt, provider),
+                    getTokenId(jwt),
+                    jwt.getExpiresAt());
         } catch (JwtException | IllegalArgumentException | BusinessException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
@@ -245,6 +247,14 @@ public class JwtSocialSignupTokenProvider implements
             throw new IllegalArgumentException("Invalid social subject");
         }
         return subject;
+    }
+
+    private String getTokenId(Jwt jwt) {
+        String tokenId = jwt.getId();
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new IllegalArgumentException("Missing token id");
+        }
+        return tokenId;
     }
 
     private UUID getUploadId(Jwt jwt) {
