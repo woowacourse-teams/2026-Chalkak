@@ -37,6 +37,7 @@ import org.springframework.web.client.RestClient;
 class AppleHttpTokenClientTest {
 
     private static final URI TOKEN_URI = URI.create("https://appleid.test/auth/token");
+    private static final URI REVOKE_URI = URI.create("https://appleid.test/auth/revoke");
 
     private MockRestServiceServer server;
     private AppleHttpTokenClient tokenClient;
@@ -52,7 +53,7 @@ class AppleHttpTokenClientTest {
                 "APPLEKEY01",
                 "test-private-key",
                 TOKEN_URI.toString(),
-                "https://appleid.test/auth/revoke");
+                REVOKE_URI.toString());
         AppleOidcProperties oidcProperties = new AppleOidcProperties(
                 "https://appleid.apple.com",
                 "https://appleid.apple.com/auth/keys",
@@ -174,6 +175,79 @@ class AppleHttpTokenClientTest {
         assertThatThrownBy(() -> tokenClient.exchangeAuthorizationCode("valid-code"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 토큰 응답이 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("Refresh Token과 서버 자격증명을 Form으로 보내 Apple 토큰을 폐기한다")
+    void revokeRefreshToken_validRefreshToken_completesRevocation() {
+        // Given
+        MultiValueMap<String, String> expectedForm = new LinkedMultiValueMap<>();
+        expectedForm.add("client_id", "com.chalkak.ios");
+        expectedForm.add("client_secret", "test-client-secret");
+        expectedForm.add("token", "apple-refresh-token");
+        expectedForm.add("token_type_hint", "refresh_token");
+        server.expect(requestTo(REVOKE_URI))
+                .andExpect(method(POST))
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_FORM_URLENCODED))
+                .andExpect(content().formData(expectedForm))
+                .andRespond(withSuccess());
+
+        // When & Then
+        tokenClient.revokeRefreshToken("apple-refresh-token");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    @DisplayName("Refresh Token이 없으면 Apple 토큰 폐기를 거부한다")
+    void revokeRefreshToken_missingRefreshToken_throwsIllegalArgumentException(String refreshToken) {
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(refreshToken))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Apple refresh token이 필요합니다.");
+    }
+
+    @Test
+    @DisplayName("잘못된 Apple 토큰 폐기 요청은 서버 설정 오류로 처리한다")
+    void revokeRefreshToken_badRequest_throwsIllegalStateException() {
+        // Given
+        server.expect(requestTo(REVOKE_URI))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(APPLICATION_JSON)
+                        .body("{\"error\":\"invalid_client\"}"));
+
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Apple 토큰 폐기 요청이 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("Apple 토큰 폐기 서버의 5xx 응답은 통신 오류로 처리한다")
+    void revokeRefreshToken_serverError_throwsIllegalStateException() {
+        // Given
+        server.expect(requestTo(REVOKE_URI))
+                .andRespond(withServerError());
+
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Apple 토큰 서버와 통신할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("Apple 토큰 폐기 서버의 네트워크 오류는 통신 오류로 처리한다")
+    void revokeRefreshToken_networkError_throwsIllegalStateException() {
+        // Given
+        server.expect(requestTo(REVOKE_URI))
+                .andRespond(request -> {
+                    throw new IOException("test network error");
+                });
+
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Apple 토큰 서버와 통신할 수 없습니다.");
     }
 
     private static Stream<String> invalidTokenResponses() {

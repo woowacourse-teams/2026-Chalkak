@@ -17,10 +17,12 @@ import org.springframework.web.client.RestClientException;
 public class AppleHttpTokenClient implements AppleTokenClient {
 
     private static final String AUTHORIZATION_CODE_GRANT_TYPE = "authorization_code";
+    private static final String REFRESH_TOKEN_TYPE_HINT = "refresh_token";
     private static final String INVALID_GRANT = "invalid_grant";
 
     private final RestClient restClient;
     private final URI tokenUri;
+    private final URI revokeUri;
     private final AppleClientSecretGenerator clientSecretGenerator;
     private final String clientId;
 
@@ -32,6 +34,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
     ) {
         this.restClient = restClient;
         this.tokenUri = URI.create(tokenProperties.tokenUri());
+        this.revokeUri = URI.create(tokenProperties.revokeUri());
         this.clientSecretGenerator = clientSecretGenerator;
         this.clientId = oidcProperties.clientId();
     }
@@ -39,7 +42,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
     @Override
     public AppleTokenExchangeResult exchangeAuthorizationCode(String authorizationCode) {
         validateAuthorizationCode(authorizationCode);
-        MultiValueMap<String, String> form = createForm(authorizationCode);
+        MultiValueMap<String, String> form = createTokenExchangeForm(authorizationCode);
 
         try {
             AppleTokenResponse response = restClient.post()
@@ -58,6 +61,29 @@ public class AppleHttpTokenClient implements AppleTokenClient {
         }
     }
 
+    @Override
+    public void revokeRefreshToken(String refreshToken) {
+        validateRefreshToken(refreshToken);
+        MultiValueMap<String, String> form = createRefreshTokenRevocationForm(refreshToken);
+
+        try {
+            restClient.post()
+                    .uri(revokeUri)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpClientErrorException.BadRequest exception) {
+            throw new IllegalStateException(
+                    "Apple 토큰 폐기 요청이 올바르지 않습니다.",
+                    exception);
+        } catch (RestClientException exception) {
+            throw new IllegalStateException(
+                    "Apple 토큰 서버와 통신할 수 없습니다.",
+                    exception);
+        }
+    }
+
     private void validateAuthorizationCode(String authorizationCode) {
         if (authorizationCode == null || authorizationCode.isBlank()) {
             throw new UnauthorizedException(
@@ -66,12 +92,27 @@ public class AppleHttpTokenClient implements AppleTokenClient {
         }
     }
 
-    private MultiValueMap<String, String> createForm(String authorizationCode) {
+    private void validateRefreshToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new IllegalArgumentException("Apple refresh token이 필요합니다.");
+        }
+    }
+
+    private MultiValueMap<String, String> createTokenExchangeForm(String authorizationCode) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("client_id", clientId);
         form.add("client_secret", clientSecretGenerator.generate());
         form.add("code", authorizationCode);
         form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
+        return form;
+    }
+
+    private MultiValueMap<String, String> createRefreshTokenRevocationForm(String refreshToken) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("client_id", clientId);
+        form.add("client_secret", clientSecretGenerator.generate());
+        form.add("token", refreshToken);
+        form.add("token_type_hint", REFRESH_TOKEN_TYPE_HINT);
         return form;
     }
 
