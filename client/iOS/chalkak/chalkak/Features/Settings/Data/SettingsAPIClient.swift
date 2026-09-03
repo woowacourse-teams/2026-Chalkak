@@ -150,6 +150,8 @@ struct SettingsAPIClient: Sendable {
             throw error
         } catch is CancellationError {
             throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw SettingsAPIError.network
         }

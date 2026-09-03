@@ -181,6 +181,17 @@ struct SettingsAPIClientTests {
         }
     }
 
+    @Test("URLSession 취소 오류를 CancellationError로 전달한다")
+    func mapsURLSessionCancellationError() async {
+        let client = makeClient { _ in
+            throw URLError(.cancelled)
+        }
+
+        await #expect(throws: CancellationError.self) {
+            try await client.fetchSignature()
+        }
+    }
+
     @Test("서명 변경은 발급, PNG 업로드, 적용 요청을 순서대로 수행한다")
     func updatesSignatureUsingPresignedUpload() async throws {
         let recorder = SettingsRequestRecorder()
