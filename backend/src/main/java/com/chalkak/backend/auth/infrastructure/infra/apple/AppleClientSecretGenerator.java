@@ -29,9 +29,12 @@ public class AppleClientSecretGenerator {
     private final AppleTokenProperties tokenProperties;
     private final AppleOidcProperties oidcProperties;
     private final Clock clock;
+    private final ECPrivateKey privateKey;
 
-    private volatile ECPrivateKey privateKey;
-
+    /**
+     * 개인키를 생성자에서 즉시 파싱해, 설정이 잘못됐을 때 첫 로그인 요청이 아니라 애플리케이션
+     * 기동 시점에 실패하게 한다.
+     */
     public AppleClientSecretGenerator(
             AppleTokenProperties tokenProperties,
             AppleOidcProperties oidcProperties,
@@ -40,6 +43,7 @@ public class AppleClientSecretGenerator {
         this.tokenProperties = tokenProperties;
         this.oidcProperties = oidcProperties;
         this.clock = clock;
+        this.privateKey = parsePrivateKey();
     }
 
     public String generate() {
@@ -57,25 +61,12 @@ public class AppleClientSecretGenerator {
         SignedJWT clientSecret = new SignedJWT(header, claims);
 
         try {
-            clientSecret.sign(new ECDSASigner(getPrivateKey()));
+            clientSecret.sign(new ECDSASigner(privateKey));
             return clientSecret.serialize();
         } catch (JOSEException exception) {
             throw new IllegalStateException(
                     "Apple client_secret을 생성할 수 없습니다.",
                     exception);
-        }
-    }
-
-    private ECPrivateKey getPrivateKey() {
-        ECPrivateKey loadedPrivateKey = privateKey;
-        if (loadedPrivateKey != null) {
-            return loadedPrivateKey;
-        }
-        synchronized (this) {
-            if (privateKey == null) {
-                privateKey = parsePrivateKey();
-            }
-            return privateKey;
         }
     }
 

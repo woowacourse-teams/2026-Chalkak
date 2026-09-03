@@ -1,7 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
@@ -53,50 +52,38 @@ class AppleClientSecretGeneratorTest {
     }
 
     @Test
-    @DisplayName("개인키를 실제로 사용하기 전까지는 잘못된 더미값이어도 생성기를 만들 수 있다")
-    void create_invalidPrivateKey_doesNotParseKeyEagerly() {
+    @DisplayName("개인키가 Base64 형식이 아니면 생성기를 만드는 시점에 거부한다")
+    void create_invalidBase64_throwsIllegalStateException() {
         // When & Then
-        assertThatCode(() -> createGenerator("not-base64"))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("개인키가 Base64 형식이 아니면 client_secret 생성을 거부한다")
-    void generate_invalidBase64_throwsIllegalStateException() {
-        // Given
-        AppleClientSecretGenerator generator = createGenerator("not-base64");
-
-        // When & Then
-        assertThatThrownBy(generator::generate)
+        assertThatThrownBy(() -> createGenerator("not-base64"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 개인키 설정이 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName("개인키에 PKCS8 PEM 형식이 없으면 client_secret 생성을 거부한다")
-    void generate_invalidPem_throwsIllegalStateException() {
+    @DisplayName("개인키에 PKCS8 PEM 형식이 없으면 생성기를 만드는 시점에 거부한다")
+    void create_invalidPem_throwsIllegalStateException() {
         // Given
         String invalidPem = Base64.getEncoder().encodeToString(
                 "not-pem".getBytes(StandardCharsets.US_ASCII));
-        AppleClientSecretGenerator generator = createGenerator(invalidPem);
 
         // When & Then
-        assertThatThrownBy(generator::generate)
+        assertThatThrownBy(() -> createGenerator(invalidPem))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 개인키 설정이 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName("EC 개인키가 아니면 Apple client_secret 생성을 거부한다")
-    void generate_nonEcPrivateKey_throwsIllegalStateException() throws Exception {
+    @DisplayName("EC 개인키가 아니면 생성기를 만드는 시점에 거부한다")
+    void create_nonEcPrivateKey_throwsIllegalStateException() throws Exception {
         // Given
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
         keyPairGenerator.initialize(2048);
         PrivateKey privateKey = keyPairGenerator.generateKeyPair().getPrivate();
-        AppleClientSecretGenerator generator = createGenerator(encodePrivateKey(privateKey));
+        String encodedPrivateKey = encodePrivateKey(privateKey);
 
         // When & Then
-        assertThatThrownBy(generator::generate)
+        assertThatThrownBy(() -> createGenerator(encodedPrivateKey))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 개인키 설정이 올바르지 않습니다.");
     }
