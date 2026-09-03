@@ -12,6 +12,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -83,9 +86,18 @@ public class SecurityConfig {
                     }
                     request.requestMatchers("/api/v1/admin/**")
                             .hasAuthority(AccessTokenScope.ADMIN.toAuthority());
-                    request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
+                    // 비로그인 조회를 허용하되 관리자 토큰까지 받지는 않는다. 통과시키면
+                    // 선택적 회원 인증이 관리자 식별자를 회원 식별자로 해석한다.
+                    request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
+                            .access(AuthorizationManagers.anyOf(
+                                    AuthenticatedAuthorizationManager.anonymous(),
+                                    AuthorityAuthorizationManager.hasAuthority(
+                                            AccessTokenScope.USER.toAuthority())))
                         // 새 API에 인증을 붙이는 것을 잊어도 기본값이 차단이 되도록 한다.
-                        .anyRequest().authenticated();
+                        // 기본값은 "회원 토큰이어야 통과"이므로, 관리자 토큰이나 scope가 없는
+                        // 다른 종류의 토큰은 회원으로 취급되지 않고 여기서 막힌다.
+                        .anyRequest()
+                            .hasAuthority(AccessTokenScope.USER.toAuthority());
                 })
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(entryPoint)

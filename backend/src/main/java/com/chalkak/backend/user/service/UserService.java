@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -34,7 +35,7 @@ public class UserService {
     private final SignatureProcessingPolicy signatureProcessingPolicy;
 
     public SignatureImageUpload createSignatureUpload(UUID userId) {
-        getActiveUser(userId, "사인을 업로드할 회원을 찾을 수 없습니다.");
+        getActiveUser(userId);
 
         return signatureImageUploadIssuer.issue(UUID.randomUUID());
     }
@@ -44,9 +45,7 @@ public class UserService {
     }
 
     public UserSignatureResult getSignature(UUID userId) {
-        User user = getActiveUser(
-                userId,
-                "사인을 조회할 회원을 찾을 수 없습니다.");
+        User user = getActiveUser(userId);
 
         if (user.getSignatureProcessingStatus() == SignatureProcessingStatus.FAILED
                 || isSignatureProcessingTimedOut(user, Instant.now())) {
@@ -66,9 +65,9 @@ public class UserService {
                 signatureImageStorage.toStorageKeys(uploadId);
 
         User user = userRepository.findActiveByIdForUpdate(userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "사인을 교체할 회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
 
         if (user.hasSignature(storageKeys.originalStorageKey())) {
             user.cancelSignatureProcessing();
@@ -136,7 +135,7 @@ public class UserService {
 
     @Transactional
     public void withdraw(UUID userId) {
-        User user = getActiveUser(userId, "탈퇴할 회원을 찾을 수 없습니다.");
+        User user = getActiveUser(userId);
 
         if (user.getStatus() != UserStatus.BANNED) {
             socialAccountRepository.deleteByUserId(userId);
@@ -144,11 +143,15 @@ public class UserService {
         user.withdraw();
     }
 
-    private User getActiveUser(UUID userId, String notFoundMessage) {
+    /**
+     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은
+     * 판정과 이 시점 사이에 회원이 사라질 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
+     */
+    private User getActiveUser(UUID userId) {
         return userRepository.findActiveById(userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        notFoundMessage));
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
     }
 
     private boolean isSignatureProcessingTimedOut(
