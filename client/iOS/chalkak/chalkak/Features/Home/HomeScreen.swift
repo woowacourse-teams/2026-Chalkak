@@ -142,6 +142,7 @@ private struct HomeContent: View {
     @Bindable var viewModel: HomeViewModel
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
     @State private var showsScrollToTop = false
+    @State private var accumulatedScroll: CGFloat = 0
 
     private func feedTarget(for photo: HomePhoto) -> FeedTarget {
         let state = viewModel.viewState
@@ -163,6 +164,33 @@ private struct HomeContent: View {
             // 홈은 실제 좋아요 값을 알고 있어 즉시 좋아요를 허용한다.
             isLikeConfirmed: true
         )
+    }
+
+    // 아래로 스크롤하면 버튼이 나타나고 위로 스크롤하면 사라진다.
+    // 절대 위치가 아닌 스크롤 방향으로 판단해 safe area inset 영향에서 자유롭다.
+    private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
+        // 아래로 스크롤할수록 delta가 커지도록 부호를 맞춘다.
+        let delta = oldDistance - newDistance // 양수면 아래로, 음수면 위로 스크롤한 것이다.
+        guard delta != 0 else { return }
+
+        // 스크롤 방향이 바뀌면 누적값을 초기화한다.
+        if (delta > 0) != (accumulatedScroll > 0) {
+            accumulatedScroll = 0
+        }
+        accumulatedScroll += delta
+
+        if accumulatedScroll >= HomeMetrics.scrollToTopToggleThreshold {
+            setShowsScrollToTop(true)
+        } else if accumulatedScroll <= -HomeMetrics.scrollToTopToggleThreshold {
+            setShowsScrollToTop(false)
+        }
+    }
+
+    private func setShowsScrollToTop(_ value: Bool) {
+        guard showsScrollToTop != value else { return }
+        withAnimation(.snappy) {
+            showsScrollToTop = value
+        }
     }
 
     var body: some View {
@@ -216,12 +244,12 @@ private struct HomeContent: View {
                     } label: {
                         Image(systemName: "arrow.up")
                             .font(.system(size: HomeMetrics.scrollButtonIconSize, weight: .semibold))
-                            .foregroundStyle(theme.colors.onActionPrimary)
+                            .foregroundStyle(theme.colors.iconPrimary)
                             .frame(
                                 width: HomeMetrics.scrollButtonSize,
                                 height: HomeMetrics.scrollButtonSize
                             )
-                            .background(theme.colors.actionPrimary, in: Circle())
+                            .glassEffect(.regular.interactive(), in: .circle)
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, theme.spacing.xl)
@@ -230,12 +258,11 @@ private struct HomeContent: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y > HomeMetrics.scrollToTopThreshold
-            } action: { _, isVisible in
-                withAnimation(.snappy) {
-                    showsScrollToTop = isVisible
-                }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                // 콘텐츠 최상단을 0으로 맞춰, safe area inset과 무관한 스크롤 거리를 얻는다.
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { oldDistance, newDistance in
+                updateScrollToTop(from: oldDistance, to: newDistance)
             }
             .refreshable {
                 await viewModel.refresh()
@@ -279,7 +306,8 @@ private enum Metrics {
 private enum HomeMetrics {
     static let topBarOpacity = 0.96
     static let scrollTopID = "home-scroll-top"
-    static let scrollToTopThreshold: CGFloat = 320
+    // 같은 방향으로 이만큼 누적 스크롤하면 버튼을 토글한다.
+    static let scrollToTopToggleThreshold: CGFloat = 12
     static let scrollButtonSize: CGFloat = 48
     static let scrollButtonIconSize: CGFloat = 20
     static let emptyTopPadding: CGFloat = 144
