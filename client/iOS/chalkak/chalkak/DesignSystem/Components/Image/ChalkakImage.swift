@@ -32,20 +32,42 @@ struct ChalkakImage: View {
                 .aspectRatio(contentMode: contentMode)
                 .foregroundStyle(theme.colors.iconSecondary)
         case let .remote(url):
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: contentMode)
-                case .failure:
-                    imagePlaceholder(systemName: "photo.badge.exclamationmark")
-                case .empty:
-                    ChalkakSkeleton()
-                @unknown default:
-                    ChalkakSkeleton()
-                }
-            }
+            RemoteImage(url: url, contentMode: contentMode)
+        }
+    }
+}
+
+/// 원격 이미지를 로드하며, 로딩 지연·최소 표시 규칙에 따라 스켈레톤을 노출한다.
+private struct RemoteImage: View {
+    @Environment(\.chalkakTheme) private var theme
+    let url: URL?
+    let contentMode: ContentMode
+    @State private var isLoading = true
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            phaseContent(phase)
+        }
+        .loadingSkeleton(isLoading: isLoading)
+    }
+
+    @ViewBuilder
+    private func phaseContent(_ phase: AsyncImagePhase) -> some View {
+        switch phase {
+        case let .success(image):
+            image
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .onAppear { isLoading = false }
+        case .failure:
+            imagePlaceholder(systemName: "photo.badge.exclamationmark")
+                .onAppear { isLoading = false }
+        case .empty:
+            Color.clear
+                .onAppear { isLoading = true }
+        @unknown default:
+            Color.clear
+                .onAppear { isLoading = true }
         }
     }
 
