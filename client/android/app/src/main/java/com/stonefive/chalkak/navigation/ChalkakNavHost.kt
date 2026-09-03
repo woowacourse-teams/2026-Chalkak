@@ -339,11 +339,6 @@ fun ChalkakNavHost(
 
             SettingsRoute(
                 signatureUpdateUrl = updatedSignatureUrl,
-                onNavigateToLogin = {
-                    navController.navigate(Login) {
-                        popUpTo<Today> { inclusive = true }
-                    }
-                },
                 onNavigateToSignature = {
                     navController.navigate(ChangeSignature)
                 },
