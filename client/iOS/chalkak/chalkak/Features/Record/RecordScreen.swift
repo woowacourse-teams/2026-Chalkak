@@ -15,6 +15,7 @@ struct RecordScreen: View {
     @State private var calendarWidth: CGFloat = 0
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+    @State private var isSavingCalendarImage = false
 
     var body: some View {
         ScrollView {
@@ -103,6 +104,7 @@ struct RecordScreen: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(isSavingCalendarImage)
         .padding(.top, Metrics.saveLinkTopPadding)
         .padding(.trailing, Metrics.saveLinkTrailingPadding)
     }
@@ -178,10 +180,15 @@ struct RecordScreen: View {
 
     @MainActor
     private func saveCalendarImage() {
+        guard !isSavingCalendarImage else { return }
+        isSavingCalendarImage = true
+
         let width = calendarWidth > 0 ? calendarWidth : UIScreen.main.bounds.width
         let state = viewModel.viewState
 
         Task { @MainActor in
+            defer { isSavingCalendarImage = false }
+
             let thumbnailData = await RecordCalendarThumbnailLoader.loadData(for: state.posts)
             let thumbnailImages = thumbnailData.compactMapValues(UIImage.init(data:))
             let snapshot = RecordCalendarSnapshot(
