@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,8 +27,6 @@ import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImag
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
-private val FeedPhotoAspectRatio = 0.935f
-
 @Composable
 fun FeedPhoto(
     post: Post,
@@ -44,14 +41,12 @@ fun FeedPhoto(
             contentDescription = post.contentDescription,
             thumbnailImageModel = post.thumbnailImageUrl,
             thumbnailSignatureModel = post.signatureThumbnailImageUrl,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
             signatureModifier = Modifier.size(
                 width = 70.dp,
                 height = 52.dp,
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(FeedPhotoAspectRatio),
+            modifier = Modifier.fillMaxWidth(),
         )
         FeedLikeRow(
             likeCount = post.likeCount,
