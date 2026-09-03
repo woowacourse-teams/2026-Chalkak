@@ -56,10 +56,9 @@ fun HomePhotoCard(
             imageModel = photo.originalImageUrl,
             signatureModel = photo.signatureOriginalImageUrl,
             contentDescription = photo.contentDescription,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(415.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = photo.contentDescription
                 },
