@@ -45,10 +45,15 @@ private struct RemoteImage: View {
     @State private var isLoading = true
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            phaseContent(phase)
+        if let url {
+            AsyncImage(url: url) { phase in
+                phaseContent(phase)
+            }
+            .loadingSkeleton(isLoading: isLoading)
+        } else {
+            // URL이 없으면 로드가 끝나지 않으므로 스켈레톤 대신 고정 플레이스홀더를 표시한다.
+            imagePlaceholder(systemName: "photo")
         }
-        .loadingSkeleton(isLoading: isLoading)
     }
 
     @ViewBuilder
