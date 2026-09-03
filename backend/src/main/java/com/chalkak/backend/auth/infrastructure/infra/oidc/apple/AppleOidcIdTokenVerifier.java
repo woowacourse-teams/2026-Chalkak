@@ -99,9 +99,9 @@ public class AppleOidcIdTokenVerifier implements AppleIdTokenVerifier {
 
     private String getVerifiedEmail(Jwt jwt) {
         Object emailVerified = jwt.getClaim("email_verified");
-        boolean isVerified = Boolean.TRUE.equals(emailVerified)
-                || "true".equalsIgnoreCase(String.valueOf(emailVerified));
-        if (!isVerified) {
+        // Apple은 email_verified를 boolean 또는 문자열 "true"/"false"로 보낸다.
+        // String.valueOf(Boolean.TRUE)가 "true"이므로 이 비교 하나로 두 표현을 모두 잡는다.
+        if (!"true".equalsIgnoreCase(String.valueOf(emailVerified))) {
             return null;
         }
         return jwt.getClaimAsString("email");
