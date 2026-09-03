@@ -5,12 +5,14 @@ struct ChalkakButton: View {
     let title: String
     let action: () -> Void
     var isEnabled = true
+    var fillsWidth = false
 
     var body: some View {
         Button(title, action: action)
             .font(theme.typography.callout)
             .padding(.horizontal, theme.spacing.xl)
             .padding(.vertical, Metrics.verticalPadding)
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
             .foregroundStyle(
                 isEnabled ? theme.colors.onActionPrimary : theme.colors.textPrimary
             )

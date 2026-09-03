@@ -10,6 +10,7 @@
 		64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA03028544800ECB6E1 /* GoogleSignIn */; };
 		64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */; };
 		64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA23028544800ECB6E1 /* KakaoSDKUser */; };
+		64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
+				64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -124,6 +126,7 @@
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
+				64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */,
 			);
 			productName = chalkak;
 			productReference = 64DDEA6D3028544700ECB6E1 /* chalkak.app */;
@@ -210,6 +213,7 @@
 			packageReferences = (
 				64DDEA97028544800ECB6E1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				64DDEA98028544800ECB6E1 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
+				64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 64DDEA6E3028544700ECB6E1 /* Products */;
@@ -657,6 +661,14 @@
 				minimumVersion = 2.29.0;
 			};
 		};
+		64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SDWebImage/SDWebImageWebPCoder.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -674,6 +686,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEA98028544800ECB6E1 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
 			productName = KakaoSDKUser;
+		};
+		64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */;
+			productName = SDWebImageWebPCoder;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
