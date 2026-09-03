@@ -31,6 +31,9 @@ chalkak:
     access-token:
       expiration: 15m
     refresh-token:
+      # 운영 기본값과 같은 길이를 직접 박아, 테스트가 로컬 .env의 유무에 좌우되지 않게 한다.
+      inactivity-expiration: 30d
+      absolute-expiration: 90d
       cleanup:
         # 테스트는 자기 시계를 고정하므로 실제 시각으로 도는 정리 작업이 같은 DB의 행을 지우면 안 된다.
         enabled: false

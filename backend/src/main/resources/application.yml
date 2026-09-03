@@ -49,12 +49,14 @@ chalkak:
     refresh-token:
       # 비활동 만료. 회전할 때마다 이 길이만큼 다시 늘어나므로, 앱을 계속 쓰는 사용자는
       # 다시 로그인하지 않는다. 반대로 이 기간 동안 한 번도 재발급하지 않으면 만료된다.
-      inactivity-expiration: 30d
+      inactivity-expiration: ${REFRESH_TOKEN_INACTIVITY_EXPIRATION}
       # 절대 만료. 최초 로그인 시점에 고정되고 회전으로 연장되지 않아, 탈취된 계보라도
       # 이 시점에는 반드시 끊긴다.
-      absolute-expiration: 90d
+      absolute-expiration: ${REFRESH_TOKEN_ABSOLUTE_EXPIRATION}
       # 회전 직후의 재사용 유예. 응답을 받지 못한 클라이언트가 같은 토큰으로 재시도하는 일이
       # 흔하므로, 이 시간 안의 재요청은 탈취가 아니라 재시도로 보고 계보를 폐기하지 않는다.
+      # 위 두 만료와 달리 세션 길이가 아니라 동시 재발급 경쟁을 흡수하는 내부 상수라
+      # 환경변수로 두지 않는다. 늘리면 재사용 탐지 구간이 그만큼 넓어져 탈취 감지가 늦어진다.
       reuse-grace: 10s
       cleanup:
         # 만료·폐기된 토큰을 지우는 스케줄러를 켤지. 환경마다 다른 값이 아니라 정책 값이라
