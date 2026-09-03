@@ -2,6 +2,7 @@ package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -157,6 +158,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         "오늘의 순간",
                         Instant.parse("2026-08-12T03:30:00Z"),
                         0L,
+                        false,
                         false
                 ))
         ));
@@ -206,6 +208,52 @@ class PostQueryServiceTest extends IntegrationTestSupport {
             assertThat(post.likeCount()).isEqualTo(1L);
             assertThat(post.isLiked()).isFalse();
         });
+    }
+
+    @Test
+    @DisplayName("로그인 사용자의 게시물 목록에서 본인 게시물만 isMine이 true다")
+    void getPosts_authenticatedUser_marksOwnPostAsMine() {
+        // Given
+        insertSecondVisiblePost();
+
+        // When
+        PostListResult result = postQueryService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.of(USER_ID)
+        );
+
+        // Then
+        assertThat(result.posts())
+                .extracting(PostListResult.PostSummary::id, PostListResult.PostSummary::isMine)
+                .containsExactlyInAnyOrder(
+                        tuple(POST_ID, true),
+                        tuple(SECOND_POST_ID, false)
+                );
+    }
+
+    @Test
+    @DisplayName("비로그인 사용자의 게시물 목록에는 isMine이 모두 false다")
+    void getPosts_anonymousUser_returnsNoOwnedPost() {
+        // Given
+        insertSecondVisiblePost();
+
+        // When
+        PostListResult result = postQueryService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
+
+        // Then
+        assertThat(result.posts()).extracting(PostListResult.PostSummary::isMine)
+                .containsOnly(false);
     }
 
     @Test

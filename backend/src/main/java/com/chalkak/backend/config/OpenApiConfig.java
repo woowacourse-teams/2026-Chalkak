@@ -94,7 +94,7 @@ public class OpenApiConfig {
     }
 
     /**
-     * 게시물 목록 조회는 토큰이 없어도 호출 가능하지만 있으면 isLiked가 개인화되는
+     * 게시물 목록 조회는 토큰이 없어도 호출 가능하지만 있으면 isLiked와 isMine이 개인화되는
      * 선택적 인증이다. swagger-core의 {@code @SecurityRequirement}는 이름이 빈
      * 요구사항을 표현하지 못해 익명 호출 허용을 애노테이션만으로 선언할 수 없으므로,
      * 생성된 문서에 빈 SecurityRequirement를 직접 추가해 "인증 없이 호출 가능"과

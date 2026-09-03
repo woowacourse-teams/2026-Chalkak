@@ -9,7 +9,6 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
@@ -135,7 +134,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         user.ban();
-        user.withdraw();
+        userService.withdraw(user.getId());
         flushAndClear();
 
         // When & Then
@@ -143,12 +142,12 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage("차단된 소셜 계정입니다.");
+                .hasMessage("탈퇴한 차단 소셜 계정입니다.");
     }
 
     @Test
-    @DisplayName("차단된 회원에 연결된 소셜 계정의 로그인은 기존 금지 오류로 거부한다")
-    void login_bannedUser_throwsForbiddenException() {
+    @DisplayName("차단된 회원에 연결된 소셜 계정으로 로그인하면 액세스 토큰을 발급한다")
+    void login_bannedUser_issuesAccessToken() {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
@@ -162,13 +161,17 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 subjectHmac()));
         flushAndClear();
 
-        // When & Then
-        assertThatThrownBy(() -> socialLoginService.login(
+        // When
+        SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
-                .isInstanceOf(ForbiddenException.class)
-                .satisfies(exception -> assertThat(((ForbiddenException) exception).getErrorCode())
-                        .isEqualTo(ErrorCode.FORBIDDEN));
+                ID_TOKEN);
+
+        // Then
+        Jwt jwt = accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value());
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
+        assertThat(result.userId()).isEqualTo(user.getId());
+        assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
     }
 
     @Test

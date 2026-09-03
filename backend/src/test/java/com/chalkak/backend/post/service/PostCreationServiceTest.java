@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
@@ -23,9 +24,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
+@RecordApplicationEvents
 class PostCreationServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID =
@@ -54,6 +58,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @MockitoBean
     private ImageUrlProvider imageUrlProvider;
@@ -136,6 +143,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         assertThat(saved.get("original_storage_key")).isEqualTo(ORIGINAL_STORAGE_KEY);
         assertThat(saved.get("thumbnail_storage_key")).isNull();
         assertThat(saved.get("metadata").toString()).isEqualTo("{}");
+        assertThat(applicationEvents.stream(PostModerationPendingEvent.class)).isEmpty();
     }
 
     @Test
@@ -190,14 +198,14 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 사용자는 게시물을 생성할 수 없다")
-    void createPost_unknownUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 사용자의 게시물 생성은 인증 실패로 거부한다")
+    void createPost_unknownUser_throwsUnauthorizedException() {
         // Given
         UUID unknownUserId = UUID.randomUUID();
 
         // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
                 () -> postCommandService.createPost(
                         unknownUserId,
                         TOPIC_ID,
@@ -207,7 +215,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         );
 
         // Then
-        assertThat(exception).hasMessage("게시물을 작성할 회원을 찾을 수 없습니다.");
+        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
         assertNoCreatedRows();
         then(postImageStorage).shouldHaveNoInteractions();
     }
@@ -576,6 +584,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         assertThat(saved.get("moderated_at")).isNull();
         assertThat(saved.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
         assertThat(saved.get("metadata_width")).isEqualTo("4032");
+        assertThat(applicationEvents.stream(PostModerationPendingEvent.class))
+                .singleElement()
+                .satisfies(event -> assertThat(event.postId()).isEqualTo(result.postId()));
         then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
 
         assertThatThrownBy(() -> postQueryService.getPost(result.postId(), USER_ID))

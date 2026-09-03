@@ -29,6 +29,10 @@ chalkak:
     cors:
       allowed-origins:
         - http://localhost:3000
+    notification:
+      slack:
+        connect-timeout: 2s
+        read-timeout: 3s
   auth:
     access-token:
       issuer: chalkak-backend

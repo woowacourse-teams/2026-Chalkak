@@ -60,14 +60,6 @@ public interface PostApiDocs {
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "사진을 업로드할 회원을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
             )
     })
     ResponseEntity<PostImageUploadResponse> createPostImageUpload(
@@ -111,7 +103,7 @@ public interface PostApiDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "회원, 주제 또는 업로드 사진을 찾을 수 없음",
+                    description = "주제 또는 업로드 사진을 찾을 수 없음",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -241,7 +233,7 @@ public interface PostApiDocs {
 
     @Operation(
             summary = "게시물 목록 조회",
-            description = "인증 정보가 없으면 isLiked는 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다."
+            description = "인증 정보가 없으면 isLiked와 isMine은 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다."
     )
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
@@ -253,6 +245,14 @@ public interface PostApiDocs {
             @ApiResponse(
                     responseCode = "400",
                     description = "잘못된 조회 조건",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
