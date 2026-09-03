@@ -1,15 +1,11 @@
 import CoreGraphics
 import UIKit
 
-protocol OnboardingSignaturePngEncoder {
-    func encode(_ strokes: [OnboardingSignatureStroke]) throws -> Data
-}
-
-struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
-    func encode(_ strokes: [OnboardingSignatureStroke]) throws -> Data {
+struct SignaturePngEncoder {
+    func encode(_ strokes: [SignatureStroke]) throws -> Data {
         let drawableStrokes = strokes.filter { !$0.isEmpty }
         guard !drawableStrokes.isEmpty else {
-            throw OnboardingSignaturePngEncodingError.emptySignature
+            throw SignaturePngEncodingError.emptySignature
         }
 
         let points = drawableStrokes.flatMap(\.points)
@@ -17,19 +13,19 @@ struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
         let maxX = points.map(\.xRatio).max() ?? 0
         let minY = points.map(\.yRatio).min() ?? 0
         let maxY = points.map(\.yRatio).max() ?? 0
-        let contentWidth = max(maxX - minX, Constants.minimumNormalizedSize)
-        let contentHeight = max(maxY - minY, Constants.minimumNormalizedSize)
-        let availableWidth = Constants.outputWidth - Constants.padding * 2
-        let availableHeight = Constants.outputHeight - Constants.padding * 2
+        let contentWidth = max(maxX - minX, Metrics.minimumNormalizedSize)
+        let contentHeight = max(maxY - minY, Metrics.minimumNormalizedSize)
+        let availableWidth = Metrics.outputWidth - Metrics.padding * 2
+        let availableHeight = Metrics.outputHeight - Metrics.padding * 2
         let scale = min(availableWidth / contentWidth, availableHeight / contentHeight)
-        let offsetX = (Constants.outputWidth - contentWidth * scale) / 2
-        let offsetY = (Constants.outputHeight - contentHeight * scale) / 2
+        let offsetX = (Metrics.outputWidth - contentWidth * scale) / 2
+        let offsetY = (Metrics.outputHeight - contentHeight * scale) / 2
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(
-            size: CGSize(width: Constants.outputWidth, height: Constants.outputHeight),
+            size: CGSize(width: Metrics.outputWidth, height: Metrics.outputHeight),
             format: format
         )
 
@@ -37,7 +33,7 @@ struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
             let context = rendererContext.cgContext
             context.setStrokeColor(UIColor.white.cgColor)
             context.setFillColor(UIColor.white.cgColor)
-            context.setLineWidth(Constants.strokeWidth)
+            context.setLineWidth(Metrics.strokeWidth)
             context.setLineCap(.round)
             context.setLineJoin(.round)
 
@@ -49,9 +45,8 @@ struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
                     )
                 }
                 guard let firstPoint = mappedPoints.first else { continue }
-
                 if mappedPoints.count == 1 {
-                    let radius = Constants.strokeWidth / 2
+                    let radius = Metrics.strokeWidth / 2
                     context.fillEllipse(
                         in: CGRect(
                             x: firstPoint.x - radius,
@@ -61,45 +56,44 @@ struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
                         )
                     )
                 } else {
-                    context.addPath(Self.smoothPath(for: mappedPoints))
+                    context.addPath(mappedPoints.smoothPath())
                     context.strokePath()
                 }
             }
         }
     }
+}
 
-    private static func smoothPath(for points: [CGPoint]) -> CGPath {
+enum SignaturePngEncodingError: Error {
+    case emptySignature
+}
+
+private extension Array where Element == CGPoint {
+    func smoothPath() -> CGPath {
         let path = CGMutablePath()
-        path.move(to: points[0])
-        if points.count == 2 {
-            path.addLine(to: points[1])
+        path.move(to: self[0])
+        if count == 2 {
+            path.addLine(to: self[1])
             return path
         }
-
-        for index in 1..<(points.count - 1) {
-            let current = points[index]
-            let next = points[index + 1]
+        for index in 1..<(count - 1) {
+            let current = self[index]
+            let next = self[index + 1]
             path.addQuadCurve(
-                to: CGPoint(
-                    x: (current.x + next.x) / 2,
-                    y: (current.y + next.y) / 2
-                ),
+                to: CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2),
                 control: current
             )
         }
-        path.addLine(to: points[points.count - 1])
+        path.addLine(to: self[count - 1])
         return path
     }
-
-    private enum Constants {
-        static let outputWidth: CGFloat = 1024
-        static let outputHeight: CGFloat = 512
-        static let padding: CGFloat = 48
-        static let strokeWidth: CGFloat = 4
-        static let minimumNormalizedSize: CGFloat = 0.02
-    }
 }
 
-enum OnboardingSignaturePngEncodingError: Error {
-    case emptySignature
+private enum Metrics {
+    static let outputWidth: CGFloat = 1024
+    static let outputHeight: CGFloat = 512
+    static let padding: CGFloat = 48
+    static let strokeWidth: CGFloat = 14
+    static let minimumNormalizedSize: CGFloat = 0.02
 }
+

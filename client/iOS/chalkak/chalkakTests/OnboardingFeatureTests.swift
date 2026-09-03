@@ -65,7 +65,7 @@ struct OnboardingSignatureModelTests {
     }
 }
 
-struct LegalDocumentTests {
+struct OnboardingLegalDocumentTests {
     @Test("안드로이드와 동일한 법률 문서 주소를 사용한다")
     func usesSharedLegalDocumentURLs() {
         #expect(

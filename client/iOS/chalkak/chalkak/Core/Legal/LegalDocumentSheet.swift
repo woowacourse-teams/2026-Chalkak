@@ -19,7 +19,6 @@ struct LegalDocumentSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-
                 Button(action: dismiss.callAsFunction) {
                     Image(systemName: "xmark")
                         .font(.system(size: Metrics.closeIconSize, weight: .medium))
@@ -64,7 +63,6 @@ struct LegalDocumentSheet: View {
     private var loadingView: some View {
         ZStack {
             theme.colors.surfaceElevated
-
             ProgressView()
                 .tint(theme.colors.actionPrimary)
                 .accessibilityLabel("문서 불러오는 중")
@@ -74,13 +72,11 @@ struct LegalDocumentSheet: View {
     private var errorView: some View {
         ZStack {
             theme.colors.surfaceElevated
-
             VStack(spacing: theme.spacing.sm) {
                 Text("문서를 불러오지 못했어요")
                     .font(theme.typography.callout)
                     .foregroundStyle(theme.colors.textMuted)
                     .multilineTextAlignment(.center)
-
                 Button("다시 시도") {
                     loadState = .loading
                     reloadToken = UUID()

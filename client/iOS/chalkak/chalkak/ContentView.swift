@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
+    @State private var settingsViewModel = Self.makeSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
@@ -88,6 +89,15 @@ struct ContentView: View {
                 onSelectBottomBarItem: select,
                 onSelectPhoto: { selectedFeed = $0 }
             )
+        case .settings:
+            SettingsScreen(
+                viewModel: settingsViewModel,
+                onLogin: showLogin,
+                onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
+                onTerms: { selectedLegalDocument = .termsOfService },
+                onSignedOut: showLogin,
+                onNavigateToBottomBar: select
+            )
         case .record:
             RecordScreen(
                 viewModel: recordViewModel,
@@ -121,7 +131,7 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display || item == .record else { return }
+        guard item == .today || item == .display || item == .record || item == .settings else { return }
         selectedTab = item
     }
 
@@ -131,6 +141,7 @@ struct ContentView: View {
     }
 
     private func showHome() {
+        resetMainState()
         route = .home
     }
 
@@ -162,18 +173,29 @@ struct ContentView: View {
         selectedTab = photoUploadReturnTab
     }
 
-    private func showLogin() {
-        photoUploadViewModel = nil
-        selectedTab = .today
-        route = .login
-    }
-
     private func showServiceTerms() {
         selectedLegalDocument = .termsOfService
     }
 
     private func showPrivacyPolicy() {
         selectedLegalDocument = .privacyPolicy
+    }
+
+    private func showLogin() {
+        selectedLegalDocument = nil
+        photoUploadViewModel = nil
+        successSubmission = nil
+        resetMainState()
+        route = .login
+    }
+
+    private func resetMainState() {
+        selectedTab = .today
+        selectedFeed = nil
+        homeViewModel = Self.makeHomeViewModel()
+        displayViewModel = Self.makeDisplayViewModel()
+        recordViewModel = Self.makeRecordViewModel()
+        settingsViewModel = Self.makeSettingsViewModel()
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -210,6 +232,24 @@ struct ContentView: View {
             apiClient: RecordAPIClient(
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
+        )
+    }
+
+    private static func makeSettingsViewModel() -> SettingsViewModel {
+        let apiClient = SettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return SettingsViewModel(
+            initialState: SettingsViewState(version: SettingsScreen.appVersion),
+            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
+            loadSignature: { try await apiClient.fetchSignature() },
+            updateSignature: { try await apiClient.updateSignature(pngData: $0) },
+            logout: { KeychainSessionStore.delete() },
+            withdraw: {
+                try await apiClient.withdraw()
+                KeychainSessionStore.delete()
+            }
         )
     }
 

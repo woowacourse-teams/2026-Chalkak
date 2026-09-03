@@ -15,7 +15,6 @@ struct LegalDocumentWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
@@ -30,7 +29,6 @@ struct LegalDocumentWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
         guard context.coordinator.lastReloadToken != reloadToken else { return }
-
         context.coordinator.lastReloadToken = reloadToken
         webView.load(URLRequest(url: document.url))
     }
@@ -57,13 +55,11 @@ struct LegalDocumentWebView: UIViewRepresentable {
                 decisionHandler(.allow)
                 return
             }
-
             guard LegalDocumentNavigationPolicy.allows(url) else {
                 parent.onOpenExternalURL(url)
                 decisionHandler(.cancel)
                 return
             }
-
             decisionHandler(.allow)
         }
 

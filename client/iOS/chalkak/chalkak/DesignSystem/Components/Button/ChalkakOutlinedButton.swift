@@ -8,22 +8,24 @@ struct ChalkakOutlinedButton: View {
     var fillsWidth = false
 
     var body: some View {
-        Button(title, action: action)
-            .font(theme.typography.callout)
-            .padding(.horizontal, theme.spacing.xl)
-            .padding(.vertical, Metrics.verticalPadding)
-            .frame(maxWidth: fillsWidth ? .infinity : nil)
-            .foregroundStyle(
-                isEnabled ? theme.colors.textPrimary : theme.colors.textMuted
-            )
-            .background(theme.colors.surfaceElevated.opacity(0.001))
-            .overlay {
-                RoundedRectangle(cornerRadius: theme.shapes.button)
-                    .stroke(theme.colors.border, lineWidth: Metrics.borderWidth)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: theme.shapes.button))
-            .buttonStyle(.plain)
-            .disabled(!isEnabled)
+        Button(action: action) {
+            Text(title)
+                .font(theme.typography.callout)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .padding(.horizontal, theme.spacing.xl)
+                .padding(.vertical, Metrics.verticalPadding)
+                .foregroundStyle(
+                    isEnabled ? theme.colors.textPrimary : theme.colors.textMuted
+                )
+                .background(theme.colors.surfaceElevated.opacity(0.001))
+                .overlay {
+                    RoundedRectangle(cornerRadius: theme.shapes.button)
+                        .stroke(theme.colors.border, lineWidth: Metrics.borderWidth)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: theme.shapes.button))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
 
