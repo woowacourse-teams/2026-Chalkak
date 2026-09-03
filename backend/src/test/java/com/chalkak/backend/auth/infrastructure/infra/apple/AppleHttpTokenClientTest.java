@@ -179,11 +179,13 @@ class AppleHttpTokenClientTest {
     }
 
     @Test
-    @DisplayName("Refresh Token과 서버 자격증명을 Form으로 보내 Apple 토큰을 폐기한다")
+    @DisplayName("전달받은 Client ID와 서버 자격증명을 Form으로 보내 Apple 토큰을 폐기한다")
     void revokeRefreshToken_validRefreshToken_completesRevocation() {
         // Given
+        // 설정에 등록된 client_id("com.chalkak.ios")와 다른 값을 전달해, 폐기 요청이
+        // 그 값을 무시하고 전달받은 client_id를 그대로 쓰는지 검증한다.
         MultiValueMap<String, String> expectedForm = new LinkedMultiValueMap<>();
-        expectedForm.add("client_id", "com.chalkak.ios");
+        expectedForm.add("client_id", "com.chalkak.web");
         expectedForm.add("client_secret", "test-client-secret");
         expectedForm.add("token", "apple-refresh-token");
         expectedForm.add("token_type_hint", "refresh_token");
@@ -194,7 +196,7 @@ class AppleHttpTokenClientTest {
                 .andRespond(withSuccess());
 
         // When & Then
-        tokenClient.revokeRefreshToken("apple-refresh-token");
+        tokenClient.revokeRefreshToken("apple-refresh-token", "com.chalkak.web");
     }
 
     @ParameterizedTest
@@ -203,22 +205,39 @@ class AppleHttpTokenClientTest {
     @DisplayName("Refresh Token이 없으면 Apple 토큰 폐기를 거부한다")
     void revokeRefreshToken_missingRefreshToken_throwsIllegalArgumentException(String refreshToken) {
         // When & Then
-        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(refreshToken))
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(refreshToken, "com.chalkak.ios"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Apple refresh token이 필요합니다.");
     }
 
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    @DisplayName("Client ID가 없으면 Apple 토큰 폐기를 거부한다")
+    void revokeRefreshToken_missingClientId_throwsIllegalArgumentException(String clientId) {
+        // When & Then
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token", clientId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Apple client_id가 필요합니다.");
+    }
+
     @Test
-    @DisplayName("이미 무효한 Refresh Token의 폐기 요청은 성공으로 처리한다")
-    void revokeRefreshToken_alreadyInvalidatedRefreshToken_completesRevocation() {
+    @DisplayName("이미 무효한 Refresh Token의 폐기 요청도 서버 설정 오류로 처리한다")
+    void revokeRefreshToken_invalidGrant_throwsIllegalStateException() {
         // Given
+        // Apple은 이미 폐기된 토큰을 다시 폐기하면 200을 반환한다. invalid_grant가 오는 것은
+        // 재시도가 아니라 client_id 불일치 등 진짜 오류이므로 성공으로 취급하지 않는다.
         server.expect(requestTo(REVOKE_URI))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
                         .contentType(APPLICATION_JSON)
                         .body("{\"error\":\"invalid_grant\"}"));
 
         // When & Then
-        tokenClient.revokeRefreshToken("apple-refresh-token");
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(
+                "apple-refresh-token",
+                "com.chalkak.ios"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Apple 토큰 폐기 요청이 올바르지 않습니다.");
     }
 
     @Test
@@ -229,7 +248,9 @@ class AppleHttpTokenClientTest {
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
         // When & Then
-        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(
+                "apple-refresh-token",
+                "com.chalkak.ios"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 토큰 폐기 요청이 올바르지 않습니다.");
     }
@@ -244,7 +265,9 @@ class AppleHttpTokenClientTest {
                         .body("{\"error\":\"invalid_client\"}"));
 
         // When & Then
-        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(
+                "apple-refresh-token",
+                "com.chalkak.ios"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 토큰 폐기 요청이 올바르지 않습니다.");
     }
@@ -257,7 +280,9 @@ class AppleHttpTokenClientTest {
                 .andRespond(withServerError());
 
         // When & Then
-        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(
+                "apple-refresh-token",
+                "com.chalkak.ios"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 토큰 서버와 통신할 수 없습니다.");
     }
@@ -272,7 +297,9 @@ class AppleHttpTokenClientTest {
                 });
 
         // When & Then
-        assertThatThrownBy(() -> tokenClient.revokeRefreshToken("apple-refresh-token"))
+        assertThatThrownBy(() -> tokenClient.revokeRefreshToken(
+                "apple-refresh-token",
+                "com.chalkak.ios"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 토큰 서버와 통신할 수 없습니다.");
     }

@@ -3,6 +3,7 @@ package com.chalkak.backend.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -15,6 +16,8 @@ import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.AppleRefreshTokenCipher;
 import com.chalkak.backend.auth.service.AppleTokenClient;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
@@ -34,6 +37,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
 
     private static final String SUBJECT = "apple-subject";
     private static final String CLIENT_ID = "com.chalkak.ios";
+    private static final String WEB_CLIENT_ID = "com.chalkak.web";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
 
@@ -62,7 +66,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
     private AppleRefreshTokenCipher refreshTokenCipher;
 
     @Test
-    @DisplayName("Apple 회원이 탈퇴하면 Apple에 RT를 폐기하고 인증 정보를 삭제한다")
+    @DisplayName("Apple 회원이 탈퇴하면 저장된 Client ID로 Apple에 RT를 폐기하고 인증 정보를 삭제한다")
     void withdraw_appleUser_revokesRefreshTokenAndDeletesAuthorization() {
         // Given
         User user = userRepository.save(UserFixture.create());
@@ -78,20 +82,20 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN);
+        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .isEmpty();
     }
 
     @Test
-    @DisplayName("Client ID별 인증 정보가 여러 개면 RT를 각각 폐기한다")
-    void withdraw_multipleAuthorizations_revokesEveryRefreshToken() {
+    @DisplayName("Client ID별 인증 정보가 여러 개면 각 Client ID로 RT를 폐기한다")
+    void withdraw_multipleAuthorizations_revokesEveryRefreshTokenWithItsOwnClientId() {
         // Given
         User user = userRepository.save(UserFixture.create());
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         saveAuthorization(socialAccount, CLIENT_ID, "encrypted-ios-token");
-        saveAuthorization(socialAccount, "com.chalkak.web", "encrypted-web-token");
+        saveAuthorization(socialAccount, WEB_CLIENT_ID, "encrypted-web-token");
         given(refreshTokenCipher.decrypt("encrypted-ios-token")).willReturn("ios-token");
         given(refreshTokenCipher.decrypt("encrypted-web-token")).willReturn("web-token");
         flushAndClear();
@@ -101,8 +105,8 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        verify(appleTokenClient).revokeRefreshToken("ios-token");
-        verify(appleTokenClient).revokeRefreshToken("web-token");
+        verify(appleTokenClient).revokeRefreshToken("ios-token", CLIENT_ID);
+        verify(appleTokenClient).revokeRefreshToken("web-token", WEB_CLIENT_ID);
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
     }
 
@@ -123,7 +127,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN);
+        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .isEmpty();
         SocialAccount preserved = socialAccountRepository
@@ -163,7 +167,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         willThrow(new IllegalStateException("Apple 토큰 서버와 통신할 수 없습니다."))
-                .given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN);
+                .given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
         flushAndClear();
 
         // When & Then
@@ -175,6 +179,77 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         assertThat(userRepository.findActiveById(user.getId())).isPresent();
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("폐기와 삭제 사이 새 Client ID로 인증이 추가되면 탈퇴가 실패하고 아무것도 삭제되지 않는다")
+    void withdraw_newAuthorizationAddedDuringRevocation_failsWithoutDeletingAnything() {
+        // Given
+        // 이 회원은 차단되지 않아 UserService.withdraw가 소셜 계정 자체를 삭제하고, 그
+        // FK CASCADE로 apple_authorizations도 함께 지워진다. 삭제 직전 대조가 이 CASCADE
+        // 경로까지 막아내는지 확인하는 테스트다.
+        User user = userRepository.save(UserFixture.create());
+        SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
+        UUID socialAccountId = socialAccount.getId();
+        saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
+        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+                .willReturn(REFRESH_TOKEN);
+        willAnswer(invocation -> {
+            // Apple 폐기 응답을 받은 시점과 DB 삭제 시점 사이에 다른 기기에서 웹으로
+            // 새로 로그인해 인증 정보가 하나 더 생긴 상황을 흉내낸다.
+            SocialAccount managed = socialAccountRepository.findByUserId(user.getId())
+                    .orElseThrow();
+            appleAuthorizationRepository.save(AppleAuthorization.create(
+                    managed,
+                    WEB_CLIENT_ID,
+                    "new-encrypted-web-token"));
+            entityManager.flush();
+            return null;
+        }).given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userWithdrawalService.withdraw(user.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RESOURCE_STATE_CHANGED)
+                .hasMessage("탈퇴 처리 중 Apple 인증 정보가 변경되었습니다. 다시 시도해 주세요.");
+
+        assertThat(userRepository.findActiveById(user.getId())).isPresent();
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .extracting(AppleAuthorization::getClientId)
+                .containsExactlyInAnyOrder(CLIENT_ID, WEB_CLIENT_ID);
+    }
+
+    @Test
+    @DisplayName("폐기와 삭제 사이 같은 Client ID의 RT가 갱신되면 탈퇴가 실패하고 갱신된 RT를 유지한다")
+    void withdraw_authorizationUpdatedDuringRevocation_failsAndKeepsUpdatedToken() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
+        UUID socialAccountId = socialAccount.getId();
+        saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
+        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+                .willReturn(REFRESH_TOKEN);
+        willAnswer(invocation -> {
+            // 같은 Client ID로 다시 로그인해 RT가 최신 값으로 갱신된 상황을 흉내낸다.
+            AppleAuthorization managed = appleAuthorizationRepository
+                    .findBySocialAccountIdAndClientIdForUpdate(socialAccountId, CLIENT_ID)
+                    .orElseThrow();
+            managed.updateEncryptedRefreshToken("new-encrypted-refresh-token");
+            entityManager.flush();
+            return null;
+        }).given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userWithdrawalService.withdraw(user.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RESOURCE_STATE_CHANGED);
+
+        assertThat(userRepository.findActiveById(user.getId())).isPresent();
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .extracting(AppleAuthorization::getEncryptedRefreshToken)
+                .containsExactly("new-encrypted-refresh-token");
     }
 
     @Test
@@ -209,7 +284,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
 
-        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN);
+        verify(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
     }
 
     private SocialAccount saveSocialAccount(User user, SocialProvider provider) {

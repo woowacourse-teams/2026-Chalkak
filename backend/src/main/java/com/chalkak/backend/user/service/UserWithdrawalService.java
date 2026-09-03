@@ -1,6 +1,7 @@
 package com.chalkak.backend.user.service;
 
 import com.chalkak.backend.auth.service.AppleAuthorizationService;
+import com.chalkak.backend.auth.service.AppleAuthorizationSnapshot;
 import com.chalkak.backend.auth.service.AppleRefreshTokenCipher;
 import com.chalkak.backend.auth.service.AppleTokenClient;
 import java.util.List;
@@ -15,7 +16,11 @@ import org.springframework.stereotype.Service;
  * 트랜잭션 경계가 생기지 않는다.
  *
  * <p>폐기에 실패하면 예외가 그대로 올라가 탈퇴가 진행되지 않는다. DB가 그대로 남아 사용자가
- * 다시 시도할 수 있고, 이미 폐기된 RT를 다시 폐기해도 성공으로 처리되므로 재시도가 안전하다.
+ * 다시 시도할 수 있고, Apple은 이미 폐기된 RT를 다시 폐기해도 200으로 응답하므로 재시도가
+ * 안전하다.
+ *
+ * <p>조회 시점에 읽은 스냅샷을 그대로 {@link UserService#withdraw}에 넘겨, 폐기와 삭제
+ * 사이에 다른 로그인이 끼어들어도 그 사용자의 인증 정보만은 지워지지 않게 한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -27,17 +32,18 @@ public class UserWithdrawalService {
     private final UserService userService;
 
     public void withdraw(UUID userId) {
-        List<String> encryptedRefreshTokens =
-                appleAuthorizationService.findEncryptedRefreshTokens(userId);
-        revokeRefreshTokens(encryptedRefreshTokens);
+        List<AppleAuthorizationSnapshot> snapshots =
+                appleAuthorizationService.findAuthorizationSnapshots(userId);
+        revokeAuthorizations(snapshots);
 
-        userService.withdraw(userId);
+        userService.withdraw(userId, snapshots);
     }
 
-    private void revokeRefreshTokens(List<String> encryptedRefreshTokens) {
-        for (String encryptedRefreshToken : encryptedRefreshTokens) {
+    private void revokeAuthorizations(List<AppleAuthorizationSnapshot> snapshots) {
+        for (AppleAuthorizationSnapshot snapshot : snapshots) {
             appleTokenClient.revokeRefreshToken(
-                    refreshTokenCipher.decrypt(encryptedRefreshToken));
+                    refreshTokenCipher.decrypt(snapshot.encryptedRefreshToken()),
+                    snapshot.clientId());
         }
     }
 }

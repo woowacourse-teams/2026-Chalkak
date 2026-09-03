@@ -242,7 +242,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         UUID withdrawnUserId = withdrawnUser.getId();
-        userService.withdraw(withdrawnUserId);
+        userService.withdraw(withdrawnUserId, List.of());
         entityManager.flush();
         entityManager.clear();
 
