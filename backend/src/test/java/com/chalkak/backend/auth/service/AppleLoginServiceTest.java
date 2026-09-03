@@ -188,11 +188,33 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("차단된 Apple 회원은 authorizationCode를 교환하기 전에 로그인을 거부한다")
-    void login_bannedAccount_throwsForbiddenExceptionBeforeExchange() {
+    @DisplayName("탈퇴하지 않은 차단 Apple 회원은 로그인에 성공한다")
+    void login_bannedAccount_returnsAccessToken() {
         // Given
         User bannedUser = UserFixture.create();
         bannedUser.ban();
+        SocialAccount socialAccount = saveAppleSocialAccount(bannedUser);
+        givenSuccessfulAppleAuthentication();
+
+        // When
+        AppleLoginResult result = appleLoginService.login(
+                ID_TOKEN,
+                AUTHORIZATION_CODE,
+                RAW_NONCE);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
+        assertThat(result.userId()).isEqualTo(socialAccount.getUser().getId());
+        assertThat(result.accessToken()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 차단 Apple 회원은 authorizationCode를 교환하기 전에 로그인을 거부한다")
+    void login_withdrawnBannedAccount_throwsForbiddenExceptionBeforeExchange() {
+        // Given
+        User bannedUser = UserFixture.create();
+        bannedUser.ban();
+        bannedUser.withdraw();
         saveAppleSocialAccount(bannedUser);
         given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
                 .willReturn(identity(SUBJECT));
@@ -203,7 +225,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 AUTHORIZATION_CODE,
                 RAW_NONCE))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage("차단된 소셜 계정입니다.");
+                .hasMessage("탈퇴한 차단 소셜 계정입니다.");
         verifyNoInteractions(appleTokenClient, refreshTokenCipher);
     }
 

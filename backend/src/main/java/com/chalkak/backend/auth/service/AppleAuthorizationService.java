@@ -38,7 +38,7 @@ public class AppleAuthorizationService {
         }
 
         User user = socialAccount.get().getUser();
-        validateNotBanned(user);
+        validateNotWithdrawnBannedAccount(user);
         if (user.isDeleted()) {
             return Optional.empty();
         }
@@ -65,11 +65,11 @@ public class AppleAuthorizationService {
                 .toList();
     }
 
-    private void validateNotBanned(User user) {
-        if (user.getStatus() == UserStatus.BANNED) {
+    private void validateNotWithdrawnBannedAccount(User user) {
+        if (user.isDeleted() && user.getStatus() == UserStatus.BANNED) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "차단된 소셜 계정입니다.");
+                    "탈퇴한 차단 소셜 계정입니다.");
         }
     }
 

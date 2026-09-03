@@ -80,12 +80,20 @@ public class AppleLoginService {
             return false;
         }
         User user = socialAccount.get().getUser();
-        if (user.getStatus() == UserStatus.BANNED) {
+        validateNotWithdrawnBannedAccount(user);
+        return !user.isDeleted();
+    }
+
+    /**
+     * 차단 회원은 탈퇴해도 재가입 우회 방지를 위해 소셜 계정을 유지하므로 여기서 로그인을 거부한다.
+     * 탈퇴하지 않은 차단 회원은 로그인은 되고, 쓰기 요청만 인가 단계에서 막힌다.
+     */
+    private void validateNotWithdrawnBannedAccount(User user) {
+        if (user.isDeleted() && user.getStatus() == UserStatus.BANNED) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "차단된 소셜 계정입니다.");
+                    "탈퇴한 차단 소셜 계정입니다.");
         }
-        return !user.isDeleted();
     }
 
     private void validateSameSubject(
