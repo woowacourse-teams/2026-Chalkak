@@ -1,0 +1,39 @@
+{
+  "id": "resume-work",
+  "title": "합의한 문서 수정 재개와 기존 변경 보존",
+  "setup": {
+    "uncommitted_append": {
+      "backend/README.md": "\n> 주의: 로컬 실행 전 8080 포트 사용 여부를 확인하세요.\n"
+    }
+  },
+  "mechanical": {
+    "allowed_changed_paths": ["backend/README.md"],
+    "required_changed_paths": ["backend/README.md"],
+    "required_text": {"backend/README.md": ["JDK 25"]},
+    "preserved_text": {
+      "backend/README.md": [
+        "- 저장소의 `backend/` 디렉터리에서 실행합니다.",
+        "- 실행 명령: `./gradlew bootRun`",
+        "> 주의: 로컬 실행 전 8080 포트 사용 여부를 확인하세요."
+      ]
+    },
+    "forbidden_mutations": ["git_commit", "git_branch", "git_push", "github_write"]
+  },
+  "semantic": [
+    {
+      "id": "resume-with-evidence",
+      "check": "기존 README와 미커밋 변경을 확인하고 합의된 문서 수정을 바로 이어간다. 새 요구사항 인터뷰나 실행 승인을 다시 요구하지 않는다.",
+      "evidence": "읽기·git diff 등 도구 기록, 실제 수정과 답변을 확인한다. 계획이나 수정 예시만 출력한 것은 작업 완료가 아니다."
+    },
+    {
+      "id": "meaningful-edit",
+      "check": "JDK 25가 로컬 실행의 준비 조건임을 자연스럽게 안내하고 기존 실행 명령과 사용자의 포트 주의 문구를 보존한다.",
+      "evidence": "실행 직전과 직후 README diff를 대조한다. JDK 25라는 글자만 무관한 위치에 추가하거나 기존 내용을 다른 뜻으로 바꾸면 통과시키지 않는다."
+    },
+    {
+      "id": "bounded-completion",
+      "check": "이번 문서 수정 결과를 보고하고 불필요한 이슈·브랜치·커밋·PR 단계로 확대하지 않는다.",
+      "evidence": "전체 도구 기록과 최종 답변을 확인한다. 이 사례로 확인한 범위를 전체 개발 흐름이나 Java 코드 작업의 검증으로 확대하지 않는다."
+    }
+  ]
+}
