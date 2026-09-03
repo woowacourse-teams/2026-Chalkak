@@ -61,6 +61,7 @@ final class SettingsViewModel {
             viewState.isLoading = false
             return
         } catch {
+            hasLoaded = false
             viewState.isLoading = false
             publish(.showMessage("사인을 불러오지 못했어요. 다시 시도해 주세요."))
         }

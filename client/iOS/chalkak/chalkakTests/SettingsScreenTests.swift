@@ -73,6 +73,32 @@ struct SettingsViewModelTests {
         #expect(loadCount == 0)
     }
 
+    @Test("서명 조회 실패 후 다시 로드할 수 있다")
+    func retriesSignatureLoadAfterFailure() async {
+        var loadCount = 0
+        let viewModel = SettingsViewModel(
+            isAuthenticated: { true },
+            loadSignature: {
+                loadCount += 1
+                if loadCount == 1 {
+                    throw SettingsAPIError.network
+                }
+                return URL(string: "https://cdn.example.com/signature.png")
+            }
+        )
+
+        await viewModel.load()
+        viewModel.consumeEvent()
+        await viewModel.load()
+
+        #expect(loadCount == 2)
+        #expect(
+            viewModel.viewState.signatureURL
+                == URL(string: "https://cdn.example.com/signature.png")
+        )
+        #expect(viewModel.event == nil)
+    }
+
     @Test("회원탈퇴가 성공하면 로그아웃 이벤트를 보낸다")
     func signsOutAfterWithdrawal() async {
         var isAuthenticated = true
