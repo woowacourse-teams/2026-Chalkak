@@ -7,8 +7,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.IssuedRefreshToken;
+import com.chalkak.backend.auth.domain.AppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.RefreshTokenHasher;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
@@ -56,6 +58,9 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;
+
+    @Autowired
+    private AppleAuthorizationRepository appleAuthorizationRepository;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
@@ -1148,5 +1153,62 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThat(socialAccount.getUser().isDeleted()).isTrue();
         assertThat(socialAccount.getUser().getStatus())
                 .isEqualTo(UserStatus.BANNED);
+    }
+
+    @Test
+    @DisplayName("Apple 회원이 탈퇴하면 Apple 인증 정보가 삭제된다")
+    void withdraw_appleUser_deletesAppleAuthorization() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.APPLE,
+                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")));
+        UUID socialAccountId = socialAccount.getId();
+        appleAuthorizationRepository.save(AppleAuthorization.create(
+                socialAccount,
+                "com.chalkak.ios",
+                "encrypted-refresh-token"));
+        flushAndClear();
+
+        // When
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // Then
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("차단된 Apple 회원이 탈퇴하면 소셜 계정은 남기고 Apple 인증 정보만 삭제한다")
+    void withdraw_bannedAppleUser_deletesAppleAuthorizationOnly() {
+        // Given
+        User user = userRepository.save(UserFixture.createBanned(null));
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.APPLE,
+                "banned-apple-subject");
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.APPLE,
+                subjectHmac));
+        UUID socialAccountId = socialAccount.getId();
+        appleAuthorizationRepository.save(AppleAuthorization.create(
+                socialAccount,
+                "com.chalkak.ios",
+                "encrypted-refresh-token"));
+        flushAndClear();
+
+        // When
+        userService.withdraw(user.getId());
+        flushAndClear();
+
+        // Then
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .isEmpty();
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.APPLE,
+                subjectHmac))
+                .isPresent();
     }
 }

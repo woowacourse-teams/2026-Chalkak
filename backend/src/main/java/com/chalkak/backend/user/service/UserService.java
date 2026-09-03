@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.service;
 
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
@@ -31,6 +32,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final UserRefreshTokenService userRefreshTokenService;
+    private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
@@ -145,6 +147,9 @@ public class UserService {
     public void withdraw(UUID userId) {
         User user = getActiveUser(userId);
 
+        socialAccountRepository.findByUserId(userId)
+                .ifPresent(socialAccount -> appleAuthorizationRepository
+                        .deleteAllBySocialAccountId(socialAccount.getId()));
         if (user.getStatus() != UserStatus.BANNED) {
             socialAccountRepository.deleteByUserId(userId);
         }

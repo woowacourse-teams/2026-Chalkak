@@ -9,6 +9,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,21 @@ public class AppleAuthorizationService {
                 clientId,
                 encryptedRefreshToken);
         return Optional.of(user.getId());
+    }
+
+    /**
+     * 탈퇴 시 Apple에 폐기 요청을 보내기 위한 조회다. 외부 호출을 트랜잭션 밖에서 하려고
+     * 조회만 짧게 끊어 담당한다.
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEncryptedRefreshTokens(UUID userId) {
+        return socialAccountRepository.findByUserId(userId)
+                .map(socialAccount -> appleAuthorizationRepository
+                        .findAllBySocialAccountId(socialAccount.getId()))
+                .orElseGet(List::of)
+                .stream()
+                .map(AppleAuthorization::getEncryptedRefreshToken)
+                .toList();
     }
 
     private void validateNotBanned(User user) {
