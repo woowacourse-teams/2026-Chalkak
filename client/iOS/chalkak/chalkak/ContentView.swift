@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
+    @State private var recordViewModel = Self.makeRecordViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -87,6 +88,15 @@ struct ContentView: View {
                 onSelectBottomBarItem: select,
                 onSelectPhoto: { selectedFeed = $0 }
             )
+        case .record:
+            RecordScreen(
+                viewModel: recordViewModel,
+                onOpenPhotoUpload: { openPhotoUpload(from: .record) },
+                onSelectBottomBarItem: select,
+                onOpenDisplay: openDisplay,
+                onOpenFeed: { selectedFeed = FeedTarget(postID: $0) },
+                onNavigateToLogin: showLogin
+            )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
@@ -111,8 +121,13 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display else { return }
+        guard item == .today || item == .display || item == .record else { return }
         selectedTab = item
+    }
+
+    private func openDisplay(at date: Date) {
+        displayViewModel = Self.makeDisplayViewModel(initialDate: date)
+        selectedTab = .display
     }
 
     private func showHome() {
@@ -186,8 +201,16 @@ struct ContentView: View {
         )
     }
 
-    private static func makeDisplayViewModel() -> DisplayViewModel {
-        DisplayViewModel(apiClient: DisplayAPIClient())
+    private static func makeDisplayViewModel(initialDate: Date? = nil) -> DisplayViewModel {
+        DisplayViewModel(initialDate: initialDate, apiClient: DisplayAPIClient())
+    }
+
+    private static func makeRecordViewModel() -> RecordViewModel {
+        RecordViewModel(
+            apiClient: RecordAPIClient(
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
     }
 
     private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
