@@ -8,23 +8,66 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var route: AppRoute = KeychainSessionStore.hasActiveSession() ? .home : .login
+    @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
+    @State private var authRepository = APIAuthRepository(
+        baseURL: AppConfiguration().apiBaseURL
+    )
     @State private var selectedLegalDocument: LegalDocument?
+    @State private var photoUploadViewModel: PhotoUploadViewModel?
+    @State private var successSubmission: PhotoUploadSubmission?
+    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
 
     var body: some View {
         Group {
             switch route {
             case .login:
                 LoginView(
+                    authRepository: authRepository,
                     onAuthenticated: showHome,
-                    onGuestAccessGranted: showHome
+                    onGuestAccessGranted: showHome,
+                    onSignUpRequired: showOnboarding
+                )
+            case .onboarding:
+                OnboardingRoute(
+                    authRepository: authRepository,
+                    onFinish: showHome,
+                    onReauthenticationRequired: showLogin,
+                    onServiceTermsView: showServiceTerms,
+                    onPrivacyPolicyView: showPrivacyPolicy
                 )
             case .home:
-                mainTab
+                NavigationStack {
+                    mainTab
+                        .navigationDestination(item: $selectedFeed) { target in
+                            FeedScreen(viewModel: makeFeedViewModel(target))
+                        }
+                }
+            case .photoUpload:
+                if let photoUploadViewModel {
+                    PhotoUploadRoute(
+                        viewModel: photoUploadViewModel,
+                        onBack: showPhotoUploadOrigin,
+                        onSubmitted: showPhotoUploadSuccess,
+                        onReauthenticationRequired: showLogin
+                    )
+                } else {
+                    Color.clear
+                        .task { showHome() }
+                }
+            case .photoUploadSuccess:
+                if let successSubmission {
+                    PhotoUploadSuccessScreen(
+                        submission: successSubmission,
+                        onConfirmClick: closePhotoUploadSuccess
+                    )
+                } else {
+                    mainTab
+                }
             }
         }
         .animation(.default, value: route)
@@ -41,7 +84,9 @@ struct ContentView: View {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
-                onSelectBottomBarItem: select
+                onOpenPhotoUpload: { openPhotoUpload(from: .display) },
+                onSelectBottomBarItem: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
         case .settings:
             SettingsScreen(
@@ -55,13 +100,24 @@ struct ContentView: View {
         default:
             HomeScreen(
                 viewModel: homeViewModel,
-                onNavigateToBottomBar: select
+                onOpenPhotoUpload: { openPhotoUpload(from: .today) },
+                onNavigateToBottomBar: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
             .task {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
                 await homeViewModel.retry()
             }
         }
+    }
+
+    private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
+        FeedViewModel(
+            target: target,
+            apiClient: FeedAPIClient(
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
@@ -74,14 +130,53 @@ struct ContentView: View {
         route = .home
     }
 
+    private func showOnboarding() {
+        route = .onboarding
+    }
+
+    private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
+        photoUploadReturnTab = tab
+        photoUploadViewModel = Self.makePhotoUploadViewModel(
+            topicDate: PhotoUploadDate.today()
+        )
+        route = .photoUpload
+    }
+
+    private func showPhotoUploadSuccess(_ submission: PhotoUploadSubmission) {
+        successSubmission = submission
+        route = .photoUploadSuccess
+    }
+
+    private func closePhotoUploadSuccess() {
+        successSubmission = nil
+        photoUploadViewModel = nil
+        showPhotoUploadOrigin()
+    }
+
+    private func showPhotoUploadOrigin() {
+        route = .home
+        selectedTab = photoUploadReturnTab
+    }
+
+    private func showServiceTerms() {
+        selectedLegalDocument = .termsOfService
+    }
+
+    private func showPrivacyPolicy() {
+        selectedLegalDocument = .privacyPolicy
+    }
+
     private func showLogin() {
         selectedLegalDocument = nil
+        photoUploadViewModel = nil
+        successSubmission = nil
         resetMainState()
         route = .login
     }
 
     private func resetMainState() {
         selectedTab = .today
+        selectedFeed = nil
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         settingsViewModel = Self.makeSettingsViewModel()
@@ -133,11 +228,38 @@ struct ContentView: View {
             }
         )
     }
+
+    private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+        let appConfiguration = AppConfiguration()
+        let apiClient = PhotoUploadAPIClient(
+            configuration: PhotoUploadAPIConfiguration(
+                baseURL: appConfiguration.apiBaseURL
+                    ?? PhotoUploadAPIConfiguration.development.baseURL
+            ),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return PhotoUploadViewModel(
+            topicDate: topicDate,
+            repository: .api(client: apiClient)
+        )
+    }
+
+    private static var initialRoute: AppRoute {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
+            return .onboarding
+        }
+#endif
+        return KeychainSessionStore.hasActiveSession() ? .home : .login
+    }
 }
 
 private enum AppRoute: Equatable {
     case login
+    case onboarding
     case home
+    case photoUpload
+    case photoUploadSuccess
 }
 
 #Preview {

@@ -8,7 +8,9 @@ struct LegalDocumentWebView: UIViewRepresentable {
     @Binding var loadState: LegalDocumentLoadState
     let onOpenExternalURL: (URL) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -67,6 +69,7 @@ struct LegalDocumentWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             parent.loadState = .loaded
+            webView.evaluateJavaScript(Self.notionLayoutFixScript)
         }
 
         func webView(
@@ -89,6 +92,40 @@ struct LegalDocumentWebView: UIViewRepresentable {
             guard (error as NSError).code != NSURLErrorCancelled else { return }
             parent.loadState = .failed
         }
+
+        private static let notionLayoutFixScript = """
+            (() => {
+                let attempts = 0;
+
+                const fixLayout = () => {
+                    attempts += 1;
+
+                    const main = document.getElementById('main');
+                    const scroller = main?.querySelector('.notion-scroller');
+                    if (!main || !scroller) {
+                        if (attempts < 50) setTimeout(fixLayout, 100);
+                        return;
+                    }
+
+                    const viewportHeight = window.innerHeight;
+                    main.style.height = viewportHeight + 'px';
+                    main.style.minHeight = viewportHeight + 'px';
+                    main.style.maxHeight = 'none';
+                    main.style.flexShrink = '0';
+
+                    const mainRect = main.getBoundingClientRect();
+                    const scrollerRect = scroller.getBoundingClientRect();
+                    const topInset = Math.max(scrollerRect.top - mainRect.top, 0);
+                    scroller.style.height = Math.max(viewportHeight - topInset, 0) + 'px';
+                    scroller.style.minHeight = '0px';
+                    scroller.style.maxHeight = 'none';
+                    scroller.style.flex = '1 1 auto';
+
+                    if (attempts < 50) setTimeout(fixLayout, 100);
+                };
+
+                fixLayout();
+            })();
+            """
     }
 }
-

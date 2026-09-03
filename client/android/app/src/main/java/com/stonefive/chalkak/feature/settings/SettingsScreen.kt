@@ -33,7 +33,6 @@ import com.stonefive.chalkak.feature.settings.component.SettingsSignatureCard
 
 @Composable
 fun SettingsRoute(
-    onNavigateToLogin: () -> Unit,
     onNavigateToSignature: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
@@ -51,7 +50,7 @@ fun SettingsRoute(
 
     SettingsScreen(
         uiState = uiState,
-        onLoginClick = onNavigateToLogin,
+        onLoginClick = viewModel::startLogin,
         onChangeSignatureClick = onNavigateToSignature,
         onPrivacyPolicyClick = onOpenPrivacyPolicy,
         onTermsClick = onOpenTerms,

@@ -5,9 +5,31 @@ struct DisplayScreen: View {
     @Bindable var viewModel: DisplayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
+    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+
+    private func feedTarget(for photo: DisplayPhoto) -> FeedTarget {
+        let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
+        return FeedTarget(
+            seed: FeedContent(
+                dateLabel: dateLabel,
+                topic: viewModel.viewState.topic,
+                post: FeedPost(
+                    id: photo.id,
+                    originalImageSource: photo.originalImageSource,
+                    signatureImageSource: photo.signatureOriginalImageSource,
+                    contentDescription: photo.contentDescription,
+                    title: photo.title,
+                    likeCount: photo.likeCount,
+                    isLiked: false
+                )
+            ),
+            // 전시 응답에는 좋아요 여부가 없어 상세 조회로 확정될 때까지 좋아요를 막는다.
+            isLikeConfirmed: false
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -145,7 +167,8 @@ struct DisplayScreen: View {
                         isLoadingNext: viewModel.viewState.isLoadingNext,
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
-                        }
+                        },
+                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                     .padding(.top, gridTopSpacing)
                 }

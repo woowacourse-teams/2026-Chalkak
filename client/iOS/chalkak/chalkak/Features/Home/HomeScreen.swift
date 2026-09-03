@@ -5,6 +5,7 @@ struct HomeScreen: View {
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
+    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
@@ -23,7 +24,7 @@ struct HomeScreen: View {
                     onRetry: { Task { await viewModel.retry() } }
                 )
             case .content:
-                HomeContent(viewModel: viewModel)
+                HomeContent(viewModel: viewModel, onSelectPhoto: onSelectPhoto)
             }
         }
         .background(theme.colors.background)
@@ -139,7 +140,30 @@ private struct HomeInitialStatus: View {
 private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
+    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
     @State private var showsScrollToTop = false
+
+    private func feedTarget(for photo: HomePhoto) -> FeedTarget {
+        let state = viewModel.viewState
+        let dateLabel = state.topicDate.map(FeedDateLabel.make(from:)) ?? ""
+        return FeedTarget(
+            seed: FeedContent(
+                dateLabel: dateLabel,
+                topic: state.topic,
+                post: FeedPost(
+                    id: photo.id,
+                    originalImageSource: photo.imageSource,
+                    signatureImageSource: photo.signatureSource,
+                    contentDescription: photo.contentDescription,
+                    title: photo.title,
+                    likeCount: photo.likeCount,
+                    isLiked: state.likedPhotoIDs.contains(photo.id)
+                )
+            ),
+            // 홈은 실제 좋아요 값을 알고 있어 즉시 좋아요를 허용한다.
+            isLikeConfirmed: true
+        )
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -172,7 +196,8 @@ private struct HomeContent: View {
                         },
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
-                        }
+                        },
+                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                 }
             }

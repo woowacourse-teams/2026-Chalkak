@@ -21,9 +21,12 @@ struct LegalDocumentSheet: View {
                 Spacer()
                 Button(action: dismiss.callAsFunction) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: Metrics.closeIconSize, weight: .medium))
                         .foregroundStyle(theme.colors.textSecondary)
-                        .frame(width: 48, height: 48)
+                        .frame(
+                            width: Metrics.closeButtonSize,
+                            height: Metrics.closeButtonSize
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -33,14 +36,14 @@ struct LegalDocumentSheet: View {
 
             Rectangle()
                 .fill(theme.colors.border)
-                .frame(height: 1)
+                .frame(height: Metrics.dividerHeight)
 
             ZStack {
                 LegalDocumentWebView(
                     document: document,
                     reloadToken: reloadToken,
                     loadState: $loadState,
-                    onOpenExternalURL: { openURL($0) }
+                    onOpenExternalURL: { url in openURL(url) }
                 )
 
                 switch loadState {
@@ -73,6 +76,7 @@ struct LegalDocumentSheet: View {
                 Text("문서를 불러오지 못했어요")
                     .font(theme.typography.callout)
                     .foregroundStyle(theme.colors.textMuted)
+                    .multilineTextAlignment(.center)
                 Button("다시 시도") {
                     loadState = .loading
                     reloadToken = UUID()
@@ -80,7 +84,13 @@ struct LegalDocumentSheet: View {
                 .font(theme.typography.callout)
                 .foregroundStyle(theme.colors.textPrimary)
             }
+            .padding(theme.spacing.xl)
         }
     }
 }
 
+private enum Metrics {
+    static let closeIconSize: CGFloat = 16
+    static let closeButtonSize: CGFloat = 48
+    static let dividerHeight: CGFloat = 1
+}

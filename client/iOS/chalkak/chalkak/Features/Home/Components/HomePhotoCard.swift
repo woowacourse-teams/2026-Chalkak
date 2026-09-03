@@ -6,6 +6,7 @@ struct HomePhotoCard: View {
     let isLiked: Bool
     let isLikeEnabled: Bool
     let onLike: () -> Void
+    var onSelect: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,7 +19,11 @@ struct HomePhotoCard: View {
             .frame(maxWidth: .infinity)
             .frame(height: HomePhotoCardMetrics.photoHeight)
             .clipped()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onSelect)
             .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("피드 열기")
 
             actionRow
         }

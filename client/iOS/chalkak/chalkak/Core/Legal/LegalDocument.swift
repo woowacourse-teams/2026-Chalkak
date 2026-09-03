@@ -21,10 +21,8 @@ enum LegalDocumentNavigationPolicy {
 
     static func allows(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https",
-              let host = url.host?.lowercased()
-        else { return false }
+              let host = url.host?.lowercased() else { return false }
 
         return allowedHosts.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 }
-
