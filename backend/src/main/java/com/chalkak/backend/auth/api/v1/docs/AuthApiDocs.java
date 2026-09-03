@@ -22,7 +22,7 @@ public interface AuthApiDocs {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "로그인 성공 또는 회원가입 필요",
+                    description = "로그인 성공(차단 회원 포함) 또는 회원가입 필요",
                     useReturnTypeSchema = true
             ),
             @ApiResponse(
@@ -43,7 +43,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "차단된 소셜 계정",
+                    description = "탈퇴한 차단 소셜 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

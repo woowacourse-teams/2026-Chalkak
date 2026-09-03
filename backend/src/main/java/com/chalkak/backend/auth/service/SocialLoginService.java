@@ -43,11 +43,13 @@ public class SocialLoginService {
 
     private SocialLoginResult toLoginResult(SocialAccount socialAccount) {
         User user = socialAccount.getUser();
-        if (user.getStatus() == UserStatus.BANNED) {
+        // 차단 회원은 탈퇴해도 재가입 우회 방지를 위해 소셜 계정을 유지하므로 여기서 로그인을 거부한다.
+        if (user.isDeleted() && user.getStatus() == UserStatus.BANNED) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "차단된 소셜 계정입니다.");
+                    "탈퇴한 차단 소셜 계정입니다.");
         }
+        // 일반 회원은 탈퇴 시 연결을 삭제하지만, 이전 데이터에 남은 연결은 회원가입 필요로 처리한다.
         if (user.isDeleted()) {
             return SocialLoginResult.signUpRequired();
         }
