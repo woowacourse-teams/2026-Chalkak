@@ -454,6 +454,47 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("Apple 회원가입 토큰에 들어 있는 uploadId로 서명 업로드 URL을 발급한다")
+    void createAppleSignatureUpload_validToken_issuesUploadUrl() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+        given(signatureImageUploadIssuer.issue(uploadId))
+                .willReturn(new SignatureImageUpload(
+                        uploadId,
+                        "https://s3.example.com/apple-presigned",
+                        300L));
+
+        // When
+        SocialSignupSignatureUploadResult result =
+                socialSignupService.createAppleSignatureUpload(SIGNUP_TOKEN);
+
+        // Then
+        assertThat(result.upload().uploadId()).isEqualTo(uploadId);
+        assertThat(result.upload().uploadUrl())
+                .isEqualTo("https://s3.example.com/apple-presigned");
+        assertThat(result.signupToken().value()).isEqualTo(SIGNUP_TOKEN);
+    }
+
+    @Test
+    @DisplayName("Apple 토큰이 아닌 회원가입 토큰으로 Apple 업로드 URL을 발급받을 수 없다")
+    void createAppleSignatureUpload_nonAppleToken_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedSignupToken(uploadId, EMAIL));
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService
+                .createAppleSignatureUpload(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
+                .hasMessage("Apple 회원가입 토큰이 아닙니다.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
     @DisplayName("신규 소셜 계정이 요청하면 서명 이미지 업로드 URL을 발급한다")
     void createSignatureUpload_newSocialAccount_issuesUploadUrl() {
         // Given
@@ -604,6 +645,17 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SUBJECT,
                 uploadId,
                 email);
+    }
+
+    private VerifiedSocialSignupToken verifiedAppleSignupToken(UUID uploadId) {
+        return new VerifiedSocialSignupToken(
+                SocialProvider.APPLE,
+                "apple-subject",
+                uploadId,
+                "user@privaterelay.appleid.com",
+                new AppleSignupAuthorization(
+                        "com.chalkak.ios",
+                        "encrypted-apple-refresh-token"));
     }
 
     private SignatureStorageKeys storageKeys(UUID uploadId) {

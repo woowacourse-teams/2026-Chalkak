@@ -1,8 +1,11 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
+import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.AppleSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
+import com.chalkak.backend.auth.api.v1.dto.response.AppleLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
@@ -53,6 +56,77 @@ public interface AuthApiDocs {
             )
     })
     ResponseEntity<SocialLoginResponse> socialLogin(SocialIdTokenRequest request);
+
+    @Operation(summary = "Apple 로그인")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "로그인 성공 또는 회원가입 필요",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "필수 요청 값 누락",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 ID Token, nonce 또는 Authorization Code",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "차단된 Apple 계정",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<AppleLoginResponse> appleLogin(AppleLoginRequest request);
+
+    @Operation(summary = "Apple 회원가입용 서명 이미지 업로드 URL 발급")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "업로드 URL 발급 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Apple 회원가입 토큰이 아니거나 이미 가입된 계정",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않거나 만료된 회원가입 토큰",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "차단된 Apple 계정",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<SocialSignupSignatureUploadResponse>
+            createAppleSignupSignatureUpload(
+                    AppleSignupSignatureUploadRequest request
+            );
 
     @Operation(summary = "소셜 회원가입용 서명 이미지 업로드 URL 발급")
     @ApiResponses({

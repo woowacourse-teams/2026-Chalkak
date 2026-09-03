@@ -63,6 +63,24 @@ public class SocialSignupService {
         return new SocialSignupSignatureUploadResult(upload, signupToken);
     }
 
+    public SocialSignupSignatureUploadResult createAppleSignatureUpload(
+            String signupToken
+    ) {
+        VerifiedSocialSignupToken verifiedToken =
+                socialSignupTokenVerifier.verify(signupToken);
+        validateAppleSignupToken(verifiedToken);
+        validateNewSocialAccount(new VerifiedSocialIdentity(
+                verifiedToken.provider(),
+                verifiedToken.subject(),
+                verifiedToken.email()));
+
+        SignatureImageUpload upload = signatureImageUploadIssuer.issue(
+                verifiedToken.uploadId());
+        return new SocialSignupSignatureUploadResult(
+                upload,
+                new IssuedSocialSignupToken(signupToken));
+    }
+
     @Transactional
     public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =
@@ -160,6 +178,17 @@ public class SocialSignupService {
             throw new NotFoundException(
                     ErrorCode.BUSINESS_ERROR,
                     "업로드한 사인 이미지를 찾을 수 없습니다.");
+        }
+    }
+
+    private void validateAppleSignupToken(
+            VerifiedSocialSignupToken verifiedToken
+    ) {
+        if (verifiedToken.provider() != SocialProvider.APPLE
+                || verifiedToken.appleAuthorization() == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "Apple 회원가입 토큰이 아닙니다.");
         }
     }
 
