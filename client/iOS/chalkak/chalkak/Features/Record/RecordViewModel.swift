@@ -83,7 +83,7 @@ final class RecordViewModel {
     private func loadCalendar(month: RecordMonth) async {
         generation += 1
         let requestGeneration = generation
-        let latestMonth = viewState.latestMonth
+        let latestMonth = max(viewState.latestMonth, monthProvider())
 
         viewState = RecordViewState(
             contentStatus: .loading,
