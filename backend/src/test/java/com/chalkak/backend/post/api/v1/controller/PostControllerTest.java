@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,6 +25,7 @@ import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostSort;
+import com.chalkak.backend.post.service.PostUpdateResult;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -510,6 +512,132 @@ class PostControllerTest {
                 PHOTO_UPLOAD_ID,
                 "오늘의 기록"
         );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("인증된 사용자가 게시물 제목을 수정하면 200과 수정 정보를 반환한다")
+    void updatePost_validRequest_returnsUpdatedPost() throws Exception {
+        // Given
+        given(postCommandService.updatePost(USER_ID, POST_ID, "수정한 제목"))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목"
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "수정한 제목"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.title").value("수정한 제목"))
+                .andExpect(jsonPath("$.moderationStatus").doesNotExist());
+
+        then(postCommandService).should().updatePost(USER_ID, POST_ID, "수정한 제목");
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("제목에 명시적인 null을 보내면 제목 삭제 결과를 반환한다")
+    void updatePost_nullTitle_returnsDeletedTitle() throws Exception {
+        // Given
+        given(postCommandService.updatePost(USER_ID, POST_ID, null))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        null
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": null
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.title").value(nullValue()))
+                .andExpect(jsonPath("$.moderationStatus").doesNotExist());
+
+        then(postCommandService).should().updatePost(USER_ID, POST_ID, null);
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("제목 필드가 누락되면 400을 반환한다")
+    void updatePost_missingTitle_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("앞뒤 공백을 제거한 제목이 10자를 초과하면 400을 반환한다")
+    void updatePost_tooLongNormalizedTitle_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "  12345678901  "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("제목은 10자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("수정할 게시물 ID 형식이 올바르지 않으면 400을 반환한다")
+    void updatePost_invalidPostId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", "invalid-post-id")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "수정한 제목"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("인증 정보 없이 게시물 제목을 수정하면 401을 반환한다")
+    void updatePost_unauthenticated_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "수정한 제목"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
     }
 
     @Test

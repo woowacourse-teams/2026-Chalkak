@@ -65,7 +65,7 @@ public class PostRepositoryImpl implements PostRepository {
 
     @Override
     public Optional<Post> findActiveByIdForUpdate(UUID postId) {
-        return postJpaRepository.findActiveByIdForUpdate(postId);
+        return postJpaRepository.findByIdAndDeletedAtIsNull(postId);
     }
 
     @Override

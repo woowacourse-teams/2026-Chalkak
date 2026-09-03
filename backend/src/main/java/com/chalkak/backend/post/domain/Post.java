@@ -5,6 +5,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -139,6 +140,17 @@ public class Post {
         this.moderatedAt = null;
     }
 
+    public void updateTitle(
+            UUID authorId,
+            String title,
+            Instant now
+    ) {
+        validateAuthor(authorId);
+        validateTitleUpdateStatus();
+        validateTitleUpdatePeriod(now);
+        this.title = normalizeUpdatedTitle(title);
+    }
+
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
@@ -172,9 +184,30 @@ public class Post {
         if (!author.getId().equals(authorId)) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "본인의 게시물만 삭제할 수 있습니다."
+                    "본인의 게시물만 접근할 수 있습니다."
             );
         }
+    }
+
+    private void validateTitleUpdateStatus() {
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "현재 상태의 게시물은 수정할 수 없습니다."
+        );
+    }
+
+    private void validateTitleUpdatePeriod(Instant now) {
+        if (topic.phaseAt(now) == TopicPhase.OPEN) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "참여 기간이 종료된 게시물은 수정할 수 없습니다."
+        );
     }
 
     private void validateAuthorDeletionStatus() {
@@ -258,5 +291,22 @@ public class Post {
             );
         }
         return title;
+    }
+
+    private static String normalizeUpdatedTitle(String title) {
+        if (title == null) {
+            return null;
+        }
+        String normalizedTitle = title.strip();
+        if (normalizedTitle.isEmpty()) {
+            return null;
+        }
+        if (normalizedTitle.codePointCount(0, normalizedTitle.length()) > MAX_TITLE_LENGTH) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "제목은 10자 이하여야 합니다."
+            );
+        }
+        return normalizedTitle;
     }
 }

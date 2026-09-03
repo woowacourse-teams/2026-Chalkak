@@ -5,11 +5,13 @@ import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.post.api.v1.dto.request.PostCalendarRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
+import com.chalkak.backend.post.api.v1.dto.request.PostUpdateRequest;
 import com.chalkak.backend.post.api.v1.dto.response.PostCalendarResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -111,6 +113,65 @@ public interface PostApiDocs {
     ResponseEntity<PostCreateResponse> createPost(
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser,
             PostCreateRequest request
+    );
+
+    @Operation(
+            summary = "게시물 제목 수정",
+            description = """
+                    본인이 작성한 PENDING 또는 APPROVED 게시물의 제목을 수정합니다.
+                    주제 참여 기간이 남아 있어야 하며, 기존 검수 상태와 제출 시각은 유지합니다.
+                    제목의 앞뒤 공백을 제거하고 null 또는 공백이면 제목을 삭제합니다.
+                    """
+    )
+    @SecurityRequirement(name = "accessToken")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "게시물 제목 수정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 또는 수정할 수 없는 상태",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "본인의 게시물이 아니거나 이용이 정지된 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "게시물을 찾을 수 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<PostUpdateResponse> updatePost(
+            @Parameter(
+                    description = "게시물 ID",
+                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            String postId,
+            @Parameter(hidden = true) AuthenticatedUser loginUser,
+            PostUpdateRequest request
     );
 
     @Operation(
