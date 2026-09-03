@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var authRepository = APIAuthRepository(
@@ -39,7 +40,12 @@ struct ContentView: View {
                     onPrivacyPolicyView: showPrivacyPolicy
                 )
             case .home:
-                mainTab
+                NavigationStack {
+                    mainTab
+                        .navigationDestination(item: $selectedFeed) { target in
+                            FeedScreen(viewModel: makeFeedViewModel(target))
+                        }
+                }
             case .photoUpload:
                 if let photoUploadViewModel {
                     PhotoUploadRoute(
@@ -78,19 +84,30 @@ struct ContentView: View {
             DisplayScreen(
                 viewModel: displayViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .display) },
-                onSelectBottomBarItem: select
+                onSelectBottomBarItem: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                onSelectPhoto: { selectedFeed = $0 }
             )
             .task {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
                 await homeViewModel.retry()
             }
         }
+    }
+
+    private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
+        FeedViewModel(
+            target: target,
+            apiClient: FeedAPIClient(
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
