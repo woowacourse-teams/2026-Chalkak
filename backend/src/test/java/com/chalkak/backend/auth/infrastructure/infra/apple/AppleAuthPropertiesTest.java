@@ -53,7 +53,7 @@ class AppleAuthPropertiesTest {
     @EnableConfigurationProperties({
             AppleOidcProperties.class,
             AppleTokenProperties.class,
-            AppleRefreshTokenEncryptionProperties.class
+            AppleAuthorizationEncryptionProperties.class
     })
     static class TestConfig {
     }

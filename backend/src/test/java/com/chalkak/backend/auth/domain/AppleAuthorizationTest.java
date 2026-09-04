@@ -16,7 +16,6 @@ class AppleAuthorizationTest {
 
     private static final String SUBJECT_HMAC =
             "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
-    private static final String CLIENT_ID = "com.chalkak.ios";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
 
     @Test
@@ -28,12 +27,10 @@ class AppleAuthorizationTest {
         // When
         AppleAuthorization authorization = AppleAuthorization.create(
                 socialAccount,
-                CLIENT_ID,
                 ENCRYPTED_REFRESH_TOKEN);
 
         // Then
         assertThat(authorization.getSocialAccount()).isSameAs(socialAccount);
-        assertThat(authorization.getClientId()).isEqualTo(CLIENT_ID);
         assertThat(authorization.getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
     }
@@ -47,24 +44,6 @@ class AppleAuthorizationTest {
         // When & Then
         assertThatThrownBy(() -> AppleAuthorization.create(
                 socialAccount,
-                CLIENT_ID,
-                ENCRYPTED_REFRESH_TOKEN))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
-    }
-
-    @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = " ")
-    @DisplayName("Client ID가 없으면 Apple 인증 정보를 생성할 수 없다")
-    void create_missingClientId_throwsException(String clientId) {
-        // Given
-        SocialAccount socialAccount = createSocialAccount(SocialProvider.APPLE);
-
-        // When & Then
-        assertThatThrownBy(() -> AppleAuthorization.create(
-                socialAccount,
-                clientId,
                 ENCRYPTED_REFRESH_TOKEN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
@@ -83,44 +62,34 @@ class AppleAuthorizationTest {
         // When & Then
         assertThatThrownBy(() -> AppleAuthorization.create(
                 socialAccount,
-                CLIENT_ID,
                 encryptedRefreshToken))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName("Client ID나 암호화된 RT가 저장 길이를 넘으면 사용할 수 없다")
-    void create_tooLongValue_throwsException() {
+    @DisplayName("암호화된 RT가 저장 길이를 넘으면 사용할 수 없다")
+    void create_tooLongEncryptedRefreshToken_throwsException() {
         // Given
         SocialAccount socialAccount = createSocialAccount(SocialProvider.APPLE);
 
         // When & Then
         assertThatThrownBy(() -> AppleAuthorization.create(
                 socialAccount,
-                "a".repeat(256),
-                ENCRYPTED_REFRESH_TOKEN))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
-        assertThatThrownBy(() -> AppleAuthorization.create(
-                socialAccount,
-                CLIENT_ID,
                 "a".repeat(4097)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName("저장 가능한 최대 길이의 Client ID와 암호화된 RT를 허용한다")
-    void create_maximumLengthValue_createsAuthorization() {
+    @DisplayName("저장 가능한 최대 길이의 암호화된 RT를 허용한다")
+    void create_maximumLengthEncryptedRefreshToken_createsAuthorization() {
         // When
         AppleAuthorization authorization = AppleAuthorization.create(
                 createSocialAccount(SocialProvider.APPLE),
-                "a".repeat(255),
                 "a".repeat(4096));
 
         // Then
-        assertThat(authorization.getClientId()).hasSize(255);
         assertThat(authorization.getEncryptedRefreshToken()).hasSize(4096);
     }
 

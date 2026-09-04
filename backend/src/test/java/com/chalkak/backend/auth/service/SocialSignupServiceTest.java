@@ -9,14 +9,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
+import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -31,7 +32,7 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
-import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
@@ -75,10 +76,19 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private AppleAuthorizationRepository appleAuthorizationRepository;
 
     @Autowired
-    private UserService userService;
+    private PendingAppleAuthorizationRepository pendingAuthorizationRepository;
+
+    @Autowired
+    private UserWithdrawalService userWithdrawalService;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @MockitoBean
+    private AppleAuthorizationCipher authorizationCipher;
+
+    @MockitoBean
+    private AppleTokenClient appleTokenClient;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -145,6 +155,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_appleSignupToken_savesAppleAuthorization() {
         // Given
         UUID uploadId = UUID.randomUUID();
+        savePendingAppleAuthorization(uploadId);
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
@@ -170,9 +181,50 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository
                 .findAllBySocialAccountId(socialAccount.getId())
                 .getFirst();
-        assertThat(authorization.getClientId()).isEqualTo("com.chalkak.ios");
         assertThat(authorization.getEncryptedRefreshToken())
                 .isEqualTo("encrypted-apple-refresh-token");
+        assertThat(pendingAuthorizationRepository.findByUploadId(uploadId))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("임시 Apple 인증 정보가 없으면 회원가입을 완료하지 않는다")
+    void signup_missingPendingAppleAuthorization_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("Apple 회원가입이 완료되기 전에 실패하면 임시 인증 정보를 남긴다")
+    void signup_missingSignature_keepsPendingAppleAuthorization() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        savePendingAppleAuthorization(uploadId);
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+        given(signatureImageStorage.toStorageKeys(uploadId))
+                .willReturn(storageKeys(uploadId));
+        given(signatureImageStorage.findUploadedImage(uploadId))
+                .willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("업로드한 사인 이미지를 찾을 수 없습니다.");
+        assertThat(pendingAuthorizationRepository.findByUploadId(uploadId))
+                .isPresent();
     }
 
     @Test
@@ -237,7 +289,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         UUID withdrawnUserId = withdrawnUser.getId();
-        userService.withdraw(withdrawnUserId, List.of());
+        userWithdrawalService.withdraw(withdrawnUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -284,7 +336,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         UUID firstUserId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
-        userService.withdraw(firstUserId, List.of());
+        userWithdrawalService.withdraw(firstUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -303,6 +355,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_appleTokenReplayedAfterWithdrawal_doesNotResurrectAuthorization() {
         // Given
         UUID uploadId = UUID.randomUUID();
+        savePendingAppleAuthorization(uploadId);
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
@@ -326,12 +379,10 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .findAllBySocialAccountId(socialAccountId)
                 .getFirst();
 
-        // 탈퇴 처리. Apple revoke 호출은 UserWithdrawalService의 책임이라 이 테스트에서는
-        // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
-        userService.withdraw(firstUserId, List.of(new AppleAuthorizationSnapshot(
-                authorization.getId(),
-                authorization.getClientId(),
-                authorization.getEncryptedRefreshToken())));
+        given(authorizationCipher.decrypt(
+                authorization.getEncryptedRefreshToken()))
+                .willReturn("apple-refresh-token");
+        userWithdrawalService.withdraw(firstUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -343,6 +394,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .isEmpty();
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .isEmpty();
+        verify(appleTokenClient).revokeRefreshToken("apple-refresh-token");
 
         // When & Then
         // 같은 signupToken을 재전송하면, 이미 Apple에 폐기 요청까지 보냈던 RT가 새 계정에
@@ -542,6 +594,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void createAppleSignatureUpload_validToken_issuesUploadUrl() {
         // Given
         UUID uploadId = UUID.randomUUID();
+        savePendingAppleAuthorization(uploadId);
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageUploadIssuer.issue(uploadId))
@@ -575,6 +628,42 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
                 .hasMessage("Apple 회원가입 토큰이 아닙니다.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("임시 Apple 인증 정보가 없으면 업로드 URL을 발급하지 않는다")
+    void createAppleSignatureUpload_missingPendingAuthorization_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService
+                .createAppleSignatureUpload(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("임시 Apple 인증 정보가 만료되면 업로드 URL을 발급하지 않는다")
+    void createAppleSignatureUpload_expiredPendingAuthorization_throwsBusinessException() {
+        // Given
+        UUID uploadId = UUID.randomUUID();
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                uploadId,
+                "encrypted-apple-refresh-token",
+                Instant.now().minusSeconds(1)));
+        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
+                .willReturn(verifiedAppleSignupToken(uploadId));
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService
+                .createAppleSignatureUpload(SIGNUP_TOKEN))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
         verifyNoInteractions(signatureImageUploadIssuer);
     }
 
@@ -739,11 +828,15 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 "apple-subject",
                 uploadId,
                 "user@privaterelay.appleid.com",
-                new AppleSignupAuthorization(
-                        "com.chalkak.ios",
-                        "encrypted-apple-refresh-token"),
                 newTokenId(),
                 defaultTokenExpiresAt());
+    }
+
+    private void savePendingAppleAuthorization(UUID uploadId) {
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                uploadId,
+                "encrypted-apple-refresh-token",
+                defaultTokenExpiresAt()));
     }
 
     /**

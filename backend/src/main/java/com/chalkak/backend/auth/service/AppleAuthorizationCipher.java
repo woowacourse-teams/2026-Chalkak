@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.service;
 
-public interface AppleRefreshTokenCipher {
+public interface AppleAuthorizationCipher {
 
     String encrypt(String refreshToken);
 

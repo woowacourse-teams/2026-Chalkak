@@ -1,13 +1,11 @@
 package com.chalkak.backend.auth.infrastructure.infra.signup;
 
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.service.SocialSignupTokenIssuer;
 import com.chalkak.backend.auth.service.SocialSignupTokenVerifier;
-import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
@@ -47,9 +45,6 @@ public class JwtSocialSignupTokenProvider implements
     private static final String PROVIDER_CLAIM = "provider";
     private static final String PURPOSE_CLAIM = "purpose";
     private static final String UPLOAD_ID_CLAIM = "uploadId";
-    private static final String APPLE_CLIENT_ID_CLAIM = "appleClientId";
-    private static final String APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM =
-            "appleEncryptedRefreshToken";
     private static final Duration CLOCK_SKEW = Duration.ofSeconds(30);
 
     private final SocialSignupTokenProperties properties;
@@ -82,33 +77,6 @@ public class JwtSocialSignupTokenProvider implements
             VerifiedSocialIdentity identity,
             UUID uploadId
     ) {
-        if (identity.provider() == SocialProvider.APPLE) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 토큰에는 Apple 인증 정보가 필요합니다.");
-        }
-        return issue(identity, uploadId, null);
-    }
-
-    @Override
-    public IssuedSocialSignupToken issueApple(
-            VerifiedSocialIdentity identity,
-            UUID uploadId,
-            AppleSignupAuthorization authorization
-    ) {
-        if (identity.provider() != SocialProvider.APPLE || authorization == null) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 토큰 정보가 올바르지 않습니다.");
-        }
-        return issue(identity, uploadId, authorization);
-    }
-
-    private IssuedSocialSignupToken issue(
-            VerifiedSocialIdentity identity,
-            UUID uploadId,
-            AppleSignupAuthorization appleAuthorization
-    ) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.expiration());
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
@@ -121,12 +89,6 @@ public class JwtSocialSignupTokenProvider implements
                 .claim(PURPOSE_CLAIM, PURPOSE)
                 .claim(PROVIDER_CLAIM, identity.provider().name())
                 .claim(UPLOAD_ID_CLAIM, uploadId.toString());
-        if (appleAuthorization != null) {
-            claims.claim(APPLE_CLIENT_ID_CLAIM, appleAuthorization.clientId());
-            claims.claim(
-                    APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM,
-                    appleAuthorization.encryptedRefreshToken());
-        }
         if (identity.email() != null) {
             claims.claim(EMAIL_CLAIM, identity.email());
         }
@@ -138,7 +100,7 @@ public class JwtSocialSignupTokenProvider implements
                         claims.build()))
                 .getTokenValue();
 
-        return new IssuedSocialSignupToken(value);
+        return new IssuedSocialSignupToken(value, expiresAt);
     }
 
     @Override
@@ -151,31 +113,13 @@ public class JwtSocialSignupTokenProvider implements
                     getSubject(jwt),
                     getUploadId(jwt),
                     getEmail(jwt),
-                    getAppleAuthorization(jwt, provider),
                     getTokenId(jwt),
                     jwt.getExpiresAt());
-        } catch (JwtException | IllegalArgumentException | BusinessException exception) {
+        } catch (JwtException | IllegalArgumentException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
                     "유효하지 않은 회원가입 정보입니다.");
         }
-    }
-
-    private AppleSignupAuthorization getAppleAuthorization(
-            Jwt jwt,
-            SocialProvider provider
-    ) {
-        String clientId = jwt.getClaimAsString(APPLE_CLIENT_ID_CLAIM);
-        String encryptedRefreshToken =
-                jwt.getClaimAsString(APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM);
-        if (provider == SocialProvider.APPLE) {
-            return new AppleSignupAuthorization(clientId, encryptedRefreshToken);
-        }
-        if (clientId != null || encryptedRefreshToken != null) {
-            throw new IllegalArgumentException(
-                    "Apple이 아닌 회원가입 토큰에 Apple 인증 정보가 포함되어 있습니다.");
-        }
-        return null;
     }
 
     private JwtDecoder createJwtDecoder(SecretKey secretKey, Clock clock) {

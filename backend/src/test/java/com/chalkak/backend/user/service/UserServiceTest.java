@@ -6,14 +6,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.AppleAuthorizationFingerprintEncoder;
 import com.chalkak.backend.auth.service.RefreshTokenHasher;
-import com.chalkak.backend.auth.service.AppleAuthorizationSnapshot;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
@@ -68,6 +68,9 @@ class UserServiceTest extends IntegrationTestSupport {
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
     @Autowired
+    private AppleAuthorizationFingerprintEncoder authorizationFingerprintEncoder;
+
+    @Autowired
     private UserRefreshTokenService userRefreshTokenService;
 
     @Autowired
@@ -93,7 +96,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(id, List.of());
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // Then
@@ -122,7 +125,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of());
+        userService.completeWithdrawal(user.getId(), List.of());
         flushAndClear();
 
         // Then
@@ -140,7 +143,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(id, List.of());
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // Then
@@ -161,7 +164,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of());
+        userService.completeWithdrawal(user.getId(), List.of());
         flushAndClear();
 
         // Then
@@ -179,7 +182,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         flushAndClear();
-        userService.withdraw(user.getId(), List.of());
+        userService.completeWithdrawal(user.getId(), List.of());
         flushAndClear();
 
         // When & Then
@@ -197,7 +200,7 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID notExistingId = UUID.randomUUID();
 
         // When & Then
-        assertThatThrownBy(() -> userService.withdraw(notExistingId, List.of()))
+        assertThatThrownBy(() -> userService.completeWithdrawal(notExistingId, List.of()))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
     }
@@ -207,11 +210,11 @@ class UserServiceTest extends IntegrationTestSupport {
     void withdraw_alreadyWithdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(id, List.of());
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // When & Then
-        assertThatThrownBy(() -> userService.withdraw(id, List.of()))
+        assertThatThrownBy(() -> userService.completeWithdrawal(id, List.of()))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
     }
@@ -256,7 +259,7 @@ class UserServiceTest extends IntegrationTestSupport {
     void createSignatureUpload_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID userId = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(userId, List.of());
+        userService.completeWithdrawal(userId, List.of());
         flushAndClear();
 
         // When & Then
@@ -879,7 +882,7 @@ class UserServiceTest extends IntegrationTestSupport {
     void updateSignature_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(id, List.of());
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -1141,7 +1144,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(userId, List.of());
+        userService.completeWithdrawal(userId, List.of());
         flushAndClear();
 
         // Then
@@ -1170,15 +1173,13 @@ class UserServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(
                         socialAccount,
-                        "com.chalkak.ios",
                         "encrypted-refresh-token"));
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
+        userService.completeWithdrawal(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                "com.chalkak.ios",
-                "encrypted-refresh-token")));
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
         flushAndClear();
 
         // Then
@@ -1198,7 +1199,6 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID socialAccountId = socialAccount.getId();
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
-                "com.chalkak.ios",
                 "encrypted-refresh-token"));
         flushAndClear();
 
@@ -1206,7 +1206,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // 실제로는 인증 정보가 하나 저장돼 있는데, 아무것도 폐기하지 않은 것으로(빈 스냅샷)
         // 탈퇴를 시도하는 상황이다. 실제 트랜잭션 밖에서 다른 로그인이 끼어든 것과 같은 대조
         // 실패를 낸다.
-        assertThatThrownBy(() -> userService.withdraw(user.getId(), List.of()))
+        assertThatThrownBy(() -> userService.completeWithdrawal(user.getId(), List.of()))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RESOURCE_STATE_CHANGED)
                 .hasMessage("탈퇴 처리 중 Apple 인증 정보가 변경되었습니다. 다시 시도해 주세요.");
@@ -1232,15 +1232,13 @@ class UserServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(
                         socialAccount,
-                        "com.chalkak.ios",
                         "encrypted-refresh-token"));
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
+        userService.completeWithdrawal(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                "com.chalkak.ios",
-                "encrypted-refresh-token")));
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
         flushAndClear();
 
         // Then

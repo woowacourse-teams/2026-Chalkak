@@ -4,5 +4,5 @@ public interface AppleTokenClient {
 
     AppleTokenExchangeResult exchangeAuthorizationCode(String authorizationCode);
 
-    void revokeRefreshToken(String refreshToken, String clientId);
+    void revokeRefreshToken(String refreshToken);
 }

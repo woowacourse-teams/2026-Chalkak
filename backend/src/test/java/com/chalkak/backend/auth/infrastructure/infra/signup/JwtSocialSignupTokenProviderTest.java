@@ -3,12 +3,10 @@ package com.chalkak.backend.auth.infrastructure.infra.signup;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
-import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -16,6 +14,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -61,14 +61,14 @@ class JwtSocialSignupTokenProviderTest {
         assertThat(verifiedToken.subject()).isEqualTo(SUBJECT);
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
         assertThat(verifiedToken.email()).isEqualTo("user@chalkak.test");
-        assertThat(verifiedToken.appleAuthorization()).isNull();
         assertThat(verifiedToken.tokenId()).isNotBlank();
         assertThat(verifiedToken.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
+        assertThat(issuedToken.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
     }
 
     @Test
-    @DisplayName("Apple 회원가입 토큰에 Client ID와 암호화된 RT를 포함해 발급하고 검증한다")
-    void issueApple_validAuthorization_verifiesAppleSignupToken() {
+    @DisplayName("Apple 회원가입 토큰에는 공통 식별 정보만 포함한다")
+    void issue_appleIdentity_containsNoRefreshToken() {
         // Given
         JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
                 NOW,
@@ -77,25 +77,24 @@ class JwtSocialSignupTokenProviderTest {
                 SocialProvider.APPLE,
                 "apple-subject",
                 "user@privaterelay.appleid.com");
-        AppleSignupAuthorization authorization = new AppleSignupAuthorization(
-                "com.chalkak.ios",
-                "encrypted-apple-refresh-token");
         UUID uploadId = UUID.randomUUID();
 
         // When
-        IssuedSocialSignupToken issuedToken = provider.issueApple(
-                identity,
-                uploadId,
-                authorization);
+        IssuedSocialSignupToken issuedToken = provider.issue(identity, uploadId);
         VerifiedSocialSignupToken verifiedToken = provider.verify(
                 issuedToken.value());
+        String payload = new String(
+                Base64.getUrlDecoder().decode(issuedToken.value().split("\\.")[1]),
+                StandardCharsets.UTF_8);
 
         // Then
         assertThat(verifiedToken.provider()).isEqualTo(SocialProvider.APPLE);
         assertThat(verifiedToken.subject()).isEqualTo("apple-subject");
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
-        assertThat(verifiedToken.appleAuthorization()).isEqualTo(authorization);
         assertThat(verifiedToken.tokenId()).isNotBlank();
+        assertThat(payload)
+                .doesNotContain("appleEncryptedRefreshToken")
+                .doesNotContain("encrypted-apple-refresh-token");
     }
 
     @Test
@@ -114,62 +113,6 @@ class JwtSocialSignupTokenProviderTest {
 
         // Then
         assertThat(first.tokenId()).isNotEqualTo(second.tokenId());
-    }
-
-    @Test
-    @DisplayName("Apple 인증 정보 없이 일반 경로로 Apple 회원가입 토큰을 발급할 수 없다")
-    void issue_appleIdentityWithoutAuthorization_throwsException() {
-        // Given
-        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
-                NOW,
-                ZoneOffset.UTC));
-        VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
-                SocialProvider.APPLE,
-                "apple-subject",
-                null);
-
-        // When & Then
-        assertThatThrownBy(() -> provider.issue(identity, UUID.randomUUID()))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Apple 회원가입 토큰에는 Apple 인증 정보가 필요합니다.");
-    }
-
-    @Test
-    @DisplayName("Apple 인증 정보가 빠진 Apple 회원가입 토큰은 검증할 수 없다")
-    void verify_appleTokenWithoutAuthorization_throwsUnauthorizedException() {
-        // Given
-        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
-                NOW,
-                ZoneOffset.UTC));
-        String token = createSignedToken(
-                "SOCIAL_SIGNUP",
-                true,
-                NOW,
-                NOW.plus(Duration.ofMinutes(5)),
-                SocialProvider.APPLE,
-                false);
-
-        // When & Then
-        assertInvalidSignupToken(() -> provider.verify(token));
-    }
-
-    @Test
-    @DisplayName("Google 회원가입 토큰에 Apple 인증 정보가 포함되면 검증할 수 없다")
-    void verify_googleTokenWithAppleAuthorization_throwsUnauthorizedException() {
-        // Given
-        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
-                NOW,
-                ZoneOffset.UTC));
-        String token = createSignedToken(
-                "SOCIAL_SIGNUP",
-                true,
-                NOW,
-                NOW.plus(Duration.ofMinutes(5)),
-                SocialProvider.GOOGLE,
-                true);
-
-        // When & Then
-        assertInvalidSignupToken(() -> provider.verify(token));
     }
 
     @Test
@@ -402,8 +345,7 @@ class JwtSocialSignupTokenProviderTest {
                 includeUploadId,
                 issuedAt,
                 expiresAt,
-                SocialProvider.GOOGLE,
-                false);
+                SocialProvider.GOOGLE);
     }
 
     private String createSignedToken(
@@ -411,8 +353,7 @@ class JwtSocialSignupTokenProviderTest {
             boolean includeUploadId,
             Instant issuedAt,
             Instant expiresAt,
-            SocialProvider provider,
-            boolean includeAppleAuthorization
+            SocialProvider provider
     ) {
         SecretKey secretKey = new SecretKeySpec(
                 HexFormat.of().parseHex(SECRET),
@@ -433,12 +374,6 @@ class JwtSocialSignupTokenProviderTest {
         }
         if (includeUploadId) {
             claims.claim("uploadId", UUID.randomUUID().toString());
-        }
-        if (includeAppleAuthorization) {
-            claims.claim("appleClientId", "com.chalkak.ios");
-            claims.claim(
-                    "appleEncryptedRefreshToken",
-                    "encrypted-apple-refresh-token");
         }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
                 .type("JWT")

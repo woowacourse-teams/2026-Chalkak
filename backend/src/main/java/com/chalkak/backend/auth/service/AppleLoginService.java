@@ -1,10 +1,11 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
@@ -22,7 +23,8 @@ public class AppleLoginService {
 
     private final AppleIdTokenVerifier appleIdTokenVerifier;
     private final AppleTokenClient appleTokenClient;
-    private final AppleRefreshTokenCipher refreshTokenCipher;
+    private final AppleAuthorizationCipher authorizationCipher;
+    private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SocialAccountRepository socialAccountRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -39,6 +41,10 @@ public class AppleLoginService {
      * 로그인을 막지 않는다. 대신 사용자가 Apple 설정에서 연동을 해제한 뒤 다시 로그인하면
      * 저장된 토큰이 무효인 채로 남는데, 그때는 이미 사용자가 직접 연동을 끊은 상태라
      * 탈퇴 시 폐기 요청도 정상 응답을 받는다.
+     *
+     * <p>이 메서드 전체에 트랜잭션을 적용하지 않는 것은 신규 회원 경로의 Apple 토큰 교환
+     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 기존 회원 경로의 DB 작업
+     * 원자성은 외부 호출과 DB 작업을 분리하는 로그인 파이프라인 통합 작업(#306)에서 보완한다.
      */
     public AppleLoginResult login(
             String idToken,
@@ -97,7 +103,7 @@ public class AppleLoginService {
         }
     }
 
-    private AppleSignupAuthorization exchangeAuthorization(
+    private String exchangeAuthorization(
             VerifiedSocialIdentity identity,
             String authorizationCode,
             String rawNonce
@@ -109,9 +115,7 @@ public class AppleLoginService {
                 rawNonce);
         validateSameSubject(identity, exchangedIdentity);
 
-        return new AppleSignupAuthorization(
-                exchangeResult.clientId(),
-                refreshTokenCipher.encrypt(exchangeResult.refreshToken()));
+        return authorizationCipher.encrypt(exchangeResult.refreshToken());
     }
 
     private void validateSameSubject(
@@ -127,12 +131,16 @@ public class AppleLoginService {
 
     private AppleLoginResult issueSignupToken(
             VerifiedSocialIdentity identity,
-            AppleSignupAuthorization signupAuthorization
+            String encryptedRefreshToken
     ) {
-        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issueApple(
+        UUID uploadId = UUID.randomUUID();
+        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
                 identity,
-                UUID.randomUUID(),
-                signupAuthorization);
+                uploadId);
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                uploadId,
+                encryptedRefreshToken,
+                signupToken.expiresAt()));
         return AppleLoginResult.signUpRequired(signupToken);
     }
 }

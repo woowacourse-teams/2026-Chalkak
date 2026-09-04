@@ -62,11 +62,10 @@ public class AppleHttpTokenClient implements AppleTokenClient {
     }
 
     @Override
-    public void revokeRefreshToken(String refreshToken, String clientId) {
+    public void revokeRefreshToken(String refreshToken) {
         validateRefreshToken(refreshToken);
-        validateClientId(clientId);
         MultiValueMap<String, String> form =
-                createRefreshTokenRevocationForm(refreshToken, clientId);
+                createRefreshTokenRevocationForm(refreshToken);
 
         try {
             restClient.post()
@@ -100,12 +99,6 @@ public class AppleHttpTokenClient implements AppleTokenClient {
         }
     }
 
-    private void validateClientId(String clientId) {
-        if (clientId == null || clientId.isBlank()) {
-            throw new IllegalArgumentException("Apple client_id가 필요합니다.");
-        }
-    }
-
     private MultiValueMap<String, String> createTokenExchangeForm(String authorizationCode) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("client_id", clientId);
@@ -116,8 +109,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
     }
 
     private MultiValueMap<String, String> createRefreshTokenRevocationForm(
-            String refreshToken,
-            String clientId
+            String refreshToken
     ) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("client_id", clientId);
@@ -133,8 +125,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
         }
         return new AppleTokenExchangeResult(
                 response.idToken(),
-                response.refreshToken(),
-                clientId);
+                response.refreshToken());
     }
 
     private RuntimeException mapBadRequest(HttpClientErrorException.BadRequest exception) {

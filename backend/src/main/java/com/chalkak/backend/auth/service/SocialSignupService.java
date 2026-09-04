@@ -1,14 +1,11 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.ConsumedSignupToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
-import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
@@ -36,8 +33,8 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
-    private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final ConsumedSignupTokenRepository consumedSignupTokenRepository;
+    private final AppleSignupAuthorizationService appleSignupAuthorizationService;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -71,7 +68,7 @@ public class SocialSignupService {
     ) {
         VerifiedSocialSignupToken verifiedToken =
                 socialSignupTokenVerifier.verify(signupToken);
-        validateAppleSignupToken(verifiedToken);
+        appleSignupAuthorizationService.validate(verifiedToken);
         validateNewSocialAccount(new VerifiedSocialIdentity(
                 verifiedToken.provider(),
                 verifiedToken.subject(),
@@ -125,7 +122,7 @@ public class SocialSignupService {
                 user,
                 verifiedToken.provider(),
                 subjectHmac));
-        saveAppleAuthorization(verifiedToken, socialAccount);
+        appleSignupAuthorizationService.saveIfApple(verifiedToken, socialAccount);
 
         return toSignupResult(user);
     }
@@ -139,26 +136,6 @@ public class SocialSignupService {
                 user.getId(),
                 accessTokenIssuer.issue(user.getId()),
                 userRefreshTokenService.issue(user));
-    }
-
-    private void saveAppleAuthorization(
-            VerifiedSocialSignupToken verifiedToken,
-            SocialAccount socialAccount
-    ) {
-        if (verifiedToken.provider() != SocialProvider.APPLE) {
-            return;
-        }
-        AppleSignupAuthorization signupAuthorization =
-                verifiedToken.appleAuthorization();
-        if (signupAuthorization == null) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 인증 정보가 없습니다.");
-        }
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                signupAuthorization.clientId(),
-                signupAuthorization.encryptedRefreshToken()));
     }
 
     private User getExistingUser(SocialAccount socialAccount) {
@@ -201,17 +178,6 @@ public class SocialSignupService {
             throw new NotFoundException(
                     ErrorCode.BUSINESS_ERROR,
                     "업로드한 사인 이미지를 찾을 수 없습니다.");
-        }
-    }
-
-    private void validateAppleSignupToken(
-            VerifiedSocialSignupToken verifiedToken
-    ) {
-        if (verifiedToken.provider() != SocialProvider.APPLE
-                || verifiedToken.appleAuthorization() == null) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 토큰이 아닙니다.");
         }
     }
 
