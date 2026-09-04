@@ -24,15 +24,6 @@ public class SocialAccountRepositoryImpl implements SocialAccountRepository {
     }
 
     @Override
-    public Optional<SocialAccount> findByProviderAndSubjectHmacForUpdate(
-            SocialProvider provider,
-            String subjectHmac) {
-        return socialAccountJpaRepository.findByProviderAndSubjectHmacForUpdate(
-                provider,
-                subjectHmac);
-    }
-
-    @Override
     public Optional<SocialAccount> findByUserId(UUID userId) {
         return socialAccountJpaRepository.findByUserId(userId);
     }

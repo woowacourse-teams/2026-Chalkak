@@ -71,11 +71,6 @@ public class AppleAuthorization {
         return authorization;
     }
 
-    public void updateEncryptedRefreshToken(String encryptedRefreshToken) {
-        validateEncryptedRefreshToken(encryptedRefreshToken);
-        this.encryptedRefreshToken = encryptedRefreshToken;
-    }
-
     private static void validateSocialAccount(SocialAccount socialAccount) {
         if (socialAccount == null || socialAccount.getProvider() != SocialProvider.APPLE) {
             throw invalidAuthorization();

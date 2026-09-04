@@ -11,10 +11,6 @@ public interface SocialAccountRepository {
             SocialProvider provider,
             String subjectHmac);
 
-    Optional<SocialAccount> findByProviderAndSubjectHmacForUpdate(
-            SocialProvider provider,
-            String subjectHmac);
-
     Optional<SocialAccount> findByUserId(UUID userId);
 
     SocialAccount save(SocialAccount socialAccount);

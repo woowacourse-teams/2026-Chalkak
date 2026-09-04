@@ -73,38 +73,20 @@ class AppleAuthorizationTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = " ")
-    @DisplayName("암호화된 RT가 없으면 Apple 인증 정보를 생성하거나 갱신할 수 없다")
-    void updateEncryptedRefreshToken_missingToken_throwsException(
+    @DisplayName("암호화된 RT가 없으면 Apple 인증 정보를 생성할 수 없다")
+    void create_missingEncryptedRefreshToken_throwsException(
             String encryptedRefreshToken
     ) {
         // Given
-        AppleAuthorization authorization = AppleAuthorization.create(
-                createSocialAccount(SocialProvider.APPLE),
-                CLIENT_ID,
-                ENCRYPTED_REFRESH_TOKEN);
+        SocialAccount socialAccount = createSocialAccount(SocialProvider.APPLE);
 
         // When & Then
-        assertThatThrownBy(() -> authorization.updateEncryptedRefreshToken(
+        assertThatThrownBy(() -> AppleAuthorization.create(
+                socialAccount,
+                CLIENT_ID,
                 encryptedRefreshToken))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 인증 정보가 올바르지 않습니다.");
-    }
-
-    @Test
-    @DisplayName("암호화된 RT를 새로운 값으로 갱신한다")
-    void updateEncryptedRefreshToken_validToken_updatesToken() {
-        // Given
-        AppleAuthorization authorization = AppleAuthorization.create(
-                createSocialAccount(SocialProvider.APPLE),
-                CLIENT_ID,
-                ENCRYPTED_REFRESH_TOKEN);
-
-        // When
-        authorization.updateEncryptedRefreshToken("new-encrypted-refresh-token");
-
-        // Then
-        assertThat(authorization.getEncryptedRefreshToken())
-                .isEqualTo("new-encrypted-refresh-token");
     }
 
     @Test

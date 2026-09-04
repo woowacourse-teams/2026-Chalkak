@@ -43,38 +43,6 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @Test
-    @DisplayName("소셜 계정과 Client ID로 Apple 인증 정보를 잠금 조회해 RT를 갱신한다")
-    void findBySocialAccountIdAndClientIdForUpdate_existingAuthorization_updatesToken() {
-        // Given
-        SocialAccount socialAccount = saveAppleSocialAccount();
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                CLIENT_ID,
-                ENCRYPTED_REFRESH_TOKEN));
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        AppleAuthorization authorization = appleAuthorizationRepository
-                .findBySocialAccountIdAndClientIdForUpdate(
-                        socialAccount.getId(),
-                        CLIENT_ID)
-                .orElseThrow();
-        authorization.updateEncryptedRefreshToken("new-encrypted-refresh-token");
-        entityManager.flush();
-        entityManager.clear();
-
-        // Then
-        AppleAuthorization updated = appleAuthorizationRepository
-                .findBySocialAccountIdAndClientIdForUpdate(
-                        socialAccount.getId(),
-                        CLIENT_ID)
-                .orElseThrow();
-        assertThat(updated.getEncryptedRefreshToken())
-                .isEqualTo("new-encrypted-refresh-token");
-    }
-
-    @Test
     @DisplayName("같은 소셜 계정과 Client ID 조합을 중복 저장할 수 없다")
     void save_duplicateSocialAccountAndClientId_throwsException() {
         // Given

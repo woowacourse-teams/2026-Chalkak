@@ -221,9 +221,11 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("폐기와 삭제 사이 같은 Client ID의 RT가 갱신되면 탈퇴가 실패하고 갱신된 RT를 유지한다")
-    void withdraw_authorizationUpdatedDuringRevocation_failsAndKeepsUpdatedToken() {
+    @DisplayName("폐기와 삭제 사이 같은 Client ID의 인증이 다른 RT로 교체되면 탈퇴가 실패하고 교체된 RT를 유지한다")
+    void withdraw_authorizationReplacedDuringRevocation_failsAndKeepsReplacedToken() {
         // Given
+        // 개수가 그대로여서 스냅샷과 크기만으로는 구분되지 않는 상황이다. 삭제 직전 대조가
+        // 개수뿐 아니라 내용까지 비교하는지 확인한다.
         User user = userRepository.save(UserFixture.create());
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
@@ -231,11 +233,14 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         willAnswer(invocation -> {
-            // 같은 Client ID로 다시 로그인해 RT가 최신 값으로 갱신된 상황을 흉내낸다.
-            AppleAuthorization managed = appleAuthorizationRepository
-                    .findBySocialAccountIdAndClientIdForUpdate(socialAccountId, CLIENT_ID)
+            SocialAccount managed = socialAccountRepository.findByUserId(user.getId())
                     .orElseThrow();
-            managed.updateEncryptedRefreshToken("new-encrypted-refresh-token");
+            appleAuthorizationRepository.deleteAllBySocialAccountId(socialAccountId);
+            entityManager.flush();
+            appleAuthorizationRepository.save(AppleAuthorization.create(
+                    managed,
+                    CLIENT_ID,
+                    "new-encrypted-refresh-token"));
             entityManager.flush();
             return null;
         }).given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
