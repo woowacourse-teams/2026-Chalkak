@@ -17,9 +17,11 @@ import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +49,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -76,6 +81,37 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
         assertThat(result.userId()).isEqualTo(user.getId());
+    }
+
+    @Test
+    @DisplayName("로그인에 성공하면 리프레시 토큰 계보를 하나 남기고 평문은 저장하지 않는다")
+    void login_existingSocialAccount_issuesRefreshToken() {
+        // Given
+        willReturn(identity())
+                .given(googleIdTokenVerifier)
+                .verify(ID_TOKEN);
+        User user = userRepository.save(UserFixture.create());
+        socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.GOOGLE,
+                subjectHmac()));
+        flushAndClear();
+
+        // When
+        SocialLoginResult result = socialLoginService.login(
+                SocialProvider.GOOGLE,
+                ID_TOKEN);
+
+        // Then
+        assertThat(result.refreshToken().value()).isNotBlank();
+        List<String> storedHashes = jdbcTemplate.queryForList(
+                "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
+                String.class,
+                user.getId());
+        assertThat(storedHashes).hasSize(1);
+        assertThat(storedHashes.getFirst())
+                .isNotEqualTo(result.refreshToken().value())
+                .matches("^[0-9a-f]{64}$");
     }
 
     @Test

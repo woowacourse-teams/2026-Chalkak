@@ -21,8 +21,14 @@ public class SocialLoginService {
     private final SocialAccountRepository socialAccountRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final AccessTokenIssuer accessTokenIssuer;
+    private final UserRefreshTokenService userRefreshTokenService;
 
-    @Transactional(readOnly = true)
+    /**
+     * 로그인 성공은 리프레시 토큰 계보를 새로 만들면서 행을 남기므로 읽기 전용 트랜잭션으로는
+     * 처리할 수 없다. 회원가입이 필요한 경로는 여전히 읽기만 하지만, 두 경로가 한 트랜잭션을
+     * 공유하는 이상 쓰기를 허용하는 쪽으로 맞춰야 한다.
+     */
+    @Transactional
     public SocialLoginResult login(
             SocialProvider provider,
             String idToken
@@ -56,6 +62,7 @@ public class SocialLoginService {
         UUID userId = user.getId();
         return SocialLoginResult.loginSuccess(
                 userId,
-                accessTokenIssuer.issue(userId));
+                accessTokenIssuer.issue(userId),
+                userRefreshTokenService.issue(user));
     }
 }

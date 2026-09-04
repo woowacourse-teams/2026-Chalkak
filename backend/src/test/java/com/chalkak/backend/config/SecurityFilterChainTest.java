@@ -14,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.AccessTokenProperties;
@@ -21,6 +23,8 @@ import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvid
 import com.chalkak.backend.auth.infrastructure.infra.signup.JwtSocialSignupTokenProvider;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
+import com.chalkak.backend.auth.service.TokenRefreshResult;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.like.service.PostLikeResult;
 import com.chalkak.backend.like.service.PostLikeService;
 import com.chalkak.backend.post.service.PostCalendarResult;
@@ -29,6 +33,7 @@ import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
@@ -87,6 +92,9 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
 
     @MockitoBean
     private SocialLoginService socialLoginService;
+
+    @MockitoBean
+    private UserRefreshTokenService userRefreshTokenService;
 
     @MockitoBean
     private PostQueryService postQueryService;
@@ -179,6 +187,45 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"));
+    }
+
+    /**
+     * 리프레시 토큰 자체가 자격증명이라 액세스 토큰을 요구하면 재발급 자체가 불가능해진다.
+     * 액세스 토큰이 만료된 뒤에 호출되는 경로이므로 필터가 막으면 모든 세션이 끊긴다.
+     */
+    @Test
+    @DisplayName("토큰 재발급 API는 액세스 토큰 없이 호출할 수 있다")
+    void refreshApi_withoutToken_reachesController() throws Exception {
+        // Given
+        given(userRefreshTokenService.refresh(any()))
+                .willReturn(new TokenRefreshResult(
+                        new IssuedAccessToken("chalkak-access-token", Duration.ofMinutes(15)),
+                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30))));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "chalkak-refresh-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("chalkak-access-token"));
+    }
+
+    @Test
+    @DisplayName("로그아웃 API는 액세스 토큰 없이 호출할 수 있다")
+    void logoutApi_withoutToken_reachesController() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "chalkak-refresh-token"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
     }
 
     @Test

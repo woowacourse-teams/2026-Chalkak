@@ -1,6 +1,7 @@
 package com.chalkak.backend.user.service;
 
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -29,6 +30,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final UserRefreshTokenService userRefreshTokenService;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
@@ -133,6 +135,12 @@ public class UserService {
                 .ifPresent(user -> user.failSignatureProcessing(uploadId));
     }
 
+    /**
+     * 탈퇴 처리. 소셜 연결을 끊는 것만으로는 이미 발급된 리프레시 토큰이 살아 있어, 탈퇴한 회원이
+     * 절대 만료까지 최장 90일 동안 액세스 토큰을 계속 받아 갈 수 있다. 그래서 모든 기기의 계보를
+     * 여기서 함께 폐기한다. 차단은 계보를 남겨 두는데, 차단 회원은 요청마다 {@code UsableUserPolicy}가
+     * 막으므로 굳이 재로그인까지 강제할 이유가 없기 때문이다.
+     */
     @Transactional
     public void withdraw(UUID userId) {
         User user = getActiveUser(userId);
@@ -140,6 +148,7 @@ public class UserService {
         if (user.getStatus() != UserStatus.BANNED) {
             socialAccountRepository.deleteByUserId(userId);
         }
+        userRefreshTokenService.revokeAll(userId);
         user.withdraw();
     }
 

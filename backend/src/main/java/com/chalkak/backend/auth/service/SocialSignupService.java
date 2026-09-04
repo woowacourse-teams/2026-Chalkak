@@ -39,6 +39,7 @@ public class SocialSignupService {
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImagePolicy signatureImagePolicy;
     private final UserRepository userRepository;
+    private final UserRefreshTokenService userRefreshTokenService;
 
     public SocialSignupSignatureUploadResult createSignatureUpload(
             SocialProvider provider,
@@ -70,7 +71,7 @@ public class SocialSignupService {
                         verifiedToken.provider(),
                         subjectHmac);
         if (existingSocialAccount.isPresent()) {
-            return toSignupResult(getExistingUserId(existingSocialAccount.get()));
+            return toSignupResult(getExistingUser(existingSocialAccount.get()));
         }
 
         SignatureStorageKeys storageKeys = signatureImageStorage
@@ -99,14 +100,21 @@ public class SocialSignupService {
                 verifiedToken.provider(),
                 subjectHmac));
 
-        return toSignupResult(user.getId());
+        return toSignupResult(user);
     }
 
-    private SocialSignupResult toSignupResult(UUID userId) {
-        return new SocialSignupResult(userId, accessTokenIssuer.issue(userId));
+    /**
+     * 리프레시 토큰 계보는 회원 엔티티에 FK로 매달리므로 식별자만으로는 만들 수 없다. 가입 직후
+     * 바로 재발급할 수 있도록 액세스 토큰과 같은 자리에서 함께 발급한다.
+     */
+    private SocialSignupResult toSignupResult(User user) {
+        return new SocialSignupResult(
+                user.getId(),
+                accessTokenIssuer.issue(user.getId()),
+                userRefreshTokenService.issue(user));
     }
 
-    private UUID getExistingUserId(SocialAccount socialAccount) {
+    private User getExistingUser(SocialAccount socialAccount) {
         User user = socialAccount.getUser();
         if (user.getStatus() == UserStatus.BANNED) {
             throw new ForbiddenException(
@@ -118,7 +126,7 @@ public class SocialSignupService {
                     ErrorCode.BUSINESS_ERROR,
                     "이미 가입된 소셜 계정입니다.");
         }
-        return user.getId();
+        return user;
     }
 
     private void validateUnusedSignature(SignatureStorageKeys storageKeys) {
