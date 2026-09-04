@@ -157,7 +157,6 @@ public class SocialSignupService {
         }
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
-                signupAuthorization.clientId(),
                 signupAuthorization.encryptedRefreshToken()));
     }
 

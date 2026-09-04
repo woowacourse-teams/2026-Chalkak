@@ -1170,14 +1170,12 @@ class UserServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(
                         socialAccount,
-                        "com.chalkak.ios",
                         "encrypted-refresh-token"));
         flushAndClear();
 
         // When
         userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
                 authorization.getId(),
-                "com.chalkak.ios",
                 "encrypted-refresh-token")));
         flushAndClear();
 
@@ -1198,7 +1196,6 @@ class UserServiceTest extends IntegrationTestSupport {
         UUID socialAccountId = socialAccount.getId();
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
-                "com.chalkak.ios",
                 "encrypted-refresh-token"));
         flushAndClear();
 
@@ -1232,14 +1229,12 @@ class UserServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(
                         socialAccount,
-                        "com.chalkak.ios",
                         "encrypted-refresh-token"));
         flushAndClear();
 
         // When
         userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
                 authorization.getId(),
-                "com.chalkak.ios",
                 "encrypted-refresh-token")));
         flushAndClear();
 

@@ -47,7 +47,6 @@ public class JwtSocialSignupTokenProvider implements
     private static final String PROVIDER_CLAIM = "provider";
     private static final String PURPOSE_CLAIM = "purpose";
     private static final String UPLOAD_ID_CLAIM = "uploadId";
-    private static final String APPLE_CLIENT_ID_CLAIM = "appleClientId";
     private static final String APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM =
             "appleEncryptedRefreshToken";
     private static final Duration CLOCK_SKEW = Duration.ofSeconds(30);
@@ -122,7 +121,6 @@ public class JwtSocialSignupTokenProvider implements
                 .claim(PROVIDER_CLAIM, identity.provider().name())
                 .claim(UPLOAD_ID_CLAIM, uploadId.toString());
         if (appleAuthorization != null) {
-            claims.claim(APPLE_CLIENT_ID_CLAIM, appleAuthorization.clientId());
             claims.claim(
                     APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM,
                     appleAuthorization.encryptedRefreshToken());
@@ -165,13 +163,12 @@ public class JwtSocialSignupTokenProvider implements
             Jwt jwt,
             SocialProvider provider
     ) {
-        String clientId = jwt.getClaimAsString(APPLE_CLIENT_ID_CLAIM);
         String encryptedRefreshToken =
                 jwt.getClaimAsString(APPLE_ENCRYPTED_REFRESH_TOKEN_CLAIM);
         if (provider == SocialProvider.APPLE) {
-            return new AppleSignupAuthorization(clientId, encryptedRefreshToken);
+            return new AppleSignupAuthorization(encryptedRefreshToken);
         }
-        if (clientId != null || encryptedRefreshToken != null) {
+        if (encryptedRefreshToken != null) {
             throw new IllegalArgumentException(
                     "Apple이 아닌 회원가입 토큰에 Apple 인증 정보가 포함되어 있습니다.");
         }

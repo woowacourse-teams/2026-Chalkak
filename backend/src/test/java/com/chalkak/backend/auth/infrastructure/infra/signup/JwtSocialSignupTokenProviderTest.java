@@ -67,7 +67,7 @@ class JwtSocialSignupTokenProviderTest {
     }
 
     @Test
-    @DisplayName("Apple 회원가입 토큰에 Client ID와 암호화된 RT를 포함해 발급하고 검증한다")
+    @DisplayName("Apple 회원가입 토큰에 암호화된 RT를 포함해 발급하고 검증한다")
     void issueApple_validAuthorization_verifiesAppleSignupToken() {
         // Given
         JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
@@ -78,7 +78,6 @@ class JwtSocialSignupTokenProviderTest {
                 "apple-subject",
                 "user@privaterelay.appleid.com");
         AppleSignupAuthorization authorization = new AppleSignupAuthorization(
-                "com.chalkak.ios",
                 "encrypted-apple-refresh-token");
         UUID uploadId = UUID.randomUUID();
 
@@ -435,7 +434,6 @@ class JwtSocialSignupTokenProviderTest {
             claims.claim("uploadId", UUID.randomUUID().toString());
         }
         if (includeAppleAuthorization) {
-            claims.claim("appleClientId", "com.chalkak.ios");
             claims.claim(
                     "appleEncryptedRefreshToken",
                     "encrypted-apple-refresh-token");

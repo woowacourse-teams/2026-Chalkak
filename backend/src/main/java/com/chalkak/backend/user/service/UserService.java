@@ -197,7 +197,6 @@ public class UserService {
         Set<AppleAuthorizationSnapshot> currentSnapshots = current.stream()
                 .map(authorization -> new AppleAuthorizationSnapshot(
                         authorization.getId(),
-                        authorization.getClientId(),
                         authorization.getEncryptedRefreshToken()))
                 .collect(Collectors.toSet());
         return currentSnapshots.containsAll(revokedAuthorizations);

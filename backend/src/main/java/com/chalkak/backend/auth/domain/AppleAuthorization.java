@@ -25,7 +25,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AppleAuthorization {
 
-    private static final int CLIENT_ID_MAX_LENGTH = 255;
     private static final int ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH = 4096;
 
     @Id
@@ -37,9 +36,6 @@ public class AppleAuthorization {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "social_account_id", nullable = false, updatable = false)
     private SocialAccount socialAccount;
-
-    @Column(name = "client_id", nullable = false, updatable = false, length = CLIENT_ID_MAX_LENGTH)
-    private String clientId;
 
     @Column(
             name = "encrypted_refresh_token",
@@ -57,30 +53,19 @@ public class AppleAuthorization {
 
     public static AppleAuthorization create(
             SocialAccount socialAccount,
-            String clientId,
             String encryptedRefreshToken
     ) {
         validateSocialAccount(socialAccount);
-        validateClientId(clientId);
         validateEncryptedRefreshToken(encryptedRefreshToken);
 
         AppleAuthorization authorization = new AppleAuthorization();
         authorization.socialAccount = socialAccount;
-        authorization.clientId = clientId;
         authorization.encryptedRefreshToken = encryptedRefreshToken;
         return authorization;
     }
 
     private static void validateSocialAccount(SocialAccount socialAccount) {
         if (socialAccount == null || socialAccount.getProvider() != SocialProvider.APPLE) {
-            throw invalidAuthorization();
-        }
-    }
-
-    private static void validateClientId(String clientId) {
-        if (clientId == null
-                || clientId.isBlank()
-                || clientId.length() > CLIENT_ID_MAX_LENGTH) {
             throw invalidAuthorization();
         }
     }

@@ -27,7 +27,6 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
 
     private static final String SUBJECT_HMAC =
             "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
-    private static final String CLIENT_ID = "com.chalkak.ios";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
 
     @Autowired
@@ -43,13 +42,12 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @Test
-    @DisplayName("같은 소셜 계정과 Client ID 조합을 중복 저장할 수 없다")
-    void save_duplicateSocialAccountAndClientId_throwsException() {
+    @DisplayName("같은 소셜 계정에 인증 정보를 중복 저장할 수 없다")
+    void save_duplicateSocialAccount_throwsException() {
         // Given
         SocialAccount socialAccount = saveAppleSocialAccount();
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
-                CLIENT_ID,
                 ENCRYPTED_REFRESH_TOKEN));
         entityManager.flush();
 
@@ -57,38 +55,11 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> {
             appleAuthorizationRepository.save(AppleAuthorization.create(
                     socialAccount,
-                    CLIENT_ID,
                     "another-encrypted-refresh-token"));
             entityManager.flush();
         })
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasRootCauseInstanceOf(SQLException.class);
-    }
-
-    @Test
-    @DisplayName("같은 소셜 계정에 서로 다른 Client ID 인증 정보를 저장할 수 있다")
-    void save_differentClientIds_storesEachAuthorization() {
-        // Given
-        SocialAccount socialAccount = saveAppleSocialAccount();
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                CLIENT_ID,
-                ENCRYPTED_REFRESH_TOKEN));
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                "com.chalkak.web",
-                "web-encrypted-refresh-token"));
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        List<AppleAuthorization> authorizations = appleAuthorizationRepository
-                .findAllBySocialAccountId(socialAccount.getId());
-
-        // Then
-        assertThat(authorizations)
-                .extracting(AppleAuthorization::getClientId)
-                .containsExactlyInAnyOrder(CLIENT_ID, "com.chalkak.web");
     }
 
     private SocialAccount saveAppleSocialAccount() {

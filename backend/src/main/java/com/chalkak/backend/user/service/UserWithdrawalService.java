@@ -42,8 +42,7 @@ public class UserWithdrawalService {
     private void revokeAuthorizations(List<AppleAuthorizationSnapshot> snapshots) {
         for (AppleAuthorizationSnapshot snapshot : snapshots) {
             appleTokenClient.revokeRefreshToken(
-                    authorizationCipher.decrypt(snapshot.encryptedRefreshToken()),
-                    snapshot.clientId());
+                    authorizationCipher.decrypt(snapshot.encryptedRefreshToken()));
         }
     }
 }

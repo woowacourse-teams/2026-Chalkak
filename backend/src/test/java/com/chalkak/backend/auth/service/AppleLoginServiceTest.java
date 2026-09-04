@@ -128,7 +128,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveAppleSocialAccount(UserFixture.create());
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
-                CLIENT_ID,
                 ENCRYPTED_REFRESH_TOKEN));
         entityManager.flush();
         entityManager.clear();
@@ -178,7 +177,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.userId()).isNull();
         assertThat(result.accessToken()).isNull();
         assertThat(result.signupToken()).isEqualTo(issuedToken);
-        assertThat(authorizationCaptor.getValue().clientId()).isEqualTo(CLIENT_ID);
         assertThat(authorizationCaptor.getValue().encryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
     }
@@ -287,8 +285,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private AppleTokenExchangeResult exchangeResult() {
         return new AppleTokenExchangeResult(
                 EXCHANGED_ID_TOKEN,
-                REFRESH_TOKEN,
-                CLIENT_ID);
+                REFRESH_TOKEN);
     }
 
     private VerifiedSocialIdentity identity(String subject) {

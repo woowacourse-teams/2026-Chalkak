@@ -110,7 +110,6 @@ public class AppleLoginService {
         validateSameSubject(identity, exchangedIdentity);
 
         return new AppleSignupAuthorization(
-                exchangeResult.clientId(),
                 authorizationCipher.encrypt(exchangeResult.refreshToken()));
     }
 

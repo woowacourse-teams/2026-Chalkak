@@ -170,7 +170,6 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         AppleAuthorization authorization = appleAuthorizationRepository
                 .findAllBySocialAccountId(socialAccount.getId())
                 .getFirst();
-        assertThat(authorization.getClientId()).isEqualTo("com.chalkak.ios");
         assertThat(authorization.getEncryptedRefreshToken())
                 .isEqualTo("encrypted-apple-refresh-token");
     }
@@ -330,7 +329,6 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
         userService.withdraw(firstUserId, List.of(new AppleAuthorizationSnapshot(
                 authorization.getId(),
-                authorization.getClientId(),
                 authorization.getEncryptedRefreshToken())));
         entityManager.flush();
         entityManager.clear();
@@ -740,7 +738,6 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 uploadId,
                 "user@privaterelay.appleid.com",
                 new AppleSignupAuthorization(
-                        "com.chalkak.ios",
                         "encrypted-apple-refresh-token"),
                 newTokenId(),
                 defaultTokenExpiresAt());
