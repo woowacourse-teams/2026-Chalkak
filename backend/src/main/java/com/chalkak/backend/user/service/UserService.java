@@ -1,7 +1,5 @@
 package com.chalkak.backend.user.service;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
@@ -21,9 +19,7 @@ import com.chalkak.backend.user.repository.SignatureProcessingImageUpload;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +32,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final UserRefreshTokenService userRefreshTokenService;
-    private final AppleAuthorizationRepository appleAuthorizationRepository;
+    private final SocialConnectionRevocationStore socialConnectionRevocationStore;
     private final SignatureImageStorage signatureImageStorage;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
@@ -149,13 +145,13 @@ public class UserService {
      *
      * <p>revokedConnections는 이 트랜잭션 밖에서 이미 외부 제공자에 폐기를 요청한 연결의
      * 스냅샷이다. 트랜잭션 진입 시점에 DB의 현재 상태가 그 스냅샷과 정확히 같은지 먼저
-     * 대조하고, 같을 때만 삭제를 진행한다. 그 사이 다른 로그인이 끼어들어 행이 갱신되거나
-     * 새로 추가됐다면 대조가 실패해 트랜잭션이 롤백되므로, 폐기되지 않은 RT가 삭제로
-     * 함께 사라지는 일이 없다. 이 검증을 삭제문 하나에만 걸면 소셜 계정을 지울 때 함께
+     * 대조하고, 같을 때만 삭제를 진행한다. 그 사이 인증 상태가 바뀌었다면 대조가 실패해
+     * 트랜잭션이 롤백되므로, 폐기되지 않은 연결 정보가 삭제로 함께 사라지는 일이 없다.
+     * 이 검증을 삭제문 하나에만 걸면 소셜 계정을 지울 때 함께
      * 딸려가는 FK CASCADE 삭제까지는 보호하지 못하므로, 트랜잭션 맨 앞에서 한 번에 막는다.
      *
-     * <p>Apple에 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로 탈퇴 요청은
-     * 그쪽을 거쳐야 한다. 이 메서드를 직접 호출하면 폐기 없이 탈퇴가 진행될 수 있다.
+     * <p>외부 소셜 연결 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로 탈퇴 요청은
+     * 그쪽을 거쳐야 한다. 이 메서드를 직접 호출하면 외부 폐기 없이 탈퇴가 진행될 수 있다.
      * 인증 정보가 남아 있는 회원은 위 대조에 걸리지만, 그 실패에 기대는 구조는 아니다.
      */
     @Transactional
@@ -166,42 +162,15 @@ public class UserService {
         User user = getActiveUser(userId);
 
         socialAccountRepository.findByUserId(userId).ifPresent(socialAccount -> {
-            validateConnectionsUnchanged(socialAccount.getId(), revokedConnections);
-            appleAuthorizationRepository.deleteAllBySocialAccountId(socialAccount.getId());
+            socialConnectionRevocationStore.deleteAllIfUnchanged(
+                    socialAccount.getId(),
+                    revokedConnections);
         });
         if (user.getStatus() != UserStatus.BANNED) {
             socialAccountRepository.deleteByUserId(userId);
         }
         userRefreshTokenService.revokeAll(userId);
         user.withdraw();
-    }
-
-    private void validateConnectionsUnchanged(
-            UUID socialAccountId,
-            List<SocialConnectionRevocationSnapshot> revokedConnections
-    ) {
-        List<AppleAuthorization> current =
-                appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId);
-        if (!matchesRevoked(current, revokedConnections)) {
-            throw new BusinessException(
-                    ErrorCode.RESOURCE_STATE_CHANGED,
-                    "탈퇴 처리 중 Apple 인증 정보가 변경되었습니다. 다시 시도해 주세요.");
-        }
-    }
-
-    private boolean matchesRevoked(
-            List<AppleAuthorization> current,
-            List<SocialConnectionRevocationSnapshot> revokedConnections
-    ) {
-        if (current.size() != revokedConnections.size()) {
-            return false;
-        }
-        Set<SocialConnectionRevocationSnapshot> currentSnapshots = current.stream()
-                .map(authorization -> new SocialConnectionRevocationSnapshot(
-                        authorization.getId(),
-                        authorization.getEncryptedRefreshToken()))
-                .collect(Collectors.toSet());
-        return currentSnapshots.containsAll(revokedConnections);
     }
 
     /**
