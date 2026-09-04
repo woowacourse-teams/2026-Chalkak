@@ -13,7 +13,6 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.RefreshTokenHasher;
-import com.chalkak.backend.auth.service.AppleAuthorizationSnapshot;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
@@ -1174,7 +1173,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
+        userService.withdraw(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
                 "encrypted-refresh-token")));
         flushAndClear();
@@ -1233,7 +1232,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId(), List.of(new AppleAuthorizationSnapshot(
+        userService.withdraw(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
                 "encrypted-refresh-token")));
         flushAndClear();

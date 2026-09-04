@@ -3,7 +3,6 @@ package com.chalkak.backend.user.service;
 import com.chalkak.backend.auth.domain.AppleAuthorization;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.AppleAuthorizationSnapshot;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -148,7 +147,7 @@ public class UserService {
      * 여기서 함께 폐기한다. 차단은 계보를 남겨 두는데, 차단 회원은 요청마다 {@code UsableUserPolicy}가
      * 막으므로 굳이 재로그인까지 강제할 이유가 없기 때문이다.
      *
-     * <p>revokedAuthorizations는 이 트랜잭션 밖에서 이미 Apple에 폐기를 요청한 인증 정보의
+     * <p>revokedConnections는 이 트랜잭션 밖에서 이미 외부 제공자에 폐기를 요청한 연결의
      * 스냅샷이다. 트랜잭션 진입 시점에 DB의 현재 상태가 그 스냅샷과 정확히 같은지 먼저
      * 대조하고, 같을 때만 삭제를 진행한다. 그 사이 다른 로그인이 끼어들어 행이 갱신되거나
      * 새로 추가됐다면 대조가 실패해 트랜잭션이 롤백되므로, 폐기되지 않은 RT가 삭제로
@@ -160,11 +159,14 @@ public class UserService {
      * 인증 정보가 남아 있는 회원은 위 대조에 걸리지만, 그 실패에 기대는 구조는 아니다.
      */
     @Transactional
-    public void withdraw(UUID userId, List<AppleAuthorizationSnapshot> revokedAuthorizations) {
+    public void withdraw(
+            UUID userId,
+            List<SocialConnectionRevocationSnapshot> revokedConnections
+    ) {
         User user = getActiveUser(userId);
 
         socialAccountRepository.findByUserId(userId).ifPresent(socialAccount -> {
-            validateAuthorizationsUnchanged(socialAccount.getId(), revokedAuthorizations);
+            validateConnectionsUnchanged(socialAccount.getId(), revokedConnections);
             appleAuthorizationRepository.deleteAllBySocialAccountId(socialAccount.getId());
         });
         if (user.getStatus() != UserStatus.BANNED) {
@@ -174,13 +176,13 @@ public class UserService {
         user.withdraw();
     }
 
-    private void validateAuthorizationsUnchanged(
+    private void validateConnectionsUnchanged(
             UUID socialAccountId,
-            List<AppleAuthorizationSnapshot> revokedAuthorizations
+            List<SocialConnectionRevocationSnapshot> revokedConnections
     ) {
         List<AppleAuthorization> current =
                 appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId);
-        if (!matchesRevoked(current, revokedAuthorizations)) {
+        if (!matchesRevoked(current, revokedConnections)) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
                     "탈퇴 처리 중 Apple 인증 정보가 변경되었습니다. 다시 시도해 주세요.");
@@ -189,17 +191,17 @@ public class UserService {
 
     private boolean matchesRevoked(
             List<AppleAuthorization> current,
-            List<AppleAuthorizationSnapshot> revokedAuthorizations
+            List<SocialConnectionRevocationSnapshot> revokedConnections
     ) {
-        if (current.size() != revokedAuthorizations.size()) {
+        if (current.size() != revokedConnections.size()) {
             return false;
         }
-        Set<AppleAuthorizationSnapshot> currentSnapshots = current.stream()
-                .map(authorization -> new AppleAuthorizationSnapshot(
+        Set<SocialConnectionRevocationSnapshot> currentSnapshots = current.stream()
+                .map(authorization -> new SocialConnectionRevocationSnapshot(
                         authorization.getId(),
                         authorization.getEncryptedRefreshToken()))
                 .collect(Collectors.toSet());
-        return currentSnapshots.containsAll(revokedAuthorizations);
+        return currentSnapshots.containsAll(revokedConnections);
     }
 
     /**

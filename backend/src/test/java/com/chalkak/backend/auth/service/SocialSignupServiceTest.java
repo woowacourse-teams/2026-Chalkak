@@ -33,6 +33,7 @@ import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.SocialConnectionRevocationSnapshot;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
@@ -375,7 +376,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
         // 탈퇴 처리. Apple revoke 호출은 UserWithdrawalService의 책임이라 이 테스트에서는
         // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
-        userService.withdraw(firstUserId, List.of(new AppleAuthorizationSnapshot(
+        userService.withdraw(firstUserId, List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
                 authorization.getEncryptedRefreshToken())));
         entityManager.flush();
