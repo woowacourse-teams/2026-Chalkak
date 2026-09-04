@@ -77,45 +77,40 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private SocialSignupTokenVerifier socialSignupTokenVerifier;
 
     @Test
-    @DisplayName("기존 Apple 회원은 RT를 저장하고 Access Token으로 로그인한다")
-    void login_existingAccount_savesAuthorizationAndReturnsAccessToken() {
+    @DisplayName("기존 Apple 회원은 authorizationCode를 교환하지 않고 Access Token으로 로그인한다")
+    void login_existingAccount_returnsAccessTokenWithoutExchange() {
         // Given
         SocialAccount socialAccount = saveAppleSocialAccount(UserFixture.create());
-        givenSuccessfulAppleAuthentication();
+        givenVerifiedIdToken();
 
         // When
         AppleLoginResult result = appleLoginService.login(
                 ID_TOKEN,
                 AUTHORIZATION_CODE,
                 RAW_NONCE);
-        entityManager.flush();
-        entityManager.clear();
 
         // Then
-        List<AppleAuthorization> authorizations = appleAuthorizationRepository
-                .findAllBySocialAccountId(socialAccount.getId());
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
         assertThat(result.userId()).isEqualTo(socialAccount.getUser().getId());
         assertThat(result.accessToken()).isNotNull();
         assertThat(result.signupToken()).isNull();
-        assertThat(authorizations).hasSize(1);
-        assertThat(authorizations.getFirst().getClientId()).isEqualTo(CLIENT_ID);
-        assertThat(authorizations.getFirst().getEncryptedRefreshToken())
-                .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+        verifyNoInteractions(appleTokenClient, refreshTokenCipher);
     }
 
     @Test
-    @DisplayName("기존 Apple 회원이 다시 로그인하면 저장된 RT를 최신 값으로 갱신한다")
-    void login_existingAuthorization_updatesRefreshToken() {
+    @DisplayName("기존 Apple 회원이 다시 로그인해도 저장된 RT는 그대로 유지된다")
+    void login_existingAuthorization_keepsStoredRefreshToken() {
         // Given
+        // 로그인마다 교환하면 Apple에 폐기할 수 없는 grant가 하나씩 쌓이므로, 가입 시점에
+        // 저장한 RT를 그대로 두고 새 인증 정보를 만들지 않는다.
         SocialAccount socialAccount = saveAppleSocialAccount(UserFixture.create());
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
                 CLIENT_ID,
-                "old-encrypted-refresh-token"));
+                ENCRYPTED_REFRESH_TOKEN));
         entityManager.flush();
         entityManager.clear();
-        givenSuccessfulAppleAuthentication();
+        givenVerifiedIdToken();
 
         // When
         appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
@@ -128,6 +123,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(authorizations).hasSize(1);
         assertThat(authorizations.getFirst().getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+        verifyNoInteractions(appleTokenClient);
     }
 
     @Test
@@ -194,7 +190,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         User bannedUser = UserFixture.create();
         bannedUser.ban();
         SocialAccount socialAccount = saveAppleSocialAccount(bannedUser);
-        givenSuccessfulAppleAuthentication();
+        givenVerifiedIdToken();
 
         // When
         AppleLoginResult result = appleLoginService.login(
@@ -230,16 +226,9 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("Apple 토큰 교환이 실패하면 기존 RT를 유지한다")
-    void login_tokenExchangeFailure_preservesExistingRefreshToken() {
+    @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 signupToken을 발급하지 않는다")
+    void login_newAccountTokenExchangeFailure_issuesNoSignupToken() {
         // Given
-        SocialAccount socialAccount = saveAppleSocialAccount(UserFixture.create());
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                CLIENT_ID,
-                "old-encrypted-refresh-token"));
-        entityManager.flush();
-        entityManager.clear();
         given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
                 .willReturn(identity(SUBJECT));
         given(appleTokenClient.exchangeAuthorizationCode(AUTHORIZATION_CODE))
@@ -252,11 +241,12 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 통신 실패");
-        entityManager.clear();
-        List<AppleAuthorization> authorizations = appleAuthorizationRepository
-                .findAllBySocialAccountId(socialAccount.getId());
-        assertThat(authorizations.getFirst().getEncryptedRefreshToken())
-                .isEqualTo("old-encrypted-refresh-token");
+        verifyNoInteractions(refreshTokenCipher, socialSignupTokenIssuer);
+    }
+
+    private void givenVerifiedIdToken() {
+        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
+                .willReturn(identity(SUBJECT));
     }
 
     private VerifiedSocialIdentity givenSuccessfulAppleAuthentication() {

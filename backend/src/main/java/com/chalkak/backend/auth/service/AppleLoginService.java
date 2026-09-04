@@ -25,10 +25,20 @@ public class AppleLoginService {
     private final AppleRefreshTokenCipher refreshTokenCipher;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SocialAccountRepository socialAccountRepository;
-    private final AppleAuthorizationService appleAuthorizationService;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final AccessTokenIssuer accessTokenIssuer;
 
+    /**
+     * 기존 회원은 authorizationCode를 교환하지 않는다. 교환할 때마다 Apple에 새 grant가
+     * 생기는데 우리는 마지막 하나만 저장하므로, 로그인할 때마다 폐기할 수단이 없는 grant가
+     * 하나씩 쌓인다. Apple Refresh Token의 용도는 탈퇴 시 연동 폐기 하나뿐이고 그 토큰은
+     * 가입 시점에 이미 저장해 두었으므로, 기존 회원 경로에서 다시 받을 이유가 없다.
+     *
+     * <p>덕분에 기존 회원 로그인은 외부 HTTP 호출 없이 끝나고, Apple 토큰 API의 장애가
+     * 로그인을 막지 않는다. 대신 사용자가 Apple 설정에서 연동을 해제한 뒤 다시 로그인하면
+     * 저장된 토큰이 무효인 채로 남는데, 그때는 이미 사용자가 직접 연동을 끊은 상태라
+     * 탈퇴 시 폐기 요청도 정상 응답을 받는다.
+     */
     public AppleLoginResult login(
             String idToken,
             String authorizationCode,
@@ -40,48 +50,33 @@ public class AppleLoginService {
         String subjectHmac = fingerprintEncoder.encode(
                 SocialProvider.APPLE,
                 identity.subject());
-        boolean hasExistingAccount = validateExistingAccount(subjectHmac);
 
-        AppleTokenExchangeResult exchangeResult = appleTokenClient
-                .exchangeAuthorizationCode(authorizationCode);
-        VerifiedSocialIdentity exchangedIdentity = appleIdTokenVerifier.verify(
-                exchangeResult.idToken(),
-                rawNonce);
-        validateSameSubject(identity, exchangedIdentity);
-
-        String encryptedRefreshToken = refreshTokenCipher.encrypt(
-                exchangeResult.refreshToken());
-        AppleSignupAuthorization signupAuthorization =
-                new AppleSignupAuthorization(
-                        exchangeResult.clientId(),
-                        encryptedRefreshToken);
-        if (!hasExistingAccount) {
-            return issueSignupToken(identity, signupAuthorization);
+        Optional<UUID> userId = findExistingUserId(subjectHmac);
+        if (userId.isPresent()) {
+            return AppleLoginResult.loginSuccess(
+                    userId.get(),
+                    accessTokenIssuer.issue(userId.get()));
         }
-
-        Optional<UUID> userId = appleAuthorizationService.saveForExistingAccount(
-                subjectHmac,
-                signupAuthorization.clientId(),
-                signupAuthorization.encryptedRefreshToken());
-        if (userId.isEmpty()) {
-            return issueSignupToken(identity, signupAuthorization);
-        }
-        return AppleLoginResult.loginSuccess(
-                userId.get(),
-                accessTokenIssuer.issue(userId.get()));
+        return issueSignupToken(
+                identity,
+                exchangeAuthorization(identity, authorizationCode, rawNonce));
     }
 
-    private boolean validateExistingAccount(String subjectHmac) {
+    private Optional<UUID> findExistingUserId(String subjectHmac) {
         Optional<SocialAccount> socialAccount = socialAccountRepository
                 .findByProviderAndSubjectHmac(
                         SocialProvider.APPLE,
                         subjectHmac);
         if (socialAccount.isEmpty()) {
-            return false;
+            return Optional.empty();
         }
+
         User user = socialAccount.get().getUser();
         validateNotWithdrawnBannedAccount(user);
-        return !user.isDeleted();
+        if (user.isDeleted()) {
+            return Optional.empty();
+        }
+        return Optional.of(user.getId());
     }
 
     /**
@@ -94,6 +89,23 @@ public class AppleLoginService {
                     ErrorCode.FORBIDDEN,
                     "탈퇴한 차단 소셜 계정입니다.");
         }
+    }
+
+    private AppleSignupAuthorization exchangeAuthorization(
+            VerifiedSocialIdentity identity,
+            String authorizationCode,
+            String rawNonce
+    ) {
+        AppleTokenExchangeResult exchangeResult = appleTokenClient
+                .exchangeAuthorizationCode(authorizationCode);
+        VerifiedSocialIdentity exchangedIdentity = appleIdTokenVerifier.verify(
+                exchangeResult.idToken(),
+                rawNonce);
+        validateSameSubject(identity, exchangedIdentity);
+
+        return new AppleSignupAuthorization(
+                exchangeResult.clientId(),
+                refreshTokenCipher.encrypt(exchangeResult.refreshToken()));
     }
 
     private void validateSameSubject(
