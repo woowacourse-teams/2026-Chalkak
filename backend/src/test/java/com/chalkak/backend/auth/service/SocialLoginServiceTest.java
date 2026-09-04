@@ -14,7 +14,7 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
-import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.List;
@@ -42,7 +42,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private SocialAccountRepository socialAccountRepository;
 
     @Autowired
-    private UserService userService;
+    private UserWithdrawalService userWithdrawalService;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
@@ -144,7 +144,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 user,
                 SocialProvider.GOOGLE,
                 subjectHmac()));
-        userService.withdraw(user.getId(), List.of());
+        userWithdrawalService.withdraw(user.getId());
         flushAndClear();
 
         // When
@@ -170,7 +170,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         user.ban();
-        userService.withdraw(user.getId(), List.of());
+        userWithdrawalService.withdraw(user.getId());
         flushAndClear();
 
         // When & Then

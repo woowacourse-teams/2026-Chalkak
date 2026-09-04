@@ -32,8 +32,7 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
-import com.chalkak.backend.user.service.SocialConnectionRevocationSnapshot;
-import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
@@ -80,13 +79,16 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private PendingAppleAuthorizationRepository pendingAuthorizationRepository;
 
     @Autowired
-    private UserService userService;
+    private UserWithdrawalService userWithdrawalService;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
-    @Autowired
-    private AppleAuthorizationFingerprintEncoder authorizationFingerprintEncoder;
+    @MockitoBean
+    private AppleAuthorizationCipher authorizationCipher;
+
+    @MockitoBean
+    private AppleTokenClient appleTokenClient;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -287,7 +289,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         UUID withdrawnUserId = withdrawnUser.getId();
-        userService.withdraw(withdrawnUserId, List.of());
+        userWithdrawalService.withdraw(withdrawnUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -334,7 +336,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         UUID firstUserId = socialSignupService.signup(SIGNUP_TOKEN).userId();
         entityManager.flush();
         entityManager.clear();
-        userService.withdraw(firstUserId, List.of());
+        userWithdrawalService.withdraw(firstUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -377,12 +379,10 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .findAllBySocialAccountId(socialAccountId)
                 .getFirst();
 
-        // 탈퇴 처리. Apple revoke 호출은 UserWithdrawalService의 책임이라 이 테스트에서는
-        // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
-        userService.withdraw(firstUserId, List.of(new SocialConnectionRevocationSnapshot(
-                authorization.getId(),
-                authorizationFingerprintEncoder.encode(
-                        authorization.getEncryptedRefreshToken()))));
+        given(authorizationCipher.decrypt(
+                authorization.getEncryptedRefreshToken()))
+                .willReturn("apple-refresh-token");
+        userWithdrawalService.withdraw(firstUserId);
         entityManager.flush();
         entityManager.clear();
 
@@ -394,6 +394,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .isEmpty();
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .isEmpty();
+        verify(appleTokenClient).revokeRefreshToken("apple-refresh-token");
 
         // When & Then
         // 같은 signupToken을 재전송하면, 이미 Apple에 폐기 요청까지 보냈던 RT가 새 계정에

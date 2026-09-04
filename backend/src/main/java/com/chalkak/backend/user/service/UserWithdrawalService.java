@@ -18,8 +18,8 @@ import org.springframework.stereotype.Service;
  * authorizationCode를 교환하지 않으므로 그 사이에도 로그인은 계속되고, 다시 탈퇴를 요청하면
  * 이미 폐기된 연결에 대한 재폐기가 성공으로 처리되어 그대로 진행된다.
  *
- * <p>폐기한 연결의 스냅샷을 {@link UserService#withdraw}에 넘겨, 폐기와 삭제 사이에 인증
- * 상태가 바뀌면 탈퇴를 중단하게 한다.
+ * <p>폐기한 연결의 스냅샷을 {@link UserService#completeWithdrawal}에 넘겨, 폐기와 삭제
+ * 사이에 인증 상태가 바뀌면 탈퇴를 중단하게 한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,6 +32,6 @@ public class UserWithdrawalService {
         List<SocialConnectionRevocationSnapshot> snapshots =
                 socialConnectionRevoker.revokeAll(userId);
 
-        userService.withdraw(userId, snapshots);
+        userService.completeWithdrawal(userId, snapshots);
     }
 }
