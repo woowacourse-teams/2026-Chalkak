@@ -11,6 +11,8 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,10 +77,9 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
      */
     @Transactional(noRollbackFor = UnauthorizedException.class)
     public TokenRefreshResult refresh(String presentedToken) {
-        Instant now = clock.instant();
-        T consumed = refreshTokenRepository
-                .findByTokenHashForUpdate(refreshTokenHasher.encode(presentedToken))
+        T consumed = lockLineageAndRead(refreshTokenHasher.encode(presentedToken))
                 .orElseThrow(RefreshTokenService::reauthenticationRequired);
+        Instant now = clock.instant();
         if (consumed.isRevoked()) {
             throw reauthenticationRequired();
         }
@@ -99,17 +100,29 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
      */
     @Transactional
     public void logout(String presentedToken) {
-        refreshTokenRepository
-                .findByTokenHashForUpdate(refreshTokenHasher.encode(presentedToken))
+        lockLineageAndRead(refreshTokenHasher.encode(presentedToken))
                 .filter(refreshToken -> !refreshToken.isRevoked())
                 .ifPresent(refreshToken -> refreshTokenRepository.revokeSession(
                         refreshToken.getSessionId(),
                         clock.instant()));
     }
 
-    /** 한 소유자의 모든 기기 세션을 끊는다. */
+    /**
+     * 한 소유자의 모든 기기 세션을 끊는다.
+     *
+     * <p>한 번의 UPDATE로 모두 끊으니 안전해 보이지만, 갱신 단위가 계보 하나가 아닐 뿐 잃어버린
+     * 갱신은 똑같이 일어난다. UPDATE는 문장이 시작할 때 보이던 행만 훑으므로, 그 사이에 회전이
+     * 커밋한 후속 토큰은 폐기를 빠져나가 탈퇴한 회원의 기기 하나가 살아남는다. 그래서 회전과 같은
+     * 계보 잠금을 먼저 잡는다.
+     *
+     * <p>잠금은 이미 존재하는 계보만 덮는다. 회전은 계보를 새로 만들지 않으므로 이것으로 충분하고,
+     * 계보를 새로 만드는 것은 로그인뿐인데 탈퇴 트랜잭션이 회원 상태와 소셜 연결을 함께 정리하므로
+     * 그 뒤의 로그인은 같은 소유자로 이어지지 않는다.
+     */
     @Transactional
     public void revokeAll(UUID ownerId) {
+        List<UUID> sessionIds = refreshTokenRepository.findLiveSessionIdsByOwnerId(ownerId);
+        sessionIds.forEach(refreshTokenRepository::lockSession);
         refreshTokenRepository.revokeAllByOwnerId(ownerId, clock.instant());
     }
 
@@ -152,6 +165,29 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         return new TokenRefreshResult(
                 issueAccessToken(consumed),
                 toIssuedRefreshToken(generated, now, expiresAt));
+    }
+
+    /**
+     * 토큰이 속한 계보를 잠근 뒤, 그 잠금 아래에서 다시 읽은 토큰을 돌려준다.
+     *
+     * <p>잠금 단위를 행이 아니라 계보로 잡는 이유는 바꾸는 단위가 계보이기 때문이다. 회전과 폐기는
+     * 모두 {@code session_id} 하나를 통째로 건드리는데 잠금이 행 하나뿐이면, READ COMMITTED에서
+     * 계보 폐기 UPDATE가 문장 시작 시점에 보이던 행만 훑어 그 사이 커밋된 후속 토큰이 폐기를
+     * 빠져나간다. 하필 폐기가 가장 필요한 순간, 즉 피해자가 회전하는 사이 공격자가 옛 토큰을 내미는
+     * 순간에 그렇게 된다. 행 잠금 두 개를 서로 반대 순서로 잡는 회전과 로그아웃이 맞물려 교착에
+     * 빠지는 문제도 같은 뿌리에서 나온다.
+     *
+     * <p>그래서 어떤 행에도 손대기 전에 계보 잠금부터 잡아야 한다. 행을 먼저 잠그고 계보를 나중에
+     * 잠그면 잠금 순서가 요청마다 갈려 교착이 그대로 돌아온다. lineage 식별자를 읽는 첫 조회는
+     * 잠금 없이 하므로 곧 낡을 수 있고, 판단은 모두 잠금을 얻은 뒤의 두 번째 조회로 한다.
+     */
+    private Optional<T> lockLineageAndRead(String tokenHash) {
+        Optional<UUID> sessionId = refreshTokenRepository.findSessionIdByTokenHash(tokenHash);
+        if (sessionId.isEmpty()) {
+            return Optional.empty();
+        }
+        refreshTokenRepository.lockSession(sessionId.get());
+        return refreshTokenRepository.findByTokenHash(tokenHash);
     }
 
     private IssuedRefreshToken toIssuedRefreshToken(

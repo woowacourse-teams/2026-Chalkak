@@ -32,7 +32,7 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("토큰 해시로 리프레시 토큰을 조회한다")
-    void findByTokenHashForUpdate_existingToken_returnsToken() {
+    void findByTokenHash_existingToken_returnsToken() {
         // given
         User user = userRepository.save(createUser());
         String tokenHash = createTokenHash();
@@ -42,7 +42,7 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
 
         // when
         UserRefreshToken found = userRefreshTokenRepository
-                .findByTokenHashForUpdate(tokenHash)
+                .findByTokenHash(tokenHash)
                 .orElseThrow();
 
         // then
@@ -52,12 +52,12 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("존재하지 않는 토큰 해시로 조회하면 빈 값을 반환한다")
-    void findByTokenHashForUpdate_unknownToken_returnsEmpty() {
+    void findByTokenHash_unknownToken_returnsEmpty() {
         // given
         String unknownTokenHash = createTokenHash();
 
         // when & then
-        assertThat(userRefreshTokenRepository.findByTokenHashForUpdate(unknownTokenHash))
+        assertThat(userRefreshTokenRepository.findByTokenHash(unknownTokenHash))
                 .isEmpty();
     }
 
@@ -201,13 +201,13 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
     }
 
     private Instant findRevokedAt(String tokenHash) {
-        return userRefreshTokenRepository.findByTokenHashForUpdate(tokenHash)
+        return userRefreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow()
                 .getRevokedAt();
     }
 
     private boolean existsByTokenHash(String tokenHash) {
-        return userRefreshTokenRepository.findByTokenHashForUpdate(tokenHash).isPresent();
+        return userRefreshTokenRepository.findByTokenHash(tokenHash).isPresent();
     }
 
     private String createTokenHash() {

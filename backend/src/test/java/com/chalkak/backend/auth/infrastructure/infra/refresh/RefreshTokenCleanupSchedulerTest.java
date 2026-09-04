@@ -208,11 +208,11 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     }
 
     private boolean existsUserToken(String tokenHash) {
-        return userRefreshTokenRepository.findByTokenHashForUpdate(tokenHash).isPresent();
+        return userRefreshTokenRepository.findByTokenHash(tokenHash).isPresent();
     }
 
     private boolean existsAdminToken(String tokenHash) {
-        return adminRefreshTokenRepository.findByTokenHashForUpdate(tokenHash).isPresent();
+        return adminRefreshTokenRepository.findByTokenHash(tokenHash).isPresent();
     }
 
     private void flushAndClear() {

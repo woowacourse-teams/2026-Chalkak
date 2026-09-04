@@ -2,6 +2,7 @@ package com.chalkak.backend.auth.repository;
 
 import com.chalkak.backend.auth.domain.RefreshToken;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,10 +13,22 @@ import java.util.UUID;
 public interface RefreshTokenRepository<T extends RefreshToken> {
 
     /**
-     * 회전 대상 토큰을 잠금과 함께 조회한다. 같은 토큰으로 동시에 들어온 재발급 요청이 서로 다른
-     * 후속 토큰을 만들지 않도록 행 잠금이 필요하다.
+     * 계보 잠금을 걸기 위해 토큰이 속한 lineage 식별자만 읽는다. 이 시점에는 아직 아무 잠금도 없으므로
+     * 결과는 곧 낡을 수 있고, 판단에 쓰지 않고 잠금 대상을 고르는 데만 쓴다.
      */
-    Optional<T> findByTokenHashForUpdate(String tokenHash);
+    Optional<UUID> findSessionIdByTokenHash(String tokenHash);
+
+    /** 한 소유자의 살아 있는 계보 식별자를 모두 읽는다. 계보 단위 잠금을 걸 대상을 고르는 데 쓴다. */
+    List<UUID> findLiveSessionIdsByOwnerId(UUID ownerId);
+
+    /**
+     * 회전 계보 하나를 트랜잭션이 끝날 때까지 잠근다. 행이 아니라 lineage 자체를 잠그므로 아직
+     * 존재하지 않는 후속 토큰까지 같은 잠금 아래로 들어온다.
+     */
+    void lockSession(UUID sessionId);
+
+    /** 계보 잠금을 얻은 뒤 회전 대상 토큰을 다시 읽는다. 잠금을 기다리는 동안 상태가 바뀔 수 있다. */
+    Optional<T> findByTokenHash(String tokenHash);
 
     T save(T refreshToken);
 

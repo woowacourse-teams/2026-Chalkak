@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.infrastructure.persistence;
 import com.chalkak.backend.admin.domain.AdminRefreshToken;
 import com.chalkak.backend.admin.repository.AdminRefreshTokenRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,23 @@ public class AdminRefreshTokenRepositoryImpl implements AdminRefreshTokenReposit
     private final AdminRefreshTokenJpaRepository adminRefreshTokenJpaRepository;
 
     @Override
-    public Optional<AdminRefreshToken> findByTokenHashForUpdate(String tokenHash) {
-        return adminRefreshTokenJpaRepository.findByTokenHashForUpdate(tokenHash);
+    public Optional<UUID> findSessionIdByTokenHash(String tokenHash) {
+        return adminRefreshTokenJpaRepository.findSessionIdByTokenHash(tokenHash);
+    }
+
+    @Override
+    public List<UUID> findLiveSessionIdsByOwnerId(UUID ownerId) {
+        return adminRefreshTokenJpaRepository.findLiveSessionIdsByOwnerId(ownerId);
+    }
+
+    @Override
+    public void lockSession(UUID sessionId) {
+        adminRefreshTokenJpaRepository.lockSession(sessionId);
+    }
+
+    @Override
+    public Optional<AdminRefreshToken> findByTokenHash(String tokenHash) {
+        return adminRefreshTokenJpaRepository.findByTokenHash(tokenHash);
     }
 
     @Override

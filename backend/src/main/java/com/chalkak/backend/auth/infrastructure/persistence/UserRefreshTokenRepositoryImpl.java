@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,23 @@ public class UserRefreshTokenRepositoryImpl implements UserRefreshTokenRepositor
     private final UserRefreshTokenJpaRepository userRefreshTokenJpaRepository;
 
     @Override
-    public Optional<UserRefreshToken> findByTokenHashForUpdate(String tokenHash) {
-        return userRefreshTokenJpaRepository.findByTokenHashForUpdate(tokenHash);
+    public Optional<UUID> findSessionIdByTokenHash(String tokenHash) {
+        return userRefreshTokenJpaRepository.findSessionIdByTokenHash(tokenHash);
+    }
+
+    @Override
+    public List<UUID> findLiveSessionIdsByOwnerId(UUID ownerId) {
+        return userRefreshTokenJpaRepository.findLiveSessionIdsByOwnerId(ownerId);
+    }
+
+    @Override
+    public void lockSession(UUID sessionId) {
+        userRefreshTokenJpaRepository.lockSession(sessionId);
+    }
+
+    @Override
+    public Optional<UserRefreshToken> findByTokenHash(String tokenHash) {
+        return userRefreshTokenJpaRepository.findByTokenHash(tokenHash);
     }
 
     @Override

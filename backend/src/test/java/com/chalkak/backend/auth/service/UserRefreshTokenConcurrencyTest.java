@@ -40,6 +40,7 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
     private static final UUID SESSION_ID =
             UUID.fromString("0198fd30-0000-7000-8000-000000000002");
     private static final String PRESENTED_TOKEN = "concurrent-refresh-token";
+    private static final String OTHER_TOKEN = "concurrent-refresh-token-sibling";
 
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
@@ -115,26 +116,43 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
     }
 
     private List<RefreshAttempt> runConcurrently() throws Exception {
-        Callable<TokenRefreshResult> refresh =
-                () -> userRefreshTokenService.refresh(PRESENTED_TOKEN);
+        return runConcurrently(refreshing(PRESENTED_TOKEN), refreshing(PRESENTED_TOKEN));
+    }
+
+    private List<RefreshAttempt> runConcurrently(
+            Callable<String> first,
+            Callable<String> second
+    ) throws Exception {
         CyclicBarrier barrier = new CyclicBarrier(2);
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<RefreshAttempt> first = executor.submit(() -> attempt(barrier, refresh));
-            Future<RefreshAttempt> second = executor.submit(() -> attempt(barrier, refresh));
+            Future<RefreshAttempt> firstAttempt = executor.submit(() -> attempt(barrier, first));
+            Future<RefreshAttempt> secondAttempt = executor.submit(() -> attempt(barrier, second));
             return List.of(
-                    first.get(10, TimeUnit.SECONDS),
-                    second.get(10, TimeUnit.SECONDS)
+                    firstAttempt.get(10, TimeUnit.SECONDS),
+                    secondAttempt.get(10, TimeUnit.SECONDS)
             );
         }
     }
 
+    private Callable<String> refreshing(String presentedToken) {
+        return () -> userRefreshTokenService.refresh(presentedToken).refreshToken().value();
+    }
+
+    private Callable<String> loggingOut(String presentedToken) {
+        return () -> {
+            userRefreshTokenService.logout(presentedToken);
+            return null;
+        };
+    }
+
+    /** 교착으로 죽은 요청은 500이 되므로, 업무 예외가 아닌 것은 {@code UNEXPECTED}로 남겨 구분한다. */
     private RefreshAttempt attempt(
             CyclicBarrier barrier,
-            Callable<TokenRefreshResult> action
+            Callable<String> action
     ) {
         try {
             barrier.await();
-            return new RefreshAttempt(SUCCESS, action.call().refreshToken().value());
+            return new RefreshAttempt(SUCCESS, action.call());
         } catch (BaseException exception) {
             return new RefreshAttempt(exception.getErrorCode().name(), null);
         } catch (Exception exception) {
@@ -143,6 +161,49 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
                     null
             );
         }
+    }
+
+    @Test
+    @DisplayName("같은 계보의 다른 토큰으로 재발급과 로그아웃이 겹쳐도 살아남는 토큰이 없다")
+    void refreshAndLogout_differentTokensOfSameLineage_leavesNoLiveToken() throws Exception {
+        // given
+        insertRefreshToken(PRESENTED_TOKEN, null);
+        insertRefreshToken(OTHER_TOKEN, null);
+
+        // when
+        List<RefreshAttempt> attempts = runConcurrently(
+                refreshing(PRESENTED_TOKEN),
+                loggingOut(OTHER_TOKEN));
+
+        // then
+        // 로그아웃이 먼저면 재발급은 폐기된 토큰을 만나 거절되고, 재발급이 먼저면 후속 토큰까지
+        // 로그아웃이 함께 끊는다. 어느 순서든 계보에 살아 있는 토큰은 남지 않는다.
+        assertThat(attempts)
+                .extracting(RefreshAttempt::outcome)
+                .allSatisfy(outcome -> assertThat(outcome).doesNotStartWith("UNEXPECTED"));
+        assertThat(countLiveTokens()).isZero();
+    }
+
+    @Test
+    @DisplayName("재사용 탐지와 회전이 겹쳐도 계보 전체가 폐기된다")
+    void refresh_reuseDetectionRacesRotation_revokesWholeLineage() throws Exception {
+        // given
+        insertRefreshToken(PRESENTED_TOKEN, NOW.minus(Duration.ofSeconds(60)));
+        insertRefreshToken(OTHER_TOKEN, null);
+
+        // when
+        List<RefreshAttempt> attempts = runConcurrently(
+                refreshing(PRESENTED_TOKEN),
+                refreshing(OTHER_TOKEN));
+
+        // then
+        // 회전이 먼저 끝나 후속 토큰이 생기더라도, 뒤이은 재사용 탐지가 그 후속 토큰까지 끊는다.
+        assertThat(attempts)
+                .extracting(RefreshAttempt::outcome)
+                .allSatisfy(outcome -> assertThat(outcome).doesNotStartWith("UNEXPECTED"));
+        assertThat(attempts.getFirst().outcome())
+                .isEqualTo(ErrorCode.REAUTHENTICATION_REQUIRED.name());
+        assertThat(countLiveTokens()).isZero();
     }
 
     private void insertRefreshToken(String token, Instant rotatedAt) {
