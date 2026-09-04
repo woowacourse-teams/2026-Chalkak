@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +34,12 @@ public class PendingAppleAuthorizationRepositoryImpl
     }
 
     @Override
-    public void delete(PendingAppleAuthorization authorization) {
-        repository.delete(authorization);
+    public List<PendingAppleAuthorization> findAllExpiredAtOrBefore(Instant now) {
+        return repository.findAllByExpiresAtLessThanEqualOrderByExpiresAtAsc(now);
     }
 
     @Override
-    public void deleteAllExpiredAtOrBefore(Instant now) {
-        repository.deleteByExpiresAtLessThanEqual(now);
+    public void delete(PendingAppleAuthorization authorization) {
+        repository.delete(authorization);
     }
 }

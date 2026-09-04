@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,5 +15,7 @@ public interface PendingAppleAuthorizationJpaRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<PendingAppleAuthorization> findByUploadId(UUID uploadId);
 
-    long deleteByExpiresAtLessThanEqual(Instant now);
+    List<PendingAppleAuthorization> findAllByExpiresAtLessThanEqualOrderByExpiresAtAsc(
+            Instant now
+    );
 }
