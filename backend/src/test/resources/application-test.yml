@@ -38,7 +38,20 @@ chalkak:
         # 정리 작업 자체는 켜 둔다. 테스트가 스케줄러 빈을 주입받아 메서드를 직접 부르기 때문이다.
         # 실제 시각으로 도는 것은 아래 chalkak.scheduling.enabled: false가 막는다.
         enabled: true
+      expiration: 1h
+    apple:
+      token:
+        team-id: test-team-id
+        key-id: test-key-id
+        # AppleClientSecretGenerator가 이제 생성자에서 즉시 개인키를 파싱하므로(fail-fast),
+        # 실제 형식을 갖춘 EC 개인키여야 애플리케이션 컨텍스트가 뜬다. Apple에 등록된 진짜
+        # 키가 아니라, 이 테스트 환경만을 위해 로컬에서 새로 생성한 더미 EC 키다.
+        private-key-base64: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ1E3QXVUOCtqanoxMWVWSFcKVCtzeWUxMGw2azVXdHNWNXBzaDN4YmlCU29laFJBTkNBQVNHS1JyamhoOThrN2xTTjExYlhjYW9QVEY0NVFuWgppWk1UUjdBQXRLMU9mSnJKSXA2aEJ3eVNESkpwb3dTKzYwakY1RmpGVFBRU3VSZXA4Mk1UMHdDMQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
+      refresh-token-encryption:
+        key: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
     oidc:
+      apple:
+        client-id: test-apple-client-id
       google:
         client-id: test-google-client-id
       kakao:

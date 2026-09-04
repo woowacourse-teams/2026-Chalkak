@@ -1,10 +1,15 @@
 package com.chalkak.backend.auth.service;
 
+import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
+import com.chalkak.backend.auth.domain.ConsumedSignupToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
+import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -31,6 +36,8 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
+    private final AppleAuthorizationRepository appleAuthorizationRepository;
+    private final ConsumedSignupTokenRepository consumedSignupTokenRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -59,6 +66,24 @@ public class SocialSignupService {
         return new SocialSignupSignatureUploadResult(upload, signupToken);
     }
 
+    public SocialSignupSignatureUploadResult createAppleSignatureUpload(
+            String signupToken
+    ) {
+        VerifiedSocialSignupToken verifiedToken =
+                socialSignupTokenVerifier.verify(signupToken);
+        validateAppleSignupToken(verifiedToken);
+        validateNewSocialAccount(new VerifiedSocialIdentity(
+                verifiedToken.provider(),
+                verifiedToken.subject(),
+                verifiedToken.email()));
+
+        SignatureImageUpload upload = signatureImageUploadIssuer.issue(
+                verifiedToken.uploadId());
+        return new SocialSignupSignatureUploadResult(
+                upload,
+                new IssuedSocialSignupToken(signupToken));
+    }
+
     @Transactional
     public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =
@@ -73,6 +98,7 @@ public class SocialSignupService {
         if (existingSocialAccount.isPresent()) {
             return toSignupResult(getExistingUser(existingSocialAccount.get()));
         }
+        validateNotReplayed(verifiedToken);
 
         SignatureStorageKeys storageKeys = signatureImageStorage
                 .toStorageKeys(verifiedToken.uploadId());
@@ -95,10 +121,11 @@ public class SocialSignupService {
         User user = userRepository.save(User.create(
                 verifiedToken.email(),
                 storageKeys));
-        socialAccountRepository.save(SocialAccount.create(
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 verifiedToken.provider(),
                 subjectHmac));
+        saveAppleAuthorization(verifiedToken, socialAccount);
 
         return toSignupResult(user);
     }
@@ -112,6 +139,26 @@ public class SocialSignupService {
                 user.getId(),
                 accessTokenIssuer.issue(user.getId()),
                 userRefreshTokenService.issue(user));
+    }
+
+    private void saveAppleAuthorization(
+            VerifiedSocialSignupToken verifiedToken,
+            SocialAccount socialAccount
+    ) {
+        if (verifiedToken.provider() != SocialProvider.APPLE) {
+            return;
+        }
+        AppleSignupAuthorization signupAuthorization =
+                verifiedToken.appleAuthorization();
+        if (signupAuthorization == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "Apple 회원가입 인증 정보가 없습니다.");
+        }
+        appleAuthorizationRepository.save(AppleAuthorization.create(
+                socialAccount,
+                signupAuthorization.clientId(),
+                signupAuthorization.encryptedRefreshToken()));
     }
 
     private User getExistingUser(SocialAccount socialAccount) {
@@ -129,12 +176,42 @@ public class SocialSignupService {
         return user;
     }
 
+    /**
+     * signupToken은 발급 후 만료 전까지 몇 번이든 검증에 통과하는 stateless JWT라,
+     * 이미 가입을 완료시킨 토큰이라도 재전송하면 다시 여기까지 온다. 탈퇴로 소셜 계정이
+     * 삭제되면 subject가 다시 "미가입"으로 보여, 같은 토큰으로 새 계정과 Apple 인증
+     * 정보(이미 폐기된 RT 포함)가 재구성될 수 있다. 이 토큰의 jti를 최초 가입 성공
+     * 시점에 소진 처리해, 같은 토큰의 두 번째 가입 완료를 막는다.
+     */
+    private void validateNotReplayed(VerifiedSocialSignupToken verifiedToken) {
+        boolean firstUse = consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(
+                        verifiedToken.tokenId(),
+                        verifiedToken.expiresAt()));
+        if (!firstUse) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미 사용된 회원가입 토큰입니다.");
+        }
+    }
+
     private void validateUnusedSignature(SignatureStorageKeys storageKeys) {
         if (userRepository.existsBySignatureOriginalStorageKey(
                 storageKeys.originalStorageKey())) {
             throw new NotFoundException(
                     ErrorCode.BUSINESS_ERROR,
                     "업로드한 사인 이미지를 찾을 수 없습니다.");
+        }
+    }
+
+    private void validateAppleSignupToken(
+            VerifiedSocialSignupToken verifiedToken
+    ) {
+        if (verifiedToken.provider() != SocialProvider.APPLE
+                || verifiedToken.appleAuthorization() == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "Apple 회원가입 토큰이 아닙니다.");
         }
     }
 

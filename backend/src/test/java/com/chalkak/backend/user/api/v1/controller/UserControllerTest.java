@@ -21,6 +21,7 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -48,19 +49,22 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private UserWithdrawalService userWithdrawalService;
+
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("탈퇴에 성공하면 204를 반환한다")
     void withdraw_validRequest_returnsNoContent() throws Exception {
         // Given
         UUID userId = USER_ID;
-        willDoNothing().given(userService).withdraw(userId);
+        willDoNothing().given(userWithdrawalService).withdraw(userId);
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
                 .andExpect(status().isNoContent());
 
-        verify(userService).withdraw(userId);
+        verify(userWithdrawalService).withdraw(userId);
     }
 
     @Test
@@ -72,7 +76,7 @@ class UserControllerTest {
         willThrow(new UnauthorizedException(
                 ErrorCode.UNAUTHORIZED,
                 "유효하지 않은 인증 정보입니다."))
-                .given(userService).withdraw(userId);
+                .given(userWithdrawalService).withdraw(userId);
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
@@ -90,7 +94,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
-        verify(userService, never()).withdraw(any());
+        verify(userWithdrawalService, never()).withdraw(any());
     }
 
     @Test
@@ -104,7 +108,7 @@ class UserControllerTest {
                         .param("userId", victimId.toString()))
                 .andExpect(status().isUnauthorized());
 
-        verify(userService, never()).withdraw(any());
+        verify(userWithdrawalService, never()).withdraw(any());
     }
 
     @Test
@@ -120,8 +124,8 @@ class UserControllerTest {
                         .param("userId", victimId.toString()))
                 .andExpect(status().isNoContent());
 
-        verify(userService).withdraw(userId);
-        verify(userService, never()).withdraw(victimId);
+        verify(userWithdrawalService).withdraw(userId);
+        verify(userWithdrawalService, never()).withdraw(victimId);
     }
 
     @Test

@@ -144,7 +144,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 user,
                 SocialProvider.GOOGLE,
                 subjectHmac()));
-        userService.withdraw(user.getId());
+        userService.withdraw(user.getId(), List.of());
         flushAndClear();
 
         // When
@@ -170,7 +170,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()));
         user.ban();
-        userService.withdraw(user.getId());
+        userService.withdraw(user.getId(), List.of());
         flushAndClear();
 
         // When & Then
