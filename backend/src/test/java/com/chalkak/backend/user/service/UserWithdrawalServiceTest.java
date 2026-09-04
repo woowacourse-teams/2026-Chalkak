@@ -13,7 +13,7 @@ import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.AppleRefreshTokenCipher;
+import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
 import com.chalkak.backend.auth.service.AppleTokenClient;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.exception.BusinessException;
@@ -63,7 +63,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
     private AppleTokenClient appleTokenClient;
 
     @MockitoBean
-    private AppleRefreshTokenCipher refreshTokenCipher;
+    private AppleAuthorizationCipher authorizationCipher;
 
     @Test
     @DisplayName("Apple 회원이 탈퇴하면 저장된 Client ID로 Apple에 RT를 폐기하고 인증 정보를 삭제한다")
@@ -73,7 +73,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         flushAndClear();
 
@@ -96,8 +96,8 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         saveAuthorization(socialAccount, CLIENT_ID, "encrypted-ios-token");
         saveAuthorization(socialAccount, WEB_CLIENT_ID, "encrypted-web-token");
-        given(refreshTokenCipher.decrypt("encrypted-ios-token")).willReturn("ios-token");
-        given(refreshTokenCipher.decrypt("encrypted-web-token")).willReturn("web-token");
+        given(authorizationCipher.decrypt("encrypted-ios-token")).willReturn("ios-token");
+        given(authorizationCipher.decrypt("encrypted-web-token")).willReturn("web-token");
         flushAndClear();
 
         // When
@@ -118,7 +118,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         flushAndClear();
 
@@ -164,7 +164,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         willThrow(new IllegalStateException("Apple 토큰 서버와 통신할 수 없습니다."))
                 .given(appleTokenClient).revokeRefreshToken(REFRESH_TOKEN, CLIENT_ID);
@@ -192,7 +192,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         willAnswer(invocation -> {
             // Apple 폐기 응답을 받은 시점과 DB 삭제 시점 사이에 다른 기기에서 웹으로
@@ -230,7 +230,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         willAnswer(invocation -> {
             SocialAccount managed = socialAccountRepository.findByUserId(user.getId())
@@ -278,7 +278,7 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         User user = userRepository.save(UserFixture.create());
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         saveAuthorization(socialAccount, CLIENT_ID, ENCRYPTED_REFRESH_TOKEN);
-        given(refreshTokenCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
+        given(authorizationCipher.decrypt(ENCRYPTED_REFRESH_TOKEN))
                 .willReturn(REFRESH_TOKEN);
         flushAndClear();
         userWithdrawalService.withdraw(user.getId());

@@ -22,7 +22,7 @@ public class AppleLoginService {
 
     private final AppleIdTokenVerifier appleIdTokenVerifier;
     private final AppleTokenClient appleTokenClient;
-    private final AppleRefreshTokenCipher refreshTokenCipher;
+    private final AppleAuthorizationCipher authorizationCipher;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SocialAccountRepository socialAccountRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -111,7 +111,7 @@ public class AppleLoginService {
 
         return new AppleSignupAuthorization(
                 exchangeResult.clientId(),
-                refreshTokenCipher.encrypt(exchangeResult.refreshToken()));
+                authorizationCipher.encrypt(exchangeResult.refreshToken()));
     }
 
     private void validateSameSubject(

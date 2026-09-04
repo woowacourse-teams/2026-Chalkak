@@ -10,7 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class AesGcmAppleRefreshTokenCipherTest {
+class AesGcmAppleAuthorizationCipherTest {
 
     private static final String ENCRYPTION_KEY =
             "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
@@ -22,7 +22,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("Refresh Token을 암호화한 뒤 복호화하면 원본을 반환한다")
     void decrypt_encryptedRefreshToken_returnsOriginalRefreshToken() {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
         String encrypted = cipher.encrypt(REFRESH_TOKEN);
 
         // When
@@ -36,7 +36,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("같은 Refresh Token을 암호화해도 매번 다른 암호문을 생성한다")
     void encrypt_sameRefreshToken_generatesDifferentCiphertext() {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
 
         // When
         String first = cipher.encrypt(REFRESH_TOKEN);
@@ -50,8 +50,8 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("다른 암호화 키로 Refresh Token을 복호화할 수 없다")
     void decrypt_withDifferentKey_throwsException() {
         // Given
-        AesGcmAppleRefreshTokenCipher encryptor = createCipher(ENCRYPTION_KEY);
-        AesGcmAppleRefreshTokenCipher decryptor = createCipher(OTHER_ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher encryptor = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher decryptor = createCipher(OTHER_ENCRYPTION_KEY);
         String encrypted = encryptor.encrypt(REFRESH_TOKEN);
 
         // When & Then
@@ -64,7 +64,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("암호문이 변조되면 Refresh Token을 복호화할 수 없다")
     void decrypt_tamperedCiphertext_throwsException() {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
         byte[] payload = Base64.getDecoder().decode(cipher.encrypt(REFRESH_TOKEN));
         payload[payload.length - 1] ^= 1;
         String tampered = Base64.getEncoder().encodeToString(payload);
@@ -81,7 +81,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("Refresh Token이 없으면 암호화할 수 없다")
     void encrypt_missingRefreshToken_throwsException(String refreshToken) {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
 
         // When & Then
         assertThatThrownBy(() -> cipher.encrypt(refreshToken))
@@ -95,7 +95,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("암호화된 Refresh Token이 없으면 복호화할 수 없다")
     void decrypt_missingEncryptedRefreshToken_throwsException(String encryptedRefreshToken) {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
 
         // When & Then
         assertThatThrownBy(() -> cipher.decrypt(encryptedRefreshToken))
@@ -107,7 +107,7 @@ class AesGcmAppleRefreshTokenCipherTest {
     @DisplayName("Base64 형식이 아닌 암호문은 복호화할 수 없다")
     void decrypt_invalidBase64_throwsException() {
         // Given
-        AesGcmAppleRefreshTokenCipher cipher = createCipher(ENCRYPTION_KEY);
+        AesGcmAppleAuthorizationCipher cipher = createCipher(ENCRYPTION_KEY);
 
         // When & Then
         assertThatThrownBy(() -> cipher.decrypt("invalid-base64"))
@@ -129,9 +129,9 @@ class AesGcmAppleRefreshTokenCipherTest {
                 .hasMessage("Apple refresh token 암호화 키는 64자리 16진수여야 합니다.");
     }
 
-    private AesGcmAppleRefreshTokenCipher createCipher(String encryptionKey) {
-        AppleRefreshTokenEncryptionProperties properties =
-                new AppleRefreshTokenEncryptionProperties(encryptionKey);
-        return new AesGcmAppleRefreshTokenCipher(properties);
+    private AesGcmAppleAuthorizationCipher createCipher(String encryptionKey) {
+        AppleAuthorizationEncryptionProperties properties =
+                new AppleAuthorizationEncryptionProperties(encryptionKey);
+        return new AesGcmAppleAuthorizationCipher(properties);
     }
 }

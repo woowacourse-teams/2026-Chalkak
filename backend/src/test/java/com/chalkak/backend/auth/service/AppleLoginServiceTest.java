@@ -68,7 +68,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private AppleTokenClient appleTokenClient;
 
     @MockitoBean
-    private AppleRefreshTokenCipher refreshTokenCipher;
+    private AppleAuthorizationCipher authorizationCipher;
 
     @MockitoBean
     private SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -97,7 +97,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.refreshToken().value()).isNotBlank();
         assertThat(result.refreshToken().expiresIn()).isPositive();
         assertThat(result.signupToken()).isNull();
-        verifyNoInteractions(appleTokenClient, refreshTokenCipher);
+        verifyNoInteractions(appleTokenClient, authorizationCipher);
     }
 
     @Test
@@ -202,7 +202,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("Apple 로그인 사용자 정보가 일치하지 않습니다.");
-        verifyNoInteractions(refreshTokenCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
     }
 
     @Test
@@ -244,7 +244,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("탈퇴한 차단 소셜 계정입니다.");
-        verifyNoInteractions(appleTokenClient, refreshTokenCipher);
+        verifyNoInteractions(appleTokenClient, authorizationCipher);
     }
 
     @Test
@@ -263,7 +263,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 통신 실패");
-        verifyNoInteractions(refreshTokenCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
     }
 
     private void givenVerifiedIdToken() {
@@ -279,7 +279,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 .willReturn(exchangeResult());
         given(appleIdTokenVerifier.verify(EXCHANGED_ID_TOKEN, RAW_NONCE))
                 .willReturn(identity);
-        given(refreshTokenCipher.encrypt(REFRESH_TOKEN))
+        given(authorizationCipher.encrypt(REFRESH_TOKEN))
                 .willReturn(ENCRYPTED_REFRESH_TOKEN);
         return identity;
     }

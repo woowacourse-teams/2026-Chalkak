@@ -15,7 +15,7 @@ import org.springframework.web.client.RestClient;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
         AppleTokenProperties.class,
-        AppleRefreshTokenEncryptionProperties.class
+        AppleAuthorizationEncryptionProperties.class
 })
 public class AppleTokenClientConfig {
 

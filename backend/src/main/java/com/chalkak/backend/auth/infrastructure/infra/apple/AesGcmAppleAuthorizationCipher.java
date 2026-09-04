@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
-import com.chalkak.backend.auth.service.AppleRefreshTokenCipher;
+import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -14,7 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
 @Component
-public class AesGcmAppleRefreshTokenCipher implements AppleRefreshTokenCipher {
+public class AesGcmAppleAuthorizationCipher implements AppleAuthorizationCipher {
 
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     private static final String KEY_ALGORITHM = "AES";
@@ -27,8 +27,8 @@ public class AesGcmAppleRefreshTokenCipher implements AppleRefreshTokenCipher {
     private final SecureRandom secureRandom = new SecureRandom();
     private final SecretKey secretKey;
 
-    public AesGcmAppleRefreshTokenCipher(
-            AppleRefreshTokenEncryptionProperties properties
+    public AesGcmAppleAuthorizationCipher(
+            AppleAuthorizationEncryptionProperties properties
     ) {
         this.secretKey = createSecretKey(properties.key());
     }

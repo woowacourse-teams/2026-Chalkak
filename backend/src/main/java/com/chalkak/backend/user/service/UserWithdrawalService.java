@@ -2,7 +2,7 @@ package com.chalkak.backend.user.service;
 
 import com.chalkak.backend.auth.service.AppleAuthorizationService;
 import com.chalkak.backend.auth.service.AppleAuthorizationSnapshot;
-import com.chalkak.backend.auth.service.AppleRefreshTokenCipher;
+import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
 import com.chalkak.backend.auth.service.AppleTokenClient;
 import java.util.List;
 import java.util.UUID;
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 public class UserWithdrawalService {
 
     private final AppleAuthorizationService appleAuthorizationService;
-    private final AppleRefreshTokenCipher refreshTokenCipher;
+    private final AppleAuthorizationCipher authorizationCipher;
     private final AppleTokenClient appleTokenClient;
     private final UserService userService;
 
@@ -42,7 +42,7 @@ public class UserWithdrawalService {
     private void revokeAuthorizations(List<AppleAuthorizationSnapshot> snapshots) {
         for (AppleAuthorizationSnapshot snapshot : snapshots) {
             appleTokenClient.revokeRefreshToken(
-                    refreshTokenCipher.decrypt(snapshot.encryptedRefreshToken()),
+                    authorizationCipher.decrypt(snapshot.encryptedRefreshToken()),
                     snapshot.clientId());
         }
     }
