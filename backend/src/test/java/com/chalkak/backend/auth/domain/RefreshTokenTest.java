@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +16,6 @@ class RefreshTokenTest {
     private static final String SUCCESSOR_TOKEN_HASH =
             "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
-    private static final Duration REUSE_GRACE = Duration.ofSeconds(10);
 
     @Test
     @DisplayName("회전된 적 없는 토큰은 재사용으로 판정하지 않는다")
@@ -26,49 +24,21 @@ class RefreshTokenTest {
         UserRefreshToken refreshToken = createRefreshToken();
 
         // when
-        boolean reused = refreshToken.isReused(NOW, REUSE_GRACE);
+        boolean reused = refreshToken.isReused();
 
         // then
         assertThat(reused).isFalse();
     }
 
     @Test
-    @DisplayName("회전 후 유예 시간이 지나기 전이면 재사용으로 판정하지 않는다")
-    void isReused_withinGrace_returnsFalse() {
+    @DisplayName("회전된 토큰은 회전 직후라도 재사용으로 판정한다")
+    void isReused_rotated_returnsTrue() {
         // given
         UserRefreshToken refreshToken = createRefreshToken();
-        refreshToken.rotate(NOW.minusSeconds(9));
+        refreshToken.rotate(NOW);
 
         // when
-        boolean reused = refreshToken.isReused(NOW, REUSE_GRACE);
-
-        // then
-        assertThat(reused).isFalse();
-    }
-
-    @Test
-    @DisplayName("회전 후 유예 시간이 정확히 지난 순간부터 재사용으로 판정한다")
-    void isReused_exactlyAtGraceBoundary_returnsTrue() {
-        // given
-        UserRefreshToken refreshToken = createRefreshToken();
-        refreshToken.rotate(NOW.minusSeconds(10));
-
-        // when
-        boolean reused = refreshToken.isReused(NOW, REUSE_GRACE);
-
-        // then
-        assertThat(reused).isTrue();
-    }
-
-    @Test
-    @DisplayName("회전 후 유예 시간을 넘긴 토큰은 재사용으로 판정한다")
-    void isReused_afterGrace_returnsTrue() {
-        // given
-        UserRefreshToken refreshToken = createRefreshToken();
-        refreshToken.rotate(NOW.minusSeconds(11));
-
-        // when
-        boolean reused = refreshToken.isReused(NOW, REUSE_GRACE);
+        boolean reused = refreshToken.isReused();
 
         // then
         assertThat(reused).isTrue();

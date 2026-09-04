@@ -113,35 +113,15 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("유예 시간 안에 같은 토큰으로 다시 재발급하면 계보를 끊지 않고 새 토큰을 내준다")
-    void refresh_rotatedTokenWithinReuseGrace_issuesAnotherSuccessor() {
-        // given
-        Admin admin = saveAdmin();
-        IssuedRefreshToken issued = adminRefreshTokenService.issue(admin);
-        flushAndClear();
-        IssuedRefreshToken firstSuccessor = refreshAt(issued.value(), NOW);
-
-        // when
-        IssuedRefreshToken secondSuccessor = refreshAt(
-                issued.value(),
-                NOW.plusSeconds(9));
-
-        // then
-        UUID sessionId = findTokenRow(issued.value()).sessionId();
-        assertThat(secondSuccessor.value()).isNotEqualTo(firstSuccessor.value());
-        assertThat(countLiveTokens(sessionId)).isEqualTo(3);
-    }
-
-    @Test
-    @DisplayName("유예 시간이 지난 뒤 회전된 토큰을 다시 내면 계보 전체를 폐기하고 재로그인을 요구한다")
-    void refresh_rotatedTokenAfterReuseGrace_revokesWholeLineage() {
+    @DisplayName("회전된 토큰을 다시 내면 계보 전체를 폐기하고 재로그인을 요구한다")
+    void refresh_rotatedToken_revokesWholeLineage() {
         // given
         Admin admin = saveAdmin();
         IssuedRefreshToken issued = adminRefreshTokenService.issue(admin);
         flushAndClear();
         refreshAt(issued.value(), NOW);
         UUID sessionId = findTokenRow(issued.value()).sessionId();
-        Instant reusedAt = NOW.plusSeconds(11);
+        Instant reusedAt = NOW.plusSeconds(1);
         given(clock.instant()).willReturn(reusedAt);
 
         // when
@@ -161,7 +141,7 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
         IssuedRefreshToken secondDevice = adminRefreshTokenService.issue(admin);
         flushAndClear();
         refreshAt(firstDevice.value(), NOW);
-        given(clock.instant()).willReturn(NOW.plusSeconds(11));
+        given(clock.instant()).willReturn(NOW.plusSeconds(1));
         assertReauthenticationRequired(firstDevice.value());
         flushAndClear();
 

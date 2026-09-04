@@ -18,7 +18,6 @@ public class RefreshTokenConfig {
     public RefreshTokenPolicy refreshTokenPolicy(RefreshTokenProperties properties) {
         return new RefreshTokenPolicy(
                 properties.inactivityExpiration(),
-                properties.absoluteExpiration(),
-                properties.reuseGrace());
+                properties.absoluteExpiration());
     }
 }

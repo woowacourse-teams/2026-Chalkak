@@ -82,7 +82,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         if (consumed.isRevoked()) {
             throw reauthenticationRequired();
         }
-        if (consumed.isReused(now, refreshTokenPolicy.reuseGrace())) {
+        if (consumed.isReused()) {
             refreshTokenRepository.revokeSession(consumed.getSessionId(), now);
             throw reauthenticationRequired();
         }
@@ -135,11 +135,9 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     /**
      * 회전으로 다음 토큰을 만든다.
      *
-     * <p>행 잠금이 같은 토큰의 동시 재발급을 줄 세우므로, 먼저 커밋한 요청의 회전 기록을 뒤이은
-     * 요청이 보게 된다. 이때 유예 시간 안이면 재사용이 아니라 재시도로 보고 여기까지 내려와 각자
-     * 자기 후속 토큰을 받는다. 한 계보에 잠시 두 토큰이 함께 사는 셈이지만, 401 뒤에 큐에 쌓인
-     * 요청을 한꺼번에 보내는 정상 클라이언트의 세션을 끊지 않기 위한 의도된 상태이며 다음 회전에서
-     * 하나로 수렴한다.
+     * <p>잠금이 같은 토큰의 동시 재발급을 줄 세우므로, 먼저 커밋한 요청의 회전 기록을 뒤이은 요청이
+     * 보게 된다. 뒤이은 요청은 회전된 토큰을 제시한 셈이라 재사용으로 걸러지고 여기까지 내려오지
+     * 않는다. 한 계보에 살아 있는 토큰은 항상 하나뿐이다.
      */
     private TokenRefreshResult rotate(T consumed, Instant now) {
         GeneratedRefreshToken generated = refreshTokenGenerator.generateToken();

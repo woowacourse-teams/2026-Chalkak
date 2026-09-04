@@ -5,7 +5,6 @@ import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -61,14 +60,14 @@ public abstract class RefreshToken {
     }
 
     /**
-     * 이미 회전된 토큰이 다시 들어왔는지 판단한다. 회전 직후 유예 시간 안의 재요청은 응답을 받지 못한
-     * 클라이언트의 재시도로 보고 탈취로 취급하지 않는다.
+     * 이미 회전된 토큰이 다시 들어왔는지 판단한다. 회전된 토큰이 또 제시됐다는 것은 그 값의 사본이
+     * 어딘가에 남아 있다는 뜻이므로 예외 없이 탈취로 본다.
+     *
+     * <p>클라이언트는 재발급 호출을 한 번에 하나만 띄우고 나머지 호출은 그 결과를 기다려야 한다.
+     * 이 계약을 지키는 정상 클라이언트는 회전된 토큰을 다시 제시할 일이 없다.
      */
-    public boolean isReused(Instant now, Duration reuseGrace) {
-        if (rotatedAt == null) {
-            return false;
-        }
-        return !rotatedAt.isAfter(now.minus(reuseGrace));
+    public boolean isReused() {
+        return rotatedAt != null;
     }
 
     /**
@@ -80,8 +79,8 @@ public abstract class RefreshToken {
     }
 
     /**
-     * 회전 시각을 기록한다. 같은 토큰이 두 번 회전돼도 최초 회전 시각을 유지해야 유예 구간 계산이
-     * 흔들리지 않으므로 멱등하게 동작한다.
+     * 회전 시각을 기록한다. 이 값은 재사용 탐지가 보는 유일한 증거이므로, 최초 회전 시각을 덮어쓰지
+     * 않도록 멱등하게 동작한다.
      */
     public void rotate(Instant now) {
         if (rotatedAt != null) {

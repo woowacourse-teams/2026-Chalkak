@@ -74,8 +74,9 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("같은 토큰으로 동시에 재발급하면 둘 다 성공하고 계보는 살아 있다")
-    void refresh_concurrentRotationOfSameToken_succeedsForBothCallers() throws Exception {
+    @DisplayName("같은 토큰으로 동시에 재발급하면 하나만 성공하고 계보 전체가 폐기된다")
+    void refresh_concurrentRotationOfSameToken_succeedsForOneCallerAndRevokesLineage()
+            throws Exception {
         // given
         insertRefreshToken(PRESENTED_TOKEN, null);
 
@@ -83,20 +84,19 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
         List<RefreshAttempt> attempts = runConcurrently();
 
         // then
+        // 뒤늦게 잠금을 얻은 쪽은 이미 회전된 토큰을 제시한 셈이라 탈취로 판정된다.
         assertThat(attempts)
                 .extracting(RefreshAttempt::outcome)
-                .containsExactly(SUCCESS, SUCCESS);
-        assertThat(attempts)
-                .extracting(RefreshAttempt::issuedToken)
-                .doesNotContainNull()
-                .doesNotHaveDuplicates();
-        assertThat(countLiveTokens()).isEqualTo(3);
-        assertThat(countRevokedTokens()).isZero();
+                .containsExactlyInAnyOrder(
+                        SUCCESS,
+                        ErrorCode.REAUTHENTICATION_REQUIRED.name());
+        assertThat(countLiveTokens()).isZero();
+        assertThat(countRevokedTokens()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("유예 시간이 지난 토큰을 동시에 재사용하면 둘 다 거절되고 계보가 폐기된다")
-    void refresh_concurrentReuseAfterGrace_revokesLineageForBothCallers() throws Exception {
+    @DisplayName("회전된 토큰을 동시에 재사용하면 둘 다 거절되고 계보가 폐기된다")
+    void refresh_concurrentReuseOfRotatedToken_revokesLineageForBothCallers() throws Exception {
         // given
         insertRefreshToken(PRESENTED_TOKEN, NOW.minus(Duration.ofSeconds(60)));
         insertRefreshToken("successor-refresh-token", null);

@@ -9,14 +9,12 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("chalkak.auth.refresh-token")
 public record RefreshTokenProperties(
         @NotNull Duration inactivityExpiration,
-        @NotNull Duration absoluteExpiration,
-        @NotNull Duration reuseGrace
+        @NotNull Duration absoluteExpiration
 ) {
 
     public RefreshTokenProperties {
         validatePositive(inactivityExpiration, "inactivity expiration");
         validatePositive(absoluteExpiration, "absolute expiration");
-        validatePositive(reuseGrace, "reuse grace");
         if (inactivityExpiration != null
                 && absoluteExpiration != null
                 && inactivityExpiration.compareTo(absoluteExpiration) > 0) {

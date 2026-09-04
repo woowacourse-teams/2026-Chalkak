@@ -9,14 +9,12 @@ import java.time.Instant;
  */
 public record RefreshTokenPolicy(
         Duration inactivityExpiration,
-        Duration absoluteExpiration,
-        Duration reuseGrace
+        Duration absoluteExpiration
 ) {
 
     public RefreshTokenPolicy {
         validatePositive(inactivityExpiration);
         validatePositive(absoluteExpiration);
-        validatePositive(reuseGrace);
         if (inactivityExpiration.compareTo(absoluteExpiration) > 0) {
             throw new IllegalArgumentException(
                     "Refresh token inactivity expiration must not exceed absolute expiration");

@@ -13,8 +13,7 @@ class RefreshTokenPolicyTest {
 
     private final RefreshTokenPolicy policy = new RefreshTokenPolicy(
             Duration.ofDays(30),
-            Duration.ofDays(90),
-            Duration.ofSeconds(10));
+            Duration.ofDays(90));
 
     @Test
     @DisplayName("비활동 만료가 절대 만료보다 이르면 비활동 만료를 그대로 쓴다")

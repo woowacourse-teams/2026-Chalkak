@@ -24,9 +24,9 @@ CREATE INDEX ix_user_refresh_tokens_user_id
 CREATE INDEX ix_user_refresh_tokens_absolute_expires_at
     ON user_refresh_tokens (absolute_expires_at);
 
--- 한 lineage에 살아 있는 토큰이 하나뿐이라는 부분 UNIQUE 인덱스는 의도적으로 두지 않는다.
--- 재사용 유예 구간 동안 회전된 토큰과 새 토큰이 잠시 함께 살아 있어야 하므로, 그런 인덱스는
--- 정상적인 동시 재발급을 제약 위반으로 만들어 버린다.
+-- 한 lineage에 행이 하나뿐이라는 부분 UNIQUE 인덱스는 의도적으로 두지 않는다.
+-- 회전된 행과 폐기된 행을 재사용 탐지의 증거로 계속 남기므로, 한 lineage에는 이미 소비된 행이
+-- 여러 개 쌓인다. 'lineage당 한 행'은 이 테이블이 지키는 불변식이 아니다.
 
 COMMENT ON COLUMN user_refresh_tokens.token_hash IS
     'SHA-256 hex of the opaque refresh token. The token value itself is never stored.';
