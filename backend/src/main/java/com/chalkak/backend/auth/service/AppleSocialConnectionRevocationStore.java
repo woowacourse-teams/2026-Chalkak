@@ -19,6 +19,7 @@ public class AppleSocialConnectionRevocationStore
         implements SocialConnectionRevocationStore {
 
     private final AppleAuthorizationRepository appleAuthorizationRepository;
+    private final AppleAuthorizationFingerprintEncoder fingerprintEncoder;
 
     @Override
     public void deleteAllIfUnchanged(
@@ -61,6 +62,7 @@ public class AppleSocialConnectionRevocationStore
     ) {
         return new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                authorization.getEncryptedRefreshToken());
+                fingerprintEncoder.encode(
+                        authorization.getEncryptedRefreshToken()));
     }
 }

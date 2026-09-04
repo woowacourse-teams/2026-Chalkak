@@ -6,12 +6,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.AppleAuthorizationFingerprintEncoder;
 import com.chalkak.backend.auth.service.RefreshTokenHasher;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.auth.service.UserRefreshTokenService;
@@ -65,6 +66,9 @@ class UserServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @Autowired
+    private AppleAuthorizationFingerprintEncoder authorizationFingerprintEncoder;
 
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
@@ -1175,7 +1179,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // When
         userService.withdraw(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                "encrypted-refresh-token")));
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
         flushAndClear();
 
         // Then
@@ -1234,7 +1238,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // When
         userService.withdraw(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                "encrypted-refresh-token")));
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
         flushAndClear();
 
         // Then

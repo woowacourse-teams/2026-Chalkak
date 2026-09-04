@@ -32,8 +32,8 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
-import com.chalkak.backend.user.service.UserService;
 import com.chalkak.backend.user.service.SocialConnectionRevocationSnapshot;
+import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
@@ -84,6 +84,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @Autowired
+    private AppleAuthorizationFingerprintEncoder authorizationFingerprintEncoder;
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
@@ -378,7 +381,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // 탈퇴가 남기는 DB 상태(소셜 계정·인증 정보 삭제)만 재현한다.
         userService.withdraw(firstUserId, List.of(new SocialConnectionRevocationSnapshot(
                 authorization.getId(),
-                authorization.getEncryptedRefreshToken())));
+                authorizationFingerprintEncoder.encode(
+                        authorization.getEncryptedRefreshToken()))));
         entityManager.flush();
         entityManager.clear();
 

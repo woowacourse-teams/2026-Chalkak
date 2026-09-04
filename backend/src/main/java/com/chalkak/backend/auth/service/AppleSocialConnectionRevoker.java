@@ -13,6 +13,7 @@ public class AppleSocialConnectionRevoker implements SocialConnectionRevoker {
 
     private final AppleAuthorizationService appleAuthorizationService;
     private final AppleAuthorizationCipher authorizationCipher;
+    private final AppleAuthorizationFingerprintEncoder fingerprintEncoder;
     private final AppleTokenClient appleTokenClient;
 
     /**
@@ -40,6 +41,6 @@ public class AppleSocialConnectionRevoker implements SocialConnectionRevoker {
     ) {
         return new SocialConnectionRevocationSnapshot(
                 snapshot.id(),
-                snapshot.encryptedRefreshToken());
+                fingerprintEncoder.encode(snapshot.encryptedRefreshToken()));
     }
 }
