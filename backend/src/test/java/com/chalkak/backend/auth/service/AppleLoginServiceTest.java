@@ -93,8 +93,30 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
         assertThat(result.userId()).isEqualTo(socialAccount.getUser().getId());
         assertThat(result.accessToken()).isNotNull();
+        assertThat(result.refreshToken()).isNotNull();
+        assertThat(result.refreshToken().value()).isNotBlank();
+        assertThat(result.refreshToken().expiresIn()).isPositive();
         assertThat(result.signupToken()).isNull();
         verifyNoInteractions(appleTokenClient, refreshTokenCipher);
+    }
+
+    @Test
+    @DisplayName("신규 Apple 사용자에게는 리프레시 토큰을 발급하지 않는다")
+    void login_newAccount_issuesNoRefreshToken() {
+        // Given
+        givenSuccessfulAppleAuthentication();
+        given(socialSignupTokenIssuer.issueApple(any(), any(UUID.class), any()))
+                .willReturn(new IssuedSocialSignupToken("apple-signup-token"));
+
+        // When
+        AppleLoginResult result = appleLoginService.login(
+                ID_TOKEN,
+                AUTHORIZATION_CODE,
+                RAW_NONCE);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        assertThat(result.refreshToken()).isNull();
     }
 
     @Test

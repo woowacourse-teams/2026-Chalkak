@@ -27,6 +27,7 @@ public class AppleLoginService {
     private final SocialAccountRepository socialAccountRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final AccessTokenIssuer accessTokenIssuer;
+    private final UserRefreshTokenService userRefreshTokenService;
 
     /**
      * 기존 회원은 authorizationCode를 교환하지 않는다. 교환할 때마다 Apple에 새 grant가
@@ -51,18 +52,23 @@ public class AppleLoginService {
                 SocialProvider.APPLE,
                 identity.subject());
 
-        Optional<UUID> userId = findExistingUserId(subjectHmac);
-        if (userId.isPresent()) {
-            return AppleLoginResult.loginSuccess(
-                    userId.get(),
-                    accessTokenIssuer.issue(userId.get()));
+        Optional<User> user = findExistingUser(subjectHmac);
+        if (user.isPresent()) {
+            return toLoginSuccess(user.get());
         }
         return issueSignupToken(
                 identity,
                 exchangeAuthorization(identity, authorizationCode, rawNonce));
     }
 
-    private Optional<UUID> findExistingUserId(String subjectHmac) {
+    private AppleLoginResult toLoginSuccess(User user) {
+        return AppleLoginResult.loginSuccess(
+                user.getId(),
+                accessTokenIssuer.issue(user.getId()),
+                userRefreshTokenService.issue(user));
+    }
+
+    private Optional<User> findExistingUser(String subjectHmac) {
         Optional<SocialAccount> socialAccount = socialAccountRepository
                 .findByProviderAndSubjectHmac(
                         SocialProvider.APPLE,
@@ -76,7 +82,7 @@ public class AppleLoginService {
         if (user.isDeleted()) {
             return Optional.empty();
         }
-        return Optional.of(user.getId());
+        return Optional.of(user);
     }
 
     /**

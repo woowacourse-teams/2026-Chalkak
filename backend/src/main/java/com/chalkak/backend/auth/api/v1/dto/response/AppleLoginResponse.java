@@ -1,6 +1,7 @@
 package com.chalkak.backend.auth.api.v1.dto.response;
 
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.service.AppleLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginStatus;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -23,10 +24,25 @@ public record AppleLoginResponse(
         @Schema(
                 description = "발급 시점부터의 액세스 토큰 유효 시간(초)."
                         + " LOGIN_SUCCESS일 때만 내려준다",
-                example = "3600",
+                example = "900",
                 nullable = true
         )
         Long expiresIn,
+
+        @Schema(
+                description = "액세스 토큰 재발급에 사용하는 리프레시 토큰."
+                        + " LOGIN_SUCCESS일 때만 내려준다",
+                nullable = true
+        )
+        String refreshToken,
+
+        @Schema(
+                description = "발급 시점부터의 리프레시 토큰 유효 시간(초)."
+                        + " LOGIN_SUCCESS일 때만 내려준다",
+                example = "2592000",
+                nullable = true
+        )
+        Long refreshTokenExpiresIn,
 
         @Schema(
                 description = "SIGN_UP_REQUIRED일 때만 내려주는 5분 유효 회원가입 토큰",
@@ -43,13 +59,18 @@ public record AppleLoginResponse(
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     result.signupToken().value());
         }
+        IssuedRefreshToken refreshToken = result.refreshToken();
         return new AppleLoginResponse(
                 result.status(),
                 result.userId(),
                 accessToken.value(),
                 accessToken.expiresIn().toSeconds(),
+                refreshToken.value(),
+                refreshToken.expiresIn().toSeconds(),
                 null);
     }
 }

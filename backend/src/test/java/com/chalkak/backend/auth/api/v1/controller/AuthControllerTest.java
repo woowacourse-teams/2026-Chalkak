@@ -62,7 +62,7 @@ class AuthControllerTest {
     private UserRefreshTokenService userRefreshTokenService;
 
     @Test
-    @DisplayName("기존 Apple 회원이 로그인하면 액세스 토큰을 반환한다")
+    @DisplayName("기존 Apple 회원이 로그인하면 액세스 토큰과 리프레시 토큰을 반환한다")
     void appleLogin_existingUser_returnsLoginSuccess() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
@@ -72,7 +72,8 @@ class AuthControllerTest {
                 "raw-nonce"))
                 .willReturn(AppleLoginResult.loginSuccess(
                         userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1))));
+                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1)),
+                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/apple/social-login")
@@ -89,6 +90,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
                 .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000))
                 .andExpect(jsonPath("$.signupToken").doesNotExist());
     }
 
@@ -118,6 +121,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.userId").doesNotExist())
                 .andExpect(jsonPath("$.accessToken").doesNotExist())
                 .andExpect(jsonPath("$.expiresIn").doesNotExist())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").doesNotExist())
                 .andExpect(jsonPath("$.signupToken")
                         .value("apple-signup-token"));
     }
