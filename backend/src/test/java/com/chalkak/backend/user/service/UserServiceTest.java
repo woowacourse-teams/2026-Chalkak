@@ -161,7 +161,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId());
+        userService.withdraw(user.getId(), List.of());
         flushAndClear();
 
         // Then
@@ -179,7 +179,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         flushAndClear();
-        userService.withdraw(user.getId());
+        userService.withdraw(user.getId(), List.of());
         flushAndClear();
 
         // When & Then
