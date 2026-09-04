@@ -8,12 +8,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
+import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
@@ -22,6 +23,7 @@ import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -39,9 +41,10 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private static final String AUTHORIZATION_CODE = "apple-authorization-code";
     private static final String RAW_NONCE = "raw-nonce";
     private static final String SUBJECT = "apple-subject";
-    private static final String CLIENT_ID = "com.chalkak.ios";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
+    private static final Instant SIGNUP_TOKEN_EXPIRES_AT =
+            Instant.parse("2026-09-04T12:05:00Z");
 
     @Autowired
     private AppleLoginService appleLoginService;
@@ -51,6 +54,9 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private AppleAuthorizationRepository appleAuthorizationRepository;
+
+    @Autowired
+    private PendingAppleAuthorizationRepository pendingAuthorizationRepository;
 
     @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
@@ -105,8 +111,10 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     void login_newAccount_issuesNoRefreshToken() {
         // Given
         givenSuccessfulAppleAuthentication();
-        given(socialSignupTokenIssuer.issueApple(any(), any(UUID.class), any()))
-                .willReturn(new IssuedSocialSignupToken("apple-signup-token"));
+        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
+                .willReturn(new IssuedSocialSignupToken(
+                        "apple-signup-token",
+                        SIGNUP_TOKEN_EXPIRES_AT));
 
         // When
         AppleLoginResult result = appleLoginService.login(
@@ -148,16 +156,14 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 Apple 사용자는 암호화된 RT가 포함된 signupToken을 받는다")
+    @DisplayName("신규 Apple 사용자의 암호화된 RT는 signupToken과 같은 만료 시각으로 임시 저장한다")
     void login_newAccount_returnsSignupToken() {
         // Given
         VerifiedSocialIdentity identity = givenSuccessfulAppleAuthentication();
-        IssuedSocialSignupToken issuedToken =
-                new IssuedSocialSignupToken("apple-signup-token");
-        given(socialSignupTokenIssuer.issueApple(
-                any(),
-                any(UUID.class),
-                any()))
+        IssuedSocialSignupToken issuedToken = new IssuedSocialSignupToken(
+                "apple-signup-token",
+                SIGNUP_TOKEN_EXPIRES_AT);
+        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
                 .willReturn(issuedToken);
 
         // When
@@ -167,18 +173,21 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE);
 
         // Then
-        ArgumentCaptor<AppleSignupAuthorization> authorizationCaptor =
-                ArgumentCaptor.forClass(AppleSignupAuthorization.class);
-        verify(socialSignupTokenIssuer).issueApple(
+        ArgumentCaptor<UUID> uploadIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(socialSignupTokenIssuer).issue(
                 org.mockito.ArgumentMatchers.eq(identity),
-                any(UUID.class),
-                authorizationCaptor.capture());
+                uploadIdCaptor.capture());
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
         assertThat(result.accessToken()).isNull();
         assertThat(result.signupToken()).isEqualTo(issuedToken);
-        assertThat(authorizationCaptor.getValue().encryptedRefreshToken())
+        PendingAppleAuthorization pendingAuthorization =
+                pendingAuthorizationRepository.findByUploadId(
+                        uploadIdCaptor.getValue()).orElseThrow();
+        assertThat(pendingAuthorization.getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+        assertThat(pendingAuthorization.getExpiresAt())
+                .isEqualTo(SIGNUP_TOKEN_EXPIRES_AT);
     }
 
     @Test

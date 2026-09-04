@@ -1,10 +1,11 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.AppleSignupAuthorization;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
@@ -23,6 +24,7 @@ public class AppleLoginService {
     private final AppleIdTokenVerifier appleIdTokenVerifier;
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
+    private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SocialAccountRepository socialAccountRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -97,7 +99,7 @@ public class AppleLoginService {
         }
     }
 
-    private AppleSignupAuthorization exchangeAuthorization(
+    private String exchangeAuthorization(
             VerifiedSocialIdentity identity,
             String authorizationCode,
             String rawNonce
@@ -109,8 +111,7 @@ public class AppleLoginService {
                 rawNonce);
         validateSameSubject(identity, exchangedIdentity);
 
-        return new AppleSignupAuthorization(
-                authorizationCipher.encrypt(exchangeResult.refreshToken()));
+        return authorizationCipher.encrypt(exchangeResult.refreshToken());
     }
 
     private void validateSameSubject(
@@ -126,12 +127,16 @@ public class AppleLoginService {
 
     private AppleLoginResult issueSignupToken(
             VerifiedSocialIdentity identity,
-            AppleSignupAuthorization signupAuthorization
+            String encryptedRefreshToken
     ) {
-        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issueApple(
+        UUID uploadId = UUID.randomUUID();
+        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
                 identity,
-                UUID.randomUUID(),
-                signupAuthorization);
+                uploadId);
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                uploadId,
+                encryptedRefreshToken,
+                signupToken.expiresAt()));
         return AppleLoginResult.signUpRequired(signupToken);
     }
 }
