@@ -40,3 +40,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 로컬 작업 재개 기록 ###
+/.harness/state/
