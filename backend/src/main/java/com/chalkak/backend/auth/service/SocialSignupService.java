@@ -1,16 +1,12 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
 import com.chalkak.backend.auth.domain.ConsumedSignupToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
-import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
-import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -25,7 +21,6 @@ import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
-import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -38,9 +33,8 @@ public class SocialSignupService {
 
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final SocialAccountRepository socialAccountRepository;
-    private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final ConsumedSignupTokenRepository consumedSignupTokenRepository;
-    private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
+    private final AppleSignupAuthorizationService appleSignupAuthorizationService;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
@@ -50,7 +44,6 @@ public class SocialSignupService {
     private final SignatureImagePolicy signatureImagePolicy;
     private final UserRepository userRepository;
     private final UserRefreshTokenService userRefreshTokenService;
-    private final Clock clock;
 
     public SocialSignupSignatureUploadResult createSignatureUpload(
             SocialProvider provider,
@@ -75,7 +68,7 @@ public class SocialSignupService {
     ) {
         VerifiedSocialSignupToken verifiedToken =
                 socialSignupTokenVerifier.verify(signupToken);
-        validateAppleSignupToken(verifiedToken);
+        appleSignupAuthorizationService.validate(verifiedToken);
         validateNewSocialAccount(new VerifiedSocialIdentity(
                 verifiedToken.provider(),
                 verifiedToken.subject(),
@@ -129,7 +122,7 @@ public class SocialSignupService {
                 user,
                 verifiedToken.provider(),
                 subjectHmac));
-        saveAppleAuthorization(verifiedToken, socialAccount);
+        appleSignupAuthorizationService.saveIfApple(verifiedToken, socialAccount);
 
         return toSignupResult(user);
     }
@@ -143,21 +136,6 @@ public class SocialSignupService {
                 user.getId(),
                 accessTokenIssuer.issue(user.getId()),
                 userRefreshTokenService.issue(user));
-    }
-
-    private void saveAppleAuthorization(
-            VerifiedSocialSignupToken verifiedToken,
-            SocialAccount socialAccount
-    ) {
-        if (verifiedToken.provider() != SocialProvider.APPLE) {
-            return;
-        }
-        PendingAppleAuthorization pendingAuthorization =
-                getPendingAuthorizationForUpdate(verifiedToken.uploadId());
-        appleAuthorizationRepository.save(AppleAuthorization.create(
-                socialAccount,
-                pendingAuthorization.getEncryptedRefreshToken()));
-        pendingAuthorizationRepository.delete(pendingAuthorization);
     }
 
     private User getExistingUser(SocialAccount socialAccount) {
@@ -201,49 +179,6 @@ public class SocialSignupService {
                     ErrorCode.BUSINESS_ERROR,
                     "업로드한 사인 이미지를 찾을 수 없습니다.");
         }
-    }
-
-    private void validateAppleSignupToken(
-            VerifiedSocialSignupToken verifiedToken
-    ) {
-        if (verifiedToken.provider() != SocialProvider.APPLE) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 토큰이 아닙니다.");
-        }
-        getPendingAuthorization(verifiedToken.uploadId());
-    }
-
-    private PendingAppleAuthorization getPendingAuthorization(UUID uploadId) {
-        PendingAppleAuthorization authorization = pendingAuthorizationRepository
-                .findByUploadId(uploadId)
-                .orElseThrow(this::pendingAuthorizationNotFound);
-        validatePendingAuthorizationNotExpired(authorization);
-        return authorization;
-    }
-
-    private PendingAppleAuthorization getPendingAuthorizationForUpdate(
-            UUID uploadId
-    ) {
-        PendingAppleAuthorization authorization = pendingAuthorizationRepository
-                .findByUploadIdForUpdate(uploadId)
-                .orElseThrow(this::pendingAuthorizationNotFound);
-        validatePendingAuthorizationNotExpired(authorization);
-        return authorization;
-    }
-
-    private void validatePendingAuthorizationNotExpired(
-            PendingAppleAuthorization authorization
-    ) {
-        if (authorization.isExpired(clock.instant())) {
-            throw pendingAuthorizationNotFound();
-        }
-    }
-
-    private BusinessException pendingAuthorizationNotFound() {
-        return new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
     }
 
     private void validateNewSocialAccount(VerifiedSocialIdentity identity) {
