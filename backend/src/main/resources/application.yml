@@ -66,6 +66,12 @@ chalkak:
         revoke-uri: https://appleid.apple.com/auth/revoke
       refresh-token-encryption:
         key: ${APPLE_REFRESH_TOKEN_ENCRYPTION_KEY}
+    pending-apple-authorization:
+      cleanup:
+        # 가입이 끝나지 않아 남은 Apple 임시 인증 정보를 지우는 정리 작업 하나만 켜고 끈다.
+        # 다른 주기 작업에는 영향이 없다. 스케줄링 기능 자체는 chalkak.scheduling.enabled가 끈다.
+        # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+        enabled: true
     oidc:
       apple:
         issuer: https://appleid.apple.com
