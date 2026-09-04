@@ -50,8 +50,14 @@ public class AdminRefreshTokenRepositoryImpl implements AdminRefreshTokenReposit
         return adminRefreshTokenJpaRepository.revokeAllByOwnerId(ownerId, revokedAt);
     }
 
+    /**
+     * 두 문장으로 나눠 지우고 합계를 돌려준다. 앞 문장이 지운 행은 뒤 문장이 다시 만나지 못하므로
+     * 두 조건에 모두 걸리는 행도 한 번만 세어진다.
+     */
     @Override
     public int deleteUnusableBefore(Instant now, Instant revokedThreshold) {
-        return adminRefreshTokenJpaRepository.deleteUnusableBefore(now, revokedThreshold);
+        int absolutelyExpiredCount = adminRefreshTokenJpaRepository.deleteAbsolutelyExpiredBefore(now);
+        int revokedCount = adminRefreshTokenJpaRepository.deleteRevokedBefore(revokedThreshold);
+        return absolutelyExpiredCount + revokedCount;
     }
 }

@@ -39,8 +39,11 @@ public interface RefreshTokenRepository<T extends RefreshToken> {
     int revokeAllByOwnerId(UUID ownerId, Instant revokedAt);
 
     /**
-     * 더는 쓰일 일이 없는 토큰을 지운다. 절대 만료가 지난 토큰과 폐기된 지 충분히 오래된 토큰이
-     * 대상이며, 폐기 직후의 토큰은 재사용 탐지에 필요하므로 남긴다.
+     * 더는 쓰일 일이 없는 토큰을 지우고, 실제로 지운 토큰 수를 돌려준다. 절대 만료가 지난 토큰과
+     * 폐기된 지 충분히 오래된 토큰이 대상이며, 폐기 직후의 토큰은 재사용 탐지에 필요하므로 남긴다.
+     *
+     * <p>두 조건은 서로 다른 컬럼을 보므로 구현은 문장을 나눠 실행한다. 호출자에게는 여전히 한 번의
+     * 정리이고, 돌려주는 값도 두 조건을 합쳐 지운 총 개수다.
      */
     int deleteUnusableBefore(Instant now, Instant revokedThreshold);
 }
