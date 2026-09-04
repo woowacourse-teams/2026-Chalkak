@@ -20,7 +20,7 @@ public record PostTitle(
         String value
 ) {
 
-    public static final int MAX_LENGTH = 10;
+    private static final int MAX_LENGTH = 10;
 
     public PostTitle {
         Objects.requireNonNull(value, "PostTitle은 값 없이 만들 수 없다. 제목 없음은 null로 표현한다.");
