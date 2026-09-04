@@ -2,16 +2,10 @@ package com.chalkak.backend.auth.service;
 
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
-import com.chalkak.backend.auth.domain.SocialAccount;
-import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
-import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.ErrorCode;
-import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.user.domain.User;
-import com.chalkak.backend.user.domain.UserStatus;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +19,8 @@ public class AppleLoginService {
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
     private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
-    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
-    private final SocialAccountRepository socialAccountRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
-    private final AccessTokenIssuer accessTokenIssuer;
-    private final UserRefreshTokenService userRefreshTokenService;
+    private final ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
 
     /**
      * 기존 회원은 authorizationCode를 교환하지 않는다. 교환할 때마다 Apple에 새 grant가
@@ -43,8 +34,8 @@ public class AppleLoginService {
      * 탈퇴 시 폐기 요청도 정상 응답을 받는다.
      *
      * <p>이 메서드 전체에 트랜잭션을 적용하지 않는 것은 신규 회원 경로의 Apple 토큰 교환
-     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 기존 회원 경로의 DB 작업
-     * 원자성은 외부 호출과 DB 작업을 분리하는 로그인 파이프라인 통합 작업(#306)에서 보완한다.
+     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 기존 회원 경로의 DB 작업은
+     * {@link ExistingSocialAccountLoginProcessor}가 자신의 트랜잭션 안에서 처리한다.
      */
     public AppleLoginResult login(
             String idToken,
@@ -54,53 +45,22 @@ public class AppleLoginService {
         VerifiedSocialIdentity identity = appleIdTokenVerifier.verify(
                 idToken,
                 rawNonce);
-        String subjectHmac = fingerprintEncoder.encode(
-                SocialProvider.APPLE,
-                identity.subject());
 
-        Optional<User> user = findExistingUser(subjectHmac);
-        if (user.isPresent()) {
-            return toLoginSuccess(user.get());
+        Optional<SocialLoginSuccess> loginSuccess = existingSocialAccountLoginProcessor
+                .processIfExists(identity);
+        if (loginSuccess.isPresent()) {
+            return toLoginSuccess(loginSuccess.get());
         }
         return issueSignupToken(
                 identity,
                 exchangeAuthorization(identity, authorizationCode, rawNonce));
     }
 
-    private AppleLoginResult toLoginSuccess(User user) {
+    private AppleLoginResult toLoginSuccess(SocialLoginSuccess success) {
         return AppleLoginResult.loginSuccess(
-                user.getId(),
-                accessTokenIssuer.issue(user.getId()),
-                userRefreshTokenService.issue(user));
-    }
-
-    private Optional<User> findExistingUser(String subjectHmac) {
-        Optional<SocialAccount> socialAccount = socialAccountRepository
-                .findByProviderAndSubjectHmac(
-                        SocialProvider.APPLE,
-                        subjectHmac);
-        if (socialAccount.isEmpty()) {
-            return Optional.empty();
-        }
-
-        User user = socialAccount.get().getUser();
-        validateNotWithdrawnBannedAccount(user);
-        if (user.isDeleted()) {
-            return Optional.empty();
-        }
-        return Optional.of(user);
-    }
-
-    /**
-     * 차단 회원은 탈퇴해도 재가입 우회 방지를 위해 소셜 계정을 유지하므로 여기서 로그인을 거부한다.
-     * 탈퇴하지 않은 차단 회원은 로그인은 되고, 쓰기 요청만 인가 단계에서 막힌다.
-     */
-    private void validateNotWithdrawnBannedAccount(User user) {
-        if (user.isDeleted() && user.getStatus() == UserStatus.BANNED) {
-            throw new ForbiddenException(
-                    ErrorCode.FORBIDDEN,
-                    "탈퇴한 차단 소셜 계정입니다.");
-        }
+                success.userId(),
+                success.accessToken(),
+                success.refreshToken());
     }
 
     private String exchangeAuthorization(
