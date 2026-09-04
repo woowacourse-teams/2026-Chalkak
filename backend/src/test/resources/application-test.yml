@@ -35,8 +35,9 @@ chalkak:
       inactivity-expiration: 30d
       absolute-expiration: 90d
       cleanup:
-        # 테스트는 자기 시계를 고정하므로 실제 시각으로 도는 정리 작업이 같은 DB의 행을 지우면 안 된다.
-        enabled: false
+        # 정리 작업 자체는 켜 둔다. 테스트가 스케줄러 빈을 주입받아 메서드를 직접 부르기 때문이다.
+        # 실제 시각으로 도는 것은 아래 chalkak.scheduling.enabled: false가 막는다.
+        enabled: true
     oidc:
       google:
         client-id: test-google-client-id
@@ -56,3 +57,9 @@ chalkak:
 
   user:
     signature-processing-timeout: 7m
+
+  scheduling:
+    # 애플리케이션 전체의 주기 작업을 끈다. 테스트는 자기 시계를 고정하므로, 실제 시각으로 도는
+    # 작업이 같은 테스트 DB의 행을 건드리면 원인을 찾기 어려운 실패가 된다. 주기 작업이 늘어나도
+    # 이 한 줄이 전부를 덮는다.
+    enabled: false

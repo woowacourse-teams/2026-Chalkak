@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +17,18 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>액세스 토큰이 15분이라 활성 기기 하나가 하루에 백 개 가까운 행을 만들고, 90일 계보가 끝날 때까지
  * 쌓이면 기기마다 수천 행이 된다. 회전 계보는 조회 경로에 그대로 얹히므로 지우지 않으면 재발급이
  * 점점 느려진다.
+ *
+ * <p>정리 작업 하나만 끄고 싶을 때를 위한 플래그를 빈에 건다. 스케줄링 기능 자체를 끄는 것은
+ * {@code chalkak.scheduling.enabled}이고, 이 키는 다른 주기 작업에 영향을 주지 않는다.
  */
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        prefix = "chalkak.auth.refresh-token.cleanup",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class RefreshTokenCleanupScheduler {
 
     /**

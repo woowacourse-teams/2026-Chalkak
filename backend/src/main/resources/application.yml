@@ -54,8 +54,8 @@ chalkak:
       # 이 시점에는 반드시 끊긴다.
       absolute-expiration: ${REFRESH_TOKEN_ABSOLUTE_EXPIRATION}
       cleanup:
-        # 만료·폐기된 토큰을 지우는 스케줄러를 켤지. 환경마다 다른 값이 아니라 정책 값이라
-        # 환경변수로 두지 않는다. test 프로필만 꺼서 테스트가 스케줄러를 띄우지 않게 한다.
+        # 만료·폐기된 토큰을 지우는 정리 작업 하나만 켜고 끈다. 다른 주기 작업에는 영향이 없다.
+        # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
         enabled: true
     oidc:
       google:
@@ -96,6 +96,12 @@ chalkak:
     # 사인 처리 완료 콜백을 기다리는 시간. 이 시간을 넘긴 처리는 조회 시 재등록 대상으로 판단하고,
     # 이후 도착한 성공 콜백은 무시한다. 7m, 1h, PT7M 형식을 모두 받는다.
     signature-processing-timeout: ${SIGNATURE_PROCESSING_TIMEOUT}
+
+  scheduling:
+    # 애플리케이션 전체의 주기 작업을 켤지. @EnableScheduling은 컨텍스트 단위라 개별 작업이 아니라
+    # 스케줄링 기능 자체를 끄므로, 특정 작업 이름이 아닌 중립적인 키로 둔다. 테스트만 끈다.
+    # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+    enabled: true
 
 management:
   endpoints:
