@@ -37,6 +37,7 @@ class HarnessEvaluationTests(unittest.TestCase):
             "backend/.claude/settings.json": "{}\n",
             ".github/ISSUE_TEMPLATE/docs.md": "# Document issue\n",
             ".github/pull_request_template.md": "# Pull request\n",
+            "backend/scripts/work_state.py": (HERE.parent / "work_state.py").read_text(),
         }
         for relative, text in source_files.items():
             path = self.source / relative
@@ -120,6 +121,8 @@ class HarnessEvaluationTests(unittest.TestCase):
         repo, destination, criteria, before = self.prepare_case("issue-draft")
         self.assertEqual(source_before, runner.snapshot(self.source))
         for relative, text in source_before["files"].items():
+            if relative == "backend/scripts/work_state.py":
+                continue
             self.assertEqual(text, (repo / relative).read_text(), relative)
         self.assertEqual(criteria, json.loads((destination / "criteria.json").read_text()))
         self.assertTrue((destination / "prompt.md").is_file())
@@ -145,6 +148,54 @@ class HarnessEvaluationTests(unittest.TestCase):
         path.write_text("\n".join(line for line in path.read_text().splitlines() if "8080" not in line) + "\n")
         errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
         self.assertTrue(any("preserved_text" in error and "8080" in error for error in errors))
+
+    def test_recorded_resume_seeds_stale_verification_and_preserves_it_after_progress_save(self):
+        repo, destination, criteria, before = self.prepare_case("recorded-work-resume")
+        record_path = repo / "backend/.harness/state/issue-812.json"
+        lock_path = record_path.parent / ".lock"
+        seeded = json.loads(record_path.read_text())
+        command = [sys.executable, str(repo / "backend/scripts/work_state.py"), "load", "--issue", "812"]
+        loaded = json.loads(subprocess.check_output(command, cwd=repo / "backend", text=True))
+        self.assertFalse(loaded["matches"]["record"])
+        self.assertFalse(loaded["matches"]["verification"])
+        self.assertEqual("", lock_path.read_text())
+        self.assertNotIn("criteria.json", before["files"])
+        status = runner.git(repo, "status", "--short")
+        self.assertEqual(" M backend/README.md\n", status)
+        self.assertNotIn(".harness/state", status)
+
+        # Claude가 쓰는 제한 도구도 같은 CLI의 실제 load 결과를 반환한다.
+        tools = runner.claude_adapter.fixture_tools.FixtureTools(repo, destination / "fixture-state-calls.jsonl") \
+            if hasattr(runner.claude_adapter, "fixture_tools") else None
+        if tools is None:
+            spec = importlib.util.spec_from_file_location("fixture_tools_for_runner_test", HERE / "fixture_tools.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            tools = module.FixtureTools(repo, destination / "fixture-state-calls.jsonl")
+        via_mcp = json.loads(tools.invoke("work_state", {"operation": "load", "issue": 812}))
+        self.assertEqual(loaded["revision"], via_mcp["revision"])
+
+        readme = repo / "backend/README.md"
+        readme.write_text(readme.read_text().replace(
+            "실행이 되지 않으면 오류 로그를 먼저 확인합니다.",
+            "실행이 되지 않으면 오류 로그와 JDK 25 설치 여부를 먼저 확인합니다."))
+        payload = {"work": {"done": ["실행 위치와 bootRun 명령 안내", "JDK 25 설치 확인 안내"],
+                            "remaining": ["변경된 코드 상태에서 검증 재확인"], "next": "README 검증 재실행"}}
+        saved = json.loads(tools.invoke("work_state", {"operation": "save", "issue": 812,
+                            "expected_revision": loaded["revision"], "work": payload["work"]}))
+        current = json.loads(tools.invoke("work_state", {"operation": "load", "issue": 812}))
+        after_record = current["record"]
+        self.assertEqual(saved["revision"], current["revision"])
+        self.assertTrue(current["matches"]["record"])
+        self.assertFalse(current["matches"]["verification"])
+        self.assertEqual(seeded["verification"], after_record["verification"])
+        self.assertEqual(current["current"]["fingerprint"], after_record["code_state"]["fingerprint"])
+        self.assertNotEqual(after_record["code_state"], after_record["verification"]["code_state"])
+        self.assertEqual("", lock_path.read_text())
+        self.assertFalse(list(record_path.parent.glob(".write-*")))
+        errors, diff = runner.compare(before, runner.snapshot(repo), criteria)
+        self.assertEqual([], errors)
+        self.assertIn("JDK 25", diff)
 
     def test_extra_file_and_git_ref_changes_fail_even_after_positive_review(self):
         def mutation(repo):

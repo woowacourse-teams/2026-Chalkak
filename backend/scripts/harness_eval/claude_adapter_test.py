@@ -103,6 +103,21 @@ else:
                 self.assertTrue(self.tools.call("git_read", arguments)["isError"])
         self.assertFalse((self.repo / "hacked").exists())
 
+    def test_work_state_tool_rejects_delete_arbitrary_paths_and_check_forging(self):
+        script = self.repo / "backend/scripts/work_state.py"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text((HERE.parent / "work_state.py").read_text())
+        attempts = (
+            {"operation": "remove", "issue": 812},
+            {"operation": "load", "issue": 812, "path": "../outside"},
+            {"operation": "save", "issue": 812, "expected_revision": "missing", "work": {},
+             "checks": [{"command": "false", "result": "pass"}]},
+        )
+        for arguments in attempts:
+            with self.subTest(arguments=arguments):
+                self.assertTrue(self.tools.call("work_state", arguments)["isError"])
+        self.assertFalse((self.repo / "backend/.harness").exists())
+
     def test_stdio_protocol_reports_errors_without_running_unknown_operations(self):
         requests = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize"},
@@ -115,7 +130,7 @@ else:
         replies = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual(4, len(replies))
         self.assertIn("serverInfo", replies[0]["result"])
-        self.assertEqual({"read", "list", "write", "git_read"}, {tool["name"] for tool in replies[1]["result"]["tools"]})
+        self.assertEqual({"read", "list", "write", "git_read", "work_state"}, {tool["name"] for tool in replies[1]["result"]["tools"]})
         self.assertTrue(replies[2]["result"]["isError"])
         self.assertIn("error", replies[3])
 

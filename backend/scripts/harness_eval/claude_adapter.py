@@ -11,7 +11,7 @@ import sys
 
 
 HERE = Path(__file__).resolve().parent
-MCP_NAMES = ["mcp__fixture__" + name for name in ("read", "list", "write", "git_read")]
+MCP_NAMES = ["mcp__fixture__" + name for name in ("read", "list", "write", "git_read", "work_state")]
 REQUIRED_FLAGS = ("--tools", "--allowedTools", "--disallowedTools", "--permission-mode", "--setting-sources",
                   "--settings", "--strict-mcp-config", "--mcp-config", "--no-session-persistence",
                   "--output-format", "--verbose", "--no-chrome")
@@ -122,7 +122,7 @@ def build_command(binary, repo, output, config_home=None):
                "--strict-mcp-config", "--mcp-config", str(mcp_path), "--no-chrome"]
     metadata = {"cli_version": version.stdout.strip(), "mode": "native print; Skill + 임시 문서 MCP; 개인 도구 설정 제외, 기존 로그인·관리자 정책 유지",
                 "model_settings": {key: settings[key] for key in ("model", "effortLevel") if key in settings},
-                "limitations": "일반 Markdown 사례만 지원; 네이티브 Bash/파일 도구·동적 스킬·추가 에이전트 평가는 포함하지 않음"}
+                "limitations": "일반 Markdown·고정 작업 기록 사례만 지원; 네이티브 Bash/파일 도구·동적 스킬·추가 에이전트 평가는 포함하지 않음"}
     return command, metadata
 
 

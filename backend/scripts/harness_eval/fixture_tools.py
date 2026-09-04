@@ -38,6 +38,10 @@ TOOLS = [
      "inputSchema": schema({"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"])},
     {"name": "git_read", "description": "Inspect this repository with one fixed read-only Git operation. No shell, arbitrary arguments, commit, branch creation, push or network operations are available.",
      "inputSchema": schema({"operation": {"type": "string", "enum": list(OPERATIONS)}}, ["operation"])},
+    {"name": "work_state", "description": "Load, snapshot, or update one issue's local work-resume record through the repository's work_state.py. This never runs project tests or Git writes.",
+     "inputSchema": schema({"operation": {"type": "string", "enum": ["snapshot", "load", "save"]},
+                            "issue": {"type": "integer", "minimum": 1}, "expected_revision": {"type": "string"},
+                            "work": {"type": "object"}}, ["operation"])},
 ]
 
 
@@ -71,6 +75,36 @@ class FixtureTools:
         expected = declaration["inputSchema"]
         if set(arguments) - set(expected["properties"]) or set(expected["required"]) - set(arguments):
             raise ValueError("도구 인자가 올바르지 않습니다")
+        if name == "work_state":
+            operation = arguments["operation"]
+            script = self.root / "backend/scripts/work_state.py"
+            if not script.is_file() or script.is_symlink() or operation not in ("snapshot", "load", "save"):
+                raise ValueError("고정된 작업 기록 도구를 사용할 수 없습니다")
+            command = [sys.executable, str(script), operation]
+            issue = arguments.get("issue")
+            if operation != "snapshot":
+                if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
+                    raise ValueError("load/save에는 양의 issue가 필요합니다")
+                command.extend(["--issue", str(issue)])
+            input_text = None
+            if operation == "save":
+                revision, work = arguments.get("expected_revision"), arguments.get("work")
+                if not isinstance(revision, str) or not isinstance(work, dict):
+                    raise ValueError("save에는 expected_revision과 work object가 필요합니다")
+                command.extend(["--expected-revision", revision, "--input", "-"])
+                input_text = json.dumps({"work": work}, ensure_ascii=False)
+                if len(input_text.encode()) > 8192:
+                    raise ValueError("작업 기록 입력이 너무 큽니다")
+            environment = {"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"}
+            result = subprocess.run(command, cwd=self.root / "backend", env=environment, input=input_text,
+                                    capture_output=True, text=True, timeout=10)
+            try:
+                response = json.loads(result.stdout)
+            except ValueError:
+                raise ValueError("작업 기록 결과를 해석할 수 없습니다") from None
+            if result.returncode or not isinstance(response, dict) or "error" in response:
+                raise ValueError(response.get("error", "작업 기록 명령 실패") if isinstance(response, dict) else "작업 기록 명령 실패")
+            return json.dumps(response, ensure_ascii=False)
         if name == "git_read":
             operation = arguments["operation"]
             if not isinstance(operation, str) or operation not in OPERATIONS:
@@ -108,7 +142,7 @@ class FixtureTools:
         return "문서를 수정했습니다: " + relative.as_posix()
 
     def call(self, name, arguments):
-        audit = {"tool": name, "arguments": {key: value for key, value in arguments.items() if key != "content"}
+        audit = {"tool": name, "arguments": {key: value for key, value in arguments.items() if key not in ("content", "work")}
                  if isinstance(arguments, dict) else arguments}
         try:
             text = self.invoke(name, arguments)

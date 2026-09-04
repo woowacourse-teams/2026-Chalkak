@@ -95,11 +95,36 @@ def prepare(case, output, repo, source=BACKEND.parent):
         copy_files(source / relative, repo / relative)
     copy_files(case / "fixture", repo)
     criteria = json.loads((case / "criteria.json").read_text())
-    git(repo, "init", "-b", "be/develop")
+    setup = criteria["setup"]
+    for relative in setup.get("copy_source_paths", []):
+        copy_files(within(source, relative), within(repo, relative))
+    branch = setup.get("branch", "be/develop")
+    if not isinstance(branch, str) or not re.fullmatch(r"[A-Za-z0-9._/#-]+", branch):
+        raise ValueError("평가용 브랜치 이름이 올바르지 않습니다")
+    git(repo, "init", "-b", branch)
     git(repo, "remote", "add", "origin", "https://example.invalid/team/fixture.git")
     git(repo, "add", ".")
     git(repo, "commit", "-qm", "fixture baseline")
-    for relative, content in criteria["setup"]["uncommitted_append"].items():
+    seed = setup.get("work_state")
+    if seed:
+        executable = repo / "backend/scripts/work_state.py"
+        issue, work, checks = seed.get("issue"), seed.get("work"), seed.get("checks")
+        if not executable.is_file() or not isinstance(issue, int) or issue <= 0 or not isinstance(work, dict) or not isinstance(checks, list):
+            raise ValueError("작업 기록 평가 준비 값이 올바르지 않습니다")
+        snapshot_result = subprocess.run([sys.executable, str(executable), "snapshot"], cwd=repo / "backend",
+                                         capture_output=True, text=True, timeout=20)
+        try:
+            fingerprint = json.loads(snapshot_result.stdout)["fingerprint"]
+        except (ValueError, KeyError, TypeError):
+            raise ValueError("작업 기록 평가용 지문을 만들지 못했습니다") from None
+        payload = json.dumps({"work": work, "checks": checks}, ensure_ascii=False)
+        saved = subprocess.run([sys.executable, str(executable), "save", "--issue", str(issue),
+                                "--expected-revision", "missing", "--input", "-", "--record-checks",
+                                "--checked-fingerprint", fingerprint], cwd=repo / "backend", input=payload,
+                               capture_output=True, text=True, timeout=20)
+        if saved.returncode:
+            raise ValueError("작업 기록 평가 자료를 만들지 못했습니다: " + saved.stdout[:500])
+    for relative, content in setup["uncommitted_append"].items():
         with within(repo, relative).open("a", encoding="utf-8") as handle:
             handle.write(content)
     before = snapshot(repo)
