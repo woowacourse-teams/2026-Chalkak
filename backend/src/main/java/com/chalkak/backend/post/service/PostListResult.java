@@ -77,7 +77,7 @@ public record PostListResult(
                     imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureThumbnailStorageKey()),
-                    post.titleValue(),
+                    post.getTitle(),
                     post.getCreatedAt(),
                     likeCount,
                     isLiked,

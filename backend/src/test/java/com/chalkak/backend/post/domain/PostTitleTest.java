@@ -85,6 +85,35 @@ class PostTitleTest {
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    @DisplayName("생성자를 직접 호출해도 앞뒤 공백을 제거한다")
+    void constructor_titleWithSurroundingSpaces_stripsTitle() {
+        // When
+        PostTitle title = new PostTitle("  오늘의 기록  ");
+
+        // Then
+        assertThat(title.value()).isEqualTo("오늘의 기록");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "　　"})
+    @DisplayName("생성자를 직접 호출할 때 공백뿐인 제목은 거부한다")
+    void constructor_blankTitle_throwsBusinessException(String value) {
+        // When & Then
+        assertThatThrownBy(() -> new PostTitle(value))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목 없음은 PostTitle이 아니라 null로 표현해야 합니다.");
+    }
+
+    @Test
+    @DisplayName("생성자를 직접 호출할 때 10자를 초과하는 제목은 거부한다")
+    void constructor_tooLongTitle_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> new PostTitle("12345678901"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목은 10자 이하여야 합니다.");
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "오늘의 기록", "1234567890", "  1234567890  "})

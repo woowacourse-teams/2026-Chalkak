@@ -47,7 +47,7 @@ class PostTest {
         assertThat(post.getAuthor()).isSameAs(author);
         assertThat(post.getTopic()).isSameAs(topic);
         assertThat(post.getPhoto()).isSameAs(photo);
-        assertThat(post.titleValue()).isEqualTo("오늘의 기록");
+        assertThat(post.getTitle()).isEqualTo("오늘의 기록");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
     }
 
@@ -60,7 +60,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
-        assertThat(post.titleValue()).isNull();
+        assertThat(post.getTitle()).isNull();
     }
 
     @Test
@@ -73,7 +73,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo(title);
+        assertThat(post.getTitle()).isEqualTo(title);
     }
 
     @Test
@@ -86,7 +86,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
-        assertThat(post.titleValue()).isNull();
+        assertThat(post.getTitle()).isNull();
     }
 
     @Test
@@ -99,7 +99,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, title);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo(title);
+        assertThat(post.getTitle()).isEqualTo(title);
     }
 
     @Test
@@ -121,7 +121,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "  오늘의  기록  ");
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("오늘의  기록");
+        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
     }
 
     @Test
@@ -131,7 +131,7 @@ class PostTest {
         Post post = Post.createPost(author, topic, photo, UPLOAD_ID, "  1234567890  ");
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("1234567890");
+        assertThat(post.getTitle()).isEqualTo("1234567890");
     }
 
     @Test
@@ -159,7 +159,7 @@ class PostTest {
         post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("수정 제목");
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
     }
 
@@ -174,7 +174,7 @@ class PostTest {
         post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("수정 제목");
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.APPROVED);
         assertThat(post.getModeratedAt()).isEqualTo(Instant.parse("2026-08-20T00:10:00Z"));
     }
@@ -189,7 +189,7 @@ class PostTest {
         post.updateTitle(AUTHOR_ID, "  수정 제목  ", UPDATED_AT);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("수정 제목");
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
     }
 
     @ParameterizedTest
@@ -204,7 +204,7 @@ class PostTest {
         post.updateTitle(AUTHOR_ID, title, UPDATED_AT);
 
         // Then
-        assertThat(post.titleValue()).isNull();
+        assertThat(post.getTitle()).isNull();
     }
 
     @Test
@@ -217,7 +217,7 @@ class PostTest {
         post.updateTitle(AUTHOR_ID, "  1234567890  ", UPDATED_AT);
 
         // Then
-        assertThat(post.titleValue()).isEqualTo("1234567890");
+        assertThat(post.getTitle()).isEqualTo("1234567890");
     }
 
     @Test
@@ -234,7 +234,7 @@ class PostTest {
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
-        assertThat(post.titleValue()).isEqualTo("기존 제목");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
     }
 
     @Test
@@ -248,7 +248,7 @@ class PostTest {
                 .isInstanceOfSatisfying(ForbiddenException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
                 .hasMessage("본인의 게시물만 접근할 수 있습니다.");
-        assertThat(post.titleValue()).isEqualTo("기존 제목");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
     }
 
     @ParameterizedTest
@@ -266,7 +266,7 @@ class PostTest {
         assertThatThrownBy(() -> post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("현재 상태의 게시물은 수정할 수 없습니다.");
-        assertThat(post.titleValue()).isEqualTo("제목");
+        assertThat(post.getTitle()).isEqualTo("제목");
     }
 
     @Test
@@ -282,7 +282,7 @@ class PostTest {
         assertThatThrownBy(() -> post.updateTitle(AUTHOR_ID, "수정 제목", UPDATED_AT))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("참여 기간이 종료된 게시물은 수정할 수 없습니다.");
-        assertThat(post.titleValue()).isEqualTo("기존 제목");
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
     }
 
     @Test

@@ -24,6 +24,19 @@ public record PostTitle(
 
     public PostTitle {
         Objects.requireNonNull(value, "PostTitle은 값 없이 만들 수 없다. 제목 없음은 null로 표현한다.");
+        value = value.strip();
+        if (value.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "제목 없음은 PostTitle이 아니라 null로 표현해야 합니다."
+            );
+        }
+        if (exceedsMaxLength(value)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "제목은 %d자 이하여야 합니다.".formatted(MAX_LENGTH)
+            );
+        }
     }
 
     /**
@@ -33,17 +46,10 @@ public record PostTitle(
         if (raw == null) {
             return null;
         }
-        String stripped = raw.strip();
-        if (stripped.isEmpty()) {
+        if (raw.isBlank()) {
             return null;
         }
-        if (exceedsMaxLength(stripped)) {
-            throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "제목은 %d자 이하여야 합니다.".formatted(MAX_LENGTH)
-            );
-        }
-        return new PostTitle(stripped);
+        return new PostTitle(raw);
     }
 
     /**

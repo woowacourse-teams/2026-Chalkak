@@ -63,6 +63,7 @@ public class Post {
     private UUID postImageUploadId;
 
     /** 제목 없음은 {@code null}로 표현한다. {@link PostTitle} 참고. */
+    @Getter(AccessLevel.NONE)
     @Embedded
     private PostTitle title;
 
@@ -152,7 +153,7 @@ public class Post {
     }
 
     /** 제목 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostTitle}의 null 여부를 직접 다루지 않게 한다. */
-    public String titleValue() {
+    public String getTitle() {
         return title == null ? null : title.value();
     }
 

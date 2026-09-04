@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.post.domain.Post;
-import com.chalkak.backend.post.domain.PostTitle;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
@@ -434,14 +433,13 @@ class PostRepositoryTest {
     }
 
     @Test
-    @DisplayName("제목이 있는 게시물은 PostTitle로 복원한다")
-    void findVisibleById_postWithTitle_mapsTitleToPostTitle() {
+    @DisplayName("제목이 있는 게시물은 문자열 제목으로 복원한다")
+    void findVisibleById_postWithTitle_mapsTitleToString() {
         // When
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
         // Then
-        assertThat(post.getTitle()).isEqualTo(new PostTitle("오늘의 순간"));
-        assertThat(post.titleValue()).isEqualTo("오늘의 순간");
+        assertThat(post.getTitle()).isEqualTo("오늘의 순간");
     }
 
     /**
@@ -460,7 +458,6 @@ class PostRepositoryTest {
 
         // Then
         assertThat(post.getTitle()).isNull();
-        assertThat(post.titleValue()).isNull();
     }
 
     @Test
