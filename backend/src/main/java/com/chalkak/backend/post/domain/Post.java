@@ -10,6 +10,7 @@ import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -36,8 +37,6 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Post {
 
-    public static final int MAX_TITLE_LENGTH = 10;
-
     @Id
     @Generated
     @ColumnDefault("uuidv7()")
@@ -63,8 +62,10 @@ public class Post {
     @Column(name = "post_image_upload_id")
     private UUID postImageUploadId;
 
-    @Column(name = "title", length = MAX_TITLE_LENGTH)
-    private String title;
+    /** 제목 없음은 {@code null}로 표현한다. {@link PostTitle} 참고. */
+    @Getter(AccessLevel.NONE)
+    @Embedded
+    private PostTitle title;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -96,7 +97,7 @@ public class Post {
         this.topic = topic;
         this.photo = photo;
         this.postImageUploadId = postImageUploadId;
-        this.title = normalizeTitle(title);
+        this.title = PostTitle.from(title);
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
 
@@ -148,7 +149,12 @@ public class Post {
         validateAuthor(authorId);
         validateTitleUpdateStatus();
         validateTitleUpdatePeriod(now);
-        this.title = normalizeTitle(title);
+        this.title = PostTitle.from(title);
+    }
+
+    /** 제목 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostTitle}의 null 여부를 직접 다루지 않게 한다. */
+    public String getTitle() {
+        return title == null ? null : title.value();
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
@@ -274,29 +280,5 @@ public class Post {
                 "게시물 생성 정보가 올바르지 않습니다."
             );
         }
-    }
-
-    /**
-     * 생성과 수정이 {@code posts.title}에 같은 규칙을 적용하도록 정규화를 한곳에서 처리한다. 앞뒤 공백은 제거하고
-     * 가운데 공백은 유지하며, 제거 후 빈 문자열이면 제목 없음으로 본다.
-     *
-     * <p>이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자 수보다 길게
-     * 계산된다. {@code posts.title}이 code point를 세는 {@code VARCHAR(10)}이므로 길이도 code point로 판정한다.
-     */
-    private static String normalizeTitle(String title) {
-        if (title == null) {
-            return null;
-        }
-        String normalizedTitle = title.strip();
-        if (normalizedTitle.isEmpty()) {
-            return null;
-        }
-        if (normalizedTitle.codePointCount(0, normalizedTitle.length()) > MAX_TITLE_LENGTH) {
-            throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "제목은 10자 이하여야 합니다."
-            );
-        }
-        return normalizedTitle;
     }
 }
