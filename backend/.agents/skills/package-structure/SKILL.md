@@ -13,7 +13,7 @@ description: backend/src/main/java에서 Java 클래스나 패키지를 생성·
 4. 아래 배치 규칙에 따라 파일 위치와 `package` 선언을 결정한다.
 5. 관련 없는 기존 파일이나 패키지를 함께 이동하지 않는다.
 
-API 버전의 추가·변경·삭제가 포함되면 `api-versioning` Skill도 함께 적용한다.
+API 버전의 추가·변경·삭제가 포함되면 `$api-versioning`도 함께 적용한다.
 
 ## 기본 구조
 

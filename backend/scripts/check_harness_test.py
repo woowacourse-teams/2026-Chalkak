@@ -49,6 +49,26 @@ class CheckHarnessTest(unittest.TestCase):
     def skill(name, description="Use for a small example.", body="# Example\n"):
         return f"---\nname: {name}\ndescription: {description}\n---\n{body}"
 
+    def shared_repository(self, root):
+        repository = root.parent
+        for platform in (".agents", ".claude"):
+            self.write(repository, f"{platform}/skills/business-rules/SKILL.md", self.skill(
+                "business-rules",
+                body="# Rules\n[Business rules](../../../docs/business-rules/README.md)\n",
+            ))
+        self.write(repository, "AGENTS.md", "Use `$business-rules`.\n")
+        self.write(repository, "CLAUDE.md", "Use `business-rules` Skill.\n")
+        self.write(repository, "docs/business-rules/README.md",
+                   "# Rules\n[예시](rules/example.md)\n")
+        self.write(repository, "docs/business-rules/rules/example.md",
+                   "<!-- business-rule-status: active -->\n## EXAMPLE-001 규칙\n"
+                   "- 규칙: 현재 규칙\n- 적용 범위: 예시\n- 예외: 없음\n- 결정 기록: 없음\n")
+        self.write(repository, "docs/business-rules/notion-map.yml",
+                   "version: 2\nmode: manual\nlocation: 팀 규칙\n"
+                   "rule_pages:\n  docs/business-rules/rules/example.md:\n"
+                   "    domain: 예시\n    pages:\n      예시 페이지: [EXAMPLE-001]\n")
+        return repository
+
     def assert_error_for(self, errors, path):
         self.assertTrue(errors, f"Expected a validation error for {path}")
         self.assertTrue(any(path in error for error in errors), errors)
@@ -97,6 +117,27 @@ class CheckHarnessTest(unittest.TestCase):
             )
 
             self.assertEqual(([], []), check_harness.check(root))
+
+    def test_platform_specific_skill_reference_syntax(self):
+        cases = (
+            (".agents/skills/demo/SKILL.md", "\nUse `demo` Skill.\n"),
+            ("AGENTS.md", "\n`demo` Skill도 사용한다.\n"),
+            (".claude/skills/demo/SKILL.md", "\nUse `$demo`.\n"),
+            ("CLAUDE.md", "\nUse `$demo`.\n"),
+        )
+        for relative, suffix in cases:
+            with self.subTest(relative=relative), self.repository() as root:
+                path = root / relative
+                path.write_text(path.read_text(encoding="utf-8") + suffix, encoding="utf-8")
+
+                errors, _ = check_harness.check(root)
+
+                self.assert_error_for(errors, relative)
+
+        with self.repository() as root:
+            self.write(root, "CLAUDE.md", "`missing-skill` Skill이 필요하다.\n")
+            errors, _ = check_harness.check(root)
+            self.assert_error_for(errors, "CLAUDE.md")
 
     def test_malformed_yaml_and_duplicate_keys_fail(self):
         cases = (
@@ -276,14 +317,94 @@ class CheckHarnessTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertIn(".agents/skills/demo/SKILL.md", result.stdout + result.stderr)
 
-    def test_cli_fails_for_invalid_repository(self):
+    def test_cli_checks_shared_repository_skills_and_business_rule_links(self):
         with self.repository() as root:
-            self.write(root, "AGENTS.md", "Use `$missing-skill`.\n")
+            repository = self.shared_repository(root)
+            readme = repository / "docs/business-rules/README.md"
 
+            self.assertEqual(0, self.run_cli(root).returncode)
+
+            readme.write_text("# Rules\n[Missing](rules/missing.md)\n", encoding="utf-8")
             result = self.run_cli(root)
 
             self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-            self.assertIn("AGENTS.md", result.stdout + result.stderr)
+            self.assertIn("../docs/business-rules/README.md", result.stdout + result.stderr)
+
+    def test_cli_does_not_require_shared_harness_for_parent_git_directory(self):
+        with self.repository() as root:
+            (root.parent / ".git").mkdir()
+
+            self.assertEqual(0, self.run_cli(root).returncode)
+
+    def test_cli_fails_for_invalid_repository(self):
+        with self.repository() as root:
+            self.write(root, "AGENTS.md", "Use `$missing-skill`.\n")
+            result = self.run_cli(root)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("AGENTS.md", result.stderr)
+
+    def test_manual_map_rejects_missing_duplicate_and_unknown_rules(self):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            path = repository / "docs/business-rules/notion-map.yml"
+            valid = path.read_text()
+            self.assertEqual(0, self.run_cli(root).returncode)
+            for text in (valid.replace('[EXAMPLE-001]', '[OTHER-001]'),
+                         valid.replace('[EXAMPLE-001]', '[EXAMPLE-001, EXAMPLE-001]'),
+                         valid.replace('example.md:', 'missing.md:'),
+                         valid.replace('mode: manual', 'mode: automatic'),
+                         valid + 'version: 2\n',
+                         valid + 'root_page: old-target\n'):
+                with self.subTest(text=text):
+                    path.write_text(text)
+                    self.assertEqual(1, self.run_cli(root).returncode)
+
+    def test_manual_map_requires_new_rule_location(self):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            self.write(repository, "docs/business-rules/rules/new.md",
+                       "<!-- business-rule-status: active -->\n## NEW-001 새 규칙\n"
+                       "- 규칙: 새 규칙\n- 적용 범위: 예시\n- 예외: 없음\n- 결정 기록: 없음\n")
+            readme = repository / "docs/business-rules/README.md"
+            readme.write_text(readme.read_text() + "[새 규칙](rules/new.md)\n")
+            result = self.run_cli(root)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("rule_pages에 활성 규칙 파일이 없습니다", result.stderr)
+
+    def test_active_rules_require_fields_and_readme_entry(self):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            rule = repository / "docs/business-rules/rules/example.md"
+            valid = rule.read_text()
+
+            rule.write_text(valid.replace("- 예외: 없음\n", ""))
+            result = self.run_cli(root)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("EXAMPLE-001의 예외", result.stderr)
+
+            rule.write_text(valid)
+            (repository / "docs/business-rules/README.md").write_text("# Rules\n")
+            result = self.run_cli(root)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("활성 규칙 문서가 목차에 없습니다", result.stderr)
+
+    def test_decision_link_exists_and_references_rule(self):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            rule = repository / "docs/business-rules/rules/example.md"
+            rule.write_text(rule.read_text().replace(
+                "- 결정 기록: 없음",
+                "- 결정 기록: [변경 이유](../decisions/2026-09-05-example.md)",
+            ))
+            decision = self.write(repository, "docs/business-rules/decisions/2026-09-05-example.md",
+                                  "# 변경 이유\n- 관련 규칙: OTHER-001\n")
+
+            result = self.run_cli(root)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("해당 ID가 없습니다: EXAMPLE-001", result.stderr)
+
+            decision.write_text("# 변경 이유\n- 관련 규칙: EXAMPLE-001\n")
+            self.assertEqual(0, self.run_cli(root).returncode)
 
 
 if __name__ == "__main__":
