@@ -24,7 +24,8 @@ def dump(path, value):
 def inspect_material(repo, config_home):
     """현재 팀의 정적 스킬만 지원하며 실행 가능한 확장은 조용히 제거하지 않고 거부한다."""
     names = []
-    for path in sorted((repo / "backend/.claude/skills").glob("*/SKILL.md")):
+    roots = (repo / ".claude/skills", repo / "backend/.claude/skills")
+    for path in sorted(path for root in roots for path in root.glob("*/SKILL.md")):
         text = path.read_text(encoding="utf-8")
         lines = text.splitlines()
         try:
@@ -43,10 +44,12 @@ def inspect_material(repo, config_home):
             raise ValueError("Claude 스킬 이름과 디렉터리가 일치하지 않습니다: " + str(path))
         if (config_home / "skills" / name / "SKILL.md").exists() or (config_home / "commands" / (name + ".md")).exists():
             raise ValueError("개인 스킬이 프로젝트 스킬을 가릴 수 있어 평가하지 않습니다: " + name)
+        if name in names:
+            raise ValueError("저장소 안의 Claude 스킬 이름이 중복됩니다: " + name)
         names.append(name)
     if not names:
         raise ValueError("평가할 Claude 프로젝트 스킬이 없습니다")
-    instructions = [repo / "backend/CLAUDE.md", config_home / "CLAUDE.md"]
+    instructions = [repo / "CLAUDE.md", repo / "backend/CLAUDE.md", config_home / "CLAUDE.md"]
     instructions += list((repo / "backend/.claude/rules").rglob("*.md"))
     instructions += list((config_home / "rules").rglob("*.md"))
     for path in instructions:

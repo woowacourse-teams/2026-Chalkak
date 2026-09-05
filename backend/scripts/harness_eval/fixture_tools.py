@@ -34,7 +34,7 @@ TOOLS = [
      "inputSchema": schema({"path": {"type": "string"}}, ["path"])},
     {"name": "list", "description": "List files and directories inside this repository, excluding Git internals. Empty path lists the repository root.",
      "inputSchema": schema({"path": {"type": "string"}}, [])},
-    {"name": "write", "description": "Write complete UTF-8 Markdown content under backend/. Harness instructions, hidden directories, and configuration files are protected.",
+    {"name": "write", "description": "Write complete UTF-8 Markdown content under backend/ or docs/business-rules/. Harness instructions, hidden directories, and configuration files are protected.",
      "inputSchema": schema({"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"])},
     {"name": "git_read", "description": "Inspect this repository with one fixed read-only Git operation. No shell, arbitrary arguments, commit, branch creation, push or network operations are available.",
      "inputSchema": schema({"operation": {"type": "string", "enum": list(OPERATIONS)}}, ["operation"])},
@@ -130,10 +130,14 @@ class FixtureTools:
             return "\n".join(path.name + ("/" if path.is_dir() else "") for path in sorted(target.iterdir())
                              if path.name.lower() != ".git" and not path.is_symlink())
         relative = target.relative_to(self.root)
-        if (not relative.parts or relative.parts[0] != "backend" or target.suffix.lower() != ".md"
+        allowed_document = (
+            relative.parts[:1] == ("backend",)
+            or relative.parts[:2] == ("docs", "business-rules")
+        )
+        if (not relative.parts or not allowed_document or target.suffix.lower() != ".md"
                 or any(part.startswith(".") for part in relative.parts)
                 or target.name.lower() in ("agents.md", "claude.md", "claude.local.md")):
-            raise ValueError("backend의 일반 Markdown 문서만 수정할 수 있습니다; 하네스·설정은 보호됩니다")
+            raise ValueError("backend 또는 비즈니스 규칙의 일반 Markdown만 수정할 수 있습니다; 하네스·설정은 보호됩니다")
         content = arguments["content"]
         if not isinstance(content, str) or len(content.encode()) > LIMIT:
             raise ValueError("문서 내용은 1MB 이하 문자열이어야 합니다")

@@ -33,6 +33,7 @@ class ClaudeAdapterTests(unittest.TestCase):
             path.mkdir()
         files = {
             "backend/README.md": "# Fixture\n",
+            "docs/business-rules/rules/like.md": "# Like rules\n",
             "backend/CLAUDE.md": "# Instructions\n",
             "backend/.claude/settings.json": "{}\n",
             "backend/.claude/skills/example/SKILL.md": "---\nname: example\ndescription: Fixture skill\n---\nRead the requested file.\n",
@@ -81,6 +82,18 @@ else:
         self.assertNotIn(".git/", self.tools.invoke("list", {}))
         calls = [json.loads(line) for line in (self.output / "calls.jsonl").read_text().splitlines()]
         self.assertTrue(all(call["ok"] is False for call in calls))
+
+    def test_file_tools_allow_business_rule_documents(self):
+        self.tools.invoke("write", {
+            "path": "docs/business-rules/rules/like.md",
+            "content": "# 좋아요 규칙\n",
+        })
+        self.assertEqual("# 좋아요 규칙\n",
+                         (self.repo / "docs/business-rules/rules/like.md").read_text())
+        self.assertTrue(self.tools.call("write", {
+            "path": ".claude/skills/business-rules/SKILL.md",
+            "content": "changed",
+        })["isError"])
 
     def test_harness_config_and_symlink_cannot_be_changed(self):
         (self.repo / "backend/outside.md").symlink_to(self.outside)
@@ -158,6 +171,20 @@ else:
         self.assertEqual("fixture-cli", metadata["cli_version"])
         calls = [json.loads(line) for line in (self.output / "fixture-tools.jsonl").read_text().splitlines()]
         self.assertEqual(["read", "write"], [call["tool"] for call in calls])
+
+    def test_repository_root_skill_is_discovered_without_duplicates(self):
+        skill = self.repo / ".claude/skills/business-rules/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("---\nname: business-rules\ndescription: Shared rules\n---\nBody\n")
+        (self.repo / "CLAUDE.md").write_text("# Shared instructions\n")
+
+        self.assertIn("business-rules", adapter.inspect_material(self.repo, self.config_home))
+
+        duplicate = self.repo / "backend/.claude/skills/business-rules/SKILL.md"
+        duplicate.parent.mkdir(parents=True)
+        duplicate.write_text(skill.read_text())
+        with self.assertRaises(ValueError):
+            adapter.inspect_material(self.repo, self.config_home)
 
     def test_dynamic_skills_imports_and_personal_collisions_are_rejected(self):
         skill = self.repo / "backend/.claude/skills/example/SKILL.md"

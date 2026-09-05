@@ -149,6 +149,34 @@ class HarnessEvaluationTests(unittest.TestCase):
         errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
         self.assertTrue(any("preserved_text" in error and "8080" in error for error in errors))
 
+    def test_business_rule_case_uses_shared_skill_and_allows_only_rule_document(self):
+        shared = {
+            "AGENTS.md": "# Shared\n",
+            "CLAUDE.md": "# Shared\n",
+            ".agents/skills/business-rules/SKILL.md":
+                "---\nname: business-rules\ndescription: Shared rules\n---\n# Rules\n",
+            ".claude/skills/business-rules/SKILL.md":
+                "---\nname: business-rules\ndescription: Shared rules\n---\n# Rules\n",
+        }
+        for relative, text in shared.items():
+            path = self.source / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+
+        repo, _, criteria, before = self.prepare_case("business-rule-documentation")
+        self.assertTrue((repo / ".agents/skills/business-rules/SKILL.md").is_file())
+        self.assertTrue((repo / ".claude/skills/business-rules/SKILL.md").is_file())
+        self.assertTrue((repo / "backend/src/main/java/com/chalkak/like/LikeService.java").is_file())
+        rule = repo / "docs/business-rules/rules/like.md"
+        rule.write_text(rule.read_text().replace(
+            "이용이 정지된 회원은 좋아요를 등록하거나 취소할 수 없다.",
+            "이용이 정지된 회원은 새 좋아요를 등록할 수 없지만 기존 좋아요는 취소할 수 있다.",
+        ))
+
+        errors, diff = runner.compare(before, runner.snapshot(repo), criteria)
+        self.assertEqual([], errors)
+        self.assertIn("기존 좋아요는 취소할 수 있다", diff)
+
     def test_recorded_resume_seeds_stale_verification_and_preserves_it_after_progress_save(self):
         repo, destination, criteria, before = self.prepare_case("recorded-work-resume")
         record_path = repo / "backend/.harness/state/issue-812.json"
@@ -223,6 +251,18 @@ class HarnessEvaluationTests(unittest.TestCase):
             runner.grade(destination)
         self.reviewed(destination)
         self.assertEqual("PASS", runner.grade(destination)["status"])
+
+    def test_codex_config_prefers_the_allowed_command_line_tools_git(self):
+        config = runner.codex_config(self.root / "repo", self.root / "protected")
+        path_override = next(
+            config[index + 1]
+            for index, value in enumerate(config[:-1])
+            if value == "-c" and config[index + 1].startswith("shell_environment_policy.set.PATH=")
+        )
+        self.assertIn(
+            '"/Library/Developer/CommandLineTools/usr/bin:',
+            path_override,
+        )
 
     def test_codex_host_error_with_completed_turn_and_missing_edit_is_inconclusive(self):
         records = [

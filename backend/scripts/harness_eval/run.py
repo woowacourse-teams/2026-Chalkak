@@ -171,7 +171,7 @@ def codex_config(repo, protected):
     values = {"default_permissions": "harness-eval", "approval_policy": "never",
               "web_search": "disabled", "allow_login_shell": False,
               "shell_environment_policy.inherit": "none",
-              "shell_environment_policy.set.PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+              "shell_environment_policy.set.PATH": "/Library/Developer/CommandLineTools/usr/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
               "permissions.harness-eval.network.enabled": False}
     grants = {":root": "deny", ":minimal": "read", ":tmpdir": "deny", ":slash_tmp": "deny",
               str(repo): "write", str(protected): "deny"}
@@ -477,8 +477,9 @@ def main(argv=None):
                         try:
                             actor_parent = None
                             if platform == "codex" and args.action == "run":
-                                # OS 임시 경로의 기본 허용과 작업 루트를 겹치지 않게 둔다.
-                                actor_parent = Path.home() / "Library/Caches/chalkak-harness-eval"
+                                # 관리형 환경에서도 만들 수 있고 Git에서 제외되는 작업 영역을 쓴다.
+                                # 실제 평가 저장소에는 이 하위 경로만 쓰기 권한을 부여한다.
+                                actor_parent = BACKEND / "build/harness-eval/actors"
                                 actor_parent.mkdir(parents=True, exist_ok=True)
                             report = run_case(case, platform, args.action, args.timeout, destination, actor_parent)
                         except (OSError, ValueError, subprocess.SubprocessError) as exc:
