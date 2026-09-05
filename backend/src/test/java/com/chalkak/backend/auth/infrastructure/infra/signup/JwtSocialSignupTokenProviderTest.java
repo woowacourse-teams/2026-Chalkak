@@ -14,6 +14,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +61,58 @@ class JwtSocialSignupTokenProviderTest {
         assertThat(verifiedToken.subject()).isEqualTo(SUBJECT);
         assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
         assertThat(verifiedToken.email()).isEqualTo("user@chalkak.test");
+        assertThat(verifiedToken.tokenId()).isNotBlank();
+        assertThat(verifiedToken.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
+        assertThat(issuedToken.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
+    }
+
+    @Test
+    @DisplayName("Apple 회원가입 토큰에는 공통 식별 정보만 포함한다")
+    void issue_appleIdentity_containsNoRefreshToken() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+        VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
+                SocialProvider.APPLE,
+                "apple-subject",
+                "user@privaterelay.appleid.com");
+        UUID uploadId = UUID.randomUUID();
+
+        // When
+        IssuedSocialSignupToken issuedToken = provider.issue(identity, uploadId);
+        VerifiedSocialSignupToken verifiedToken = provider.verify(
+                issuedToken.value());
+        String payload = new String(
+                Base64.getUrlDecoder().decode(issuedToken.value().split("\\.")[1]),
+                StandardCharsets.UTF_8);
+
+        // Then
+        assertThat(verifiedToken.provider()).isEqualTo(SocialProvider.APPLE);
+        assertThat(verifiedToken.subject()).isEqualTo("apple-subject");
+        assertThat(verifiedToken.uploadId()).isEqualTo(uploadId);
+        assertThat(verifiedToken.tokenId()).isNotBlank();
+        assertThat(payload)
+                .doesNotContain("appleEncryptedRefreshToken")
+                .doesNotContain("encrypted-apple-refresh-token");
+    }
+
+    @Test
+    @DisplayName("발급할 때마다 서로 다른 토큰 식별자를 부여한다")
+    void issue_calledTwice_generatesDistinctTokenIds() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+
+        // When
+        VerifiedSocialSignupToken first = provider.verify(
+                provider.issue(identity(), UUID.randomUUID()).value());
+        VerifiedSocialSignupToken second = provider.verify(
+                provider.issue(identity(), UUID.randomUUID()).value());
+
+        // Then
+        assertThat(first.tokenId()).isNotEqualTo(second.tokenId());
     }
 
     @Test
@@ -159,6 +213,20 @@ class JwtSocialSignupTokenProviderTest {
                 NOW,
                 ZoneOffset.UTC));
         String token = createSignedToken("OTHER_PURPOSE", true);
+
+        // When & Then
+        assertInvalidSignupToken(() -> provider.verify(token));
+    }
+
+    @Test
+    @DisplayName("토큰 식별자가 없는 회원가입 토큰은 검증할 수 없다")
+    void verify_missingTokenId_throwsUnauthorizedException() {
+        // Given
+        JwtSocialSignupTokenProvider provider = createProvider(Clock.fixed(
+                NOW,
+                ZoneOffset.UTC));
+        // createSignedToken은 실제 발급 경로와 달리 jti를 채우지 않는다.
+        String token = createSignedToken("SOCIAL_SIGNUP", true);
 
         // When & Then
         assertInvalidSignupToken(() -> provider.verify(token));
@@ -272,6 +340,21 @@ class JwtSocialSignupTokenProviderTest {
             Instant issuedAt,
             Instant expiresAt
     ) {
+        return createSignedToken(
+                purpose,
+                includeUploadId,
+                issuedAt,
+                expiresAt,
+                SocialProvider.GOOGLE);
+    }
+
+    private String createSignedToken(
+            String purpose,
+            boolean includeUploadId,
+            Instant issuedAt,
+            Instant expiresAt,
+            SocialProvider provider
+    ) {
         SecretKey secretKey = new SecretKeySpec(
                 HexFormat.of().parseHex(SECRET),
                 "HmacSHA256");
@@ -282,7 +365,7 @@ class JwtSocialSignupTokenProviderTest {
                 .audience(List.of("chalkak-social-signup"))
                 .subject(SUBJECT)
                 .claim("purpose", purpose)
-                .claim("provider", SocialProvider.GOOGLE.name());
+                .claim("provider", provider.name());
         if (issuedAt != null) {
             claims.issuedAt(issuedAt);
         }

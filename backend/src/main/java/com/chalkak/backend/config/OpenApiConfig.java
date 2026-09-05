@@ -45,6 +45,17 @@ import org.springframework.context.annotation.Profile;
 @Profile("!prod")
 public class OpenApiConfig {
 
+    /**
+     * 관리자 토큰 없이 호출하는 관리자 경로. 자격증명을 아직 받지 못했거나 이미 만료된 자리라
+     * 문서에서도 관리자 인증을 요구하지 않는다. {@code SecurityConfig}의 permitAll 목록과 같은
+     * 범위를 유지해야 문서와 실제 접근 규칙이 어긋나지 않는다.
+     */
+    private static final Set<String> PUBLIC_ADMIN_AUTH_PATHS = Set.of(
+            "/api/v1/admin/auth/login",
+            "/api/v1/admin/auth/refresh",
+            "/api/v1/admin/auth/logout"
+    );
+
     @Bean
     public GroupedOpenApi userApi() {
         return GroupedOpenApi.builder()
@@ -119,21 +130,27 @@ public class OpenApiConfig {
         security.addFirst(new SecurityRequirement());
     }
 
+    /**
+     * 관리자 API는 기본이 관리자 Bearer 인증이므로 문서에도 일괄로 적용한다. 인증 없이 여는 경로만
+     * 빼는데, 이 경로들은 401도 자동으로 붙이지 않는다. 관리자 인증 실패가 아니라 자격증명 자체의
+     * 문제라 문서 인터페이스가 각자 알맞은 설명으로 선언한다.
+     */
     private void customizeAdminSecurity(OpenAPI openApi) {
-        openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations()
-                .forEach(operation -> {
-                    operation.setSecurity(List.of(
-                            new SecurityRequirement().addList("adminAccessToken")
-                    ));
-                    operation.getResponses().putIfAbsent("401", new ApiResponse()
-                            .description("관리자 인증 필요")
-                            .content(new Content().addMediaType("application/json", new MediaType()
-                                    .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse")))));
-                }));
-
-        PathItem loginPath = openApi.getPaths().get("/api/v1/admin/auth/login");
-        if (loginPath != null && loginPath.getPost() != null) {
-            loginPath.getPost().setSecurity(List.of());
-        }
+        openApi.getPaths().forEach((path, pathItem) -> {
+            if (PUBLIC_ADMIN_AUTH_PATHS.contains(path)) {
+                pathItem.readOperations()
+                        .forEach(operation -> operation.setSecurity(List.of()));
+                return;
+            }
+            pathItem.readOperations().forEach(operation -> {
+                operation.setSecurity(List.of(
+                        new SecurityRequirement().addList("adminAccessToken")
+                ));
+                operation.getResponses().putIfAbsent("401", new ApiResponse()
+                        .description("관리자 인증 필요")
+                        .content(new Content().addMediaType("application/json", new MediaType()
+                                .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse")))));
+            });
+        });
     }
 }

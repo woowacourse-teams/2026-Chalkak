@@ -17,9 +17,11 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -47,35 +49,40 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private UserWithdrawalService userWithdrawalService;
+
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("탈퇴에 성공하면 204를 반환한다")
     void withdraw_validRequest_returnsNoContent() throws Exception {
         // Given
         UUID userId = USER_ID;
-        willDoNothing().given(userService).withdraw(userId);
+        willDoNothing().given(userWithdrawalService).withdraw(userId);
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
                 .andExpect(status().isNoContent());
 
-        verify(userService).withdraw(userId);
+        verify(userWithdrawalService).withdraw(userId);
     }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("탈퇴할 회원이 없으면 404를 반환한다")
-    void withdraw_notExistingUser_returnsNotFound() throws Exception {
+    @DisplayName("탈퇴할 회원이 없으면 401을 반환한다")
+    void withdraw_notExistingUser_returnsUnauthorized() throws Exception {
         // Given
         UUID userId = USER_ID;
-        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "탈퇴할 회원을 찾을 수 없습니다."))
-                .given(userService).withdraw(userId);
+        willThrow(new UnauthorizedException(
+                ErrorCode.UNAUTHORIZED,
+                "유효하지 않은 인증 정보입니다."))
+                .given(userWithdrawalService).withdraw(userId);
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("탈퇴할 회원을 찾을 수 없습니다."));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
     }
 
     @Test
@@ -87,7 +94,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
-        verify(userService, never()).withdraw(any());
+        verify(userWithdrawalService, never()).withdraw(any());
     }
 
     @Test
@@ -101,7 +108,7 @@ class UserControllerTest {
                         .param("userId", victimId.toString()))
                 .andExpect(status().isUnauthorized());
 
-        verify(userService, never()).withdraw(any());
+        verify(userWithdrawalService, never()).withdraw(any());
     }
 
     @Test
@@ -117,8 +124,8 @@ class UserControllerTest {
                         .param("userId", victimId.toString()))
                 .andExpect(status().isNoContent());
 
-        verify(userService).withdraw(userId);
-        verify(userService, never()).withdraw(victimId);
+        verify(userWithdrawalService).withdraw(userId);
+        verify(userWithdrawalService, never()).withdraw(victimId);
     }
 
     @Test
@@ -155,21 +162,21 @@ class UserControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("사인을 업로드할 회원이 없으면 404를 반환한다")
-    void createSignatureUpload_notExistingUser_returnsNotFound() throws Exception {
+    @DisplayName("사인을 업로드할 회원이 없으면 401을 반환한다")
+    void createSignatureUpload_notExistingUser_returnsUnauthorized() throws Exception {
         // Given
         UUID userId = USER_ID;
-        willThrow(new NotFoundException(
-                ErrorCode.BUSINESS_ERROR,
-                "사인을 업로드할 회원을 찾을 수 없습니다."))
+        willThrow(new UnauthorizedException(
+                ErrorCode.UNAUTHORIZED,
+                "유효하지 않은 인증 정보입니다."))
                 .given(userService).createSignatureUpload(userId);
 
         // When & Then
         mockMvc.perform(post("/api/v1/users/me/signature/uploads"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message")
-                        .value("사인을 업로드할 회원을 찾을 수 없습니다."));
+                        .value("유효하지 않은 인증 정보입니다."));
     }
 
     @Test
@@ -205,21 +212,21 @@ class UserControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("사인을 조회할 회원이 없으면 404를 반환한다")
-    void getSignature_notExistingUser_returnsNotFound() throws Exception {
+    @DisplayName("사인을 조회할 회원이 없으면 401을 반환한다")
+    void getSignature_notExistingUser_returnsUnauthorized() throws Exception {
         // Given
         UUID userId = USER_ID;
-        willThrow(new NotFoundException(
-                ErrorCode.BUSINESS_ERROR,
-                "사인을 조회할 회원을 찾을 수 없습니다."))
+        willThrow(new UnauthorizedException(
+                ErrorCode.UNAUTHORIZED,
+                "유효하지 않은 인증 정보입니다."))
                 .given(userService).getSignature(userId);
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/me/signature"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message")
-                        .value("사인을 조회할 회원을 찾을 수 없습니다."));
+                        .value("유효하지 않은 인증 정보입니다."));
     }
 
     @Test

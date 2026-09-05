@@ -1,7 +1,9 @@
 package com.chalkak.backend.post.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
+import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.auth.api.support.OptionalLoginUser;
+import com.chalkak.backend.auth.api.support.RequiresExistingUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.ErrorCode;
@@ -10,17 +12,20 @@ import com.chalkak.backend.post.api.v1.docs.PostApiDocs;
 import com.chalkak.backend.post.api.v1.dto.request.PostCalendarRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
+import com.chalkak.backend.post.api.v1.dto.request.PostUpdateRequest;
 import com.chalkak.backend.post.api.v1.dto.response.PostCalendarResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
 import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.post.service.PostCreationResult;
 import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostQueryService;
+import com.chalkak.backend.post.service.PostUpdateResult;
 import jakarta.validation.Valid;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +37,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -76,6 +82,25 @@ public class PostController implements PostApiDocs {
     }
 
     @Override
+    @RequiresUsableUser
+    @PutMapping("/{postId}")
+    public ResponseEntity<PostUpdateResponse> updatePost(
+            @PathVariable String postId,
+            @LoginUser AuthenticatedUser loginUser,
+            @Valid @RequestBody PostUpdateRequest request
+    ) {
+        UUID parsedPostId = CanonicalUuidParser.parse(postId);
+        PostUpdateResult result = postCommandService.updatePost(
+                loginUser.userId(),
+                parsedPostId,
+                request.title()
+        );
+
+        return ResponseEntity.ok(PostUpdateResponse.from(result));
+    }
+
+    @Override
+    @RequiresExistingUser
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> deletePost(
             @PathVariable String postId,
@@ -88,6 +113,11 @@ public class PostController implements PostApiDocs {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 이 경로만 회원 상태 판정을 붙이지 않는다. 비로그인 조회를 허용하는 경로라 인증 주체
+     * 없이도 호출이 들어오는데, @PreAuthorize는 그때도 실행되어 주체를 읽지 못하고 403으로
+     * 막아 버린다. 로그인 상태의 회원 판정은 PostQueryService가 식별자가 있을 때만 한다.
+     */
     @Override
     @GetMapping
     public ResponseEntity<PostListResponse> getPosts(
@@ -109,6 +139,7 @@ public class PostController implements PostApiDocs {
     }
 
     @Override
+    @RequiresExistingUser
     @GetMapping("/calendar")
     public ResponseEntity<PostCalendarResponse> getMyPostCalendar(
             @Valid @ModelAttribute PostCalendarRequest request,
@@ -124,6 +155,7 @@ public class PostController implements PostApiDocs {
     }
 
     @Override
+    @RequiresExistingUser
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPost(
             @PathVariable String postId,

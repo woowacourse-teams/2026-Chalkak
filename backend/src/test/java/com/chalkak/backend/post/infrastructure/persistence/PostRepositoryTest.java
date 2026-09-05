@@ -433,6 +433,34 @@ class PostRepositoryTest {
     }
 
     @Test
+    @DisplayName("제목이 있는 게시물은 문자열 제목으로 복원한다")
+    void findVisibleById_postWithTitle_mapsTitleToString() {
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("오늘의 순간");
+    }
+
+    /**
+     * {@code posts.title}이 NULL이면 Hibernate가 임베디드 필드 자체를 null로 복원한다. 값이 null인
+     * {@link PostTitle}이 만들어지지 않아야 저장 직후 객체와 조회한 객체의 모양이 같아진다.
+     */
+    @Test
+    @DisplayName("제목이 없는 게시물은 PostTitle 자체가 null로 복원된다")
+    void findVisibleById_postWithoutTitle_mapsTitleToNull() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET title = NULL WHERE id = ?", POST_ID);
+        entityManager.clear();
+
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getTitle()).isNull();
+    }
+
+    @Test
     @DisplayName("동시 생성으로 사용자와 주제 유니크 제약을 위반하면 비즈니스 예외로 변환한다")
     void save_duplicateUserAndTopic_throwsBusinessException() {
         // Given

@@ -5,10 +5,12 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -35,8 +37,6 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Post {
 
-    public static final int MAX_TITLE_LENGTH = 10;
-
     @Id
     @Generated
     @ColumnDefault("uuidv7()")
@@ -62,8 +62,10 @@ public class Post {
     @Column(name = "post_image_upload_id")
     private UUID postImageUploadId;
 
-    @Column(name = "title", length = MAX_TITLE_LENGTH)
-    private String title;
+    /** 제목 없음은 {@code null}로 표현한다. {@link PostTitle} 참고. */
+    @Getter(AccessLevel.NONE)
+    @Embedded
+    private PostTitle title;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -95,7 +97,7 @@ public class Post {
         this.topic = topic;
         this.photo = photo;
         this.postImageUploadId = postImageUploadId;
-        this.title = normalizeTitle(title);
+        this.title = PostTitle.from(title);
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
 
@@ -139,6 +141,22 @@ public class Post {
         this.moderatedAt = null;
     }
 
+    public void updateTitle(
+            UUID authorId,
+            String title,
+            Instant now
+    ) {
+        validateAuthor(authorId);
+        validateTitleUpdateStatus();
+        validateTitleUpdatePeriod(now);
+        this.title = PostTitle.from(title);
+    }
+
+    /** 제목 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostTitle}의 null 여부를 직접 다루지 않게 한다. */
+    public String getTitle() {
+        return title == null ? null : title.value();
+    }
+
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
@@ -172,9 +190,30 @@ public class Post {
         if (!author.getId().equals(authorId)) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "본인의 게시물만 삭제할 수 있습니다."
+                    "본인의 게시물만 접근할 수 있습니다."
             );
         }
+    }
+
+    private void validateTitleUpdateStatus() {
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "현재 상태의 게시물은 수정할 수 없습니다."
+        );
+    }
+
+    private void validateTitleUpdatePeriod(Instant now) {
+        if (topic.phaseAt(now) == TopicPhase.OPEN) {
+            return;
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "참여 기간이 종료된 게시물은 수정할 수 없습니다."
+        );
     }
 
     private void validateAuthorDeletionStatus() {
@@ -241,22 +280,5 @@ public class Post {
                 "게시물 생성 정보가 올바르지 않습니다."
             );
         }
-    }
-
-    /**
-     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자 수보다 길게
-     * 계산된다. {@code posts.title}이 code point를 세는 {@code VARCHAR(10)}이므로 길이도 code point로 판정한다.
-     */
-    private static String normalizeTitle(String title) {
-        if (title == null || title.isBlank()) {
-            return null;
-        }
-        if (title.codePointCount(0, title.length()) > MAX_TITLE_LENGTH) {
-            throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "제목은 10자 이하여야 합니다."
-            );
-        }
-        return title;
     }
 }

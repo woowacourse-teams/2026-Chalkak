@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
@@ -197,14 +198,14 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 사용자는 게시물을 생성할 수 없다")
-    void createPost_unknownUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 사용자의 게시물 생성은 인증 실패로 거부한다")
+    void createPost_unknownUser_throwsUnauthorizedException() {
         // Given
         UUID unknownUserId = UUID.randomUUID();
 
         // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
                 () -> postCommandService.createPost(
                         unknownUserId,
                         TOPIC_ID,
@@ -214,7 +215,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
         );
 
         // Then
-        assertThat(exception).hasMessage("게시물을 작성할 회원을 찾을 수 없습니다.");
+        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
         assertNoCreatedRows();
         then(postImageStorage).shouldHaveNoInteractions();
     }
