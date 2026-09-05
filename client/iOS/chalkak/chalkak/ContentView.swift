@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.chalkakTheme) private var theme
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var selectedFeed: FeedTarget?
@@ -22,6 +23,8 @@ struct ContentView: View {
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var successSubmission: PhotoUploadSubmission?
     @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
+    @State private var message: String?
+    @State private var messageDismissTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -80,6 +83,19 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
         }
+        .overlay(alignment: .bottom) {
+            if let message {
+                Text(message)
+                    .font(theme.typography.subheadline)
+                    .foregroundStyle(theme.colors.onActionPrimary)
+                    .padding(.horizontal, theme.spacing.lg)
+                    .padding(.vertical, theme.spacing.md)
+                    .background(theme.colors.actionPrimary, in: Capsule())
+                    .padding(.bottom, ContentMetrics.messageBottomPadding)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityLabel(message)
+            }
+        }
     }
 
     @ViewBuilder
@@ -135,6 +151,13 @@ struct ContentView: View {
 
     private func select(_ item: ChalkakBottomBarItem) {
         guard item == .today || item == .display || item == .record || item == .settings else { return }
+
+        if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
+            showMessage("기록을 보려면 로그인이 필요해요")
+            showLogin()
+            return
+        }
+
         selectedTab = item
     }
 
@@ -153,11 +176,31 @@ struct ContentView: View {
     }
 
     private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("게시물을 추가하려면 로그인이 필요해요")
+            showLogin()
+            return
+        }
+
         photoUploadReturnTab = tab
         photoUploadViewModel = Self.makePhotoUploadViewModel(
             topicDate: PhotoUploadDate.today()
         )
         route = .photoUpload
+    }
+
+    private func showMessage(_ text: String) {
+        messageDismissTask?.cancel()
+        withAnimation(.snappy) {
+            message = text
+        }
+        messageDismissTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) {
+                message = nil
+            }
+        }
     }
 
     private func showPhotoUploadSuccess(_ submission: PhotoUploadSubmission) {
@@ -289,6 +332,10 @@ private enum AppRoute: Equatable {
     case home
     case photoUpload
     case photoUploadSuccess
+}
+
+private enum ContentMetrics {
+    static let messageBottomPadding: CGFloat = 32
 }
 
 #Preview {
