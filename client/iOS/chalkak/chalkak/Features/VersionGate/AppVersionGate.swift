@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import StoreKit
 
 struct AppVersion: Equatable {
     let major: Int
@@ -53,22 +54,23 @@ enum AppUpdateCheckResult: Equatable {
 struct AppStoreVersionChecker {
     private let session: URLSession
     private let bundle: Bundle
-    private let countryCode: String
 
     init(
         session: URLSession = .shared,
-        bundle: Bundle = .main,
-        countryCode: String = Locale.current.region?.identifier ?? "KR"
+        bundle: Bundle = .main
     ) {
         self.session = session
         self.bundle = bundle
-        self.countryCode = countryCode
     }
 
     func check() async -> AppUpdateCheckResult {
-        guard let bundleIdentifier = bundle.bundleIdentifier,
+        guard let countryCode = await Self.currentLookupCountryCode(),
+              let bundleIdentifier = bundle.bundleIdentifier,
               let currentVersion = AppVersion.current(in: bundle),
-              let requestURL = lookupURL(bundleIdentifier: bundleIdentifier)
+              let requestURL = Self.lookupURL(
+                  bundleIdentifier: bundleIdentifier,
+                  countryCode: countryCode
+              )
         else { return .unavailable }
 
         var request = URLRequest(url: requestURL)
@@ -97,7 +99,13 @@ struct AppStoreVersionChecker {
         }
     }
 
-    private func lookupURL(bundleIdentifier: String) -> URL? {
+    static func lookupCountryCode(from storefrontCountryCode: String) -> String? {
+        let region = Locale(identifier: "und_\(storefrontCountryCode)").region?.identifier
+        guard let region, region.count == 2 else { return nil }
+        return region
+    }
+
+    static func lookupURL(bundleIdentifier: String, countryCode: String) -> URL? {
         var components = URLComponents(string: "https://itunes.apple.com/lookup")
         components?.queryItems = [
             URLQueryItem(name: "bundleId", value: bundleIdentifier),
@@ -105,6 +113,11 @@ struct AppStoreVersionChecker {
             URLQueryItem(name: "entity", value: "software"),
         ]
         return components?.url
+    }
+
+    private static func currentLookupCountryCode() async -> String? {
+        guard let storefront = await Storefront.current else { return nil }
+        return lookupCountryCode(from: storefront.countryCode)
     }
 }
 

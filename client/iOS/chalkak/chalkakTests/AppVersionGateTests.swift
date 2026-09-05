@@ -53,6 +53,26 @@ struct AppVersionGateTests {
     }
 
     @Test
+    func usesAppStoreStorefrontCountryForLookup() throws {
+        let countryCode = try #require(
+            AppStoreVersionChecker.lookupCountryCode(from: "USA")
+        )
+        let url = try #require(
+            AppStoreVersionChecker.lookupURL(
+                bundleIdentifier: "com.stonefive.chalkak",
+                countryCode: countryCode
+            )
+        )
+        let components = try #require(
+            URLComponents(url: url, resolvingAgainstBaseURL: false)
+        )
+        let queryItems = try #require(components.queryItems)
+
+        #expect(countryCode == "US")
+        #expect(queryItems.contains(URLQueryItem(name: "country", value: "us")))
+    }
+
+    @Test
     func unavailableRecheckPreservesRequiredUpdate() async {
         let storeURL = URL(string: "https://apps.apple.com/app/id123456789")!
         var results: [AppUpdateCheckResult] = [
