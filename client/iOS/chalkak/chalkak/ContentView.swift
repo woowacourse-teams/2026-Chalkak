@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var selectedFeed: FeedTarget?
@@ -22,6 +25,7 @@ struct ContentView: View {
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var successSubmission: PhotoUploadSubmission?
     @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
+    @State private var appVersionGate = AppVersionGateViewModel()
 
     var body: some View {
         Group {
@@ -79,6 +83,28 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
+        }
+        .overlay {
+            if let storeURL = appVersionGate.requiredUpdateStoreURL {
+                ChalkakConfirmDialog(
+                    title: "업데이트가 필요해요",
+                    message: "원활한 서비스 이용을 위해 최신 버전으로 업데이트해 주세요.",
+                    confirmText: "업데이트",
+                    confirmStyle: .primary,
+                    isDismissible: false,
+                    onConfirm: { openURL(storeURL) },
+                    onDismiss: {}
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: appVersionGate.requiredUpdateStoreURL)
+        .task {
+            await appVersionGate.checkForUpdate()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await appVersionGate.checkForUpdate() }
         }
     }
 
@@ -246,7 +272,7 @@ struct ContentView: View {
         )
         let authRepository = APIAuthRepository(baseURL: configuration.apiBaseURL)
         return SettingsViewModel(
-            initialState: SettingsViewState(version: SettingsScreen.appVersion),
+            initialState: SettingsViewState(version: AppVersion.currentString()),
             isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
             loadSignature: { try await apiClient.fetchSignature() },
             updateSignature: { try await apiClient.updateSignature(pngData: $0) },
