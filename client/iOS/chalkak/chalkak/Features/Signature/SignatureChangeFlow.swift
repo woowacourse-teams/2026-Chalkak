@@ -261,7 +261,8 @@ private struct SignatureChangePreview: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 112, height: 84)
-                        .padding(theme.spacing.md)
+                        .padding(.trailing, theme.spacing.sm)
+                        .padding(.bottom, theme.spacing.sm)
                         .accessibilityHidden(true)
                 }
             }
