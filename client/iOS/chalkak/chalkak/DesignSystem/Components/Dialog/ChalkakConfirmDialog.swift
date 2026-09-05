@@ -12,6 +12,7 @@ struct ChalkakConfirmDialog: View {
     let message: String
     let confirmText: String
     let confirmStyle: ChalkakConfirmDialogStyle
+    var isDismissible = true
     let onConfirm: () -> Void
     let onDismiss: () -> Void
 
@@ -20,7 +21,10 @@ struct ChalkakConfirmDialog: View {
             theme.colors.scrim
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
-                .onTapGesture(perform: onDismiss)
+                .onTapGesture {
+                    guard isDismissible else { return }
+                    onDismiss()
+                }
 
             VStack(spacing: 0) {
                 Text(title)
@@ -33,11 +37,13 @@ struct ChalkakConfirmDialog: View {
                     .padding(.top, Metrics.titleMessageSpacing)
 
                 HStack(spacing: Metrics.buttonSpacing) {
-                    actionButton(
-                        title: "취소",
-                        background: theme.colors.textInactive,
-                        action: onDismiss
-                    )
+                    if isDismissible {
+                        actionButton(
+                            title: "취소",
+                            background: theme.colors.textInactive,
+                            action: onDismiss
+                        )
+                    }
 
                     actionButton(
                         title: confirmText,
