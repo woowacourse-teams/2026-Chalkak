@@ -6,13 +6,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.AppleAuthorizationFingerprintEncoder;
+import com.chalkak.backend.auth.service.RefreshTokenHasher;
 import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -26,13 +33,16 @@ import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,7 +62,22 @@ class UserServiceTest extends IntegrationTestSupport {
     private SocialAccountRepository socialAccountRepository;
 
     @Autowired
+    private AppleAuthorizationRepository appleAuthorizationRepository;
+
+    @Autowired
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
+
+    @Autowired
+    private AppleAuthorizationFingerprintEncoder authorizationFingerprintEncoder;
+
+    @Autowired
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private RefreshTokenHasher refreshTokenHasher;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private SignatureImageStorage signatureImageStorage;
@@ -71,7 +96,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(id);
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // Then
@@ -100,7 +125,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(user.getId());
+        userService.completeWithdrawal(user.getId(), List.of());
         flushAndClear();
 
         // Then
@@ -118,7 +143,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(id);
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // Then
@@ -127,29 +152,71 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원의 탈퇴는 거부한다")
-    void withdraw_notExistingUser_throwsNotFoundException() {
+    @DisplayName("탈퇴하면 모든 기기의 리프레시 토큰이 폐기되고 다른 회원의 토큰은 그대로 남는다")
+    void withdraw_activeUser_revokesEveryRefreshTokenOfThatUser() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        User otherUser = userRepository.save(UserFixture.create());
+        flushAndClear();
+        IssuedRefreshToken firstDevice = userRefreshTokenService.issue(user);
+        IssuedRefreshToken secondDevice = userRefreshTokenService.issue(user);
+        IssuedRefreshToken otherUserDevice = userRefreshTokenService.issue(otherUser);
+        flushAndClear();
+
+        // When
+        userService.completeWithdrawal(user.getId(), List.of());
+        flushAndClear();
+
+        // Then
+        assertThat(countLiveRefreshTokens(user.getId())).isZero();
+        assertThat(findRefreshTokenRevokedAt(firstDevice.value())).isNotNull();
+        assertThat(findRefreshTokenRevokedAt(secondDevice.value())).isNotNull();
+        assertThat(findRefreshTokenRevokedAt(otherUserDevice.value())).isNull();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 리프레시 토큰으로 재발급하면 재로그인을 요구한다")
+    void withdraw_activeUser_blocksRefreshWithIssuedToken() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        flushAndClear();
+        IssuedRefreshToken issued = userRefreshTokenService.issue(user);
+        flushAndClear();
+        userService.completeWithdrawal(user.getId(), List.of());
+        flushAndClear();
+
+        // When & Then
+        assertThatThrownBy(() -> userRefreshTokenService.refresh(issued.value()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("다시 로그인해 주세요.")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.REAUTHENTICATION_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원의 탈퇴는 인증 실패로 거부한다")
+    void withdraw_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID notExistingId = UUID.randomUUID();
 
         // When & Then
-        assertThatThrownBy(() -> userService.withdraw(notExistingId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("탈퇴할 회원을 찾을 수 없습니다.");
+        assertThatThrownBy(() -> userService.completeWithdrawal(notExistingId, List.of()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
-    @DisplayName("이미 탈퇴한 회원은 존재하지 않는 회원과 동일하게 거부한다")
-    void withdraw_alreadyWithdrawnUser_throwsNotFoundException() {
+    @DisplayName("이미 탈퇴한 회원은 존재하지 않는 회원과 동일하게 인증 실패로 거부한다")
+    void withdraw_alreadyWithdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(id);
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         // When & Then
-        assertThatThrownBy(() -> userService.withdraw(id))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("탈퇴할 회원을 찾을 수 없습니다.");
+        assertThatThrownBy(() -> userService.completeWithdrawal(id, List.of()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
@@ -175,30 +242,30 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원은 사인 업로드 URL을 발급받을 수 없다")
-    void createSignatureUpload_notExistingUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 회원의 사인 업로드 URL 발급은 인증 실패로 거부한다")
+    void createSignatureUpload_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
 
         // When & Then
         assertThatThrownBy(() -> userService.createSignatureUpload(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
         verifyNoInteractions(signatureImageUploadIssuer);
     }
 
     @Test
-    @DisplayName("탈퇴한 회원은 사인 업로드 URL을 발급받을 수 없다")
-    void createSignatureUpload_withdrawnUser_throwsNotFoundException() {
+    @DisplayName("탈퇴한 회원의 사인 업로드 URL 발급은 인증 실패로 거부한다")
+    void createSignatureUpload_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID userId = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(userId);
+        userService.completeWithdrawal(userId, List.of());
         flushAndClear();
 
         // When & Then
         assertThatThrownBy(() -> userService.createSignatureUpload(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
         verifyNoInteractions(signatureImageUploadIssuer);
     }
 
@@ -307,15 +374,15 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("사인을 조회할 회원이 없으면 조회를 거부한다")
-    void getSignature_notExistingUser_throwsNotFoundException() {
+    @DisplayName("사인을 조회할 회원이 없으면 인증 실패로 거부한다")
+    void getSignature_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
 
         // When & Then
         assertThatThrownBy(() -> userService.getSignature(userId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 조회할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
@@ -794,8 +861,8 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원의 사인 교체는 거부한다")
-    void updateSignature_notExistingUser_throwsNotFoundException() {
+    @DisplayName("존재하지 않는 회원의 사인 교체는 인증 실패로 거부한다")
+    void updateSignature_notExistingUser_throwsUnauthorizedException() {
         // Given
         UUID notExistingId = UUID.randomUUID();
         UUID uploadId = UUID.randomUUID();
@@ -806,16 +873,16 @@ class UserServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() ->
                 userService.updateSignature(notExistingId, uploadId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 교체할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
-    @DisplayName("탈퇴한 회원의 사인 교체는 거부한다")
-    void updateSignature_withdrawnUser_throwsNotFoundException() {
+    @DisplayName("탈퇴한 회원의 사인 교체는 인증 실패로 거부한다")
+    void updateSignature_withdrawnUser_throwsUnauthorizedException() {
         // Given
         UUID id = userRepository.save(UserFixture.create()).getId();
-        userService.withdraw(id);
+        userService.completeWithdrawal(id, List.of());
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -825,8 +892,8 @@ class UserServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> userService.updateSignature(id, uploadId))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사인을 교체할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
@@ -1035,6 +1102,21 @@ class UserServiceTest extends IntegrationTestSupport {
         entityManager.clear();
     }
 
+    private int countLiveRefreshTokens(UUID userId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_refresh_tokens
+                WHERE user_id = ? AND revoked_at IS NULL
+                """, Integer.class, userId);
+    }
+
+    private Timestamp findRefreshTokenRevokedAt(String token) {
+        return jdbcTemplate.queryForObject("""
+                        SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
+                        """,
+                Timestamp.class,
+                refreshTokenHasher.encode(token));
+    }
+
     private SignatureStorageKeys storageKeys(UUID uploadId) {
         return new SignatureStorageKeys(
                 "chalkak/signatures/dev/original/"
@@ -1062,7 +1144,7 @@ class UserServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        userService.withdraw(userId);
+        userService.completeWithdrawal(userId, List.of());
         flushAndClear();
 
         // Then
@@ -1076,5 +1158,95 @@ class UserServiceTest extends IntegrationTestSupport {
         assertThat(socialAccount.getUser().isDeleted()).isTrue();
         assertThat(socialAccount.getUser().getStatus())
                 .isEqualTo(UserStatus.BANNED);
+    }
+
+    @Test
+    @DisplayName("Apple 회원이 탈퇴하면 Apple 인증 정보가 삭제된다")
+    void withdraw_appleUser_deletesAppleAuthorization() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.APPLE,
+                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")));
+        UUID socialAccountId = socialAccount.getId();
+        AppleAuthorization authorization = appleAuthorizationRepository.save(
+                AppleAuthorization.create(
+                        socialAccount,
+                        "encrypted-refresh-token"));
+        flushAndClear();
+
+        // When
+        userService.completeWithdrawal(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
+                authorization.getId(),
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
+        flushAndClear();
+
+        // Then
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("스냅샷과 실제 저장된 인증 정보가 다르면 삭제 없이 예외가 발생한다")
+    void withdraw_authorizationSnapshotMismatch_throwsBusinessExceptionWithoutDeleting() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.APPLE,
+                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")));
+        UUID socialAccountId = socialAccount.getId();
+        appleAuthorizationRepository.save(AppleAuthorization.create(
+                socialAccount,
+                "encrypted-refresh-token"));
+        flushAndClear();
+
+        // When & Then
+        // 실제로는 인증 정보가 하나 저장돼 있는데, 아무것도 폐기하지 않은 것으로(빈 스냅샷)
+        // 탈퇴를 시도하는 상황이다. 실제 트랜잭션 밖에서 다른 로그인이 끼어든 것과 같은 대조
+        // 실패를 낸다.
+        assertThatThrownBy(() -> userService.completeWithdrawal(user.getId(), List.of()))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.RESOURCE_STATE_CHANGED)
+                .hasMessage("탈퇴 처리 중 Apple 인증 정보가 변경되었습니다. 다시 시도해 주세요.");
+
+        assertThat(userRepository.findActiveById(user.getId())).isPresent();
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("차단된 Apple 회원이 탈퇴하면 소셜 계정은 남기고 Apple 인증 정보만 삭제한다")
+    void withdraw_bannedAppleUser_deletesAppleAuthorizationOnly() {
+        // Given
+        User user = userRepository.save(UserFixture.createBanned(null));
+        String subjectHmac = fingerprintEncoder.encode(
+                SocialProvider.APPLE,
+                "banned-apple-subject");
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                SocialProvider.APPLE,
+                subjectHmac));
+        UUID socialAccountId = socialAccount.getId();
+        AppleAuthorization authorization = appleAuthorizationRepository.save(
+                AppleAuthorization.create(
+                        socialAccount,
+                        "encrypted-refresh-token"));
+        flushAndClear();
+
+        // When
+        userService.completeWithdrawal(user.getId(), List.of(new SocialConnectionRevocationSnapshot(
+                authorization.getId(),
+                authorizationFingerprintEncoder.encode("encrypted-refresh-token"))));
+        flushAndClear();
+
+        // Then
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
+                .isEmpty();
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.APPLE,
+                subjectHmac))
+                .isPresent();
     }
 }

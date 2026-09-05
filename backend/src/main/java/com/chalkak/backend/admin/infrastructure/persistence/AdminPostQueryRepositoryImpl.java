@@ -26,7 +26,7 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
     private static final String SUMMARY_SELECT = """
             SELECT new com.chalkak.backend.admin.repository.AdminPostSummaryProjection(
                 post.id,
-                post.title,
+                post.title.value,
                 post.moderationStatus,
                 topic.id,
                 topic.title,
@@ -54,7 +54,7 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
     private static final String DETAIL_QUERY = """
             SELECT new com.chalkak.backend.admin.repository.AdminPostDetailProjection(
                 post.id,
-                post.title,
+                post.title.value,
                 post.moderationStatus,
                 post.createdAt,
                 post.updatedAt,

@@ -34,7 +34,7 @@ class JwtAccessTokenProviderTest {
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String ISSUER = "chalkak-backend";
     private static final String AUDIENCE = "chalkak-access";
-    private static final Duration EXPIRATION = Duration.ofHours(1);
+    private static final Duration EXPIRATION = Duration.ofMinutes(15);
 
     @Test
     @DisplayName("회원 식별자로 액세스 토큰을 발급하고 검증한다")

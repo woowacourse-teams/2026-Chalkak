@@ -12,6 +12,8 @@ import com.chalkak.backend.admin.repository.AdminRepository;
 import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @AutoConfigureMockMvc
@@ -54,6 +57,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Test
     @DisplayName("관리자 로그인은 액세스 토큰 없이 호출할 수 있다")
@@ -131,24 +137,14 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("실제 관리자 로그인 토큰으로 현재 관리자와 감사 로그를 조회하고 로그아웃한다")
-    void login_persistedAdmin_accessesProtectedApisAndLogsOut() throws Exception {
+    @DisplayName("실제 관리자 로그인 토큰으로 현재 관리자와 감사 로그를 조회한다")
+    void login_persistedAdmin_accessesProtectedApis() throws Exception {
         // Given
         Admin admin = adminRepository.save(Admin.create(
                 "security-operator", passwordEncoder.encode("test-password")));
 
         // When
-        String response = mockMvc.perform(post("/api/v1/admin/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"security-operator","password":"test-password"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.adminId").value(admin.getId().toString()))
-                .andExpect(jsonPath("$.password").doesNotExist())
-                .andExpect(jsonPath("$.passwordHash").doesNotExist())
-                .andReturn().getResponse().getContentAsString();
-        String token = objectMapper.readTree(response).get("accessToken").asString();
+        String token = login(admin.getId(), "security-operator").accessToken();
 
         // Then
         mockMvc.perform(get("/api/v1/admin/auth/me")
@@ -158,16 +154,81 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/admin/audit-logs")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("관리자 재발급과 로그아웃은 액세스 토큰 없이 리프레시 토큰만으로 호출한다")
+    void refreshAndLogout_withoutAccessToken_reachController() throws Exception {
+        // Given
+        Admin admin = adminRepository.save(Admin.create(
+                "refresh-security-operator", passwordEncoder.encode("test-password")));
+        String refreshToken = login(admin.getId(), "refresh-security-operator")
+                .refreshToken();
+
+        // When
+        String refreshed = mockMvc.perform(post("/api/v1/admin/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String rotatedRefreshToken = objectMapper.readTree(refreshed)
+                .get("refreshToken").asString();
+
+        // Then
         mockMvc.perform(post("/api/v1/admin/auth/logout")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isNoContent());
+        // 폐기는 벌크 UPDATE라 영속성 컨텍스트의 엔티티가 낡은 채로 남는다. 테스트가 요청들과
+        // 트랜잭션을 공유하므로, 비우지 않으면 다음 요청이 DB가 아니라 낡은 엔티티를 보게 된다.
+        entityManager.clear();
+        mockMvc.perform(post("/api/v1/admin/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("알 수 없는 리프레시 토큰으로 재발급해도 관리자 인증이 아니라 재로그인 필요로 거절한다")
+    void refresh_unknownRefreshToken_returnsReauthenticationRequired() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"unknown-admin-refresh-token"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
+    }
+
+    private IssuedTokens login(UUID adminId, String username) throws Exception {
+        String response = mockMvc.perform(post("/api/v1/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","password":"test-password"}
+                                """.formatted(username)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adminId").value(adminId.toString()))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode body = objectMapper.readTree(response);
+        return new IssuedTokens(
+                body.get("accessToken").asString(),
+                body.get("refreshToken").asString());
+    }
+
+    private record IssuedTokens(
+            String accessToken,
+            String refreshToken
+    ) {
     }
 
     private static Stream<Arguments> protectedAdminEndpoints() {
         String id = "0198f6c1-62ba-7d30-8b12-0f733b6570f6";
         return Stream.of(
                 Arguments.of("GET", "/api/v1/admin/auth/me"),
-                Arguments.of("POST", "/api/v1/admin/auth/logout"),
                 Arguments.of("GET", "/api/v1/admin/posts"),
                 Arguments.of("GET", "/api/v1/admin/posts/" + id),
                 Arguments.of("PUT", "/api/v1/admin/posts/" + id + "/moderation"),

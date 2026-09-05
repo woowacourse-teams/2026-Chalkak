@@ -18,13 +18,7 @@ import org.springframework.data.repository.query.Param;
 public interface PostJpaRepository extends JpaRepository<Post, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT post
-            FROM Post post
-            WHERE post.id = :postId
-              AND post.deletedAt IS NULL
-            """)
-    Optional<Post> findActiveByIdForUpdate(@Param("postId") UUID postId);
+    Optional<Post> findByIdAndDeletedAtIsNull(UUID postId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

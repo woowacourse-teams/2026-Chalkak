@@ -100,18 +100,21 @@ public class JwtSocialSignupTokenProvider implements
                         claims.build()))
                 .getTokenValue();
 
-        return new IssuedSocialSignupToken(value);
+        return new IssuedSocialSignupToken(value, expiresAt);
     }
 
     @Override
     public VerifiedSocialSignupToken verify(String signupToken) {
         try {
             Jwt jwt = jwtDecoder.decode(signupToken);
+            SocialProvider provider = getProvider(jwt);
             return new VerifiedSocialSignupToken(
-                    getProvider(jwt),
+                    provider,
                     getSubject(jwt),
                     getUploadId(jwt),
-                    getEmail(jwt));
+                    getEmail(jwt),
+                    getTokenId(jwt),
+                    jwt.getExpiresAt());
         } catch (JwtException | IllegalArgumentException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
@@ -188,6 +191,14 @@ public class JwtSocialSignupTokenProvider implements
             throw new IllegalArgumentException("Invalid social subject");
         }
         return subject;
+    }
+
+    private String getTokenId(Jwt jwt) {
+        String tokenId = jwt.getId();
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new IllegalArgumentException("Missing token id");
+        }
+        return tokenId;
     }
 
     private UUID getUploadId(Jwt jwt) {

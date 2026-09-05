@@ -4,6 +4,7 @@ import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.AdminRepository;
 import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.service.AccessTokenIssuer;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
@@ -28,7 +29,14 @@ public class AdminAuthenticationService {
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccessTokenIssuer accessTokenIssuer;
+    private final AdminRefreshTokenService adminRefreshTokenService;
 
+    /**
+     * 로그인 성공은 리프레시 토큰 계보를 새로 만들면서 행을 남기므로, 클래스에 걸린 읽기 전용
+     * 트랜잭션으로는 처리할 수 없다. 인증 실패 경로는 여전히 읽기만 하지만 한 트랜잭션을 공유하는
+     * 이상 쓰기를 허용하는 쪽으로 맞춘다. 읽기 전용은 조회 메서드에 그대로 남는다.
+     */
+    @Transactional
     public AdminLoginResult login(String username, String password) {
         Optional<Admin> foundAdmin = adminRepository.findByUsername(username);
         String passwordHash = foundAdmin
@@ -45,10 +53,12 @@ public class AdminAuthenticationService {
                 admin.getId(),
                 AccessTokenScope.ADMIN
         );
+        IssuedRefreshToken refreshToken = adminRefreshTokenService.issue(admin);
         return new AdminLoginResult(
                 admin.getId(),
                 admin.getUsername(),
-                accessToken
+                accessToken,
+                refreshToken
         );
     }
 

@@ -95,7 +95,7 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
                 new JwtTimestampValidator(CLOCK_SKEW);
         timestampValidator.setClock(clock);
         // 기본값은 exp가 없는 토큰을 통과시킨다. 그대로 두면 만료되지 않는 토큰이 만들어질 수 있어
-        // 1시간 만료라는 전제가 통째로 무너진다.
+        // 15분 만료라는 전제가 통째로 무너진다.
         timestampValidator.setAllowEmptyExpiryClaim(false);
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 timestampValidator,
@@ -108,7 +108,7 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
 
     /**
      * 회원가입 토큰과 액세스 토큰은 비밀키·audience·purpose로 각각 분리한다. 비밀키를 같은 값으로
-     * 잘못 설정해도 5분짜리 회원가입 토큰이 1시간짜리 액세스 토큰으로 통과하지 않게 하기 위해서다.
+     * 잘못 설정해도 5분짜리 회원가입 토큰이 15분짜리 액세스 토큰으로 통과하지 않게 하기 위해서다.
      */
     private OAuth2TokenValidatorResult validateAudience(Jwt jwt) {
         if (jwt.getAudience().contains(properties.audience())) {

@@ -1,8 +1,10 @@
 package com.chalkak.backend.support;
 
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,10 +28,13 @@ public class WithMockLoginUserSecurityContextFactory
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("purpose", "ACCESS")
+                .claim("scope", AccessTokenScope.USER.name())
                 .build();
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+        context.setAuthentication(new JwtAuthenticationToken(
+                jwt,
+                List.of(new SimpleGrantedAuthority(AccessTokenScope.USER.toAuthority()))));
         return context;
     }
 }

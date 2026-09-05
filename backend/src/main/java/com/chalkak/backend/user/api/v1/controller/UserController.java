@@ -2,6 +2,7 @@ package com.chalkak.backend.user.api.v1.controller;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
+import com.chalkak.backend.auth.api.support.RequiresExistingUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
@@ -11,6 +12,7 @@ import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
 import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
+import com.chalkak.backend.user.service.UserWithdrawalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -28,11 +30,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController implements UserApiDocs {
 
     private final UserService userService;
+    private final UserWithdrawalService userWithdrawalService;
 
     @Override
+    @RequiresExistingUser
     @DeleteMapping("/me")
     public ResponseEntity<Void> withdraw(@LoginUser AuthenticatedUser loginUser) {
-        userService.withdraw(loginUser.userId());
+        userWithdrawalService.withdraw(loginUser.userId());
 
         return ResponseEntity.noContent().build();
     }
@@ -49,6 +53,7 @@ public class UserController implements UserApiDocs {
     }
 
     @Override
+    @RequiresExistingUser
     @GetMapping("/me/signature")
     public ResponseEntity<UserSignatureDetailResponse> getSignature(
             @LoginUser AuthenticatedUser loginUser

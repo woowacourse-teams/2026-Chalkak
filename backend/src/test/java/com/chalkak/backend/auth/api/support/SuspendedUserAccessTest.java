@@ -97,6 +97,21 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("정지 회원은 게시물 제목을 수정할 수 없다")
+    void updatePost_suspendedUser_returnsForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "수정 제목"
+                                }
+                                """))
+                .andExpect(suspended());
+    }
+
+    @Test
     @DisplayName("정지 회원은 좋아요를 등록할 수 없다")
     void likePost_suspendedUser_returnsForbidden() throws Exception {
         // When & Then

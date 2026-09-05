@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageStorage;
@@ -145,21 +145,21 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("존재하지 않는 회원은 업로드를 발급받을 수 없다")
-    void createPostImageUpload_unknownUser_throwsNotFound() {
+    @DisplayName("존재하지 않는 회원의 업로드 발급은 인증 실패로 거부한다")
+    void createPostImageUpload_unknownUser_throwsUnauthorized() {
         // When & Then
         assertThatThrownBy(() -> postCommandService.createPostImageUpload(UUID.randomUUID()))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     @Test
-    @DisplayName("탈퇴한 회원은 업로드를 발급받을 수 없다")
-    void createPostImageUpload_withdrawnUser_throwsNotFound() {
+    @DisplayName("탈퇴한 회원의 업로드 발급은 인증 실패로 거부한다")
+    void createPostImageUpload_withdrawnUser_throwsUnauthorized() {
         // When & Then
         assertThatThrownBy(() -> postCommandService.createPostImageUpload(WITHDRAWN_USER_ID))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("사진을 업로드할 회원을 찾을 수 없습니다.");
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
 }
