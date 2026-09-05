@@ -18,4 +18,6 @@ interface AuthDataSource {
     ): ApiResult<SignatureUploadResponse>
 
     suspend fun socialSignUp(signupToken: String): ApiResult<SocialSignUpResponse>
+
+    suspend fun logout(refreshToken: String): ApiResult<Unit>
 }
