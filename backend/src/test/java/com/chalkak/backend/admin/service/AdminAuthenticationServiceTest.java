@@ -11,12 +11,14 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -41,6 +43,9 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoSpyBean
     private PasswordEncoder passwordEncoder;
 
@@ -59,6 +64,26 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
         assertThat(result.username()).isEqualTo(USERNAME);
         assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
         assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
+    }
+
+    @Test
+    @DisplayName("로그인에 성공하면 리프레시 토큰 계보를 열고 저장소에는 해시만 남긴다")
+    void login_validCredentials_opensRefreshTokenLineage() {
+        // Given
+        Admin admin = persistAdmin(RAW_PASSWORD);
+
+        // When
+        AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
+        entityManager.flush();
+
+        // Then
+        String storedTokenHash = jdbcTemplate.queryForObject("""
+                SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
+                """, String.class, admin.getId());
+        assertThat(result.refreshToken().value()).isNotBlank();
+        assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
+        assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());
+        assertThat(storedTokenHash).matches("^[0-9a-f]{64}$");
     }
 
     @Test

@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -36,7 +38,7 @@ class UsableUserPolicyTest {
     void validateUsable_suspendedUser_throwsForbiddenException() {
         // Given
         UUID userId = UUID.randomUUID();
-        given(userRepository.findActiveById(userId))
+        given(userRepository.findById(userId))
                 .willReturn(Optional.of(UserFixture.createBanned(userId)));
 
         // When & Then
@@ -53,24 +55,52 @@ class UsableUserPolicyTest {
         // Given
         UUID userId = UUID.randomUUID();
         User user = UserFixture.create(userId);
-        given(userRepository.findActiveById(userId)).willReturn(Optional.of(user));
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
         // When & Then
         assertThat(policy.validateUsable(authenticationOf(userId))).isTrue();
     }
 
     /**
-     * 없는 회원은 여기서 판단하지 않는다. 각 서비스가 자기 맥락에 맞는 메시지로 이미 처리한다.
+     * 없는 회원은 인증 정보가 가리키는 대상이 사라졌다는 뜻이므로 인가가 아니라 인증의 실패다.
+     * 각 서비스가 자기 맥락의 404로 답하면 같은 원인이 화면마다 다른 문구로 흩어진다.
      */
     @Test
-    @DisplayName("저장소에 없는 회원은 서비스가 판단하도록 통과시킨다")
-    void validateUsable_unknownUser_returnsTrue() {
+    @DisplayName("저장소에 없는 회원은 거부한다")
+    void validateUsable_unknownUser_throwsUnauthorizedException() {
         // Given
         UUID userId = UUID.randomUUID();
-        given(userRepository.findActiveById(userId)).willReturn(Optional.empty());
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
 
         // When & Then
-        assertThat(policy.validateUsable(authenticationOf(userId))).isTrue();
+        assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    /**
+     * 탈퇴 회원은 저장소에 남아 있지만 인증 주체로는 없는 회원과 같다. 남아 있다는 사실이
+     * 응답에 드러나지 않도록 없는 회원과 같은 답을 준다.
+     */
+    @Test
+    @DisplayName("탈퇴한 회원은 거부한다")
+    void validateUsable_withdrawnUser_throwsUnauthorizedException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        User user = UserFixture.create(userId);
+        user.withdraw();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // When & Then
+        assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
     /**
@@ -99,6 +129,74 @@ class UsableUserPolicyTest {
                 .isInstanceOf(ForbiddenException.class);
     }
 
+    @Test
+    @DisplayName("정상 회원은 통과시킨다")
+    void validateExisting_activeUser_returnsTrue() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId))
+                .willReturn(Optional.of(UserFixture.create(userId)));
+
+        // when
+        boolean result = policy.validateExisting(authenticationOf(userId));
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    /**
+     * 정지 회원도 탈퇴와 자기 데이터 정리는 할 수 있어야 하므로, 이 판정은 정지를 막지 않는다.
+     * 여기서 막으면 정지된 회원이 서비스를 떠날 방법 자체가 사라진다.
+     */
+    @Test
+    @DisplayName("정지된 회원도 통과시킨다")
+    void validateExisting_suspendedUser_returnsTrue() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId))
+                .willReturn(Optional.of(UserFixture.createBanned(userId)));
+
+        // when
+        boolean result = policy.validateExisting(authenticationOf(userId));
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 거부한다")
+    void validateExisting_withdrawnUser_throwsUnauthorizedException() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = UserFixture.create(userId);
+        user.withdraw();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when & then
+        assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    @Test
+    @DisplayName("저장소에 없는 회원은 거부한다")
+    void validateExisting_unknownUser_throwsUnauthorizedException() {
+        // given
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.")
+                .satisfies(exception ->
+                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
     private Authentication authenticationOf(UUID userId) {
         Instant issuedAt = Instant.now();
         Jwt jwt = Jwt.withTokenValue("access-token")
@@ -107,8 +205,11 @@ class UsableUserPolicyTest {
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("purpose", "ACCESS")
+                .claim("scope", AccessTokenScope.USER.name())
                 .build();
 
-        return new JwtAuthenticationToken(jwt, List.of());
+        return new JwtAuthenticationToken(
+                jwt,
+                List.of(new SimpleGrantedAuthority(AccessTokenScope.USER.toAuthority())));
     }
 }

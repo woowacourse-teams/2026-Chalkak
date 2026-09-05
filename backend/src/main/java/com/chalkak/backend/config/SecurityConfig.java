@@ -12,6 +12,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -34,6 +37,18 @@ public class SecurityConfig {
     private static final String[] PUBLIC_GET_PATHS = {
             "/api/v1/topics",
             "/api/v1/posts"
+    };
+
+    /**
+     * 관리자 토큰 없이 호출하는 관리자 경로. 로그인은 토큰을 받기 전에, 재발급과 로그아웃은
+     * 액세스 토큰이 만료된 뒤에 호출한다. 반드시 아래 {@code /api/v1/admin/**} 규칙보다 먼저
+     * 선언해야 한다. 먼저 맞는 규칙이 이기므로 순서가 뒤집히면 세 경로 모두 관리자 토큰을 요구하게
+     * 되고, 액세스 토큰이 만료된 운영자는 로그아웃조차 하지 못한다.
+     */
+    private static final String[] PUBLIC_ADMIN_AUTH_PATHS = {
+            "/api/v1/admin/auth/login",
+            "/api/v1/admin/auth/refresh",
+            "/api/v1/admin/auth/logout"
     };
 
     /**
@@ -67,8 +82,8 @@ public class SecurityConfig {
                     request
                         // 로그인과 회원가입은 토큰을 받기 전에 호출한다.
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        // 관리자 로그인만 관리자 토큰 발급 전에 호출한다.
-                        .requestMatchers("/api/v1/admin/auth/login").permitAll()
+                        // 관리자 로그인과 리프레시 토큰 경로는 관리자 액세스 토큰 없이 호출한다.
+                        .requestMatchers(PUBLIC_ADMIN_AUTH_PATHS).permitAll()
                         // 이미지 처리 Lambda 콜백은 HMAC으로 자체 인증한다. 여기서 막으면
                         // 처리 결과가 영원히 반영되지 않는다.
                         .requestMatchers("/internal/v1/**").permitAll()
@@ -83,9 +98,18 @@ public class SecurityConfig {
                     }
                     request.requestMatchers("/api/v1/admin/**")
                             .hasAuthority(AccessTokenScope.ADMIN.toAuthority());
-                    request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
+                    // 비로그인 조회를 허용하되 관리자 토큰까지 받지는 않는다. 통과시키면
+                    // 선택적 회원 인증이 관리자 식별자를 회원 식별자로 해석한다.
+                    request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
+                            .access(AuthorizationManagers.anyOf(
+                                    AuthenticatedAuthorizationManager.anonymous(),
+                                    AuthorityAuthorizationManager.hasAuthority(
+                                            AccessTokenScope.USER.toAuthority())))
                         // 새 API에 인증을 붙이는 것을 잊어도 기본값이 차단이 되도록 한다.
-                        .anyRequest().authenticated();
+                        // 기본값은 "회원 토큰이어야 통과"이므로, 관리자 토큰이나 scope가 없는
+                        // 다른 종류의 토큰은 회원으로 취급되지 않고 여기서 막힌다.
+                        .anyRequest()
+                            .hasAuthority(AccessTokenScope.USER.toAuthority());
                 })
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(entryPoint)

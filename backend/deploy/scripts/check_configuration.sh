@@ -19,10 +19,17 @@ required_keys=(
   SERVER_PORT
   GOOGLE_OIDC_CLIENT_ID
   KAKAO_OIDC_APP_KEY
+  APPLE_OIDC_CLIENT_ID
+  APPLE_TEAM_ID
+  APPLE_KEY_ID
+  APPLE_PRIVATE_KEY_BASE64
+  APPLE_REFRESH_TOKEN_ENCRYPTION_KEY
   SOCIAL_SIGNUP_TOKEN_SECRET
   ACCESS_TOKEN_SECRET
   SOCIAL_IDENTITY_HMAC_SECRET
   ACCESS_TOKEN_EXPIRATION
+  REFRESH_TOKEN_INACTIVITY_EXPIRATION
+  REFRESH_TOKEN_ABSOLUTE_EXPIRATION
   ADMIN_USERNAME
   ADMIN_PASSWORD_HASH
   ADMIN_CORS_ALLOWED_ORIGIN
@@ -67,6 +74,7 @@ callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
 social_signup_token_secret="$(read_value SOCIAL_SIGNUP_TOKEN_SECRET)"
 access_token_secret="$(read_value ACCESS_TOKEN_SECRET)"
 social_identity_hmac_secret="$(read_value SOCIAL_IDENTITY_HMAC_SECRET)"
+apple_refresh_token_encryption_key="$(read_value APPLE_REFRESH_TOKEN_ENCRYPTION_KEY)"
 admin_username="$(read_value ADMIN_USERNAME)"
 admin_password_hash="$(read_value ADMIN_PASSWORD_HASH)"
 admin_cors_allowed_origin="$(read_value ADMIN_CORS_ALLOWED_ORIGIN)"
@@ -109,6 +117,11 @@ if [[ ! "${social_identity_hmac_secret}" =~ ^[0-9A-Fa-f]{64}$ ]]; then
   exit 1
 fi
 
+if [[ ! "${apple_refresh_token_encryption_key}" =~ ^[0-9A-Fa-f]{64}$ ]]; then
+  echo "APPLE_REFRESH_TOKEN_ENCRYPTION_KEY must be exactly 64 hexadecimal characters." >&2
+  exit 1
+fi
+
 # 회원가입 토큰이 액세스 토큰으로 통과하지 않도록 두 서명 키를 반드시 분리한다.
 if [[ "${access_token_secret}" == "${social_signup_token_secret}" ]]; then
   echo "ACCESS_TOKEN_SECRET must differ from SOCIAL_SIGNUP_TOKEN_SECRET." >&2
@@ -118,6 +131,13 @@ fi
 if [[ "${social_identity_hmac_secret}" == "${social_signup_token_secret}"
         || "${social_identity_hmac_secret}" == "${access_token_secret}" ]]; then
   echo "SOCIAL_IDENTITY_HMAC_SECRET must differ from token secrets." >&2
+  exit 1
+fi
+
+if [[ "${apple_refresh_token_encryption_key}" == "${social_signup_token_secret}"
+        || "${apple_refresh_token_encryption_key}" == "${access_token_secret}"
+        || "${apple_refresh_token_encryption_key}" == "${social_identity_hmac_secret}" ]]; then
+  echo "APPLE_REFRESH_TOKEN_ENCRYPTION_KEY must differ from signing and HMAC secrets." >&2
   exit 1
 fi
 
