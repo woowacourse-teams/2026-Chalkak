@@ -1,0 +1,8 @@
+version: 2
+mode: manual
+location: 찰캌 → 백엔드 → 비즈니스 룰 → 백엔드 비지니스 룰
+rule_pages:
+  docs/business-rules/rules/like.md:
+    domain: 좋아요
+    pages:
+      이용 자격: [LIKE-001]

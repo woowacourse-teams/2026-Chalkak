@@ -1,0 +1,53 @@
+version: 2
+mode: manual
+location: 찰캌 → 백엔드 → 비즈니스 룰 → 백엔드 비지니스 룰
+
+# 화면 조회 없이 안내할 위치. 새 페이지는 사용자에게 생성하도록 안내한다.
+rule_pages:
+  docs/business-rules/rules/user.md:
+    domain: 유저
+    pages:
+      가입과 로그인: [USER-001, USER-002]
+      회원 탈퇴: [USER-003, USER-004, USER-006]
+      탈퇴 후 재가입: [USER-005]
+  docs/business-rules/rules/post.md:
+    domain: 게시물
+    pages:
+      작성하기: [POST-001, POST-002, POST-003, POST-004, POST-005]
+      사진 처리와 검수: [POST-006]
+      공개와 조회: [POST-007, POST-008, POST-009]
+      삭제와 수정: [POST-010]
+  docs/business-rules/rules/topic.md:
+    domain: 주제
+    pages:
+      주제 구성: [TOPIC-001, TOPIC-002]
+      참여 기간과 상태: [TOPIC-003]
+      주제 생성·수정·삭제: [TOPIC-004]
+      사용자 조회: [TOPIC-005]
+  docs/business-rules/rules/sign.md:
+    domain: 사인
+    pages:
+      최초 등록: [SIGN-001]
+      이미지 조건: [SIGN-002]
+      사인 교체: [SIGN-003]
+      처리 실패와 재시도: [SIGN-004]
+      게시물에 표시되는 사인: [SIGN-005]
+      사인 삭제: [SIGN-006]
+  docs/business-rules/rules/like.md:
+    domain: 좋아요
+    pages:
+      이용 자격: [LIKE-001]
+      좋아요 대상: [LIKE-002]
+      등록과 취소: [LIKE-003]
+      표시와 집계: [LIKE-004]
+      게시물 삭제 시 처리: [LIKE-005]
+  docs/business-rules/rules/admin.md:
+    domain: 관리자
+    pages:
+      접근 권한: [ADMIN-001]
+      회원 상태 관리: [ADMIN-002]
+      게시물 검수: [ADMIN-003]
+      게시물 조회와 삭제: [ADMIN-004]
+      주제 관리: [ADMIN-005]
+      관리자 활동 기록: [ADMIN-006, ADMIN-007]
+      검수 요청 알림: [ADMIN-008]
