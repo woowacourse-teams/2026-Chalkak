@@ -33,7 +33,7 @@ class TopicRemoteDataSourceImplTest {
             .build()
         dataSource = TopicRemoteDataSourceImpl(
             topicApi = retrofit.create(TopicApi::class.java),
-            requestExecutor = ApiRequestExecutor(json, onUnauthorized = {}),
+            requestExecutor = ApiRequestExecutor(json),
         )
     }
 

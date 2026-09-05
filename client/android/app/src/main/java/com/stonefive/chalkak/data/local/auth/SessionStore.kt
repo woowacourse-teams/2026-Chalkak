@@ -11,9 +11,9 @@ interface SessionStore {
 
     suspend fun saveSession(credentials: SessionCredentials)
 
-    suspend fun clear()
+    suspend fun updateTokens(credentials: SessionCredentials): Boolean
 
-    suspend fun clearIfAccessTokenMatches(accessToken: String)
+    suspend fun clear()
 }
 
 sealed interface LocalSession {
@@ -30,6 +30,8 @@ data class SessionCredentials(
     val userId: String,
     val accessToken: String,
     val expiresAtEpochSeconds: Long,
+    val refreshToken: String,
+    val refreshTokenExpiresAtEpochSeconds: Long,
 )
 
 fun LocalSession.toUserSessionState(): UserSessionState = when (this) {

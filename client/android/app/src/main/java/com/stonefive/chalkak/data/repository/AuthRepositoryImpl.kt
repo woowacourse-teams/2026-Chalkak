@@ -1,11 +1,13 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.SessionCredentials
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.auth.AuthDataSource
 import com.stonefive.chalkak.data.remote.auth.model.response.SocialLoginResponse
+import com.stonefive.chalkak.data.remote.plusExpiresInSaturating
 import com.stonefive.chalkak.data.remote.signature.SignatureUploadResult
 import com.stonefive.chalkak.data.remote.signature.SignatureUploader
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
@@ -86,6 +88,12 @@ class AuthRepositoryImpl(
 
     override suspend fun logout() {
         pendingLogin = null
+        val refreshToken = (sessionStore.session.value as? LocalSession.Authenticated)
+            ?.credentials
+            ?.refreshToken
+        if (refreshToken != null) {
+            authDataSource.logout(refreshToken)
+        }
         sessionStore.clear()
     }
 
@@ -193,13 +201,16 @@ class AuthRepositoryImpl(
         statusCode == 400 &&
         errorCode == SIGNATURE_PROCESSING_PENDING
 
-    private fun SocialLoginResponse.LoginSuccess.toSessionCredentials() = SessionCredentials(
-        userId = userId,
-        accessToken = accessToken,
-        expiresAtEpochSeconds = currentEpochSeconds().let { now ->
-            if (expiresIn > Long.MAX_VALUE - now) Long.MAX_VALUE else now + expiresIn
-        },
-    )
+    private fun SocialLoginResponse.LoginSuccess.toSessionCredentials(): SessionCredentials {
+        val now = currentEpochSeconds()
+        return SessionCredentials(
+            userId = userId,
+            accessToken = accessToken,
+            expiresAtEpochSeconds = now.plusExpiresInSaturating(expiresIn),
+            refreshToken = refreshToken,
+            refreshTokenExpiresAtEpochSeconds = now.plusExpiresInSaturating(refreshTokenExpiresIn),
+        )
+    }
 
     private data class PendingSocialLogin(
         val provider: SocialLoginProvider,
