@@ -78,6 +78,33 @@ fun ChalkakNavHost(
         pendingMessage = UiMessage.Toast(id = nextMessageId++, text = text)
     }
 
+    val navigateToLogin: () -> Unit = {
+        navController.navigate(Login) {
+            popUpTo<Today> { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    val openPhotoUpload: () -> Unit = {
+        if (sessionState is UserSessionState.Authenticated) {
+            navController.navigateToPhotoUpload()
+        } else {
+            showToast(PHOTO_UPLOAD_LOGIN_REQUIRED_MESSAGE)
+            navigateToLogin()
+        }
+    }
+
+    val navigateToBottomBar: (ChalkakBottomBarItem) -> Unit = { item ->
+        if (item == ChalkakBottomBarItem.RECORD &&
+            sessionState !is UserSessionState.Authenticated
+        ) {
+            showToast(RECORD_LOGIN_REQUIRED_MESSAGE)
+            navigateToLogin()
+        } else {
+            navController.navigateToBottomBar(item, analyticsTracker)
+        }
+    }
+
     val legalDocumentLauncher = remember {
         LegalDocumentLauncher(
             showLegalDocument = { selectedLegalDocument = it },
@@ -205,10 +232,8 @@ fun ChalkakNavHost(
 
         composable<Today> {
             HomeRoute(
-                onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = { item ->
-                    navController.navigateToBottomBar(item, analyticsTracker)
-                },
+                onOpenPhotoUpload = openPhotoUpload,
+                onNavigateToBottomBar = navigateToBottomBar,
             )
         }
 
@@ -216,10 +241,8 @@ fun ChalkakNavHost(
             val display = backStackEntry.toRoute<Display>()
 
             DisplayRoute(
-                onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = { item ->
-                    navController.navigateToBottomBar(item, analyticsTracker)
-                },
+                onOpenPhotoUpload = openPhotoUpload,
+                onNavigateToBottomBar = navigateToBottomBar,
                 initialDate = display.date.toLocalDateOrNull(),
                 onOpenFeed = { post, dateLabel, topic ->
                     if (sessionState is UserSessionState.Authenticated) {
@@ -304,10 +327,8 @@ fun ChalkakNavHost(
                 .collectAsStateWithLifecycle()
 
             RecordRoute(
-                onOpenPhotoUpload = navController::navigateToPhotoUpload,
-                onNavigateToBottomBar = { item ->
-                    navController.navigateToBottomBar(item, analyticsTracker)
-                },
+                onOpenPhotoUpload = openPhotoUpload,
+                onNavigateToBottomBar = navigateToBottomBar,
                 onOpenFeed = { postId ->
                     navController.navigate(
                         FeedById(
@@ -319,12 +340,7 @@ fun ChalkakNavHost(
                 onOpenDisplay = { date ->
                     navController.navigateToDisplay(date)
                 },
-                onNavigateToLogin = {
-                    navController.navigate(Login) {
-                        popUpTo<Today> { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
+                onNavigateToLogin = navigateToLogin,
                 deletedPostId = deletedPostId,
                 onDeletedPostConsumed = {
                     backStackEntry.savedStateHandle[POST_DELETED_KEY] = null
@@ -348,10 +364,8 @@ fun ChalkakNavHost(
                 onOpenTerms = {
                     legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                 },
-                onNavigateToBottomBar = { item ->
-                    navController.navigateToBottomBar(item, analyticsTracker)
-                },
-                onOpenPhotoUpload = navController::navigateToPhotoUpload,
+                onNavigateToBottomBar = navigateToBottomBar,
+                onOpenPhotoUpload = openPhotoUpload,
             )
         }
 
@@ -448,6 +462,8 @@ private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
+private const val PHOTO_UPLOAD_LOGIN_REQUIRED_MESSAGE = "게시물을 추가하려면 로그인이 필요해요"
+private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
