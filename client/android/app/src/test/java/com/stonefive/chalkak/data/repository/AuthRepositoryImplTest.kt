@@ -349,6 +349,13 @@ private class FakeSessionStore : SessionStore {
         mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
+    override suspend fun updateTokens(credentials: SessionCredentials): Boolean {
+        val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials
+        if (current == null || current.userId != credentials.userId) return false
+        saveSession(credentials)
+        return true
+    }
+
     override suspend fun clear() {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut

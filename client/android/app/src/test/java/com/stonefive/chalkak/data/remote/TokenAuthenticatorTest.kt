@@ -122,6 +122,41 @@ class TokenAuthenticatorTest {
     }
 
     @Test
+    fun `재발급이 완료되기 전에 로그아웃되면 세션을 되살리지 않고 재시도하지 않는다`() {
+        val store = FakeSessionStore(authenticated("old-access-token", "old-refresh-token"))
+        val refresher = MutatingTokenRefresher(
+            result = TokenRefreshResult.Success(authenticated("new-access-token", "new-refresh-token")),
+            beforeReturn = { store.clear() },
+        )
+        val authenticator = TokenAuthenticator(store, refresher, json)
+
+        val retry = authenticator.authenticate(null, response401TaggedWith("old-access-token"))
+
+        assertNull(retry)
+        assertEquals(UserSessionState.SignedOut, store.sessionState.value)
+    }
+
+    @Test
+    fun `재발급이 완료되기 전에 다른 계정으로 로그인되면 기존 사용자를 덮지 않는다`() {
+        val store = FakeSessionStore(authenticated("old-access-token", "old-refresh-token"))
+        val refresher = MutatingTokenRefresher(
+            result = TokenRefreshResult.Success(authenticated("new-access-token", "new-refresh-token")),
+            beforeReturn = {
+                store.saveSession(
+                    authenticated("user2-access-token", "user2-refresh-token", userId = "user-2"),
+                )
+            },
+        )
+        val authenticator = TokenAuthenticator(store, refresher, json)
+
+        val retry = authenticator.authenticate(null, response401TaggedWith("old-access-token"))
+
+        assertNull(retry)
+        assertEquals(UserSessionState.Authenticated("user-2"), store.sessionState.value)
+        assertEquals("user2-access-token", currentAccessToken(store))
+    }
+
+    @Test
     fun `재발급 후 재시도까지 실패하면 더 이상 재발급하지 않는다`() {
         val store = FakeSessionStore(authenticated("old-access-token", "old-refresh-token"))
         val refresher = FakeTokenRefresher(
@@ -252,8 +287,9 @@ class TokenAuthenticatorTest {
     private fun authenticated(
         accessToken: String,
         refreshToken: String,
+        userId: String = "user-id",
     ): SessionCredentials = SessionCredentials(
-        userId = "user-id",
+        userId = userId,
         accessToken = accessToken,
         expiresAtEpochSeconds = Long.MAX_VALUE,
         refreshToken = refreshToken,
@@ -269,6 +305,19 @@ private class FakeTokenRefresher(private val result: TokenRefreshResult) : Token
         refreshToken: String,
     ): TokenRefreshResult {
         callCount.incrementAndGet()
+        return result
+    }
+}
+
+private class MutatingTokenRefresher(
+    private val result: TokenRefreshResult,
+    private val beforeReturn: suspend () -> Unit,
+) : TokenRefresher {
+    override suspend fun refresh(
+        userId: String,
+        refreshToken: String,
+    ): TokenRefreshResult {
+        beforeReturn()
         return result
     }
 }
@@ -290,6 +339,13 @@ private class FakeSessionStore(initialCredentials: SessionCredentials) : Session
     override suspend fun saveSession(credentials: SessionCredentials) {
         mutableSession.value = LocalSession.Authenticated(credentials)
         mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
+    }
+
+    override suspend fun updateTokens(credentials: SessionCredentials): Boolean {
+        val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials
+        if (current == null || current.userId != credentials.userId) return false
+        saveSession(credentials)
+        return true
     }
 
     override suspend fun clear() {

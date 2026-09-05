@@ -44,8 +44,12 @@ class TokenAuthenticator(
                 val result = runBlocking { tokenRefresher.refresh(latest.userId, latest.refreshToken) }
             ) {
                 is TokenRefreshResult.Success -> {
-                    runBlocking { sessionStore.saveSession(result.credentials) }
-                    response.request.withAccessToken(result.credentials.accessToken)
+                    val applied = runBlocking { sessionStore.updateTokens(result.credentials) }
+                    if (applied) {
+                        response.request.withAccessToken(result.credentials.accessToken)
+                    } else {
+                        null
+                    }
                 }
 
                 TokenRefreshResult.ReauthenticationRequired -> {

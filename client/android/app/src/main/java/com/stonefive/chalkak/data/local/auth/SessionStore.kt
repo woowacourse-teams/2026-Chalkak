@@ -11,6 +11,8 @@ interface SessionStore {
 
     suspend fun saveSession(credentials: SessionCredentials)
 
+    suspend fun updateTokens(credentials: SessionCredentials): Boolean
+
     suspend fun clear()
 }
 

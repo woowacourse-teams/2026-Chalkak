@@ -82,26 +82,46 @@ class UserSessionStore(
     }
 
     override suspend fun saveSession(credentials: SessionCredentials) {
+        validate(credentials)
+        sessionMutex.withLock {
+            persist(credentials)
+        }
+    }
+
+    override suspend fun updateTokens(credentials: SessionCredentials): Boolean {
+        validate(credentials)
+        return sessionMutex.withLock {
+            val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials
+            if (current == null || current.userId != credentials.userId) {
+                false
+            } else {
+                persist(credentials)
+                true
+            }
+        }
+    }
+
+    private fun validate(credentials: SessionCredentials) {
         require(credentials.userId.isNotBlank())
         require(credentials.accessToken.isNotBlank())
         require(credentials.refreshToken.isNotBlank())
         require(credentials.refreshTokenExpiresAtEpochSeconds > currentEpochSeconds())
+    }
 
-        sessionMutex.withLock {
-            val encryptedAccessToken = tokenCipher.encrypt(credentials.accessToken)
-            val encryptedRefreshToken = tokenCipher.encrypt(credentials.refreshToken)
-            dataStore.edit { preferences ->
-                preferences[userIdKey] = credentials.userId
-                preferences[encryptedAccessTokenKey] = encryptedAccessToken
-                preferences[expiresAtEpochSecondsKey] = credentials.expiresAtEpochSeconds
-                preferences[encryptedRefreshTokenKey] = encryptedRefreshToken
-                preferences[refreshTokenExpiresAtEpochSecondsKey] =
-                    credentials.refreshTokenExpiresAtEpochSeconds
-                preferences.remove(legacyPlaintextAccessTokenKey)
-                preferences.remove(isGuestKey)
-            }
-            publish(LocalSession.Authenticated(credentials))
+    private suspend fun persist(credentials: SessionCredentials) {
+        val encryptedAccessToken = tokenCipher.encrypt(credentials.accessToken)
+        val encryptedRefreshToken = tokenCipher.encrypt(credentials.refreshToken)
+        dataStore.edit { preferences ->
+            preferences[userIdKey] = credentials.userId
+            preferences[encryptedAccessTokenKey] = encryptedAccessToken
+            preferences[expiresAtEpochSecondsKey] = credentials.expiresAtEpochSeconds
+            preferences[encryptedRefreshTokenKey] = encryptedRefreshToken
+            preferences[refreshTokenExpiresAtEpochSecondsKey] =
+                credentials.refreshTokenExpiresAtEpochSeconds
+            preferences.remove(legacyPlaintextAccessTokenKey)
+            preferences.remove(isGuestKey)
         }
+        publish(LocalSession.Authenticated(credentials))
     }
 
     override suspend fun clear() {
