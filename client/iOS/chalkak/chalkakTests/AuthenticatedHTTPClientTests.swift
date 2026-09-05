@@ -4,6 +4,37 @@ import Testing
 
 @Suite(.serialized)
 struct AuthenticatedHTTPClientTests {
+    @Test("토큰 없이 보낸 게스트 요청의 401은 세션을 지우거나 refresh하지 않는다")
+    func guestUnauthorizedResponseDoesNotInvalidateSession() async throws {
+        for errorCode in ["UNAUTHORIZED", "REAUTHENTICATION_REQUIRED"] {
+            let sessionBox = TestAuthSessionBox(accessToken: "", refreshToken: "")
+            let recorder = AuthenticatedRequestRecorder()
+            AuthenticatedMockURLProtocol.install { request in
+                await recorder.append(request)
+                return Self.response(
+                    for: request,
+                    statusCode: 401,
+                    body: #"{"errorCode":"\#(errorCode)"}"#
+                )
+            }
+            defer {
+                AuthenticatedMockURLProtocol.uninstall()
+            }
+
+            let client = Self.client(sessionBox: sessionBox)
+            let request = URLRequest(url: URL(string: "https://example.com/api/v1/protected")!)
+
+            let (_, response) = try await client.data(for: request)
+
+            let requests = await recorder.requests
+            #expect(response.statusCode == 401)
+            #expect(requests.count == 1)
+            #expect(requests.first?.value(forHTTPHeaderField: "Authorization") == nil)
+            #expect(await sessionBox.invalidateCount == 0)
+            #expect(await sessionBox.savedTokens.isEmpty)
+        }
+    }
+
     @Test("동시 401 응답은 refresh API 하나를 공유하고 새 토큰으로 원 요청을 재시도한다")
     func sharesSingleRefreshAcrossConcurrentUnauthorizedResponses() async throws {
         let sessionBox = TestAuthSessionBox()
@@ -65,6 +96,86 @@ struct AuthenticatedHTTPClientTests {
             )
         ])
         #expect(await sessionBox.invalidateCount == 0)
+    }
+
+    @Test("늦게 도착한 재인증 응답은 새 토큰으로 한 번 재시도하고 세션을 지우지 않는다")
+    func retriesLateReauthenticationResponseWithNewSessionToken() async throws {
+        let sessionBox = TestAuthSessionBox()
+        let recorder = AuthenticatedRequestRecorder()
+        AuthenticatedMockURLProtocol.install { request in
+            await recorder.append(request)
+            if request.value(forHTTPHeaderField: "Authorization") == "Bearer access-1" {
+                await sessionBox.save(
+                    RefreshedTokens(
+                        accessToken: "access-2",
+                        expiresIn: 900,
+                        refreshToken: "refresh-2",
+                        refreshTokenExpiresIn: 2_592_000
+                    )
+                )
+                return Self.response(
+                    for: request,
+                    statusCode: 401,
+                    body: #"{"errorCode":"REAUTHENTICATION_REQUIRED"}"#
+                )
+            }
+            return Self.response(for: request, body: #"{"ok":true}"#)
+        }
+        defer { AuthenticatedMockURLProtocol.uninstall() }
+
+        let client = Self.client(sessionBox: sessionBox)
+        let request = URLRequest(url: URL(string: "https://example.com/api/v1/protected")!)
+
+        let (data, response) = try await client.data(for: request)
+
+        let requests = await recorder.requests
+        #expect(response.statusCode == 200)
+        #expect(String(data: data, encoding: .utf8) == #"{"ok":true}"#)
+        #expect(requests.count == 2)
+        #expect(requests.map { $0.value(forHTTPHeaderField: "Authorization") } == [
+            "Bearer access-1",
+            "Bearer access-2"
+        ])
+        #expect(await sessionBox.invalidateCount == 0)
+    }
+
+    @Test("새 토큰 재시도도 재인증 필요면 현재 세션을 지운다")
+    func invalidatesWhenReplacementTokenRetryRequiresReauthentication() async {
+        let sessionBox = TestAuthSessionBox()
+        let recorder = AuthenticatedRequestRecorder()
+        AuthenticatedMockURLProtocol.install { request in
+            await recorder.append(request)
+            if request.value(forHTTPHeaderField: "Authorization") == "Bearer access-1" {
+                await sessionBox.save(
+                    RefreshedTokens(
+                        accessToken: "access-2",
+                        expiresIn: 900,
+                        refreshToken: "refresh-2",
+                        refreshTokenExpiresIn: 2_592_000
+                    )
+                )
+            }
+            return Self.response(
+                for: request,
+                statusCode: 401,
+                body: #"{"errorCode":"REAUTHENTICATION_REQUIRED"}"#
+            )
+        }
+        defer { AuthenticatedMockURLProtocol.uninstall() }
+
+        let client = Self.client(sessionBox: sessionBox)
+        let request = URLRequest(url: URL(string: "https://example.com/api/v1/protected")!)
+
+        await #expect(throws: AuthenticatedHTTPClientError.reauthenticationRequired) {
+            try await client.data(for: request)
+        }
+
+        let requests = await recorder.requests
+        #expect(requests.map { $0.value(forHTTPHeaderField: "Authorization") } == [
+            "Bearer access-1",
+            "Bearer access-2"
+        ])
+        #expect(await sessionBox.invalidateCount == 1)
     }
 
     @Test("REAUTHENTICATION_REQUIRED 응답은 세션을 지우고 refresh를 호출하지 않는다")
@@ -204,6 +315,11 @@ private actor TestAuthSessionBox {
     private(set) var savedTokens: [RefreshedTokens] = []
     private(set) var invalidateCount = 0
     private var accessTokenWaiters: [(String, CheckedContinuation<Void, Never>)] = []
+
+    init(accessToken: String = "access-1", refreshToken: String = "refresh-1") {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+    }
 
     func save(_ tokens: RefreshedTokens) {
         savedTokens.append(tokens)

@@ -93,11 +93,31 @@ struct AuthenticatedHTTPClient: Sendable {
             return initial
         }
 
+        if let replacementAccessToken = await replacementAccessToken(afterAuthFailureFor: sentAccessToken) {
+            let retried = try await response(for: authorized(request, accessToken: replacementAccessToken))
+            if retried.response.statusCode == 401,
+               errorCode(in: retried.data) == ErrorCode.reauthenticationRequired {
+                guard await authFailureBelongsToCurrentSession(failedAccessToken: replacementAccessToken) else {
+                    return retried
+                }
+                await invalidateSession()
+                throw AuthenticatedHTTPClientError.reauthenticationRequired
+            }
+            return retried
+        }
+
         switch errorCode(in: initial.data) {
         case ErrorCode.reauthenticationRequired:
+            guard await authFailureBelongsToCurrentSession(failedAccessToken: sentAccessToken) else {
+                return initial
+            }
             await invalidateSession()
             throw AuthenticatedHTTPClientError.reauthenticationRequired
         case ErrorCode.unauthorized:
+            guard hasUsableToken(sentAccessToken) else {
+                return initial
+            }
+
             let accessToken: String
             do {
                 accessToken = try await refreshCoordinator.accessToken(
@@ -116,6 +136,9 @@ struct AuthenticatedHTTPClient: Sendable {
             let retried = try await response(for: authorized(request, accessToken: accessToken))
             if retried.response.statusCode == 401,
                errorCode(in: retried.data) == ErrorCode.reauthenticationRequired {
+                guard await authFailureBelongsToCurrentSession(failedAccessToken: accessToken) else {
+                    return retried
+                }
                 await invalidateSession()
                 throw AuthenticatedHTTPClientError.reauthenticationRequired
             }
@@ -168,6 +191,32 @@ struct AuthenticatedHTTPClient: Sendable {
             request.setValue(nil, forHTTPHeaderField: "Authorization")
         }
         return request
+    }
+
+    private func replacementAccessToken(afterAuthFailureFor failedAccessToken: String?) async -> String? {
+        guard let currentAccessToken = usableToken(await sessionStore.accessToken()),
+              currentAccessToken != usableToken(failedAccessToken) else {
+            return nil
+        }
+        return currentAccessToken
+    }
+
+    private func authFailureBelongsToCurrentSession(failedAccessToken: String?) async -> Bool {
+        guard let failedAccessToken = usableToken(failedAccessToken) else {
+            return false
+        }
+        return usableToken(await sessionStore.accessToken()) == failedAccessToken
+    }
+
+    private func hasUsableToken(_ token: String?) -> Bool {
+        usableToken(token) != nil
+    }
+
+    private func usableToken(_ token: String?) -> String? {
+        guard let token, !token.isEmpty else {
+            return nil
+        }
+        return token
     }
 
     private func response(for request: URLRequest) async throws -> (data: Data, response: HTTPURLResponse) {
