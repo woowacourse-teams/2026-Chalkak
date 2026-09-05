@@ -74,7 +74,7 @@ struct APIAuthRepositoryTests {
         #expect(jsonBody(requests[4]) == ["signupToken": "signup-token"])
     }
 
-    @Test("로그아웃은 리프레시 토큰을 body로 보내고 로컬 세션을 삭제한다")
+    @Test("로그아웃은 로컬 세션을 먼저 삭제하고 리프레시 토큰을 body로 보낸다")
     func logsOutWithRefreshToken() async throws {
         try KeychainSessionStore.save(
             userID: "user-1",
@@ -84,7 +84,8 @@ struct APIAuthRepositoryTests {
             refreshTokenExpiresIn: 2_592_000
         )
         MockAuthURLProtocol.install { request in
-            .response(statusCode: 204, body: Data())
+            #expect(!KeychainSessionStore.hasAuthenticatedSession())
+            return .response(statusCode: 204, body: Data())
         }
         defer {
             KeychainSessionStore.delete()

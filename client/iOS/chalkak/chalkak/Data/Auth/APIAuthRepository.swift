@@ -127,8 +127,9 @@ final class APIAuthRepository: AuthRepository {
 
     func logout() async {
         pendingLogin = nil
-        defer { KeychainSessionStore.delete() }
-        guard let refreshToken = KeychainSessionStore.refreshToken(),
+        let refreshToken = KeychainSessionStore.refreshToken()
+        KeychainSessionStore.delete()
+        guard let refreshToken,
               let endpoint = try? apiURL(path: "auth/logout"),
               let body = try? JSONEncoder().encode(RefreshTokenRequest(refreshToken: refreshToken))
         else { return }
