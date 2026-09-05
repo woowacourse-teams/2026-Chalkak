@@ -12,8 +12,7 @@ struct FeedAPIClient: Sendable {
     typealias AccessTokenProvider = @Sendable () async -> String?
 
     private let configuration: FeedAPIConfiguration
-    private let session: URLSession
-    private let accessTokenProvider: AccessTokenProvider
+    private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
 
     init(
@@ -22,8 +21,11 @@ struct FeedAPIClient: Sendable {
         accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
         self.configuration = configuration
-        self.session = session
-        self.accessTokenProvider = accessTokenProvider
+        self.authenticatedClient = AuthenticatedHTTPClient(
+            baseURL: configuration.baseURL,
+            session: session,
+            sessionStore: .live(accessTokenProvider: accessTokenProvider)
+        )
         self.decoder = JSONDecoder()
     }
 
@@ -60,15 +62,9 @@ struct FeedAPIClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = await accessTokenProvider(), !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw FeedAPIError.invalidResponse
-            }
+            let (data, httpResponse) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(httpResponse.statusCode) else {
                 throw FeedAPIError.http(httpResponse.statusCode)
             }
@@ -82,6 +78,10 @@ struct FeedAPIClient: Sendable {
             }
         } catch let error as FeedAPIError {
             throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw FeedAPIError.http(401)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw FeedAPIError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {

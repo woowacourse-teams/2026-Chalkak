@@ -5,7 +5,7 @@ struct SettingsAPIClient: Sendable {
 
     private let baseURL: URL?
     private let session: URLSession
-    private let accessTokenProvider: AccessTokenProvider
+    private let authenticatedClient: AuthenticatedHTTPClient?
     private let decoder = JSONDecoder()
 
     init(
@@ -15,7 +15,13 @@ struct SettingsAPIClient: Sendable {
     ) {
         self.baseURL = baseURL
         self.session = session
-        self.accessTokenProvider = accessTokenProvider
+        self.authenticatedClient = baseURL.map {
+            AuthenticatedHTTPClient(
+                baseURL: $0,
+                session: session,
+                sessionStore: .live(accessTokenProvider: accessTokenProvider)
+            )
+        }
     }
 
     func fetchSignature() async throws -> URL? {
@@ -109,20 +115,18 @@ struct SettingsAPIClient: Sendable {
         guard url.scheme?.lowercased() == "https" else {
             throw SettingsAPIError.configuration
         }
-        guard let token = await accessTokenProvider(), !token.isEmpty else {
-            throw SettingsAPIError.unauthorized
-        }
-
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
 
-        return try await data(for: request)
+        guard let authenticatedClient else {
+            throw SettingsAPIError.configuration
+        }
+        return try await authenticatedData(for: request, client: authenticatedClient)
     }
 
     private func upload(_ data: Data, to url: URL) async throws {
@@ -146,6 +150,34 @@ struct SettingsAPIClient: Sendable {
                 throw SettingsAPIError.http(httpResponse.statusCode)
             }
             return data
+        } catch let error as SettingsAPIError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw SettingsAPIError.network
+        }
+    }
+
+    private func authenticatedData(
+        for request: URLRequest,
+        client: AuthenticatedHTTPClient
+    ) async throws -> Data {
+        do {
+            let (data, response) = try await client.data(for: request)
+            guard (200..<300).contains(response.statusCode) else {
+                if response.statusCode == 401 {
+                    throw SettingsAPIError.unauthorized
+                }
+                throw SettingsAPIError.http(response.statusCode)
+            }
+            return data
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw SettingsAPIError.unauthorized
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw SettingsAPIError.invalidResponse
         } catch let error as SettingsAPIError {
             throw error
         } catch is CancellationError {

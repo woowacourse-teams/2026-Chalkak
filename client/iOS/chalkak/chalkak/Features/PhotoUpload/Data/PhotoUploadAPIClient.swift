@@ -13,7 +13,7 @@ struct PhotoUploadAPIClient: Sendable {
 
     private let configuration: PhotoUploadAPIConfiguration
     private let session: URLSession
-    private let accessTokenProvider: AccessTokenProvider
+    private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
@@ -24,7 +24,11 @@ struct PhotoUploadAPIClient: Sendable {
     ) {
         self.configuration = configuration
         self.session = session
-        self.accessTokenProvider = accessTokenProvider
+        self.authenticatedClient = AuthenticatedHTTPClient(
+            baseURL: configuration.baseURL,
+            session: session,
+            sessionStore: .live(accessTokenProvider: accessTokenProvider)
+        )
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
     }
@@ -151,15 +155,9 @@ struct PhotoUploadAPIClient: Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = body
         }
-        if let token = await accessTokenProvider(), token.isEmpty == false {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw PhotoUploadAPIError.invalidResponse
-            }
+            let (data, httpResponse) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(httpResponse.statusCode) else {
                 let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data)
                 throw PhotoUploadAPIError.http(
@@ -177,6 +175,10 @@ struct PhotoUploadAPIClient: Sendable {
             }
         } catch let error as PhotoUploadAPIError {
             throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw PhotoUploadAPIError.http(statusCode: 401, message: nil)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw PhotoUploadAPIError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {
