@@ -167,9 +167,11 @@ struct ContentView: View {
     }
 
     private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
-        FeedViewModel(
+        let baseURL = Self.resolvedAPIBaseURL
+        return FeedViewModel(
             target: target,
             apiClient: FeedAPIClient(
+                configuration: FeedAPIConfiguration(baseURL: baseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
@@ -271,7 +273,9 @@ struct ContentView: View {
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
+        let baseURL = resolvedAPIBaseURL
         let apiClient = HomeAPIClient(
+            configuration: HomeAPIConfiguration(baseURL: baseURL),
             accessTokenProvider: { KeychainSessionStore.accessToken() }
         )
         return HomeViewModel(
@@ -296,12 +300,18 @@ struct ContentView: View {
     }
 
     private static func makeDisplayViewModel(initialDate: Date? = nil) -> DisplayViewModel {
-        DisplayViewModel(initialDate: initialDate, apiClient: DisplayAPIClient())
+        DisplayViewModel(
+            initialDate: initialDate,
+            apiClient: DisplayAPIClient(
+                configuration: DisplayAPIConfiguration(baseURL: resolvedAPIBaseURL)
+            )
+        )
     }
 
     private static func makeRecordViewModel() -> RecordViewModel {
         RecordViewModel(
             apiClient: RecordAPIClient(
+                configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
@@ -340,6 +350,10 @@ struct ContentView: View {
             topicDate: topicDate,
             repository: .api(client: apiClient)
         )
+    }
+
+    private static var resolvedAPIBaseURL: URL {
+        AppConfiguration().apiBaseURL ?? HomeAPIConfiguration.development.baseURL
     }
 
     private static var initialRoute: AppRoute {
