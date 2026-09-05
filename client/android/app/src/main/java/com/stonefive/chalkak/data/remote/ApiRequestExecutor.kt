@@ -7,10 +7,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.Response
 
-class ApiRequestExecutor(
-    private val json: Json,
-    private val onUnauthorized: suspend (accessToken: String) -> Unit,
-) {
+class ApiRequestExecutor(private val json: Json) {
     suspend fun <T> execute(block: suspend () -> Response<T>): ApiResult<T> = try {
         val response = block()
         if (response.isSuccessful) {
@@ -42,16 +39,7 @@ class ApiRequestExecutor(
         ApiResult.Failure(ApiError.InvalidResponse)
     }
 
-    private suspend fun createFailure(response: Response<*>): ApiResult<Nothing> {
-        if (response.code() == HTTP_UNAUTHORIZED) {
-            response
-                .raw()
-                .request
-                .tag(AuthorizationRequestContext::class.java)
-                ?.accessToken
-                ?.let { accessToken -> onUnauthorized(accessToken) }
-        }
-
+    private fun createFailure(response: Response<*>): ApiResult<Nothing> {
         val errorResponse = response
             .errorBody()
             ?.string()
@@ -67,8 +55,4 @@ class ApiRequestExecutor(
 
     private fun decodeError(body: String): ErrorResponse? =
         runCatching { json.decodeFromString<ErrorResponse>(body) }.getOrNull()
-
-    private companion object {
-        const val HTTP_UNAUTHORIZED = 401
-    }
 }

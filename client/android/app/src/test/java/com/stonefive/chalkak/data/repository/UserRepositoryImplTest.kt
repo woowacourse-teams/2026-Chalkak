@@ -167,6 +167,8 @@ private class FakeUserSessionStore : SessionStore {
             userId = "user-id",
             accessToken = "access-token",
             expiresAtEpochSeconds = Long.MAX_VALUE,
+            refreshToken = "refresh-token",
+            refreshTokenExpiresAtEpochSeconds = Long.MAX_VALUE,
         )
         mutableSession.value = LocalSession.Authenticated(credentials)
         mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
@@ -185,10 +187,5 @@ private class FakeUserSessionStore : SessionStore {
     override suspend fun clear() {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
-    }
-
-    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
-        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
-        if (currentToken == accessToken) clear()
     }
 }

@@ -43,6 +43,8 @@ class AuthRepositoryImplTest {
                 userId = "user-id",
                 accessToken = "access-token",
                 expiresIn = 3_600,
+                refreshToken = "refresh-token",
+                refreshTokenExpiresIn = 2_592_000,
             ),
         )
 
@@ -58,6 +60,8 @@ class AuthRepositoryImplTest {
                     userId = "user-id",
                     accessToken = "access-token",
                     expiresAtEpochSeconds = CURRENT_EPOCH_SECONDS + 3_600,
+                    refreshToken = "refresh-token",
+                    refreshTokenExpiresAtEpochSeconds = CURRENT_EPOCH_SECONDS + 2_592_000,
                 ),
             ),
             sessionStore.session.value,
@@ -71,6 +75,8 @@ class AuthRepositoryImplTest {
                 userId = "user-id",
                 accessToken = "access-token",
                 expiresIn = 3_600,
+                refreshToken = "refresh-token",
+                refreshTokenExpiresIn = 2_592_000,
             ),
         )
 
@@ -94,6 +100,8 @@ class AuthRepositoryImplTest {
                 userId = "new-user-id",
                 accessToken = "access-token",
                 expiresIn = 3_600,
+                refreshToken = "refresh-token",
+                refreshTokenExpiresIn = 2_592_000,
             ),
         )
 
@@ -120,6 +128,8 @@ class AuthRepositoryImplTest {
                 userId = "new-user-id",
                 accessToken = "access-token",
                 expiresIn = 3_600,
+                refreshToken = "refresh-token",
+                refreshTokenExpiresIn = 2_592_000,
             ),
         )
         val signaturePng = byteArrayOf(1, 2, 3)
@@ -182,6 +192,34 @@ class AuthRepositoryImplTest {
         )
         assertEquals(1, uploader.uploadCount)
         assertEquals(0, authDataSource.signUpCount)
+    }
+
+    @Test
+    fun `로그아웃은 저장된 refresh token으로 서버 세션을 끊고 로컬 세션을 정리한다`() = runTest {
+        authDataSource.loginResult = ApiResult.Success(
+            SocialLoginResponse.LoginSuccess(
+                userId = "user-id",
+                accessToken = "access-token",
+                expiresIn = 900,
+                refreshToken = "refresh-token",
+                refreshTokenExpiresIn = 2_592_000,
+            ),
+        )
+        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+
+        repository.logout()
+
+        assertEquals(1, authDataSource.logoutCount)
+        assertEquals("refresh-token", authDataSource.logoutRefreshToken)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+    }
+
+    @Test
+    fun `세션이 없으면 로그아웃은 서버를 호출하지 않고 로컬만 정리한다`() = runTest {
+        repository.logout()
+
+        assertEquals(0, authDataSource.logoutCount)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
     }
 
     @Test
@@ -268,6 +306,15 @@ private class FakeAuthDataSource : AuthDataSource {
         signupTokens += signupToken
         return signUpResults.removeFirst()
     }
+
+    var logoutRefreshToken: String? = null
+    var logoutCount = 0
+
+    override suspend fun logout(refreshToken: String): ApiResult<Unit> {
+        logoutRefreshToken = refreshToken
+        logoutCount += 1
+        return ApiResult.Success(Unit)
+    }
 }
 
 private class FakeSignatureUploader : SignatureUploader {
@@ -305,10 +352,5 @@ private class FakeSessionStore : SessionStore {
     override suspend fun clear() {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
-    }
-
-    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
-        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
-        if (currentToken == accessToken) clear()
     }
 }

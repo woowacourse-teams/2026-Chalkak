@@ -3,14 +3,12 @@ package com.stonefive.chalkak.data.remote.user
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.user.model.SignatureUpdateResponse
 import com.stonefive.chalkak.data.remote.user.model.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -23,7 +21,6 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class UserDataSourceImplTest {
     private lateinit var server: MockWebServer
     private lateinit var dataSource: UserDataSourceImpl
-    private var unauthorizedAccessToken: String? = null
 
     @Before
     fun setUp() {
@@ -33,28 +30,12 @@ class UserDataSourceImplTest {
         val api = Retrofit
             .Builder()
             .baseUrl(server.url("/api/v1/"))
-            .client(
-                OkHttpClient
-                    .Builder()
-                    .addInterceptor { chain ->
-                        val request = chain
-                            .request()
-                            .newBuilder()
-                            .tag(
-                                AuthorizationRequestContext::class.java,
-                                AuthorizationRequestContext("request-access-token"),
-                            ).build()
-                        chain.proceed(request)
-                    }.build(),
-            ).addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(UserApi::class.java)
-        unauthorizedAccessToken = null
         dataSource = UserDataSourceImpl(
             api = api,
-            requestExecutor = ApiRequestExecutor(json) { accessToken ->
-                unauthorizedAccessToken = accessToken
-            },
+            requestExecutor = ApiRequestExecutor(json),
         )
     }
 
@@ -113,11 +94,10 @@ class UserDataSourceImplTest {
             ),
             result,
         )
-        assertEquals(null, unauthorizedAccessToken)
     }
 
     @Test
-    fun `내 서명 조회가 401이면 세션 무효화 처리를 호출한다`() = runTest {
+    fun `내 서명 조회 401을 Http 오류로 변환한다`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(401)
@@ -139,7 +119,6 @@ class UserDataSourceImplTest {
             ),
             result,
         )
-        assertEquals("request-access-token", unauthorizedAccessToken)
     }
 
     @Test
@@ -214,7 +193,7 @@ class UserDataSourceImplTest {
     }
 
     @Test
-    fun `회원탈퇴 401 응답은 세션 무효화와 HTTP 오류로 반환한다`() = runTest {
+    fun `회원탈퇴 401 응답을 HTTP 오류로 반환한다`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(401)
@@ -234,7 +213,6 @@ class UserDataSourceImplTest {
             ),
             result,
         )
-        assertEquals("request-access-token", unauthorizedAccessToken)
     }
 
     @Test
