@@ -133,32 +133,28 @@ class UserSessionStore(
     }
 
     private fun androidx.datastore.preferences.core.Preferences.toStoredSession(): LocalSession.Authenticated? {
-        val accessToken = this[encryptedAccessTokenKey]?.let(tokenCipher::decrypt)
-        val refreshToken = this[encryptedRefreshTokenKey]?.let(tokenCipher::decrypt)
-        val userId = this[userIdKey]
-        val expiresAt = this[expiresAtEpochSecondsKey]
-        val refreshTokenExpiresAt = this[refreshTokenExpiresAtEpochSecondsKey]
+        val userId = this[userIdKey]?.takeIf(String::isNotBlank) ?: return null
+        val accessToken = this[encryptedAccessTokenKey]
+            ?.let(tokenCipher::decrypt)
+            ?.takeIf(String::isNotBlank)
+            ?: return null
+        val refreshToken = this[encryptedRefreshTokenKey]
+            ?.let(tokenCipher::decrypt)
+            ?.takeIf(String::isNotBlank)
+            ?: return null
+        val expiresAt = this[expiresAtEpochSecondsKey] ?: return null
+        val refreshTokenExpiresAt = this[refreshTokenExpiresAtEpochSecondsKey] ?: return null
+        if (refreshTokenExpiresAt <= currentEpochSeconds()) return null
 
-        val sessionIsValid = !userId.isNullOrBlank() &&
-            !accessToken.isNullOrBlank() &&
-            !refreshToken.isNullOrBlank() &&
-            expiresAt != null &&
-            refreshTokenExpiresAt != null &&
-            refreshTokenExpiresAt > currentEpochSeconds()
-
-        return if (sessionIsValid) {
-            LocalSession.Authenticated(
-                SessionCredentials(
-                    userId = userId!!,
-                    accessToken = accessToken!!,
-                    expiresAtEpochSeconds = expiresAt!!,
-                    refreshToken = refreshToken!!,
-                    refreshTokenExpiresAtEpochSeconds = refreshTokenExpiresAt!!,
-                ),
-            )
-        } else {
-            null
-        }
+        return LocalSession.Authenticated(
+            SessionCredentials(
+                userId = userId,
+                accessToken = accessToken,
+                expiresAtEpochSeconds = expiresAt,
+                refreshToken = refreshToken,
+                refreshTokenExpiresAtEpochSeconds = refreshTokenExpiresAt,
+            ),
+        )
     }
 
     private fun publish(session: LocalSession) {
