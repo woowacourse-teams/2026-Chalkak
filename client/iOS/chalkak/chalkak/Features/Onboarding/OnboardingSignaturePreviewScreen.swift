@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct OnboardingSignaturePreviewScreen: View {
     @Environment(\.chalkakTheme) private var theme
@@ -65,45 +66,18 @@ private struct SignedPreviewImage: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()
 
-                SignatureArtwork(strokes: strokes)
-                    .foregroundStyle(theme.colors.textOnImage)
-                    .frame(
-                        width: Metrics.signatureSize.width,
-                        height: Metrics.signatureSize.height
-                    )
-                    .padding(theme.spacing.md)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-}
-
-private struct SignatureArtwork: View {
-    let strokes: [OnboardingSignatureStroke]
-
-    var body: some View {
-        Canvas { context, size in
-            for stroke in strokes where !stroke.points.isEmpty {
-                if stroke.points.count == 1, let point = stroke.points.first {
-                    context.fill(
-                        Path(ellipseIn: CGRect(
-                            x: point.cgPoint(in: size).x - Metrics.previewDotRadius,
-                            y: point.cgPoint(in: size).y - Metrics.previewDotRadius,
-                            width: Metrics.previewDotRadius * 2,
-                            height: Metrics.previewDotRadius * 2
-                        )),
-                        with: .foreground
-                    )
-                } else {
-                    context.stroke(
-                        stroke.smoothPath(in: size),
-                        with: .foreground,
-                        style: StrokeStyle(
-                            lineWidth: Metrics.previewStrokeWidth,
-                            lineCap: .round,
-                            lineJoin: .round
+                if let data = try? DefaultOnboardingSignaturePngEncoder().encode(strokes),
+                   let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(
+                            width: Metrics.signatureSize.width,
+                            height: Metrics.signatureSize.height
                         )
-                    )
+                        .padding(.trailing, theme.spacing.sm)
+                        .padding(.bottom, theme.spacing.sm)
+                        .accessibilityHidden(true)
                 }
             }
         }
@@ -117,8 +91,6 @@ private enum Metrics {
     static let buttonSpacing: CGFloat = 20
     static let bottomPadding: CGFloat = 18
     static let signatureSize = CGSize(width: 112, height: 84)
-    static let previewStrokeWidth: CGFloat = 4
-    static let previewDotRadius: CGFloat = 2
 }
 
 #Preview("Signature Preview") {

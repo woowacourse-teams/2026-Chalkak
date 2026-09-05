@@ -95,7 +95,7 @@ struct DefaultOnboardingSignaturePngEncoder: OnboardingSignaturePngEncoder {
         static let outputWidth: CGFloat = 1024
         static let outputHeight: CGFloat = 512
         static let padding: CGFloat = 48
-        static let strokeWidth: CGFloat = 4
+        static let strokeWidth: CGFloat = 14
         static let minimumNormalizedSize: CGFloat = 0.02
     }
 }

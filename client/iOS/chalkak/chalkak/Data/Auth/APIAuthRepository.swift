@@ -38,15 +38,41 @@ final class APIAuthRepository: AuthRepository {
         switch loginResponse.status {
         case "LOGIN_SUCCESS":
             let credentials = try loginResponse.validatedCredentials()
-            try KeychainSessionStore.save(
-                userID: credentials.userID,
-                accessToken: credentials.accessToken,
-                expiresIn: credentials.expiresIn
-            )
+            try KeychainSessionStore.save(credentials: credentials)
             pendingLogin = nil
             return .authenticated(userID: credentials.userID)
         case "SIGN_UP_REQUIRED":
-            pendingLogin = PendingSocialLogin(provider: provider, idToken: idToken)
+            pendingLogin = .social(provider: provider, idToken: idToken)
+            return .signUpRequired
+        default:
+            throw AuthRepositoryError.invalidResponse
+        }
+    }
+
+    func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult {
+        let endpoint = try apiURL(path: "auth/apple/social-login")
+        let data = try await requestData(
+            url: endpoint,
+            body: try JSONEncoder().encode(AppleLoginRequest(credential: credential))
+        )
+        let response: SocialLoginResponse
+        do {
+            response = try decoder.decode(SocialLoginResponse.self, from: data)
+        } catch {
+            throw AuthRepositoryError.invalidResponse
+        }
+
+        switch response.status {
+        case "LOGIN_SUCCESS":
+            let credentials = try response.validatedCredentials()
+            try KeychainSessionStore.save(credentials: credentials)
+            pendingLogin = nil
+            return .authenticated(userID: credentials.userID)
+        case "SIGN_UP_REQUIRED":
+            guard let signupToken = response.signupToken, !signupToken.isEmpty else {
+                throw AuthRepositoryError.invalidResponse
+            }
+            pendingLogin = .apple(signupToken: signupToken)
             return .signUpRequired
         default:
             throw AuthRepositoryError.invalidResponse
@@ -67,19 +93,10 @@ final class APIAuthRepository: AuthRepository {
 
             for attempt in 0..<Constants.signUpAttempts {
                 do {
-                    let response = try await completeSignUp(signupToken: upload.signupToken)
-                    guard !response.userID.isEmpty else {
-                        throw AuthRepositoryError.invalidResponse
-                    }
-
-                    // Android clears the pending context before re-authentication. This
-                    // prevents a failed re-authentication from submitting the same signup
-                    // context a second time.
+                    let credentials = try await completeSignUp(signupToken: upload.signupToken)
+                    try KeychainSessionStore.save(credentials: credentials)
                     self.pendingLogin = nil
-                    return try await authenticateAfterSignUp(
-                        userID: response.userID,
-                        login: pendingLogin
-                    )
+                    return .success(userID: credentials.userID)
                 } catch let error as AuthRepositoryError {
                     guard error.isSignatureProcessingPending else {
                         return .failure(error.signUpFailure)
@@ -132,12 +149,21 @@ final class APIAuthRepository: AuthRepository {
     private func createSignatureUpload(
         for login: PendingSocialLogin
     ) async throws -> SignatureUploadResponse {
-        let endpoint = try apiURL(path: "auth/social-signup/signature/uploads")
+        let endpoint: URL
+        let body: Data
+        switch login {
+        case let .social(provider, idToken):
+            endpoint = try apiURL(path: "auth/social-signup/signature/uploads")
+            body = try JSONEncoder().encode(
+                SignatureUploadRequest(provider: provider.rawValue, idToken: idToken)
+            )
+        case let .apple(signupToken):
+            endpoint = try apiURL(path: "auth/apple/social-signup/signature/uploads")
+            body = try JSONEncoder().encode(AppleSignatureUploadRequest(signupToken: signupToken))
+        }
         let data = try await requestData(
             url: endpoint,
-            body: try JSONEncoder().encode(
-                SignatureUploadRequest(provider: login.provider.rawValue, idToken: login.idToken)
-            )
+            body: body
         )
         do {
             let response = try decoder.decode(SignatureUploadResponse.self, from: data)
@@ -188,7 +214,7 @@ final class APIAuthRepository: AuthRepository {
         }
     }
 
-    private func completeSignUp(signupToken: String) async throws -> SocialSignUpResponse {
+    private func completeSignUp(signupToken: String) async throws -> LoginCredentials {
         let endpoint = try apiURL(path: "auth/social-signup")
         let data = try await requestData(
             url: endpoint,
@@ -196,31 +222,8 @@ final class APIAuthRepository: AuthRepository {
         )
         do {
             return try decoder.decode(SocialSignUpResponse.self, from: data)
+                .validatedCredentials()
         } catch {
-            throw AuthRepositoryError.invalidResponse
-        }
-    }
-
-    private func authenticateAfterSignUp(
-        userID: String,
-        login: PendingSocialLogin
-    ) async throws -> SocialSignUpResult {
-        let response = try await requestLogin(provider: login.provider, idToken: login.idToken)
-        switch response.status {
-        case "LOGIN_SUCCESS":
-            let credentials = try response.validatedCredentials()
-            guard credentials.userID == userID else {
-                return .failure(.reauthenticationRequired)
-            }
-            try KeychainSessionStore.save(
-                userID: credentials.userID,
-                accessToken: credentials.accessToken,
-                expiresIn: credentials.expiresIn
-            )
-            return .success(userID: userID)
-        case "SIGN_UP_REQUIRED":
-            return .failure(.reauthenticationRequired)
-        default:
             throw AuthRepositoryError.invalidResponse
         }
     }
@@ -277,9 +280,9 @@ final class APIAuthRepository: AuthRepository {
 
 typealias AuthRetryDelay = @Sendable (UInt64) async throws -> Void
 
-private struct PendingSocialLogin {
-    let provider: SocialLoginProvider
-    let idToken: String
+private enum PendingSocialLogin {
+    case social(provider: SocialLoginProvider, idToken: String)
+    case apple(signupToken: String)
 }
 
 private enum SignatureUploadError: Error {
@@ -309,9 +312,25 @@ private struct SocialLoginRequest: Encodable {
     let idToken: String
 }
 
+private struct AppleLoginRequest: Encodable {
+    let idToken: String
+    let authorizationCode: String
+    let rawNonce: String
+
+    init(credential: AppleLoginCredential) {
+        idToken = credential.idToken
+        authorizationCode = credential.authorizationCode
+        rawNonce = credential.rawNonce
+    }
+}
+
 private struct SignatureUploadRequest: Encodable {
     let provider: String
     let idToken: String
+}
+
+private struct AppleSignatureUploadRequest: Encodable {
+    let signupToken: String
 }
 
 private struct SocialSignUpRequest: Encodable {
@@ -323,27 +342,39 @@ private struct SocialLoginResponse: Decodable {
     let userID: String?
     let accessToken: String?
     let expiresIn: Int?
+    let refreshToken: String?
+    let refreshTokenExpiresIn: Int?
+    let signupToken: String?
 
     enum CodingKeys: String, CodingKey {
         case status
         case userID = "userId"
         case accessToken
         case expiresIn
+        case refreshToken
+        case refreshTokenExpiresIn
+        case signupToken
     }
 
     func validatedCredentials() throws -> LoginCredentials {
         guard let userID,
               let accessToken,
               let expiresIn,
+              let refreshToken,
+              let refreshTokenExpiresIn,
               !userID.isEmpty,
               !accessToken.isEmpty,
-              expiresIn > 0 else {
+              expiresIn > 0,
+              !refreshToken.isEmpty,
+              refreshTokenExpiresIn > 0 else {
             throw AuthRepositoryError.invalidResponse
         }
         return LoginCredentials(
             userID: userID,
             accessToken: accessToken,
-            expiresIn: expiresIn
+            expiresIn: expiresIn,
+            refreshToken: refreshToken,
+            refreshTokenExpiresIn: refreshTokenExpiresIn
         )
     }
 }
@@ -352,6 +383,8 @@ private struct LoginCredentials {
     let userID: String
     let accessToken: String
     let expiresIn: Int
+    let refreshToken: String
+    let refreshTokenExpiresIn: Int
 }
 
 private struct SignatureUploadResponse: Decodable {
@@ -372,9 +405,34 @@ private struct SignatureUploadResponse: Decodable {
 
 private struct SocialSignUpResponse: Decodable {
     let userID: String
+    let accessToken: String
+    let expiresIn: Int
+    let refreshToken: String
+    let refreshTokenExpiresIn: Int
 
     enum CodingKeys: String, CodingKey {
         case userID = "userId"
+        case accessToken
+        case expiresIn
+        case refreshToken
+        case refreshTokenExpiresIn
+    }
+
+    func validatedCredentials() throws -> LoginCredentials {
+        guard !userID.isEmpty,
+              !accessToken.isEmpty,
+              expiresIn > 0,
+              !refreshToken.isEmpty,
+              refreshTokenExpiresIn > 0 else {
+            throw AuthRepositoryError.invalidResponse
+        }
+        return LoginCredentials(
+            userID: userID,
+            accessToken: accessToken,
+            expiresIn: expiresIn,
+            refreshToken: refreshToken,
+            refreshTokenExpiresIn: refreshTokenExpiresIn
+        )
     }
 }
 
@@ -457,16 +515,31 @@ enum KeychainSessionStore {
     private static let userIDAccount = "user-id"
     private static let accessTokenAccount = "access-token"
     private static let expiresAtAccount = "expires-at-epoch-seconds"
+    private static let refreshTokenAccount = "refresh-token"
+    private static let refreshTokenExpiresAtAccount = "refresh-token-expires-at-epoch-seconds"
     private static let guestAccessKey = "stonefive.chalkak.guest-access"
 
-    static func save(userID: String, accessToken: String, expiresIn: Int) throws {
-        guard !userID.isEmpty, !accessToken.isEmpty, expiresIn > 0 else {
+    static func save(
+        userID: String,
+        accessToken: String,
+        expiresIn: Int,
+        refreshToken: String,
+        refreshTokenExpiresIn: Int
+    ) throws {
+        guard !userID.isEmpty,
+              !accessToken.isEmpty,
+              expiresIn > 0,
+              !refreshToken.isEmpty,
+              refreshTokenExpiresIn > 0 else {
             throw AuthRepositoryError.invalidResponse
         }
 
-        let (expiresAt, overflow) = Int64(Date().timeIntervalSince1970)
-            .addingReportingOverflow(Int64(expiresIn))
-        guard !overflow else {
+        let now = Int64(Date().timeIntervalSince1970)
+        let (expiresAt, accessTokenExpiryOverflow) = now.addingReportingOverflow(Int64(expiresIn))
+        let (refreshTokenExpiresAt, refreshTokenExpiryOverflow) = now.addingReportingOverflow(
+            Int64(refreshTokenExpiresIn)
+        )
+        guard !accessTokenExpiryOverflow, !refreshTokenExpiryOverflow else {
             throw AuthRepositoryError.invalidResponse
         }
 
@@ -474,7 +547,19 @@ enum KeychainSessionStore {
         try save(value: userID, account: userIDAccount)
         try save(value: accessToken, account: accessTokenAccount)
         try save(value: String(expiresAt), account: expiresAtAccount)
+        try save(value: refreshToken, account: refreshTokenAccount)
+        try save(value: String(refreshTokenExpiresAt), account: refreshTokenExpiresAtAccount)
         UserDefaults.standard.removeObject(forKey: guestAccessKey)
+    }
+
+    fileprivate static func save(credentials: LoginCredentials) throws {
+        try save(
+            userID: credentials.userID,
+            accessToken: credentials.accessToken,
+            expiresIn: credentials.expiresIn,
+            refreshToken: credentials.refreshToken,
+            refreshTokenExpiresIn: credentials.refreshTokenExpiresIn
+        )
     }
 
     static func saveGuestAccess() {
@@ -488,6 +573,17 @@ enum KeychainSessionStore {
 
     static func userID() -> String? {
         validSession()?.userID
+    }
+
+    static func refreshToken() -> String? {
+        guard let refreshToken = read(account: refreshTokenAccount),
+              let expiresAtString = read(account: refreshTokenExpiresAtAccount),
+              let expiresAt = Int64(expiresAtString),
+              !refreshToken.isEmpty,
+              expiresAt > Int64(Date().timeIntervalSince1970) else {
+            return nil
+        }
+        return refreshToken
     }
 
     static func hasActiveSession() -> Bool {
@@ -550,7 +646,13 @@ enum KeychainSessionStore {
     }
 
     private static func clearKeychainCredentials() {
-        for account in [userIDAccount, accessTokenAccount, expiresAtAccount] {
+        for account in [
+            userIDAccount,
+            accessTokenAccount,
+            expiresAtAccount,
+            refreshTokenAccount,
+            refreshTokenExpiresAtAccount,
+        ] {
             let query: [CFString: Any] = [
                 kSecClass: kSecClassGenericPassword,
                 kSecAttrService: service,

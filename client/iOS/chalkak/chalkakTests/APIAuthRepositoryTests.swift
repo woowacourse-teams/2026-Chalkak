@@ -11,12 +11,7 @@ struct APIAuthRepositoryTests {
         MockAuthURLProtocol.install { request in
             switch (request.httpMethod, request.url?.path) {
             case ("POST", "/api/v1/auth/social-login"):
-                if MockAuthURLProtocol.requests(for: "/api/v1/auth/social-login").count == 1 {
-                    return .json("{\"status\":\"SIGN_UP_REQUIRED\"}")
-                }
-                return .json(
-                    "{\"status\":\"LOGIN_SUCCESS\",\"userId\":\"user-1\",\"accessToken\":\"access-token\",\"expiresIn\":3600}"
-                )
+                return .json("{\"status\":\"SIGN_UP_REQUIRED\"}")
             case ("POST", "/api/v1/auth/social-signup/signature/uploads"):
                 return .json(
                     "{\"uploadId\":\"upload-id\",\"uploadUrl\":\"https://uploads.example.com/signature\",\"expiresInSeconds\":300,\"signupToken\":\"signup-token\",\"signupTokenExpiresInSeconds\":1800}"
@@ -31,7 +26,9 @@ struct APIAuthRepositoryTests {
                         body: Data("{\"errorCode\":\"SIGNATURE_PROCESSING_PENDING\"}".utf8)
                     )
                 }
-                return .json("{\"userId\":\"user-1\"}")
+                return .json(
+                    "{\"userId\":\"user-1\",\"accessToken\":\"access-token\",\"expiresIn\":900,\"refreshToken\":\"refresh-token\",\"refreshTokenExpiresIn\":2592000}"
+                )
             default:
                 return .response(statusCode: 404, body: Data())
             }
@@ -52,7 +49,7 @@ struct APIAuthRepositoryTests {
 
         #expect(result == .success(userID: "user-1"))
         let requests = MockAuthURLProtocol.allRequests()
-        #expect(requests.count == 6)
+        #expect(requests.count == 5)
         #expect(requests[0].httpMethod == "POST")
         #expect(requests[0].url?.path == "/api/v1/auth/social-login")
         #expect(jsonBody(requests[0]) == ["provider": "KAKAO", "idToken": "kakao-token"])
@@ -73,9 +70,6 @@ struct APIAuthRepositoryTests {
         #expect(requests[4].httpMethod == "POST")
         #expect(requests[4].url?.path == "/api/v1/auth/social-signup")
         #expect(jsonBody(requests[4]) == ["signupToken": "signup-token"])
-        #expect(requests[5].httpMethod == "POST")
-        #expect(requests[5].url?.path == "/api/v1/auth/social-login")
-        #expect(jsonBody(requests[5]) == ["provider": "KAKAO", "idToken": "kakao-token"])
     }
 
     private func jsonBody(_ request: URLRequest) -> [String: String] {

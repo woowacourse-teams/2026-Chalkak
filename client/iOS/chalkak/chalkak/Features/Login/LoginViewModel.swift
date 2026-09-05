@@ -25,13 +25,31 @@ enum SocialSignUpFailure: Equatable {
 @MainActor
 protocol AuthRepository {
     func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult
+    func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult
     func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult
     func continueAsGuest() async throws
+}
+
+extension AuthRepository {
+    func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult {
+        throw AuthRepositoryError.configuration
+    }
 }
 
 @MainActor
 protocol SocialLoginClient {
     func idToken() async throws -> String
+}
+
+struct AppleLoginCredential: Equatable, Sendable {
+    let idToken: String
+    let authorizationCode: String
+    let rawNonce: String
+}
+
+@MainActor
+protocol AppleLoginCredentialClient {
+    func credential() async throws -> AppleLoginCredential
 }
 
 @MainActor
@@ -40,23 +58,22 @@ final class LoginViewModel: ObservableObject {
 
     private let authRepository: AuthRepository
     private let socialLoginClients: [SocialLoginProvider: any SocialLoginClient]
+    private let appleLoginClient: (any AppleLoginCredentialClient)?
     private var loginTask: Task<Void, Never>?
 
     init(
         authRepository: AuthRepository,
         googleLoginClient: any SocialLoginClient,
         kakaoLoginClient: any SocialLoginClient,
-        appleLoginClient: (any SocialLoginClient)? = nil
+        appleLoginClient: (any AppleLoginCredentialClient)? = nil
     ) {
         self.authRepository = authRepository
-        var clients: [SocialLoginProvider: any SocialLoginClient] = [
+        let clients: [SocialLoginProvider: any SocialLoginClient] = [
             .google: googleLoginClient,
             .kakao: kakaoLoginClient,
         ]
-        if let appleLoginClient {
-            clients[.apple] = appleLoginClient
-        }
         socialLoginClients = clients
+        self.appleLoginClient = appleLoginClient
     }
 
     deinit {
@@ -64,15 +81,25 @@ final class LoginViewModel: ObservableObject {
     }
 
     func login(provider: SocialLoginProvider) {
-        guard state.canSubmit, let client = socialLoginClients[provider] else { return }
+        guard state.canSubmit else { return }
+        guard provider == .apple ? appleLoginClient != nil : socialLoginClients[provider] != nil else {
+            return
+        }
 
         state = LoginViewState(status: .loading(provider))
         loginTask = Task { [weak self] in
             do {
-                let idToken = try await client.idToken()
-                let result = try await self?.authRepository.login(provider: provider, idToken: idToken)
-                guard let result else { return }
                 guard let self else { return }
+                let result: SocialLoginResult
+                if provider == .apple, let appleLoginClient {
+                    let credential = try await appleLoginClient.credential()
+                    result = try await authRepository.loginWithApple(credential: credential)
+                } else if let client = socialLoginClients[provider] {
+                    let idToken = try await client.idToken()
+                    result = try await authRepository.login(provider: provider, idToken: idToken)
+                } else {
+                    return
+                }
                 switch result {
                 case .authenticated:
                     state = LoginViewState(status: .authenticated)
