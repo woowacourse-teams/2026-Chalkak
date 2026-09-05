@@ -28,7 +28,7 @@ FIELDS = {"goal", "done", "remaining", "next", "scope", "decisions", "blockers",
 
 def git(root, *arguments):
     environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_OPTIONAL_LOCKS="0")
     return subprocess.check_output(["git", *arguments], cwd=root, env=environment, stderr=subprocess.PIPE)
 
 

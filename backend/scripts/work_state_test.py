@@ -45,6 +45,17 @@ class WorkStateTests(unittest.TestCase):
     def create(self):
         return state.save(self.root, 7, "missing", {"work": self.work})
 
+    def test_git_uses_repository_configuration_without_user_git_environment(self):
+        with mock.patch.dict(os.environ, {"GIT_DIR": "/outside", "GIT_CONFIG_GLOBAL": "/outside/config"}), \
+                mock.patch.object(state.subprocess, "check_output", return_value=b"") as command:
+            state.git(self.root, "status")
+
+        environment = command.call_args.kwargs["env"]
+        self.assertNotIn("GIT_DIR", environment)
+        self.assertEqual(os.devnull, environment["GIT_CONFIG_GLOBAL"])
+        self.assertEqual("1", environment["GIT_CONFIG_NOSYSTEM"])
+        self.assertEqual("0", environment["GIT_OPTIONAL_LOCKS"])
+
     def cli(self, action, *arguments, payload=None):
         return subprocess.run([sys.executable, "-B", str(SCRIPT), action, "--root", str(self.root), *arguments],
                               input=None if payload is None else json.dumps(payload), capture_output=True, text=True, timeout=15)

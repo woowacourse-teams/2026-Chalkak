@@ -19,6 +19,7 @@ python3 scripts/work_state.py load --issue 287
 ## 저장과 검증
 
 - 입력은 `{"work": {...}}` 형식의 JSON이다. `work`에는 `goal`(목표), `done`(완료 목록), `remaining`(남은 목록), `next`(다음 행동)를 두고 필요하면 `scope`, `decisions`, `blockers`, `links`, `stack`을 추가한다. 구현·검증·리뷰·병합 상태를 구분하고 관련 PR·의존 관계·실제 base는 `links`에 남긴다. 생략한 기존 필드는 보존하며 목록 교체 시 미완료 항목을 빠뜨리지 않는다.
+- 새 승인 근거 없이 `scope.include`·`scope.exclude`를 바꾸거나 제외된 행동을 `remaining`·`next`에 추가하지 않는다. 이번 요청에서 끝난 항목만 `done`으로 옮기고, 기존 범위 밖 후속 작업을 임의로 만들지 않는다.
 - 저장소 밖의 임시 파일이나 표준 입력(`--input -`)으로 전달한다. `load`의 `revision`을 사용하고 신규 기록은 `missing`으로 저장한다. 원자적으로 교체하며 오래된 revision은 거부한다. 충돌하면 최신 기록과 실제 변경을 대조해 합친다.
 
 ```bash
@@ -33,5 +34,5 @@ python3 scripts/work_state.py save --issue 287 --expected-revision <읽은 revis
 
 ## 정리
 
-- 병합·후속 작업까지 끝났거나 사용자가 기록 폐기를 요청했을 때 해당 이슈 기록만 `remove --issue <번호> --expected-revision <읽은 revision>`으로 정리한다. 구현·PR 등록만으로 삭제하지 않으며 브랜치·코드·이슈는 삭제하지 않는다.
+- 병합·후속 작업까지 끝났거나 사용자가 기록 폐기를 요청했을 때 해당 이슈 기록만 `remove --issue <번호> --expected-revision <읽은 revision>`으로 정리한다. 구현·PR 등록만으로 삭제하지 않는다.
 - 도구 실행이 불가능하면 대화 요약에 상태와 재개 지점을 남긴다. 이 기록은 세션 종료 후 감시나 자동 재실행을 만들지 않는다.
