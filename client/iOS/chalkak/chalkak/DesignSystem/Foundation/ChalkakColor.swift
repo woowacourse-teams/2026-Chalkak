@@ -19,6 +19,10 @@ struct ChalkakColors {
     let iconSecondary: Color
     let scrim: Color
     let error: Color
+    let calendarCell: Color
+    let calendarCellBorder: Color
+    let skeletonBase: Color
+    let skeletonHighlight: Color
 
     init(
         background: Color,
@@ -38,7 +42,11 @@ struct ChalkakColors {
         iconPrimary: Color,
         iconSecondary: Color,
         scrim: Color,
-        error: Color
+        error: Color,
+        calendarCell: Color,
+        calendarCellBorder: Color,
+        skeletonBase: Color,
+        skeletonHighlight: Color
     ) {
         self.background = background
         self.surface = surface
@@ -58,6 +66,10 @@ struct ChalkakColors {
         self.iconSecondary = iconSecondary
         self.scrim = scrim
         self.error = error
+        self.calendarCell = calendarCell
+        self.calendarCellBorder = calendarCellBorder
+        self.skeletonBase = skeletonBase
+        self.skeletonHighlight = skeletonHighlight
     }
 
     init() {
@@ -82,7 +94,11 @@ struct ChalkakColors {
         iconPrimary: Color(hex: 0x2B2724),
         iconSecondary: Color(hex: 0x2B2724).opacity(0.62),
         scrim: Color.black.opacity(0.4),
-        error: Color(hex: 0xBA1A1A)
+        error: Color(hex: 0xBA1A1A),
+        calendarCell: Color(hex: 0xEAE7DE),
+        calendarCellBorder: Color(hex: 0xDCD8CE),
+        skeletonBase: Color(hex: 0xEAE7DE),
+        skeletonHighlight: Color(hex: 0xF7F6F3)
     )
 }
 

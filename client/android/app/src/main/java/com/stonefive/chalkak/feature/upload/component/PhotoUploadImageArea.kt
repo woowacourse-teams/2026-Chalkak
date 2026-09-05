@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,9 +38,14 @@ fun PhotoUploadImageArea(
     onCameraClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val placeholderAspectRatio = if (selectedImage == null) {
+        Modifier.aspectRatio(PHOTO_AREA_ASPECT_RATIO)
+    } else {
+        Modifier
+    }
     Box(
         modifier = modifier
-            .aspectRatio(PHOTO_AREA_ASPECT_RATIO)
+            .then(placeholderAspectRatio)
             .background(ChalkakInputBackground),
     ) {
         if (selectedImage == null) {
@@ -68,8 +74,8 @@ fun PhotoUploadImageArea(
             ChalkakImage(
                 model = selectedImage,
                 contentDescription = "선택한 사진",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth(),
+                contentScale = ContentScale.FillWidth,
             )
         }
 

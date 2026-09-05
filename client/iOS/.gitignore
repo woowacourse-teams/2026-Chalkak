@@ -6,6 +6,8 @@ xcuserdata/
 build/
 DerivedData/
 
+# Local iOS configuration values
+chalkak/chalkak/Configuration/Secrets.xcconfig
+
 # macOS
 .DS_Store
-

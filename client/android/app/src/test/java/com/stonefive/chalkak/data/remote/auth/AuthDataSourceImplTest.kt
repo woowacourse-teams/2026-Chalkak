@@ -36,7 +36,7 @@ class AuthDataSourceImplTest {
             .create(AuthApi::class.java)
         dataSource = AuthDataSourceImpl(
             api = api,
-            requestExecutor = ApiRequestExecutor(json) { _ -> },
+            requestExecutor = ApiRequestExecutor(json),
         )
     }
 
@@ -52,7 +52,7 @@ class AuthDataSourceImplTest {
                 .setResponseCode(200)
                 .setHeader("Content-Type", "application/json")
                 .setBody(
-                    """{"status":"LOGIN_SUCCESS","userId":"user-id","accessToken":"access-token","expiresIn":3600}""",
+                    """{"status":"LOGIN_SUCCESS","userId":"user-id","accessToken":"access-token","expiresIn":900,"refreshToken":"refresh-token","refreshTokenExpiresIn":2592000}""",
                 ),
         )
 
@@ -64,7 +64,9 @@ class AuthDataSourceImplTest {
                 SocialLoginResponse.LoginSuccess(
                     userId = "user-id",
                     accessToken = "access-token",
-                    expiresIn = 3600,
+                    expiresIn = 900,
+                    refreshToken = "refresh-token",
+                    refreshTokenExpiresIn = 2592000,
                 ),
             ),
             result,
@@ -137,6 +139,18 @@ class AuthDataSourceImplTest {
             ),
             result,
         )
+    }
+
+    @Test
+    fun `로그아웃 경로와 refresh token body를 전송하고 204를 성공으로 처리한다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = dataSource.logout(refreshToken = "refresh-token")
+        val request = server.takeRequest()
+
+        assertEquals(ApiResult.Success(Unit), result)
+        assertEquals("/api/v1/auth/logout", request.path)
+        assertEquals("""{"refreshToken":"refresh-token"}""", request.body.readUtf8())
     }
 
     @Test

@@ -1,0 +1,4 @@
+// Shared configuration tracked by Git.
+// Local values are loaded from the ignored file when it exists.
+CHALKAK_CONFIG_FILE_LOADED = YES
+#include? "Secrets.xcconfig"
