@@ -1,0 +1,26 @@
+.page { display: grid; min-height: 100vh; min-height: 100svh; place-items: center; background: #fff; padding: 48px 24px; color: #20242b; }
+.panel { width: min(100%, 360px); min-width: 0; }
+.panel h1 { font-size: 24px; font-weight: 700; line-height: 1.4; letter-spacing: -.7px; }
+.description { margin-top: 10px; color: #727987; font-size: 14px; line-height: 1.7; }
+.sessionStatus { margin-top: 20px; color: #727987; font-size: 12px; line-height: 1.7; }
+.form { display: grid; gap: 20px; margin-top: 30px; }
+.field { display: grid; gap: 8px; min-width: 0; }
+.field label { color: #434a56; font-size: 13px; font-weight: 500; }
+.field input { width: 100%; min-width: 0; min-height: 46px; border: 1px solid #d4d9e1; border-radius: 6px; outline: none; background: #fff; padding: 10px 12px; color: #20242b; font-size: 16px; line-height: 1.5; }
+.field input:focus { border-color: #6669c6; box-shadow: 0 0 0 2px #eeeffb; }
+.field input:disabled { background: #f7f8fa; color: #949aa4; }
+.passwordField { position: relative; }
+.passwordField input { padding-right: 48px; }
+.revealButton { position: absolute; inset: 1px 1px 1px auto; display: grid; width: 44px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #79818e; cursor: pointer; }
+.revealButton:hover { color: #353c49; }
+.submitButton, .demoButton { display: flex; width: 100%; min-height: 46px; align-items: center; justify-content: center; border: 1px solid #4d4fb4; border-radius: 6px; background: #4d4fb4; padding: 10px 12px; color: #fff; cursor: pointer; font-size: 14px; font-weight: 500; line-height: 1.5; }
+.submitButton:hover { background: #41439c; border-color: #41439c; }
+.submitButton:disabled, .demoButton:disabled, .revealButton:disabled { cursor: wait; opacity: .55; }
+.error { margin-block: 0; color: #b13737; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; outline: none; }
+.panel > .error { margin: 24px 0; }
+.demo { margin-top: 26px; border-top: 1px solid #e6e9ee; padding-top: 22px; }
+.demo p { margin-bottom: 12px; color: #7b8390; font-size: 11px; line-height: 1.7; }
+.demoButton { border-color: #d7dce4; background: #fff; color: #4d5665; font-size: 13px; }
+.demoButton:hover { background: #f7f8fa; }
+.panel button:focus-visible { outline: 3px solid #9698e3; outline-offset: 3px; }
+@media (max-width: 480px) { .page { padding: 40px 24px; } .panel h1 { font-size: 23px; } }

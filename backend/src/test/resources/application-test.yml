@@ -1,0 +1,78 @@
+CLOUDFRONT_BASE_URL: https://cdn.example.com
+CLOUDFRONT_ORIGIN_PATH: /chalkak
+IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
+SOCIAL_SIGNUP_TOKEN_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+ACCESS_TOKEN_SECRET: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+SOCIAL_IDENTITY_HMAC_SECRET: aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${TEST_POSTGRES_PORT:5433}/${TEST_POSTGRES_DB:chalkak_test}
+    username: ${TEST_POSTGRES_USER:chalkak}
+    password: ${TEST_POSTGRES_PASSWORD:test-password}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
+
+  jpa:
+    show-sql: false
+
+# 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
+chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: true
+    notification:
+      delivery-enabled: true
+      admin-web-base-url: https://admin.test.chalkak
+      slack:
+        webhook-url: https://hooks.slack.com/services/TEST/TEST/TEST
+  auth:
+    access-token:
+      expiration: 15m
+    refresh-token:
+      # 운영 기본값과 같은 길이를 직접 박아, 테스트가 로컬 .env의 유무에 좌우되지 않게 한다.
+      inactivity-expiration: 30d
+      absolute-expiration: 90d
+      cleanup:
+        # 정리 작업 자체는 켜 둔다. 테스트가 스케줄러 빈을 주입받아 메서드를 직접 부르기 때문이다.
+        # 실제 시각으로 도는 것은 아래 chalkak.scheduling.enabled: false가 막는다.
+        enabled: true
+      expiration: 1h
+    apple:
+      token:
+        team-id: test-team-id
+        key-id: test-key-id
+        # AppleClientSecretGenerator가 이제 생성자에서 즉시 개인키를 파싱하므로(fail-fast),
+        # 실제 형식을 갖춘 EC 개인키여야 애플리케이션 컨텍스트가 뜬다. Apple에 등록된 진짜
+        # 키가 아니라, 이 테스트 환경만을 위해 로컬에서 새로 생성한 더미 EC 키다.
+        private-key-base64: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ1E3QXVUOCtqanoxMWVWSFcKVCtzeWUxMGw2azVXdHNWNXBzaDN4YmlCU29laFJBTkNBQVNHS1JyamhoOThrN2xTTjExYlhjYW9QVEY0NVFuWgppWk1UUjdBQXRLMU9mSnJKSXA2aEJ3eVNESkpwb3dTKzYwakY1RmpGVFBRU3VSZXA4Mk1UMHdDMQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
+      refresh-token-encryption:
+        key: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    oidc:
+      apple:
+        client-id: test-apple-client-id
+      google:
+        client-id: test-google-client-id
+      kakao:
+        app-key: test-kakao-app-key
+  image:
+    environment: test
+    bucket: test-bucket
+    base-url: https://cdn.test.chalkak
+    root-prefix: chalkak
+
+  callback:
+    max-body-bytes: 65536
+
+  post:
+    image-processing-timeout: 7m
+
+  user:
+    signature-processing-timeout: 7m
+
+  scheduling:
+    # 애플리케이션 전체의 주기 작업을 끈다. 테스트는 자기 시계를 고정하므로, 실제 시각으로 도는
+    # 작업이 같은 테스트 DB의 행을 건드리면 원인을 찾기 어려운 실패가 된다. 주기 작업이 늘어나도
+    # 이 한 줄이 전부를 덮는다.
+    enabled: false

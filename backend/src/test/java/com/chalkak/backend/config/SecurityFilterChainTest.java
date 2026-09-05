@@ -1,0 +1,497 @@
+package com.chalkak.backend.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
+import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
+import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.infrastructure.infra.access.AccessTokenProperties;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.infrastructure.infra.signup.JwtSocialSignupTokenProvider;
+import com.chalkak.backend.auth.service.SocialLoginResult;
+import com.chalkak.backend.auth.service.SocialLoginService;
+import com.chalkak.backend.auth.service.TokenRefreshResult;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.like.service.PostLikeResult;
+import com.chalkak.backend.like.service.PostLikeService;
+import com.chalkak.backend.post.service.PostCalendarResult;
+import com.chalkak.backend.post.service.PostListResult;
+import com.chalkak.backend.post.service.PostQueryService;
+import com.chalkak.backend.support.IntegrationTestSupport;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.nimbusds.jose.proc.SecurityContext;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 필터 체인이 실제로 무엇을 막고 무엇을 여는지 고정한다. 여기서 열려 있어야 할 경로가 막히면
+ * Lambda 콜백이 유실되거나 헬스체크가 실패해 배포가 멈춘다.
+ *
+ * <p>서비스는 모두 모킹한다. 비즈니스 계층이 던지는 401과 필터가 막아 낸 401을 구별하지 못하면
+ * 통과 여부를 잘못 읽는다.
+ */
+@Transactional
+@AutoConfigureMockMvc
+class SecurityFilterChainTest extends IntegrationTestSupport {
+
+    private static final String LIKE_PATH = "/api/v1/posts/{postId}/likes";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private AccessTokenProperties accessTokenProperties;
+
+    @Autowired
+    private JwtSocialSignupTokenProvider socialSignupTokenProvider;
+
+    @MockitoBean
+    private PostLikeService postLikeService;
+
+    @MockitoBean
+    private SocialLoginService socialLoginService;
+
+    @MockitoBean
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @MockitoBean
+    private PostQueryService postQueryService;
+
+    @MockitoBean
+    private ProcessingCallbackAuthenticator processingCallbackAuthenticator;
+
+    @Test
+    @DisplayName("토큰 없이 보호된 API를 호출하면 401과 공통 에러 형식을 반환한다")
+    void protectedApi_withoutToken_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+    }
+
+    /**
+     * 좋아요는 {@link com.chalkak.backend.auth.api.support.RequiresUsableUser}가 붙어 있어
+     * 저장소에 없는 회원이면 인가 단계에서 401로 끝난다. 여기서 볼 것은 필터가 유효한 토큰을
+     * 막지 않는다는 사실이므로 회원을 실제로 넣어 인가가 통과하도록 둔다.
+     */
+    @Test
+    @DisplayName("유효한 액세스 토큰이 있으면 보호된 API를 호출할 수 있다")
+    void protectedApi_validAccessToken_reachesController() throws Exception {
+        // Given
+        UUID userId = createUser();
+        UUID postId = UUID.randomUUID();
+        given(postLikeService.likePost(postId, userId))
+                .willReturn(new PostLikeResult(postId, 1L, true));
+        String token = accessTokenProvider.issue(userId).value();
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId.toString()));
+    }
+
+    @Test
+    @DisplayName("서명이 변조된 토큰은 401을 반환한다")
+    void protectedApi_tamperedToken_returnsUnauthorized() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID()).value();
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char original = token.charAt(signatureStart);
+        String tamperedToken = token.substring(0, signatureStart)
+                + (original == 'A' ? 'B' : 'A')
+                + token.substring(signatureStart + 1);
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tamperedToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("회원가입 토큰은 액세스 토큰으로 사용할 수 없다")
+    void protectedApi_socialSignupToken_returnsUnauthorized() throws Exception {
+        // Given
+        String signupToken = socialSignupTokenProvider.issue(
+                        new VerifiedSocialIdentity(
+                                SocialProvider.GOOGLE,
+                                "google-subject",
+                                "user@chalkak.test"),
+                        UUID.randomUUID())
+                .value();
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + signupToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("로그인 API는 토큰 없이 호출할 수 있다")
+    void authApi_withoutToken_reachesController() throws Exception {
+        // Given
+        given(socialLoginService.login(any(), any()))
+                .willReturn(SocialLoginResult.signUpRequired());
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "GOOGLE",
+                                  "idToken": "google-id-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"));
+    }
+
+    /**
+     * 리프레시 토큰 자체가 자격증명이라 액세스 토큰을 요구하면 재발급 자체가 불가능해진다.
+     * 액세스 토큰이 만료된 뒤에 호출되는 경로이므로 필터가 막으면 모든 세션이 끊긴다.
+     */
+    @Test
+    @DisplayName("토큰 재발급 API는 액세스 토큰 없이 호출할 수 있다")
+    void refreshApi_withoutToken_reachesController() throws Exception {
+        // Given
+        given(userRefreshTokenService.refresh(any()))
+                .willReturn(new TokenRefreshResult(
+                        new IssuedAccessToken("chalkak-access-token", Duration.ofMinutes(15)),
+                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30))));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "chalkak-refresh-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("chalkak-access-token"));
+    }
+
+    @Test
+    @DisplayName("로그아웃 API는 액세스 토큰 없이 호출할 수 있다")
+    void logoutApi_withoutToken_reachesController() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "chalkak-refresh-token"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("주제 목록은 토큰 없이 조회할 수 있다")
+    void topics_withoutToken_reachesController() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/topics"))
+                .andExpect(notBlockedBySecurity());
+    }
+
+    @Test
+    @DisplayName("게시물 목록은 토큰 없이 조회할 수 있다")
+    void posts_withoutToken_reachesController() throws Exception {
+        // Given
+        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", "2026-08-12"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * 캘린더는 {@link com.chalkak.backend.auth.api.support.RequiresExistingUser}가 붙어 있어
+     * 저장소에 없는 회원이면 인가 단계에서 401로 끝난다. 여기서 볼 것은 필터가 유효한 토큰을
+     * 막지 않는다는 사실이므로 회원을 실제로 넣어 인가가 통과하도록 둔다.
+     */
+    @Test
+    @DisplayName("유효한 토큰이면 내 게시물 캘린더를 조회할 수 있다")
+    void postCalendar_validAccessToken_reachesController() throws Exception {
+        // Given
+        UUID userId = createUser();
+        given(postQueryService.getMyPostCalendar(eq(userId), any()))
+                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+        String token = accessTokenProvider.issue(userId).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .queryParam("year", "2026")
+                        .queryParam("month", "8")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(notBlockedBySecurity());
+    }
+
+    /**
+     * 회원 API의 통과 조건은 {@code SCOPE_USER}이므로 관리자 토큰은 컨트롤러에 닿기 전에 막힌다.
+     * 관리자 토큰의 {@code sub}는 회원 식별자가 아니라서, 통과시키면 없는 회원을 조회한 결과가
+     * 그 관리자의 캘린더인 것처럼 응답된다.
+     */
+    @Test
+    @DisplayName("관리자 JWT를 일반 사용자 식별자로 해석해 캘린더를 조회할 수 없다")
+    void postCalendar_adminToken_returnsForbidden() throws Exception {
+        // Given
+        UUID adminId = UUID.randomUUID();
+        given(postQueryService.getMyPostCalendar(eq(adminId), any()))
+                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+        String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .queryParam("year", "2026")
+                        .queryParam("month", "8")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    @Test
+    @DisplayName("관리자 JWT로는 좋아요를 남길 수 없다")
+    void protectedApi_adminToken_returnsForbidden() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN)
+                .value();
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    /**
+     * 비로그인 조회를 허용하는 경로는 익명과 회원만 받는다. 관리자 토큰까지 통과시키면 선택적
+     * 회원 인증이 관리자 식별자를 회원 식별자로 읽어, 관리자에게 남의 좋아요 상태를 계산해 준다.
+     */
+    @Test
+    @DisplayName("선택적 회원 인증에서도 관리자 JWT를 일반 사용자로 해석하지 않는다")
+    void posts_adminToken_returnsForbidden() throws Exception {
+        // Given
+        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts")
+                        .queryParam("topicDate", "2026-08-12")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    /**
+     * scope는 회원 여부를 가리는 유일한 근거인데, 디코더는 서명과 만료만 본다. scope가 없는
+     * 토큰을 회원으로 접으면 앞으로 추가될 다른 종류의 토큰이 회원 API를 그대로 통과한다.
+     */
+    @Test
+    @DisplayName("scope가 없는 액세스 토큰은 회원 API에서 거부한다")
+    void protectedApi_tokenWithoutScope_returnsForbidden() throws Exception {
+        // Given
+        String token = issueTokenWithoutScope(UUID.randomUUID());
+
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."));
+    }
+
+    /**
+     * 필터가 막은 401과 컨트롤러가 던진 401은 상태 코드도 본문도 같다. RFC 6750이 요구하는
+     * 이 헤더가 둘을 구별하는 유일한 신호이므로, 경로 인가 규칙을 검증하는 테스트가 기댈 수 있다.
+     */
+    @Test
+    @DisplayName("필터가 막은 401에는 WWW-Authenticate 헤더가 붙는다")
+    void protectedApi_withoutToken_setsWwwAuthenticateHeader() throws Exception {
+        // When & Then
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("컨트롤러가 던진 401에는 WWW-Authenticate 헤더가 붙지 않는다")
+    void publicPath_controllerRejection_doesNotSetWwwAuthenticateHeader() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        given(postQueryService.getPost(any(), eq(userId)))
+                .willReturn(null);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID())
+                        .header(HttpHeaders.AUTHORIZATION,
+                                "Bearer " + accessTokenProvider.issue(userId).value()))
+                .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
+    }
+
+    /**
+     * 목록만 공개다. 상세와 캘린더는 인증 없이 열리면 안 된다.
+     *
+     * <p>컨트롤러도 {@code requireUserId}로 같은 401을 내므로 상태 코드만으로는 누가 막았는지
+     * 알 수 없다. 필터가 막았을 때만 붙는 {@code WWW-Authenticate}를 함께 확인해,
+     * {@code /api/v1/posts/*} 같은 넓은 규칙이 다시 들어오면 여기서 걸리게 한다.
+     */
+    @Test
+    @DisplayName("게시물 상세 조회는 필터가 인증을 요구한다")
+    void postDetail_withoutToken_isRejectedByFilter() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("내 게시물 캘린더는 필터가 인증을 요구한다")
+    void postCalendar_withoutToken_isRejectedByFilter() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar")
+                        .queryParam("year", "2026")
+                        .queryParam("month", "8"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    /**
+     * Lambda 콜백은 Bearer 토큰이 아니라 HMAC 헤더로 인증한다. 필터가 여기를 막으면 이미지 처리
+     * 결과가 영원히 반영되지 않는다.
+     */
+    @Test
+    @DisplayName("이미지 처리 내부 콜백은 액세스 토큰 없이 컨트롤러에 도달한다")
+    void internalCallback_withoutAccessToken_reachesController() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/failed",
+                        UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(notBlockedBySecurity());
+    }
+
+    /**
+     * 공개 경로에서 처리되지 않은 예외가 나면 장애가 그대로 드러나야 한다. 여기서 401이 나가면
+     * 클라이언트가 서버 장애를 인증 만료로 오인해 재로그인을 반복하고, 지표에서도 장애가 숨는다.
+     */
+    @Test
+    @DisplayName("공개 경로에서 예외가 나면 익명 요청도 500을 받는다")
+    void publicPath_unhandledException_returnsInternalServerError() throws Exception {
+        // Given
+        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+                .willThrow(new IllegalStateException("예상하지 못한 장애"));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", "2026-08-12"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    @DisplayName("헬스체크는 토큰 없이 호출할 수 있다")
+    void health_withoutToken_returnsOk() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * 공개 경로에서 확인할 것은 필터가 요청을 통과시켰는지다. 그 뒤에 어떤 상태 코드가 나오는지는
+     * 데이터에 따라 달라지며 각 도메인 테스트가 따로 검증한다.
+     */
+    private ResultMatcher notBlockedBySecurity() {
+        return result -> assertThat(result.getResponse().getStatus())
+                .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
+    }
+
+    /**
+     * {@link JwtAccessTokenProvider}는 언제나 scope를 담으므로 여기서만 직접 서명한다. 서명과
+     * 나머지 클레임이 모두 유효한데 scope만 없어야 필터가 무엇을 보고 막는지 드러난다.
+     */
+    private String issueTokenWithoutScope(UUID subjectId) {
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(accessTokenProperties.issuer())
+                .audience(List.of(accessTokenProperties.audience()))
+                .subject(subjectId.toString())
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plus(accessTokenProperties.expiration()))
+                .id(UUID.randomUUID().toString())
+                .claim("purpose", "ACCESS")
+                .build();
+        SecretKey secretKey = new SecretKeySpec(
+                HexFormat.of().parseHex(accessTokenProperties.secret()),
+                "HmacSHA256");
+        JwtEncoder jwtEncoder = new NimbusJwtEncoder(
+                new ImmutableSecret<SecurityContext>(secretKey));
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type("JWT")
+                .build();
+
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
+    private UUID createUser() {
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status,
+                    signature_original_storage_key, signature_thumbnail_storage_key,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, 'filter-chain@chalkak.test', 'ACTIVE',
+                    'chalkak/signatures/original/filter-chain.png',
+                    'chalkak/signatures/thumbnail/filter-chain.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, userId);
+        return userId;
+    }
+}
