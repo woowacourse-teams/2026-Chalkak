@@ -1,0 +1,136 @@
+spring:
+  application:
+    name: backend
+
+  config:
+    import: "optional:file:.env[.properties]"
+
+  profiles:
+    default: local
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    clean-disabled: true
+    default-schema: public
+    validate-migration-naming: true
+
+chalkak:
+  admin:
+    authentication:
+      development-bypass-enabled: false
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+    notification:
+      slack:
+        connect-timeout: 2s
+        read-timeout: 3s
+  auth:
+    access-token:
+      issuer: chalkak-backend
+      audience: chalkak-access
+      expiration: ${ACCESS_TOKEN_EXPIRATION}
+      secret: ${ACCESS_TOKEN_SECRET}
+    social-signup-token:
+      issuer: chalkak-backend
+      audience: chalkak-social-signup
+      expiration: 5m
+      secret: ${SOCIAL_SIGNUP_TOKEN_SECRET}
+    social-identity-hmac:
+      secret: ${SOCIAL_IDENTITY_HMAC_SECRET}
+    refresh-token:
+      # 비활동 만료. 회전할 때마다 이 길이만큼 다시 늘어나므로, 앱을 계속 쓰는 사용자는
+      # 다시 로그인하지 않는다. 반대로 이 기간 동안 한 번도 재발급하지 않으면 만료된다.
+      inactivity-expiration: ${REFRESH_TOKEN_INACTIVITY_EXPIRATION}
+      # 절대 만료. 최초 로그인 시점에 고정되고 회전으로 연장되지 않아, 탈취된 계보라도
+      # 이 시점에는 반드시 끊긴다.
+      absolute-expiration: ${REFRESH_TOKEN_ABSOLUTE_EXPIRATION}
+      cleanup:
+        # 만료·폐기된 토큰을 지우는 정리 작업 하나만 켜고 끈다. 다른 주기 작업에는 영향이 없다.
+        # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+        enabled: true
+    apple:
+      token:
+        team-id: ${APPLE_TEAM_ID}
+        key-id: ${APPLE_KEY_ID}
+        private-key-base64: ${APPLE_PRIVATE_KEY_BASE64}
+        token-uri: https://appleid.apple.com/auth/token
+        revoke-uri: https://appleid.apple.com/auth/revoke
+      refresh-token-encryption:
+        key: ${APPLE_REFRESH_TOKEN_ENCRYPTION_KEY}
+    pending-apple-authorization:
+      cleanup:
+        # 가입이 끝나지 않아 남은 Apple 임시 인증 정보를 지우는 정리 작업 하나만 켜고 끈다.
+        # 다른 주기 작업에는 영향이 없다. 스케줄링 기능 자체는 chalkak.scheduling.enabled가 끈다.
+        # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+        enabled: true
+    oidc:
+      apple:
+        issuer: https://appleid.apple.com
+        jwk-set-uri: https://appleid.apple.com/auth/keys
+        client-id: ${APPLE_OIDC_CLIENT_ID}
+      google:
+        issuer: https://accounts.google.com
+        jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+        client-id: ${GOOGLE_OIDC_CLIENT_ID}
+      kakao:
+        issuer: https://kauth.kakao.com
+        jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+        app-key: ${KAKAO_OIDC_APP_KEY}
+  image:
+    bucket: ${S3_BUCKET}
+    region: ${AWS_REGION:ap-northeast-2}
+    base-url: ${CLOUDFRONT_BASE_URL}
+    root-prefix: ${S3_PREFIX}
+    signature:
+      max-bytes: 1048576
+      allowed-content-types:
+        - image/png
+      cache-control: public, max-age=86400
+    post:
+      max-bytes: 5242880
+      cache-control: public, max-age=86400
+
+  callback:
+    # 이미지 처리 콜백 본문 상한. @RequestBody는 컨트롤러보다 먼저 채워지므로 본문이 HMAC 검증보다
+    # 앞서 메모리에 올라간다. 서명 없는 요청이 큰 본문만으로 자원을 쓰지 못하게 인증 이전에 끊는다.
+    # 정상 콜백은 metaAttributes 8KB 상한을 포함해도 수 KB 수준이다.
+    max-body-bytes: ${CALLBACK_MAX_BODY_BYTES}
+
+  post:
+    # 이미지 처리 완료 콜백을 언제까지 기다릴지. 이 시간을 넘긴 검수 대기 게시물은 다음 게시물 생성
+    # 시점에 거절 처리해, 콜백이 유실돼도 작성자가 같은 주제에 다시 올릴 수 있게 한다.
+    # 7m, 1h, PT7M 형식을 모두 받는다.
+    image-processing-timeout: ${POST_IMAGE_PROCESSING_TIMEOUT}
+
+  user:
+    # 사인 처리 완료 콜백을 기다리는 시간. 이 시간을 넘긴 처리는 조회 시 재등록 대상으로 판단하고,
+    # 이후 도착한 성공 콜백은 무시한다. 7m, 1h, PT7M 형식을 모두 받는다.
+    signature-processing-timeout: ${SIGNATURE_PROCESSING_TIMEOUT}
+
+  scheduling:
+    # 애플리케이션 전체의 주기 작업을 켤지. @EnableScheduling은 컨텍스트 단위라 개별 작업이 아니라
+    # 스케줄링 기능 자체를 끄므로, 특정 작업 이름이 아닌 중립적인 키로 둔다. 테스트만 끈다.
+    # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    urls-primary-name: user-api
