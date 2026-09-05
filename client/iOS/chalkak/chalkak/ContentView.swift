@@ -77,6 +77,9 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
+            showLogin()
+        }
     }
 
     @ViewBuilder
@@ -204,7 +207,7 @@ struct ContentView: View {
         )
         return HomeViewModel(
             initialState: HomeViewState(),
-            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
+            isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
             refreshHandler: { sort in
                 await apiResult {
                     try await apiClient.fetchHome(date: Date(), sort: sort)
@@ -236,16 +239,18 @@ struct ContentView: View {
     }
 
     private static func makeSettingsViewModel() -> SettingsViewModel {
+        let configuration = AppConfiguration()
         let apiClient = SettingsAPIClient(
-            baseURL: AppConfiguration().apiBaseURL,
+            baseURL: configuration.apiBaseURL,
             accessTokenProvider: { KeychainSessionStore.accessToken() }
         )
+        let authRepository = APIAuthRepository(baseURL: configuration.apiBaseURL)
         return SettingsViewModel(
             initialState: SettingsViewState(version: SettingsScreen.appVersion),
-            isAuthenticated: { KeychainSessionStore.accessToken() != nil },
+            isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
             loadSignature: { try await apiClient.fetchSignature() },
             updateSignature: { try await apiClient.updateSignature(pngData: $0) },
-            logout: { KeychainSessionStore.delete() },
+            logout: { await authRepository.logout() },
             withdraw: {
                 try await apiClient.withdraw()
                 KeychainSessionStore.delete()

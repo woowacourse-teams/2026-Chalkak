@@ -125,6 +125,16 @@ final class APIAuthRepository: AuthRepository {
         KeychainSessionStore.saveGuestAccess()
     }
 
+    func logout() async {
+        pendingLogin = nil
+        defer { KeychainSessionStore.delete() }
+        guard let refreshToken = KeychainSessionStore.refreshToken(),
+              let endpoint = try? apiURL(path: "auth/logout"),
+              let body = try? JSONEncoder().encode(RefreshTokenRequest(refreshToken: refreshToken))
+        else { return }
+        _ = try? await requestData(url: endpoint, body: body)
+    }
+
     private func requestLogin(
         provider: SocialLoginProvider,
         idToken: String
@@ -335,6 +345,10 @@ private struct AppleSignatureUploadRequest: Encodable {
 
 private struct SocialSignUpRequest: Encodable {
     let signupToken: String
+}
+
+private struct RefreshTokenRequest: Encodable {
+    let refreshToken: String
 }
 
 private struct SocialLoginResponse: Decodable {
@@ -568,11 +582,11 @@ enum KeychainSessionStore {
     }
 
     static func accessToken() -> String? {
-        validSession()?.accessToken
+        authenticatedSession()?.accessToken
     }
 
     static func userID() -> String? {
-        validSession()?.userID
+        authenticatedSession()?.userID
     }
 
     static func refreshToken() -> String? {
@@ -587,7 +601,15 @@ enum KeychainSessionStore {
     }
 
     static func hasActiveSession() -> Bool {
-        validSession() != nil || UserDefaults.standard.bool(forKey: guestAccessKey)
+        hasAuthenticatedSession() || UserDefaults.standard.bool(forKey: guestAccessKey)
+    }
+
+    static func hasAuthenticatedSession() -> Bool {
+        guard let userID = read(account: userIDAccount),
+              !userID.isEmpty else {
+            return false
+        }
+        return refreshToken() != nil
     }
 
     static func delete() {
@@ -627,21 +649,36 @@ enum KeychainSessionStore {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func validSession() -> StoredAuthSession? {
+    private static func authenticatedSession() -> StoredAuthSession? {
         guard let userID = read(account: userIDAccount),
               let accessToken = read(account: accessTokenAccount),
-              let expiresAtString = read(account: expiresAtAccount),
-              let expiresAt = Int64(expiresAtString),
+              let refreshToken = read(account: refreshTokenAccount),
+              let refreshTokenExpiresAtString = read(account: refreshTokenExpiresAtAccount),
+              let refreshTokenExpiresAt = Int64(refreshTokenExpiresAtString),
               !userID.isEmpty,
               !accessToken.isEmpty,
-              expiresAt > Int64(Date().timeIntervalSince1970) else {
+              !refreshToken.isEmpty,
+              refreshTokenExpiresAt > Int64(Date().timeIntervalSince1970) else {
             return nil
         }
 
         return StoredAuthSession(
             userID: userID,
             accessToken: accessToken,
-            expiresAt: expiresAt
+            refreshTokenExpiresAt: refreshTokenExpiresAt
+        )
+    }
+
+    static func rotateTokens(_ tokens: RefreshedTokens) throws {
+        guard let userID = read(account: userIDAccount), !userID.isEmpty else {
+            throw AuthRepositoryError.invalidResponse
+        }
+        try save(
+            userID: userID,
+            accessToken: tokens.accessToken,
+            expiresIn: tokens.expiresIn,
+            refreshToken: tokens.refreshToken,
+            refreshTokenExpiresIn: tokens.refreshTokenExpiresIn
         )
     }
 
@@ -666,5 +703,5 @@ enum KeychainSessionStore {
 private struct StoredAuthSession {
     let userID: String
     let accessToken: String
-    let expiresAt: Int64
+    let refreshTokenExpiresAt: Int64
 }

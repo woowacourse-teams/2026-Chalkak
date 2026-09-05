@@ -12,8 +12,7 @@ struct HomeAPIClient: Sendable {
     typealias AccessTokenProvider = @Sendable () async -> String?
 
     private let configuration: HomeAPIConfiguration
-    private let session: URLSession
-    private let accessTokenProvider: AccessTokenProvider
+    private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
 
     init(
@@ -22,8 +21,11 @@ struct HomeAPIClient: Sendable {
         accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
         self.configuration = configuration
-        self.session = session
-        self.accessTokenProvider = accessTokenProvider
+        self.authenticatedClient = AuthenticatedHTTPClient(
+            baseURL: configuration.baseURL,
+            session: session,
+            sessionStore: .live(accessTokenProvider: accessTokenProvider)
+        )
         self.decoder = JSONDecoder()
     }
 
@@ -137,15 +139,9 @@ struct HomeAPIClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = await accessTokenProvider(), !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw HomeAPIError.invalidResponse
-            }
+            let (data, httpResponse) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(httpResponse.statusCode) else {
                 throw HomeAPIError.http(httpResponse.statusCode)
             }
@@ -159,6 +155,10 @@ struct HomeAPIClient: Sendable {
             }
         } catch let error as HomeAPIError {
             throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw HomeAPIError.http(401)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw HomeAPIError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {

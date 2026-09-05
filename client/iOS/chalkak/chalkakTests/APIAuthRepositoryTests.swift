@@ -3,6 +3,7 @@ import Testing
 @testable import chalkak
 
 @MainActor
+@Suite(.serialized)
 struct APIAuthRepositoryTests {
     @Test("안드로이드와 같은 회원가입 API 순서와 요청 규격을 사용한다")
     func completesSocialSignupWithAndroidContract() async throws {
@@ -48,6 +49,7 @@ struct APIAuthRepositoryTests {
         let result = try await repository.completeSocialSignUp(signaturePNG: signaturePNG)
 
         #expect(result == .success(userID: "user-1"))
+        #expect(KeychainSessionStore.refreshToken() == "refresh-token")
         let requests = MockAuthURLProtocol.allRequests()
         #expect(requests.count == 5)
         #expect(requests[0].httpMethod == "POST")
@@ -70,6 +72,37 @@ struct APIAuthRepositoryTests {
         #expect(requests[4].httpMethod == "POST")
         #expect(requests[4].url?.path == "/api/v1/auth/social-signup")
         #expect(jsonBody(requests[4]) == ["signupToken": "signup-token"])
+    }
+
+    @Test("로그아웃은 리프레시 토큰을 body로 보내고 로컬 세션을 삭제한다")
+    func logsOutWithRefreshToken() async throws {
+        try KeychainSessionStore.save(
+            userID: "user-1",
+            accessToken: "access-token",
+            expiresIn: 900,
+            refreshToken: "refresh-token",
+            refreshTokenExpiresIn: 2_592_000
+        )
+        MockAuthURLProtocol.install { request in
+            .response(statusCode: 204, body: Data())
+        }
+        defer {
+            KeychainSessionStore.delete()
+            MockAuthURLProtocol.uninstall()
+        }
+
+        let repository = APIAuthRepository(
+            baseURL: URL(string: "https://api.example.com/api/v1/")!,
+            session: MockAuthURLProtocol.session
+        )
+
+        await repository.logout()
+
+        let request = try #require(MockAuthURLProtocol.allRequests().first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/auth/logout")
+        #expect(jsonBody(request) == ["refreshToken": "refresh-token"])
+        #expect(!KeychainSessionStore.hasAuthenticatedSession())
     }
 
     private func jsonBody(_ request: URLRequest) -> [String: String] {

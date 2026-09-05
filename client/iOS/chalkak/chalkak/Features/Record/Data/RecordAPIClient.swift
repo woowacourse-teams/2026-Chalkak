@@ -12,8 +12,7 @@ struct RecordAPIClient: Sendable {
     typealias AccessTokenProvider = @Sendable () async -> String?
 
     private let configuration: RecordAPIConfiguration
-    private let session: URLSession
-    private let accessTokenProvider: AccessTokenProvider
+    private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
 
     init(
@@ -22,8 +21,11 @@ struct RecordAPIClient: Sendable {
         accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
         self.configuration = configuration
-        self.session = session
-        self.accessTokenProvider = accessTokenProvider
+        self.authenticatedClient = AuthenticatedHTTPClient(
+            baseURL: configuration.baseURL,
+            session: session,
+            sessionStore: .live(accessTokenProvider: accessTokenProvider)
+        )
         self.decoder = JSONDecoder()
     }
 
@@ -56,15 +58,9 @@ struct RecordAPIClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = await accessTokenProvider(), !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw RecordError.invalidResponse
-            }
+            let (data, httpResponse) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(httpResponse.statusCode) else {
                 throw Self.error(for: httpResponse.statusCode)
             }
@@ -78,6 +74,10 @@ struct RecordAPIClient: Sendable {
             }
         } catch let error as RecordError {
             throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw RecordError.unauthorized
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw RecordError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {

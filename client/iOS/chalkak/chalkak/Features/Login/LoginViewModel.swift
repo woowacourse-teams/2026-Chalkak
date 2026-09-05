@@ -28,12 +28,15 @@ protocol AuthRepository {
     func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult
     func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult
     func continueAsGuest() async throws
+    func logout() async
 }
 
 extension AuthRepository {
     func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult {
         throw AuthRepositoryError.configuration
     }
+
+    func logout() async {}
 }
 
 @MainActor
