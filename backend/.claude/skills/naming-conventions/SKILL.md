@@ -13,10 +13,11 @@ description: API JSON 필드·Parameter·URI, Java 변수·필드·매개변수�
 | Path Variable 이름과 URI 자리표시자 | `lowerCamelCase` | `postId`, `{postId}` |
 | Query Parameter | `lowerCamelCase` | `pageSize` |
 | Multipart·Form 필드 | `lowerCamelCase` | `originalImage` |
-| Java 변수·필드·매개변수 | `lowerCamelCase` | `originalStorageKey` |
 | URI의 고정 경로 | 소문자 `kebab-case` | `/api/v1/photo-albums` |
 | DB 테이블·컬럼·인덱스·제약조건 | `snake_case` | `original_storage_key` |
 | `ErrorCode` enum 상수 | `UPPER_SNAKE_CASE` | `BUSINESS_ERROR` |
+
+Java 변수·필드·매개변수는 `lowerCamelCase`를 사용한다. 운영 코드의 필드·매개변수·지역변수·record 컴포넌트 형식은 `./gradlew checkstyleMain`으로 검사한다. 메서드와 외부 API 이름의 의미는 아래 규칙을 따른다.
 
 ## 메서드 네이밍
 
