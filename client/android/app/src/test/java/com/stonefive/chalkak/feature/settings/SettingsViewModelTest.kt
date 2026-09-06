@@ -164,6 +164,18 @@ class SettingsViewModelTest {
         assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
     }
 
+    @Test
+    fun `게스트가 로그인을 시작하면 게스트 세션을 해제한다`() = runTest {
+        val viewModel = createViewModel()
+        assertEquals(UserSessionState.Guest, authRepository.sessionState.value)
+
+        viewModel.startLogin()
+        advanceUntilIdle()
+
+        assertTrue(authRepository.logoutCalled)
+        assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
+    }
+
     private fun createViewModel() = SettingsViewModel(
         authRepository = authRepository,
         userRepository = userRepository,

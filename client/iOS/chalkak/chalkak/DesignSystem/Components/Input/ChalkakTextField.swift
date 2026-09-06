@@ -10,9 +10,11 @@ struct ChalkakTextField: View {
     var isEnabled = true
     var isReadOnly = false
     var lineLimit: ClosedRange<Int> = 1...5
+    var textFont: Font? = nil
     var maximumCharacterCount: Int?
     var showsCharacterCount = true
     var height: CGFloat?
+    var onFocusChange: ((Bool) -> Void)? = nil
 
     var body: some View {
         TextField(
@@ -27,7 +29,7 @@ struct ChalkakTextField: View {
         .focused($isFocused)
         .disabled(!isEnabled)
         .allowsHitTesting(!isReadOnly)
-        .font(theme.typography.body)
+        .font(textFont ?? theme.typography.body)
         .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
         .tint(theme.colors.inputCursor)
         .padding(
@@ -60,6 +62,9 @@ struct ChalkakTextField: View {
         }
         .accessibilityLabel(label)
         .accessibilityValue(accessibilityValue)
+        .onChange(of: isFocused) { _, isFocused in
+            onFocusChange?(isFocused)
+        }
     }
 
     private var limitedText: Binding<String> {

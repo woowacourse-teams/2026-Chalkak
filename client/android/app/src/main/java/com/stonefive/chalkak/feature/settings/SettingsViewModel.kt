@@ -38,6 +38,12 @@ class SettingsViewModel(
         loadProfile()
     }
 
+    fun startLogin() {
+        viewModelScope.launch {
+            authRepository.logout()
+        }
+    }
+
     fun showLogoutDialog() {
         _uiState.update { it.copy(accountDialog = SettingsAccountDialog.LOGOUT) }
     }

@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.remote.auth
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.auth.model.request.LogoutRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SignatureUploadRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SocialLoginRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SocialSignUpRequest
@@ -56,16 +57,30 @@ class AuthDataSourceImpl(
         )
     }
 
+    override suspend fun logout(refreshToken: String): ApiResult<Unit> = requestExecutor.executeNoContent {
+        api.logout(LogoutRequest(refreshToken = refreshToken))
+    }
+
     private fun SocialLoginResponseDto.toSocialLoginResponse(): SocialLoginResponse? = when (status) {
         LOGIN_SUCCESS -> {
             val validUserId = userId?.takeIf(String::isNotBlank)
             val validAccessToken = accessToken?.takeIf(String::isNotBlank)
             val validExpiresIn = expiresIn?.takeIf { it > 0 }
-            if (validUserId != null && validAccessToken != null && validExpiresIn != null) {
+            val validRefreshToken = refreshToken?.takeIf(String::isNotBlank)
+            val validRefreshTokenExpiresIn = refreshTokenExpiresIn?.takeIf { it > 0 }
+            if (
+                validUserId != null &&
+                validAccessToken != null &&
+                validExpiresIn != null &&
+                validRefreshToken != null &&
+                validRefreshTokenExpiresIn != null
+            ) {
                 SocialLoginResponse.LoginSuccess(
                     userId = validUserId,
                     accessToken = validAccessToken,
                     expiresIn = validExpiresIn,
+                    refreshToken = validRefreshToken,
+                    refreshTokenExpiresIn = validRefreshTokenExpiresIn,
                 )
             } else {
                 null

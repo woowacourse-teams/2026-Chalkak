@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.auth.AuthApi
+import com.stonefive.chalkak.data.remote.auth.RefreshApi
 import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.data.remote.user.UserApi
@@ -21,14 +22,29 @@ class NetworkModule(
         ignoreUnknownKeys = true
     }
 
+    private val httpsBaseUrl = baseUrl.toHttpsBaseUrl()
+
+    private val refreshClient = OkHttpClient
+        .Builder()
+        .build()
+    private val refreshApi: RefreshApi = Retrofit
+        .Builder()
+        .baseUrl(httpsBaseUrl)
+        .client(refreshClient)
+        .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
+        .build()
+        .create(RefreshApi::class.java)
+    private val tokenRefresher = AuthTokenRefresher(refreshApi, json)
+
     private val backendClient = OkHttpClient
         .Builder()
         .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
+        .authenticator(TokenAuthenticator(sessionStore, tokenRefresher, json))
         .build()
 
     private val retrofit = Retrofit
         .Builder()
-        .baseUrl(baseUrl.toHttpsBaseUrl())
+        .baseUrl(httpsBaseUrl)
         .client(backendClient)
         .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
         .build()
@@ -37,10 +53,7 @@ class NetworkModule(
     val topicApi: TopicApi = retrofit.create(TopicApi::class.java)
     val postApi: PostApi = retrofit.create(PostApi::class.java)
     val userApi: UserApi = retrofit.create(UserApi::class.java)
-    val apiRequestExecutor = ApiRequestExecutor(
-        json = json,
-        onUnauthorized = sessionStore::clearIfAccessTokenMatches,
-    )
+    val apiRequestExecutor = ApiRequestExecutor(json = json)
 
     val presignedUploadClient = OkHttpClient
         .Builder()

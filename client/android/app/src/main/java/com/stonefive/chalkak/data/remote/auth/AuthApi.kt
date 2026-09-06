@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.remote.auth
 
+import com.stonefive.chalkak.data.remote.auth.model.request.LogoutRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SignatureUploadRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SocialLoginRequest
 import com.stonefive.chalkak.data.remote.auth.model.request.SocialSignUpRequest
@@ -19,4 +20,7 @@ interface AuthApi {
 
     @POST("auth/social-signup")
     suspend fun socialSignUp(@Body request: SocialSignUpRequest): Response<SocialSignUpResponse>
+
+    @POST("auth/logout")
+    suspend fun logout(@Body request: LogoutRequest): Response<Unit>
 }

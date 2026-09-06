@@ -9,26 +9,26 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-interface AccessTokenCipher {
-    fun encrypt(accessToken: String): String
+interface TokenCipher {
+    fun encrypt(token: String): String
 
-    fun decrypt(encryptedAccessToken: String): String?
+    fun decrypt(encryptedToken: String): String?
 }
 
-class AndroidKeystoreAccessTokenCipher : AccessTokenCipher {
-    override fun encrypt(accessToken: String): String {
+class AndroidKeystoreTokenCipher : TokenCipher {
+    override fun encrypt(token: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
-        val encryptedToken = cipher.doFinal(accessToken.toByteArray(Charsets.UTF_8))
+        val encryptedToken = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
         return Base64
             .getEncoder()
             .encodeToString(cipher.iv + encryptedToken)
     }
 
-    override fun decrypt(encryptedAccessToken: String): String? = runCatching {
+    override fun decrypt(encryptedToken: String): String? = runCatching {
         val encryptedBytes = Base64
             .getDecoder()
-            .decode(encryptedAccessToken)
+            .decode(encryptedToken)
         require(encryptedBytes.size > IV_SIZE_BYTES)
         val initializationVector = encryptedBytes.copyOfRange(0, IV_SIZE_BYTES)
         val ciphertext = encryptedBytes.copyOfRange(IV_SIZE_BYTES, encryptedBytes.size)

@@ -5,6 +5,8 @@ sealed interface SocialLoginResponse {
         val userId: String,
         val accessToken: String,
         val expiresIn: Long,
+        val refreshToken: String,
+        val refreshTokenExpiresIn: Long,
     ) : SocialLoginResponse
 
     data object SignUpRequired : SocialLoginResponse

@@ -8,4 +8,6 @@ data class SocialLoginResponseDto(
     val userId: String? = null,
     val accessToken: String? = null,
     val expiresIn: Long? = null,
+    val refreshToken: String? = null,
+    val refreshTokenExpiresIn: Long? = null,
 )

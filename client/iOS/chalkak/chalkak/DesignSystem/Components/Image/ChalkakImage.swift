@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum ChalkakImageSource {
+enum ChalkakImageSource: Equatable, Sendable {
     case asset(String)
     case system(String)
     case remote(URL?)
@@ -32,20 +32,47 @@ struct ChalkakImage: View {
                 .aspectRatio(contentMode: contentMode)
                 .foregroundStyle(theme.colors.iconSecondary)
         case let .remote(url):
+            RemoteImage(url: url, contentMode: contentMode)
+        }
+    }
+}
+
+/// 원격 이미지를 로드하며, 로딩 지연·최소 표시 규칙에 따라 스켈레톤을 노출한다.
+private struct RemoteImage: View {
+    @Environment(\.chalkakTheme) private var theme
+    let url: URL?
+    let contentMode: ContentMode
+    @State private var isLoading = true
+
+    var body: some View {
+        if let url {
             AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: contentMode)
-                case .failure:
-                    imagePlaceholder(systemName: "photo.badge.exclamationmark")
-                case .empty:
-                    imagePlaceholder(systemName: "photo")
-                @unknown default:
-                    imagePlaceholder(systemName: "photo")
-                }
+                phaseContent(phase)
             }
+            .loadingSkeleton(isLoading: isLoading)
+        } else {
+            // URL이 없으면 로드가 끝나지 않으므로 스켈레톤 대신 고정 플레이스홀더를 표시한다.
+            imagePlaceholder(systemName: "photo")
+        }
+    }
+
+    @ViewBuilder
+    private func phaseContent(_ phase: AsyncImagePhase) -> some View {
+        switch phase {
+        case let .success(image):
+            image
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .onAppear { isLoading = false }
+        case .failure:
+            imagePlaceholder(systemName: "photo.badge.exclamationmark")
+                .onAppear { isLoading = false }
+        case .empty:
+            Color.clear
+                .onAppear { isLoading = true }
+        @unknown default:
+            Color.clear
+                .onAppear { isLoading = true }
         }
     }
 

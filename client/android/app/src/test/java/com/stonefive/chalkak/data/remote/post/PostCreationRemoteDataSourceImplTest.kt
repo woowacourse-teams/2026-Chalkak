@@ -14,7 +14,6 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -23,7 +22,6 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class PostCreationRemoteDataSourceImplTest {
     private lateinit var server: MockWebServer
     private lateinit var dataSource: PostCreationRemoteDataSourceImpl
-    private var unauthorizedHandled = false
 
     @Before
     fun setUp() {
@@ -49,12 +47,9 @@ class PostCreationRemoteDataSourceImplTest {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-        unauthorizedHandled = false
         dataSource = PostCreationRemoteDataSourceImpl(
             postApi = retrofit.create(PostApi::class.java),
-            requestExecutor = ApiRequestExecutor(json) {
-                unauthorizedHandled = true
-            },
+            requestExecutor = ApiRequestExecutor(json),
         )
     }
 
@@ -146,7 +141,7 @@ class PostCreationRemoteDataSourceImplTest {
     }
 
     @Test
-    fun `401 응답은 세션 무효화와 Http 오류로 변환한다`() = runTest {
+    fun `401 응답을 Http 오류로 변환한다`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(401)
@@ -160,7 +155,6 @@ class PostCreationRemoteDataSourceImplTest {
             ApiResult.Failure(ApiError.Http(401, "UNAUTHORIZED", "unauthorized")),
             result,
         )
-        assertTrue(unauthorizedHandled)
     }
 
     @Test

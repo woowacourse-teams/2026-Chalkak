@@ -9,19 +9,25 @@ struct ChalkakSignedImage: View {
     var signatureSize = Metrics.defaultSignatureSize
 
     var body: some View {
-        ChalkakImage(
-            source: imageSource,
-            contentDescription: contentDescription,
-            contentMode: contentMode
-        )
-        .overlay(alignment: .bottomTrailing) {
-            ChalkakImage(
-                source: signatureSource,
-                contentDescription: nil,
-                contentMode: .fit
-            )
-            .frame(width: signatureSize.width, height: signatureSize.height)
-            .padding(theme.spacing.sm)
+        GeometryReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                ChalkakImage(
+                    source: imageSource,
+                    contentDescription: contentDescription,
+                    contentMode: contentMode
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+
+                ChalkakImage(
+                    source: signatureSource,
+                    contentDescription: nil,
+                    contentMode: .fit
+                )
+                .frame(width: signatureSize.width, height: signatureSize.height)
+                .padding(theme.spacing.sm)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
 }

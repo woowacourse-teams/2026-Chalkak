@@ -141,7 +141,13 @@ private class HeaderTestSessionStore(
     private val mutableSession = MutableStateFlow<LocalSession>(
         token?.let {
             LocalSession.Authenticated(
-                SessionCredentials("user-id", it, expiresAtEpochSeconds),
+                SessionCredentials(
+                    userId = "user-id",
+                    accessToken = it,
+                    expiresAtEpochSeconds = expiresAtEpochSeconds,
+                    refreshToken = "refresh-token",
+                    refreshTokenExpiresAtEpochSeconds = Long.MAX_VALUE,
+                ),
             )
         } ?: LocalSession.SignedOut,
     )
@@ -159,13 +165,15 @@ private class HeaderTestSessionStore(
         mutableSessionState.value = UserSessionState.Authenticated(credentials.userId)
     }
 
+    override suspend fun updateTokens(credentials: SessionCredentials): Boolean {
+        val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials
+        if (current == null || current.userId != credentials.userId) return false
+        saveSession(credentials)
+        return true
+    }
+
     override suspend fun clear() {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
-    }
-
-    override suspend fun clearIfAccessTokenMatches(accessToken: String) {
-        val currentToken = (mutableSession.value as? LocalSession.Authenticated)?.credentials?.accessToken
-        if (currentToken == accessToken) clear()
     }
 }
