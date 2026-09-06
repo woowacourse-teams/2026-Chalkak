@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC "-//Checkstyle//DTD SuppressionXpathFilter Experimental Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2_xpath_experimental.dtd">
+<suppressions>
+    <!-- Legacy violation at adoption (ff87e34). Remove when appendOrder is refactored.
+         This is not permission to introduce new switches or suppress other methods. -->
+    <suppress-xpath
+            files="[/\\]admin[/\\]infrastructure[/\\]persistence[/\\]AdminTopicQueryRepositoryImpl\.java$"
+            checks="IllegalToken"
+            query="//METHOD_DEF[IDENT[@text='appendOrder']]/SLIST/LITERAL_SWITCH[EXPR/IDENT[@text='sort']]"/>
+</suppressions>
