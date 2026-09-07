@@ -1,0 +1,59 @@
+{
+  "id": "business-rule-documentation",
+  "title": "코드에 있는 비즈니스 규칙의 문서화와 수동 반영 안내",
+  "setup": {
+    "branch": "be/fix/#990-banned-like-cancel",
+    "copy_source_paths": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".agents/skills/business-rules",
+      ".claude/skills/business-rules"
+    ],
+    "uncommitted_append": {}
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      "docs/business-rules/rules/like.md"
+    ],
+    "required_changed_paths": [
+      "docs/business-rules/rules/like.md"
+    ],
+    "required_text": {},
+    "preserved_text": {
+      "docs/business-rules/rules/like.md": [
+        "## LIKE-001 이용 자격",
+        "- 규칙: 로그인한 회원만 좋아요를 등록하거나 취소할 수 있다.",
+        "- 적용 범위: 게시물 좋아요",
+        "- 결정 기록: 없음"
+      ]
+    },
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "inspect-implementation",
+      "check": "좋아요 서비스와 테스트, LIKE-001을 대조해 정지 회원은 새 좋아요를 등록할 수 없지만 기존 좋아요는 취소할 수 있다는 현재 동작을 확인한다.",
+      "evidence": "도구 기록에서 관련 코드·테스트·규칙 문서를 읽었는지 확인하고, 최종 diff가 그 동작과 일치하는지 대조한다."
+    },
+    {
+      "id": "update-current-rule",
+      "check": "LIKE-001의 예외에 확인한 동작을 반영하고 다른 규칙과 필수 필드를 보존한다.",
+      "evidence": "like.md 전후 diff를 확인한다. 관계없는 도메인이나 구현 코드를 수정하면 실패다."
+    },
+    {
+      "id": "no-false-decision",
+      "check": "새 정책을 결정한 작업이 아니라 기존 코드의 문서 누락 보완이므로 결정 기록을 새로 만들지 않고 LIKE-001의 결정 기록을 없음으로 유지한다.",
+      "evidence": "변경 파일 목록과 LIKE-001을 확인한다. 합의되지 않은 결정 문서를 만들거나 정책을 확대하면 실패다."
+    },
+    {
+      "id": "manual-notion-guide",
+      "check": "종료 응답에서 찰캌 → 백엔드 → 비즈니스 룰 → 백엔드 비지니스 룰 → 좋아요 → 이용 자격 위치와 교체할 내용, 반영할 완성 문구를 안내한다.",
+      "evidence": "최종 답변을 notion-map.yml과 수정된 LIKE-001에 대조한다. PR 본문 수정, 병합 확인, Notion 접근·완료 추적을 요구하면 실패다."
+    }
+  ]
+}

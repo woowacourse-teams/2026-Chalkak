@@ -1,0 +1,29 @@
+{
+  "id": "ambiguous-work",
+  "title": "정책이 미정인 새 작업의 첫 인터뷰 질문",
+  "setup": {"uncommitted_append": {}},
+  "mechanical": {
+    "allowed_changed_paths": [],
+    "required_changed_paths": [],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": ["git_commit", "git_branch", "git_push", "github_write"]
+  },
+  "semantic": [
+    {
+      "id": "service-context",
+      "check": "관련 README·게시물 기획을 읽고 현재 사실과 미정 정책을 구분한다.",
+      "evidence": "도구 기록에서 fixture 문서 읽기를 확인하고, 답변에 없는 기능·권한·정책을 현재 동작으로 지어내지 않았는지 대조한다."
+    },
+    {
+      "id": "one-useful-question",
+      "check": "기본 심화 기준을 짧게 알리고, 신고의 목적·범위·처리 정책 중 다음 결정을 좌우하는 한 가지를 질문한 뒤 답변을 기다린다.",
+      "evidence": "마지막 채팅 또는 질문 도구의 실제 질문을 읽는다. 여러 선택지가 같은 한 결정을 돕는 것은 허용한다. 서로 다른 정책을 한꺼번에 묻거나 처음부터 모드 선택을 요구하면 실패다."
+    },
+    {
+      "id": "no-premature-execution",
+      "check": "신고 정책을 임의 확정하거나 구현·이슈 등록·브랜치 생성을 시작하지 않는다.",
+      "evidence": "전체 도구 기록과 답변을 확인한다. 제안은 제안으로 구분해야 하며, 이 사례는 첫 질문까지만 평가한다. 전체 인터뷰 완료·최종 점수의 타당성을 통과했다고 기록하지 않는다."
+    }
+  ]
+}

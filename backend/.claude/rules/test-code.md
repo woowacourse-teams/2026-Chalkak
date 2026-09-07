@@ -15,9 +15,8 @@ paths:
 
 ## 기본 스타일
 
-- Google Java Style을 기본으로 하되 블록 들여쓰기는 공백 4칸을 사용한다.
-- UTF-8·LF를 사용하고 파일 끝 개행을 추가하며 줄 끝 공백을 제거한다.
-- 완료 전 변경한 파일에서 사용하지 않는 import를 제거한다.
+- Google Java Style 기반 팀 형식은 저장소 Spotless 설정을 따른다. `./gradlew spotlessCheck`로 확인하고 형식 수정 후 diff를 점검한다.
+- 테스트에는 운영 코드 전용 Checkstyle 규칙을 적용하지 않는다.
 
 ## 테스트 유형
 

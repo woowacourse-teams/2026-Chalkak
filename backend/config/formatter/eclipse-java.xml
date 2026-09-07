@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles version="23">
+    <profile kind="CodeFormatterProfile" name="Chalkak" version="23">
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+        <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="2"/>
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation_for_array_initializer" value="2"/>
+        <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="100"/>
+        <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
+        <!-- "delcaration" is the official Eclipse option spelling, retained for compatibility. -->
+        <setting id="org.eclipse.jdt.core.formatter.parentheses_positions_in_method_delcaration" value="preserve_positions"/>
+        <setting id="org.eclipse.jdt.core.formatter.brace_position_for_type_declaration" value="end_of_line"/>
+        <setting id="org.eclipse.jdt.core.formatter.brace_position_for_method_declaration" value="end_of_line"/>
+        <setting id="org.eclipse.jdt.core.formatter.brace_position_for_constructor_declaration" value="end_of_line"/>
+        <setting id="org.eclipse.jdt.core.formatter.brace_position_for_block" value="end_of_line"/>
+        <setting id="org.eclipse.jdt.core.formatter.brace_position_for_record_declaration" value="end_of_line"/>
+    </profile>
+</profiles>

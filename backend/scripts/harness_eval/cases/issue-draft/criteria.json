@@ -1,0 +1,34 @@
+{
+  "id": "issue-draft",
+  "title": "합의한 작업의 이슈 초안 작성",
+  "setup": {"uncommitted_append": {}},
+  "mechanical": {
+    "allowed_changed_paths": [],
+    "required_changed_paths": [],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": ["git_commit", "git_branch", "git_push", "github_write"]
+  },
+  "semantic": [
+    {
+      "id": "template-read",
+      "check": "실제 docs 이슈 양식을 읽고 그 항목을 사용한 초안을 채팅으로 작성한다.",
+      "evidence": "도구 기록의 .github/ISSUE_TEMPLATE/docs.md 읽기와 최종 초안을 함께 확인한다. 양식을 따랐다는 자기 설명이나 제목만으로 통과시키지 않는다."
+    },
+    {
+      "id": "agreed-scope",
+      "check": "목적, README 범위, JDK 25, backend 실행 위치, bootRun 명령과 완료 기준을 보존하고 구현·검증을 완료했다고 쓰지 않는다.",
+      "evidence": "본문과 작업 체크리스트를 사용자 합의와 대조한다. 실제 문구가 달라도 같은 정보를 전달하면 인정한다."
+    },
+    {
+      "id": "backend-format",
+      "check": "마감 기한·이슈 확인을 제외하고, 실제 관련 자료가 없는 참고 자료 항목도 생략한다.",
+      "evidence": "최종 초안에서 빈 항목, 미정 날짜, 가짜 링크나 팀원 확인란을 만들지 않았는지 확인한다."
+    },
+    {
+      "id": "draft-boundary",
+      "check": "제목·본문과 구분해 Server·docs 라벨, fixture-author 작성자, 미발급 이슈 번호를 표시한 백엔드 작업 브랜치 형식과 be/develop 기준을 안내한다. 이미 확정한 기획·계정을 다시 묻느라 초안 작성을 멈추지 않는다.",
+      "evidence": "최종 초안 및 도구 기록을 확인한다. 이슈 번호를 지어내거나 등록·브랜치 생성·개발까지 진행하면 실패다. 초안 제시 후 등록 의사를 묻는 것은 허용한다."
+    }
+  ]
+}
