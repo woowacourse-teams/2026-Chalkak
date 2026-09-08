@@ -135,6 +135,24 @@ struct HomeViewModelBehaviorTests {
     }
 
     @MainActor
+    @Test("취소된 새로고침은 기존 콘텐츠를 유지하고 오류 토스트를 표시하지 않는다")
+    func cancelledRefreshKeepsContentWithoutErrorEvent() async {
+        let initialState = HomePreviewData.contentState
+        let viewModel = HomeViewModel(
+            initialState: initialState,
+            refreshHandler: { _ in .failure(.cancelled) }
+        )
+
+        await viewModel.refresh()
+
+        #expect(viewModel.event == nil)
+        #expect(viewModel.viewState.contentStatus == .content)
+        #expect(viewModel.viewState.photos == initialState.photos)
+        #expect(!viewModel.viewState.isRefreshing)
+        #expect(viewModel.viewState.areLikesEnabled)
+    }
+
+    @MainActor
     @Test("끝 임계값 도달 시 다음 페이지를 한 번 추가한다")
     func appendsNextPageWhenEndThresholdIsReached() async {
         let viewModel = HomeViewModel(

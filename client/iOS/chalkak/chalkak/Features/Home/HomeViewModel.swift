@@ -126,6 +126,21 @@ final class HomeViewModel {
             newState.areLikesEnabled = true
             viewState = newState
         case let .failure(reason):
+            if reason == .cancelled {
+                if preservesContent {
+                    viewState.isRefreshing = false
+                    viewState.isLoadingNext = false
+                    viewState.areLikesEnabled = true
+                } else {
+                    viewState = HomeViewState(
+                        contentStatus: .loading,
+                        selectedSort: sort,
+                        areLikesEnabled: false
+                    )
+                }
+                return
+            }
+
             if preservesContent {
                 viewState.isRefreshing = false
                 viewState.isLoadingNext = false
