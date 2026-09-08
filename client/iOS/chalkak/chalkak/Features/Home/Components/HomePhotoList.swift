@@ -13,10 +13,6 @@ struct HomePhotoList: View {
 
     var body: some View {
         LazyVStack(spacing: theme.spacing.xxl) {
-            Color.clear
-                .frame(height: topContentPadding)
-                .accessibilityHidden(true)
-
             ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                 HomePhotoCard(
                     photo: photo,
@@ -41,6 +37,7 @@ struct HomePhotoList: View {
                 .frame(height: bottomContentPadding)
                 .accessibilityHidden(true)
         }
+        .padding(.top, topContentPadding)
         .padding(.bottom, theme.spacing.xxl + theme.spacing.sm)
         .onAppear {
             onEndThreshold(false)

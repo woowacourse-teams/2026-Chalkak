@@ -179,36 +179,38 @@ private struct HomeContent: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Color.clear
-                    .frame(height: 0)
-                    .id(HomeMetrics.scrollTopID)
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(HomeMetrics.scrollTopID)
 
-                HomeTopic(
-                    topicDate: viewModel.viewState.topicDate,
-                    topic: viewModel.viewState.topic
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, theme.spacing.screenHorizontal)
-                .padding(.top, HomeTopBarMetrics.height)
-                .homeBottomDivider()
-
-                if viewModel.viewState.photos.isEmpty {
-                    HomeEmptyContent()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, HomeMetrics.emptyTopPadding)
-                } else {
-                    HomePhotoList(
-                        photos: viewModel.viewState.photos,
-                        likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
-                        isLoadingNext: viewModel.viewState.isLoadingNext,
-                        areLikesEnabled: viewModel.viewState.areLikesEnabled,
-                        onLike: { photoID in
-                            Task { await viewModel.toggleLike(photoID: photoID) }
-                        },
-                        onEndThreshold: { isReached in
-                            Task { await viewModel.didReachEndThreshold(isReached) }
-                        }
+                    HomeTopic(
+                        topicDate: viewModel.viewState.topicDate,
+                        topic: viewModel.viewState.topic
                     )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, HomeTopBarMetrics.height)
+                    .homeBottomDivider()
+
+                    if viewModel.viewState.photos.isEmpty {
+                        HomeEmptyContent()
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, HomeMetrics.emptyTopPadding)
+                    } else {
+                        HomePhotoList(
+                            photos: viewModel.viewState.photos,
+                            likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
+                            isLoadingNext: viewModel.viewState.isLoadingNext,
+                            areLikesEnabled: viewModel.viewState.areLikesEnabled,
+                            onLike: { photoID in
+                                Task { await viewModel.toggleLike(photoID: photoID) }
+                            },
+                            onEndThreshold: { isReached in
+                                Task { await viewModel.didReachEndThreshold(isReached) }
+                            }
+                        )
+                    }
                 }
             }
             .overlay(alignment: .top) {
