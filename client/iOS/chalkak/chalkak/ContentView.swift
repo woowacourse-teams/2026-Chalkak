@@ -156,8 +156,7 @@ struct ContentView: View {
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onNavigateToBottomBar: select,
-                onSelectPhoto: { selectedFeed = $0 }
+                onNavigateToBottomBar: select
             )
             .task {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
