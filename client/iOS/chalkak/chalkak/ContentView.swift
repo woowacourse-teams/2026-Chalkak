@@ -391,6 +391,8 @@ private func apiResult<Value: Sendable>(
         return .success(try await operation())
     } catch let error as HomeAPIError {
         return .failure(error.initialError)
+    } catch is CancellationError {
+        return .failure(.cancelled)
     } catch {
         return .failure(.generic)
     }
