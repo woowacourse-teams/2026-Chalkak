@@ -5,7 +5,6 @@ struct HomeScreen: View {
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
-    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
@@ -24,7 +23,7 @@ struct HomeScreen: View {
                     onRetry: { Task { await viewModel.retry() } }
                 )
             case .content:
-                HomeContent(viewModel: viewModel, onSelectPhoto: onSelectPhoto)
+                HomeContent(viewModel: viewModel)
             }
         }
         .background(theme.colors.background)
@@ -140,35 +139,19 @@ private struct HomeInitialStatus: View {
 private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
-    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
     @State private var showsScrollToTop = false
     @State private var accumulatedScroll: CGFloat = 0
-
-    private func feedTarget(for photo: HomePhoto) -> FeedTarget {
-        let state = viewModel.viewState
-        let dateLabel = state.topicDate.map(FeedDateLabel.make(from:)) ?? ""
-        return FeedTarget(
-            seed: FeedContent(
-                dateLabel: dateLabel,
-                topic: state.topic,
-                post: FeedPost(
-                    id: photo.id,
-                    originalImageSource: photo.imageSource,
-                    signatureImageSource: photo.signatureSource,
-                    contentDescription: photo.contentDescription,
-                    title: photo.title,
-                    likeCount: photo.likeCount,
-                    isLiked: state.likedPhotoIDs.contains(photo.id)
-                )
-            ),
-            // 홈은 실제 좋아요 값을 알고 있어 즉시 좋아요를 허용한다.
-            isLikeConfirmed: true
-        )
-    }
 
     // 아래로 스크롤하면 버튼이 나타나고 위로 스크롤하면 사라진다.
     // 절대 위치가 아닌 스크롤 방향으로 판단해 safe area inset 영향에서 자유롭다.
     private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
+        // Pull-to-refresh의 음수 overscroll은 일반 스크롤로 취급하지 않는다.
+        // 갱신 제스처 도중 상태가 바뀌면 SwiftUI가 refresh 작업을 취소할 수 있다.
+        guard oldDistance >= 0, newDistance >= 0 else {
+            accumulatedScroll = 0
+            return
+        }
+
         // 아래로 스크롤할수록 delta가 커지도록 부호를 맞춘다.
         let delta = oldDistance - newDistance // 양수면 아래로, 음수면 위로 스크롤한 것이다.
         guard delta != 0 else { return }
@@ -224,8 +207,7 @@ private struct HomeContent: View {
                         },
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
-                        },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        }
                     )
                 }
             }
@@ -234,6 +216,7 @@ private struct HomeContent: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
                     .homeBottomDivider()
+                    .allowsHitTesting(false)
             }
             .overlay(alignment: .bottomTrailing) {
                 if showsScrollToTop {
@@ -265,7 +248,10 @@ private struct HomeContent: View {
                 updateScrollToTop(from: oldDistance, to: newDistance)
             }
             .refreshable {
-                await viewModel.refresh()
+                // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
+                // 네트워크 갱신 자체는 완료되도록 독립된 Task에서 실행한다.
+                let refreshTask = Task { await viewModel.refresh() }
+                await refreshTask.value
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: HomeTopBarMetrics.height)

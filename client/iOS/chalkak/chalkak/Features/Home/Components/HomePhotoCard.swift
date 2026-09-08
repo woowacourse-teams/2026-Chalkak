@@ -6,7 +6,6 @@ struct HomePhotoCard: View {
     let isLiked: Bool
     let isLikeEnabled: Bool
     let onLike: () -> Void
-    var onSelect: () -> Void = {}
     @State private var imageRatio: CGFloat?
 
     var body: some View {
@@ -23,11 +22,7 @@ struct HomePhotoCard: View {
                     )
                 }
                 .clipped()
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onSelect)
                 .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("피드 열기")
                 .task(id: photo.imageSource) {
                     imageRatio = nil
                     imageRatio = await ImageRatioLoader.ratio(for: photo.imageSource)

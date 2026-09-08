@@ -29,6 +29,7 @@ enum HomeInitialError: Error, Equatable, Sendable {
     case client
     case server
     case generic
+    case cancelled
 
     var message: String {
         switch self {
@@ -46,6 +47,8 @@ enum HomeInitialError: Error, Equatable, Sendable {
             "서버에 잠시 문제가 생겼어요"
         case .generic:
             "홈을 불러오지 못했어요"
+        case .cancelled:
+            ""
         }
     }
 }
