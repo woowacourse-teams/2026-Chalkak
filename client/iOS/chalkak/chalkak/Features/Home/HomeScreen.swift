@@ -5,7 +5,6 @@ struct HomeScreen: View {
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
-    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
@@ -24,7 +23,7 @@ struct HomeScreen: View {
                     onRetry: { Task { await viewModel.retry() } }
                 )
             case .content:
-                HomeContent(viewModel: viewModel, onSelectPhoto: onSelectPhoto)
+                HomeContent(viewModel: viewModel)
             }
         }
         .background(theme.colors.background)
@@ -140,31 +139,8 @@ private struct HomeInitialStatus: View {
 private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
-    var onSelectPhoto: (FeedTarget) -> Void = { _ in }
     @State private var showsScrollToTop = false
     @State private var accumulatedScroll: CGFloat = 0
-
-    private func feedTarget(for photo: HomePhoto) -> FeedTarget {
-        let state = viewModel.viewState
-        let dateLabel = state.topicDate.map(FeedDateLabel.make(from:)) ?? ""
-        return FeedTarget(
-            seed: FeedContent(
-                dateLabel: dateLabel,
-                topic: state.topic,
-                post: FeedPost(
-                    id: photo.id,
-                    originalImageSource: photo.imageSource,
-                    signatureImageSource: photo.signatureSource,
-                    contentDescription: photo.contentDescription,
-                    title: photo.title,
-                    likeCount: photo.likeCount,
-                    isLiked: state.likedPhotoIDs.contains(photo.id)
-                )
-            ),
-            // 홈은 실제 좋아요 값을 알고 있어 즉시 좋아요를 허용한다.
-            isLikeConfirmed: true
-        )
-    }
 
     // 아래로 스크롤하면 버튼이 나타나고 위로 스크롤하면 사라진다.
     // 절대 위치가 아닌 스크롤 방향으로 판단해 safe area inset 영향에서 자유롭다.
@@ -231,8 +207,7 @@ private struct HomeContent: View {
                         },
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
-                        },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        }
                     )
                 }
             }
