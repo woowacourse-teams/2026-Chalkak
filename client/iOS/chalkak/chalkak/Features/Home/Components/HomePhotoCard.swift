@@ -6,19 +6,27 @@ struct HomePhotoCard: View {
     let isLiked: Bool
     let isLikeEnabled: Bool
     let onLike: () -> Void
+    @State private var imageRatio: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
-            ChalkakSignedImage(
-                imageSource: photo.imageSource,
-                signatureSource: photo.signatureSource,
-                contentDescription: photo.contentDescription,
-                contentMode: .fill
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: HomePhotoCardMetrics.photoHeight)
-            .clipped()
-            .accessibilityElement(children: .combine)
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1 / (imageRatio ?? HomePhotoCardMetrics.defaultImageRatio), contentMode: .fit)
+                .overlay {
+                    ChalkakSignedImage(
+                        imageSource: photo.imageSource,
+                        signatureSource: photo.signatureSource,
+                        contentDescription: photo.contentDescription,
+                        contentMode: .fill
+                    )
+                }
+                .clipped()
+                .accessibilityElement(children: .combine)
+                .task(id: photo.imageSource) {
+                    imageRatio = nil
+                    imageRatio = await ImageRatioLoader.ratio(for: photo.imageSource)
+                }
 
             actionRow
         }
@@ -68,7 +76,7 @@ struct HomePhotoCard: View {
 }
 
 private enum HomePhotoCardMetrics {
-    static let photoHeight: CGFloat = 415
+    static let defaultImageRatio: CGFloat = 1
     static let actionHeight: CGFloat = 57
     static let horizontalPadding: CGFloat = 14
     static let likeSpacing: CGFloat = 9

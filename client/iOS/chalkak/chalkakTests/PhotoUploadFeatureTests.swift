@@ -400,10 +400,11 @@ struct PhotoUploadScreenTests {
         #expect(size.height == 874)
     }
 
-    @Test("선택한 사진도 Android와 같은 이미지 영역 비율을 유지한다")
+    @Test("선택한 사진의 원본 비율로 이미지 영역을 표시한다")
     func keepsSelectedImageAspectRatio() {
+        let selectedImage = Self.image()
         let view = PhotoUploadImageArea(
-            selectedImage: Self.image(),
+            selectedImage: selectedImage,
             topicTitle: "틈",
             isCameraAvailable: true,
             onGalleryClick: {},
@@ -419,7 +420,8 @@ struct PhotoUploadScreenTests {
         )
 
         #expect(abs(size.width - 402) < 1)
-        #expect(abs(size.height - (402 / 1.216)) < 1)
+        let expectedHeight = 402 * selectedImage.size.height / selectedImage.size.width
+        #expect(abs(size.height - expectedHeight) < 1)
     }
 
     private static func image() -> UIImage {

@@ -1,9 +1,41 @@
+import ImageIO
 import SwiftUI
+import UIKit
 
 enum ChalkakImageSource: Equatable, Sendable {
     case asset(String)
     case system(String)
     case remote(URL?)
+}
+
+/// 이미지의 EXIF 방향을 반영한 세로/가로 비율(height / width)을 구한다.
+enum ImageRatioLoader {
+    static func ratio(for source: ChalkakImageSource) async -> CGFloat? {
+        switch source {
+        case let .asset(name):
+            guard let image = UIImage(named: name), image.size.width > 0 else { return nil }
+            return image.size.height / image.size.width
+        case .system:
+            return nil
+        case let .remote(url?):
+            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+            guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
+                      as? [CFString: Any],
+                  let pixelWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
+                  let pixelHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
+                  pixelWidth > 0, pixelHeight > 0
+            else { return nil }
+
+            let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+            let isRotated = (5...8).contains(orientation)
+            let width = isRotated ? pixelHeight : pixelWidth
+            let height = isRotated ? pixelWidth : pixelHeight
+            return CGFloat(height / width)
+        case .remote(nil):
+            return nil
+        }
+    }
 }
 
 struct ChalkakImage: View {
