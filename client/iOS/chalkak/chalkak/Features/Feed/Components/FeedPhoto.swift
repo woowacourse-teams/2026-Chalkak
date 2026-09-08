@@ -4,12 +4,13 @@ struct FeedPhoto: View {
     let post: FeedPost
     var isLikeEnabled: Bool = true
     let onLike: () -> Void
+    @State private var imageRatio: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
             Color.clear
                 .frame(maxWidth: .infinity)
-                .aspectRatio(Metrics.photoAspectRatio, contentMode: .fit)
+                .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
                     ChalkakSignedImage(
                         imageSource: post.originalImageSource,
@@ -20,6 +21,10 @@ struct FeedPhoto: View {
                     )
                 }
                 .clipped()
+                .task(id: post.originalImageSource) {
+                    imageRatio = nil
+                    imageRatio = await ImageRatioLoader.ratio(for: post.originalImageSource)
+                }
 
             FeedLikeRow(
                 likeCount: post.likeCount,
@@ -73,7 +78,7 @@ private struct FeedLikeRow: View {
 }
 
 private enum Metrics {
-    static let photoAspectRatio: CGFloat = 0.935
+    static let defaultImageRatio: CGFloat = 1
     static let signatureSize = CGSize(width: 70, height: 52)
     static let rowHeight: CGFloat = 60
     static let spacing: CGFloat = 9

@@ -1,4 +1,3 @@
-import ImageIO
 import SwiftUI
 
 struct DisplayPhotoGrid: View {
@@ -144,29 +143,6 @@ struct DisplayLikeBadge: View {
         static let heartSize: CGFloat = 18
         static let shadowOpacity: CGFloat = 0.25
         static let shadowRadius: CGFloat = 2
-    }
-}
-
-/// 원격 이미지의 헤더만 읽어 EXIF 방향을 반영한 세로/가로 비율(height / width)을 구한다.
-/// `URLSession.shared`를 사용하므로 `AsyncImage`와 `URLCache`를 공유해 실제 다운로드는 한 번만 일어난다.
-enum ImageRatioLoader {
-    static func ratio(for source: ChalkakImageSource) async -> CGFloat? {
-        guard case let .remote(url?) = source else { return nil }
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
-                  as? [CFString: Any],
-              let pixelWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
-              let pixelHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
-              pixelWidth > 0, pixelHeight > 0
-        else { return nil }
-
-        // EXIF 방향 5~8은 90/270도 회전이라 가로·세로가 바뀐다.
-        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
-        let isRotated = (5...8).contains(orientation)
-        let width = isRotated ? pixelHeight : pixelWidth
-        let height = isRotated ? pixelWidth : pixelHeight
-        return CGFloat(height / width)
     }
 }
 

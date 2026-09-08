@@ -14,12 +14,12 @@ struct PhotoUploadImageArea: View {
         ZStack(alignment: .topTrailing) {
             Rectangle()
                 .fill(theme.colors.inputBackground)
-                .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+                .aspectRatio(containerAspectRatio, contentMode: .fit)
                 .overlay {
                     if let selectedImage {
                         Image(uiImage: selectedImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .clipped()
                             .accessibilityLabel("선택한 사진")
@@ -47,6 +47,13 @@ struct PhotoUploadImageArea: View {
         }
         .frame(maxWidth: .infinity)
         .clipped()
+    }
+
+    private var containerAspectRatio: CGFloat {
+        guard let selectedImage, selectedImage.size.height > 0 else {
+            return Metrics.emptyAspectRatio
+        }
+        return selectedImage.size.width / selectedImage.size.height
     }
 
     private var emptyContent: some View {
@@ -78,7 +85,7 @@ struct PhotoUploadImageArea: View {
 }
 
 private enum Metrics {
-    static let aspectRatio: CGFloat = 1.216
+    static let emptyAspectRatio: CGFloat = 1.216
     static let actionTopPadding: CGFloat = 14
     static let actionTrailingPadding: CGFloat = 11
     static let actionSpacing: CGFloat = 10
