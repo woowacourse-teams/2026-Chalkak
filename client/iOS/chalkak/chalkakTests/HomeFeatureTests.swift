@@ -153,6 +153,25 @@ struct HomeViewModelBehaviorTests {
     }
 
     @MainActor
+    @Test("취소된 재시도는 이전 오류 상태를 복원한다")
+    func cancelledRetryRestoresPreviousErrorState() async {
+        let initialState = HomeViewState(
+            contentStatus: .error(.network),
+            selectedSort: .popular,
+            areLikesEnabled: false
+        )
+        let viewModel = HomeViewModel(
+            initialState: initialState,
+            refreshHandler: { _ in .failure(.cancelled) }
+        )
+
+        await viewModel.retry()
+
+        #expect(viewModel.event == nil)
+        #expect(viewModel.viewState == initialState)
+    }
+
+    @MainActor
     @Test("끝 임계값 도달 시 다음 페이지를 한 번 추가한다")
     func appendsNextPageWhenEndThresholdIsReached() async {
         let viewModel = HomeViewModel(

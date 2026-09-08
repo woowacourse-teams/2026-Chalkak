@@ -103,6 +103,7 @@ final class HomeViewModel {
 
     private func loadFirstPage(sort: HomePostSort, preservesContent: Bool) async {
         isEndThresholdReached = false
+        let previousState = viewState
 
         if preservesContent {
             viewState.isRefreshing = true
@@ -127,17 +128,7 @@ final class HomeViewModel {
             viewState = newState
         case let .failure(reason):
             if reason == .cancelled {
-                if preservesContent {
-                    viewState.isRefreshing = false
-                    viewState.isLoadingNext = false
-                    viewState.areLikesEnabled = true
-                } else {
-                    viewState = HomeViewState(
-                        contentStatus: .loading,
-                        selectedSort: sort,
-                        areLikesEnabled: false
-                    )
-                }
+                viewState = previousState
                 return
             }
 
