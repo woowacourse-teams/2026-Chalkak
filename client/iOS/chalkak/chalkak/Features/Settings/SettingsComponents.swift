@@ -19,16 +19,6 @@ struct SettingsSignatureCard: View {
     var body: some View {
         SettingsCard {
             HStack(spacing: theme.spacing.md) {
-                Image(systemName: "pencil.tip")
-                    .font(.system(size: Metrics.signatureIconSize, weight: .medium))
-                    .foregroundStyle(theme.colors.iconSecondary)
-                    .frame(
-                        width: Metrics.signatureIconBackgroundSize,
-                        height: Metrics.signatureIconBackgroundSize
-                    )
-                    .background(theme.colors.inputBackground, in: Circle())
-                    .accessibilityHidden(true)
-
                 Text("사인 재설정")
                     .font(theme.typography.callout)
                     .foregroundStyle(theme.colors.textPrimary)
@@ -264,8 +254,6 @@ private enum Metrics {
     static let signatureCanvasHeight: CGFloat = 112
     static let signatureImageWidth: CGFloat = 120
     static let signatureImageHeight: CGFloat = 48
-    static let signatureIconSize: CGFloat = 15
-    static let signatureIconBackgroundSize: CGFloat = 30
     static let chevronSize: CGFloat = 13
     static let accountIconSize: CGFloat = 13
 }
