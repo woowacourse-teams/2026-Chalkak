@@ -49,6 +49,85 @@ struct ChalkakTextFieldTests {
     }
 }
 
+@MainActor
+struct ChalkakTextFieldInputTests {
+    @Test("입력 중 최대 글자 수를 초과한 문자는 화면에 남기지 않는다")
+    func preventsInputBeyondMaximumCharacterCount() {
+        let model = TextModel()
+        let view = ChalkakTextField(
+            text: Binding(
+                get: { model.text },
+                set: { model.text = $0 }
+            ),
+            label: "사진 설명",
+            maximumCharacterCount: 10
+        )
+        let hostingController = UIHostingController(rootView: view)
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first
+        else {
+            Issue.record("윈도우 씬을 찾지 못했습니다")
+            return
+        }
+        let window = UIWindow(windowScene: windowScene)
+        window.frame = CGRect(x: 0, y: 0, width: 320, height: 148)
+        defer { window.isHidden = true }
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.layoutIfNeeded()
+
+        guard let inputView = textInput(in: hostingController.view),
+              let input = inputView as? UIKeyInput
+        else {
+            Issue.record("텍스트 입력 뷰를 찾지 못했습니다")
+            return
+        }
+
+        inputView.becomeFirstResponder()
+        for _ in 0..<11 {
+            input.insertText("a")
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+        #expect(model.text == String(repeating: "a", count: 10))
+        #expect(inputText(in: hostingController.view) == String(repeating: "a", count: 10))
+    }
+
+    private func textInput(in view: UIView) -> UIView? {
+        if view is UITextView || view is UITextField {
+            return view
+        }
+        for subview in view.subviews {
+            if let inputView = textInput(in: subview) {
+                return inputView
+            }
+        }
+        return nil
+    }
+
+    private func inputText(in view: UIView) -> String? {
+        if let textView = view as? UITextView {
+            return textView.text
+        }
+        if let textField = view as? UITextField {
+            return textField.text
+        }
+        for subview in view.subviews {
+            if let text = inputText(in: subview) {
+                return text
+            }
+        }
+        return nil
+    }
+
+    @MainActor
+    private final class TextModel {
+        var text = ""
+    }
+}
+
 struct ChalkakThemeTests {
     @Test("Android와 동일한 spacing 토큰을 제공한다")
     func providesSharedSpacingTokens() {
