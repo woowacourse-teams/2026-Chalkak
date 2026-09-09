@@ -55,6 +55,24 @@ struct LoginViewModelTests {
         #expect(viewModel.state.status == .guestAccessGranted)
     }
 
+    @Test("navigation 완료 후 로그인 상태를 초기화하면 다시 제출할 수 있다")
+    func resetAfterNavigationRestoresIdleState() async {
+        let repository = MockAuthRepository(loginResult: .authenticated(userID: "unused"))
+        let viewModel = LoginViewModel(
+            authRepository: repository,
+            googleLoginClient: MockSocialLoginClient(token: "google-token"),
+            kakaoLoginClient: MockSocialLoginClient(token: "kakao-token")
+        )
+
+        viewModel.continueAsGuest()
+        await waitUntil { viewModel.state.status == .guestAccessGranted }
+
+        viewModel.resetAfterNavigation()
+
+        #expect(viewModel.state.status == .idle)
+        #expect(viewModel.state.canSubmit)
+    }
+
     private func waitUntil(
         _ condition: @escaping @MainActor () -> Bool
     ) async {

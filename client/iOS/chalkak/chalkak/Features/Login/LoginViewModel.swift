@@ -141,6 +141,12 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
+    func resetAfterNavigation() {
+        loginTask?.cancel()
+        loginTask = nil
+        state = LoginViewState()
+    }
+
     func dismissError() {
         state.errorMessage = nil
     }
