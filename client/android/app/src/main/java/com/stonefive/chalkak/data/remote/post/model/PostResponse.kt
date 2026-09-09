@@ -13,6 +13,7 @@ data class PostDetailResponse(
     val title: String? = null,
     val likeCount: Long,
     val isLiked: Boolean,
+    val isMine: Boolean = false,
 )
 
 @Serializable
@@ -35,6 +36,7 @@ data class PostResponse(
     val submittedAt: String? = null,
     val likeCount: Long,
     val isLiked: Boolean,
+    val isMine: Boolean = false,
 )
 
 @Serializable

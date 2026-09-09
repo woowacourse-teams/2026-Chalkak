@@ -169,6 +169,7 @@ class FeedViewModelTest {
                         title = "최신 제목",
                         likeCount = 32,
                         isLiked = true,
+                        isOwnedByCurrentUser = true,
                     ),
                     topic = "새 바다",
                     topicDate = LocalDate.of(2026, 8, 6),
@@ -182,6 +183,7 @@ class FeedViewModelTest {
         assertEquals("https://example.com/thumbnail.jpg", updatedContent?.post?.thumbnailImageUrl)
         assertEquals("새 바다", updatedContent?.topic)
         assertTrue(updatedContent?.isLiked == true)
+        assertTrue(updatedContent?.post?.isOwnedByCurrentUser == true)
         assertFalse(selectedViewModel.uiState.value.isRefreshing)
     }
 

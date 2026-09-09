@@ -42,6 +42,8 @@ struct DisplayPhoto: Identifiable, Equatable, Sendable {
     let contentDescription: String
     let title: String?
     let likeCount: Int
+    let isLiked: Bool
+    let isOwnedByCurrentUser: Bool
 }
 
 struct DisplayPage: Equatable, Sendable {

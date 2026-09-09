@@ -36,6 +36,7 @@ struct FeedPost: Identifiable, Equatable, Sendable {
     var title: String?
     var likeCount: Int
     var isLiked: Bool
+    var isOwnedByCurrentUser: Bool
 }
 
 struct FeedContent: Equatable, Sendable {
@@ -50,6 +51,8 @@ struct FeedViewState: Equatable, Sendable {
     // 시드 좋아요 값이 신뢰 가능한지. 전시에서 온 시드는 좋아요 여부를 몰라
     // 상세 조회로 확정되기 전까지 좋아요 동작을 막는다.
     var isLikeEnabled = false
+    var isDeleting = false
+    var deletedPostID: FeedPost.ID?
 }
 
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.
@@ -61,18 +64,22 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
     let seed: FeedContent?
     // 시드의 좋아요 값이 실제 값인지(홈)·미상인지(전시) 구분.
     let isLikeConfirmed: Bool
+    // 기록에서 진입한 경우처럼, 상세 응답과 별개로 내 게시물임이 보장된 경로인지 여부.
+    let isOwnedByCurrentUser: Bool
 
     init(seed: FeedContent, isLikeConfirmed: Bool) {
         self.id = seed.post.id
         self.seed = seed
         self.isLikeConfirmed = isLikeConfirmed
+        self.isOwnedByCurrentUser = seed.post.isOwnedByCurrentUser
     }
 
     /// 게시물 id만으로 진입한다(기록 화면). 시드가 없어 Feed가 상세를 로드한다.
-    init(postID: String) {
+    init(postID: String, isOwnedByCurrentUser: Bool = false) {
         self.id = postID
         self.seed = nil
         self.isLikeConfirmed = false
+        self.isOwnedByCurrentUser = isOwnedByCurrentUser
     }
 
     static func == (lhs: FeedTarget, rhs: FeedTarget) -> Bool {

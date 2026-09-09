@@ -3,6 +3,9 @@ import SwiftUI
 struct FeedTopBar: View {
     @Environment(\.chalkakTheme) private var theme
     let onBack: () -> Void
+    var onDelete: () -> Void = {}
+    var isDeleteVisible = false
+    var isDeleteEnabled = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -17,6 +20,19 @@ struct FeedTopBar: View {
             .accessibilityLabel("뒤로 가기")
 
             Spacer(minLength: 0)
+
+            if isDeleteVisible {
+                Button(action: onDelete) {
+                    Text("삭제")
+                        .font(theme.typography.callout)
+                        .foregroundStyle(theme.colors.error)
+                        .frame(width: Metrics.touchSize, height: Metrics.touchSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isDeleteEnabled)
+                .accessibilityLabel("삭제")
+            }
         }
     }
 }

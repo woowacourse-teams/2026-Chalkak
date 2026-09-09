@@ -13,6 +13,7 @@ struct FeedPostDetailResponse: Decodable {
     let title: String?
     let likeCount: Int
     let isLiked: Bool
+    let isMine: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -22,6 +23,7 @@ struct FeedPostDetailResponse: Decodable {
         case title
         case likeCount
         case isLiked
+        case isMine
     }
 
     func toFeedContent() throws -> FeedContent {
@@ -50,7 +52,8 @@ struct FeedPostDetailResponse: Decodable {
                 contentDescription: contentDescription,
                 title: title,
                 likeCount: likeCount,
-                isLiked: isLiked
+                isLiked: isLiked,
+                isOwnedByCurrentUser: isMine ?? false
             )
         )
     }

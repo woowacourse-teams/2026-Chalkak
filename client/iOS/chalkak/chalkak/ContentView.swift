@@ -52,7 +52,10 @@ struct ContentView: View {
                 NavigationStack {
                     mainTab
                         .navigationDestination(item: $selectedFeed) { target in
-                            FeedScreen(viewModel: makeFeedViewModel(target))
+                            FeedScreen(
+                                viewModel: makeFeedViewModel(target),
+                                onDeleted: handleDeletedPost
+                            )
                         }
                 }
             case .photoUpload:
@@ -149,7 +152,7 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
                 onOpenDisplay: openDisplay,
-                onOpenFeed: { selectedFeed = FeedTarget(postID: $0) },
+                onOpenFeed: { selectedFeed = FeedTarget(postID: $0, isOwnedByCurrentUser: true) },
                 onNavigateToLogin: showLogin
             )
         default:
@@ -191,6 +194,12 @@ struct ContentView: View {
     private func openDisplay(at date: Date) {
         displayViewModel = Self.makeDisplayViewModel(initialDate: date)
         selectedTab = .display
+    }
+
+    private func handleDeletedPost(_ postID: FeedPost.ID) {
+        selectedFeed = nil
+        showMessage("게시물이 삭제됐어요")
+        recordViewModel.removeDeletedPost(postID)
     }
 
     private func showHome() {
@@ -302,7 +311,8 @@ struct ContentView: View {
         DisplayViewModel(
             initialDate: initialDate,
             apiClient: DisplayAPIClient(
-                configuration: DisplayAPIConfiguration(baseURL: resolvedAPIBaseURL)
+                configuration: DisplayAPIConfiguration(baseURL: resolvedAPIBaseURL),
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
     }

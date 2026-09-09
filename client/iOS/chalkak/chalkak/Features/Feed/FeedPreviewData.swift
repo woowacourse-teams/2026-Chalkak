@@ -11,7 +11,8 @@ enum FeedPreviewData {
             contentDescription: "노을이 진 하늘과 전신주",
             title: "안녕하세요 감사합니다.",
             likeCount: 24,
-            isLiked: false
+            isLiked: false,
+            isOwnedByCurrentUser: true
         )
     )
 
