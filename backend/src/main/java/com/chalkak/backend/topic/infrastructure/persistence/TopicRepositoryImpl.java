@@ -4,6 +4,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,11 @@ public class TopicRepositoryImpl implements TopicRepository {
     @Override
     public Optional<Topic> findActiveByTopicDate(LocalDate topicDate) {
         return topicJpaRepository.findActiveByTopicDate(topicDate);
+    }
+
+    @Override
+    public Optional<Topic> findActiveOpenAt(Instant now) {
+        return topicJpaRepository.findActiveOpenAt(now);
     }
 
     @Override
