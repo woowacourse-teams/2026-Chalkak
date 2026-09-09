@@ -87,6 +87,40 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("user-api 문서는 오늘 게시물 작성 여부 조회 계약을 제공한다")
+    void userApiDocs_getMyTodayPostStatus_exposesContract() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get"
+                        + ".security[0].accessToken").exists())
+                .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
+                        + ".properties.isPosted.type")
+                        .value("boolean"))
+                .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
+                        + ".properties.posted").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
+                        + ".properties.postId.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
+                        + ".properties.moderationStatus.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
+                        + ".properties.moderationStatus.enum")
+                        .value(containsInAnyOrder("VALIDATING", "PENDING", "APPROVED")))
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['403']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['404']")
+                        .exists());
+    }
+
+    @Test
     @DisplayName("게시물 목록 조회는 익명 호출과 accessToken 호출을 모두 허용하는 선택적 인증으로 문서화된다")
     void userApiDocs_postListEndpoint_declaresOptionalAuth() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user-api"))

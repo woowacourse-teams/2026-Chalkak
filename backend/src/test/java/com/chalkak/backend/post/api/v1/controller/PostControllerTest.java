@@ -26,6 +26,7 @@ import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostSort;
 import com.chalkak.backend.post.service.PostUpdateResult;
+import com.chalkak.backend.post.service.TodayPostStatus;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -875,6 +876,77 @@ class PostControllerTest {
                 PHOTO_UPLOAD_ID,
                 blankTitle
         );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("이미 작성한 게시물이 있으면 게시물 정보와 함께 작성함을 반환한다")
+    void getMyTodayPostStatus_posted_returnsPostedStatus() throws Exception {
+        // Given
+        LocalDate topicDate = LocalDate.of(2026, 9, 9);
+        given(postQueryService.getMyTodayPostStatus(USER_ID))
+                .willReturn(new TodayPostStatus(
+                        topicDate,
+                        true,
+                        POST_ID,
+                        ModerationStatus.PENDING
+                ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/today"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicDate").value("2026-09-09"))
+                .andExpect(jsonPath("$.isPosted").value(true))
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.moderationStatus").value("PENDING"));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("작성한 게시물이 없으면 게시물 정보를 비운 채 미작성을 반환한다")
+    void getMyTodayPostStatus_notPosted_returnsNullPostFields() throws Exception {
+        // Given
+        LocalDate topicDate = LocalDate.of(2026, 9, 9);
+        given(postQueryService.getMyTodayPostStatus(USER_ID))
+                .willReturn(TodayPostStatus.notPosted(topicDate));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/today"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicDate").value("2026-09-09"))
+                .andExpect(jsonPath("$.isPosted").value(false))
+                .andExpect(jsonPath("$.postId").value(nullValue()))
+                .andExpect(jsonPath("$.moderationStatus").value(nullValue()));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("참여할 수 있는 주제가 없으면 404를 반환한다")
+    void getMyTodayPostStatus_noOpenTopic_returnsNotFound() throws Exception {
+        // Given
+        given(postQueryService.getMyTodayPostStatus(USER_ID))
+                .willThrow(new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "참여할 수 있는 주제가 없습니다."
+                ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/today"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("참여할 수 있는 주제가 없습니다."));
+    }
+
+    @Test
+    @DisplayName("인증 정보가 없으면 오늘 작성 여부를 조회할 수 없다")
+    void getMyTodayPostStatus_unauthenticated_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/today"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+
+        then(postQueryService).shouldHaveNoInteractions();
     }
 
     @Test
