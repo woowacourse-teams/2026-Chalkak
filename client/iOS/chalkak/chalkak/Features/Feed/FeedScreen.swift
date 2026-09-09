@@ -5,6 +5,8 @@ struct FeedScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: FeedViewModel
     @State private var showsDeleteDialog = false
+    @State private var message: String?
+    @State private var messageDismissTask: Task<Void, Never>?
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
 
     init(
@@ -46,6 +48,12 @@ struct FeedScreen: View {
                 onDeleted(postID)
             }
         }
+        .onChange(of: viewModel.event) { _, event in
+            handle(event)
+        }
+        .onDisappear {
+            messageDismissTask?.cancel()
+        }
         .overlay {
             if showsDeleteDialog {
                 ChalkakConfirmDialog(
@@ -62,6 +70,7 @@ struct FeedScreen: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .overlay(alignment: .bottom) { toast }
     }
 
     @ViewBuilder
@@ -132,6 +141,44 @@ struct FeedScreen: View {
         .accessibilityIdentifier("feed-error")
     }
 
+    @ViewBuilder
+    private var toast: some View {
+        if let message {
+            Text(message)
+                .font(theme.typography.subheadline)
+                .foregroundStyle(theme.colors.onActionPrimary)
+                .padding(.horizontal, theme.spacing.lg)
+                .padding(.vertical, theme.spacing.md)
+                .background(theme.colors.actionPrimary, in: Capsule())
+                .padding(.bottom, Metrics.toastBottomPadding)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .accessibilityLabel(message)
+        }
+    }
+
+    private func handle(_ event: FeedEvent?) {
+        guard let event else { return }
+        switch event {
+        case let .showDeleteFailure(error):
+            showMessage(error.deleteMessage)
+        }
+        viewModel.consumeEvent()
+    }
+
+    private func showMessage(_ text: String) {
+        messageDismissTask?.cancel()
+        withAnimation(.snappy) {
+            message = text
+        }
+        messageDismissTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) {
+                message = nil
+            }
+        }
+    }
+
     private func centered(@ViewBuilder _ inner: () -> some View) -> some View {
         VStack {
             Spacer(minLength: 0)
@@ -153,6 +200,7 @@ private enum Metrics {
     static let captionVertical: CGFloat = 5
     static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
+    static let toastBottomPadding: CGFloat = 32
 }
 
 #Preview("Feed Loaded") {

@@ -118,6 +118,37 @@ struct FeedViewModelTests {
         #expect(!otherViewModel.viewState.isDeleting)
     }
 
+    @Test("삭제 실패를 사용자에게 알리고 다시 시도할 수 있다")
+    func deleteFailurePublishesMessageAndAllowsRetry() async {
+        var attemptCount = 0
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            deleteHandler: { _ in
+                attemptCount += 1
+                return attemptCount == 1 ? .failure(.network) : .success(())
+            }
+        )
+
+        viewModel.deletePost()
+        await Self.waitUntil { viewModel.event == .showDeleteFailure(.network) }
+
+        #expect(!viewModel.viewState.isDeleting)
+        #expect(viewModel.viewState.deletedPostID == nil)
+        #expect(viewModel.event == .showDeleteFailure(.network))
+
+        viewModel.consumeEvent()
+        #expect(viewModel.event == nil)
+
+        viewModel.deletePost()
+        await Self.waitUntil { viewModel.viewState.deletedPostID == "post-1" }
+
+        #expect(attemptCount == 2)
+        #expect(!viewModel.viewState.isDeleting)
+        #expect(viewModel.viewState.deletedPostID == "post-1")
+    }
+
     @Test("기록에서 들어온 FeedTarget은 상세 응답 후에도 내 게시물로 유지된다")
     func recordTargetKeepsOwnershipAfterDetailLoad() async {
         let target = FeedTarget(postID: "post-1", isOwnedByCurrentUser: true)

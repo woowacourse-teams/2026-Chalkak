@@ -9,6 +9,7 @@ final class FeedViewModel {
     typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>
 
     private(set) var viewState: FeedViewState
+    private(set) var event: FeedEvent?
 
     private let postID: String
     private let isOwnedByCurrentUser: Bool
@@ -150,10 +151,15 @@ final class FeedViewModel {
             case .success:
                 self.viewState.isDeleting = false
                 self.viewState.deletedPostID = self.postID
-            case .failure:
+            case let .failure(error):
                 self.viewState.isDeleting = false
+                self.event = .showDeleteFailure(error)
             }
         }
+    }
+
+    func consumeEvent() {
+        event = nil
     }
 }
 

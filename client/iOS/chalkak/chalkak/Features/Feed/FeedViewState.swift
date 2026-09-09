@@ -26,6 +26,21 @@ enum FeedError: Error, Equatable, Sendable {
             "게시물을 불러오지 못했어요"
         }
     }
+
+    var deleteMessage: String {
+        switch self {
+        case .notFound:
+            "게시물을 찾을 수 없어요"
+        case .network:
+            "네트워크 연결을 확인해 주세요"
+        case .invalidResponse, .client, .server, .generic:
+            "게시물을 삭제하지 못했어요"
+        }
+    }
+}
+
+enum FeedEvent: Equatable, Sendable {
+    case showDeleteFailure(FeedError)
 }
 
 struct FeedPost: Identifiable, Equatable, Sendable {
