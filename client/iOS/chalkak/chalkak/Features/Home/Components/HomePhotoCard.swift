@@ -42,8 +42,13 @@ struct HomePhotoCard: View {
         HStack(spacing: theme.spacing.md) {
             Button(action: onLike) {
                 HStack(spacing: HomePhotoCardMetrics.likeSpacing) {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: HomePhotoCardMetrics.heartSize))
+                    Image(isLiked ? "ic_heart_filled" : "ic_heart")
+                        .renderingMode(.template)
+                        .resizable()
+                        .frame(
+                            width: HomePhotoCardMetrics.heartSize,
+                            height: HomePhotoCardMetrics.heartSize
+                        )
                         .foregroundStyle(
                             isLiked ? theme.colors.actionPrimary : theme.colors.textSecondary
                         )
