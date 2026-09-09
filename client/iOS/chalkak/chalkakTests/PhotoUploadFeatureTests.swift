@@ -105,7 +105,7 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.topicErrorMessage == nil)
     }
 
-    @Test("제목 입력은 Android와 같은 10자 제한을 사용한다")
+    @Test("제목 입력은 10자까지 허용하고 11자째는 잘라낸다")
     func limitsCaptionToTenCharacters() {
         let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
 

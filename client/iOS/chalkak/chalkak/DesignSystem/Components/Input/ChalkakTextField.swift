@@ -3,6 +3,7 @@ import SwiftUI
 struct ChalkakTextField: View {
     @Environment(\.chalkakTheme) private var theme
     @FocusState private var isFocused: Bool
+    @State private var inputText: String?
 
     @Binding var text: String
     let label: String
@@ -19,7 +20,7 @@ struct ChalkakTextField: View {
     var body: some View {
         TextField(
             label,
-            text: limitedText,
+            text: inputBinding,
             prompt: Text(placeholder)
                 .foregroundStyle(theme.colors.textInactive),
             axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
@@ -53,7 +54,7 @@ struct ChalkakTextField: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if showsCharacterCount, let maximumCharacterCount {
-                Text("\(text.count) / \(maximumCharacterCount)")
+                Text("\(displayedText.count) / \(maximumCharacterCount)")
                     .font(theme.typography.subheadline)
                     .foregroundStyle(theme.colors.textInactive)
                     .padding(theme.spacing.lg)
@@ -62,25 +63,59 @@ struct ChalkakTextField: View {
         }
         .accessibilityLabel(label)
         .accessibilityValue(accessibilityValue)
+        .onAppear(perform: synchronizeInputText)
+        .onChange(of: inputText) { _, newValue in
+            guard let newValue else { return }
+            let normalizedValue = normalizedText(newValue)
+            if inputText != normalizedValue {
+                inputText = normalizedValue
+            }
+            if text != normalizedValue {
+                text = normalizedValue
+            }
+        }
+        .onChange(of: text) { _, newValue in
+            let normalizedValue = normalizedText(newValue)
+            if inputText != normalizedValue {
+                inputText = normalizedValue
+            }
+            if text != normalizedValue {
+                text = normalizedValue
+            }
+        }
         .onChange(of: isFocused) { _, isFocused in
             onFocusChange?(isFocused)
         }
     }
 
-    private var limitedText: Binding<String> {
+    private var inputBinding: Binding<String> {
         Binding(
-            get: { text },
-            set: { newValue in
-                text = maximumCharacterCount.map {
-                    newValue.limited(toCharacterCount: $0)
-                } ?? newValue
-            }
+            get: { normalizedText(inputText ?? text) },
+            set: { inputText = $0 }
         )
     }
 
+    private var displayedText: String {
+        normalizedText(inputText ?? text)
+    }
+
     private var accessibilityValue: String {
-        guard let maximumCharacterCount else { return text }
-        return "\(text), \(maximumCharacterCount)자 중 \(text.count)자 입력"
+        guard let maximumCharacterCount else { return displayedText }
+        return "\(displayedText), \(maximumCharacterCount)자 중 \(displayedText.count)자 입력"
+    }
+
+    private func normalizedText(_ value: String) -> String {
+        maximumCharacterCount.map(value.limited(toCharacterCount:)) ?? value
+    }
+
+    private func synchronizeInputText() {
+        let normalizedValue = normalizedText(text)
+        if inputText != normalizedValue {
+            inputText = normalizedValue
+        }
+        if text != normalizedValue {
+            text = normalizedValue
+        }
     }
 }
 
