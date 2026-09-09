@@ -13,7 +13,7 @@ rule_pages:
   docs/business-rules/rules/post.md:
     domain: 게시물
     pages:
-      작성하기: [POST-001, POST-002, POST-003, POST-004, POST-005]
+      작성하기: [POST-001, POST-002, POST-003, POST-004, POST-005, POST-011]
       사진 처리와 검수: [POST-006]
       공개와 조회: [POST-007, POST-008, POST-009]
       삭제와 수정: [POST-010]
