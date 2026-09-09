@@ -224,6 +224,7 @@ private struct TopicResponse: Decodable {
 
 private struct PostPageResponse: Decodable {
     let currentPage: Int
+    let pageSize: Int?
     let hasNext: Bool
     let randomSeed: String?
     let posts: [PostResponse]
@@ -232,8 +233,11 @@ private struct PostPageResponse: Decodable {
 private struct PostResponse: Decodable {
     let id: String
     let originalImageURL: String
+    let thumbnailImageURL: String
     let signatureOriginalImageURL: String
+    let signatureThumbnailImageURL: String
     let title: String?
+    let submittedAt: String?
     let likeCount: Int
     let isLiked: Bool
     let isMine: Bool?
@@ -241,8 +245,11 @@ private struct PostResponse: Decodable {
     enum CodingKeys: String, CodingKey {
         case id
         case originalImageURL = "originalImageUrl"
+        case thumbnailImageURL = "thumbnailImageUrl"
         case signatureOriginalImageURL = "signatureOriginalImageUrl"
+        case signatureThumbnailImageURL = "signatureThumbnailImageUrl"
         case title
+        case submittedAt
         case likeCount
         case isLiked
         case isMine

@@ -94,6 +94,7 @@ class PostRepositoryImplTest {
                 title = "상세 제목",
                 likeCount = 42,
                 isLiked = true,
+                isMine = true,
             ),
         )
 
@@ -111,6 +112,7 @@ class PostRepositoryImplTest {
                     title = "상세 제목",
                     likeCount = 42,
                     isLiked = true,
+                    isOwnedByCurrentUser = true,
                 ),
                 topic = "새 바다",
                 topicDate = LocalDate.of(2026, 8, 29),
@@ -168,10 +170,29 @@ class PostRepositoryImplTest {
         assertEquals("signature-original", content.photos[0].signatureOriginalImageUrl)
         assertEquals("signature-thumbnail", content.photos[0].signatureThumbnailImageUrl)
         assertEquals(Instant.parse("2026-08-28T01:00:00Z"), content.photos[0].submittedAt)
+        assertTrue(content.photos[0].isOwnedByCurrentUser)
         assertEquals("photo-original-2", content.photos[1].originalImageUrl)
         assertEquals("photo-thumbnail-2", content.photos[1].thumbnailImageUrl)
         assertEquals("signature-original-2", content.photos[1].signatureOriginalImageUrl)
         assertEquals("signature-thumbnail", content.photos[1].signatureThumbnailImageUrl)
+        assertFalse(content.photos[1].isOwnedByCurrentUser)
+    }
+
+    @Test
+    fun `목록 응답의 isMine을 게시물 소유권으로 매핑한다`() = runTest {
+        remoteDataSource.postsResult = ApiResult.Success(
+            postPage(
+                posts = listOf(
+                    homePost(id = "owned", title = null, isMine = true),
+                    homePost(id = "other", title = null, isMine = false),
+                ),
+            ),
+        )
+
+        val content = (repository.getPostContent(query) as HomeResult.Success).value
+
+        assertTrue(content.photos[0].isOwnedByCurrentUser)
+        assertFalse(content.photos[1].isOwnedByCurrentUser)
     }
 
     @Test
@@ -425,6 +446,7 @@ private fun postPage(
             thumbnailImageUrl = "photo-thumbnail",
             signatureThumbnailImageUrl = "signature-thumbnail",
             isLiked = true,
+            isMine = true,
         ),
         homePost(
             id = "photo-2",
@@ -454,6 +476,7 @@ private fun homePost(
     signatureThumbnailImageUrl: String = "signature-thumbnail",
     submittedAt: String? = null,
     isLiked: Boolean = false,
+    isMine: Boolean = false,
     likeCount: Long = 24,
 ) = PostResponse(
     id = id,
@@ -465,4 +488,5 @@ private fun homePost(
     title = title,
     likeCount = likeCount,
     isLiked = isLiked,
+    isMine = isMine,
 )

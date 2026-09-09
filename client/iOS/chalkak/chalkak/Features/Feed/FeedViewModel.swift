@@ -6,12 +6,16 @@ import Observation
 final class FeedViewModel {
     typealias DetailHandler = @MainActor @Sendable (String) async -> Result<FeedContent, FeedError>
     typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
+    typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>
 
     private(set) var viewState: FeedViewState
+    private(set) var event: FeedEvent?
 
     private let postID: String
+    private let isOwnedByCurrentUser: Bool
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
+    private let deleteHandler: DeleteHandler
     private var likeGeneration = 0
     // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
     private var likeTask: Task<Void, Never>?
@@ -20,11 +24,14 @@ final class FeedViewModel {
         postID: String,
         seed: FeedContent? = nil,
         isLikeConfirmed: Bool = false,
+        isOwnedByCurrentUser: Bool = false,
         initialState: FeedViewState? = nil,
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
-        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
+        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
+        deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) }
     ) {
         self.postID = postID
+        self.isOwnedByCurrentUser = isOwnedByCurrentUser
         if let initialState {
             self.viewState = initialState
         } else if let seed {
@@ -38,6 +45,7 @@ final class FeedViewModel {
         }
         self.detailHandler = detailHandler
         self.likeHandler = likeHandler
+        self.deleteHandler = deleteHandler
     }
 
     convenience init(target: FeedTarget, apiClient: FeedAPIClient) {
@@ -45,11 +53,15 @@ final class FeedViewModel {
             postID: target.id,
             seed: target.seed,
             isLikeConfirmed: target.isLikeConfirmed,
+            isOwnedByCurrentUser: target.isOwnedByCurrentUser,
             detailHandler: { postID in
                 await feedResult { try await apiClient.fetchPostDetail(postID: postID) }
             },
             likeHandler: { postID, isLiked in
                 await feedResult { try await apiClient.updateLike(postID: postID, isLiked: isLiked) }
+            },
+            deleteHandler: { postID in
+                await feedResult { try await apiClient.deletePost(postID: postID) }
             }
         )
     }
@@ -67,6 +79,12 @@ final class FeedViewModel {
             if likeGeneration != likeGenerationAtStart, let current = viewState.content {
                 merged.post.isLiked = current.post.isLiked
                 merged.post.likeCount = current.post.likeCount
+            }
+            if let current = viewState.content, current.post.isOwnedByCurrentUser {
+                merged.post.isOwnedByCurrentUser = true
+            }
+            if isOwnedByCurrentUser {
+                merged.post.isOwnedByCurrentUser = true
             }
             viewState.content = merged
             viewState.contentStatus = .loaded
@@ -116,6 +134,32 @@ final class FeedViewModel {
                 self.viewState.content = rollback
             }
         }
+    }
+
+    func deletePost() {
+        guard let current = viewState.content,
+              current.post.isOwnedByCurrentUser,
+              !viewState.isDeleting
+        else { return }
+
+        viewState.isDeleting = true
+        viewState.deletedPostID = nil
+
+        Task { [weak self] in
+            guard let self else { return }
+            switch await self.deleteHandler(self.postID) {
+            case .success:
+                self.viewState.isDeleting = false
+                self.viewState.deletedPostID = self.postID
+            case let .failure(error):
+                self.viewState.isDeleting = false
+                self.event = .showDeleteFailure(error)
+            }
+        }
+    }
+
+    func consumeEvent() {
+        event = nil
     }
 }
 

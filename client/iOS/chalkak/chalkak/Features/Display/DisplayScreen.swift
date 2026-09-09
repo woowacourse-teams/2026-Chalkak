@@ -23,11 +23,11 @@ struct DisplayScreen: View {
                     contentDescription: photo.contentDescription,
                     title: photo.title,
                     likeCount: photo.likeCount,
-                    isLiked: false
+                    isLiked: photo.isLiked,
+                    isOwnedByCurrentUser: photo.isOwnedByCurrentUser
                 )
             ),
-            // 전시 응답에는 좋아요 여부가 없어 상세 조회로 확정될 때까지 좋아요를 막는다.
-            isLikeConfirmed: false
+            isLikeConfirmed: true
         )
     }
 

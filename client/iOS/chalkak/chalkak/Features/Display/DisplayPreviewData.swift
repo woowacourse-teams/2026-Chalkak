@@ -48,7 +48,9 @@ enum DisplayPreviewData {
             signatureThumbnailImageSource: .asset("preview_signature"),
             contentDescription: "미리보기 전시 사진 \(index)",
             title: index.isMultiple(of: 2) ? nil : "노을 \(index)",
-            likeCount: index * 7
+            likeCount: index * 7,
+            isLiked: false,
+            isOwnedByCurrentUser: false
         )
     }
 

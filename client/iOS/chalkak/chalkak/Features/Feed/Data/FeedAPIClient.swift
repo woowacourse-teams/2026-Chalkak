@@ -49,6 +49,10 @@ struct FeedAPIClient: Sendable {
         )
     }
 
+    func deletePost(postID: String) async throws {
+        try await requestNoContent(path: "posts/\(postID)", method: "DELETE")
+    }
+
     private func request<Response: Decodable>(
         path: String,
         method: String = "GET"
@@ -75,6 +79,38 @@ struct FeedAPIClient: Sendable {
                 return try decoder.decode(Response.self, from: data)
             } catch {
                 throw FeedAPIError.invalidResponse
+            }
+        } catch let error as FeedAPIError {
+            throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw FeedAPIError.http(401)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw FeedAPIError.invalidResponse
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw FeedAPIError.network
+        }
+    }
+
+    private func requestNoContent(
+        path: String,
+        method: String
+    ) async throws {
+        guard let url = URL(string: path, relativeTo: configuration.baseURL),
+              url.scheme == "https"
+        else {
+            throw FeedAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (_, httpResponse) = try await authenticatedClient.data(for: request)
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw FeedAPIError.http(httpResponse.statusCode)
             }
         } catch let error as FeedAPIError {
             throw error

@@ -80,6 +80,13 @@ final class RecordViewModel {
         event = nil
     }
 
+    func removeDeletedPost(_ postID: RecordPost.ID) {
+        viewState.posts.removeAll { $0.postId == postID }
+        if viewState.selectedPost == nil {
+            viewState.selectedDate = viewState.posts.first?.topicDate
+        }
+    }
+
     private func loadCalendar(month: RecordMonth) async {
         generation += 1
         let requestGeneration = generation

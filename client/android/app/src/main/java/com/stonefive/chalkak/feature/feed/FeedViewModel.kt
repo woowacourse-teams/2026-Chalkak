@@ -281,7 +281,9 @@ class FeedViewModel(
             signatureThumbnailImageUrl = detail.post.signatureThumbnailImageUrl
                 ?: previousPost?.signatureThumbnailImageUrl,
             submittedAt = detail.post.submittedAt ?: previousPost?.submittedAt,
-            isOwnedByCurrentUser = previousPost?.isOwnedByCurrentUser ?: isOwnedByCurrentUser,
+            isOwnedByCurrentUser = detail.post.isOwnedByCurrentUser ||
+                previousPost?.isOwnedByCurrentUser == true ||
+                isOwnedByCurrentUser,
         )
         val updatedContent = FeedContentState.Success(
             dateLabel = detail.topicDate.toFeedDateLabel(),

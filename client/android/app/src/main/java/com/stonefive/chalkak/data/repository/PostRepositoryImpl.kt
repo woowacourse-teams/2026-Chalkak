@@ -185,6 +185,7 @@ class PostRepositoryImpl(
             title = title,
             likeCount = mappedLikeCount,
             isLiked = isLiked,
+            isOwnedByCurrentUser = isMine,
         )
     }
 
@@ -215,6 +216,7 @@ class PostRepositoryImpl(
                     title = title,
                     likeCount = mappedLikeCount,
                     isLiked = isLiked,
+                    isOwnedByCurrentUser = isMine,
                 ),
                 topic = topic.title,
                 topicDate = parsedTopicDate,

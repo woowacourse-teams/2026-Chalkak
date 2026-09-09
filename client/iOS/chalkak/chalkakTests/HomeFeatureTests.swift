@@ -283,6 +283,7 @@ struct HomeAPIClientTests {
         #expect(state.topic == "반짝임")
         #expect(state.photos.map(\.id) == ["post-1"])
         #expect(state.likedPhotoIDs == ["post-1"])
+        #expect(state.photos.first?.isOwnedByCurrentUser == false)
         let requests = await recorder.requests
         #expect(requests.count == 2)
         #expect(requests[0].url?.query?.contains("date=2026-09-01") == true)

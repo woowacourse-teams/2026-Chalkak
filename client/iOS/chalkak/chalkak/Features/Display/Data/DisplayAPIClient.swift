@@ -9,16 +9,23 @@ struct DisplayAPIConfiguration: Sendable {
 }
 
 struct DisplayAPIClient: Sendable {
+    typealias AccessTokenProvider = @Sendable () async -> String?
+
     private let configuration: DisplayAPIConfiguration
-    private let session: URLSession
+    private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
 
     init(
         configuration: DisplayAPIConfiguration = .development,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
         self.configuration = configuration
-        self.session = session
+        self.authenticatedClient = AuthenticatedHTTPClient(
+            baseURL: configuration.baseURL,
+            session: session,
+            sessionStore: .live(accessTokenProvider: accessTokenProvider)
+        )
         self.decoder = JSONDecoder()
     }
 
@@ -125,10 +132,7 @@ struct DisplayAPIClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse else {
-                throw DisplayAPIError.invalidResponse
-            }
+            let (data, response) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(response.statusCode) else {
                 throw DisplayAPIError.http(response.statusCode)
             }
@@ -142,6 +146,10 @@ struct DisplayAPIClient: Sendable {
             }
         } catch let error as DisplayAPIError {
             throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw DisplayAPIError.http(401)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw DisplayAPIError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {

@@ -226,7 +226,9 @@ struct DisplayViewModelTests {
             signatureThumbnailImageSource: .remote(URL(string: "https://example.com/signature-thumb.png")),
             contentDescription: "작품 이미지",
             title: "작품",
-            likeCount: 7
+            likeCount: 7,
+            isLiked: false,
+            isOwnedByCurrentUser: false
         )
     }
 
@@ -253,7 +255,7 @@ struct DisplayAPIClientTests {
             }
             return Self.response(
                 for: request,
-                body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"randomSeed":null,"posts":[{"id":"post-1","originalImageUrl":"https://example.com/original.webp","thumbnailImageUrl":"https://example.com/thumb.webp","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumb.png","title":"빛","likeCount":9,"isLiked":true}]}"#
+                body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"randomSeed":null,"posts":[{"id":"post-1","originalImageUrl":"https://example.com/original.webp","thumbnailImageUrl":"https://example.com/thumb.webp","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumb.png","title":"빛","submittedAt":"2026-09-01T00:00:00Z","likeCount":9,"isLiked":true,"isMine":true}]}"#
             )
         }
 
@@ -264,6 +266,8 @@ struct DisplayAPIClientTests {
 
         #expect(content.topic == "반짝임")
         #expect(content.page.photos.first?.likeCount == 9)
+        #expect(content.page.photos.first?.isLiked == true)
+        #expect(content.page.photos.first?.isOwnedByCurrentUser == true)
         #expect(content.page.photos.first?.thumbnailImageSource == .remote(URL(string: "https://example.com/thumb.webp")))
         let requests = await recorder.requests
         #expect(requests.count == 2)
@@ -298,6 +302,30 @@ struct DisplayAPIClientTests {
         #expect(request.url?.query?.contains("page=2") == true)
         #expect(request.url?.query?.contains("sort=random") == true)
         #expect(request.url?.query?.contains("randomSeed=seed-1") == true)
+    }
+
+    @Test("인증 토큰이 있으면 posts 요청에 Authorization을 붙인다")
+    func sendsAuthorizationWhenAccessTokenExists() async throws {
+        let recorder = DisplayURLRequestRecorder()
+        let client = Self.makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"currentPage":2,"pageSize":20,"hasNext":false,"randomSeed":"seed-1","posts":[]}"#
+            )
+        }
+
+        _ = try await client.fetchPage(
+            DisplayPageRequest(
+                topicDate: Self.date(2026, 9, 1),
+                sort: .random,
+                page: 2,
+                randomSeed: "seed-1"
+            )
+        )
+
+        let request = try #require(await recorder.requests.first)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
     }
 
     @Test("404와 seed 없는 random 연속 페이지를 구분한다")
@@ -338,6 +366,7 @@ struct DisplayAPIClientTests {
     }
 
     private static func makeClient(
+        accessToken: String? = nil,
         handler: @escaping DisplayMockURLProtocol.Handler
     ) -> DisplayAPIClient {
         let configuration = URLSessionConfiguration.ephemeral
@@ -347,7 +376,8 @@ struct DisplayAPIClientTests {
             configuration: DisplayAPIConfiguration(
                 baseURL: URL(string: "https://example.com/api/v1/")!
             ),
-            session: URLSession(configuration: configuration)
+            session: URLSession(configuration: configuration),
+            accessTokenProvider: { accessToken }
         )
     }
 

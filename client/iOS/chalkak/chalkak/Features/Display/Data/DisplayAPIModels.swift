@@ -7,6 +7,7 @@ struct DisplayTopicResponse: Decodable {
 
 struct DisplayPostPageResponse: Decodable {
     let currentPage: Int
+    let pageSize: Int?
     let hasNext: Bool
     let randomSeed: String?
     let posts: [DisplayPostResponse]
@@ -19,7 +20,10 @@ struct DisplayPostResponse: Decodable {
     let signatureOriginalImageURL: String
     let signatureThumbnailImageURL: String
     let title: String?
+    let submittedAt: String?
     let likeCount: Int
+    let isLiked: Bool
+    let isMine: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -28,7 +32,10 @@ struct DisplayPostResponse: Decodable {
         case signatureOriginalImageURL = "signatureOriginalImageUrl"
         case signatureThumbnailImageURL = "signatureThumbnailImageUrl"
         case title
+        case submittedAt
         case likeCount
+        case isLiked
+        case isMine
     }
 
     func toDisplayPhoto() throws -> DisplayPhoto {
@@ -56,7 +63,9 @@ struct DisplayPostResponse: Decodable {
             signatureThumbnailImageSource: .remote(signatureThumbnailImageURL),
             contentDescription: contentDescription,
             title: title,
-            likeCount: likeCount
+            likeCount: likeCount,
+            isLiked: isLiked,
+            isOwnedByCurrentUser: isMine ?? false
         )
     }
 }

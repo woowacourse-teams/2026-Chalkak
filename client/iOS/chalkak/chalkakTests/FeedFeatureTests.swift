@@ -82,6 +82,89 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.likeCount == 5)
     }
 
+    @Test("내 게시물만 삭제 요청을 보내고 완료 상태를 기록한다")
+    func deletesOnlyOwnedPost() async {
+        var requestedPostID: String?
+        let ownedViewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            deleteHandler: { postID in
+                requestedPostID = postID
+                return .success(())
+            }
+        )
+
+        ownedViewModel.deletePost()
+        await Self.waitUntil { ownedViewModel.viewState.deletedPostID == "post-1" }
+
+        #expect(requestedPostID == "post-1")
+        #expect(ownedViewModel.viewState.deletedPostID == "post-1")
+        #expect(!ownedViewModel.viewState.isDeleting)
+
+        let otherViewModel = FeedViewModel(
+            postID: "post-2",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: false),
+            isLikeConfirmed: true,
+            deleteHandler: { _ in
+                Issue.record("다른 사용자의 게시물은 삭제 요청을 보내면 안 됩니다")
+                return .success(())
+            }
+        )
+
+        otherViewModel.deletePost()
+
+        #expect(otherViewModel.viewState.deletedPostID == nil)
+        #expect(!otherViewModel.viewState.isDeleting)
+    }
+
+    @Test("삭제 실패를 사용자에게 알리고 다시 시도할 수 있다")
+    func deleteFailurePublishesMessageAndAllowsRetry() async {
+        var attemptCount = 0
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            deleteHandler: { _ in
+                attemptCount += 1
+                return attemptCount == 1 ? .failure(.network) : .success(())
+            }
+        )
+
+        viewModel.deletePost()
+        await Self.waitUntil { viewModel.event == .showDeleteFailure(.network) }
+
+        #expect(!viewModel.viewState.isDeleting)
+        #expect(viewModel.viewState.deletedPostID == nil)
+        #expect(viewModel.event == .showDeleteFailure(.network))
+
+        viewModel.consumeEvent()
+        #expect(viewModel.event == nil)
+
+        viewModel.deletePost()
+        await Self.waitUntil { viewModel.viewState.deletedPostID == "post-1" }
+
+        #expect(attemptCount == 2)
+        #expect(!viewModel.viewState.isDeleting)
+        #expect(viewModel.viewState.deletedPostID == "post-1")
+    }
+
+    @Test("기록에서 들어온 FeedTarget은 상세 응답 후에도 내 게시물로 유지된다")
+    func recordTargetKeepsOwnershipAfterDetailLoad() async {
+        let target = FeedTarget(postID: "post-1", isOwnedByCurrentUser: true)
+        let viewModel = FeedViewModel(
+            postID: target.id,
+            isOwnedByCurrentUser: target.isOwnedByCurrentUser,
+            detailHandler: { _ in
+                .success(Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: false))
+            }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.content?.post.isOwnedByCurrentUser == true)
+    }
+
     /// 별도 Task에서 갱신되는 상태가 조건을 만족할 때까지 협조적으로 양보하며 대기한다.
     private static func waitUntil(
         _ condition: () -> Bool,
@@ -96,7 +179,8 @@ struct FeedViewModelTests {
     private static func content(
         isLiked: Bool,
         likeCount: Int,
-        topic: String = "하늘"
+        topic: String = "하늘",
+        isOwnedByCurrentUser: Bool = false
     ) -> FeedContent {
         FeedContent(
             dateLabel: "8월 3일의 주제",
@@ -108,7 +192,8 @@ struct FeedViewModelTests {
                 contentDescription: "설명",
                 title: "제목",
                 likeCount: likeCount,
-                isLiked: isLiked
+                isLiked: isLiked,
+                isOwnedByCurrentUser: isOwnedByCurrentUser
             )
         )
     }
