@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var selectedLegalDocument: LegalDocument?
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var photoUploadEntryTask: Task<Void, Never>?
+    @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
     @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
     @State private var message: String?
@@ -220,13 +221,16 @@ struct ContentView: View {
         guard photoUploadEntryTask == nil else { return }
 
         let entryGate = Self.makePhotoUploadEntryGate()
+        let taskID = UUID()
+        photoUploadEntryTaskID = taskID
         photoUploadEntryTask = Task { @MainActor in
             let outcome = await entryGate.check()
-            guard Task.isCancelled == false else {
-                photoUploadEntryTask = nil
-                return
-            }
+
+            guard photoUploadEntryTaskID == taskID else { return }
             photoUploadEntryTask = nil
+            photoUploadEntryTaskID = nil
+
+            guard Task.isCancelled == false else { return }
             handlePhotoUploadEntry(outcome, from: tab)
         }
     }
@@ -292,6 +296,7 @@ struct ContentView: View {
     private func showLogin() {
         photoUploadEntryTask?.cancel()
         photoUploadEntryTask = nil
+        photoUploadEntryTaskID = nil
         selectedLegalDocument = nil
         photoUploadViewModel = nil
         successSubmission = nil
