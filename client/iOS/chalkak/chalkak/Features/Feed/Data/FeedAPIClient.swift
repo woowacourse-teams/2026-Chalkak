@@ -57,8 +57,8 @@ struct FeedAPIClient: Sendable {
         path: String,
         method: String = "GET"
     ) async throws -> Response {
-        guard let url = URL(string: path, relativeTo: configuration.baseURL),
-              url.scheme == "https"
+        let url = configuration.baseURL.appendingPathComponent(path)
+        guard url.scheme == "https"
         else {
             throw FeedAPIError.invalidResponse
         }
@@ -97,8 +97,8 @@ struct FeedAPIClient: Sendable {
         path: String,
         method: String
     ) async throws {
-        guard let url = URL(string: path, relativeTo: configuration.baseURL),
-              url.scheme == "https"
+        let url = configuration.baseURL.appendingPathComponent(path)
+        guard url.scheme == "https"
         else {
             throw FeedAPIError.invalidResponse
         }
