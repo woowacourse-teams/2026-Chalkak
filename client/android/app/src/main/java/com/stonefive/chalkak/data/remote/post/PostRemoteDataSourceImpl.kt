@@ -14,6 +14,10 @@ class PostRemoteDataSourceImpl(
     private val postApi: PostApi,
     private val requestExecutor: ApiRequestExecutor,
 ) : PostRemoteDataSource {
+    override suspend fun getTodayPostStatus() = requestExecutor.execute {
+        postApi.getTodayPostStatus()
+    }
+
     override suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse> = requestExecutor.execute {
         postApi.getPostCalendar(
             year = month.year,

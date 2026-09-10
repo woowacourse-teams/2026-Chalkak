@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -19,6 +20,10 @@ import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
+import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -37,6 +42,108 @@ class PostRepositoryImplTest {
         sort = PostSort.LATEST,
         page = 1,
     )
+
+    @Test
+    fun `오늘 작성 여부 true 응답은 허용된 moderation status와 postId를 보존한다`() = runTest {
+        listOf(
+            "VALIDATING" to TodayPostModerationStatus.VALIDATING,
+            "PENDING" to TodayPostModerationStatus.PENDING,
+            "APPROVED" to TodayPostModerationStatus.APPROVED,
+        ).forEach { (responseStatus, expectedStatus) ->
+            remoteDataSource.todayPostResult = ApiResult.Success(
+                TodayPostResponse(
+                    topicDate = "2026-09-09",
+                    isPosted = true,
+                    postId = "post-id",
+                    moderationStatus = responseStatus,
+                ),
+            )
+
+            assertEquals(
+                TodayPostStatusResult.Success(
+                    TodayPostStatus(
+                        topicDate = LocalDate.of(2026, 9, 9),
+                        isPosted = true,
+                        postId = "post-id",
+                        moderationStatus = expectedStatus,
+                    ),
+                ),
+                repository.getTodayPostStatus(),
+            )
+        }
+    }
+
+    @Test
+    fun `오늘 작성 여부 false 응답은 postId와 moderationStatus가 null이어야 한다`() = runTest {
+        remoteDataSource.todayPostResult = ApiResult.Success(
+            TodayPostResponse(
+                topicDate = "2026-09-09",
+                isPosted = false,
+                postId = null,
+                moderationStatus = null,
+            ),
+        )
+
+        assertEquals(
+            TodayPostStatusResult.Success(
+                TodayPostStatus(
+                    topicDate = LocalDate.of(2026, 9, 9),
+                    isPosted = false,
+                    postId = null,
+                    moderationStatus = null,
+                ),
+            ),
+            repository.getTodayPostStatus(),
+        )
+
+        listOf(
+            TodayPostResponse("2026-09-09", isPosted = false, postId = "post-id"),
+            TodayPostResponse("2026-09-09", isPosted = false, moderationStatus = "REJECTED"),
+        ).forEach { invalidResponse ->
+            remoteDataSource.todayPostResult = ApiResult.Success(invalidResponse)
+
+            assertEquals(
+                TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse),
+                repository.getTodayPostStatus(),
+            )
+        }
+    }
+
+    @Test
+    fun `오늘 작성 여부 응답 계약 위반은 InvalidResponse다`() = runTest {
+        listOf(
+            TodayPostResponse("2026-02-30", isPosted = false),
+            TodayPostResponse("2026-09-09", isPosted = true, postId = "", moderationStatus = "VALIDATING"),
+            TodayPostResponse("2026-09-09", isPosted = true, postId = "post-id", moderationStatus = null),
+            TodayPostResponse("2026-09-09", isPosted = true, postId = "post-id", moderationStatus = "REJECTED"),
+        ).forEach { invalidResponse ->
+            remoteDataSource.todayPostResult = ApiResult.Success(invalidResponse)
+
+            assertEquals(
+                TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse),
+                repository.getTodayPostStatus(),
+            )
+        }
+    }
+
+    @Test
+    fun `오늘 작성 여부 HTTP 실패를 진입 게이트 실패로 구분한다`() = runTest {
+        listOf(
+            ApiError.Http(404, "TOPIC_NOT_FOUND") to TodayPostStatusFailure.NoOpenTopic,
+            ApiError.Http(401, "UNAUTHORIZED") to TodayPostStatusFailure.ReauthenticationRequired,
+            ApiError.Http(403, "SUSPENDED") to TodayPostStatusFailure.Suspended,
+            ApiError.Http(500, "SERVER_ERROR") to TodayPostStatusFailure.Http(500),
+            ApiError.Network to TodayPostStatusFailure.Network,
+            ApiError.InvalidResponse to TodayPostStatusFailure.InvalidResponse,
+        ).forEach { (apiError, expectedFailure) ->
+            remoteDataSource.todayPostResult = ApiResult.Failure(apiError)
+
+            assertEquals(
+                TodayPostStatusResult.Failure(expectedFailure),
+                repository.getTodayPostStatus(),
+            )
+        }
+    }
 
     @Test
     fun `게시물 캘린더 응답을 날짜순 도메인 모델로 변환한다`() = runTest {
@@ -375,6 +482,12 @@ class PostRepositoryImplTest {
 
 private class FakePostRemoteDataSource : PostRemoteDataSource {
     val postsQueries = mutableListOf<HomeQuery>()
+    var todayPostResult: ApiResult<TodayPostResponse> = ApiResult.Success(
+        TodayPostResponse(
+            topicDate = "2026-09-09",
+            isPosted = false,
+        ),
+    )
     var detailResult: ApiResult<PostDetailResponse> = ApiResult.Failure(ApiError.Network)
     var calendarResult: ApiResult<PostCalendarResponse> = ApiResult.Success(calendarResponse())
     var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
@@ -386,6 +499,8 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
             isLiked = true,
         ),
     )
+
+    override suspend fun getTodayPostStatus(): ApiResult<TodayPostResponse> = todayPostResult
 
     override suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse> = calendarResult
 

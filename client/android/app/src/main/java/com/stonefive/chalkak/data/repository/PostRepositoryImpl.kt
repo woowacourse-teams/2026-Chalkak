@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
@@ -22,6 +23,11 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
+import com.stonefive.chalkak.domain.model.TodayPostStatusResult
+import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.Instant
 import java.time.LocalDate
@@ -31,7 +37,14 @@ import java.time.format.DateTimeParseException
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
     private val topicRemoteDataSource: TopicRemoteDataSource,
-) : PostRepository {
+) : PostRepository,
+    PhotoUploadEntryRepository {
+    override suspend fun getTodayPostStatus(): TodayPostStatusResult =
+        when (val result = remoteDataSource.getTodayPostStatus()) {
+            is ApiResult.Success -> result.value.toDomain()
+            is ApiResult.Failure -> TodayPostStatusResult.Failure(result.error.toTodayPostStatusFailure())
+        }
+
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> =
         when (val result = remoteDataSource.getPostCalendar(month)) {
             is ApiResult.Success -> result.value.toDomain(month)
@@ -235,6 +248,43 @@ class PostRepositoryImpl(
         )
     }
 
+    private fun TodayPostResponse.toDomain(): TodayPostStatusResult {
+        val parsedTopicDate = runCatching { LocalDate.parse(topicDate) }.getOrNull()
+            ?: return TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse)
+
+        if (!isPosted) {
+            if (postId != null || moderationStatus != null) {
+                return TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse)
+            }
+            return TodayPostStatusResult.Success(
+                TodayPostStatus(
+                    topicDate = parsedTopicDate,
+                    isPosted = false,
+                    postId = null,
+                    moderationStatus = null,
+                ),
+            )
+        }
+
+        val mappedPostId = postId?.takeIf(String::isNotBlank)
+            ?: return TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse)
+        val mappedModerationStatus = moderationStatus
+            ?.let { status ->
+                runCatching { TodayPostModerationStatus.valueOf(status.uppercase()) }
+                    .getOrNull()
+            }
+            ?: return TodayPostStatusResult.Failure(TodayPostStatusFailure.InvalidResponse)
+
+        return TodayPostStatusResult.Success(
+            TodayPostStatus(
+                topicDate = parsedTopicDate,
+                isPosted = true,
+                postId = mappedPostId,
+                moderationStatus = mappedModerationStatus,
+            ),
+        )
+    }
+
     private fun Long.toLikeCountOrNull(): Int? = takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
 
     private fun ApiError.toDomain(isTopic: Boolean = false): HomeFailure = when (this) {
@@ -249,8 +299,23 @@ class PostRepositoryImpl(
         }
     }
 
+    private fun ApiError.toTodayPostStatusFailure(): TodayPostStatusFailure = when (this) {
+        ApiError.Network -> TodayPostStatusFailure.Network
+
+        ApiError.InvalidResponse -> TodayPostStatusFailure.InvalidResponse
+
+        is ApiError.Http -> when (statusCode) {
+            NO_OPEN_TOPIC_STATUS -> TodayPostStatusFailure.NoOpenTopic
+            UNAUTHORIZED_STATUS -> TodayPostStatusFailure.ReauthenticationRequired
+            SUSPENDED_STATUS -> TodayPostStatusFailure.Suspended
+            else -> TodayPostStatusFailure.Http(statusCode)
+        }
+    }
+
     private companion object {
         const val TOPIC_NOT_FOUND_STATUS = 404
+        const val NO_OPEN_TOPIC_STATUS = 404
         const val UNAUTHORIZED_STATUS = 401
+        const val SUSPENDED_STATUS = 403
     }
 }

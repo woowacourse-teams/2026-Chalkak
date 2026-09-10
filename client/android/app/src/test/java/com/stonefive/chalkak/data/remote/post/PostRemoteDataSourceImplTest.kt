@@ -5,6 +5,7 @@ import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
@@ -39,6 +40,20 @@ class PostRemoteDataSourceImplTest {
     @After
     fun tearDown() {
         runCatching { server.shutdown() }
+    }
+
+    @Test
+    fun `오늘 게시물 작성 여부는 posts today 경로로 요청한다`() = runTest {
+        server.enqueue(jsonResponse(TODAY_POST_BODY))
+
+        val result = dataSource.getTodayPostStatus()
+
+        assertEquals("/api/v1/posts/today", server.takeRequest().path)
+        val response = (result as ApiResult.Success<TodayPostResponse>).value
+        assertEquals("2026-09-09", response.topicDate)
+        assertTrue(response.isPosted)
+        assertEquals(POST_ID, response.postId)
+        assertEquals("VALIDATING", response.moderationStatus)
     }
 
     @Test
@@ -316,6 +331,8 @@ class PostRemoteDataSourceImplTest {
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
         const val CALENDAR_BODY =
             """{"year":2026,"month":8,"posts":[{"topicDate":"2026-08-31","postId":"$POST_ID","thumbnailImageUrl":"https://example.com/thumbnail.jpg","status":"APPROVED"}]}"""
+        const val TODAY_POST_BODY =
+            """{"topicDate":"2026-09-09","isPosted":true,"postId":"$POST_ID","moderationStatus":"VALIDATING"}"""
     }
 }
 
