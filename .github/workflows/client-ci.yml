@@ -169,7 +169,6 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       PROJECT: chalkak.xcodeproj
       SCHEME: chalkak
-      DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5
       DERIVED_DATA_PATH: /tmp/chalkak-derived-data
 
     steps:
@@ -179,13 +178,47 @@ jobs:
       - name: Set up Xcode
         run: xcodebuild -version
 
+      - name: Select available iOS Simulator
+        run: |
+          set -euo pipefail
+
+          max_attempts=12
+          for attempt in $(seq 1 "$max_attempts"); do
+            if simulator_udid="$(
+              xcrun simctl list devices available -j 2>/dev/null |
+                jq -r '
+                  [
+                    .devices
+                    | to_entries[]
+                    | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+                    | .value[]
+                    | select(.isAvailable == true)
+                    | .udid
+                  ][0] // empty
+                '
+            )" && [[ -n "$simulator_udid" ]]; then
+              echo "Selected iOS Simulator: $simulator_udid"
+              echo "SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
+              break
+            fi
+
+            if [[ "$attempt" -eq "$max_attempts" ]]; then
+              echo "::error::No available iOS Simulator was found after $max_attempts attempts."
+              xcrun simctl list devices available || true
+              exit 1
+            fi
+
+            echo "Waiting for CoreSimulator to register an iOS Simulator (attempt $attempt/$max_attempts)..."
+            sleep 5
+          done
+
       - name: Build debug app
         run: |
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
-            -destination "$DESTINATION" \
+            -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             build
 
@@ -195,7 +228,7 @@ jobs:
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
-            -destination "$DESTINATION" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -parallel-testing-enabled NO \
             test \
