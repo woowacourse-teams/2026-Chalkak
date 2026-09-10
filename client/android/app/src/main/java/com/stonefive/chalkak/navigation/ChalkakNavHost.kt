@@ -90,7 +90,6 @@ fun ChalkakNavHost(
             navController.navigateToPhotoUpload()
         } else {
             showToast(PHOTO_UPLOAD_LOGIN_REQUIRED_MESSAGE)
-            navigateToLogin()
         }
     }
 
@@ -99,7 +98,6 @@ fun ChalkakNavHost(
             sessionState !is UserSessionState.Authenticated
         ) {
             showToast(RECORD_LOGIN_REQUIRED_MESSAGE)
-            navigateToLogin()
         } else {
             navController.navigateToBottomBar(item, analyticsTracker)
         }
@@ -143,6 +141,12 @@ fun ChalkakNavHost(
     ) {
         composable<Login> {
             LoginRoute(
+                onGuestAccessGranted = {
+                    navController.navigate(Today) {
+                        popUpTo<Login> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onSignUpRequired = {
                     navController.navigate(Terms)
                 },
