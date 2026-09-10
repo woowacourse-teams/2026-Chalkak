@@ -33,6 +33,38 @@ struct PhotoUploadAPIClient: Sendable {
         self.encoder = JSONEncoder()
     }
 
+    func fetchTodayPostStatus() async throws -> PhotoUploadTodayPostStatus {
+        let response: TodayPostResponse = try await request(path: "posts/today")
+        guard let topicDate = PhotoUploadDate.date(fromAPIString: response.topicDate) else {
+            throw PhotoUploadAPIError.invalidResponse
+        }
+
+        if response.isPosted {
+            guard let postID = response.postID,
+                  postID.isEmpty == false,
+                  let moderationStatus = response.moderationStatus,
+                  moderationStatus.isBlockingEntry else {
+                throw PhotoUploadAPIError.invalidResponse
+            }
+            return PhotoUploadTodayPostStatus(
+                topicDate: topicDate,
+                isPosted: true,
+                postID: postID,
+                moderationStatus: moderationStatus
+            )
+        }
+
+        guard response.postID == nil, response.moderationStatus == nil else {
+            throw PhotoUploadAPIError.invalidResponse
+        }
+        return PhotoUploadTodayPostStatus(
+            topicDate: topicDate,
+            isPosted: false,
+            postID: nil,
+            moderationStatus: nil
+        )
+    }
+
     func fetchTopic(date: Date) async throws -> PhotoUploadTopic {
         let requestedDate = PhotoUploadDate.apiString(from: date)
         let response: TopicResponse = try await request(
@@ -193,6 +225,24 @@ enum PhotoUploadAPIError: Error, Equatable, Sendable {
     case http(statusCode: Int, message: String?)
 }
 
+struct PhotoUploadTodayPostStatus: Equatable, Sendable {
+    let topicDate: Date
+    let isPosted: Bool
+    let postID: String?
+    let moderationStatus: PhotoUploadTodayModerationStatus?
+}
+
+enum PhotoUploadTodayModerationStatus: String, Decodable, Equatable, Sendable {
+    case validating = "VALIDATING"
+    case pending = "PENDING"
+    case approved = "APPROVED"
+    case rejected = "REJECTED"
+
+    fileprivate var isBlockingEntry: Bool {
+        self == .validating || self == .pending || self == .approved
+    }
+}
+
 struct PhotoUploadCreationResponse: Equatable, Sendable, Decodable {
     let postID: String
     let moderationStatus: String
@@ -207,6 +257,20 @@ private struct TopicResponse: Decodable {
     let id: String
     let title: String
     let topicDate: String
+}
+
+private struct TodayPostResponse: Decodable {
+    let topicDate: String
+    let isPosted: Bool
+    let postID: String?
+    let moderationStatus: PhotoUploadTodayModerationStatus?
+
+    enum CodingKeys: String, CodingKey {
+        case topicDate
+        case isPosted
+        case postID = "postId"
+        case moderationStatus
+    }
 }
 
 private struct PostImageUploadResponse: Decodable {
