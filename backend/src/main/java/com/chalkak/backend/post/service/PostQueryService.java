@@ -13,6 +13,7 @@ import com.chalkak.backend.post.repository.PostSlice;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -44,6 +45,7 @@ public class PostQueryService {
     private final PostLikeRepository postLikeRepository;
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
+    private final PostProcessingPolicy postProcessingPolicy;
 
     public PostDetail getPost(UUID postId, UUID userId) {
         validateUser(userId);
@@ -55,6 +57,25 @@ public class PostQueryService {
                 postLikeRepository.countByPostId(postId),
                 postLikeRepository.existsByPostIdAndUserId(postId, userId)
         );
+    }
+
+    /**
+     * 지금 참여할 수 있는 주제에 게시물을 새로 쓸 수 있는지 미리 알려 준다. 판정은 게시물 생성이 거절하는
+     * 규칙과 같아야 한다. 여기서 통과시킨 요청이 생성에서 거절되면 클라이언트가 잘못된 안내를 하게 된다.
+     *
+     * <p>주제는 날짜가 아니라 요청 시각의 참여 기간으로 고른다. 참여 기간은 KST 자정에 시작해 24시간
+     * 지속된다는 보장이 없어서, 날짜로 고르면 아직 열리지 않았거나 이미 닫힌 주제를 답하게 된다.
+     */
+    public TodayPostStatus getMyTodayPostStatus(UUID userId) {
+        validateUser(userId);
+        Instant now = Instant.now();
+        Topic topic = getOpenTopic(now);
+        LocalDate topicDate = topic.getTopicDate();
+
+        return postRepository.findActiveByAuthorIdAndTopicId(userId, topic.getId())
+                .filter(post -> blocksNewPost(post, now))
+                .map(post -> TodayPostStatus.posted(topicDate, post))
+                .orElseGet(() -> TodayPostStatus.notPosted(topicDate));
     }
 
     public PostCalendarResult getMyPostCalendar(UUID userId, YearMonth yearMonth) {
@@ -202,6 +223,23 @@ public class PostQueryService {
                 likedPostIds,
                 userId
         );
+    }
+
+    private Topic getOpenTopic(Instant now) {
+        return topicRepository.findActiveOpenAt(now)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "참여할 수 있는 주제가 없습니다."
+                ));
+    }
+
+    /**
+     * 이미지 처리 대기 시간을 넘긴 게시물은 생성 흐름이 거절 처리하고 재작성을 열어 주므로 여기서도 막지
+     * 않는다. 상태를 바꾸는 것은 읽기 전용 조회의 몫이 아니라 뒤따르는 생성 요청이 잠금을 잡고 한다.
+     */
+    private boolean blocksNewPost(Post post, Instant now) {
+        return !post.isValidating()
+                || !postProcessingPolicy.isProcessingTimedOut(post.getCreatedAt(), now);
     }
 
     private Post getVisiblePost(UUID postId) {
