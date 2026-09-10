@@ -44,11 +44,12 @@ import com.stonefive.chalkak.feature.signature.OnboardingSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.OnboardingSignatureRoute
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.feature.terms.TermsRoute
+import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateUiEvent
+import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateViewModel
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
 import java.time.LocalDate
-import java.time.ZoneId
 
 @Composable
 fun ChalkakNavHost(
@@ -66,12 +67,20 @@ fun ChalkakNavHost(
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
     var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
     var nextMessageId by remember { mutableLongStateOf(0L) }
+    val photoUploadEntryGateViewModel: PhotoUploadEntryGateViewModel =
+        viewModel(factory = PhotoUploadEntryGateViewModel.Factory)
+    val photoUploadEntryGateUiState by photoUploadEntryGateViewModel.uiState
+        .collectAsStateWithLifecycle()
 
     UiMessageEffect(
         message = pendingMessage,
         onMessageShown = { messageId ->
             if (pendingMessage?.id == messageId) pendingMessage = null
         },
+    )
+    UiMessageEffect(
+        message = photoUploadEntryGateUiState.pendingMessage,
+        onMessageShown = photoUploadEntryGateViewModel::onMessageShown,
     )
 
     val showToast: (String) -> Unit = { text ->
@@ -86,11 +95,7 @@ fun ChalkakNavHost(
     }
 
     val openPhotoUpload: () -> Unit = {
-        if (sessionState is UserSessionState.Authenticated) {
-            navController.navigateToPhotoUpload()
-        } else {
-            showToast(PHOTO_UPLOAD_LOGIN_REQUIRED_MESSAGE)
-        }
+        photoUploadEntryGateViewModel.openPhotoUpload()
     }
 
     val navigateToBottomBar: (ChalkakBottomBarItem) -> Unit = { item ->
@@ -122,6 +127,17 @@ fun ChalkakNavHost(
                     screenClass = screen.screenClass,
                 )
             }
+    }
+
+    LaunchedEffect(photoUploadEntryGateViewModel) {
+        photoUploadEntryGateViewModel.uiEvent.collect { event ->
+            when (event) {
+                is PhotoUploadEntryGateUiEvent.OpenPhotoUpload ->
+                    navController.navigateToPhotoUpload(event.topicDate)
+
+                PhotoUploadEntryGateUiEvent.NavigateToLogin -> navigateToLogin()
+            }
+        }
     }
 
     selectedLegalDocument?.let { document ->
@@ -394,7 +410,9 @@ fun ChalkakNavHost(
                             topic = submission.content.topic,
                             moderationStatus = submission.content.moderationStatus,
                         ),
-                    )
+                    ) {
+                        popUpTo<PhotoUpload> { inclusive = true }
+                    }
                 },
             )
         }
@@ -411,7 +429,7 @@ fun ChalkakNavHost(
                     moderationStatus = success.moderationStatus,
                 ),
                 onConfirmClick = {
-                    navController.popBackStack<PhotoUpload>(inclusive = true)
+                    navController.popBackStack()
                 },
             )
         }
@@ -466,19 +484,16 @@ private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
-private const val PHOTO_UPLOAD_LOGIN_REQUIRED_MESSAGE = "게시물을 추가하려면 로그인이 필요해요"
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString()))
 }
 
-private fun NavHostController.navigateToPhotoUpload() {
-    navigate(PhotoUpload(topicDate = LocalDate.now(KST).toString()))
+private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
+    navigate(PhotoUpload(topicDate = topicDate.toString()))
 }
 
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
     LocalDate.parse(this)
 }.getOrNull()
-
-private val KST: ZoneId = ZoneId.of("Asia/Seoul")

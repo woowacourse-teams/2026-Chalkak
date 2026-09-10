@@ -27,6 +27,7 @@ import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
@@ -118,7 +119,7 @@ class AppContainer(context: Context) {
         )
     }
 
-    val postRepository: PostRepository by lazy {
+    private val postRepositoryImpl: PostRepositoryImpl by lazy {
         PostRepositoryImpl(
             remoteDataSource = PostRemoteDataSourceImpl(
                 postApi = networkModule.postApi,
@@ -126,5 +127,13 @@ class AppContainer(context: Context) {
             ),
             topicRemoteDataSource = topicRemoteDataSource,
         )
+    }
+
+    val postRepository: PostRepository by lazy {
+        postRepositoryImpl
+    }
+
+    val photoUploadEntryRepository: PhotoUploadEntryRepository by lazy {
+        postRepositoryImpl
     }
 }
