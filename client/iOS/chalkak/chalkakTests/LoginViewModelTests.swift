@@ -66,6 +66,7 @@ struct LoginViewModelTests {
 
         viewModel.continueAsGuest()
         await waitUntil { viewModel.state.status == .guestAccessGranted }
+        #expect(viewModel.state.status == .guestAccessGranted)
 
         viewModel.resetAfterNavigation()
 
