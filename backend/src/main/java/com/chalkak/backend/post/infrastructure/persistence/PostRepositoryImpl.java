@@ -64,6 +64,15 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId) {
+        return postJpaRepository.findByAuthorIdAndTopicId(
+                authorId,
+                topicId,
+                ModerationStatus.REJECTED
+        );
+    }
+
+    @Override
     public Optional<Post> findActiveByIdForUpdate(UUID postId) {
         return postJpaRepository.findByIdAndDeletedAtIsNull(postId);
     }
