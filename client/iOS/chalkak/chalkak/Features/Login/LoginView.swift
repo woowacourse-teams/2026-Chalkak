@@ -55,10 +55,13 @@ struct LoginView: View {
             switch status {
             case .authenticated:
                 onAuthenticated()
+                viewModel.resetAfterNavigation()
             case .guestAccessGranted:
                 onGuestAccessGranted()
+                viewModel.resetAfterNavigation()
             case .signUpRequired:
                 onSignUpRequired()
+                viewModel.resetAfterNavigation()
             case .idle, .loading:
                 break
             }

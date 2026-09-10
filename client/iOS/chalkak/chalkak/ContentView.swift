@@ -184,7 +184,6 @@ struct ContentView: View {
 
         if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
             showMessage("기록을 보려면 로그인이 필요해요")
-            showLogin()
             return
         }
 
@@ -214,7 +213,6 @@ struct ContentView: View {
     private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
         guard KeychainSessionStore.hasAuthenticatedSession() else {
             showMessage("게시물을 추가하려면 로그인이 필요해요")
-            showLogin()
             return
         }
 
