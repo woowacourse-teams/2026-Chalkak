@@ -193,32 +193,34 @@ jobs:
           set -euo pipefail
 
           max_attempts=12
+          destinations=""
           for attempt in $(seq 1 "$max_attempts"); do
-            if simulator_udid="$(
-              xcrun simctl list devices available -j 2>/dev/null |
-                jq -r '
-                  [
-                    .devices
-                    | to_entries[]
-                    | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
-                    | .value[]
-                    | select(.isAvailable == true)
-                    | .udid
-                  ][0] // empty
-                '
-            )" && [[ -n "$simulator_udid" ]]; then
+            destinations="$(
+              xcodebuild \
+                -project "$PROJECT" \
+                -scheme "$SCHEME" \
+                -showdestinations 2>&1
+            )" || true
+
+            simulator_udid="$(
+              printf '%s\n' "$destinations" |
+                sed -nE '/platform:iOS Simulator/ s/.*id:([0-9A-Fa-f-]{36}),.*/\1/p' |
+                sed -n '1p'
+            )"
+
+            if [[ -n "$simulator_udid" ]]; then
               echo "Selected iOS Simulator: $simulator_udid"
               echo "SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
               break
             fi
 
             if [[ "$attempt" -eq "$max_attempts" ]]; then
-              echo "::error::No available iOS Simulator was found after $max_attempts attempts."
-              xcrun simctl list devices available || true
+              echo "::error::xcodebuild reported no available iOS Simulator after $max_attempts attempts."
+              printf '%s\n' "$destinations"
               exit 1
             fi
 
-            echo "Waiting for CoreSimulator to register an iOS Simulator (attempt $attempt/$max_attempts)..."
+            echo "Waiting for xcodebuild to register an iOS Simulator (attempt $attempt/$max_attempts)..."
             sleep 5
           done
 
