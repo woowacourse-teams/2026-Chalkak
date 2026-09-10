@@ -204,6 +204,66 @@ struct PhotoUploadSelectionLoaderTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadAPIClientTests {
+    @Test("오늘 게시물 상태가 미작성일 때 참여 주제 날짜와 nil 게시물 정보를 반환한다")
+    func fetchesTodayPostStatusWhenEntryIsAllowed() async throws {
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"topicDate":"2026-09-09","isPosted":false,"postId":null,"moderationStatus":null}"#
+            )
+        }
+
+        let status = try await client.fetchTodayPostStatus()
+
+        #expect(status.topicDate == Self.date(2026, 9, 9))
+        #expect(status.isPosted == false)
+        #expect(status.postID == nil)
+        #expect(status.moderationStatus == nil)
+
+        let requests = await recorder.requests
+        #expect(requests.count == 1)
+        #expect(requests[0].httpMethod == "GET")
+        #expect(requests[0].url?.path == "/api/v1/posts/today")
+        #expect(requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+    }
+
+    @Test("오늘 게시물 상태가 작성 완료일 때 게시물과 검수 상태를 반환한다")
+    func fetchesBlockingTodayPostStatus() async throws {
+        let client = makeClient { request in
+            Self.response(
+                for: request,
+                body: #"{"topicDate":"2026-09-09","isPosted":true,"postId":"post-id","moderationStatus":"APPROVED"}"#
+            )
+        }
+
+        let status = try await client.fetchTodayPostStatus()
+
+        #expect(status.isPosted)
+        #expect(status.postID == "post-id")
+        #expect(status.moderationStatus == .approved)
+    }
+
+    @Test("미작성 응답에 게시물 정보가 포함되면 invalidResponse가 된다")
+    func rejectsInconsistentTodayPostStatus() async {
+        let client = makeClient { request in
+            Self.response(
+                for: request,
+                body: #"{"topicDate":"2026-09-09","isPosted":false,"postId":"post-id","moderationStatus":"REJECTED"}"#
+            )
+        }
+
+        do {
+            _ = try await client.fetchTodayPostStatus()
+            Issue.record("서로 모순되는 작성 상태가 성공하면 안 됩니다")
+        } catch let error as PhotoUploadAPIError {
+            #expect(error == .invalidResponse)
+        } catch {
+            Issue.record("예상하지 못한 오류: \(error)")
+        }
+    }
+
     @Test("업로드 정책, presigned PUT, 게시물 생성 요청을 Android 계약대로 보낸다")
     func sendsCompleteUploadRequestSequence() async throws {
         let recorder = PhotoUploadRequestRecorder()
@@ -308,6 +368,54 @@ struct PhotoUploadAPIClientTests {
             headerFields: ["Content-Type": "application/json"]
         )!
         return (response, Data(body.utf8))
+    }
+
+    private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = PhotoUploadDate.timeZone
+        return calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+}
+
+@MainActor
+struct PhotoUploadEntryGateTests {
+    @Test("미작성 상태면 서버가 선택한 참여 주제 날짜로 진입을 허용한다")
+    func allowsEntryWithServerTopicDate() async {
+        let topicDate = Self.date(2026, 9, 9)
+        let gate = PhotoUploadEntryGate {
+            PhotoUploadTodayPostStatus(
+                topicDate: topicDate,
+                isPosted: false,
+                postID: nil,
+                moderationStatus: nil
+            )
+        }
+
+        #expect(await gate.check() == .allowed(topicDate: topicDate))
+    }
+
+    @Test("작성 상태와 API 오류를 진입 차단 결과 및 토스트 문구로 변환한다")
+    func mapsBlockedEntryOutcomes() async {
+        let topicDate = Self.date(2026, 9, 9)
+        let postedGate = PhotoUploadEntryGate {
+            PhotoUploadTodayPostStatus(
+                topicDate: topicDate,
+                isPosted: true,
+                postID: "post-id",
+                moderationStatus: .validating
+            )
+        }
+        let noTopicGate = PhotoUploadEntryGate {
+            throw PhotoUploadAPIError.http(statusCode: 404, message: nil)
+        }
+
+        let postedOutcome = await postedGate.check()
+        let noTopicOutcome = await noTopicGate.check()
+
+        #expect(postedOutcome == .alreadyPosted)
+        #expect(postedOutcome.message == "이미 이 주제에 게시물을 작성했어요.")
+        #expect(noTopicOutcome == .noActiveTopic)
+        #expect(noTopicOutcome.message == "지금 참여할 수 있는 주제가 없어요.")
     }
 
     private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {

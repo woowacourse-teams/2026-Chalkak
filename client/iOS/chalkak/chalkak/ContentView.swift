@@ -24,6 +24,7 @@ struct ContentView: View {
     )
     @State private var selectedLegalDocument: LegalDocument?
     @State private var photoUploadViewModel: PhotoUploadViewModel?
+    @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var successSubmission: PhotoUploadSubmission?
     @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
     @State private var message: String?
@@ -216,11 +217,38 @@ struct ContentView: View {
             return
         }
 
-        photoUploadReturnTab = tab
-        photoUploadViewModel = Self.makePhotoUploadViewModel(
-            topicDate: PhotoUploadDate.today()
-        )
-        route = .photoUpload
+        guard photoUploadEntryTask == nil else { return }
+
+        let entryGate = Self.makePhotoUploadEntryGate()
+        photoUploadEntryTask = Task { @MainActor in
+            let outcome = await entryGate.check()
+            guard Task.isCancelled == false else {
+                photoUploadEntryTask = nil
+                return
+            }
+            photoUploadEntryTask = nil
+            handlePhotoUploadEntry(outcome, from: tab)
+        }
+    }
+
+    private func handlePhotoUploadEntry(
+        _ outcome: PhotoUploadEntryOutcome,
+        from tab: ChalkakBottomBarItem
+    ) {
+        switch outcome {
+        case let .allowed(topicDate):
+            photoUploadReturnTab = tab
+            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate)
+            route = .photoUpload
+        case .reauthenticationRequired:
+            showLogin()
+        case .cancelled:
+            break
+        case .alreadyPosted, .noActiveTopic, .suspended, .failed:
+            if let message = outcome.message {
+                showMessage(message)
+            }
+        }
     }
 
     private func showMessage(_ text: String) {
@@ -262,6 +290,8 @@ struct ContentView: View {
     }
 
     private func showLogin() {
+        photoUploadEntryTask?.cancel()
+        photoUploadEntryTask = nil
         selectedLegalDocument = nil
         photoUploadViewModel = nil
         successSubmission = nil
@@ -357,6 +387,18 @@ struct ContentView: View {
             topicDate: topicDate,
             repository: .api(client: apiClient)
         )
+    }
+
+    private static func makePhotoUploadEntryGate() -> PhotoUploadEntryGate {
+        let appConfiguration = AppConfiguration()
+        let apiClient = PhotoUploadAPIClient(
+            configuration: PhotoUploadAPIConfiguration(
+                baseURL: appConfiguration.apiBaseURL
+                    ?? PhotoUploadAPIConfiguration.development.baseURL
+            ),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return .api(client: apiClient)
     }
 
     private static var resolvedAPIBaseURL: URL {
