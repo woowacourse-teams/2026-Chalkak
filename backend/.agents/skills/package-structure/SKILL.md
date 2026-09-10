@@ -13,7 +13,7 @@ description: backend/src/main/java에서 Java 클래스나 패키지를 생성·
 4. 아래 배치 규칙에 따라 파일 위치와 `package` 선언을 결정한다.
 5. 관련 없는 기존 파일이나 패키지를 함께 이동하지 않는다.
 
-API 버전의 추가·변경·삭제가 포함되면 `api-versioning` Skill도 함께 적용한다.
+API 버전의 추가·변경·삭제가 포함되면 `$api-versioning`도 함께 적용한다.
 
 ## 기본 구조
 
@@ -92,9 +92,6 @@ src/main/java/com/chalkak/backend/
 
 ## 완료 전 확인
 
-- 최상위 패키지가 도메인 단위인지 확인한다.
-- API 버전이 `api/` 내부에만 존재하는지 확인한다.
-- Request와 Response DTO가 분리됐는지 확인한다.
-- 저장소 포트가 Spring Data JPA를 직접 상속하지 않는지 확인한다.
-- 외부 기술 구현이 `infrastructure/` 밖으로 노출되지 않았는지 확인한다.
-- 관련 없는 기존 패키지를 이동하지 않았는지 확인한다.
+- `./gradlew architectureTest`로 Service·저장소 의존 방향과 Controller·JPA 저장소 위치를 검사한다.
+- 세부 설정은 [아키텍처 테스트](../../../src/test/java/com/chalkak/backend/architecture/ArchitectureConventionTest.java)를 원본으로 사용한다. 위 배치표는 생성 전 안내이며 모든 배치가 자동 검사되는 것은 아니다.
+- 자동화되지 않은 API 버전 경계, Request·Response 분리, 외부 구현 배치, 도메인별 책임과 관련 없는 기존 파일 이동 여부는 직접 확인한다.

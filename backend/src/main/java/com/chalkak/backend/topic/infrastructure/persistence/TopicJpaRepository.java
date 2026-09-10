@@ -2,6 +2,7 @@ package com.chalkak.backend.topic.infrastructure.persistence;
 
 import com.chalkak.backend.topic.domain.Topic;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,4 +30,13 @@ public interface TopicJpaRepository extends JpaRepository<Topic, UUID> {
               AND topic.deletedAt IS NULL
             """)
     Optional<Topic> findActiveByTopicDate(@Param("topicDate") LocalDate topicDate);
+
+    @Query("""
+            SELECT topic
+            FROM Topic topic
+            WHERE topic.participationPeriod.startsAt <= :now
+              AND topic.participationPeriod.endsAt > :now
+              AND topic.deletedAt IS NULL
+            """)
+    Optional<Topic> findActiveOpenAt(@Param("now") Instant now);
 }

@@ -12,6 +12,12 @@ public interface PostRepository {
 
     Optional<Post> findActiveByAuthorIdAndTopicIdForUpdate(UUID authorId, UUID topicId);
 
+    /**
+     * 위 잠금 조회와 조건은 같고 잠금만 걸지 않는다. 작성 가능 여부만 미리 알려 주는 읽기 전용 조회는
+     * 게시물 행을 잠글 이유가 없다.
+     */
+    Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId);
+
     Optional<Post> findActiveByIdForUpdate(UUID postId);
 
     Optional<Post> findByIdForUpdate(UUID postId);

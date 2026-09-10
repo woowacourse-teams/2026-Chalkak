@@ -12,6 +12,7 @@ import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
+import com.chalkak.backend.post.api.v1.dto.response.TodayPostStatusResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -270,6 +271,57 @@ public interface PostApiDocs {
     ResponseEntity<PostListResponse> getPosts(
             @ParameterObject PostListRequest request,
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
+    );
+
+    @Operation(
+            summary = "오늘 게시물 작성 여부 조회",
+            description = """
+                    지금 참여할 수 있는 주제에 이미 게시물을 썼는지 확인합니다.
+                    작성 화면에 들어가기 전 호출해 isPosted가 true이면 진입을 막고 안내합니다.
+                    주제는 날짜가 아니라 요청 시각의 참여 기간으로 고르므로,
+                    아직 열리지 않았거나 이미 닫힌 주제는 대상이 되지 않습니다.
+                    참여할 수 있는 주제가 없으면 404입니다.
+                    판정 기준은 게시물 생성의 중복 검사와 같습니다.
+                    VALIDATING, PENDING, APPROVED 게시물이 있으면 isPosted가 true입니다.
+                    REJECTED, 삭제된 게시물과 이미지 처리 대기 시간을 넘긴 VALIDATING 게시물은
+                    재작성할 수 있으므로 false입니다.
+                    isPosted가 false이면 postId와 moderationStatus는 null입니다.
+                    """
+    )
+    @SecurityRequirement(name = "accessToken")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "오늘 게시물 작성 여부 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않은 인증 정보",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "이용이 정지된 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "지금 참여할 수 있는 주제가 없음",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<TodayPostStatusResponse> getMyTodayPostStatus(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
     @Operation(

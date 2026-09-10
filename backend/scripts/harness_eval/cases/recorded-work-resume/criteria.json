@@ -1,0 +1,63 @@
+{
+  "id": "recorded-work-resume",
+  "title": "이슈별 기록과 현재 상태를 대조한 작업 재개",
+  "setup": {
+    "branch": "be/fix/#812-readme-troubleshooting",
+    "copy_source_paths": ["backend/scripts/work_state.py"],
+    "work_state": {
+      "issue": 812,
+      "work": {
+        "goal": "로컬 실행 오류 해결 안내 보완",
+        "done": ["실행 위치와 bootRun 명령 안내"],
+        "remaining": ["오류 해결 항목에 JDK 25 설치 확인 추가", "변경된 코드 상태에서 검증 재확인"],
+        "next": "README 오류 해결 항목 수정",
+        "scope": {"include": ["backend/README.md"], "exclude": ["구현 코드", "빌드 설정", "커밋", "PR"]},
+        "decisions": ["JDK 버전은 25로 안내"]
+      },
+      "checks": [
+        {
+          "command": "python3 scripts/readme_check.py",
+          "result": "기존 목차 검사 통과, exit 0",
+          "log": "build/logs/readme-before-change.log"
+        }
+      ]
+    },
+    "uncommitted_append": {
+      "backend/README.md": "\n<!-- 사용자 메모: macOS에서도 같은 실행 명령을 사용함 -->\n"
+    }
+  },
+  "mechanical": {
+    "allowed_changed_paths": ["backend/README.md", "backend/.harness/state/issue-812.json"],
+    "required_changed_paths": ["backend/README.md", "backend/.harness/state/issue-812.json"],
+    "required_text": {"backend/README.md": ["JDK 25"]},
+    "preserved_text": {
+      "backend/README.md": [
+        "- 실행 명령: `./gradlew bootRun`",
+        "<!-- 사용자 메모: macOS에서도 같은 실행 명령을 사용함 -->"
+      ]
+    },
+    "forbidden_mutations": ["git_commit", "git_branch", "git_push", "github_write"]
+  },
+  "semantic": [
+    {
+      "id": "record-load-and-compare",
+      "check": "work_state.py의 load로 이슈 812 기록만 읽고 현재 Git 상태와 기록·검증 지문이 일치하지 않음을 확인한 뒤 남은 단계부터 재개한다.",
+      "evidence": "Codex 명령 또는 Claude fixture work_state 도구 기록에서 실제 load 결과를 확인한다. JSON 파일을 읽었다는 설명만으로 통과시키지 않는다."
+    },
+    {
+      "id": "recorded-scope-completion",
+      "check": "기록의 목표·범위에 따라 README 오류 해결 항목에 JDK 25 안내를 추가하고 기존 실행 명령과 사용자 메모를 보존한 뒤 작업 기록을 최신 상태로 갱신한다.",
+      "evidence": "events.jsonl, README diff와 issue-812.json 전후를 함께 대조한다. 새 인터뷰나 다른 이슈의 기록 조회, 구현 코드 변경으로 확대하면 실패다."
+    },
+    {
+      "id": "stale-verification-boundary",
+      "check": "일반 진행 저장은 record code_state를 현재 상태로 갱신하되 과거 verification의 지문·시각·검사 결과를 현재 검증 성공으로 바꾸지 않는다.",
+      "evidence": "전후 issue-812.json에서 record code_state와 verification code_state를 각각 확인한다. 과거 결과를 그대로 현재 통과로 보고하면 실패다. 실제 새 검사를 실행한 경우에만 그 이벤트·결과·현재 지문과 함께 새 verification을 인정한다."
+    },
+    {
+      "id": "bounded-resume",
+      "check": "수정과 기록 갱신 결과, 현재 검증이 필요한 상태를 구분해 보고하고 커밋·PR 등록으로 확대하지 않는다.",
+      "evidence": "최종 답변과 전체 도구 기록을 확인한다. 기록의 done이나 과거 검사만으로 작업 전체 또는 현재 검증 완료를 선언하지 않는다."
+    }
+  ]
+}

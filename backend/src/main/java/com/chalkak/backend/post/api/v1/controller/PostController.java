@@ -19,6 +19,7 @@ import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
+import com.chalkak.backend.post.api.v1.dto.response.TodayPostStatusResponse;
 import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.post.service.PostCreationResult;
@@ -26,6 +27,7 @@ import com.chalkak.backend.post.service.PostDetail;
 import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostUpdateResult;
+import com.chalkak.backend.post.service.TodayPostStatus;
 import jakarta.validation.Valid;
 import java.util.Optional;
 import java.util.UUID;
@@ -136,6 +138,21 @@ public class PostController implements PostApiDocs {
                         )
                 )
         );
+    }
+
+    /**
+     * 게시물 생성 흐름과 같은 인가를 건다. 이 조회가 정지 회원에게 작성 가능하다고 답한 뒤 업로드 URL
+     * 발급에서 403이 나면, 사전 확인이 오히려 헛걸음을 만든다.
+     */
+    @Override
+    @RequiresUsableUser
+    @GetMapping("/today")
+    public ResponseEntity<TodayPostStatusResponse> getMyTodayPostStatus(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        TodayPostStatus status = postQueryService.getMyTodayPostStatus(loginUser.userId());
+
+        return ResponseEntity.ok(TodayPostStatusResponse.from(status));
     }
 
     @Override
