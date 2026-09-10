@@ -178,6 +178,16 @@ jobs:
       - name: Set up Xcode
         run: xcodebuild -version
 
+      - name: Build debug app
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            build
+
       - name: Select available iOS Simulator
         run: |
           set -euo pipefail
@@ -211,16 +221,6 @@ jobs:
             echo "Waiting for CoreSimulator to register an iOS Simulator (attempt $attempt/$max_attempts)..."
             sleep 5
           done
-
-      - name: Build debug app
-        run: |
-          xcodebuild \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration Debug \
-            -destination "generic/platform=iOS Simulator" \
-            -derivedDataPath "$DERIVED_DATA_PATH" \
-            build
 
       - name: Run unit tests
         run: |
