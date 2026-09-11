@@ -38,8 +38,8 @@ struct FeedScreen: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .background(InteractivePopGestureEnabler())
         .task {
             await viewModel.load()
         }
