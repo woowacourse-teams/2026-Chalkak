@@ -24,6 +24,7 @@ struct ContentView: View {
     )
     @State private var selectedLegalDocument: LegalDocument?
     @State private var photoUploadViewModel: PhotoUploadViewModel?
+    @State private var isPhotoUploadPresented = false
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
@@ -59,18 +60,18 @@ struct ContentView: View {
                                 onDeleted: handleDeletedPost
                             )
                         }
-                }
-            case .photoUpload:
-                if let photoUploadViewModel {
-                    PhotoUploadRoute(
-                        viewModel: photoUploadViewModel,
-                        onBack: showPhotoUploadOrigin,
-                        onSubmitted: showPhotoUploadSuccess,
-                        onReauthenticationRequired: showLogin
-                    )
-                } else {
-                    Color.clear
-                        .task { showHome() }
+                        .navigationDestination(isPresented: $isPhotoUploadPresented) {
+                            if let photoUploadViewModel {
+                                PhotoUploadRoute(
+                                    viewModel: photoUploadViewModel,
+                                    onBack: showPhotoUploadOrigin,
+                                    onSubmitted: showPhotoUploadSuccess,
+                                    onReauthenticationRequired: showLogin
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            }
+                        }
                 }
             case .photoUploadSuccess:
                 if let successSubmission {
@@ -243,7 +244,7 @@ struct ContentView: View {
         case let .allowed(topicDate):
             photoUploadReturnTab = tab
             photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate)
-            route = .photoUpload
+            isPhotoUploadPresented = true
         case .reauthenticationRequired:
             showLogin()
         case .cancelled:
@@ -271,6 +272,7 @@ struct ContentView: View {
 
     private func showPhotoUploadSuccess(_ submission: PhotoUploadSubmission) {
         successSubmission = submission
+        isPhotoUploadPresented = false
         route = .photoUploadSuccess
     }
 
@@ -281,6 +283,7 @@ struct ContentView: View {
     }
 
     private func showPhotoUploadOrigin() {
+        isPhotoUploadPresented = false
         route = .home
         selectedTab = photoUploadReturnTab
     }
@@ -299,6 +302,7 @@ struct ContentView: View {
         photoUploadEntryTaskID = nil
         selectedLegalDocument = nil
         photoUploadViewModel = nil
+        isPhotoUploadPresented = false
         successSubmission = nil
         resetMainState()
         route = .login
@@ -307,6 +311,7 @@ struct ContentView: View {
     private func resetMainState() {
         selectedTab = .today
         selectedFeed = nil
+        isPhotoUploadPresented = false
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
@@ -424,7 +429,6 @@ private enum AppRoute: Equatable {
     case login
     case onboarding
     case home
-    case photoUpload
     case photoUploadSuccess
 }
 

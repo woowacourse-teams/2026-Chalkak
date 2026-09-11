@@ -81,6 +81,7 @@ struct PhotoUploadScreen: View {
                 .padding(.trailing, 12)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
+                .background(theme.colors.background)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakButton(
