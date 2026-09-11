@@ -140,31 +140,29 @@ private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     @State private var showsScrollToTop = false
-    @State private var accumulatedScroll: CGFloat = 0
+    @State private var upwardScrollDistance: CGFloat = 0
 
-    // 아래로 스크롤하면 버튼이 나타나고 위로 스크롤하면 사라진다.
-    // 절대 위치가 아닌 스크롤 방향으로 판단해 safe area inset 영향에서 자유롭다.
+    // 아래로 이동할 때는 숨기고, 위로 일정 거리 이동하면 표시하며, 최상단에서는 숨긴다.
     private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
-        // Pull-to-refresh의 음수 overscroll은 일반 스크롤로 취급하지 않는다.
-        // 갱신 제스처 도중 상태가 바뀌면 SwiftUI가 refresh 작업을 취소할 수 있다.
-        guard oldDistance >= 0, newDistance >= 0 else {
-            accumulatedScroll = 0
+        if newDistance <= HomeMetrics.scrollTopVisibilityThreshold {
+            upwardScrollDistance = 0
+            setShowsScrollToTop(false)
             return
         }
 
-        // 아래로 스크롤할수록 delta가 커지도록 부호를 맞춘다.
-        let delta = oldDistance - newDistance // 양수면 아래로, 음수면 위로 스크롤한 것이다.
-        guard delta != 0 else { return }
-
-        // 스크롤 방향이 바뀌면 누적값을 초기화한다.
-        if (delta > 0) != (accumulatedScroll > 0) {
-            accumulatedScroll = 0
+        guard oldDistance >= 0, newDistance >= 0 else {
+            upwardScrollDistance = 0
+            return
         }
-        accumulatedScroll += delta
 
-        if accumulatedScroll >= HomeMetrics.scrollToTopToggleThreshold {
-            setShowsScrollToTop(true)
-        } else if accumulatedScroll <= -HomeMetrics.scrollToTopToggleThreshold {
+        let delta = oldDistance - newDistance
+        if delta > 0 {
+            upwardScrollDistance += delta
+            if upwardScrollDistance >= HomeMetrics.scrollToTopRevealThreshold {
+                setShowsScrollToTop(true)
+            }
+        } else if delta < 0 {
+            upwardScrollDistance = 0
             setShowsScrollToTop(false)
         }
     }
@@ -181,7 +179,7 @@ private struct HomeContent: View {
             ScrollView {
                 VStack(spacing: 0) {
                     Color.clear
-                        .frame(height: 0)
+                        .frame(height: HomeMetrics.scrollTopAnchorHeight)
                         .id(HomeMetrics.scrollTopID)
 
                     HomeTopic(
@@ -244,7 +242,6 @@ private struct HomeContent: View {
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                // 콘텐츠 최상단을 0으로 맞춰, safe area inset과 무관한 스크롤 거리를 얻는다.
                 geometry.contentOffset.y + geometry.contentInsets.top
             } action: { oldDistance, newDistance in
                 updateScrollToTop(from: oldDistance, to: newDistance)
@@ -294,8 +291,9 @@ private enum Metrics {
 private enum HomeMetrics {
     static let topBarOpacity = 0.96
     static let scrollTopID = "home-scroll-top"
-    // 같은 방향으로 이만큼 누적 스크롤하면 버튼을 토글한다.
-    static let scrollToTopToggleThreshold: CGFloat = 12
+    static let scrollTopAnchorHeight: CGFloat = 1
+    static let scrollTopVisibilityThreshold: CGFloat = 1
+    static let scrollToTopRevealThreshold: CGFloat = 12
     static let scrollButtonSize: CGFloat = 48
     static let scrollButtonIconSize: CGFloat = 20
     static let emptyTopPadding: CGFloat = 144
