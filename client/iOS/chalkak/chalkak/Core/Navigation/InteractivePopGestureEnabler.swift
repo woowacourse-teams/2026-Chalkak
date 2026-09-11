@@ -42,7 +42,8 @@ private final class InteractivePopGestureViewController: UIViewController {
     func enableInteractivePopGesture() {
         DispatchQueue.main.async { [weak self] in
             guard
-                let navigationController = self?.navigationController,
+                let self,
+                let navigationController = navigationController,
                 navigationController.viewControllers.count > 1,
                 let gestureRecognizer = navigationController.interactivePopGestureRecognizer
             else {
