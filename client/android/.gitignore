@@ -1,0 +1,33 @@
+*.iml
+.gradle
+/local.properties
+/.idea/*
+.DS_Store
+**/build
+**/captures
+**/outputs/
+.externalNativeBuild
+.cxx
+local.properties
+out/
+tmp/
+.kotlin/
+.gradle/
+
+# agent
+.omx
+.omc
+
+# release
+*.jks
+*.keystore
+keystore.properties
+upload_certificate.pem
+
+# build
+*.apk
+*.aab
+*.ap_
+*.dex
+*.hprof
+*.log
