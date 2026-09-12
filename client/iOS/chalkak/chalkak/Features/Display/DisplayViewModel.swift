@@ -24,6 +24,7 @@ final class DisplayViewModel {
     private var loadedTopicDate: Date?
     private var generation = 0
     private var isEndThresholdReached = false
+    private var isRevalidating = false
 
     init(
         initialState: DisplayViewState? = nil,
@@ -94,6 +95,24 @@ final class DisplayViewModel {
             ? initialDate ?? latestDate
             : viewState.selectedDate ?? initialDate ?? latestDate
         await loadFirstPage(date: requestedDate, latestDate: latestDate, preserves: previous)
+    }
+
+    /// 현재 화면의 콘텐츠를 유지한 채 같은 전시를 최신 데이터로 갱신한다.
+    func revalidate() async {
+        guard viewState.contentStatus != .loading, !isRevalidating else { return }
+
+        isRevalidating = true
+        defer { isRevalidating = false }
+
+        let previous = viewState.hasLoadedContent ? viewState : nil
+        let latestDate = Self.startOfDay(dateProvider())
+        let requestedDate = viewState.selectedDate ?? initialDate ?? latestDate
+        await loadFirstPage(
+            date: requestedDate,
+            latestDate: latestDate,
+            preserves: previous,
+            keepsContentVisible: previous != nil
+        )
     }
 
     func moveToPreviousDate() async {
@@ -168,7 +187,8 @@ final class DisplayViewModel {
         date: Date,
         latestDate: Date,
         preserves previousState: DisplayViewState?,
-        isPreviousDateRequest: Bool = false
+        isPreviousDateRequest: Bool = false,
+        keepsContentVisible: Bool = false
     ) async {
         generation += 1
         let requestGeneration = generation
@@ -176,11 +196,17 @@ final class DisplayViewModel {
         let requestedDate = Self.startOfDay(date)
         let requestSort: DisplaySort = requestedDate < latestDate ? .popular : selectedLatestSort
 
-        viewState.selectedDate = requestedDate
-        viewState.latestDate = latestDate
-        viewState.contentStatus = .loading
-        viewState.isLoadingNext = false
-        viewState.transientError = nil
+        if keepsContentVisible {
+            viewState.latestDate = latestDate
+            viewState.isLoadingNext = false
+            viewState.transientError = nil
+        } else {
+            viewState.selectedDate = requestedDate
+            viewState.latestDate = latestDate
+            viewState.contentStatus = .loading
+            viewState.isLoadingNext = false
+            viewState.transientError = nil
+        }
 
         let result = await firstPageHandler(requestedDate, requestSort)
         guard requestGeneration == generation else { return }
@@ -235,7 +261,8 @@ final class DisplayViewModel {
     }
 
     private func loadNextPage() async {
-        guard viewState.contentStatus == .latest || viewState.contentStatus == .archive,
+        guard !isRevalidating,
+              viewState.contentStatus == .latest || viewState.contentStatus == .archive,
               viewState.hasNext,
               !viewState.isLoadingNext,
               let loadedTopicDate

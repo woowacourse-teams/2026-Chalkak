@@ -190,7 +190,18 @@ struct ContentView: View {
             return
         }
 
+        let shouldRevalidateDisplay = item == .display
+            && displayViewModel.viewState.contentStatus != .loading
+        let shouldRevalidateRecord = item == .record
+            && recordViewModel.viewState.contentStatus != .loading
+
         selectedTab = item
+
+        if shouldRevalidateDisplay {
+            Task { await displayViewModel.revalidate() }
+        } else if shouldRevalidateRecord {
+            Task { await recordViewModel.revalidate() }
+        }
     }
 
     private func openDisplay(at date: Date) {
