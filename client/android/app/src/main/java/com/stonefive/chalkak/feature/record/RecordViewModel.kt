@@ -173,8 +173,7 @@ class RecordViewModel(
                             }
                         }
                     }
-                }
-                .onFailure { error ->
+                }.onFailure { error ->
                     if (generation != latestLoadGeneration) return@onFailure
 
                     if (previousState != null) {

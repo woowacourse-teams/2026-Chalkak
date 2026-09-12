@@ -149,7 +149,11 @@ class RecordViewModelTest {
         )
         advanceUntilIdle()
 
-        assertEquals(listOf("post-7"), viewModel.uiState.value.posts.map(PostCalendarItem::postId))
+        assertEquals(
+            listOf("post-7"),
+            viewModel.uiState.value.posts
+                .map(PostCalendarItem::postId),
+        )
     }
 
     @Test
