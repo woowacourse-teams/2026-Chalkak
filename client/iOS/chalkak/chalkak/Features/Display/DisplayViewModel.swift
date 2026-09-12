@@ -261,7 +261,8 @@ final class DisplayViewModel {
     }
 
     private func loadNextPage() async {
-        guard viewState.contentStatus == .latest || viewState.contentStatus == .archive,
+        guard !isRevalidating,
+              viewState.contentStatus == .latest || viewState.contentStatus == .archive,
               viewState.hasNext,
               !viewState.isLoadingNext,
               let loadedTopicDate

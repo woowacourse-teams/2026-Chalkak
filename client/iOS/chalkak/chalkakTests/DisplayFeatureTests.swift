@@ -200,6 +200,54 @@ struct DisplayViewModelTests {
         #expect(viewModel.event == .showFailure(.network))
     }
 
+    @Test("탭 재검증 중에는 다음 페이지를 요청하지 않는다")
+    func blocksNextPageWhileRevalidating() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let gate = DisplayFirstPageGate()
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1,
+                hasNext: true
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) },
+            nextPageHandler: { request in
+                recorder.nextPages.append(
+                    (request.topicDate, request.sort, request.page, request.randomSeed)
+                )
+                return .success(
+                    DisplayPage(
+                        photos: [],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        let revalidation = Task { await viewModel.revalidate() }
+        await gate.waitForRequestCount(1)
+
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(recorder.nextPages.isEmpty)
+        #expect(!viewModel.viewState.isLoadingNext)
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(Self.content(date: latestDate, topic: "최신 전시"))
+        )
+        await revalidation.value
+    }
+
     @Test("랜덤 다음 페이지는 시드를 재사용하고 ID를 페이지 경계에서 제거한다")
     func reusesRandomSeedAndDeduplicatesPageBoundary() async {
         let latestDate = Self.date(2026, 9, 2)
