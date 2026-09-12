@@ -128,6 +128,78 @@ struct DisplayViewModelTests {
         #expect(viewModel.viewState.contentStatus == .error(.server))
     }
 
+    @Test("탭 재검증은 기존 전시를 유지하고 성공한 최신 값으로 교체한다")
+    func revalidationKeepsCachedContentUntilUpdated() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let updatedPhoto = Self.photo(id: "updated-photo")
+        let gate = DisplayFirstPageGate()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) }
+        )
+
+        let revalidation = Task { await viewModel.revalidate() }
+        await gate.waitForRequestCount(1)
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.topic == "기존 전시")
+        #expect(viewModel.viewState.photos == [cachedPhoto])
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(
+                Self.content(
+                    date: latestDate,
+                    topic: "최신 전시",
+                    page: DisplayPage(
+                        photos: [updatedPhoto],
+                        currentPage: 1,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            )
+        )
+        await revalidation.value
+
+        #expect(viewModel.viewState.topic == "최신 전시")
+        #expect(viewModel.viewState.photos == [updatedPhoto])
+    }
+
+    @Test("탭 재검증 실패는 기존 전시를 유지한다")
+    func failedRevalidationKeepsCachedContent() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { _, _ in .failure(.network) }
+        )
+
+        await viewModel.revalidate()
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.topic == "기존 전시")
+        #expect(viewModel.viewState.photos == [cachedPhoto])
+        #expect(viewModel.event == .showFailure(.network))
+    }
+
     @Test("랜덤 다음 페이지는 시드를 재사용하고 ID를 페이지 경계에서 제거한다")
     func reusesRandomSeedAndDeduplicatesPageBoundary() async {
         let latestDate = Self.date(2026, 9, 2)
