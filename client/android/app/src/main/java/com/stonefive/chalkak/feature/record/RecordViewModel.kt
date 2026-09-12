@@ -32,6 +32,8 @@ class RecordViewModel(
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
+    private var isRevalidating = false
+    private var hasBeenPresented = false
     private var nextMessageId = 0L
 
     init {
@@ -61,6 +63,22 @@ class RecordViewModel(
 
     fun retryCurrentMonth() {
         loadRecord(_uiState.value.month)
+    }
+
+    fun onResume() {
+        if (!hasBeenPresented) {
+            hasBeenPresented = true
+            return
+        }
+        revalidate()
+    }
+
+    fun revalidate() {
+        val state = _uiState.value
+        if (state.isLoading || isRevalidating) return
+
+        val previousState = state.takeIf { it.errorMessage == null }
+        loadRecord(state.month, previousState = previousState, keepsContentVisible = previousState != null)
     }
 
     fun removeDeletedPost(postId: String) {
@@ -100,17 +118,26 @@ class RecordViewModel(
         }
     }
 
-    private fun loadRecord(month: YearMonth) {
+    private fun loadRecord(
+        month: YearMonth,
+        previousState: RecordUiState? = null,
+        keepsContentVisible: Boolean = false,
+    ) {
         val generation = ++latestLoadGeneration
-        _uiState.update {
-            it.copy(
-                month = month,
-                posts = emptyList(),
-                selectedDate = null,
-                isLoading = true,
-                errorMessage = null,
-                isLoginRequired = false,
-            )
+        isRevalidating = keepsContentVisible
+        if (keepsContentVisible) {
+            _uiState.update { it.copy(month = month) }
+        } else {
+            _uiState.update {
+                it.copy(
+                    month = month,
+                    posts = emptyList(),
+                    selectedDate = null,
+                    isLoading = true,
+                    errorMessage = null,
+                    isLoginRequired = false,
+                )
+            }
         }
 
         viewModelScope.launch {
@@ -132,25 +159,38 @@ class RecordViewModel(
                             )
                         }
 
-                        is HomeResult.Failure -> _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = content.reason.toRecordMessage(),
-                                isLoginRequired = content.reason == HomeFailure.Unauthorized,
+                        is HomeResult.Failure -> if (previousState != null) {
+                            _uiState.value = previousState.copy(
+                                pendingMessage = nextToast(content.reason.toRecordMessage()),
                             )
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = content.reason.toRecordMessage(),
+                                    isLoginRequired = content.reason == HomeFailure.Unauthorized,
+                                )
+                            }
                         }
                     }
                 }.onFailure { error ->
                     if (generation != latestLoadGeneration) return@onFailure
 
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = error.message ?: "기록을 불러오지 못했어요",
-                            isLoginRequired = false,
+                    if (previousState != null) {
+                        _uiState.value = previousState.copy(
+                            pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"),
                         )
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = error.message ?: "기록을 불러오지 못했어요",
+                                isLoginRequired = false,
+                            )
+                        }
                     }
                 }
+            isRevalidating = false
         }
     }
 
