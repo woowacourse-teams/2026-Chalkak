@@ -16,6 +16,8 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +26,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DisplayViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -119,6 +122,54 @@ class DisplayViewModelTest {
         viewModel.selectSort(PostSort.POPULAR)
 
         assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `재진입 재검증은 기존 전시를 유지한 채 최신 응답으로 교체한다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        val previousContent = viewModel.uiState.value.content
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(2, repository.requests.size)
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = LATEST_DATE,
+                    topic = "새 전시",
+                    photos = listOf(post.copy(id = "updated-photo")),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("새 전시", viewModel.uiState.value.topic)
+        assertEquals(
+            listOf("updated-photo"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+    }
+
+    @Test
+    fun `재진입 재검증 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        repository.firstPageFailure = HomeFailure.Network
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        assertEquals(
+            listOf(post.id),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
         assertEquals(
             "전시를 불러오지 못했어요",
             (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,

@@ -37,6 +37,8 @@ class DisplayViewModel(
     private var selectedSort = PostSort.LATEST
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
+    private var isRevalidating = false
+    private var hasBeenPresented = false
     private var nextPageJob: Job? = null
     private var nextMessageId = 0L
 
@@ -80,6 +82,26 @@ class DisplayViewModel(
 
     fun retry() {
         loadDisplay(_uiState.value.selectedDate)
+    }
+
+    fun onResume() {
+        if (!hasBeenPresented) {
+            hasBeenPresented = true
+            return
+        }
+        revalidate()
+    }
+
+    fun revalidate() {
+        val state = _uiState.value
+        if (state.content is DisplayContentState.Loading || isRevalidating) return
+
+        val selectedDate = state.selectedDate ?: return
+        loadDisplay(
+            date = selectedDate,
+            previousState = state,
+            keepsContentVisible = true,
+        )
     }
 
     fun onMessageShown(messageId: Long) {
@@ -131,22 +153,28 @@ class DisplayViewModel(
         date: LocalDate?,
         sort: PostSort = selectedSort,
         previousState: DisplayUiState? = null,
+        keepsContentVisible: Boolean = false,
     ) {
         val latestDate = dateProvider()
         val requestedDate = date ?: latestDate
         val requestedSort = if (requestedDate < latestDate) PostSort.POPULAR else sort
         val generation = ++latestLoadGeneration
+        isRevalidating = keepsContentVisible
         nextPageJob?.cancel()
         nextPageJob = null
         isEndThresholdReached = false
 
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    selectedDate = requestedDate,
-                    latestDate = latestDate,
-                    content = DisplayContentState.Loading,
-                )
+            if (keepsContentVisible) {
+                _uiState.update { it.copy(latestDate = latestDate, isLoadingNext = false) }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        selectedDate = requestedDate,
+                        latestDate = latestDate,
+                        content = DisplayContentState.Loading,
+                    )
+                }
             }
             val result = try {
                 repository.getPostContent(
@@ -201,6 +229,7 @@ class DisplayViewModel(
                     }
                 }
             }
+            isRevalidating = false
         }
     }
 
@@ -242,7 +271,7 @@ class DisplayViewModel(
         ) {
             return
         }
-        if (!state.hasNext || state.isLoadingNext || nextPageJob != null) return
+        if (isRevalidating || !state.hasNext || state.isLoadingNext || nextPageJob != null) return
 
         val sort = when (val content = state.content) {
             is DisplayContentState.Latest -> content.selectedSort
