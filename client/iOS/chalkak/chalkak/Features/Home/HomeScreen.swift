@@ -140,29 +140,29 @@ private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     @State private var showsScrollToTop = false
-    @State private var upwardScrollDistance: CGFloat = 0
+    @State private var scrollTracker = HomeScrollTracker()
 
     // 아래로 이동할 때는 숨기고, 위로 일정 거리 이동하면 표시하며, 최상단에서는 숨긴다.
     private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
         if newDistance <= HomeMetrics.scrollTopVisibilityThreshold {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             setShowsScrollToTop(false)
             return
         }
 
         guard oldDistance >= 0, newDistance >= 0 else {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             return
         }
 
         let delta = oldDistance - newDistance
         if delta > 0 {
-            upwardScrollDistance += delta
-            if upwardScrollDistance >= HomeMetrics.scrollToTopRevealThreshold {
+            scrollTracker.upwardDistance += delta
+            if scrollTracker.upwardDistance >= HomeMetrics.scrollToTopRevealThreshold {
                 setShowsScrollToTop(true)
             }
         } else if delta < 0 {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             setShowsScrollToTop(false)
         }
     }
@@ -241,14 +241,9 @@ private struct HomeContent: View {
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                let offset = geometry.contentOffset.y + geometry.contentInsets.top
-                return (offset / HomeMetrics.scrollGeometryUpdateInterval).rounded(.down)
-            } action: { oldBucket, newBucket in
-                let interval = HomeMetrics.scrollGeometryUpdateInterval
-                updateScrollToTop(
-                    from: oldBucket * interval,
-                    to: newBucket * interval
-                )
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { oldDistance, newDistance in
+                updateScrollToTop(from: oldDistance, to: newDistance)
             }
             .refreshable {
                 // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
@@ -262,6 +257,10 @@ private struct HomeContent: View {
             .background(theme.colors.background)
         }
     }
+}
+
+private final class HomeScrollTracker {
+    var upwardDistance: CGFloat = 0
 }
 
 private struct HomeEmptyContent: View {
@@ -298,7 +297,6 @@ private enum HomeMetrics {
     static let scrollTopAnchorHeight: CGFloat = 1
     static let scrollTopVisibilityThreshold: CGFloat = 1
     static let scrollToTopRevealThreshold: CGFloat = 12
-    static let scrollGeometryUpdateInterval: CGFloat = 24
     static let scrollButtonSize: CGFloat = 48
     static let scrollButtonIconSize: CGFloat = 20
     static let emptyTopPadding: CGFloat = 144
