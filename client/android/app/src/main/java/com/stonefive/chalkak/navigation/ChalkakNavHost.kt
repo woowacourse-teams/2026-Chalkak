@@ -442,6 +442,20 @@ internal fun NavHostController.navigateToBottomBar(
 ) {
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
+    // Preserve Record -> Display for system back, but don't save that excursion as a tab stack.
+    val isDisplayOpenedFromRecord =
+        currentDestination?.hasRoute<Display>() == true &&
+            previousBackStackEntry?.destination?.hasRoute<Record>() == true
+    if (isDisplayOpenedFromRecord) {
+        if (item == ChalkakBottomBarItem.RECORD) {
+            popBackStack()
+            return
+        }
+        if (item == ChalkakBottomBarItem.DISPLAY) return
+
+        popBackStack()
+    }
+
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -489,10 +503,6 @@ private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인
 internal fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString())) {
         launchSingleTop = true
-        // This is a tab switch with an explicit date, so don't restore an older Display route.
-        popUpTo<Today> {
-            saveState = true
-        }
     }
 }
 

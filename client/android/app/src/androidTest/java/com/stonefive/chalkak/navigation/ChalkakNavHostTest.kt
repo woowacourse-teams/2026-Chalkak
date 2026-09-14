@@ -21,7 +21,7 @@ class ChalkakNavHostTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun openingDisplayFromRecordKeepsTabsNavigable() {
+    fun displayOpenedFromRecordReturnsToRecordAndKeepsTabsNavigable() {
         lateinit var navController: NavHostController
 
         composeRule.setContent {
@@ -50,6 +50,14 @@ class ChalkakNavHostTest {
                     ?.toRoute<Display>()
                     ?.date,
             )
+            assertTrue(navController.popBackStack())
+            assertTrue(navController.currentDestination?.hasRoute<Record>() == true)
+
+            navController.navigateToDisplay(selectedDate)
+            navController.navigateToBottomBar(ChalkakBottomBarItem.RECORD, NoOpAnalyticsTracker)
+            assertTrue(navController.currentDestination?.hasRoute<Record>() == true)
+
+            navController.navigateToDisplay(selectedDate)
 
             navController.navigateToBottomBar(ChalkakBottomBarItem.SETTINGS, NoOpAnalyticsTracker)
             assertTrue(navController.currentDestination?.hasRoute<Settings>() == true)
