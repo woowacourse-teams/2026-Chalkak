@@ -52,6 +52,65 @@ struct HomeScreenTests {
     }
 
     @MainActor
+    @Test("새로고침은 실패한 사진 이미지를 다시 요청한다")
+    func refreshRetriesFailedPhotoImage() async {
+        let imageURL = URL(string: "https://example.com/photo.webp")!
+        let photo = HomePhoto(
+            id: "remote-photo",
+            imageSource: .remote(imageURL),
+            signatureSource: .asset("preview_signature"),
+            contentDescription: "테스트 사진",
+            title: "테스트 제목",
+            likeCount: 1
+        )
+        let initialState = HomeViewState(
+            contentStatus: .content,
+            photos: [photo],
+            hasNext: false
+        )
+        let imageLoader = FailingThenSucceedingHomeImageLoader()
+        let viewModel = HomeViewModel(
+            initialState: initialState,
+            refreshHandler: { _ in .success(initialState) }
+        )
+        let view = HomeScreen(viewModel: viewModel)
+            .frame(width: 402, height: 874)
+            .chalkakTheme(.light)
+            .environment(\.homeImageLoader) { url, targetPixelWidth in
+                try await imageLoader.load(url, targetPixelWidth: targetPixelWidth)
+            }
+        let hostingController = UIHostingController(rootView: view)
+
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first
+        else {
+            Issue.record("윈도우 씬을 찾지 못했습니다")
+            return
+        }
+        let window = UIWindow(windowScene: windowScene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        defer { window.isHidden = true }
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.layoutIfNeeded()
+
+        let firstRequestStarted = await imageLoader.waitForCallCount(1)
+        #expect(firstRequestStarted)
+        #expect(imageLoader.callCount == 1)
+        #expect(imageLoader.failedCallCount == 1)
+
+        await viewModel.refresh()
+
+        let retryStarted = await imageLoader.waitForCallCount(2)
+        #expect(retryStarted)
+        #expect(viewModel.imageReloadGeneration == 1)
+        #expect(imageLoader.requestedURLs == [imageURL, imageURL])
+        #expect(imageLoader.successfulCallCount == 1)
+    }
+
+    @MainActor
     @Test("바텀바 선택 액션은 선택한 항목을 보존한다")
     func preservesSelectedBottomBarActionItem() async {
         let viewModel = HomeViewModel(initialState: HomePreviewData.contentState)
@@ -59,6 +118,39 @@ struct HomeScreenTests {
         await viewModel.selectBottomBarItem(.display)
 
         #expect(viewModel.event == .navigateToBottomBar(.display))
+    }
+}
+
+@MainActor
+private final class FailingThenSucceedingHomeImageLoader {
+    private(set) var requestedURLs: [URL] = []
+    private(set) var failedCallCount = 0
+    private(set) var successfulCallCount = 0
+
+    var callCount: Int { requestedURLs.count }
+
+    func load(_ url: URL, targetPixelWidth: Int) async throws -> HomeLoadedImage {
+        requestedURLs.append(url)
+        guard callCount > 1 else {
+            failedCallCount += 1
+            throw HomeImagePipelineError.invalidResponse
+        }
+
+        successfulCallCount += 1
+        let size = CGSize(width: 8, height: 6)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            context.cgContext.setFillColor(UIColor.white.cgColor)
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+        }
+        return HomeLoadedImage(image: image, heightToWidthRatio: 0.75)
+    }
+
+    func waitForCallCount(_ expectedCount: Int) async -> Bool {
+        for _ in 0..<200 {
+            if callCount >= expectedCount { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return callCount >= expectedCount
     }
 }
 
@@ -126,12 +218,14 @@ struct HomeViewModelBehaviorTests {
                 )
             }
         )
+        let initialImageReloadGeneration = viewModel.imageReloadGeneration
 
         await viewModel.refresh()
 
         #expect(viewModel.viewState.selectedSort == .random)
         #expect(viewModel.viewState.topic == "새 주제")
         #expect(viewModel.viewState.photos.map(\.id) == ["new-photo"])
+        #expect(viewModel.imageReloadGeneration == initialImageReloadGeneration + 1)
     }
 
     @MainActor

@@ -11,6 +11,7 @@ final class HomeViewModel {
 
     private(set) var viewState: HomeViewState
     private(set) var event: HomeEvent?
+    private(set) var imageReloadGeneration = 0
 
     private let refreshHandler: RefreshHandler
     private let nextPageHandler: NextPageHandler
@@ -106,6 +107,7 @@ final class HomeViewModel {
         let previousState = viewState
 
         if preservesContent {
+            imageReloadGeneration += 1
             viewState.isRefreshing = true
             viewState.isLoadingNext = false
             viewState.areLikesEnabled = false
