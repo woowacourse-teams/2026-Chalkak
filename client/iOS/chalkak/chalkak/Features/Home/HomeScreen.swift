@@ -199,7 +199,6 @@ private struct HomeContent: View {
                         HomePhotoList(
                             photos: viewModel.viewState.photos,
                             likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
-                            isLoadingNext: viewModel.viewState.isLoadingNext,
                             areLikesEnabled: viewModel.viewState.areLikesEnabled,
                             onLike: { photoID in
                                 Task { await viewModel.toggleLike(photoID: photoID) }
@@ -242,9 +241,14 @@ private struct HomeContent: View {
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top
-            } action: { oldDistance, newDistance in
-                updateScrollToTop(from: oldDistance, to: newDistance)
+                let offset = geometry.contentOffset.y + geometry.contentInsets.top
+                return (offset / HomeMetrics.scrollGeometryUpdateInterval).rounded(.down)
+            } action: { oldBucket, newBucket in
+                let interval = HomeMetrics.scrollGeometryUpdateInterval
+                updateScrollToTop(
+                    from: oldBucket * interval,
+                    to: newBucket * interval
+                )
             }
             .refreshable {
                 // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
@@ -294,6 +298,7 @@ private enum HomeMetrics {
     static let scrollTopAnchorHeight: CGFloat = 1
     static let scrollTopVisibilityThreshold: CGFloat = 1
     static let scrollToTopRevealThreshold: CGFloat = 12
+    static let scrollGeometryUpdateInterval: CGFloat = 24
     static let scrollButtonSize: CGFloat = 48
     static let scrollButtonIconSize: CGFloat = 20
     static let emptyTopPadding: CGFloat = 144

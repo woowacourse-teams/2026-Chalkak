@@ -4,7 +4,6 @@ struct HomePhotoList: View {
     @Environment(\.chalkakTheme) private var theme
     let photos: [HomePhoto]
     let likedPhotoIDs: Set<HomePhoto.ID>
-    let isLoadingNext: Bool
     let areLikesEnabled: Bool
     var topContentPadding: CGFloat = 0
     var bottomContentPadding: CGFloat = 0
@@ -23,14 +22,6 @@ struct HomePhotoList: View {
                 .onAppear {
                     onEndThreshold(index >= photos.count - HomePhotoListMetrics.endThreshold)
                 }
-            }
-
-            if isLoadingNext {
-                ProgressView()
-                    .tint(theme.colors.actionPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(theme.spacing.xl)
-                    .accessibilityIdentifier("home-next-loading")
             }
 
             Color.clear
@@ -54,7 +45,6 @@ private enum HomePhotoListMetrics {
         HomePhotoList(
             photos: HomePreviewData.contentState.photos,
             likedPhotoIDs: HomePreviewData.contentState.likedPhotoIDs,
-            isLoadingNext: true,
             areLikesEnabled: true,
             onLike: { _ in },
             onEndThreshold: { _ in }
