@@ -277,11 +277,16 @@ final class DisplayViewModel {
             sort: isArchive ? .popular : selectedLatestSort
         )
         let cachedEntry = displayCache[cacheKey]
+        let canReuseCachedTail = cacheKey.sort != .random ||
+            (content.page.randomSeed?.isEmpty == false &&
+                cachedEntry?.state.randomSeed == content.page.randomSeed)
         let freshPhotoIDs = Set(content.page.photos.map(\.id))
-        let cachedFirstPagePhotoIDs = cachedEntry?.firstPagePhotoIDs ?? []
-        let cachedTail = cachedEntry?.state.photos.filter {
-            !cachedFirstPagePhotoIDs.contains($0.id) && !freshPhotoIDs.contains($0.id)
-        } ?? []
+        let cachedFirstPagePhotoIDs = canReuseCachedTail ? cachedEntry?.firstPagePhotoIDs ?? [] : []
+        let cachedTail = canReuseCachedTail
+            ? (cachedEntry?.state.photos.filter {
+                !cachedFirstPagePhotoIDs.contains($0.id) && !freshPhotoIDs.contains($0.id)
+            } ?? [])
+            : []
         let mergedPhotos = content.page.photos + cachedTail
         loadedTopicDate = canonicalDate
         viewState = DisplayViewState(

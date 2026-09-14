@@ -260,13 +260,26 @@ class DisplayViewModel(
         loadedDate = postContent.topicDate
         val cacheKey = DisplayCacheKey(postContent.topicDate, requestedSort)
         val cachedEntry = displayCache[cacheKey]
+        val canReuseCachedTail = requestedSort != PostSort.RANDOM ||
+            (
+                !postContent.randomSeed.isNullOrBlank() &&
+                    cachedEntry?.state?.randomSeed == postContent.randomSeed
+            )
         val freshPhotoIds = postContent.photos.mapTo(mutableSetOf(), Post::id)
-        val cachedFirstPagePhotoIds = cachedEntry?.firstPagePhotoIds.orEmpty()
-        val cachedTail = cachedEntry
-            ?.state
-            ?.photos
+        val cachedFirstPagePhotoIds = cachedEntry
+            ?.firstPagePhotoIds
             .orEmpty()
-            .filter { it.id !in cachedFirstPagePhotoIds && it.id !in freshPhotoIds }
+            .takeIf { canReuseCachedTail }
+            .orEmpty()
+        val cachedTail = if (canReuseCachedTail) {
+            cachedEntry
+                ?.state
+                ?.photos
+                .orEmpty()
+                .filter { it.id !in cachedFirstPagePhotoIds && it.id !in freshPhotoIds }
+        } else {
+            emptyList()
+        }
         val mergedPhotos = postContent.photos + cachedTail
         val cachedTailIds = cachedTail.mapTo(mutableSetOf(), Post::id)
         val mergedLikedPhotoIds = postContent.likedPhotoIds +

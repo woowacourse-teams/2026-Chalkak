@@ -302,6 +302,52 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            firstPagePhotoIdsBySort[PostSort.RANDOM] = "random-first-1"
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "random-tail")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = false,
+                    randomSeed = "seed-1",
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository)
+
+        randomViewModel.selectSort(PostSort.RANDOM)
+        randomViewModel.updateEndThreshold(true)
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        var randomState = randomViewModel.uiState.value
+        assertEquals(
+            listOf("random-first-1", "random-tail"),
+            (randomState.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals(2, randomState.currentPage)
+        assertFalse(randomState.hasNext)
+
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomRepository.firstPageRandomSeed = "seed-2"
+        randomRepository.firstPagePhotoIdsBySort[PostSort.RANDOM] = "random-first-2"
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        randomState = randomViewModel.uiState.value
+        assertEquals(
+            listOf("random-first-2"),
+            (randomState.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals(1, randomState.currentPage)
+        assertTrue(randomState.hasNext)
+        assertEquals("seed-2", randomState.randomSeed)
+    }
+
+    @Test
     fun `과거 전시의 다음 페이지도 인기순으로 요청한다`() = runTest {
         val archiveRepository = FakePostRepository().apply {
             firstPageHasNext = true

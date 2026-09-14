@@ -182,6 +182,63 @@ struct DisplayViewModelTests {
         #expect(!viewModel.viewState.hasNext)
     }
 
+    @Test("랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다")
+    func randomRefreshPreservesOnlySameSeedTail() async {
+        let latestDate = Self.date(2026, 9, 2)
+        var randomSeed = "seed-1"
+        var randomFirstPhotoID = "random-first-1"
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort in
+                .success(
+                    Self.content(
+                        date: date,
+                        page: DisplayPage(
+                            photos: [
+                                Self.photo(
+                                    id: sort == .random ? randomFirstPhotoID : "latest-photo"
+                                )
+                            ],
+                            currentPage: 1,
+                            hasNext: true,
+                            randomSeed: sort == .random ? randomSeed : nil
+                        )
+                    )
+                )
+            },
+            nextPageHandler: { request in
+                .success(
+                    DisplayPage(
+                        photos: [Self.photo(id: "random-tail")],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        await viewModel.load()
+        await viewModel.selectSort(.random)
+        await viewModel.didReachEndThreshold(true)
+        await viewModel.selectSort(.latest)
+        await viewModel.selectSort(.random)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["random-first-1", "random-tail"])
+        #expect(viewModel.viewState.currentPage == 2)
+        #expect(!viewModel.viewState.hasNext)
+
+        await viewModel.selectSort(.latest)
+        randomSeed = "seed-2"
+        randomFirstPhotoID = "random-first-2"
+        await viewModel.selectSort(.random)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["random-first-2"])
+        #expect(viewModel.viewState.currentPage == 1)
+        #expect(viewModel.viewState.hasNext)
+        #expect(viewModel.viewState.randomSeed == "seed-2")
+    }
+
     @Test("이전 날짜 404만 최초 전시일 경계로 기록하고 성공 콘텐츠를 복원한다")
     func recordsOnlyPreviousNotFoundAsBoundary() async {
         let latestDate = Self.date(2026, 9, 2)
