@@ -270,7 +270,11 @@ class DisplayViewModel(
         val mergedPhotos = postContent.photos + cachedTail
         val cachedTailIds = cachedTail.mapTo(mutableSetOf(), Post::id)
         val mergedLikedPhotoIds = postContent.likedPhotoIds +
-            cachedEntry?.state?.likedPhotoIds.orEmpty().intersect(cachedTailIds)
+            cachedEntry
+                ?.state
+                ?.likedPhotoIds
+                .orEmpty()
+                .intersect(cachedTailIds)
         val content = if (postContent.topicDate < latestDate) {
             DisplayContentState.Archive(
                 photos = mergedPhotos,
@@ -289,9 +293,15 @@ class DisplayViewModel(
             topic = postContent.topic,
             content = content,
             likedPhotoIds = mergedLikedPhotoIds,
-            currentPage = cachedEntry?.state?.currentPage?.takeIf { cachedTail.isNotEmpty() }
+            currentPage = cachedEntry
+                ?.state
+                ?.currentPage
+                ?.takeIf { cachedTail.isNotEmpty() }
                 ?: postContent.currentPage,
-            hasNext = cachedEntry?.state?.hasNext?.takeIf { cachedTail.isNotEmpty() }
+            hasNext = cachedEntry
+                ?.state
+                ?.hasNext
+                ?.takeIf { cachedTail.isNotEmpty() }
                 ?: postContent.hasNext,
             randomSeed = postContent.randomSeed,
         )
