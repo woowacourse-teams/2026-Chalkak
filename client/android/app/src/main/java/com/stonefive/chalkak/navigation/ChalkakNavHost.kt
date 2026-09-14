@@ -436,13 +436,12 @@ fun ChalkakNavHost(
     }
 }
 
-internal fun NavHostController.navigateToBottomBar(
+private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
     analyticsTracker: AnalyticsTracker,
 ) {
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
-    // Preserve Record -> Display for system back, but don't save that excursion as a tab stack.
     val isDisplayOpenedFromRecord =
         currentDestination?.hasRoute<Display>() == true &&
             previousBackStackEntry?.destination?.hasRoute<Record>() == true
@@ -500,7 +499,7 @@ private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 
-internal fun NavHostController.navigateToDisplay(date: LocalDate) {
+private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString())) {
         launchSingleTop = true
     }
