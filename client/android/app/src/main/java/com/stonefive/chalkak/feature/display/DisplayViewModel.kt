@@ -264,7 +264,7 @@ class DisplayViewModel(
             (
                 !postContent.randomSeed.isNullOrBlank() &&
                     cachedEntry?.state?.randomSeed == postContent.randomSeed
-            )
+                )
         val freshPhotoIds = postContent.photos.mapTo(mutableSetOf(), Post::id)
         val cachedFirstPagePhotoIds = cachedEntry
             ?.firstPagePhotoIds
