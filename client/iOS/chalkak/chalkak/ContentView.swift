@@ -147,7 +147,8 @@ struct ContentView: View {
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onSignedOut: showLogin,
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                onOpenPhotoUpload: { openPhotoUpload(from: .settings) }
             )
         case .record:
             RecordScreen(

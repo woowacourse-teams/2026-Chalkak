@@ -61,6 +61,30 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-stonefive.chalkak.guest-access", "NO"]
+        app.launch()
+
+        let guestButton = app.buttons["로그인 없이 사진 둘러보기"]
+        XCTAssertTrue(guestButton.waitForExistence(timeout: 5))
+        guestButton.tap()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let uploadButton = app.buttons["추가"]
+        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
+        uploadButton.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["게시물을 추가하려면 로그인이 필요해요"]
+                .waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
