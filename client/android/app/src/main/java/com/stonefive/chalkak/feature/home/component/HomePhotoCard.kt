@@ -175,7 +175,7 @@ private fun HomePhotoCardPreview() {
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
-internal fun imageAspectRatio(
+fun imageAspectRatio(
     width: Int,
     height: Int,
 ): Float? = if (width > 0 && height > 0) {
