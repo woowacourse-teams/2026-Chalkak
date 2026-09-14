@@ -25,6 +25,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -44,6 +45,32 @@ class DisplayScreenTest {
             .onNodeWithContentDescription("좋아요 17")
             .assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun displayPhotoReservesSpaceWhileThumbnailIsLoading() {
+        val loadingPhoto = photo.copy(
+            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+            signatureThumbnailImageUrl = null,
+        )
+        setDisplayContent(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = listOf(loadingPhoto),
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+
+        composeRule.waitForIdle()
+        val bounds = composeRule
+            .onNodeWithContentDescription("사진")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertTrue("photo width should be reserved before load", bounds.width > 0f)
+        assertTrue("photo height should be reserved before load", bounds.height > 0f)
+        assertEquals(1f, bounds.width / bounds.height, 0.02f)
     }
 
     @Test
