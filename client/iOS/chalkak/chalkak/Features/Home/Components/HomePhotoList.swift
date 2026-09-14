@@ -2,9 +2,9 @@ import SwiftUI
 
 struct HomePhotoList: View {
     @Environment(\.chalkakTheme) private var theme
+    @State private var imageRatios: [ChalkakImageSource: CGFloat] = [:]
     let photos: [HomePhoto]
     let likedPhotoIDs: Set<HomePhoto.ID>
-    let isLoadingNext: Bool
     let areLikesEnabled: Bool
     let imageReloadGeneration: Int
     var topContentPadding: CGFloat = 0
@@ -20,29 +20,40 @@ struct HomePhotoList: View {
                     isLiked: likedPhotoIDs.contains(photo.id),
                     isLikeEnabled: areLikesEnabled,
                     imageReloadGeneration: imageReloadGeneration,
+                    imageRatio: imageRatios[photo.imageSource],
+                    onImageRatioChanged: { ratio in
+                        updateImageRatio(ratio, for: photo.imageSource)
+                    },
                     onLike: { onLike(photo.id) }
                 )
                 .onAppear {
-                    onEndThreshold(index >= photos.count - HomePhotoListMetrics.endThreshold)
+                    guard index == endThresholdIndex else { return }
+                    onEndThreshold(true)
                 }
-            }
-
-            if isLoadingNext {
-                ProgressView()
-                    .tint(theme.colors.actionPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(theme.spacing.xl)
-                    .accessibilityIdentifier("home-next-loading")
             }
 
             Color.clear
                 .frame(height: bottomContentPadding)
                 .accessibilityHidden(true)
         }
+        .scrollTargetLayout()
         .padding(.top, topContentPadding)
         .padding(.bottom, theme.spacing.xxl + theme.spacing.sm)
         .onAppear {
             onEndThreshold(false)
+        }
+    }
+
+    private var endThresholdIndex: Int {
+        max(photos.count - HomePhotoListMetrics.endThreshold, 0)
+    }
+
+    private func updateImageRatio(_ ratio: CGFloat?, for source: ChalkakImageSource) {
+        guard imageRatios[source] != ratio else { return }
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            imageRatios[source] = ratio
         }
     }
 }
@@ -56,7 +67,6 @@ private enum HomePhotoListMetrics {
         HomePhotoList(
             photos: HomePreviewData.contentState.photos,
             likedPhotoIDs: HomePreviewData.contentState.likedPhotoIDs,
-            isLoadingNext: true,
             areLikesEnabled: true,
             imageReloadGeneration: 0,
             onLike: { _ in },

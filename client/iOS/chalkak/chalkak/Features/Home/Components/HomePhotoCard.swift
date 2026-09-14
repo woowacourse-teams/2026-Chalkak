@@ -6,8 +6,9 @@ struct HomePhotoCard: View {
     let isLiked: Bool
     let isLikeEnabled: Bool
     let imageReloadGeneration: Int
+    let imageRatio: CGFloat?
+    let onImageRatioChanged: (CGFloat?) -> Void
     let onLike: () -> Void
-    @State private var imageRatio: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,21 +16,20 @@ struct HomePhotoCard: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1 / (imageRatio ?? HomePhotoCardMetrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
-                    ChalkakSignedImage(
-                        imageSource: photo.imageSource,
-                        signatureSource: photo.signatureSource,
-                        contentDescription: photo.contentDescription,
-                        contentMode: .fill
-                    )
-                    // 같은 사진 ID와 URL은 유지되므로 새로고침 때 이미지 하위 트리만 재생성한다.
-                    .id(imageReloadGeneration)
+                    ZStack(alignment: .bottomTrailing) {
+                        photoImage
+                            .id(imageReloadGeneration)
+
+                        signatureImage
+                        .frame(
+                            width: HomePhotoCardMetrics.signatureSize.width,
+                            height: HomePhotoCardMetrics.signatureSize.height
+                        )
+                        .padding(theme.spacing.sm)
+                    }
                 }
                 .clipped()
                 .accessibilityElement(children: .combine)
-                .task(id: photo.imageSource) {
-                    imageRatio = nil
-                    imageRatio = await ImageRatioLoader.ratio(for: photo.imageSource)
-                }
 
             actionRow
         }
@@ -39,6 +39,45 @@ struct HomePhotoCard: View {
             radius: HomePhotoCardMetrics.shadowRadius,
             y: HomePhotoCardMetrics.shadowY
         )
+    }
+
+    @ViewBuilder
+    private var photoImage: some View {
+        switch photo.imageSource {
+        case let .remote(url):
+            HomeRemoteMeasuredImage(
+                url: url,
+                contentDescription: photo.contentDescription,
+                onRatioLoaded: onImageRatioChanged
+            )
+        case .asset, .system:
+            ChalkakImage(
+                source: photo.imageSource,
+                contentDescription: photo.contentDescription,
+                contentMode: .fill
+            )
+            .task(id: photo.imageSource) {
+                onImageRatioChanged(await ImageRatioLoader.ratio(for: photo.imageSource))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var signatureImage: some View {
+        switch photo.signatureSource {
+        case let .remote(url):
+            HomeRemoteMeasuredImage(
+                url: url,
+                contentDescription: nil,
+                contentMode: .fit
+            )
+        case .asset, .system:
+            ChalkakImage(
+                source: photo.signatureSource,
+                contentDescription: nil,
+                contentMode: .fit
+            )
+        }
     }
 
     private var actionRow: some View {
@@ -90,6 +129,7 @@ private enum HomePhotoCardMetrics {
     static let likeSpacing: CGFloat = 9
     static let heartSize: CGFloat = 24
     static let minimumTouchSize: CGFloat = 44
+    static let signatureSize = CGSize(width: 56, height: 42)
     static let shadowOpacity: CGFloat = 0.14
     static let shadowRadius: CGFloat = 4
     static let shadowY: CGFloat = 2
@@ -107,6 +147,8 @@ private extension String {
         isLiked: true,
         isLikeEnabled: true,
         imageReloadGeneration: 0,
+        imageRatio: nil,
+        onImageRatioChanged: { _ in },
         onLike: {}
     )
     .padding()
