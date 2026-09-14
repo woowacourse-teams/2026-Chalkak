@@ -93,6 +93,20 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homePhotoUsesLoadedImageAspectRatio() {
+        setHomeContent(uiState = contentUiState())
+
+        composeRule.waitUntil {
+            val bounds = composeRule
+                .onNodeWithContentDescription("작품 이미지: 사진 0")
+                .fetchSemanticsNode()
+                .boundsInRoot
+            val aspectRatio = bounds.width / bounds.height
+            kotlin.math.abs(aspectRatio - 0.75f) < 0.02f
+        }
+    }
+
+    @Test
     fun genericErrorRefreshButtonIsAccessibleAndDispatchesRetry() {
         val actions = mutableListOf<HomeUiAction>()
         setHomeContent(
