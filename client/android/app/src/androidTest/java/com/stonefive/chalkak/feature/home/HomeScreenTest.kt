@@ -94,7 +94,16 @@ class HomeScreenTest {
 
     @Test
     fun homePhotoUsesLoadedImageAspectRatio() {
-        setHomeContent(uiState = contentUiState())
+        val differentlyProportionedPhoto = photos(1).single().copy(
+            id = "photo-1",
+            originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
+            contentDescription = "작품 이미지: 사진 1",
+        )
+        setHomeContent(
+            uiState = contentUiState(
+                photos = photos(1) + differentlyProportionedPhoto,
+            ),
+        )
 
         composeRule.waitUntil {
             val bounds = composeRule
@@ -103,6 +112,17 @@ class HomeScreenTest {
                 .boundsInRoot
             val aspectRatio = bounds.width / bounds.height
             kotlin.math.abs(aspectRatio - 0.75f) < 0.02f
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(1)
+        composeRule.waitUntil {
+            val bounds = composeRule
+                .onNodeWithContentDescription("작품 이미지: 사진 1")
+                .fetchSemanticsNode()
+                .boundsInRoot
+            val aspectRatio = bounds.width / bounds.height
+            val expectedAspectRatio = 804f / 830f
+            kotlin.math.abs(aspectRatio - expectedAspectRatio) < 0.02f
         }
     }
 
