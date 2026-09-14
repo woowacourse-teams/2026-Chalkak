@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.display.component
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -69,6 +70,15 @@ fun DisplayPhotoGrid(
             DisplayPhotoCard(
                 photo = photo,
                 onClick = { onPhotoClick(photo) },
+                modifier = Modifier.animateItem(
+                    fadeInSpec = tween(durationMillis = 180),
+                    placementSpec = if (state.isScrollInProgress) {
+                        null
+                    } else {
+                        tween(durationMillis = 240)
+                    },
+                    fadeOutSpec = tween(durationMillis = 120),
+                ),
             )
         }
         if (isLoadingNext) {
