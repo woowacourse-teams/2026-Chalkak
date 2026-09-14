@@ -85,6 +85,27 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsUploadButtonOpensPhotoUploadAndReturnsToSettingsForAuthenticatedUser() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let uploadButton = app.buttons["추가"]
+        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
+        uploadButton.tap()
+
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+
+        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
