@@ -93,11 +93,13 @@ jobs:
           python -m pip install --requirement requirements.txt
           python -m unittest discover --start-directory tests --verbose
 
+      # 앞선 검사가 실패해도 이후 검사를 계속 실행해 한 번에 모든 실패를 확인한다.
       - name: Test Flyway migration validation
+        if: ${{ !cancelled() }}
         run: ./scripts/check_flyway_migrations_test.sh
 
       - name: Validate Flyway migrations
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -106,6 +108,8 @@ jobs:
           ./scripts/check_flyway_migrations.sh "$(git rev-parse FETCH_HEAD)" "${HEAD_SHA}"
 
       - name: Set up Java
+        id: setup-java
+        if: ${{ !cancelled() }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -114,9 +118,12 @@ jobs:
           cache-dependency-path: backend/*.gradle.kts
 
       - name: Grant execute permission
+        if: ${{ !cancelled() && steps.setup-java.outcome == 'success' }}
         run: chmod +x gradlew
 
       - name: Test and build
+        id: test-and-build
+        if: ${{ !cancelled() && steps.setup-java.outcome == 'success' }}
         env:
           TEST_POSTGRES_DB: chalkak_test
           TEST_POSTGRES_USER: chalkak
@@ -125,7 +132,7 @@ jobs:
         run: ./gradlew clean test bootJar --no-daemon
 
       - name: Upload test failure reports
-        if: failure()
+        if: ${{ failure() && steps.test-and-build.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
