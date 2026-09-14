@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,6 +30,35 @@ class AuthOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/social-login'].post"
                         + ".responses['403'].description")
                         .value("탈퇴한 차단 소셜 계정"));
+    }
+
+    @Test
+    @DisplayName("사용자 문서는 Apple 로그인에서도 차단 회원의 로그인 성공과 탈퇴한 차단 계정의 거부를 구분한다")
+    void userApiDocs_appleLogin_exposesBannedUserContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/social-login'].post"
+                        + ".responses['200'].description")
+                        .value("로그인 성공(차단 회원 포함) 또는 회원가입 필요"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/social-login'].post"
+                        + ".responses['403'].description")
+                        .value("탈퇴한 차단 Apple 계정"));
+    }
+
+    /**
+     * 가입 완료의 400 중 사인 이미지 처리 중만 errorCode가 다르다. 클라이언트는 이 값으로 같은
+     * 회원가입 토큰의 재시도 여부를 판단하므로 문서에서 빠지면 안 된다.
+     */
+    @Test
+    @DisplayName("사용자 문서는 가입 완료의 사인 이미지 처리 중 errorCode를 제공한다")
+    void userApiDocs_socialSignup_exposesSignatureProcessingPendingErrorCode() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/social-signup'].post"
+                        + ".responses['400'].description")
+                        .value(containsString("SIGNATURE_PROCESSING_PENDING")));
     }
 
     /**

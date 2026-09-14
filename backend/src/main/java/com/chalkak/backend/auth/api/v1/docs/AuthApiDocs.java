@@ -61,7 +61,7 @@ public interface AuthApiDocs {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "로그인 성공 또는 회원가입 필요",
+                    description = "로그인 성공(차단 회원 포함) 또는 회원가입 필요",
                     useReturnTypeSchema = true
             ),
             @ApiResponse(
@@ -82,7 +82,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "차단된 Apple 계정",
+                    description = "탈퇴한 차단 Apple 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -100,7 +100,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Apple 회원가입 토큰이 아니거나 이미 가입된 계정",
+                    description = "잘못된 요청, Apple 회원가입 토큰이 아님,"
+                            + " 만료되었거나 없는 Apple 임시 인증 정보 또는 이미 가입된 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -174,7 +175,11 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청, 처리 중인 서명 이미지 또는 사용할 수 없는 이미지",
+                    description = "잘못된 요청, 이미 가입된 소셜 계정(탈퇴 회원),"
+                            + " 이미 사용된 회원가입 토큰, 만료되었거나 없는 Apple 임시 인증 정보,"
+                            + " 처리 중인 서명 이미지 또는 사용할 수 없는 이미지."
+                            + " 서명 이미지 처리 중일 때만 errorCode가 SIGNATURE_PROCESSING_PENDING이며,"
+                            + " 같은 회원가입 토큰으로 다시 요청한다. 나머지는 BUSINESS_ERROR다",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
