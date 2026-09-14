@@ -42,19 +42,22 @@ GitHub repository
 → New branch ruleset
 ```
 
-두 branch에 다음 규칙을 설정한다.
+| 규칙 | `be/develop` | `main` |
+| --- | --- | --- |
+| Require a pull request before merging | 승인 2명, 새 commit push 시 승인 무효화, Squash만 허용 | 승인 0명, 병합 방식 제한 없음 |
+| Require status checks to pass | `Backend CI` | `Backend CI`, `Admin Web CI` |
+| Require branches to be up to date before merging | 사용 | 사용하지 않음 |
+| Block force pushes | 사용 | 사용 |
+| Restrict deletions | 사용 | 사용 |
+| Bypass list | 비움 | 비움 |
 
-- Require a pull request before merging
-- Require status checks to pass before merging
-- 필수 check: `Backend CI` (`Backend PR CI` workflow의 최종 gate job)
-- Require branches to be up to date before merging
-- Block force pushes
-- Restrict deletions
-- 가능하면 Require conversation resolution before merging
+필수 check는 출처를 GitHub Actions로 지정한다. `Backend CI`는 `Backend PR CI`, `Admin Web CI`는 `Admin Web PR CI` workflow의 최종 gate job이다. Status check가 선택 목록에 없다면 해당 workflow를 한 번 실행한 뒤 다시 설정한다.
 
-`Require branches to be up to date before merging`을 활성화해야 대상 branch에 다른 Flyway migration이 먼저 병합된 경우 남은 PR을 최신 기준으로 다시 검사할 수 있다.
+`be/develop`은 `Require branches to be up to date before merging`을 사용해야 다른 Flyway migration이 먼저 병합된 경우 남은 PR을 최신 기준으로 다시 검사할 수 있다. 다른 PR이 먼저 병합되면 PR 화면의 Update branch로 최신 상태를 반영하고 CI를 다시 통과해야 병합할 수 있다. Update branch는 PR branch에 병합 commit을 추가하므로 기존 승인이 초기화된다. 승인과 병합 사이에 다른 PR이 병합될수록 재승인이 필요해지므로, 승인 조건을 채운 PR은 바로 병합한다.
 
-Status check가 선택 목록에 없다면 `Backend PR CI`를 한 번 실행한 뒤 다시 설정한다.
+`main`은 이 규칙을 사용하지 않는다. `main`에는 백엔드와 client가 각자 개발 branch에서 검증을 마친 릴리스 PR만 들어오고, 백엔드 릴리스는 `backend`와 `docs`, client 릴리스는 `client`만 변경하므로 릴리스끼리 같은 코드를 건드리지 않는다. 같은 영역 안의 병합 순서 문제는 각 개발 branch에서 먼저 검증된다.
+
+`main`의 필수 check에 `Client CI gate`를 추가하지 않는다. client CI는 `client/develop` 대상 PR과 push에서만 실행되어 `main` 대상 릴리스 PR에는 보고되지 않는다.
 
 ## 개발 배포
 
@@ -108,7 +111,7 @@ Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검�
 - 대상 branch에 이미 존재하는 migration을 수정·삭제·rename하지 않았는지 확인
 - 파일명이 `VyyyyMMddHHmm__description.sql` 형식인지 확인
 
-대상 branch에 더 높은 버전이 먼저 병합되어 검사가 실패하면, 아직 공유 DB에 적용되지 않은 PR의 새 migration 파일명만 현재 시각 기준으로 변경하고 다시 push한다.
+대상 branch에 더 높은 버전이 먼저 병합되면, `be/develop`의 up to date 규칙에 따라 Update branch 후 재검사에서 실패한다. 아직 공유 DB에 적용되지 않은 PR의 새 migration 파일명만 현재 시각 기준으로 변경하고 다시 push한다.
 
 ### 병합됐지만 공유 DB에 적용되지 않은 migration 복구
 
@@ -117,7 +120,7 @@ Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검�
 1. 개발·운영 DB의 `flyway_schema_history`에서 대상 version과 script가 모두 없는지 확인한다.
 2. 하나의 공유 DB라도 적용 이력이 있으면 기존 파일을 변경하지 않고 새 migration으로 roll forward한다.
 3. 적용 이력이 없다면 복구 PR에 확인 결과와 이름 변경 사유를 남기고 백엔드 팀원의 확인을 받는다.
-4. ruleset bypass 권한이 있는 저장소 관리자가 해당 복구 PR에 한해서 실패한 Flyway check를 bypass한다. 검사를 끄거나 ruleset을 변경하지 않는다.
+4. 저장소 관리자가 대상 branch ruleset의 Bypass list에 본인을 `For pull requests only`로 추가해 복구 PR을 병합하고, 병합 직후 즉시 제거한다. 우회 기록이 남지 않는 `exempt` 모드는 사용하지 않으며, 검사를 끄거나 다른 규칙을 변경하지 않는다. bypass 병합은 `Backend CI` 전체를 건너뛰므로 복구 PR에는 migration 파일명 변경만 포함하고, 병합 전에 로컬에서 `./gradlew test`를 통과시킨다.
 5. 병합 후 개발·운영 배포에서 `flyway_schema_history`와 애플리케이션 health를 다시 확인한다.
 
 개발 배포는 Flyway 실행 전에 `/opt/chalkak/backups`에 `pg_dump`를 만들고 7일이 지난 자동 백업을 삭제한다. 개발 DB와 백업이 같은 EC2 disk에 있으므로 중요한 데이터는 별도로 백업한다.
