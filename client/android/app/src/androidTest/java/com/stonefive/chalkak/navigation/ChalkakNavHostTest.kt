@@ -1,14 +1,13 @@
 package com.stonefive.chalkak.navigation
 
 import androidx.compose.material3.Text
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.stonefive.chalkak.MainActivity
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import java.time.LocalDate
@@ -19,7 +18,7 @@ import org.junit.Test
 
 class ChalkakNavHostTest {
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = createComposeRule()
 
     @Test
     fun openingDisplayFromRecordKeepsTabsNavigable() {
