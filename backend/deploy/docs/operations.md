@@ -105,12 +105,18 @@ PR을 만들기 전에 다음을 확인한다.
 
    ```bash
    last=$(git log -1 --format=%H --grep='^release: 백엔드' origin/main)
-   git log --oneline "$last"..origin/main -- backend docs
+   if [ -z "$last" ]; then
+     echo "기준 백엔드 릴리스 commit을 찾지 못했습니다. 지난 릴리스 commit SHA를 직접 확인하세요."
+   else
+     git log --oneline "$last"..origin/main -- backend docs
+   fi
    ```
+
+   기준 commit을 찾지 못했다는 메시지가 나오면 검사를 통과한 것으로 보지 않는다. 지난 백엔드 릴리스 PR의 병합 commit SHA를 확인해 `last`에 직접 지정한 뒤 `git log` 명령을 다시 실행한다. `last`가 비어 있으면 `git log`가 `HEAD..origin/main`으로 해석되어, 수정이 있어도 항상 출력이 비기 때문이다.
 
 ### 릴리스 PR과 배포
 
-1. 릴리스 branch를 commit하고 `main` 대상 PR을 만든다. PR 본문에 지난 릴리스 이후 포함된 PR 목록을 적는다.
+1. 릴리스 branch를 commit하고 `main` 대상 PR을 만든다. PR 제목은 `release: 백엔드 `로 시작한다. Squash 병합 시 PR 제목이 commit 제목이 되어 다음 릴리스의 기준 commit 검색에 사용된다. PR 본문에 지난 릴리스 이후 포함된 PR 목록을 적는다.
 2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 병합한다.
 3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
