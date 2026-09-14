@@ -138,6 +138,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 
 - Migration은 `src/main/resources/db/migration/VyyyyMMddHHmm__description.sql`에 추가한다.
 - PR에서 추가한 migration 버전은 대상 branch의 마지막 migration 버전보다 커야 한다.
+- Migration은 `main`에 직접 추가하지 않고 `be/develop`을 거친다. 운영 긴급 수정도 같다. `be/develop`의 순서 검사는 `main`에만 추가된 migration을 알 수 없어, 이미 개발 DB에 적용된 migration이 다음 릴리스에서 `main`의 검사에 막히고 이름도 바꿀 수 없게 된다.
 - 공유 DB에 한 번 적용된 migration은 수정·삭제·rename하지 않고 새 migration으로 roll forward한다.
 - Entity 변경과 migration을 같은 PR에 포함한다.
 - Column 삭제, rename, `NOT NULL` 강제는 expand-contract 방식으로 여러 배포에 나눈다.
@@ -163,6 +164,8 @@ Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검�
 3. 적용 이력이 없다면 복구 PR에 확인 결과와 이름 변경 사유를 남기고 백엔드 팀원의 확인을 받는다.
 4. 저장소 관리자가 대상 branch ruleset의 Bypass list에 본인을 `For pull requests only`로 추가해 복구 PR을 병합하고, 병합 직후 즉시 제거한다. 우회 기록이 남지 않는 `exempt` 모드는 사용하지 않으며, 검사를 끄거나 다른 규칙을 변경하지 않는다. bypass 병합은 `Backend CI` 전체를 건너뛰므로 복구 PR에는 migration 파일명 변경만 포함하고, 병합 전에 로컬에서 `./gradlew test`를 통과시킨다.
 5. 병합 후 개발·운영 배포에서 `flyway_schema_history`와 애플리케이션 health를 다시 확인한다.
+
+`be/develop`의 migration 검사와 up to date 규칙이 순서가 뒤바뀐 병합을 막으므로, 이 복구는 bypass나 ruleset 변경으로 검사를 우회한 경우에만 필요하다. 복구 대상 migration이 이미 `main`에도 반영됐다면, 다음 백엔드 릴리스 PR은 기존 migration의 이름 변경으로 검사에 막힌다. 이 경우 일반 릴리스와 따로 `main`에서 만든 branch에 같은 파일명 변경만 담아 위 절차대로 먼저 병합하고, 일반 릴리스 PR은 bypass로 병합하지 않는다.
 
 개발 배포는 Flyway 실행 전에 `/opt/chalkak/backups`에 `pg_dump`를 만들고 7일이 지난 자동 백업을 삭제한다. 개발 DB와 백업이 같은 EC2 disk에 있으므로 중요한 데이터는 별도로 백업한다.
 
