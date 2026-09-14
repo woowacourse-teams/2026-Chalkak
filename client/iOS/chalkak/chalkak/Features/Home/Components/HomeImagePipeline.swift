@@ -8,6 +8,24 @@ struct HomeLoadedImage {
     let heightToWidthRatio: CGFloat
 }
 
+typealias HomeImageLoader = @MainActor (URL, Int) async throws -> HomeLoadedImage
+
+private struct HomeImageLoaderEnvironmentKey: EnvironmentKey {
+    static let defaultValue: HomeImageLoader = { url, targetPixelWidth in
+        try await HomeImagePipeline.shared.image(
+            for: url,
+            targetPixelWidth: targetPixelWidth
+        )
+    }
+}
+
+extension EnvironmentValues {
+    var homeImageLoader: HomeImageLoader {
+        get { self[HomeImageLoaderEnvironmentKey.self] }
+        set { self[HomeImageLoaderEnvironmentKey.self] = newValue }
+    }
+}
+
 enum HomeImagePipelineError: Error {
     case invalidResponse
     case invalidImage
@@ -136,6 +154,7 @@ actor HomeImagePipeline {
 struct HomeRemoteMeasuredImage: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.homeImageLoader) private var imageLoader
 
     let url: URL?
     let contentDescription: String?
@@ -204,9 +223,9 @@ struct HomeRemoteMeasuredImage: View {
         isLoading = true
         didFail = false
         do {
-            let loadedImage = try await HomeImagePipeline.shared.image(
-                for: url,
-                targetPixelWidth: targetPixelWidth(for: width)
+            let loadedImage = try await imageLoader(
+                url,
+                targetPixelWidth(for: width)
             )
             try Task.checkCancellation()
 
