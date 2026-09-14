@@ -106,7 +106,8 @@ fun DisplayScreen(
     onRetryClick: () -> Unit = {},
 ) {
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
-    val gridState = remember(uiState.selectedDate, selectedSort) {
+    // Keep placement history across sort changes so animateItem can move existing photos.
+    val gridState = remember(uiState.selectedDate) {
         LazyStaggeredGridState()
     }
     val settleScope = rememberCoroutineScope()

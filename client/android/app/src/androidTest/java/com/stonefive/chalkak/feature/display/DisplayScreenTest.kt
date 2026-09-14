@@ -74,6 +74,67 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun changingSortAnimatesPhotoPositions() {
+        composeRule.mainClock.autoAdvance = false
+        val photos = List(4) { index ->
+            photo.copy(
+                id = "photo-$index",
+                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+                signatureThumbnailImageUrl = null,
+                contentDescription = "사진 $index",
+            )
+        }
+        val currentUiState = mutableStateOf(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = photos,
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+        val updateSort: (PostSort) -> Unit = { sort ->
+            val latestContent = currentUiState.value.content as DisplayContentState.Latest
+            currentUiState.value = currentUiState.value.copy(
+                content = latestContent.copy(
+                    photos = latestContent.photos.drop(2) + latestContent.photos.take(2),
+                    selectedSort = sort,
+                ),
+            )
+        }
+
+        composeRule.setContent {
+            ChalkakTheme {
+                DisplayScreen(
+                    uiState = currentUiState.value,
+                    onPreviousDateClick = {},
+                    onNextDateClick = {},
+                    onSortSelected = updateSort,
+                    onFeaturedPageChanged = {},
+                    onEndThresholdChanged = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                )
+            }
+        }
+
+        composeRule.mainClock.advanceTimeBy(500)
+        val startTop = photoTop("사진 0")
+        composeRule.runOnUiThread {
+            updateSort(PostSort.POPULAR)
+        }
+        composeRule.mainClock.advanceTimeBy(120)
+        val transitionTop = photoTop("사진 0")
+        composeRule.mainClock.advanceTimeBy(400)
+        val endTop = photoTop("사진 0")
+
+        assertTrue("sort should move photos", startTop != endTop)
+        assertTrue(
+            "photo should move gradually: start=$startTop, transition=$transitionTop, end=$endTop",
+            transitionTop > startTop && transitionTop < endTop,
+        )
+    }
+
+    @Test
     fun emptyDisplayUsesHomeEmptyPhotoMessage() {
         setDisplayContent(
             latestUiState().copy(
@@ -272,6 +333,12 @@ class DisplayScreenTest {
             }
         }
     }
+
+    private fun photoTop(contentDescription: String): Float = composeRule
+        .onNodeWithContentDescription(contentDescription)
+        .fetchSemanticsNode()
+        .boundsInRoot
+        .top
 }
 
 private val latestDate = LocalDate.of(2026, 8, 5)
