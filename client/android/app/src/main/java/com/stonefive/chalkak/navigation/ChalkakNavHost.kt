@@ -442,6 +442,19 @@ private fun NavHostController.navigateToBottomBar(
 ) {
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
+    val isDisplayOpenedFromRecord =
+        currentDestination?.hasRoute<Display>() == true &&
+            previousBackStackEntry?.destination?.hasRoute<Record>() == true
+    if (isDisplayOpenedFromRecord) {
+        if (item == ChalkakBottomBarItem.RECORD) {
+            popBackStack()
+            return
+        }
+        if (item == ChalkakBottomBarItem.DISPLAY) return
+
+        popBackStack()
+    }
+
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -487,7 +500,9 @@ private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
-    navigate(Display(date = date.toString()))
+    navigate(Display(date = date.toString())) {
+        launchSingleTop = true
+    }
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
