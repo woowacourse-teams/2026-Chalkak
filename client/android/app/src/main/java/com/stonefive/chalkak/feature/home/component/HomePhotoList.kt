@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @Composable
 fun HomePhotoList(
     photos: List<Post>,
+    contentRevision: Int,
     likedPhotoIds: Set<String>,
     isLoadingNext: Boolean,
     areLikesEnabled: Boolean,
@@ -59,7 +60,7 @@ fun HomePhotoList(
     ) {
         items(
             items = photos,
-            key = Post::id,
+            key = { photo -> "$contentRevision:${photo.id}" },
         ) { photo ->
             HomePhotoCard(
                 photo = photo,
@@ -126,6 +127,7 @@ private fun HomePhotoListPreview() {
                     likeCount = 12,
                 ),
             ),
+            contentRevision = 1,
             likedPhotoIds = setOf("preview-1"),
             isLoadingNext = true,
             areLikesEnabled = true,
