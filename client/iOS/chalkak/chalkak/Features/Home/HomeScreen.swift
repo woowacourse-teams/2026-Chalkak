@@ -201,6 +201,7 @@ private struct HomeContent: View {
                             likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
                             isLoadingNext: viewModel.viewState.isLoadingNext,
                             areLikesEnabled: viewModel.viewState.areLikesEnabled,
+                            imageReloadGeneration: viewModel.imageReloadGeneration,
                             onLike: { photoID in
                                 Task { await viewModel.toggleLike(photoID: photoID) }
                             },

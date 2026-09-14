@@ -6,6 +6,7 @@ struct HomePhotoList: View {
     let likedPhotoIDs: Set<HomePhoto.ID>
     let isLoadingNext: Bool
     let areLikesEnabled: Bool
+    let imageReloadGeneration: Int
     var topContentPadding: CGFloat = 0
     var bottomContentPadding: CGFloat = 0
     let onLike: (HomePhoto.ID) -> Void
@@ -18,6 +19,7 @@ struct HomePhotoList: View {
                     photo: photo,
                     isLiked: likedPhotoIDs.contains(photo.id),
                     isLikeEnabled: areLikesEnabled,
+                    imageReloadGeneration: imageReloadGeneration,
                     onLike: { onLike(photo.id) }
                 )
                 .onAppear {
@@ -56,6 +58,7 @@ private enum HomePhotoListMetrics {
             likedPhotoIDs: HomePreviewData.contentState.likedPhotoIDs,
             isLoadingNext: true,
             areLikesEnabled: true,
+            imageReloadGeneration: 0,
             onLike: { _ in },
             onEndThreshold: { _ in }
         )

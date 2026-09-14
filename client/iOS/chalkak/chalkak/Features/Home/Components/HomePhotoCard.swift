@@ -5,6 +5,7 @@ struct HomePhotoCard: View {
     let photo: HomePhoto
     let isLiked: Bool
     let isLikeEnabled: Bool
+    let imageReloadGeneration: Int
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
 
@@ -20,6 +21,8 @@ struct HomePhotoCard: View {
                         contentDescription: photo.contentDescription,
                         contentMode: .fill
                     )
+                    // 같은 사진 ID와 URL은 유지되므로 새로고침 때 이미지 하위 트리만 재생성한다.
+                    .id(imageReloadGeneration)
                 }
                 .clipped()
                 .accessibilityElement(children: .combine)
@@ -103,6 +106,7 @@ private extension String {
         photo: HomePreviewData.contentState.photos[0],
         isLiked: true,
         isLikeEnabled: true,
+        imageReloadGeneration: 0,
         onLike: {}
     )
     .padding()

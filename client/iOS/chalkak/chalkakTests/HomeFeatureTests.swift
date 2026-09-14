@@ -126,12 +126,14 @@ struct HomeViewModelBehaviorTests {
                 )
             }
         )
+        let initialImageReloadGeneration = viewModel.imageReloadGeneration
 
         await viewModel.refresh()
 
         #expect(viewModel.viewState.selectedSort == .random)
         #expect(viewModel.viewState.topic == "새 주제")
         #expect(viewModel.viewState.photos.map(\.id) == ["new-photo"])
+        #expect(viewModel.imageReloadGeneration == initialImageReloadGeneration + 1)
     }
 
     @MainActor
