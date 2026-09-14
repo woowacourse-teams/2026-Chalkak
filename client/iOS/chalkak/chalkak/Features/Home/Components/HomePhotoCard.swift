@@ -5,6 +5,7 @@ struct HomePhotoCard: View {
     let photo: HomePhoto
     let isLiked: Bool
     let isLikeEnabled: Bool
+    let imageReloadGeneration: Int
     let imageRatio: CGFloat?
     let onImageRatioChanged: (CGFloat?) -> Void
     let onLike: () -> Void
@@ -17,6 +18,7 @@ struct HomePhotoCard: View {
                 .overlay {
                     ZStack(alignment: .bottomTrailing) {
                         photoImage
+                            .id(imageReloadGeneration)
 
                         signatureImage
                         .frame(
@@ -144,6 +146,7 @@ private extension String {
         photo: HomePreviewData.contentState.photos[0],
         isLiked: true,
         isLikeEnabled: true,
+        imageReloadGeneration: 0,
         imageRatio: nil,
         onImageRatioChanged: { _ in },
         onLike: {}

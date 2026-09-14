@@ -1,6 +1,6 @@
 import Foundation
 
-enum DisplaySort: CaseIterable, Equatable, Sendable {
+enum DisplaySort: CaseIterable, Equatable, Hashable, Sendable {
     case latest
     case popular
     case random

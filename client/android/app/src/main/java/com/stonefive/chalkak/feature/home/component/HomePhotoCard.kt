@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -27,6 +31,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -42,7 +48,23 @@ fun HomePhotoCard(
     isLikeEnabled: Boolean,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    imageAspectRatio: Float? = null,
+    onImageAspectRatioAvailable: (Float) -> Unit = {},
 ) {
+    val context = LocalPlatformContext.current
+    val currentOnImageAspectRatioAvailable by rememberUpdatedState(onImageAspectRatioAvailable)
+    val imageRequest = remember(context, photo.originalImageUrl) {
+        ImageRequest
+            .Builder(context)
+            .data(photo.originalImageUrl)
+            .listener(
+                onSuccess = { _, result ->
+                    imageAspectRatio(result.image.width, result.image.height)
+                        ?.let(currentOnImageAspectRatioAvailable)
+                },
+            ).build()
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -53,12 +75,13 @@ fun HomePhotoCard(
             ).background(ChalkakWhite),
     ) {
         ChalkakSignedImage(
-            imageModel = photo.originalImageUrl,
+            imageModel = imageRequest,
             signatureModel = photo.signatureOriginalImageUrl,
             contentDescription = photo.contentDescription,
             contentScale = ContentScale.FillWidth,
             modifier = Modifier
                 .fillMaxWidth()
+                .aspectRatio(imageAspectRatio ?: DEFAULT_IMAGE_ASPECT_RATIO)
                 .semantics(mergeDescendants = true) {
                     contentDescription = photo.contentDescription
                 },
@@ -151,3 +174,14 @@ private fun HomePhotoCardPreview() {
 }
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+
+fun imageAspectRatio(
+    width: Int,
+    height: Int,
+): Float? = if (width > 0 && height > 0) {
+    width.toFloat() / height
+} else {
+    null
+}
+
+private const val DEFAULT_IMAGE_ASPECT_RATIO = 1f
