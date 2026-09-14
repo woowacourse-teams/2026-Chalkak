@@ -436,7 +436,7 @@ fun ChalkakNavHost(
     }
 }
 
-private fun NavHostController.navigateToBottomBar(
+internal fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
     analyticsTracker: AnalyticsTracker,
 ) {
@@ -486,8 +486,14 @@ private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 
-private fun NavHostController.navigateToDisplay(date: LocalDate) {
-    navigate(Display(date = date.toString()))
+internal fun NavHostController.navigateToDisplay(date: LocalDate) {
+    navigate(Display(date = date.toString())) {
+        launchSingleTop = true
+        // This is a tab switch with an explicit date, so don't restore an older Display route.
+        popUpTo<Today> {
+            saveState = true
+        }
+    }
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
