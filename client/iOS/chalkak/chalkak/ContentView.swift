@@ -147,7 +147,8 @@ struct ContentView: View {
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onSignedOut: showLogin,
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                onOpenPhotoUpload: { openPhotoUpload(from: .settings) }
             )
         case .record:
             RecordScreen(
@@ -225,7 +226,7 @@ struct ContentView: View {
     }
 
     private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
-        guard KeychainSessionStore.hasAuthenticatedSession() else {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isPhotoUploadEntryUITest else {
             showMessage("게시물을 추가하려면 로그인이 필요해요")
             return
         }
@@ -376,6 +377,19 @@ struct ContentView: View {
     }
 
     private static func makeSettingsViewModel() -> SettingsViewModel {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return SettingsViewModel(
+                initialState: SettingsViewState(
+                    isLoading: false,
+                    isLoggedIn: true,
+                    version: AppVersion.currentString()
+                ),
+                isAuthenticated: { true }
+            )
+        }
+#endif
+
         let configuration = AppConfiguration()
         let apiClient = SettingsAPIClient(
             baseURL: configuration.apiBaseURL,
@@ -396,6 +410,19 @@ struct ContentView: View {
     }
 
     private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return PhotoUploadViewModel(
+                topicDate: topicDate,
+                repository: PhotoUploadRepository(
+                    getCreationTopic: { date in
+                        .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
+                    }
+                )
+            )
+        }
+#endif
+
         let appConfiguration = AppConfiguration()
         let apiClient = PhotoUploadAPIClient(
             configuration: PhotoUploadAPIConfiguration(
@@ -411,6 +438,19 @@ struct ContentView: View {
     }
 
     private static func makePhotoUploadEntryGate() -> PhotoUploadEntryGate {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return PhotoUploadEntryGate {
+                PhotoUploadTodayPostStatus(
+                    topicDate: PhotoUploadDate.today(),
+                    isPosted: false,
+                    postID: nil,
+                    moderationStatus: nil
+                )
+            }
+        }
+#endif
+
         let appConfiguration = AppConfiguration()
         let apiClient = PhotoUploadAPIClient(
             configuration: PhotoUploadAPIConfiguration(
@@ -426,8 +466,19 @@ struct ContentView: View {
         AppConfiguration().apiBaseURL ?? HomeAPIConfiguration.development.baseURL
     }
 
+    private static var isPhotoUploadEntryUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-photo-upload-entry")
+#else
+        false
+#endif
+    }
+
     private static var initialRoute: AppRoute {
 #if DEBUG
+        if isPhotoUploadEntryUITest {
+            return .home
+        }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
