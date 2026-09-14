@@ -177,8 +177,7 @@ private struct HomeContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Keep the fixed header outside the scroll view so its background cannot
-            // cover SwiftUI's pull-to-refresh indicator at the scroll view's top edge.
+            // 고정된 상단 바를 스크롤 뷰 밖에 배치해, 배경이 당겨서 새로고침 인디케이터를 가리지 않게 한다.
             HomeTopBar()
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
@@ -247,8 +246,8 @@ private struct HomeContent: View {
                 updateScrollToTop(from: oldDistance, to: newDistance)
             }
             .refreshable {
-                // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
-                // 네트워크 갱신 자체는 완료되도록 독립된 Task에서 실행한다.
+                // SwiftUI가 새로고침 컨트롤 작업을 취소하더라도, 사용자가 시작한
+                // 네트워크 갱신은 별도 작업으로 끝까지 완료되도록 한다.
                 let refreshTask = Task { await viewModel.refresh() }
                 await refreshTask.value
             }
