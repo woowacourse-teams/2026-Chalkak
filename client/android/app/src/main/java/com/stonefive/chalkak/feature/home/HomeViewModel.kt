@@ -196,6 +196,7 @@ class HomeViewModel(
             topicDate = content.topicDate,
             topic = content.topic,
             photos = content.photos,
+            contentRevision = homeContentRevision,
             selectedSort = requestedSort,
             likedPhotoIds = content.likedPhotoIds,
             currentPage = content.currentPage,
