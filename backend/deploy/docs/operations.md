@@ -44,7 +44,7 @@ GitHub repository
 
 | 규칙 | `be/develop` | `main` |
 | --- | --- | --- |
-| Require a pull request before merging | 승인 2명, 새 commit push 시 승인 무효화, Squash만 허용 | 승인 0명, Squash만 허용 |
+| Require a pull request before merging | 승인 2명, PR 변경 내용이 달라지는 push 시 승인 무효화, Squash만 허용 | 승인 0명, Squash만 허용 |
 | Require status checks to pass | `Backend CI` | `Backend CI`, `Admin Web CI` |
 | Require branches to be up to date before merging | 사용 | 사용하지 않음 |
 | Block force pushes | 사용 | 사용 |
@@ -53,7 +53,7 @@ GitHub repository
 
 필수 check는 출처를 GitHub Actions로 지정한다. `Backend CI`는 `Backend PR CI`, `Admin Web CI`는 `Admin Web PR CI` workflow의 최종 gate job이다. Status check가 선택 목록에 없다면 해당 workflow를 한 번 실행한 뒤 다시 설정한다.
 
-`be/develop`은 `Require branches to be up to date before merging`을 사용해야 다른 Flyway migration이 먼저 병합된 경우 남은 PR을 최신 기준으로 다시 검사할 수 있다. 다른 PR이 먼저 병합되면 PR 화면의 Update branch로 최신 상태를 반영하고 CI를 다시 통과해야 병합할 수 있다. Update branch는 PR branch에 병합 commit을 추가하므로 기존 승인이 초기화된다. 승인과 병합 사이에 다른 PR이 병합될수록 재승인이 필요해지므로, 승인 조건을 채운 PR은 바로 병합한다.
+`be/develop`은 `Require branches to be up to date before merging`을 사용해야 다른 Flyway migration이 먼저 병합된 경우 남은 PR을 최신 기준으로 다시 검사할 수 있다. 다른 PR이 먼저 병합되면 PR 화면의 Update branch로 최신 상태를 반영하고 CI를 다시 통과해야 병합할 수 있다. Update branch는 PR의 변경 내용을 바꾸지 않으므로 기존 승인은 유지된다. 승인 후 코드 수정이나 충돌 해결로 PR의 변경 내용이 달라지면 승인이 초기화될 수 있다.
 
 `main`은 이 규칙을 사용하지 않는다. `main`에는 백엔드와 client가 각자 개발 branch에서 검증을 마친 릴리스 PR만 들어오고, 백엔드 릴리스는 `backend`와 `docs`, client 릴리스는 `client`만 변경하므로 릴리스끼리 같은 코드를 건드리지 않는다. 같은 영역 안의 병합 순서 문제는 각 개발 branch에서 먼저 검증된다.
 
