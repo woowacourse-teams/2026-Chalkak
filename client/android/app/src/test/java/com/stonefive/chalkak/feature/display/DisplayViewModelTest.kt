@@ -115,6 +115,62 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `정렬 변경 중에는 기존 사진을 유지하고 재선택하면 정렬별 캐시를 즉시 보여준다`() = runTest {
+        repository.firstPagePhotoIdsBySort[PostSort.POPULAR] = "popular-photo"
+        repository.firstPageHasNext = true
+        repository.nextPageResult = HomeResult.Success(
+            PostPage(
+                photos = listOf(post.copy(id = "popular-tail")),
+                likedPhotoIds = emptySet(),
+                currentPage = 2,
+                hasNext = false,
+                randomSeed = null,
+            ),
+        )
+
+        viewModel.selectSort(PostSort.POPULAR)
+        viewModel.updateEndThreshold(true)
+
+        assertEquals(
+            listOf("popular-photo", "popular-tail"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.selectSort(PostSort.LATEST)
+
+        val cachedContent = viewModel.uiState.value.content as DisplayContentState.Latest
+        assertEquals(PostSort.LATEST, cachedContent.selectedSort)
+        assertEquals(listOf(post.id), cachedContent.photos.map(Post::id))
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = LATEST_DATE,
+                    topic = "갱신된 전시",
+                    photos = listOf(post.copy(id = "refreshed-photo")),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("refreshed-photo"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+
+        repository.pendingContentResult = null
+        viewModel.selectSort(PostSort.POPULAR)
+
+        assertEquals(
+            listOf("popular-photo", "popular-tail"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+    }
+
+    @Test
     fun `정렬 갱신 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
         val previousContent = viewModel.uiState.value.content
         repository.firstPageFailure = HomeFailure.Network
@@ -378,6 +434,7 @@ private class FakePostRepository : PostRepository {
     var topicNotFoundDates: Set<LocalDate> = emptySet()
     var firstPageFailure: HomeFailure? = null
     var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
+    val firstPagePhotoIdsBySort = mutableMapOf<PostSort, String>()
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -409,7 +466,7 @@ private class FakePostRepository : PostRepository {
                 photos = if (selectedDate < LATEST_DATE) {
                     listOf(post, post.copy(id = "archive-photo"))
                 } else {
-                    listOf(post)
+                    listOf(post.copy(id = firstPagePhotoIdsBySort[query.sort] ?: post.id))
                 },
                 likedPhotoIds = emptySet(),
                 hasNext = firstPageHasNext,

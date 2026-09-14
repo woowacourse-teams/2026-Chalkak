@@ -67,6 +67,121 @@ struct DisplayViewModelTests {
         #expect(recorder.firstPages.last?.1 == .random)
     }
 
+    @Test("정렬 변경 중에는 기존 사진을 유지하고 재선택하면 정렬별 캐시를 즉시 보여준다")
+    func sortChangeKeepsVisibleContentAndReusesCache() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let latestPhoto = Self.photo(id: "latest-photo")
+        let popularPhoto = Self.photo(id: "popular-photo")
+        let gate = DisplayFirstPageGate()
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "전시",
+                selectedSort: .latest,
+                photos: [latestPhoto],
+                currentPage: 1,
+                hasNext: true
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) },
+            nextPageHandler: { request in
+                recorder.nextPages.append(
+                    (request.topicDate, request.sort, request.page, request.randomSeed)
+                )
+                return .success(
+                    DisplayPage(
+                        photos: [],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        let popularLoad = Task { await viewModel.selectSort(.popular) }
+        await gate.waitForRequestCount(1)
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.selectedSort == .popular)
+        #expect(viewModel.viewState.photos == [latestPhoto])
+
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(recorder.nextPages.isEmpty)
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(
+                Self.content(
+                    date: latestDate,
+                    page: DisplayPage(
+                        photos: [popularPhoto],
+                        currentPage: 1,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            )
+        )
+        await popularLoad.value
+
+        let latestLoad = Task { await viewModel.selectSort(.latest) }
+        await gate.waitForRequestCount(2)
+
+        #expect(viewModel.viewState.selectedSort == .latest)
+        #expect(viewModel.viewState.photos == [latestPhoto])
+
+        gate.completeRequest(at: 1, with: .success(Self.content(date: latestDate)))
+        await latestLoad.value
+    }
+
+    @Test("캐시된 다음 페이지는 첫 페이지 재검증 뒤에도 유지한다")
+    func refreshPreservesCachedTailPages() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort in
+                .success(
+                    Self.content(
+                        date: date,
+                        page: DisplayPage(
+                            photos: [Self.photo(id: sort == .popular ? "popular-photo" : "latest-photo")],
+                            currentPage: 1,
+                            hasNext: sort == .popular,
+                            randomSeed: nil
+                        )
+                    )
+                )
+            },
+            nextPageHandler: { request in
+                .success(
+                    DisplayPage(
+                        photos: [Self.photo(id: "popular-tail")],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            }
+        )
+
+        await viewModel.load()
+        await viewModel.selectSort(.popular)
+        await viewModel.didReachEndThreshold(true)
+        #expect(viewModel.viewState.photos.map(\.id) == ["popular-photo", "popular-tail"])
+
+        await viewModel.selectSort(.latest)
+        await viewModel.selectSort(.popular)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["popular-photo", "popular-tail"])
+        #expect(viewModel.viewState.currentPage == 2)
+        #expect(!viewModel.viewState.hasNext)
+    }
+
     @Test("이전 날짜 404만 최초 전시일 경계로 기록하고 성공 콘텐츠를 복원한다")
     func recordsOnlyPreviousNotFoundAsBoundary() async {
         let latestDate = Self.date(2026, 9, 2)
