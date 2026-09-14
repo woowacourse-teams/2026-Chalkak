@@ -139,7 +139,7 @@ struct HomeRemoteMeasuredImage: View {
 
     let url: URL?
     let contentDescription: String?
-    let onRatioLoaded: (CGFloat) -> Void
+    let onRatioLoaded: (CGFloat?) -> Void
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -195,12 +195,14 @@ struct HomeRemoteMeasuredImage: View {
             image = nil
             isLoading = false
             didFail = false
+            onRatioLoaded(nil)
             return
         }
 
         image = nil
         isLoading = true
         didFail = false
+        onRatioLoaded(nil)
         do {
             let loadedImage = try await HomeImagePipeline.shared.image(
                 for: url,
@@ -220,6 +222,7 @@ struct HomeRemoteMeasuredImage: View {
         } catch {
             isLoading = false
             didFail = true
+            onRatioLoaded(nil)
         }
     }
 }
