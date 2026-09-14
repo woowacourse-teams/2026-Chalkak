@@ -176,83 +176,84 @@ private struct HomeContent: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                HomeTopic(
-                    topicDate: viewModel.viewState.topicDate,
-                    topic: viewModel.viewState.topic
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, theme.spacing.screenHorizontal)
-                .padding(.top, HomeTopBarMetrics.height)
-                .homeBottomDivider()
-
-                if viewModel.viewState.photos.isEmpty {
-                    HomeEmptyContent()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, HomeMetrics.emptyTopPadding)
-                } else {
-                    HomePhotoList(
-                        photos: viewModel.viewState.photos,
-                        likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
-                        areLikesEnabled: viewModel.viewState.areLikesEnabled,
-                        onLike: { photoID in
-                            Task { await viewModel.toggleLike(photoID: photoID) }
-                        },
-                        onEndThreshold: { isReached in
-                            Task { await viewModel.didReachEndThreshold(isReached) }
-                        }
-                    )
-                }
-            }
-        }
-        // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
-        // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
-        .scrollPosition($scrollPosition, anchor: .top)
-        .overlay(alignment: .top) {
+        VStack(spacing: 0) {
+            // Keep the fixed header outside the scroll view so its background cannot
+            // cover SwiftUI's pull-to-refresh indicator at the scroll view's top edge.
             HomeTopBar()
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
                 .homeBottomDivider()
                 .allowsHitTesting(false)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if showsScrollToTop {
-                Button {
-                    withAnimation(.snappy) {
-                        scrollPosition.scrollTo(edge: .top)
-                    }
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: HomeMetrics.scrollButtonIconSize, weight: .semibold))
-                        .foregroundStyle(theme.colors.iconPrimary)
-                        .frame(
-                            width: HomeMetrics.scrollButtonSize,
-                            height: HomeMetrics.scrollButtonSize
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    HomeTopic(
+                        topicDate: viewModel.viewState.topicDate,
+                        topic: viewModel.viewState.topic
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .homeBottomDivider()
+
+                    if viewModel.viewState.photos.isEmpty {
+                        HomeEmptyContent()
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, HomeMetrics.emptyTopPadding)
+                    } else {
+                        HomePhotoList(
+                            photos: viewModel.viewState.photos,
+                            likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
+                            areLikesEnabled: viewModel.viewState.areLikesEnabled,
+                            onLike: { photoID in
+                                Task { await viewModel.toggleLike(photoID: photoID) }
+                            },
+                            onEndThreshold: { isReached in
+                                Task { await viewModel.didReachEndThreshold(isReached) }
+                            }
                         )
-                        .glassEffect(.regular.interactive(), in: .circle)
+                    }
                 }
-                .buttonStyle(.plain)
-                .padding(.trailing, theme.spacing.xl)
-                .padding(.bottom, theme.spacing.lg)
-                .accessibilityLabel("맨 위로 이동")
-                .transition(.scale.combined(with: .opacity))
             }
+            // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
+            // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
+            .scrollPosition($scrollPosition, anchor: .top)
+            .overlay(alignment: .bottomTrailing) {
+                if showsScrollToTop {
+                    Button {
+                        withAnimation(.snappy) {
+                            scrollPosition.scrollTo(edge: .top)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: HomeMetrics.scrollButtonIconSize, weight: .semibold))
+                            .foregroundStyle(theme.colors.iconPrimary)
+                            .frame(
+                                width: HomeMetrics.scrollButtonSize,
+                                height: HomeMetrics.scrollButtonSize
+                            )
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, theme.spacing.xl)
+                    .padding(.bottom, theme.spacing.lg)
+                    .accessibilityLabel("맨 위로 이동")
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { oldDistance, newDistance in
+                updateScrollToTop(from: oldDistance, to: newDistance)
+            }
+            .refreshable {
+                // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
+                // 네트워크 갱신 자체는 완료되도록 독립된 Task에서 실행한다.
+                let refreshTask = Task { await viewModel.refresh() }
+                await refreshTask.value
+            }
+            .background(theme.colors.background)
         }
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { oldDistance, newDistance in
-            updateScrollToTop(from: oldDistance, to: newDistance)
-        }
-        .refreshable {
-            // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
-            // 네트워크 갱신 자체는 완료되도록 독립된 Task에서 실행한다.
-            let refreshTask = Task { await viewModel.refresh() }
-            await refreshTask.value
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: HomeTopBarMetrics.height)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
     }
 }
