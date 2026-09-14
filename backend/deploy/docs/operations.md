@@ -44,7 +44,7 @@ GitHub repository
 
 | 규칙 | `be/develop` | `main` |
 | --- | --- | --- |
-| Require a pull request before merging | 승인 2명, 새 commit push 시 승인 무효화, Squash만 허용 | 승인 0명, 병합 방식 제한 없음 |
+| Require a pull request before merging | 승인 2명, 새 commit push 시 승인 무효화, Squash만 허용 | 승인 0명, Squash만 허용 |
 | Require status checks to pass | `Backend CI` | `Backend CI`, `Admin Web CI` |
 | Require branches to be up to date before merging | 사용 | 사용하지 않음 |
 | Block force pushes | 사용 | 사용 |
@@ -93,13 +93,19 @@ git restore --source=origin/be/develop --staged --worktree -- backend docs
 
 `git checkout origin/be/develop -- backend docs`는 `be/develop`에서 삭제한 파일을 지우지 않으므로 사용하지 않는다.
 
+루트 `CLAUDE.md`, `AGENTS.md`, `.claude`, `.agents` 하네스 문서는 client 팀과 공유하지 않고 운영 배포에도 포함되지 않으므로 `main`에 반영하지 않는다. `backend` 안의 하네스는 경로 교체에 함께 포함된다.
+
 PR을 만들기 전에 다음을 확인한다.
 
-1. 교체 경로 밖의 백엔드 배포 파일이 `be/develop`에서 변경됐는지 확인한다. 출력이 있으면 해당 파일도 릴리스 branch에 반영한다.
+1. 교체 경로 밖에서 `be/develop`에 추가되거나 변경된 파일을 확인한다. `buildspec.yml`, `.github/workflows/backend-ci.yml`처럼 운영 빌드나 CI에 영향을 주는 파일이 출력되면 릴리스 branch에 반영한다.
 
    ```bash
-   git diff --name-only origin/main origin/be/develop -- buildspec.yml .github/workflows/backend-ci.yml
+   git diff --name-status --diff-filter=AM origin/main origin/be/develop -- . \
+     ':!backend' ':!docs' ':!client' \
+     ':!CLAUDE.md' ':!AGENTS.md' ':!.claude' ':!.agents'
    ```
+
+   `be/develop`에 없는 `admin-web` 등 `main`에만 있는 파일은 `--diff-filter=AM`으로 제외한다. 따라서 `be/develop`에서 교체 경로 밖의 파일을 삭제한 경우는 출력되지 않으므로 별도로 확인한다.
 
 2. 지난 백엔드 릴리스 이후 `main`에만 반영된 백엔드 수정이 없는지 확인한다. 출력이 있으면 해당 수정이 `be/develop`에도 반영됐는지 확인한다. 반영되지 않았다면 이번 교체로 사라진다.
 
@@ -116,8 +122,8 @@ PR을 만들기 전에 다음을 확인한다.
 
 ### 릴리스 PR과 배포
 
-1. 릴리스 branch를 commit하고 `main` 대상 PR을 만든다. PR 제목은 `release: 백엔드 `로 시작한다. Squash 병합 시 PR 제목이 commit 제목이 되어 다음 릴리스의 기준 commit 검색에 사용된다. PR 본문에 지난 릴리스 이후 포함된 PR 목록을 적는다.
-2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 병합한다.
+1. 릴리스 branch를 commit하고 `main` 대상 PR을 만든다. commit 메시지와 PR 제목은 모두 `release: 백엔드 `로 시작한다. PR 본문에 지난 릴리스 이후 포함된 PR 목록을 적는다.
+2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 Squash and merge로 병합한다. 병합 화면의 commit 제목이 `release: 백엔드 `로 시작하는지 확인한다. PR의 commit이 하나면 GitHub가 PR 제목 대신 해당 commit 메시지를 제목으로 제안하며, 이 제목이 다음 릴리스의 기준 commit 검색에 사용된다.
 3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
 5. 승인 후 CodeDeploy와 ALB target health를 확인한다. 운영 EC2가 한 대라 배포 중에는 요청이 실패하므로 승인 시점을 조절한다.
