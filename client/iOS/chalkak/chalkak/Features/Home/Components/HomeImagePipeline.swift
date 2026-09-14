@@ -139,7 +139,8 @@ struct HomeRemoteMeasuredImage: View {
 
     let url: URL?
     let contentDescription: String?
-    let onRatioLoaded: (CGFloat?) -> Void
+    var contentMode: ContentMode = .fill
+    var onRatioLoaded: (CGFloat?) -> Void = { _ in }
 
     @State private var image: UIImage?
     @State private var isLoading = true
@@ -165,7 +166,7 @@ struct HomeRemoteMeasuredImage: View {
         if let image {
             Image(uiImage: image)
                 .resizable()
-                .aspectRatio(contentMode: .fill)
+                .aspectRatio(contentMode: contentMode)
         } else if didFail || url == nil {
             ZStack {
                 theme.colors.inputBackground
@@ -202,7 +203,6 @@ struct HomeRemoteMeasuredImage: View {
         image = nil
         isLoading = true
         didFail = false
-        onRatioLoaded(nil)
         do {
             let loadedImage = try await HomeImagePipeline.shared.image(
                 for: url,

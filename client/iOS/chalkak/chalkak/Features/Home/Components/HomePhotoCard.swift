@@ -5,8 +5,9 @@ struct HomePhotoCard: View {
     let photo: HomePhoto
     let isLiked: Bool
     let isLikeEnabled: Bool
+    let imageRatio: CGFloat?
+    let onImageRatioChanged: (CGFloat?) -> Void
     let onLike: () -> Void
-    @State private var imageRatio: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,11 +18,7 @@ struct HomePhotoCard: View {
                     ZStack(alignment: .bottomTrailing) {
                         photoImage
 
-                        ChalkakImage(
-                            source: photo.signatureSource,
-                            contentDescription: nil,
-                            contentMode: .fit
-                        )
+                        signatureImage
                         .frame(
                             width: HomePhotoCardMetrics.signatureSize.width,
                             height: HomePhotoCardMetrics.signatureSize.height
@@ -49,7 +46,7 @@ struct HomePhotoCard: View {
             HomeRemoteMeasuredImage(
                 url: url,
                 contentDescription: photo.contentDescription,
-                onRatioLoaded: updateImageRatio
+                onRatioLoaded: onImageRatioChanged
             )
         case .asset, .system:
             ChalkakImage(
@@ -58,17 +55,26 @@ struct HomePhotoCard: View {
                 contentMode: .fill
             )
             .task(id: photo.imageSource) {
-                updateImageRatio(await ImageRatioLoader.ratio(for: photo.imageSource))
+                onImageRatioChanged(await ImageRatioLoader.ratio(for: photo.imageSource))
             }
         }
     }
 
-    private func updateImageRatio(_ ratio: CGFloat?) {
-        guard imageRatio != ratio else { return }
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            imageRatio = ratio
+    @ViewBuilder
+    private var signatureImage: some View {
+        switch photo.signatureSource {
+        case let .remote(url):
+            HomeRemoteMeasuredImage(
+                url: url,
+                contentDescription: nil,
+                contentMode: .fit
+            )
+        case .asset, .system:
+            ChalkakImage(
+                source: photo.signatureSource,
+                contentDescription: nil,
+                contentMode: .fit
+            )
         }
     }
 
@@ -138,6 +144,8 @@ private extension String {
         photo: HomePreviewData.contentState.photos[0],
         isLiked: true,
         isLikeEnabled: true,
+        imageRatio: nil,
+        onImageRatioChanged: { _ in },
         onLike: {}
     )
     .padding()
