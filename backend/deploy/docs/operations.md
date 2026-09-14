@@ -81,11 +81,40 @@ curl --fail http://127.0.0.1:8080/actuator/health
 
 운영 EC2, RDS, ALB target group, `/etc/chalkak/application.env`가 준비된 뒤 진행한다.
 
-1. `be/develop`에서 충분히 검증한 PR을 `main`에 병합한다.
-2. GitHub Actions가 성공했는지 확인한다.
+### 백엔드 릴리스 branch 준비
+
+`be/develop`을 `main`에 직접 병합하지 않는다. 릴리스를 Squash로 병합해 두 branch 이력이 이어져 있지 않으므로, 이미 반영된 변경도 충돌로 표시된다. `main`에서 릴리스 branch를 만들고 백엔드 경로만 `be/develop` 기준으로 교체한다.
+
+```bash
+git fetch origin main be/develop
+git switch -c release/backend-YYYY-MM-DD origin/main
+git restore --source=origin/be/develop --staged --worktree -- backend docs
+```
+
+`git checkout origin/be/develop -- backend docs`는 `be/develop`에서 삭제한 파일을 지우지 않으므로 사용하지 않는다.
+
+PR을 만들기 전에 다음을 확인한다.
+
+1. 교체 경로 밖의 백엔드 배포 파일이 `be/develop`에서 변경됐는지 확인한다. 출력이 있으면 해당 파일도 릴리스 branch에 반영한다.
+
+   ```bash
+   git diff --name-only origin/main origin/be/develop -- buildspec.yml .github/workflows/backend-ci.yml
+   ```
+
+2. 지난 백엔드 릴리스 이후 `main`에만 반영된 백엔드 수정이 없는지 확인한다. 출력이 있으면 해당 수정이 `be/develop`에도 반영됐는지 확인한다. 반영되지 않았다면 이번 교체로 사라진다.
+
+   ```bash
+   last=$(git log -1 --format=%H --grep='^release: 백엔드' origin/main)
+   git log --oneline "$last"..origin/main -- backend docs
+   ```
+
+### 릴리스 PR과 배포
+
+1. 릴리스 branch를 commit하고 `main` 대상 PR을 만든다. PR 본문에 지난 릴리스 이후 포함된 PR 목록을 적는다.
+2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 병합한다.
 3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
-5. 승인 후 CodeDeploy와 ALB target health를 확인한다.
+5. 승인 후 CodeDeploy와 ALB target health를 확인한다. 운영 EC2가 한 대라 배포 중에는 요청이 실패하므로 승인 시점을 조절한다.
 6. 운영 EC2 내부와 외부 endpoint를 모두 확인한다.
 
 ```bash
