@@ -8,13 +8,13 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-public final class OidcIdTokenClaimsValidator implements OAuth2TokenValidator<Jwt> {
+final class OidcIdTokenClaimsValidator implements OAuth2TokenValidator<Jwt> {
 
     private static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
 
     private final Clock clock;
 
-    public OidcIdTokenClaimsValidator() {
+    OidcIdTokenClaimsValidator() {
         this(Clock.systemUTC());
     }
 
