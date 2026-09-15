@@ -36,7 +36,7 @@ class OidcIdTokenVerifierTest {
                 .claim("email", "user@chalkak.test")
                 .claim("email_verified", true)
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, "Google", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, jwt);
 
         // When
         VerifiedSocialIdentity identity = verifier.verify(ID_TOKEN, RAW_NONCE);
@@ -52,18 +52,18 @@ class OidcIdTokenVerifierTest {
     @DisplayName("모든 제공자는 ID Token의 nonce가 원본의 해시와 다르면 인증을 거부한다")
     void verify_mismatchedNonce_throwsUnauthorizedException(
             SocialProvider provider,
-            String providerName
+            String expectedDisplayName
     ) {
         // Given
         Jwt jwt = jwtBuilder()
                 .claim("nonce", hash("other-raw-nonce"))
                 .build();
-        OidcIdTokenVerifier verifier = verifier(provider, providerName, jwt);
+        OidcIdTokenVerifier verifier = verifier(provider, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage(providerName + " ID Token nonce가 일치하지 않습니다.");
+                .hasMessage(expectedDisplayName + " ID Token nonce가 일치하지 않습니다.");
     }
 
     @ParameterizedTest
@@ -71,7 +71,7 @@ class OidcIdTokenVerifierTest {
     @DisplayName("모든 제공자는 ID Token에 nonce가 없으면 인증을 거부한다")
     void verify_missingNonceClaim_throwsUnauthorizedException(
             SocialProvider provider,
-            String providerName
+            String expectedDisplayName
     ) {
         // Given
         Jwt jwt = Jwt.withTokenValue(ID_TOKEN)
@@ -80,12 +80,12 @@ class OidcIdTokenVerifierTest {
                 .issuedAt(Instant.parse("2026-09-15T00:00:00Z"))
                 .expiresAt(Instant.parse("2026-09-15T00:10:00Z"))
                 .build();
-        OidcIdTokenVerifier verifier = verifier(provider, providerName, jwt);
+        OidcIdTokenVerifier verifier = verifier(provider, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage(providerName + " ID Token nonce가 일치하지 않습니다.");
+                .hasMessage(expectedDisplayName + " ID Token nonce가 일치하지 않습니다.");
     }
 
     @Test
@@ -95,7 +95,7 @@ class OidcIdTokenVerifierTest {
         Jwt jwt = jwtBuilder()
                 .claim("nonce", hash(RAW_NONCE).toUpperCase(Locale.ROOT))
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.KAKAO, "Kakao", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.KAKAO, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
@@ -110,7 +110,7 @@ class OidcIdTokenVerifierTest {
         Jwt jwt = jwtBuilder()
                 .claim("nonce", RAW_NONCE)
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, "Google", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
@@ -127,7 +127,6 @@ class OidcIdTokenVerifierTest {
         AtomicBoolean decoded = new AtomicBoolean();
         OidcIdTokenVerifier verifier = new OidcIdTokenVerifier(
                 SocialProvider.KAKAO,
-                "Kakao",
                 token -> {
                     decoded.set(true);
                     return jwtBuilder().build();
@@ -149,7 +148,6 @@ class OidcIdTokenVerifierTest {
         // Given
         OidcIdTokenVerifier verifier = verifier(
                 SocialProvider.APPLE,
-                "Apple",
                 jwtBuilder().build());
 
         // When & Then
@@ -164,7 +162,6 @@ class OidcIdTokenVerifierTest {
         // Given
         OidcIdTokenVerifier verifier = new OidcIdTokenVerifier(
                 SocialProvider.GOOGLE,
-                "Google",
                 token -> {
                     throw new JwtException("invalid token");
                 },
@@ -186,7 +183,7 @@ class OidcIdTokenVerifierTest {
                 .issuedAt(Instant.parse("2026-09-15T00:00:00Z"))
                 .expiresAt(Instant.parse("2026-09-15T00:10:00Z"))
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.KAKAO, "Kakao", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.KAKAO, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
@@ -201,7 +198,7 @@ class OidcIdTokenVerifierTest {
         Jwt jwt = jwtBuilder()
                 .subject("a".repeat(256))
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.APPLE, "Apple", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.APPLE, jwt);
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
@@ -217,7 +214,7 @@ class OidcIdTokenVerifierTest {
         Jwt jwt = jwtBuilder()
                 .subject(subject)
                 .build();
-        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, "Google", jwt);
+        OidcIdTokenVerifier verifier = verifier(SocialProvider.GOOGLE, jwt);
 
         // When
         VerifiedSocialIdentity identity = verifier.verify(ID_TOKEN, RAW_NONCE);
@@ -226,15 +223,10 @@ class OidcIdTokenVerifierTest {
         assertThat(identity.subject()).isEqualTo(subject);
     }
 
-    private OidcIdTokenVerifier verifier(
-            SocialProvider provider,
-            String providerName,
-            Jwt jwt
-    ) {
+    private OidcIdTokenVerifier verifier(SocialProvider provider, Jwt jwt) {
         JwtDecoder jwtDecoder = token -> jwt;
         return new OidcIdTokenVerifier(
                 provider,
-                providerName,
                 jwtDecoder,
                 OidcEmailPolicy.VERIFIED_ONLY);
     }

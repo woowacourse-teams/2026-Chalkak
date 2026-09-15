@@ -19,14 +19,10 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 })
 public class OidcIdTokenConfig {
 
-    private static final String GOOGLE_PROVIDER_NAME = "Google";
-    private static final String KAKAO_PROVIDER_NAME = "Kakao";
-    private static final String APPLE_PROVIDER_NAME = "Apple";
-
     @Bean
     public JwtDecoder googleJwtDecoder(GoogleOidcProperties properties) {
         return OidcIdTokenDecoderFactory.createDecoder(
-                GOOGLE_PROVIDER_NAME,
+                SocialProvider.GOOGLE,
                 properties.issuer(),
                 properties.jwkSetUri(),
                 properties.clientId());
@@ -38,7 +34,6 @@ public class OidcIdTokenConfig {
     ) {
         return new OidcIdTokenVerifier(
                 SocialProvider.GOOGLE,
-                GOOGLE_PROVIDER_NAME,
                 jwtDecoder,
                 OidcEmailPolicy.VERIFIED_ONLY);
     }
@@ -46,7 +41,7 @@ public class OidcIdTokenConfig {
     @Bean
     public JwtDecoder kakaoJwtDecoder(KakaoOidcProperties properties) {
         return OidcIdTokenDecoderFactory.createDecoder(
-                KAKAO_PROVIDER_NAME,
+                SocialProvider.KAKAO,
                 properties.issuer(),
                 properties.jwkSetUri(),
                 properties.appKey());
@@ -58,7 +53,6 @@ public class OidcIdTokenConfig {
     ) {
         return new OidcIdTokenVerifier(
                 SocialProvider.KAKAO,
-                KAKAO_PROVIDER_NAME,
                 jwtDecoder,
                 OidcEmailPolicy.AS_PROVIDED);
     }
@@ -66,7 +60,7 @@ public class OidcIdTokenConfig {
     @Bean
     public JwtDecoder appleJwtDecoder(AppleOidcProperties properties) {
         return OidcIdTokenDecoderFactory.createDecoder(
-                APPLE_PROVIDER_NAME,
+                SocialProvider.APPLE,
                 properties.issuer(),
                 properties.jwkSetUri(),
                 properties.clientId());
@@ -78,7 +72,6 @@ public class OidcIdTokenConfig {
     ) {
         return new OidcIdTokenVerifier(
                 SocialProvider.APPLE,
-                APPLE_PROVIDER_NAME,
                 jwtDecoder,
                 OidcEmailPolicy.VERIFIED_ONLY);
     }

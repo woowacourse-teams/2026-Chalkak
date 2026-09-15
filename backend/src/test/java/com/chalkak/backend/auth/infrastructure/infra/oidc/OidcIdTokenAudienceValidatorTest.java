@@ -2,6 +2,7 @@ package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -13,7 +14,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 class OidcIdTokenAudienceValidatorTest {
 
     private final OidcIdTokenAudienceValidator validator = new OidcIdTokenAudienceValidator(
-            "Google", "backend-client-id");
+            SocialProvider.GOOGLE, "backend-client-id");
 
     @Test
     @DisplayName("audience가 허용된 값 하나이면 검증에 성공한다")

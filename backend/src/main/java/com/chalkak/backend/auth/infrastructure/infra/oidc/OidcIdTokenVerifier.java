@@ -27,18 +27,15 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
     private static final String NONCE_CLAIM = "nonce";
 
     private final SocialProvider provider;
-    private final String providerName;
     private final JwtDecoder jwtDecoder;
     private final OidcEmailPolicy emailPolicy;
 
     OidcIdTokenVerifier(
             SocialProvider provider,
-            String providerName,
             JwtDecoder jwtDecoder,
             OidcEmailPolicy emailPolicy
     ) {
         this.provider = provider;
-        this.providerName = providerName;
         this.jwtDecoder = jwtDecoder;
         this.emailPolicy = emailPolicy;
     }
@@ -63,7 +60,7 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
         if (rawNonce == null || rawNonce.isBlank()) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    providerName + " 로그인 nonce가 필요합니다.");
+                    provider.getDisplayName() + " 로그인 nonce가 필요합니다.");
         }
     }
 
@@ -81,7 +78,7 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
     private UnauthorizedException invalidIdToken() {
         return new UnauthorizedException(
                 ErrorCode.UNAUTHORIZED,
-                "유효하지 않은 " + providerName + " ID Token입니다.");
+                "유효하지 않은 " + provider.getDisplayName() + " ID Token입니다.");
     }
 
     private void verifyNonce(Jwt jwt, String rawNonce) {
@@ -93,7 +90,7 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
         if (!matches) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    providerName + " ID Token nonce가 일치하지 않습니다.");
+                    provider.getDisplayName() + " ID Token nonce가 일치하지 않습니다.");
         }
     }
 
@@ -112,12 +109,12 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
         if (subject == null || subject.isBlank()) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    providerName + " ID Token에 사용자 식별 정보가 없습니다.");
+                    provider.getDisplayName() + " ID Token에 사용자 식별 정보가 없습니다.");
         }
         if (subject.length() > SUBJECT_MAX_LENGTH) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
-                    providerName + " ID Token의 사용자 식별 정보가 너무 깁니다.");
+                    provider.getDisplayName() + " ID Token의 사용자 식별 정보가 너무 깁니다.");
         }
         return subject;
     }
