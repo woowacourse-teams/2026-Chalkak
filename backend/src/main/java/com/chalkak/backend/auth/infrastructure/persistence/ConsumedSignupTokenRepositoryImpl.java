@@ -4,7 +4,6 @@ import com.chalkak.backend.auth.domain.ConsumedSignupToken;
 import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -14,18 +13,16 @@ public class ConsumedSignupTokenRepositoryImpl implements ConsumedSignupTokenRep
     private final ConsumedSignupTokenJpaRepository repository;
 
     /**
-     * saveAndFlush로 이 자리에서 바로 INSERT를 실행해, 유니크 제약 위반을 여기서 잡는다.
-     * flush 없이 save만 하면 실제 INSERT가 트랜잭션 커밋 시점까지 미뤄질 수 있어 이
-     * 메서드 안에서 위반 여부를 알 수 없다.
+     * 이미 있는 jti는 {@code ON CONFLICT DO NOTHING}으로 건너뛰고, 실제로 넣은 행 수로 최초 사용 여부를 판정한다.
+     * 기본키 제약 위반 예외로 판정하면 PostgreSQL이 그 트랜잭션의 이후 쿼리를 모두 거부하므로 예외 없이 끝나는 문장을 쓴다.
+     *
+     * <p>
+     * 같은 jti를 동시에 넣으면 뒤의 문장은 앞 트랜잭션이 끝날 때까지 기다린다. 앞이 커밋하면 0행, 롤백하면 1행이 되어 한 트랜잭션만
+     * 성공한다.
      */
     @Override
     public boolean consumeIfAbsent(ConsumedSignupToken token) {
-        try {
-            repository.saveAndFlush(token);
-            return true;
-        } catch (DataIntegrityViolationException exception) {
-            return false;
-        }
+        return repository.createIfAbsent(token.getJti(), token.getExpiresAt()) == 1;
     }
 
     @Override
