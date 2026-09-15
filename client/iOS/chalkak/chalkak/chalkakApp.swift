@@ -6,12 +6,26 @@
 //
 
 import SwiftUI
+import FirebaseCore
 import GoogleSignIn
 import KakaoSDKAuth
 import KakaoSDKCommon
+import UIKit
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        FirebaseApp.configure()
+        return true
+    }
+}
 
 @main
 struct chalkakApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     init() {
         ChalkakFontRegistrar.registerFonts()
 

@@ -32,6 +32,11 @@ struct ContentView: View {
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
+    private let analyticsTracker: any AnalyticsTracking
+
+    init(analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker()) {
+        self.analyticsTracker = analyticsTracker
+    }
 
     var body: some View {
         Group {
@@ -121,6 +126,12 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.16), value: appVersionGate.requiredUpdateStoreURL)
+        .onAppear {
+            trackCurrentScreen()
+        }
+        .onChange(of: currentAnalyticsScreen) { _, _ in
+            trackCurrentScreen()
+        }
         .task {
             await appVersionGate.checkForUpdate()
         }
@@ -190,6 +201,8 @@ struct ContentView: View {
             showMessage("기록을 보려면 로그인이 필요해요")
             return
         }
+
+        analyticsTracker.trackBottomNavigationSelection(destination: item.rawValue)
 
         let shouldRevalidateDisplay = item == .display
             && displayViewModel.viewState.contentStatus != .loading
@@ -485,6 +498,22 @@ struct ContentView: View {
 #endif
         return KeychainSessionStore.hasActiveSession() ? .home : .login
     }
+
+    private var currentAnalyticsScreen: AnalyticsScreen? {
+        guard route == .home, !isPhotoUploadPresented else { return nil }
+        if selectedFeed != nil {
+            return AnalyticsScreen(name: "feed", screenClass: "Feed")
+        }
+        return selectedTab.analyticsScreen
+    }
+
+    private func trackCurrentScreen() {
+        guard let screen = currentAnalyticsScreen else { return }
+        analyticsTracker.trackScreenView(
+            screenName: screen.name,
+            screenClass: screen.screenClass
+        )
+    }
 }
 
 private enum AppRoute: Equatable {
@@ -492,6 +521,26 @@ private enum AppRoute: Equatable {
     case onboarding
     case home
     case photoUploadSuccess
+}
+
+private struct AnalyticsScreen: Equatable {
+    let name: String
+    let screenClass: String
+}
+
+private extension ChalkakBottomBarItem {
+    var analyticsScreen: AnalyticsScreen {
+        switch self {
+        case .today:
+            AnalyticsScreen(name: "today", screenClass: "Today")
+        case .display:
+            AnalyticsScreen(name: "display", screenClass: "Display")
+        case .record:
+            AnalyticsScreen(name: "record", screenClass: "Record")
+        case .settings:
+            AnalyticsScreen(name: "settings", screenClass: "Settings")
+        }
+    }
 }
 
 private enum ContentMetrics {
