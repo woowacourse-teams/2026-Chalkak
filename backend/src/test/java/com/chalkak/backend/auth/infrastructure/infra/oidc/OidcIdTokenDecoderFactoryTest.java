@@ -11,19 +11,21 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
-import com.nimbusds.jose.jwk.source.CachingJWKSetSource;
 import com.nimbusds.jose.jwk.source.JWKSetBasedJWKSource;
+import com.nimbusds.jose.jwk.source.JWKSetCacheRefreshEvaluator;
 import com.nimbusds.jose.jwk.source.JWKSetSource;
-import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
+import com.nimbusds.jose.jwk.source.RateLimitReachedException;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.Resource;
 import com.nimbusds.jose.util.ResourceRetriever;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -32,10 +34,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 
+@ExtendWith(OutputCaptureExtension.class)
 class OidcIdTokenDecoderFactoryTest {
 
     private static final String PROVIDER_NAME = "Google";
@@ -57,7 +63,10 @@ class OidcIdTokenDecoderFactoryTest {
                 PROVIDER_NAME,
                 ISSUER,
                 AUDIENCE,
-                OidcIdTokenDecoderFactory.createJwkSource(JWK_SET_URI, resourceRetriever));
+                OidcIdTokenDecoderFactory.createJwkSource(
+                        PROVIDER_NAME,
+                        JWK_SET_URI,
+                        resourceRetriever));
     }
 
     @Test
@@ -267,23 +276,86 @@ class OidcIdTokenDecoderFactoryTest {
     }
 
     @Test
-    @DisplayName("공개키 목록 재조회 제한 구간은 30초다")
-    void createJwkSource_refetchInterval_isThirtySeconds() {
+    @DisplayName("재조회 제한에 걸리면 제공자 이름과 함께 경고 로그를 구간마다 한 번만 남긴다")
+    void createDecoder_refetchLimitReachedRepeatedly_logsWarningOncePerWindow(CapturedOutput output)
+            throws JOSEException {
         // Given
-        JWKSetBasedJWKSource<SecurityContext> jwkSource = (JWKSetBasedJWKSource<SecurityContext>) OidcIdTokenDecoderFactory
-                .createJwkSource(
-                        JWK_SET_URI,
-                        resourceRetriever);
+        jwtDecoder.decode(sign(signingKey, validClaims().build()));
+        RSAKey unknownKey = new RSAKeyGenerator(2048).keyID("unknown-key").generate();
+        String unknownKeyIdToken = sign(unknownKey, validClaims().build());
 
         // When
-        JWKSetSource<SecurityContext> sourceBehindCache = ((CachingJWKSetSource<SecurityContext>) jwkSource
-                .getJWKSetSource()).getSource();
+        for (int attempt = 0; attempt < 4; attempt++) {
+            assertThatThrownBy(() -> jwtDecoder.decode(unknownKeyIdToken))
+                    .isInstanceOf(JwtException.class);
+        }
 
         // Then
-        assertThat(sourceBehindCache)
-                .isInstanceOfSatisfying(RateLimitedJWKSetSource.class,
-                        rateLimitedSource -> assertThat(
-                                rateLimitedSource.getMinTimeInterval()).isEqualTo(30_000L));
+        assertThat(output.getOut())
+                .containsOnlyOnce("Google 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.");
+    }
+
+    @Test
+    @DisplayName("공개키 목록 조회가 한 번 실패하면 같은 조회 안에서 다시 시도해 디코딩한다")
+    void createDecoder_transientRetrievalFailure_retriesAndDecodes(CapturedOutput output)
+            throws JOSEException {
+        // Given
+        resourceRetriever.failNextRetrievals(1);
+
+        // When
+        Jwt jwt = jwtDecoder.decode(sign(signingKey, validClaims().build()));
+
+        // Then
+        assertThat(jwt.getSubject()).isEqualTo("provider-subject");
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
+        assertThat(output.getOut()).contains("Google 공개키 목록 조회에 실패해 한 번 더 시도합니다.");
+    }
+
+    @Test
+    @DisplayName("공개키 목록을 한 번도 받지 못한 채 재시도까지 실패하면 제공자가 회복돼도 남은 구간 동안 거절한다")
+    void createDecoder_retrievalFailsBeforeFirstSuccess_rejectsUntilRefetchWindowEnds()
+            throws JOSEException {
+        // Given
+        String idToken = sign(signingKey, validClaims().build());
+        resourceRetriever.failNextRetrievals(4);
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertThatThrownBy(() -> jwtDecoder.decode(idToken))
+                    .isInstanceOf(JwtException.class);
+        }
+
+        // When & Then
+        assertThatThrownBy(() -> jwtDecoder.decode(idToken))
+                .isInstanceOf(JwtException.class);
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("캐시 만료 직전 재조회 실패로 제한을 소진해도 이전 목록을 다시 캐시해 만료 후 조회가 막히지 않는다")
+    void createJwkSource_refreshFailuresBeforeCacheExpiry_keepsServingPreviousJwkSet(
+            CapturedOutput output
+    ) throws Exception {
+        // Given
+        JWKSetSource<SecurityContext> source = jwkSetSourceWithInjectableTime();
+        long firstRetrievedAt = 1_000_000L;
+        source.getJWKSet(JWKSetCacheRefreshEvaluator.noRefresh(), firstRetrievedAt, null);
+        long refreshFailedAt = firstRetrievedAt + Duration.ofSeconds(299).toMillis();
+        resourceRetriever.failNextRetrievals(4);
+        for (int attempt = 0; attempt < 2; attempt++) {
+            refreshUnknownKeyId(source, refreshFailedAt);
+        }
+        assertThatThrownBy(() -> refreshUnknownKeyId(source, refreshFailedAt))
+                .isInstanceOf(RateLimitReachedException.class);
+
+        // When
+        JWKSet jwkSet = source.getJWKSet(
+                JWKSetCacheRefreshEvaluator.noRefresh(),
+                firstRetrievedAt + Duration.ofSeconds(300).toMillis() + 1,
+                null);
+
+        // Then
+        assertThat(jwkSet.getKeyByKeyId(KEY_ID)).isNotNull();
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(5);
+        assertThat(output.getOut()).contains("Google 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다.");
     }
 
     @Test
@@ -291,6 +363,7 @@ class OidcIdTokenDecoderFactoryTest {
     void createJwkSource_malformedUri_throwsException() {
         // When & Then
         assertThatThrownBy(() -> OidcIdTokenDecoderFactory.createJwkSource(
+                PROVIDER_NAME,
                 "not a uri",
                 resourceRetriever))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -332,6 +405,24 @@ class OidcIdTokenDecoderFactoryTest {
         }
     }
 
+    /**
+     * 캐시·재조회 제한은 조회 시각을 기준으로 동작한다. 디코더는 현재 시각을 쓰므로, 시각을 넘겨 줄 수 있는 내부 목록 소스를 꺼내 쓴다.
+     */
+    private JWKSetSource<SecurityContext> jwkSetSourceWithInjectableTime() {
+        JWKSetBasedJWKSource<SecurityContext> jwkSource = (JWKSetBasedJWKSource<SecurityContext>) OidcIdTokenDecoderFactory
+                .createJwkSource(PROVIDER_NAME, JWK_SET_URI, resourceRetriever);
+        return jwkSource.getJWKSetSource();
+    }
+
+    /** 디코더가 캐시에 없는 kid를 만났을 때처럼, 캐시된 목록을 확인한 뒤 그 목록이 그대로면 다시 조회하게 한다. */
+    private void refreshUnknownKeyId(JWKSetSource<SecurityContext> source, long currentTime)
+            throws Exception {
+        JWKSet cached = source.getJWKSet(JWKSetCacheRefreshEvaluator.noRefresh(), currentTime,
+                null);
+        source.getJWKSet(JWKSetCacheRefreshEvaluator.referenceComparison(cached), currentTime,
+                null);
+    }
+
     private JWTClaimsSet.Builder validClaims() {
         Instant now = Instant.now();
         return new JWTClaimsSet.Builder()
@@ -354,15 +445,23 @@ class OidcIdTokenDecoderFactoryTest {
 
         private final AtomicReference<String> jwkSet;
         private final AtomicInteger retrievalCount = new AtomicInteger();
+        private final AtomicInteger remainingFailures = new AtomicInteger();
 
         private CountingResourceRetriever(String jwkSet) {
             this.jwkSet = new AtomicReference<>(jwkSet);
         }
 
         @Override
-        public Resource retrieveResource(URL url) {
+        public Resource retrieveResource(URL url) throws IOException {
             retrievalCount.incrementAndGet();
+            if (remainingFailures.getAndUpdate(count -> Math.max(0, count - 1)) > 0) {
+                throw new IOException("temporary network failure");
+            }
             return new Resource(jwkSet.get(), "application/json");
+        }
+
+        private void failNextRetrievals(int count) {
+            remainingFailures.set(count);
         }
 
         private void changeJwkSet(String jwkSet) {
