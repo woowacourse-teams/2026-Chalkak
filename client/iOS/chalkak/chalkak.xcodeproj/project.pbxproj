@@ -11,6 +11,7 @@
 		64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */; };
 		64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA23028544800ECB6E1 /* KakaoSDKUser */; };
 		64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */; };
+		64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */,
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
@@ -123,6 +125,7 @@
 			);
 			name = chalkak;
 			packageProductDependencies = (
+				64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */,
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
@@ -211,6 +214,7 @@
 			mainGroup = 64DDEA643028544700ECB6E1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				64DDEA97028544800ECB6E1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				64DDEA98028544800ECB6E1 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
 				64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */,
@@ -649,6 +653,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.17.0;
+			};
+		};
 		64DDEA97028544800ECB6E1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
@@ -676,6 +688,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
 		64DDEAA03028544800ECB6E1 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEA97028544800ECB6E1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
