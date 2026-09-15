@@ -7,6 +7,7 @@ import com.chalkak.backend.auth.service.AppleIdTokenVerifier;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
@@ -48,6 +49,13 @@ class OidcIdTokenConfigTest {
         // When & Then
         contextRunner
                 .withPropertyValues("chalkak.auth.oidc.apple.client-id=")
-                .run(context -> assertThat(context).hasFailed());
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .rootCause()
+                            .isInstanceOf(BindValidationException.class)
+                            .hasMessageContaining("chalkak.auth.oidc.apple")
+                            .hasMessageContaining("clientId");
+                });
     }
 }
