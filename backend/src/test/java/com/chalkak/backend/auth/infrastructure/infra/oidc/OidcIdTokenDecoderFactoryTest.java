@@ -11,6 +11,11 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jose.jwk.source.CachingJWKSetSource;
+import com.nimbusds.jose.jwk.source.JWKSetBasedJWKSource;
+import com.nimbusds.jose.jwk.source.JWKSetSource;
+import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.Resource;
 import com.nimbusds.jose.util.ResourceRetriever;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -21,6 +26,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -192,8 +198,8 @@ class OidcIdTokenDecoderFactoryTest {
     }
 
     @Test
-    @DisplayName("캐시에 없는 kid의 ID Token이 올 때마다 공개키 목록을 다시 조회한다")
-    void createDecoder_repeatedUnknownKeyId_refetchesJwkSetEveryTime() throws JOSEException {
+    @DisplayName("캐시에 없는 kid의 ID Token이 반복돼도 30초 구간 안에서는 공개키 목록을 최대 2회만 조회한다")
+    void createDecoder_repeatedUnknownKeyId_limitsJwkSetRefetch() throws JOSEException {
         // Given
         jwtDecoder.decode(sign(signingKey, validClaims().build()));
         RSAKey unknownKey = new RSAKeyGenerator(2048).keyID("unknown-key").generate();
@@ -206,7 +212,65 @@ class OidcIdTokenDecoderFactoryTest {
         }
 
         // Then
-        assertThat(resourceRetriever.retrievalCount()).isEqualTo(4);
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("재조회 제한에 걸린 뒤에도 캐시에 있는 kid의 ID Token은 디코딩한다")
+    void createDecoder_refetchLimitReached_decodesKnownKeyId() throws JOSEException {
+        // Given
+        String idToken = sign(signingKey, validClaims().build());
+        jwtDecoder.decode(idToken);
+        RSAKey unknownKey = new RSAKeyGenerator(2048).keyID("unknown-key").generate();
+        String unknownKeyIdToken = sign(unknownKey, validClaims().build());
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertThatThrownBy(() -> jwtDecoder.decode(unknownKeyIdToken))
+                    .isInstanceOf(JwtException.class);
+        }
+
+        // When
+        Jwt jwt = jwtDecoder.decode(idToken);
+
+        // Then
+        assertThat(jwt.getSubject()).isEqualTo("provider-subject");
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("제공자가 새 키를 추가하면 새 kid의 첫 ID Token에서 공개키 목록을 다시 받아 디코딩한다")
+    void createDecoder_rotatedKeyId_refetchesJwkSetAndDecodes() throws JOSEException {
+        // Given
+        jwtDecoder.decode(sign(signingKey, validClaims().build()));
+        RSAKey rotatedKey = new RSAKeyGenerator(2048).keyID("rotated-key").generate();
+        resourceRetriever.changeJwkSet(
+                new JWKSet(List.of(signingKey.toPublicJWK(), rotatedKey.toPublicJWK())).toString());
+
+        // When
+        Jwt jwt = jwtDecoder.decode(sign(rotatedKey, validClaims().build()));
+
+        // Then
+        assertThat(jwt.getSubject()).isEqualTo("provider-subject");
+        assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("공개키 목록 재조회 제한 구간은 30초다")
+    void createJwkSource_refetchInterval_isThirtySeconds() {
+        // Given
+        JWKSetBasedJWKSource<SecurityContext> jwkSource = (JWKSetBasedJWKSource<SecurityContext>) OidcIdTokenDecoderFactory
+                .createJwkSource(
+                        JWK_SET_URI,
+                        resourceRetriever);
+
+        // When
+        JWKSetSource<SecurityContext> sourceBehindCache = ((CachingJWKSetSource<SecurityContext>) jwkSource
+                .getJWKSetSource()).getSource();
+
+        // Then
+        assertThat(sourceBehindCache)
+                .isInstanceOfSatisfying(RateLimitedJWKSetSource.class,
+                        rateLimitedSource -> assertThat(
+                                rateLimitedSource.getMinTimeInterval()).isEqualTo(30_000L));
     }
 
     @Test
@@ -275,17 +339,21 @@ class OidcIdTokenDecoderFactoryTest {
 
     private static final class CountingResourceRetriever implements ResourceRetriever {
 
-        private final String jwkSet;
+        private final AtomicReference<String> jwkSet;
         private final AtomicInteger retrievalCount = new AtomicInteger();
 
         private CountingResourceRetriever(String jwkSet) {
-            this.jwkSet = jwkSet;
+            this.jwkSet = new AtomicReference<>(jwkSet);
         }
 
         @Override
         public Resource retrieveResource(URL url) {
             retrievalCount.incrementAndGet();
-            return new Resource(jwkSet, "application/json");
+            return new Resource(jwkSet.get(), "application/json");
+        }
+
+        private void changeJwkSet(String jwkSet) {
+            this.jwkSet.set(jwkSet);
         }
 
         private int retrievalCount() {

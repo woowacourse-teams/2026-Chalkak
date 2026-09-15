@@ -8,6 +8,7 @@ import com.nimbusds.jose.util.ResourceRetriever;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -22,13 +23,19 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
  * 구성을 한 곳에 두고, 규칙이 한 제공자에서만 약해지지 않게 한다.
  *
  * <p>
- * 공개키 목록은 기존 {@code NimbusJwtDecoder.withJwkSetUri} 구성과 같게 가져온다. 캐시 5분, 연결·읽기
- * 타임아웃 각 0.5초, JSON·JWK Set Accept 헤더를 쓰고, 캐시 선갱신과 재조회 제한은 사용하지 않는다.
+ * 공개키 목록은 캐시 5분, 연결·읽기 타임아웃 각 0.5초, JSON·JWK Set Accept 헤더로 가져오고 캐시 선갱신은 사용하지
+ * 않는다.
+ *
+ * <p>
+ * 캐시에 없는 kid의 토큰이 올 때마다 공개키 목록을 다시 받으면, 임의 kid 토큰을 반복해 보내는 것만으로 제공자에 요청을 계속 보낼
+ * 수 있다. 그래서 재조회는 제공자별로 30초 구간마다 최대 2회만 허용하고, 넘친 요청은 공개키 목록 없이 검증 실패로 끝낸다. 캐시에
+ * 있는 kid의 토큰은 재조회하지 않으므로 이 제한의 영향을 받지 않는다.
  */
 final class OidcIdTokenDecoderFactory {
 
     private static final String JWK_SET_ACCEPT_TYPES = MediaType.APPLICATION_JSON_VALUE
             + ", application/jwk-set+json";
+    private static final long JWK_SET_REFETCH_INTERVAL_MILLIS = Duration.ofSeconds(30).toMillis();
 
     private OidcIdTokenDecoderFactory() {
     }
@@ -74,7 +81,7 @@ final class OidcIdTokenDecoderFactory {
                         JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE,
                         JWKSourceBuilder.DEFAULT_CACHE_REFRESH_TIMEOUT)
                 .refreshAheadCache(false)
-                .rateLimited(false)
+                .rateLimited(JWK_SET_REFETCH_INTERVAL_MILLIS)
                 .build();
     }
 
