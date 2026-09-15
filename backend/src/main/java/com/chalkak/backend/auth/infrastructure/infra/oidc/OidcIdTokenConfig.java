@@ -1,12 +1,9 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
-import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcIdTokenVerifier;
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
-import com.chalkak.backend.auth.infrastructure.infra.oidc.google.GoogleIdTokenVerifier;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.google.GoogleOidcProperties;
-import com.chalkak.backend.auth.infrastructure.infra.oidc.kakao.KakaoIdTokenVerifier;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.kakao.KakaoOidcProperties;
-import com.chalkak.backend.auth.service.AppleIdTokenVerifier;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -39,7 +36,11 @@ public class OidcIdTokenConfig {
     public IdTokenVerifier googleIdTokenVerifier(
             @Qualifier("googleJwtDecoder") JwtDecoder jwtDecoder
     ) {
-        return new GoogleIdTokenVerifier(jwtDecoder);
+        return new OidcIdTokenVerifier(
+                SocialProvider.GOOGLE,
+                GOOGLE_PROVIDER_NAME,
+                jwtDecoder,
+                OidcEmailPolicy.VERIFIED_ONLY);
     }
 
     @Bean
@@ -55,7 +56,11 @@ public class OidcIdTokenConfig {
     public IdTokenVerifier kakaoIdTokenVerifier(
             @Qualifier("kakaoJwtDecoder") JwtDecoder jwtDecoder
     ) {
-        return new KakaoIdTokenVerifier(jwtDecoder);
+        return new OidcIdTokenVerifier(
+                SocialProvider.KAKAO,
+                KAKAO_PROVIDER_NAME,
+                jwtDecoder,
+                OidcEmailPolicy.AS_PROVIDED);
     }
 
     @Bean
@@ -68,9 +73,13 @@ public class OidcIdTokenConfig {
     }
 
     @Bean
-    public AppleIdTokenVerifier appleIdTokenVerifier(
+    public IdTokenVerifier appleIdTokenVerifier(
             @Qualifier("appleJwtDecoder") JwtDecoder jwtDecoder
     ) {
-        return new AppleOidcIdTokenVerifier(jwtDecoder);
+        return new OidcIdTokenVerifier(
+                SocialProvider.APPLE,
+                APPLE_PROVIDER_NAME,
+                jwtDecoder,
+                OidcEmailPolicy.VERIFIED_ONLY);
     }
 }

@@ -29,6 +29,8 @@ import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -199,7 +201,7 @@ class AuthControllerTest {
     void socialLogin_existingUser_returnsLoginSuccess() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
@@ -211,7 +213,8 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -227,7 +230,7 @@ class AuthControllerTest {
     @DisplayName("신규 회원이 소셜 로그인하면 회원가입 필요 상태를 반환한다")
     void socialLogin_newUser_returnsSignUpRequired() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -236,7 +239,8 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -250,7 +254,7 @@ class AuthControllerTest {
     @DisplayName("Kakao ID Token으로 소셜 로그인할 수 있다")
     void socialLogin_kakaoProvider_returnsLoginResult() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token"))
+        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token", "raw-nonce"))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -259,7 +263,8 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "KAKAO",
-                                  "idToken": "kakao-id-token"
+                                  "idToken": "kakao-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -278,9 +283,31 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": " "
+                                  "idToken": " ",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        verifyNoInteractions(socialLoginService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"rawNonce\": \" \",", ""})
+    @DisplayName("소셜 로그인 요청의 rawNonce가 비어 있거나 없으면 400을 반환한다")
+    void socialLogin_blankOrMissingRawNonce_returnsBadRequest(String rawNonceField)
+            throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  %s
+                                  "provider": "GOOGLE",
+                                  "idToken": "google-id-token"
+                                }
+                                """.formatted(rawNonceField)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -295,7 +322,8 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "idToken": "google-id-token"
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -312,7 +340,8 @@ class AuthControllerTest {
         UUID uploadId = UUID.randomUUID();
         given(socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                "google-id-token"))
+                "google-id-token",
+                "raw-nonce"))
                 .willReturn(new SocialSignupSignatureUploadResult(
                         new SignatureImageUpload(
                                 uploadId,
@@ -326,7 +355,8 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -350,9 +380,32 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": " "
+                                  "idToken": " ",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        verifyNoInteractions(socialSignupService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"rawNonce\": \" \",", ""})
+    @DisplayName("서명 업로드 URL 요청의 rawNonce가 비어 있거나 없으면 400을 반환한다")
+    void createSocialSignupSignatureUpload_blankOrMissingRawNonce_returnsBadRequest(
+            String rawNonceField
+    ) throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  %s
+                                  "provider": "GOOGLE",
+                                  "idToken": "google-id-token"
+                                }
+                                """.formatted(rawNonceField)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 

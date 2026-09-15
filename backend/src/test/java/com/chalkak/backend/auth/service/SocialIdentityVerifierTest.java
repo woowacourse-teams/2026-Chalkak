@@ -26,14 +26,15 @@ class SocialIdentityVerifierTest {
                 "user@chalkak.test");
         given(googleVerifier.getProvider()).willReturn(SocialProvider.GOOGLE);
         given(kakaoVerifier.getProvider()).willReturn(SocialProvider.KAKAO);
-        given(kakaoVerifier.verify("kakao-id-token")).willReturn(kakaoIdentity);
+        given(kakaoVerifier.verify("kakao-id-token", "raw-nonce")).willReturn(kakaoIdentity);
         SocialIdentityVerifier socialIdentityVerifier = new SocialIdentityVerifier(
                 List.of(googleVerifier, kakaoVerifier));
 
         // When
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 SocialProvider.KAKAO,
-                "kakao-id-token");
+                "kakao-id-token",
+                "raw-nonce");
 
         // Then
         assertThat(identity).isEqualTo(kakaoIdentity);
@@ -66,7 +67,8 @@ class SocialIdentityVerifierTest {
         // When & Then
         assertThatThrownBy(() -> socialIdentityVerifier.verify(
                 SocialProvider.KAKAO,
-                "kakao-id-token"))
+                "kakao-id-token",
+                "raw-nonce"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("지원하지 않는 소셜 로그인 제공자입니다.");
     }

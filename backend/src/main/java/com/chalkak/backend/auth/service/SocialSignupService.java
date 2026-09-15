@@ -47,11 +47,14 @@ public class SocialSignupService {
 
     public SocialSignupSignatureUploadResult createSignatureUpload(
             SocialProvider provider,
-            String idToken
+            String idToken,
+            String rawNonce
     ) {
+        validateNotApple(provider);
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
-                idToken);
+                idToken,
+                rawNonce);
         validateNewSocialAccount(identity);
 
         UUID uploadId = UUID.randomUUID();
@@ -169,6 +172,19 @@ public class SocialSignupService {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "이미 사용된 회원가입 토큰입니다.");
+        }
+    }
+
+    /**
+     * Apple 신규 회원의 업로드 URL은 로그인 때 보관한 Refresh Token과 이어져야 하므로 전용 엔드포인트로만 발급한다. ID Token 검증기
+     * 목록에는 Apple도 있어, 이 엔드포인트로 들어온 Apple 요청은 여기서 지금과 같은 응답으로 거절한다. 업로드 URL 발급을 합칠 때(#411)
+     * 제거한다.
+     */
+    private void validateNotApple(SocialProvider provider) {
+        if (provider == SocialProvider.APPLE) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "지원하지 않는 소셜 로그인 제공자입니다.");
         }
     }
 

@@ -24,10 +24,11 @@ public class SocialIdentityVerifier {
 
     public VerifiedSocialIdentity verify(
             SocialProvider provider,
-            String idToken
+            String idToken,
+            String rawNonce
     ) {
         IdTokenVerifier verifier = getVerifier(provider);
-        return verifier.verify(idToken);
+        return verifier.verify(idToken, rawNonce);
     }
 
     private IdTokenVerifier getVerifier(SocialProvider provider) {

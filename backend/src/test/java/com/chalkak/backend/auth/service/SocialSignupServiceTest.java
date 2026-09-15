@@ -53,6 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
 class SocialSignupServiceTest extends IntegrationTestSupport {
 
     private static final String ID_TOKEN = "google-id-token";
+    private static final String RAW_NONCE = "raw-nonce";
     private static final String SIGNUP_TOKEN = "social-signup-token";
     private static final String SUBJECT = "google-subject";
     private static final String EMAIL = "user@chalkak.test";
@@ -673,7 +674,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         given(signatureImageUploadIssuer.issue(any(UUID.class)))
                 .willAnswer(invocation -> new SignatureImageUpload(
                         invocation.getArgument(0),
@@ -686,7 +687,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         SocialSignupSignatureUploadResult result =
                 socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.upload().uploadId()).isNotNull();
@@ -701,12 +703,25 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("Apple 제공자는 회원가입용 서명 업로드 URL 엔드포인트에서 지원하지 않는 제공자로 거절한다")
+    void createSignatureUpload_appleProvider_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.APPLE,
+                "apple-id-token",
+                RAW_NONCE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("지원하지 않는 소셜 로그인 제공자입니다.");
+        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
+    }
+
+    @Test
     @DisplayName("이미 가입된 소셜 계정은 회원가입용 서명 업로드 URL을 발급받을 수 없다")
     void createSignatureUpload_existingSocialAccount_throwsBusinessException() {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -716,7 +731,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
+                ID_TOKEN,
+                RAW_NONCE))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
     }
@@ -727,7 +743,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -740,7 +756,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
+                ID_TOKEN,
+                RAW_NONCE))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
@@ -753,7 +770,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User bannedUser = UserFixture.create();
         bannedUser.ban();
         userRepository.save(bannedUser);
@@ -767,7 +784,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
+                ID_TOKEN,
+                RAW_NONCE))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
@@ -778,7 +796,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -792,7 +810,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
+                ID_TOKEN,
+                RAW_NONCE))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("차단된 소셜 계정입니다.");
         verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
