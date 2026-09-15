@@ -13,6 +13,9 @@ public record SocialIdTokenRequest(
         @NotNull(message = "소셜 로그인 제공자는 필수입니다.")
         SocialProvider provider,
         @NotBlank(message = "ID Token은 필수입니다.")
-        String idToken
+        String idToken,
+        @Schema(description = "클라이언트가 소셜 로그인 요청 전에 생성한 원본 nonce. SDK에는 이 값의 SHA-256 소문자 hex를 전달한다")
+        @NotBlank(message = "rawNonce는 필수입니다.")
+        String rawNonce
 ) {
 }

@@ -1,6 +1,7 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +45,29 @@ class AuthOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/social-login'].post"
                         + ".responses['403'].description")
                         .value("탈퇴한 차단 Apple 계정"));
+    }
+
+    /**
+     * 소셜 로그인과 회원가입 업로드 URL 발급은 원본 nonce가 없으면 400, ID Token의 nonce와 맞지 않으면 401이다. 클라이언트가
+     * SDK에 넘길 값(해시)과 서버에 보낼 값(원본)을 헷갈리지 않도록 계약에 남긴다.
+     */
+    @Test
+    @DisplayName("사용자 문서는 소셜 로그인과 회원가입 업로드 URL 요청의 rawNonce 필수 계약과 nonce 불일치 401을 제공한다")
+    void userApiDocs_socialIdTokenRequests_exposeRawNonceContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.SocialIdTokenRequest.required",
+                        hasItems("provider", "idToken", "rawNonce")))
+                .andExpect(jsonPath("$.components.schemas.SocialIdTokenRequest.properties"
+                        + ".rawNonce.description")
+                        .value(containsString("SHA-256 소문자 hex")))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/social-login'].post"
+                        + ".responses['401'].description")
+                        .value(containsString("nonce")))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/social-signup/signature/uploads'].post"
+                        + ".responses['401'].description")
+                        .value(containsString("nonce")));
     }
 
     /**

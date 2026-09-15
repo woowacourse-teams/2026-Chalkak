@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -49,7 +50,7 @@ final class OidcIdTokenDecoderFactory {
     }
 
     static JwtDecoder createDecoder(
-            String providerName,
+            SocialProvider provider,
             String issuer,
             String jwkSetUri,
             String audience
@@ -60,14 +61,14 @@ final class OidcIdTokenDecoderFactory {
                 JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
         resourceRetriever.setHeaders(Map.of(HttpHeaders.ACCEPT, List.of(JWK_SET_ACCEPT_TYPES)));
         return createDecoder(
-                providerName,
+                provider,
                 issuer,
                 audience,
-                createJwkSource(providerName, jwkSetUri, resourceRetriever));
+                createJwkSource(provider, jwkSetUri, resourceRetriever));
     }
 
     static JwtDecoder createDecoder(
-            String providerName,
+            SocialProvider provider,
             String issuer,
             String audience,
             JWKSource<SecurityContext> jwkSource
@@ -75,18 +76,18 @@ final class OidcIdTokenDecoderFactory {
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSource(jwkSource).build();
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer),
-                new OidcIdTokenAudienceValidator(providerName, audience),
+                new OidcIdTokenAudienceValidator(provider, audience),
                 new OidcIdTokenClaimsValidator()));
         return jwtDecoder;
     }
 
     static JWKSource<SecurityContext> createJwkSource(
-            String providerName,
+            SocialProvider provider,
             String jwkSetUri,
             ResourceRetriever resourceRetriever
     ) {
         OidcJwkSetEventLogger eventLogger = new OidcJwkSetEventLogger(
-                providerName,
+                provider,
                 JWK_SET_REFETCH_INTERVAL,
                 Clock.systemUTC());
         return JWKSourceBuilder.<SecurityContext>create(toUrl(jwkSetUri), resourceRetriever)

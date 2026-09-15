@@ -2,6 +2,7 @@ package com.chalkak.backend.auth.service;
 
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.ErrorCode;
@@ -15,7 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AppleLoginService {
 
-    private final AppleIdTokenVerifier appleIdTokenVerifier;
+    private final SocialIdentityVerifier socialIdentityVerifier;
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
     private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
@@ -42,7 +43,8 @@ public class AppleLoginService {
             String authorizationCode,
             String rawNonce
     ) {
-        VerifiedSocialIdentity identity = appleIdTokenVerifier.verify(
+        VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
+                SocialProvider.APPLE,
                 idToken,
                 rawNonce);
 
@@ -70,7 +72,8 @@ public class AppleLoginService {
     ) {
         AppleTokenExchangeResult exchangeResult = appleTokenClient
                 .exchangeAuthorizationCode(authorizationCode);
-        VerifiedSocialIdentity exchangedIdentity = appleIdTokenVerifier.verify(
+        VerifiedSocialIdentity exchangedIdentity = socialIdentityVerifier.verify(
+                SocialProvider.APPLE,
                 exchangeResult.idToken(),
                 rawNonce);
         validateSameSubject(identity, exchangedIdentity);

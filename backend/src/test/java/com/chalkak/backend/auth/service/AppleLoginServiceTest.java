@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
@@ -67,8 +69,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     @Autowired
     private EntityManager entityManager;
 
-    @MockitoBean
-    private AppleIdTokenVerifier appleIdTokenVerifier;
+    @MockitoSpyBean(name = "appleIdTokenVerifier")
+    private IdTokenVerifier appleIdTokenVerifier;
 
     @MockitoBean
     private AppleTokenClient appleTokenClient;
@@ -195,12 +197,14 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     void login_differentTokenSubjects_throwsUnauthorizedException() {
         // Given
         VerifiedSocialIdentity identity = identity(SUBJECT);
-        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
-                .willReturn(identity);
+        willReturn(identity)
+                .given(appleIdTokenVerifier)
+                .verify(ID_TOKEN, RAW_NONCE);
         given(appleTokenClient.exchangeAuthorizationCode(AUTHORIZATION_CODE))
                 .willReturn(exchangeResult());
-        given(appleIdTokenVerifier.verify(EXCHANGED_ID_TOKEN, RAW_NONCE))
-                .willReturn(identity("different-apple-subject"));
+        willReturn(identity("different-apple-subject"))
+                .given(appleIdTokenVerifier)
+                .verify(EXCHANGED_ID_TOKEN, RAW_NONCE);
 
         // When & Then
         assertThatThrownBy(() -> appleLoginService.login(
@@ -241,8 +245,9 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         bannedUser.ban();
         bannedUser.withdraw();
         saveAppleSocialAccount(bannedUser);
-        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
-                .willReturn(identity(SUBJECT));
+        willReturn(identity(SUBJECT))
+                .given(appleIdTokenVerifier)
+                .verify(ID_TOKEN, RAW_NONCE);
 
         // When & Then
         assertThatThrownBy(() -> appleLoginService.login(
@@ -258,8 +263,9 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 signupToken을 발급하지 않는다")
     void login_newAccountTokenExchangeFailure_issuesNoSignupToken() {
         // Given
-        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
-                .willReturn(identity(SUBJECT));
+        willReturn(identity(SUBJECT))
+                .given(appleIdTokenVerifier)
+                .verify(ID_TOKEN, RAW_NONCE);
         given(appleTokenClient.exchangeAuthorizationCode(AUTHORIZATION_CODE))
                 .willThrow(new IllegalStateException("Apple 통신 실패"));
 
@@ -274,18 +280,21 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     private void givenVerifiedIdToken() {
-        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
-                .willReturn(identity(SUBJECT));
+        willReturn(identity(SUBJECT))
+                .given(appleIdTokenVerifier)
+                .verify(ID_TOKEN, RAW_NONCE);
     }
 
     private VerifiedSocialIdentity givenSuccessfulAppleAuthentication() {
         VerifiedSocialIdentity identity = identity(SUBJECT);
-        given(appleIdTokenVerifier.verify(ID_TOKEN, RAW_NONCE))
-                .willReturn(identity);
+        willReturn(identity)
+                .given(appleIdTokenVerifier)
+                .verify(ID_TOKEN, RAW_NONCE);
         given(appleTokenClient.exchangeAuthorizationCode(AUTHORIZATION_CODE))
                 .willReturn(exchangeResult());
-        given(appleIdTokenVerifier.verify(EXCHANGED_ID_TOKEN, RAW_NONCE))
-                .willReturn(identity);
+        willReturn(identity)
+                .given(appleIdTokenVerifier)
+                .verify(EXCHANGED_ID_TOKEN, RAW_NONCE);
         given(authorizationCipher.encrypt(REFRESH_TOKEN))
                 .willReturn(ENCRYPTED_REFRESH_TOKEN);
         return identity;

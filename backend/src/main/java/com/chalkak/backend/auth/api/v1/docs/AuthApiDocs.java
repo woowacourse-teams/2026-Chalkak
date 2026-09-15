@@ -40,7 +40,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token",
+                    description = "유효하지 않은 ID Token 또는 nonce(원본 nonce의 SHA-256 소문자 hex와 ID Token의 nonce 불일치)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -138,7 +138,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청 또는 이미 가입된 소셜 계정",
+                    description = "잘못된 요청, 지원하지 않는 제공자 또는 이미 가입된 소셜 계정",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -146,7 +146,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token",
+                    description = "유효하지 않은 ID Token 또는 nonce(원본 nonce의 SHA-256 소문자 hex와 ID Token의 nonce 불일치)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

@@ -3,7 +3,6 @@ package com.chalkak.backend.auth.infrastructure.infra.oidc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.service.AppleIdTokenVerifier;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,7 +38,8 @@ class OidcIdTokenConfigTest {
                     .isEqualTo(SocialProvider.GOOGLE);
             assertThat(context.getBean("kakaoIdTokenVerifier", IdTokenVerifier.class).getProvider())
                     .isEqualTo(SocialProvider.KAKAO);
-            assertThat(context).hasSingleBean(AppleIdTokenVerifier.class);
+            assertThat(context.getBean("appleIdTokenVerifier", IdTokenVerifier.class).getProvider())
+                    .isEqualTo(SocialProvider.APPLE);
         });
     }
 

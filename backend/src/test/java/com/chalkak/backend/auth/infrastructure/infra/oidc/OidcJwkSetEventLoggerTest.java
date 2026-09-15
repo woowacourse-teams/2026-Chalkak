@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.events.Event;
@@ -31,7 +32,7 @@ class OidcJwkSetEventLoggerTest {
                 FIRST_LOGGED_AT + 29_999,
                 FIRST_LOGGED_AT + 30_000);
         OidcJwkSetEventLogger eventLogger = new OidcJwkSetEventLogger(
-                "Kakao",
+                SocialProvider.KAKAO,
                 Duration.ofSeconds(30),
                 clock);
         Event<RateLimitedJWKSetSource<SecurityContext>, SecurityContext> event = rateLimitedEvent();
