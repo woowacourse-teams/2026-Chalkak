@@ -98,7 +98,7 @@ public class SocialSignupService {
         if (existingSocialAccount.isPresent()) {
             return toSignupResult(getExistingUser(existingSocialAccount.get()));
         }
-        validateNotReplayed(verifiedToken);
+        consumeSignupToken(verifiedToken);
 
         SignatureStorageKeys storageKeys = signatureImageStorage
                 .toStorageKeys(verifiedToken.uploadId());
@@ -162,8 +162,12 @@ public class SocialSignupService {
      * 삭제되면 subject가 다시 "미가입"으로 보여, 같은 토큰으로 새 계정과 Apple 인증
      * 정보(이미 폐기된 RT 포함)가 재구성될 수 있다. 이 토큰의 jti를 최초 가입 성공
      * 시점에 소진 처리해, 같은 토큰의 두 번째 가입 완료를 막는다.
+     *
+     * <p>
+     * 검증이 아니라 jti를 기록하는 쓰기 작업이다. 이후 단계가 실패하면 가입 트랜잭션과 함께 기록도
+     * 롤백되어, 같은 토큰으로 다시 시도할 수 있다.
      */
-    private void validateNotReplayed(VerifiedSocialSignupToken verifiedToken) {
+    private void consumeSignupToken(VerifiedSocialSignupToken verifiedToken) {
         boolean firstUse = consumedSignupTokenRepository.consumeIfAbsent(
                 ConsumedSignupToken.create(
                         verifiedToken.tokenId(),

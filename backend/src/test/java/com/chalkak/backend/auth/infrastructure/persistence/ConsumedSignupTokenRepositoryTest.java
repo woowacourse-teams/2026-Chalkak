@@ -55,6 +55,45 @@ class ConsumedSignupTokenRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("이미 소진된 jti를 감지한 뒤에도 같은 트랜잭션에서 이어지는 쿼리를 실행할 수 있다")
+    void consumeIfAbsent_alreadyConsumedJti_keepsTransactionUsable() {
+        // Given
+        String jti = UUID.randomUUID().toString();
+        consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(jti, futureInstant()));
+        flushAndClear();
+        consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(jti, futureInstant()));
+
+        // When
+        boolean otherTokenFirstUse = consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(UUID.randomUUID().toString(), futureInstant()));
+
+        // Then
+        assertThat(otherTokenFirstUse).isTrue();
+    }
+
+    @Test
+    @DisplayName("같은 jti를 다시 소진해도 처음 기록한 만료 시각을 바꾸지 않는다")
+    void consumeIfAbsent_alreadyConsumedJti_keepsFirstExpiresAt() {
+        // Given
+        String jti = UUID.randomUUID().toString();
+        Instant firstExpiresAt = Instant.parse("2026-09-15T00:05:00Z");
+        consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(jti, firstExpiresAt));
+        flushAndClear();
+
+        // When
+        consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(jti, firstExpiresAt.plus(Duration.ofDays(1))));
+        flushAndClear();
+
+        // Then
+        assertThat(entityManager.find(ConsumedSignupToken.class, jti).getExpiresAt())
+                .isEqualTo(firstExpiresAt);
+    }
+
+    @Test
     @DisplayName("만료된 소진 기록만 정리하고 아직 유효한 기록은 남긴다")
     void deleteAllExpiredBefore_mixedRecords_deletesOnlyExpiredOnes() {
         // Given
