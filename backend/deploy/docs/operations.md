@@ -85,6 +85,8 @@ curl --fail http://127.0.0.1:8080/actuator/health
 
 `be/develop`을 `main`에 직접 병합하지 않는다. 릴리스를 Squash로 병합해 두 branch 이력이 이어져 있지 않으므로, 이미 반영된 변경도 충돌로 표시된다. `main`에서 릴리스 branch를 만들고 백엔드 경로만 `be/develop` 기준으로 교체한다.
 
+`hotfix/*` branch는 만들지 않는다. 운영 긴급 수정도 코드와 migration 모두 `be/develop`에 PR로 병합한 뒤 같은 릴리스 절차로 `main`에 반영한다. `main`에만 들어간 수정은 다음 릴리스의 백엔드 경로 교체로 사라질 수 있다.
+
 ```bash
 git fetch origin main be/develop
 git switch -c release/backend-YYYY-MM-DD origin/main
