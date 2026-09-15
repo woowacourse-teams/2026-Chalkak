@@ -19,7 +19,7 @@
 | 합의한 작업의 이슈·PR 단위, 의존 관계·진행 순서와 개발 중 재분할 | `work-breakdown` Skill |
 | 합의한 분할안·이슈 초안으로 개발부터 PR까지 시작·재개 | `development-workflow` Skill |
 | 이슈·PR 작성·등록 | `issue-pr-workflow` Skill |
-| 작업 브랜치 이름·생성·PR 대상·작업 완료 후 정리 | `branch-workflow` Skill |
+| 작업 브랜치 이름·생성·PR 대상·운영 릴리스 브랜치·작업 완료 후 정리 | `branch-workflow` Skill |
 | 커밋 단위 설계·메시지 추천·커밋 생성·정리 | `commit-conventions` Skill |
 | 백엔드 PR의 코드 리뷰·리뷰 댓글 작성 | `backend-pr-review` Skill |
 
