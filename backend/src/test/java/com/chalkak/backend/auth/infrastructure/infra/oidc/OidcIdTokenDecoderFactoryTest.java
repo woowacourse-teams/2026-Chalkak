@@ -100,6 +100,19 @@ class OidcIdTokenDecoderFactoryTest {
     }
 
     @Test
+    @DisplayName("aud가 없는 ID Token은 검증 실패로 거절한다")
+    void createDecoder_missingAudience_rejects() throws JOSEException {
+        // Given
+        String idToken = sign(signingKey, validClaims()
+                .audience((String) null)
+                .build());
+
+        // When & Then
+        assertThatThrownBy(() -> jwtDecoder.decode(idToken))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @Test
     @DisplayName("허용 시계 오차 60초를 넘겨 만료된 ID Token은 거절한다")
     void createDecoder_expiredBeyondClockSkew_rejects() throws JOSEException {
         // Given

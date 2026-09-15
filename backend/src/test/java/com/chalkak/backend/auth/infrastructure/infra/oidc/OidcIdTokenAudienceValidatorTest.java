@@ -55,6 +55,39 @@ class OidcIdTokenAudienceValidatorTest {
     }
 
     @Test
+    @DisplayName("audience가 없으면 검증에 실패한다")
+    void validate_missingAudience_fails() {
+        // Given
+        Jwt jwt = Jwt.withTokenValue("id-token")
+                .header("alg", "RS256")
+                .subject("subject")
+                .issuedAt(Instant.parse("2026-08-25T00:00:00Z"))
+                .expiresAt(Instant.parse("2026-08-25T01:00:00Z"))
+                .build();
+
+        // When
+        OAuth2TokenValidatorResult result = validator.validate(jwt);
+
+        // Then
+        assertThat(result.getErrors())
+                .extracting(OAuth2Error::getDescription)
+                .containsExactly("Google ID Token audience가 허용되지 않았습니다.");
+    }
+
+    @Test
+    @DisplayName("audience 목록이 비어 있으면 검증에 실패한다")
+    void validate_emptyAudience_fails() {
+        // Given
+        Jwt jwt = createJwt(List.of());
+
+        // When
+        OAuth2TokenValidatorResult result = validator.validate(jwt);
+
+        // Then
+        assertThat(result.hasErrors()).isTrue();
+    }
+
+    @Test
     @DisplayName("검증 실패 메시지에 제공자 이름을 담는다")
     void validate_unknownAudience_describesProvider() {
         // Given
