@@ -102,6 +102,29 @@ class AuthOpenApiTest extends IntegrationTestSupport {
     }
 
     /**
+     * 업로드 URL 발급이 세 제공자 공통 엔드포인트 하나로 합쳐졌다. Apple 전용 경로와 로그인 응답의
+     * 회원가입 토큰이 문서에 남아 있으면 클라이언트가 사라진 계약을 그대로 구현한다.
+     */
+    @Test
+    @DisplayName("사용자 문서는 Apple 전용 업로드 경로와 로그인 응답의 회원가입 토큰을 제공하지 않는다")
+    void userApiDocs_appleSignup_exposesNoDedicatedUploadContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/auth/apple/social-signup/signature/uploads']")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/social-signup/signature/uploads']"
+                        + ".post").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AppleLoginResponse.properties.status")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AppleLoginResponse.properties.signupToken")
+                        .doesNotExist());
+    }
+
+    /**
      * 재발급은 리프레시 토큰 자체가 자격증명이라 액세스 토큰을 요구하지 않는다. 문서에 보안
      * 요구사항이 붙으면 클라이언트가 만료된 액세스 토큰을 실어 보내려다 막힌다.
      */

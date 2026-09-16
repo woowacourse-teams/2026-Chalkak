@@ -25,17 +25,6 @@ public class AppleSignupAuthorizationService {
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final Clock clock;
 
-    public void validate(VerifiedSocialSignupToken verifiedToken) {
-        if (verifiedToken.provider() != SocialProvider.APPLE) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "Apple 회원가입 토큰이 아닙니다.");
-        }
-        getPendingAuthorization(subjectHmac(
-                verifiedToken.provider(),
-                verifiedToken.subject()));
-    }
-
     /**
      * Apple 신규 회원은 로그인 때 보관한 Refresh Token이 있어야 가입을 끝낼 수 있으므로,
      * 보관분이 없거나 만료됐으면 업로드 URL을 발급하지 않는다. 남아 있으면 회원가입 토큰이
@@ -47,7 +36,9 @@ public class AppleSignupAuthorizationService {
             return;
         }
         PendingAppleAuthorization pendingAuthorization = getPendingAuthorization(
-                subjectHmac(identity.provider(), identity.subject()));
+                fingerprintEncoder.encode(
+                        identity.provider(),
+                        identity.subject()));
         pendingAuthorization.extendTo(expiresAt);
     }
 
@@ -64,7 +55,7 @@ public class AppleSignupAuthorizationService {
             return;
         }
         PendingAppleAuthorization pendingAuthorization =
-                getPendingAuthorizationForUpdate(subjectHmac(
+                getPendingAuthorizationForUpdate(fingerprintEncoder.encode(
                         verifiedToken.provider(),
                         verifiedToken.subject()));
         appleAuthorizationRepository.save(AppleAuthorization.create(
@@ -87,10 +78,6 @@ public class AppleSignupAuthorizationService {
                         subjectHmac,
                         clock.instant())
                 .orElseThrow(this::pendingAuthorizationNotFound);
-    }
-
-    private String subjectHmac(SocialProvider provider, String subject) {
-        return fingerprintEncoder.encode(provider, subject);
     }
 
     private BusinessException pendingAuthorizationNotFound() {

@@ -1,14 +1,14 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,12 +16,20 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AppleLoginService {
 
+    /**
+     * 가입이 끝나지 않은 Apple Refresh Token의 임시 보관 기간. 클라이언트는 로그인에 쓴 ID
+     * Token으로 업로드 URL을 다시 요청하므로, Apple ID Token 수명 10분 안에 업로드 URL을 받고
+     * 그 뒤 회원가입 토큰(5분) 안에 가입을 끝낼 시간을 덮는다.
+     */
+    private static final Duration PENDING_AUTHORIZATION_EXPIRATION =
+            Duration.ofMinutes(15);
+
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
     private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
-    private final SocialSignupTokenIssuer socialSignupTokenIssuer;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
+    private final Clock clock;
     private final ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
 
     /**
@@ -54,9 +62,10 @@ public class AppleLoginService {
         if (loginSuccess.isPresent()) {
             return toLoginSuccess(loginSuccess.get());
         }
-        return issueSignupToken(
+        storePendingAuthorization(
                 identity,
                 exchangeAuthorization(identity, authorizationCode, rawNonce));
+        return AppleLoginResult.signUpRequired();
     }
 
     private AppleLoginResult toLoginSuccess(SocialLoginSuccess success) {
@@ -93,19 +102,15 @@ public class AppleLoginService {
         }
     }
 
-    private AppleLoginResult issueSignupToken(
+    private void storePendingAuthorization(
             VerifiedSocialIdentity identity,
             String encryptedRefreshToken
     ) {
-        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
-                identity,
-                UUID.randomUUID());
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
                 fingerprintEncoder.encode(
                         identity.provider(),
                         identity.subject()),
                 encryptedRefreshToken,
-                signupToken.expiresAt()));
-        return AppleLoginResult.signUpRequired(signupToken);
+                clock.instant().plus(PENDING_AUTHORIZATION_EXPIRATION)));
     }
 }

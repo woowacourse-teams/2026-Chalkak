@@ -30,7 +30,6 @@ import org.hibernate.annotations.Generated;
 public class PendingAppleAuthorization {
 
     private static final int ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH = 4096;
-    private static final int SUBJECT_HMAC_LENGTH = 64;
     private static final Pattern SUBJECT_HMAC_PATTERN =
             Pattern.compile("^[0-9a-f]{64}$");
 
@@ -44,7 +43,7 @@ public class PendingAppleAuthorization {
             name = "subject_hmac",
             nullable = false,
             updatable = false,
-            length = SUBJECT_HMAC_LENGTH)
+            length = 64)
     private String subjectHmac;
 
     @Column(

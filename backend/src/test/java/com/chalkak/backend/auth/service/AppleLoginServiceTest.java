@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
@@ -24,6 +23,7 @@ import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -44,8 +44,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private static final String SUBJECT = "apple-subject";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
-    private static final Instant SIGNUP_TOKEN_EXPIRES_AT =
-            Instant.parse("2026-09-04T12:05:00Z");
+    /** AppleLoginService.PENDING_AUTHORIZATION_EXPIRATION */
+    private static final Duration PENDING_EXPIRATION = Duration.ofMinutes(15);
 
     @Autowired
     private AppleLoginService appleLoginService;
@@ -77,12 +77,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     @MockitoBean
     private AppleAuthorizationCipher authorizationCipher;
 
-    @MockitoBean
-    private SocialSignupTokenIssuer socialSignupTokenIssuer;
-
-    @MockitoBean
-    private SocialSignupTokenVerifier socialSignupTokenVerifier;
-
     @Test
     @DisplayName("기존 Apple 회원은 authorizationCode를 교환하지 않고 Access Token으로 로그인한다")
     void login_existingAccount_returnsAccessTokenWithoutExchange() {
@@ -103,7 +97,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.refreshToken()).isNotNull();
         assertThat(result.refreshToken().value()).isNotBlank();
         assertThat(result.refreshToken().expiresIn()).isPositive();
-        assertThat(result.signupToken()).isNull();
         verifyNoInteractions(appleTokenClient, authorizationCipher);
     }
 
@@ -112,10 +105,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     void login_newAccount_issuesNoRefreshToken() {
         // Given
         givenSuccessfulAppleAuthentication();
-        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
-                .willReturn(new IssuedSocialSignupToken(
-                        "apple-signup-token",
-                        SIGNUP_TOKEN_EXPIRES_AT));
 
         // When
         AppleLoginResult result = appleLoginService.login(
@@ -157,40 +146,35 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 Apple 사용자의 암호화된 RT는 신원 지문으로 signupToken과 같은 만료 시각에 임시 저장한다")
-    void login_newAccount_storesPendingAuthorizationBySubjectHmac() {
+    @DisplayName("신규 Apple 사용자의 암호화된 RT는 신원 지문으로 보관 기간만큼 임시 저장한다")
+    void login_newAccount_storesPendingAuthorizationWithConfiguredExpiry() {
         // Given
-        VerifiedSocialIdentity identity = givenSuccessfulAppleAuthentication();
-        IssuedSocialSignupToken issuedToken = new IssuedSocialSignupToken(
-                "apple-signup-token",
-                SIGNUP_TOKEN_EXPIRES_AT);
-        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
-                .willReturn(issuedToken);
+        // 로그인은 회원가입 토큰을 발급하지 않으므로 보관 기간도 그 토큰과 무관하게 정해진다.
+        givenSuccessfulAppleAuthentication();
+        Instant before = Instant.now();
 
         // When
         AppleLoginResult result = appleLoginService.login(
                 ID_TOKEN,
                 AUTHORIZATION_CODE,
                 RAW_NONCE);
+        Instant after = Instant.now();
 
         // Then
-        verify(socialSignupTokenIssuer).issue(
-                org.mockito.ArgumentMatchers.eq(identity),
-                any(UUID.class));
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
         assertThat(result.accessToken()).isNull();
-        assertThat(result.signupToken()).isEqualTo(issuedToken);
         PendingAppleAuthorization pendingAuthorization =
                 pendingAuthorizationRepository
                         .findLatestUnexpiredBySubjectHmac(
                                 subjectHmac(),
-                                SIGNUP_TOKEN_EXPIRES_AT.minusSeconds(1))
+                                Instant.now())
                         .orElseThrow();
         assertThat(pendingAuthorization.getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
-        assertThat(pendingAuthorization.getExpiresAt())
-                .isEqualTo(SIGNUP_TOKEN_EXPIRES_AT);
+        assertThat(pendingAuthorization.getExpiresAt()).isBetween(
+                before.plus(PENDING_EXPIRATION),
+                after.plus(PENDING_EXPIRATION));
     }
 
     @Test
@@ -214,7 +198,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("Apple 로그인 사용자 정보가 일치하지 않습니다.");
-        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher);
     }
 
     @Test
@@ -261,8 +245,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 signupToken을 발급하지 않는다")
-    void login_newAccountTokenExchangeFailure_issuesNoSignupToken() {
+    @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 임시 인증 정보를 저장하지 않는다")
+    void login_newAccountTokenExchangeFailure_storesNoPendingAuthorization() {
         // Given
         willReturn(identity(SUBJECT))
                 .given(appleIdTokenVerifier)
@@ -277,7 +261,10 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 통신 실패");
-        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher);
+        assertThat(pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
+                subjectHmac(),
+                Instant.now())).isEmpty();
     }
 
     private void givenVerifiedIdToken() {

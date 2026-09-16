@@ -1,7 +1,6 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
 import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.AppleSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
@@ -90,44 +89,6 @@ public interface AuthApiDocs {
             )
     })
     ResponseEntity<AppleLoginResponse> appleLogin(AppleLoginRequest request);
-
-    @Operation(summary = "Apple 회원가입용 서명 이미지 업로드 URL 발급")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "업로드 URL 발급 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 요청, Apple 회원가입 토큰이 아님,"
-                            + " 만료되었거나 없는 Apple 임시 인증 정보 또는 이미 가입된 계정",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않거나 만료된 회원가입 토큰",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "차단된 Apple 계정",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<SocialSignupSignatureUploadResponse>
-            createAppleSignupSignatureUpload(
-                    AppleSignupSignatureUploadRequest request
-            );
 
     @Operation(summary = "소셜 회원가입용 서명 이미지 업로드 URL 발급")
     @ApiResponses({

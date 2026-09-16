@@ -73,24 +73,6 @@ public class SocialSignupService {
         return new SocialSignupSignatureUploadResult(upload, signupToken);
     }
 
-    public SocialSignupSignatureUploadResult createAppleSignatureUpload(
-            String signupToken
-    ) {
-        VerifiedSocialSignupToken verifiedToken =
-                socialSignupTokenVerifier.verify(signupToken);
-        appleSignupAuthorizationService.validate(verifiedToken);
-        validateNewSocialAccount(new VerifiedSocialIdentity(
-                verifiedToken.provider(),
-                verifiedToken.subject(),
-                verifiedToken.email()));
-
-        SignatureImageUpload upload = signatureImageUploadIssuer.issue(
-                verifiedToken.uploadId());
-        return new SocialSignupSignatureUploadResult(
-                upload,
-                new IssuedSocialSignupToken(signupToken));
-    }
-
     @Transactional
     public SocialSignupResult signup(String signupToken) {
         VerifiedSocialSignupToken verifiedToken =

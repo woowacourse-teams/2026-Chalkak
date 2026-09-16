@@ -42,13 +42,7 @@ public record AppleLoginResponse(
                 example = "2592000",
                 nullable = true
         )
-        Long refreshTokenExpiresIn,
-
-        @Schema(
-                description = "SIGN_UP_REQUIRED일 때만 내려주는 5분 유효 회원가입 토큰",
-                nullable = true
-        )
-        String signupToken
+        Long refreshTokenExpiresIn
 ) {
 
     public static AppleLoginResponse from(AppleLoginResult result) {
@@ -60,8 +54,7 @@ public record AppleLoginResponse(
                     null,
                     null,
                     null,
-                    null,
-                    result.signupToken().value());
+                    null);
         }
         IssuedRefreshToken refreshToken = result.refreshToken();
         return new AppleLoginResponse(
@@ -70,7 +63,6 @@ public record AppleLoginResponse(
                 accessToken.value(),
                 accessToken.expiresIn().toSeconds(),
                 refreshToken.value(),
-                refreshToken.expiresIn().toSeconds(),
-                null);
+                refreshToken.expiresIn().toSeconds());
     }
 }
