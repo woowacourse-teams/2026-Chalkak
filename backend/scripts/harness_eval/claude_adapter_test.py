@@ -208,6 +208,21 @@ else:
         with self.assertRaises(ValueError):
             adapter.inspect_material(self.repo, self.config_home)
 
+    def test_manual_only_skill_flag_is_preserved_and_not_relaxed(self):
+        skill = self.repo / "backend/.claude/skills/example/SKILL.md"
+        original = skill.read_text()
+        manual = original.replace("\n---\nRead", "\ndisable-model-invocation: true\n---\nRead")
+        skill.write_text(manual)
+        adapter.build_command(str(self.binary), self.repo, self.output, self.config_home)
+        self.assertEqual(manual, skill.read_text())
+        for extra in ('disable-model-invocation: "true"\n', 'disable-model-invocation: false\n',
+                      'disable-model-invocation: true\ndisable-model-invocation: true\n',
+                      'disable-model-invocation: true\ncontext: fork\n'):
+            with self.subTest(extra=extra):
+                skill.write_text(original.replace("\n---\nRead", "\n" + extra + "---\nRead"))
+                with self.assertRaises(ValueError):
+                    adapter.inspect_material(self.repo, self.config_home)
+
     def test_incomplete_error_and_malformed_native_events_do_not_complete(self):
         examples = [
             "[]\n", "{broken\n", json.dumps({"type": "result", "subtype": "error_during_execution", "is_error": True, "result": "Login required"}),

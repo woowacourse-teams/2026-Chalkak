@@ -204,6 +204,48 @@ class CheckHarnessTest(unittest.TestCase):
 
             self.assert_error_for(errors, relative)
 
+    def add_manual_interview(self, root):
+        for platform in (".agents", ".claude"):
+            content = self.skill("chalkak-interview")
+            if platform == ".claude":
+                content = content.replace("description:", "disable-model-invocation: true\ndescription:")
+            self.write(root, f"{platform}/skills/chalkak-interview/SKILL.md", content)
+        return self.write(root, ".agents/skills/chalkak-interview/agents/openai.yaml",
+                          "policy:\n  allow_implicit_invocation: false\n")
+
+    def test_manual_interview_rejects_implicit_or_hidden_claude_invocation(self):
+        with self.repository() as root:
+            self.add_manual_interview(root)
+            self.assertEqual(([], []), check_harness.check(root))
+            relative = ".claude/skills/chalkak-interview/SKILL.md"
+            path = root / relative
+            original = path.read_text()
+            for replacement in ("", "disable-model-invocation: false\n",
+                                'disable-model-invocation: "true"\n',
+                                "disable-model-invocation: true\nuser-invocable: false\n"):
+                with self.subTest(replacement=replacement):
+                    path.write_text(original.replace("disable-model-invocation: true\n", replacement))
+                    errors, _ = check_harness.check(root)
+                    self.assert_error_for(errors, relative)
+
+    def test_manual_interview_requires_explicit_codex_policy(self):
+        with self.repository() as root:
+            path = self.add_manual_interview(root)
+            for policy in (None, "{}\n", "policy: null\n", "policy: []\n",
+                           "policy:\n  allow_implicit_invocation: true\n",
+                           'policy:\n  allow_implicit_invocation: "false"\n',
+                           "policy: [\n", "policy: {}\npolicy: {}\n"):
+                with self.subTest(policy=policy):
+                    if policy is None:
+                        path.unlink()
+                    else:
+                        path.write_text(policy)
+                    errors, _ = check_harness.check(root)
+                    self.assert_error_for(errors, "agents/openai.yaml")
+            path.write_text('interface:\n  display_name: "심화 인터뷰"\n'
+                            'policy:\n  allow_implicit_invocation: false\n')
+            self.assertEqual(([], []), check_harness.check(root))
+
     def test_relative_links_resolve_from_the_document_directory(self):
         documents = (
             ".agents/skills/demo/SKILL.md",

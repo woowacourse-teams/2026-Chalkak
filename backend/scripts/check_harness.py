@@ -11,8 +11,9 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 
 검사: 팀 공통 스킬 메타데이터, 대응 파일, 운영·테스트 paths, 로컬 Markdown
 링크, 안내문의 스킬·규칙 참조. Git 루트에 공통 하네스가 있으면 같은 검사를
-적용하고 비즈니스 규칙 문서 링크도 확인한다. 코드 예제·외부 URL·앵커의 내용,
-플랫폼 확장 필드 전체, 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
+적용하고 비즈니스 규칙 문서 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
+코드 예제·외부 URL·앵커의 내용, 그 외 플랫폼 확장 필드 전체,
+양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
 종료 코드: 0 통과(경고 포함), 1 구조 오류, 2 의존성 부족으로 미실행.
 기준: https://agentskills.io/specification
       https://code.claude.com/docs/en/memory#path-specific-rules
@@ -273,6 +274,21 @@ def check(root: Path, *, rule_paths=RULE_PATHS, markdown_roots=()) -> tuple[list
                     names.add(name)
                 if not isinstance(description, str) or not description.strip() or len(description) > 1024:
                     report(path, "description은 비어 있지 않은 1~1024자 문자열이어야 합니다")
+                if folder.name == "chalkak-interview":
+                    if platform == ".claude":
+                        if data.get("disable-model-invocation") is not True:
+                            report(path, "수동 인터뷰에는 disable-model-invocation: true가 필요합니다")
+                        if data.get("user-invocable", True) is not True:
+                            report(path, "수동 인터뷰는 사용자가 호출할 수 있어야 합니다")
+                    else:
+                        policy_path = folder / "agents/openai.yaml"
+                        try:
+                            policy = parse_metadata(read(policy_path)).get("policy")
+                        except (ValueError, yaml.YAMLError) as exc:
+                            report(policy_path, f"잘못된 호출 정책 YAML: {str(exc).splitlines()[0]}")
+                        else:
+                            if not isinstance(policy, dict) or policy.get("allow_implicit_invocation") is not False:
+                                report(policy_path, "수동 인터뷰에는 policy.allow_implicit_invocation: false가 필요합니다")
             for path in sorted(directory.rglob("*.md")):
                 read(path)
         platforms[platform] = skills
