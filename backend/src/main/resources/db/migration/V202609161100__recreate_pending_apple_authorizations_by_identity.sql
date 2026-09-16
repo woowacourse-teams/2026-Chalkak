@@ -4,8 +4,15 @@
 -- 한 신원에 여러 행을 허용하고, 각 행은 정리 스케줄러가 폐기할 때까지 남긴다.
 --
 -- 기존 행의 subject_hmac은 복원할 수 없어 빈 테이블 기준으로 재생성한다. 남은 행이 있으면
--- 폐기하지 못한 Refresh Token이 Apple에 남으므로, 배포 전에 정리 스케줄러가 테이블을
--- 비웠는지 확인한다.
+-- 폐기하지 못한 Refresh Token이 Apple에 영구히 남고 되돌릴 수 없으므로, 조용히 지우는 대신
+-- 배포를 멈춘다.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pending_apple_authorizations) THEN
+        RAISE EXCEPTION '폐기하지 않은 임시 Apple 인증 정보가 남아 있습니다. 정리 스케줄러가 폐기를 마친 뒤 다시 배포해 주세요.';
+    END IF;
+END $$;
+
 DROP TABLE pending_apple_authorizations;
 
 CREATE TABLE pending_apple_authorizations (
