@@ -448,6 +448,128 @@ class CheckHarnessTest(unittest.TestCase):
             decision.write_text("# 변경 이유\n- 관련 규칙: EXAMPLE-001\n")
             self.assertEqual(0, self.run_cli(root).returncode)
 
+    @contextmanager
+    def decision_repository(self, value):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            rule = repository / "docs/business-rules/rules/example.md"
+            rule.write_text(rule.read_text().replace("- 결정 기록: 없음", f"- 결정 기록: {value}"))
+            for name in ("first.md", "second.md", "third.md", "변경 (v2).md"):
+                self.write(repository, f"docs/business-rules/decisions/{name}",
+                           "# 변경 이유\n- 관련 규칙: OTHER-001, EXAMPLE-001\n")
+            yield root, repository
+
+    def test_decision_records_accept_none_single_and_multiple_markdown_links(self):
+        values = (
+            "없음",
+            "[첫 기록](../decisions/first.md)",
+            "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)",
+            "[첫 기록](../decisions/first.md) [둘째 기록](../decisions/second.md) "
+            "[셋째 기록](../decisions/third.md)",
+            '[**첫 기록**](../decisions/first.md#context "변경 이유"), '
+            "[공백과 괄호](<../decisions/변경 (v2).md>)",
+        )
+        for value in values:
+            with self.subTest(value=value), self.decision_repository(value) as (root, _):
+                result = self.run_cli(root)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_every_decision_link_is_checked_even_after_an_invalid_link(self):
+        value = ", ".join(f"[{name}](../decisions/{name}.md)" for name in ("first", "second", "third"))
+        with self.decision_repository(value) as (root, repository):
+            decisions = repository / "docs/business-rules/decisions"
+            (decisions / "first.md").unlink()
+            (decisions / "second.md").write_text("# 다른 규칙\n- 관련 규칙: EXAMPLE-0010\n")
+            (decisions / "third.md").write_bytes(b"\xff")
+
+            result = self.run_cli(root)
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            for name in ("first.md", "second.md", "third.md"):
+                self.assertIn(name, result.stderr)
+
+    def test_second_decision_requires_one_related_rule_field_with_matching_id(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        for content in ("# 필드 없음\n", "- 관련 규칙: OTHER-001\n",
+                        "- 관련 규칙: EXAMPLE-001\n- 관련 규칙: EXAMPLE-001\n"):
+            with self.subTest(content=content), self.decision_repository(value) as (_, repository):
+                (repository / "docs/business-rules/decisions/second.md").write_text(content)
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assert_error_for(errors, "decisions/second.md")
+
+    def test_decision_records_reject_malformed_or_non_link_content(self):
+        good = "[첫 기록](../decisions/first.md)"
+        values = (
+            "", "미정", f"없음, {good}", f"{good}, [깨짐](../decisions/second.md",
+            f"{good}, 설명만 있음", f"{good},", f", {good}", f"{good},, {good}",
+            f"`{good}`", f"!{good}", f"{good}, [ ](../decisions/second.md)",
+            f"{good}, [빈 경로]()", f"{good}, [참조][missing]",
+        )
+        for value in values:
+            with self.subTest(value=value), self.decision_repository(value) as (_, repository):
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_require_local_markdown_files_inside_decisions(self):
+        targets = (
+            "../outside.md", "../decisions/../outside.md", "../decisions/%2e%2e/outside.md",
+            "../decisions/_template.md", "../decisions/notes.txt", "../decisions/folder.md",
+            "https:../decisions/second.md", "//example.invalid/second.md",
+            "../decisions/second.md?raw=1", "../decisions/bad%00.md",
+            "ABSOLUTE", "FILE_URL", "REMOTE_WITH_LOCAL_PATH",
+        )
+        for target in targets:
+            with self.subTest(target=target), self.decision_repository("없음") as (_, repository):
+                second = repository / "docs/business-rules/decisions/second.md"
+                href = {"ABSOLUTE": str(second), "FILE_URL": second.as_uri(),
+                        "REMOTE_WITH_LOCAL_PATH": f"https://example.invalid{second}"}.get(target, target)
+                for name in ("outside.md", "decisions/_template.md", "decisions/notes.txt"):
+                    self.write(repository, f"docs/business-rules/{name}", "- 관련 규칙: EXAMPLE-001\n")
+                (repository / "docs/business-rules/decisions/folder.md").mkdir()
+                rule = repository / "docs/business-rules/rules/example.md"
+                rule.write_text(rule.read_text().replace("- 결정 기록: 없음",
+                                f"- 결정 기록: [첫 기록](../decisions/first.md), [잘못된 기록]({href})"))
+
+                _, errors = check_harness.business_rule_inventory(repository)
+
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_reject_symlink_escape_and_loops_without_crashing(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        for loop in (False, True):
+            with self.subTest(loop=loop), self.decision_repository(value) as (_, repository):
+                second = repository / "docs/business-rules/decisions/second.md"
+                second.unlink()
+                outside = self.write(repository, "outside.md", "- 관련 규칙: EXAMPLE-001\n")
+                second.symlink_to(second if loop else outside)
+
+                _, errors = check_harness.business_rule_inventory(repository)
+
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_reject_duplicate_documents_after_path_resolution(self):
+        for alias in ("first.md", "./first.md", "%66irst.md", "first.md#another-section"):
+            value = f"[첫 기록](../decisions/first.md), [중복](../decisions/{alias})"
+            with self.subTest(alias=alias), self.decision_repository(value) as (_, repository):
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assertTrue(any("중복" in error for error in errors), errors)
+
+    def test_multiple_decision_validation_is_deterministic_and_read_only(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        with self.decision_repository(value) as (_, repository):
+            def snapshot():
+                return {path.relative_to(repository): path.read_bytes()
+                        for path in repository.rglob("*") if path.is_file()}
+
+            before = snapshot()
+            first = check_harness.business_rule_inventory(repository)
+            second = check_harness.business_rule_inventory(repository)
+
+            self.assertEqual([], first[1])
+            self.assertEqual(first, second)
+            self.assertEqual(before, snapshot())
+
 
 if __name__ == "__main__":
     unittest.main()

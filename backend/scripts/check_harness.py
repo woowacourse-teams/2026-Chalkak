@@ -11,7 +11,7 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 
 검사: 팀 공통 스킬 메타데이터, 대응 파일, 운영·테스트 paths, 로컬 Markdown
 링크, 안내문의 스킬·규칙 참조. Git 루트에 공통 하네스가 있으면 같은 검사를
-적용하고 비즈니스 규칙 문서 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
+적용하고 비즈니스 규칙의 모든 결정 기록 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
 코드 예제·외부 URL·앵커의 내용, 그 외 플랫폼 확장 필드 전체,
 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
 종료 코드: 0 통과(경고 포함), 1 구조 오류, 2 의존성 부족으로 미실행.
@@ -44,7 +44,39 @@ NOTION_MAP_FIELDS = {"version", "mode", "location", "rule_pages"}
 RULE_PAGE = re.compile(r"docs/business-rules/rules/[^/]+\.md")
 RULE_BLOCK = re.compile(r"^## ([A-Z][A-Z0-9]*-\d{3}) [^\n]+\n(.*?)(?=^## |\Z)", re.M | re.S)
 RULE_FIELDS = ("규칙", "적용 범위", "예외", "결정 기록")
-DECISION_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+
+
+def decision_links(value: str) -> list[str]:
+    """쉼표나 공백으로 구분한 Markdown 링크만 허용해 잘못된 뒷부분도 잡는다."""
+    tokens = MarkdownIt().parseInline(value.strip())[0].children or []
+    links = []
+    index = 0
+    while index < len(tokens):
+        opening = tokens[index]
+        if opening.type != "link_open" or not opening.attrGet("href"):
+            raise ValueError("결정 문서 링크가 필요합니다")
+        index += 1
+        label = []
+        while index < len(tokens) and tokens[index].type != "link_close":
+            token = tokens[index]
+            if token.type not in {"text", "code_inline", "em_open", "em_close", "strong_open", "strong_close"}:
+                raise ValueError("결정 문서 링크의 이름이 올바르지 않습니다")
+            label.append(token.content)
+            index += 1
+        if index == len(tokens) or not "".join(label).strip():
+            raise ValueError("결정 문서 링크의 이름이 필요합니다")
+        links.append(opening.attrGet("href"))
+        index += 1
+        if index < len(tokens):
+            separator = tokens[index]
+            if separator.type != "text" or not re.fullmatch(r"(?:\s+|\s*,\s*)", separator.content):
+                raise ValueError("결정 문서 링크를 쉼표나 공백으로 구분하세요")
+            index += 1
+            if index == len(tokens):
+                raise ValueError("구분자 뒤에 결정 문서 링크가 필요합니다")
+    if not links:
+        raise ValueError("결정 문서 링크가 필요합니다")
+    return links
 
 
 def parse_metadata(header: str) -> dict:
@@ -74,6 +106,7 @@ def parse_metadata(header: str) -> dict:
 
 def business_rule_inventory(root: Path) -> tuple[dict[str, set[str]], list[str]]:
     """활성 규칙의 형식·목차·결정 기록 연결을 검사한다."""
+    root = root.resolve()
     errors = []
     active = {}
     owners = {}
@@ -114,24 +147,38 @@ def business_rule_inventory(root: Path) -> tuple[dict[str, set[str]], list[str]]
             decision = values.get("결정 기록")
             if not decision or decision == "없음":
                 continue
-            links = DECISION_LINK.findall(decision)
-            if len(links) != 1:
-                report(source, f"{rule_id}의 결정 기록은 없음 또는 결정 문서 링크 하나여야 합니다")
-                continue
-            target = unquote(urlsplit(links[0]).path)
-            decision_path = (source.parent / target).resolve()
-            decision_root = (root / "docs/business-rules/decisions").resolve()
-            if not decision_path.is_relative_to(decision_root) or decision_path.name == "_template.md":
-                report(source, f"{rule_id}의 결정 기록은 decisions 아래 실제 문서를 가리켜야 합니다")
-                continue
             try:
-                decision_text = decision_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError):
-                report(source, f"{rule_id}의 결정 기록 파일을 읽을 수 없습니다: {links[0]}")
+                links = decision_links(decision)
+            except ValueError as exc:
+                report(source, f"{rule_id}의 결정 기록은 없음 또는 결정 문서 링크 목록이어야 합니다: {exc}")
                 continue
-            related = re.findall(r"^- 관련 규칙:[ \t]*(.*)$", decision_text, re.M)
-            if len(related) != 1 or rule_id not in re.findall(r"\b[A-Z][A-Z0-9]*-\d{3}\b", related[0]):
-                report(decision_path, f"관련 규칙에 해당 ID가 없습니다: {rule_id}")
+            decision_root = root / "docs/business-rules/decisions"
+            seen_decisions = set()
+            for link in links:
+                try:
+                    url = urlsplit(link)
+                    target = Path(unquote(url.path))
+                    if url.scheme or url.netloc or url.query or target.is_absolute():
+                        raise ValueError("로컬 상대 경로가 필요합니다")
+                    decision_path = (source.parent / target).resolve()
+                    if (not decision_path.is_relative_to(decision_root)
+                            or decision_path.name == "_template.md" or decision_path.suffix != ".md"):
+                        raise ValueError("decisions 아래 실제 Markdown 문서가 필요합니다")
+                except (OSError, RuntimeError, ValueError) as exc:
+                    report(source, f"{rule_id}의 결정 기록 경로가 올바르지 않습니다: {link} ({exc})")
+                    continue
+                if decision_path in seen_decisions:
+                    report(source, f"{rule_id}의 결정 기록 문서가 중복됩니다: {link}")
+                    continue
+                seen_decisions.add(decision_path)
+                try:
+                    decision_text = decision_path.read_text(encoding="utf-8")
+                except (OSError, UnicodeError, ValueError):
+                    report(source, f"{rule_id}의 결정 기록 파일을 읽을 수 없습니다: {link}")
+                    continue
+                related = re.findall(r"^- 관련 규칙:[ \t]*(.*)$", decision_text, re.M)
+                if len(related) != 1 or rule_id not in re.findall(r"\b[A-Z][A-Z0-9]*-\d{3}\b", related[0]):
+                    report(decision_path, f"관련 규칙에 해당 ID가 없습니다: {rule_id}")
         active[relative] = identifiers
 
     readme = root / "docs/business-rules/README.md"
