@@ -1,14 +1,10 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,8 +15,7 @@ public class AppleLoginService {
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
-    private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
-    private final SocialSignupTokenIssuer socialSignupTokenIssuer;
+    private final AppleSignupAuthorizationService appleSignupAuthorizationService;
     private final ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
 
     /**
@@ -34,9 +29,14 @@ public class AppleLoginService {
      * 저장된 토큰이 무효인 채로 남는데, 그때는 이미 사용자가 직접 연동을 끊은 상태라
      * 탈퇴 시 폐기 요청도 정상 응답을 받는다.
      *
+     * <p>신규 회원도 만료 전 임시 보관분이 있으면 교환하지 않는다. 같은 이유로 grant가 쌓이기
+     * 때문이며, 이때 요청의 authorizationCode는 쓰이지 않는다. 신원은 ID Token의 서명과 nonce로
+     * 이미 확인했고 code의 용도인 폐기용 토큰은 보관돼 있으므로, 검증할 대상이 남지 않는다.
+     *
      * <p>이 메서드 전체에 트랜잭션을 적용하지 않는 것은 신규 회원 경로의 Apple 토큰 교환
-     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 기존 회원 경로의 DB 작업은
-     * {@link ExistingSocialAccountLoginProcessor}가 자신의 트랜잭션 안에서 처리한다.
+     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 보관분 조회·갱신과 저장은
+     * {@link AppleSignupAuthorizationService}가, 기존 회원 경로의 DB 작업은
+     * {@link ExistingSocialAccountLoginProcessor}가 각자의 트랜잭션 안에서 처리한다.
      */
     public AppleLoginResult login(
             String idToken,
@@ -53,9 +53,12 @@ public class AppleLoginService {
         if (loginSuccess.isPresent()) {
             return toLoginSuccess(loginSuccess.get());
         }
-        return issueSignupToken(
-                identity,
-                exchangeAuthorization(identity, authorizationCode, rawNonce));
+        if (!appleSignupAuthorizationService.renewIfPresent(identity)) {
+            appleSignupAuthorizationService.store(
+                    identity,
+                    exchangeAuthorization(identity, authorizationCode, rawNonce));
+        }
+        return AppleLoginResult.signUpRequired();
     }
 
     private AppleLoginResult toLoginSuccess(SocialLoginSuccess success) {
@@ -92,18 +95,4 @@ public class AppleLoginService {
         }
     }
 
-    private AppleLoginResult issueSignupToken(
-            VerifiedSocialIdentity identity,
-            String encryptedRefreshToken
-    ) {
-        UUID uploadId = UUID.randomUUID();
-        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
-                identity,
-                uploadId);
-        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
-                uploadId,
-                encryptedRefreshToken,
-                signupToken.expiresAt()));
-        return AppleLoginResult.signUpRequired(signupToken);
-    }
 }

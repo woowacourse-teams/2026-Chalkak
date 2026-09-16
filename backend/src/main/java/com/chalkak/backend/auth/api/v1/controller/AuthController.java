@@ -2,7 +2,6 @@ package com.chalkak.backend.auth.api.v1.controller;
 
 import com.chalkak.backend.auth.api.v1.docs.AuthApiDocs;
 import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.AppleSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
@@ -62,19 +61,6 @@ public class AuthController implements AuthApiDocs {
                 request.rawNonce());
 
         return ResponseEntity.ok(AppleLoginResponse.from(result));
-    }
-
-    @Override
-    @PostMapping("/apple/social-signup/signature/uploads")
-    public ResponseEntity<SocialSignupSignatureUploadResponse>
-            createAppleSignupSignatureUpload(
-                    @Valid @RequestBody AppleSignupSignatureUploadRequest request
-            ) {
-        SocialSignupSignatureUploadResult result =
-                socialSignupService.createAppleSignatureUpload(
-                        request.signupToken());
-
-        return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(result));
     }
 
     @Override

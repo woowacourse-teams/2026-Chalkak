@@ -98,15 +98,15 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("신규 Apple 사용자가 로그인하면 회원가입 토큰을 반환한다")
-    void appleLogin_newUser_returnsSignupToken() throws Exception {
+    @DisplayName("신규 Apple 사용자가 로그인하면 가입 필요 상태만 반환한다")
+    void appleLogin_newUser_returnsSignUpRequiredWithoutSignupToken()
+            throws Exception {
         // Given
         given(appleLoginService.login(
                 "apple-id-token",
                 "apple-authorization-code",
                 "raw-nonce"))
-                .willReturn(AppleLoginResult.signUpRequired(
-                        new IssuedSocialSignupToken("apple-signup-token")));
+                .willReturn(AppleLoginResult.signUpRequired());
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/apple/social-login")
@@ -125,8 +125,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.expiresIn").doesNotExist())
                 .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.refreshTokenExpiresIn").doesNotExist())
-                .andExpect(jsonPath("$.signupToken")
-                        .value("apple-signup-token"));
+                .andExpect(jsonPath("$.signupToken").doesNotExist());
     }
 
     @Test
@@ -146,54 +145,6 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
         verifyNoInteractions(appleLoginService);
-    }
-
-    @Test
-    @DisplayName("Apple 회원가입 토큰으로 서명 업로드 정보를 반환한다")
-    void createAppleSignupSignatureUpload_validToken_returnsUploadInformation()
-            throws Exception {
-        // Given
-        UUID uploadId = UUID.randomUUID();
-        given(socialSignupService.createAppleSignatureUpload(
-                "apple-signup-token"))
-                .willReturn(new SocialSignupSignatureUploadResult(
-                        new SignatureImageUpload(
-                                uploadId,
-                                "https://s3.example.com/apple-presigned",
-                                300L),
-                        new IssuedSocialSignupToken("apple-signup-token")));
-
-        // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/social-signup/signature/uploads")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "signupToken": "apple-signup-token"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
-                .andExpect(jsonPath("$.uploadUrl")
-                        .value("https://s3.example.com/apple-presigned"))
-                .andExpect(jsonPath("$.expiresInSeconds").value(300L))
-                .andExpect(jsonPath("$.signupToken")
-                        .value("apple-signup-token"));
-    }
-
-    @Test
-    @DisplayName("Apple 서명 업로드 요청에 회원가입 토큰이 없으면 400을 반환한다")
-    void createAppleSignupSignatureUpload_missingToken_returnsBadRequest()
-            throws Exception {
-        // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/social-signup/signature/uploads")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value(
-                        "회원가입 토큰은 필수입니다."));
-
-        verifyNoInteractions(socialSignupService);
     }
 
     @Test

@@ -5,7 +5,6 @@ import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -22,15 +21,11 @@ public class PendingAppleAuthorizationRepositoryImpl
     }
 
     @Override
-    public Optional<PendingAppleAuthorization> findByUploadId(UUID uploadId) {
-        return repository.findById(uploadId);
-    }
-
-    @Override
-    public Optional<PendingAppleAuthorization> findByUploadIdForUpdate(
-            UUID uploadId
+    public Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmacForUpdate(
+            String subjectHmac,
+            Instant now
     ) {
-        return repository.findByUploadId(uploadId);
+        return repository.findLatestUnexpiredForUpdate(subjectHmac, now);
     }
 
     @Override

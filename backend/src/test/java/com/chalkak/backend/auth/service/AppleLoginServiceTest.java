@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
@@ -24,12 +23,13 @@ import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -45,8 +45,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private static final String SUBJECT = "apple-subject";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
-    private static final Instant SIGNUP_TOKEN_EXPIRES_AT =
-            Instant.parse("2026-09-04T12:05:00Z");
+    /** AppleSignupAuthorizationService.PENDING_AUTHORIZATION_EXPIRATION */
+    private static final Duration PENDING_EXPIRATION = Duration.ofMinutes(15);
 
     @Autowired
     private AppleLoginService appleLoginService;
@@ -78,12 +78,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     @MockitoBean
     private AppleAuthorizationCipher authorizationCipher;
 
-    @MockitoBean
-    private SocialSignupTokenIssuer socialSignupTokenIssuer;
-
-    @MockitoBean
-    private SocialSignupTokenVerifier socialSignupTokenVerifier;
-
     @Test
     @DisplayName("기존 Apple 회원은 authorizationCode를 교환하지 않고 Access Token으로 로그인한다")
     void login_existingAccount_returnsAccessTokenWithoutExchange() {
@@ -104,7 +98,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.refreshToken()).isNotNull();
         assertThat(result.refreshToken().value()).isNotBlank();
         assertThat(result.refreshToken().expiresIn()).isPositive();
-        assertThat(result.signupToken()).isNull();
         verifyNoInteractions(appleTokenClient, authorizationCipher);
     }
 
@@ -113,10 +106,6 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     void login_newAccount_issuesNoRefreshToken() {
         // Given
         givenSuccessfulAppleAuthentication();
-        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
-                .willReturn(new IssuedSocialSignupToken(
-                        "apple-signup-token",
-                        SIGNUP_TOKEN_EXPIRES_AT));
 
         // When
         AppleLoginResult result = appleLoginService.login(
@@ -158,38 +147,36 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 Apple 사용자의 암호화된 RT는 signupToken과 같은 만료 시각으로 임시 저장한다")
-    void login_newAccount_returnsSignupToken() {
+    @DisplayName("신규 Apple 사용자의 암호화된 RT는 신원 지문으로 보관 기간만큼 임시 저장한다")
+    void login_newAccount_storesPendingAuthorizationWithConfiguredExpiry() {
         // Given
-        VerifiedSocialIdentity identity = givenSuccessfulAppleAuthentication();
-        IssuedSocialSignupToken issuedToken = new IssuedSocialSignupToken(
-                "apple-signup-token",
-                SIGNUP_TOKEN_EXPIRES_AT);
-        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
-                .willReturn(issuedToken);
+        // 로그인은 회원가입 토큰을 발급하지 않으므로 보관 기간도 그 토큰과 무관하게 정해진다.
+        givenSuccessfulAppleAuthentication();
+        // 저장 시 마이크로초 아래가 잘리므로 하한도 같은 정밀도로 맞춘다.
+        Instant before = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         // When
         AppleLoginResult result = appleLoginService.login(
                 ID_TOKEN,
                 AUTHORIZATION_CODE,
                 RAW_NONCE);
+        Instant after = Instant.now();
 
         // Then
-        ArgumentCaptor<UUID> uploadIdCaptor = ArgumentCaptor.forClass(UUID.class);
-        verify(socialSignupTokenIssuer).issue(
-                org.mockito.ArgumentMatchers.eq(identity),
-                uploadIdCaptor.capture());
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
         assertThat(result.accessToken()).isNull();
-        assertThat(result.signupToken()).isEqualTo(issuedToken);
         PendingAppleAuthorization pendingAuthorization =
-                pendingAuthorizationRepository.findByUploadId(
-                        uploadIdCaptor.getValue()).orElseThrow();
+                pendingAuthorizationRepository
+                        .findLatestUnexpiredBySubjectHmacForUpdate(
+                                subjectHmac(),
+                                Instant.now())
+                        .orElseThrow();
         assertThat(pendingAuthorization.getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
-        assertThat(pendingAuthorization.getExpiresAt())
-                .isEqualTo(SIGNUP_TOKEN_EXPIRES_AT);
+        assertThat(pendingAuthorization.getExpiresAt()).isBetween(
+                before.plus(PENDING_EXPIRATION),
+                after.plus(PENDING_EXPIRATION));
     }
 
     @Test
@@ -213,7 +200,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("Apple 로그인 사용자 정보가 일치하지 않습니다.");
-        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher);
     }
 
     @Test
@@ -260,8 +247,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 signupToken을 발급하지 않는다")
-    void login_newAccountTokenExchangeFailure_issuesNoSignupToken() {
+    @DisplayName("신규 사용자의 Apple 토큰 교환이 실패하면 임시 인증 정보를 저장하지 않는다")
+    void login_newAccountTokenExchangeFailure_storesNoPendingAuthorization() {
         // Given
         willReturn(identity(SUBJECT))
                 .given(appleIdTokenVerifier)
@@ -276,7 +263,103 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 통신 실패");
-        verifyNoInteractions(authorizationCipher, socialSignupTokenIssuer);
+        verifyNoInteractions(authorizationCipher);
+        assertThat(pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmacForUpdate(
+                subjectHmac(),
+                Instant.now())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("만료 전 임시 인증 정보가 있으면 authorizationCode를 다시 교환하지 않는다")
+    void login_newAccountWithPendingAuthorization_skipsExchange() {
+        // Given
+        // 재로그인마다 교환하면 Apple에 폐기할 수 없는 grant가 하나씩 쌓인다.
+        givenVerifiedIdToken();
+        savePendingAuthorization(
+                "stored-encrypted-token",
+                Instant.now().plus(Duration.ofMinutes(1)));
+
+        // When
+        AppleLoginResult result = appleLoginService.login(
+                ID_TOKEN,
+                AUTHORIZATION_CODE,
+                RAW_NONCE);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        verifyNoInteractions(appleTokenClient, authorizationCipher);
+        assertThat(countPendingAuthorizations()).isEqualTo(1);
+        assertThat(latestPendingAuthorization().getEncryptedRefreshToken())
+                .isEqualTo("stored-encrypted-token");
+    }
+
+    @Test
+    @DisplayName("만료 전 임시 인증 정보가 있으면 만료를 재로그인 시점 기준으로 다시 민다")
+    void login_newAccountWithPendingAuthorization_renewsExpiry() {
+        // Given
+        givenVerifiedIdToken();
+        savePendingAuthorization(
+                "stored-encrypted-token",
+                Instant.now().plus(Duration.ofMinutes(1)));
+        Instant before = Instant.now().truncatedTo(ChronoUnit.MICROS);
+
+        // When
+        appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
+        Instant after = Instant.now();
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(latestPendingAuthorization().getExpiresAt()).isBetween(
+                before.plus(PENDING_EXPIRATION),
+                after.plus(PENDING_EXPIRATION));
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 만료됐으면 다시 교환해 보관하고 이전 행은 남긴다")
+    void login_newAccountWithExpiredPendingAuthorization_exchangesAgain() {
+        // Given
+        // 이전 행의 RT는 아직 Apple에 폐기되지 않았으므로 정리 스케줄러가 처리하도록 남긴다.
+        givenSuccessfulAppleAuthentication();
+        savePendingAuthorization(
+                "expired-encrypted-token",
+                Instant.now().minusSeconds(1));
+
+        // When
+        appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        verify(appleTokenClient).exchangeAuthorizationCode(AUTHORIZATION_CODE);
+        assertThat(countPendingAuthorizations()).isEqualTo(2);
+        assertThat(latestPendingAuthorization().getEncryptedRefreshToken())
+                .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+    }
+
+    private void savePendingAuthorization(
+            String encryptedRefreshToken,
+            Instant expiresAt
+    ) {
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                subjectHmac(),
+                encryptedRefreshToken,
+                expiresAt));
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private PendingAppleAuthorization latestPendingAuthorization() {
+        return pendingAuthorizationRepository
+                .findLatestUnexpiredBySubjectHmacForUpdate(subjectHmac(), Instant.now())
+                .orElseThrow();
+    }
+
+    private long countPendingAuthorizations() {
+        return entityManager.createQuery(
+                        "SELECT count(a) FROM PendingAppleAuthorization a",
+                        Long.class)
+                .getSingleResult();
     }
 
     private void givenVerifiedIdToken() {
