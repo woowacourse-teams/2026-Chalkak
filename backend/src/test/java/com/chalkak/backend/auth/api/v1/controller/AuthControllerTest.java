@@ -11,8 +11,6 @@ import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.service.AppleLoginResult;
-import com.chalkak.backend.auth.service.AppleLoginService;
 import com.chalkak.backend.auth.service.SocialLoginResult;
 import com.chalkak.backend.auth.service.SocialLoginService;
 import com.chalkak.backend.auth.service.SocialSignupResult;
@@ -52,9 +50,6 @@ class AuthControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private AppleLoginService appleLoginService;
-
-    @MockitoBean
     private SocialLoginService socialLoginService;
 
     @MockitoBean
@@ -64,87 +59,74 @@ class AuthControllerTest {
     private UserRefreshTokenService userRefreshTokenService;
 
     @Test
-    @DisplayName("기존 Apple 회원이 로그인하면 액세스 토큰과 리프레시 토큰을 반환한다")
-    void appleLogin_existingUser_returnsLoginSuccess() throws Exception {
-        // Given
-        UUID userId = UUID.randomUUID();
-        given(appleLoginService.login(
-                "apple-id-token",
-                "apple-authorization-code",
-                "raw-nonce"))
-                .willReturn(AppleLoginResult.loginSuccess(
-                        userId,
-                        new IssuedAccessToken(ACCESS_TOKEN, Duration.ofHours(1)),
-                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
-
-        // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "idToken": "apple-id-token",
-                                  "authorizationCode": "apple-authorization-code",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("LOGIN_SUCCESS"))
-                .andExpect(jsonPath("$.userId").value(userId.toString()))
-                .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.expiresIn").value(3600))
-                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
-                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000))
-                .andExpect(jsonPath("$.signupToken").doesNotExist());
-    }
-
-    @Test
-    @DisplayName("신규 Apple 사용자가 로그인하면 가입 필요 상태만 반환한다")
-    void appleLogin_newUser_returnsSignUpRequiredWithoutSignupToken()
+    @DisplayName("APPLE 로그인에 Authorization Code가 없으면 400을 반환한다")
+    void socialLogin_appleWithoutAuthorizationCode_returnsBadRequest()
             throws Exception {
-        // Given
-        given(appleLoginService.login(
-                "apple-id-token",
-                "apple-authorization-code",
-                "raw-nonce"))
-                .willReturn(AppleLoginResult.signUpRequired());
-
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/social-login")
+        mockMvc.perform(post("/api/v1/auth/social-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "provider": "APPLE",
                                   "idToken": "apple-id-token",
-                                  "authorizationCode": "apple-authorization-code",
                                   "rawNonce": "raw-nonce"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
-                .andExpect(jsonPath("$.userId").doesNotExist())
-                .andExpect(jsonPath("$.accessToken").doesNotExist())
-                .andExpect(jsonPath("$.expiresIn").doesNotExist())
-                .andExpect(jsonPath("$.refreshToken").doesNotExist())
-                .andExpect(jsonPath("$.refreshTokenExpiresIn").doesNotExist())
-                .andExpect(jsonPath("$.signupToken").doesNotExist());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value(
+                        "Authorization Code는 APPLE 로그인에만 필요합니다."));
+
+        verifyNoInteractions(socialLoginService);
     }
 
     @Test
-    @DisplayName("Apple 로그인 필수 값이 비어 있으면 400을 반환한다")
-    void appleLogin_blankRequiredValues_returnsBadRequest() throws Exception {
+    @DisplayName("APPLE이 아닌 제공자가 Authorization Code를 보내면 400을 반환한다")
+    void socialLogin_nonAppleWithAuthorizationCode_returnsBadRequest()
+            throws Exception {
         // When & Then
-        mockMvc.perform(post("/api/v1/auth/apple/social-login")
+        mockMvc.perform(post("/api/v1/auth/social-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "idToken": " ",
-                                  "authorizationCode": " ",
-                                  "rawNonce": " "
+                                  "provider": "GOOGLE",
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce",
+                                  "authorizationCode": "apple-authorization-code"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        verifyNoInteractions(appleLoginService);
+        verifyNoInteractions(socialLoginService);
+    }
+
+    @Test
+    @DisplayName("APPLE 로그인은 Authorization Code와 함께 공통 엔드포인트로 처리한다")
+    void socialLogin_appleWithAuthorizationCode_returnsSignUpRequired()
+            throws Exception {
+        // Given
+        given(socialLoginService.login(
+                SocialProvider.APPLE,
+                "apple-id-token",
+                "raw-nonce",
+                "apple-authorization-code"))
+                .willReturn(SocialLoginResult.signUpRequired());
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/auth/social-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "APPLE",
+                                  "idToken": "apple-id-token",
+                                  "rawNonce": "raw-nonce",
+                                  "authorizationCode": "apple-authorization-code"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
     }
 
     @Test
@@ -152,7 +134,7 @@ class AuthControllerTest {
     void socialLogin_existingUser_returnsLoginSuccess() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
@@ -181,7 +163,7 @@ class AuthControllerTest {
     @DisplayName("신규 회원이 소셜 로그인하면 회원가입 필요 상태를 반환한다")
     void socialLogin_newUser_returnsSignUpRequired() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -205,7 +187,7 @@ class AuthControllerTest {
     @DisplayName("Kakao ID Token으로 소셜 로그인할 수 있다")
     void socialLogin_kakaoProvider_returnsLoginResult() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
