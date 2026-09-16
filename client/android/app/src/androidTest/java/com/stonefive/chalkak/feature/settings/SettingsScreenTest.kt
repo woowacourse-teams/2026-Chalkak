@@ -149,6 +149,7 @@ class SettingsScreenTest {
                     onChangeSignatureClick = onChangeSignatureClick,
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
+                    onFeedbackClick = {},
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,
