@@ -25,6 +25,8 @@ struct ContentView: View {
     @State private var selectedLegalDocument: LegalDocument?
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var isPhotoUploadPresented = false
+    @State private var feedbackViewModel: FeedbackViewModel?
+    @State private var isFeedbackPresented = false
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
@@ -71,6 +73,18 @@ struct ContentView: View {
                                     viewModel: photoUploadViewModel,
                                     onBack: showPhotoUploadOrigin,
                                     onSubmitted: showPhotoUploadSuccess,
+                                    onReauthenticationRequired: showLogin
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            }
+                        }
+                        .navigationDestination(isPresented: $isFeedbackPresented) {
+                            if let feedbackViewModel {
+                                FeedbackScreen(
+                                    viewModel: feedbackViewModel,
+                                    onBack: closeFeedback,
+                                    onSubmitted: handleFeedbackSubmitted,
                                     onReauthenticationRequired: showLogin
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
@@ -157,6 +171,7 @@ struct ContentView: View {
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
+                onOpenFeedback: openFeedback,
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) }
@@ -313,6 +328,26 @@ struct ContentView: View {
         selectedTab = photoUploadReturnTab
     }
 
+    private func openFeedback() {
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("피드백을 보내려면 로그인이 필요해요")
+            return
+        }
+
+        feedbackViewModel = Self.makeFeedbackViewModel()
+        isFeedbackPresented = true
+    }
+
+    private func closeFeedback() {
+        isFeedbackPresented = false
+        feedbackViewModel = nil
+    }
+
+    private func handleFeedbackSubmitted() {
+        closeFeedback()
+        showMessage("피드백을 보내주셔서 감사해요.")
+    }
+
     private func showServiceTerms() {
         selectedLegalDocument = .termsOfService
     }
@@ -328,6 +363,8 @@ struct ContentView: View {
         selectedLegalDocument = nil
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
+        feedbackViewModel = nil
+        isFeedbackPresented = false
         successSubmission = nil
         resetMainState()
         route = .login
@@ -337,6 +374,8 @@ struct ContentView: View {
         selectedTab = .today
         selectedFeed = nil
         isPhotoUploadPresented = false
+        feedbackViewModel = nil
+        isFeedbackPresented = false
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
@@ -418,6 +457,18 @@ struct ContentView: View {
             withdraw: {
                 try await apiClient.withdraw()
                 KeychainSessionStore.delete()
+            }
+        )
+    }
+
+    private static func makeFeedbackViewModel() -> FeedbackViewModel {
+        let apiClient = FeedbackAPIClient(
+            configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return FeedbackViewModel(
+            submitFeedback: { content in
+                _ = try await apiClient.submitFeedback(content: content)
             }
         )
     }
