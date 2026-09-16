@@ -4,14 +4,17 @@ import com.chalkak.backend.auth.domain.AppleAuthorization;
 import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import java.time.Clock;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +31,24 @@ public class AppleSignupAuthorizationService {
                     ErrorCode.BUSINESS_ERROR,
                     "Apple 회원가입 토큰이 아닙니다.");
         }
-        getPendingAuthorization(verifiedToken);
+        getPendingAuthorization(subjectHmac(
+                verifiedToken.provider(),
+                verifiedToken.subject()));
+    }
+
+    /**
+     * Apple 신규 회원은 로그인 때 보관한 Refresh Token이 있어야 가입을 끝낼 수 있으므로,
+     * 보관분이 없거나 만료됐으면 업로드 URL을 발급하지 않는다. 남아 있으면 회원가입 토큰이
+     * 살아 있는 동안 보관분이 먼저 만료되지 않도록 만료를 맞춘다.
+     */
+    @Transactional
+    public void extendIfApple(VerifiedSocialIdentity identity, Instant expiresAt) {
+        if (identity.provider() != SocialProvider.APPLE) {
+            return;
+        }
+        PendingAppleAuthorization pendingAuthorization = getPendingAuthorization(
+                subjectHmac(identity.provider(), identity.subject()));
+        pendingAuthorization.extendTo(expiresAt);
     }
 
     /**
@@ -44,37 +64,33 @@ public class AppleSignupAuthorizationService {
             return;
         }
         PendingAppleAuthorization pendingAuthorization =
-                getPendingAuthorizationForUpdate(verifiedToken);
+                getPendingAuthorizationForUpdate(subjectHmac(
+                        verifiedToken.provider(),
+                        verifiedToken.subject()));
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
                 pendingAuthorization.getEncryptedRefreshToken()));
         pendingAuthorizationRepository.delete(pendingAuthorization);
     }
 
-    private PendingAppleAuthorization getPendingAuthorization(
-            VerifiedSocialSignupToken verifiedToken
-    ) {
+    private PendingAppleAuthorization getPendingAuthorization(String subjectHmac) {
         return pendingAuthorizationRepository
-                .findLatestUnexpiredBySubjectHmac(
-                        subjectHmac(verifiedToken),
-                        clock.instant())
+                .findLatestUnexpiredBySubjectHmac(subjectHmac, clock.instant())
                 .orElseThrow(this::pendingAuthorizationNotFound);
     }
 
     private PendingAppleAuthorization getPendingAuthorizationForUpdate(
-            VerifiedSocialSignupToken verifiedToken
+            String subjectHmac
     ) {
         return pendingAuthorizationRepository
                 .findLatestUnexpiredBySubjectHmacForUpdate(
-                        subjectHmac(verifiedToken),
+                        subjectHmac,
                         clock.instant())
                 .orElseThrow(this::pendingAuthorizationNotFound);
     }
 
-    private String subjectHmac(VerifiedSocialSignupToken verifiedToken) {
-        return fingerprintEncoder.encode(
-                verifiedToken.provider(),
-                verifiedToken.subject());
+    private String subjectHmac(SocialProvider provider, String subject) {
+        return fingerprintEncoder.encode(provider, subject);
     }
 
     private BusinessException pendingAuthorizationNotFound() {

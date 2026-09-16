@@ -57,6 +57,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private static final String SIGNUP_TOKEN = "social-signup-token";
     private static final String SUBJECT = "google-subject";
     private static final String EMAIL = "user@chalkak.test";
+    private static final String APPLE_ID_TOKEN = "apple-id-token";
 
     @Autowired
     private SocialSignupService socialSignupService;
@@ -93,6 +94,9 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
+
+    @MockitoSpyBean(name = "appleIdTokenVerifier")
+    private IdTokenVerifier appleIdTokenVerifier;
 
     @MockitoBean
     private SignatureImageUploadIssuer signatureImageUploadIssuer;
@@ -703,16 +707,98 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("Apple 제공자는 회원가입용 서명 업로드 URL 엔드포인트에서 지원하지 않는 제공자로 거절한다")
-    void createSignatureUpload_appleProvider_throwsBusinessException() {
+    @DisplayName("임시 인증 정보가 있는 Apple 신규 회원은 공통 엔드포인트로 업로드 URL을 발급받는다")
+    void createSignatureUpload_appleWithPendingAuthorization_issuesUploadUrl() {
+        // Given
+        savePendingAppleAuthorization(minutesLater(3));
+        givenAppleSignatureUploadRequest(minutesLater(5));
+
+        // When
+        SocialSignupSignatureUploadResult result =
+                socialSignupService.createSignatureUpload(
+                        SocialProvider.APPLE,
+                        APPLE_ID_TOKEN,
+                        RAW_NONCE);
+
+        // Then
+        assertThat(result.upload().uploadUrl())
+                .isEqualTo("https://s3.example.com/presigned");
+        assertThat(result.signupToken().value()).isEqualTo("apple-signup-token");
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 없는 Apple 요청은 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_appleWithoutPendingAuthorization_throwsBusinessException() {
+        // Given
+        givenAppleSignatureUploadRequest(minutesLater(5));
+
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
-                "apple-id-token",
+                APPLE_ID_TOKEN,
                 RAW_NONCE))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("지원하지 않는 소셜 로그인 제공자입니다.");
-        verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
+                .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 만료된 Apple 요청은 업로드 URL을 발급하지 않는다")
+    void createSignatureUpload_appleWithExpiredPendingAuthorization_throwsBusinessException() {
+        // Given
+        savePendingAppleAuthorization(Instant.now().minusSeconds(1));
+        givenAppleSignatureUploadRequest(minutesLater(5));
+
+        // When & Then
+        assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
+                SocialProvider.APPLE,
+                APPLE_ID_TOKEN,
+                RAW_NONCE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
+        verifyNoInteractions(signatureImageUploadIssuer);
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 회원가입 토큰보다 먼저 만료되면 회원가입 토큰 만료까지 연장한다")
+    void createSignatureUpload_applePendingExpiresFirst_extendsPendingExpiry() {
+        // Given
+        // 연장하지 않으면 회원가입 토큰은 살아 있는데 임시 인증 정보가 먼저 사라져
+        // 가입 완료가 실패한다.
+        savePendingAppleAuthorization(minutesLater(1));
+        Instant signupTokenExpiresAt = minutesLater(5);
+        givenAppleSignatureUploadRequest(signupTokenExpiresAt);
+
+        // When
+        socialSignupService.createSignatureUpload(
+                SocialProvider.APPLE,
+                APPLE_ID_TOKEN,
+                RAW_NONCE);
+        flushAndClear();
+
+        // Then
+        assertThat(findPendingAppleAuthorization().orElseThrow().getExpiresAt())
+                .isEqualTo(signupTokenExpiresAt);
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 회원가입 토큰보다 늦게 만료되면 만료를 당기지 않는다")
+    void createSignatureUpload_applePendingExpiresLater_keepsPendingExpiry() {
+        // Given
+        Instant pendingExpiresAt = minutesLater(15);
+        savePendingAppleAuthorization(pendingExpiresAt);
+        givenAppleSignatureUploadRequest(minutesLater(5));
+
+        // When
+        socialSignupService.createSignatureUpload(
+                SocialProvider.APPLE,
+                APPLE_ID_TOKEN,
+                RAW_NONCE);
+        flushAndClear();
+
+        // Then
+        assertThat(findPendingAppleAuthorization().orElseThrow().getExpiresAt())
+                .isEqualTo(pendingExpiresAt);
     }
 
     @Test
@@ -852,10 +938,45 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     private void savePendingAppleAuthorization() {
+        savePendingAppleAuthorization(defaultTokenExpiresAt());
+    }
+
+    private void savePendingAppleAuthorization(Instant expiresAt) {
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
                 appleSubjectHmac(),
                 "encrypted-apple-refresh-token",
-                defaultTokenExpiresAt()));
+                expiresAt));
+    }
+
+    private void givenAppleSignatureUploadRequest(Instant signupTokenExpiresAt) {
+        willReturn(appleIdentity())
+                .given(appleIdTokenVerifier)
+                .verify(APPLE_ID_TOKEN, RAW_NONCE);
+        given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
+                .willReturn(new IssuedSocialSignupToken(
+                        "apple-signup-token",
+                        signupTokenExpiresAt));
+        given(signatureImageUploadIssuer.issue(any(UUID.class)))
+                .willAnswer(invocation -> new SignatureImageUpload(
+                        invocation.getArgument(0),
+                        "https://s3.example.com/presigned",
+                        300L));
+    }
+
+    private VerifiedSocialIdentity appleIdentity() {
+        return new VerifiedSocialIdentity(
+                SocialProvider.APPLE,
+                "apple-subject",
+                "user@privaterelay.appleid.com");
+    }
+
+    private Instant minutesLater(int minutes) {
+        return Instant.now().plus(Duration.ofMinutes(minutes));
+    }
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
     }
 
     private String appleSubjectHmac() {

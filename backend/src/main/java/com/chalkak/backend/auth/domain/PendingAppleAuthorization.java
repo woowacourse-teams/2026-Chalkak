@@ -54,7 +54,7 @@ public class PendingAppleAuthorization {
             length = ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH)
     private String encryptedRefreshToken;
 
-    @Column(name = "expires_at", nullable = false, updatable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
     @CreationTimestamp
@@ -74,6 +74,17 @@ public class PendingAppleAuthorization {
         authorization.encryptedRefreshToken = encryptedRefreshToken;
         authorization.expiresAt = expiresAt;
         return authorization;
+    }
+
+    /**
+     * 만료를 앞으로만 민다. 로그인 재사용은 재로그인 시점 기준으로, 업로드 URL 발급은
+     * 회원가입 토큰 만료에 맞춰 각각 갱신을 요청하는데, 이미 더 뒤인 만료를 당기면 가입을
+     * 끝낼 시간이 줄어든다.
+     */
+    public void extendTo(Instant candidate) {
+        if (candidate.isAfter(expiresAt)) {
+            expiresAt = candidate;
+        }
     }
 
     private static void validate(

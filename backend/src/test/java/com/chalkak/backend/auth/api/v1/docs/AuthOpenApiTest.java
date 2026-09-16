@@ -71,6 +71,22 @@ class AuthOpenApiTest extends IntegrationTestSupport {
     }
 
     /**
+     * 업로드 URL의 400은 Apple에서만 "로그인으로 임시 인증 정보를 먼저 만들어야 한다"는 뜻이 될 수
+     * 있다. 세 제공자가 같은 요청을 쓰므로, 문서에 없으면 이미 가입된 계정과 구분할 수 없다.
+     */
+    @Test
+    @DisplayName("사용자 문서는 업로드 URL 400에 Apple 임시 인증 정보 조건을 제공한다")
+    void userApiDocs_signatureUpload_exposesApplePendingAuthorizationContract()
+            throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/social-signup/signature/uploads'].post"
+                        + ".responses['400'].description")
+                        .value(containsString("Apple 임시 인증 정보")));
+    }
+
+    /**
      * 가입 완료의 400 중 사인 이미지 처리 중만 errorCode가 다르다. 클라이언트는 이 값으로 같은
      * 회원가입 토큰의 재시도 여부를 판단하므로 문서에서 빠지면 안 된다.
      */

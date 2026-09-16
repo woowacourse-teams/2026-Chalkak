@@ -138,7 +138,9 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청, 지원하지 않는 제공자 또는 이미 가입된 소셜 계정",
+                    description = "잘못된 요청, 이미 가입된 소셜 계정 또는"
+                            + " 만료되었거나 없는 Apple 임시 인증 정보"
+                            + "(Apple은 로그인으로 임시 인증 정보를 먼저 만들어야 한다)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)

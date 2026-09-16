@@ -88,6 +88,31 @@ class PendingAppleAuthorizationTest {
                 null));
     }
 
+    @Test
+    @DisplayName("더 뒤인 만료 시각만 반영하고 앞당기지는 않는다")
+    void extendTo_atCurrentExpiry_movesOnlyForward() {
+        // Given
+        PendingAppleAuthorization authorization = authorization();
+
+        // When & Then
+        authorization.extendTo(EXPIRES_AT.minusMillis(1));
+        assertThat(authorization.getExpiresAt()).isEqualTo(EXPIRES_AT);
+
+        authorization.extendTo(EXPIRES_AT);
+        assertThat(authorization.getExpiresAt()).isEqualTo(EXPIRES_AT);
+
+        authorization.extendTo(EXPIRES_AT.plusMillis(1));
+        assertThat(authorization.getExpiresAt())
+                .isEqualTo(EXPIRES_AT.plusMillis(1));
+    }
+
+    private PendingAppleAuthorization authorization() {
+        return PendingAppleAuthorization.create(
+                SUBJECT_HMAC,
+                "encrypted-refresh-token",
+                EXPIRES_AT);
+    }
+
     private void assertInvalid(ThrowingCallable callable) {
         assertThatThrownBy(callable::call)
                 .isInstanceOf(BusinessException.class)
