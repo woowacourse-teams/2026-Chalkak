@@ -95,7 +95,7 @@
 
 Production에도 `NEXT_PUBLIC_API_MODE=real`, 승인된 `NEXT_PUBLIC_ADMIN_API_BASE_URL`, 표기용 `NEXT_PUBLIC_APP_ENV=production`만 설정합니다. `NEXT_PUBLIC_APP_ENV` 자체는 현재 인증·API 환경 격리를 강제하지 않습니다. 개발 백엔드에 연결한 경우 배포 기록에 **개발 데이터 연결**임을 명시하고 운영 서비스 데이터 관리용으로 안내하지 않습니다.
 
-이 저장소는 `admin-web`과 `be/develop`을 분리해 사용합니다. 관리자 웹 PR의 대상은 `admin-web`입니다. 백엔드 브랜치에 Vercel 설정 파일을 추가하지 않습니다. Preview 브랜치 추적 비활성화·수동 배포 및 Root Directory/변경 경로 기반 건너뛰기 정책은 기존 Vercel 설정을 유지합니다. Production이 `admin-web`을 추적하고 도메인 자동 할당이 켜져 있으면 병합이 공개 배포를 시작하므로 **설정과 검증을 병합 전에 끝냅니다**.
+이 저장소는 `admin-web/develop`과 `be/develop`을 분리해 사용합니다. 관리자 웹 PR의 대상은 `admin-web/develop`이고, 작업 브랜치는 `admin-web/feature/#<이슈 번호>-<작업 제목>` 형식을 사용합니다. 백엔드 브랜치에 Vercel 설정 파일을 추가하지 않습니다. Preview 브랜치 추적 비활성화·수동 배포 및 Root Directory/변경 경로 기반 건너뛰기 정책은 기존 Vercel 설정을 유지합니다. Production이 `admin-web/develop`을 추적하고 도메인 자동 할당이 켜져 있으면 병합이 공개 배포를 시작하므로 **설정과 검증을 병합 전에 끝냅니다**.
 
 `NEXT_PUBLIC_*` 값은 모두 브라우저에 공개됩니다. 비밀번호, API 토큰, AWS 자격증명, Webhook, FCM 등록값을 Vercel 공개 변수나 저장소에 넣지 않습니다. 개발 API 주소는 HTTPS여야 하며 개발 DB·개발 S3만 사용해야 합니다.
 
