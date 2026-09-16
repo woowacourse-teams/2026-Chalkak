@@ -211,6 +211,21 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .andExpect(notSuspended());
     }
 
+    @Test
+    @DisplayName("정지 회원도 피드백을 제출할 수 있다")
+    void submitFeedback_suspendedUser_isNotForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/feedbacks")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "정지 사유가 궁금합니다."
+                                }
+                                """))
+                .andExpect(notSuspended());
+    }
+
     private ResultMatcher suspended() {
         return result -> {
             status().isForbidden().match(result);
