@@ -37,6 +37,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -894,8 +895,14 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 "user@privaterelay.appleid.com");
     }
 
+    /**
+     * TIMESTAMPTZ는 마이크로초까지 저장한다. Linux의 {@code Instant.now()}는 나노초까지
+     * 주므로, 자르지 않으면 저장한 값과 읽어온 값이 달라 만료 비교가 실패한다.
+     */
     private Instant minutesLater(int minutes) {
-        return Instant.now().plus(Duration.ofMinutes(minutes));
+        return Instant.now()
+                .truncatedTo(ChronoUnit.MICROS)
+                .plus(Duration.ofMinutes(minutes));
     }
 
     private String appleSubjectHmac() {

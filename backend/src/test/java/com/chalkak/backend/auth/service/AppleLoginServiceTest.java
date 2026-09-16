@@ -25,6 +25,7 @@ import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -151,7 +152,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         // Given
         // 로그인은 회원가입 토큰을 발급하지 않으므로 보관 기간도 그 토큰과 무관하게 정해진다.
         givenSuccessfulAppleAuthentication();
-        Instant before = Instant.now();
+        // 저장 시 마이크로초 아래가 잘리므로 하한도 같은 정밀도로 맞춘다.
+        Instant before = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         // When
         AppleLoginResult result = appleLoginService.login(
@@ -299,7 +301,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         savePendingAuthorization(
                 "stored-encrypted-token",
                 Instant.now().plus(Duration.ofMinutes(1)));
-        Instant before = Instant.now();
+        Instant before = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         // When
         appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
