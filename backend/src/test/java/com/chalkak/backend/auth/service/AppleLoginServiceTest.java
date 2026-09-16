@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -158,8 +157,8 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("신규 Apple 사용자의 암호화된 RT는 signupToken과 같은 만료 시각으로 임시 저장한다")
-    void login_newAccount_returnsSignupToken() {
+    @DisplayName("신규 Apple 사용자의 암호화된 RT는 신원 지문으로 signupToken과 같은 만료 시각에 임시 저장한다")
+    void login_newAccount_storesPendingAuthorizationBySubjectHmac() {
         // Given
         VerifiedSocialIdentity identity = givenSuccessfulAppleAuthentication();
         IssuedSocialSignupToken issuedToken = new IssuedSocialSignupToken(
@@ -175,17 +174,19 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 RAW_NONCE);
 
         // Then
-        ArgumentCaptor<UUID> uploadIdCaptor = ArgumentCaptor.forClass(UUID.class);
         verify(socialSignupTokenIssuer).issue(
                 org.mockito.ArgumentMatchers.eq(identity),
-                uploadIdCaptor.capture());
+                any(UUID.class));
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
         assertThat(result.accessToken()).isNull();
         assertThat(result.signupToken()).isEqualTo(issuedToken);
         PendingAppleAuthorization pendingAuthorization =
-                pendingAuthorizationRepository.findByUploadId(
-                        uploadIdCaptor.getValue()).orElseThrow();
+                pendingAuthorizationRepository
+                        .findLatestUnexpiredBySubjectHmac(
+                                subjectHmac(),
+                                SIGNUP_TOKEN_EXPIRES_AT.minusSeconds(1))
+                        .orElseThrow();
         assertThat(pendingAuthorization.getEncryptedRefreshToken())
                 .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
         assertThat(pendingAuthorization.getExpiresAt())

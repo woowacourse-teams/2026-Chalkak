@@ -4,15 +4,20 @@ import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 public interface PendingAppleAuthorizationRepository {
 
     PendingAppleAuthorization save(PendingAppleAuthorization authorization);
 
-    Optional<PendingAppleAuthorization> findByUploadId(UUID uploadId);
+    Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmac(
+            String subjectHmac,
+            Instant now
+    );
 
-    Optional<PendingAppleAuthorization> findByUploadIdForUpdate(UUID uploadId);
+    Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmacForUpdate(
+            String subjectHmac,
+            Instant now
+    );
 
     List<PendingAppleAuthorization> findAllExpiredAtOrBefore(Instant now);
 

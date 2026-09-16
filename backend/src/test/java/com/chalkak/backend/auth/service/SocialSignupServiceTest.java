@@ -156,7 +156,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_appleSignupToken_savesAppleAuthorization() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        savePendingAppleAuthorization(uploadId);
+        savePendingAppleAuthorization();
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
@@ -184,7 +184,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .getFirst();
         assertThat(authorization.getEncryptedRefreshToken())
                 .isEqualTo("encrypted-apple-refresh-token");
-        assertThat(pendingAuthorizationRepository.findByUploadId(uploadId))
+        assertThat(findPendingAppleAuthorization())
                 .isEmpty();
     }
 
@@ -212,7 +212,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_missingSignature_keepsPendingAppleAuthorization() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        savePendingAppleAuthorization(uploadId);
+        savePendingAppleAuthorization();
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.toStorageKeys(uploadId))
@@ -224,7 +224,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.signup(SIGNUP_TOKEN))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("업로드한 사인 이미지를 찾을 수 없습니다.");
-        assertThat(pendingAuthorizationRepository.findByUploadId(uploadId))
+        assertThat(findPendingAppleAuthorization())
                 .isPresent();
     }
 
@@ -356,7 +356,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void signup_appleTokenReplayedAfterWithdrawal_doesNotResurrectAuthorization() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        savePendingAppleAuthorization(uploadId);
+        savePendingAppleAuthorization();
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
@@ -595,7 +595,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     void createAppleSignatureUpload_validToken_issuesUploadUrl() {
         // Given
         UUID uploadId = UUID.randomUUID();
-        savePendingAppleAuthorization(uploadId);
+        savePendingAppleAuthorization();
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
                 .willReturn(verifiedAppleSignupToken(uploadId));
         given(signatureImageUploadIssuer.issue(uploadId))
@@ -654,7 +654,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Given
         UUID uploadId = UUID.randomUUID();
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
-                uploadId,
+                appleSubjectHmac(),
                 "encrypted-apple-refresh-token",
                 Instant.now().minusSeconds(1)));
         given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
@@ -851,11 +851,21 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 defaultTokenExpiresAt());
     }
 
-    private void savePendingAppleAuthorization(UUID uploadId) {
+    private void savePendingAppleAuthorization() {
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
-                uploadId,
+                appleSubjectHmac(),
                 "encrypted-apple-refresh-token",
                 defaultTokenExpiresAt()));
+    }
+
+    private String appleSubjectHmac() {
+        return fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject");
+    }
+
+    private Optional<PendingAppleAuthorization> findPendingAppleAuthorization() {
+        return pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
+                appleSubjectHmac(),
+                Instant.now());
     }
 
     /**

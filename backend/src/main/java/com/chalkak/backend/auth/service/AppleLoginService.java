@@ -21,6 +21,7 @@ public class AppleLoginService {
     private final AppleAuthorizationCipher authorizationCipher;
     private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
+    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
 
     /**
@@ -96,12 +97,13 @@ public class AppleLoginService {
             VerifiedSocialIdentity identity,
             String encryptedRefreshToken
     ) {
-        UUID uploadId = UUID.randomUUID();
         IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
                 identity,
-                uploadId);
+                UUID.randomUUID());
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
-                uploadId,
+                fingerprintEncoder.encode(
+                        identity.provider(),
+                        identity.subject()),
                 encryptedRefreshToken,
                 signupToken.expiresAt()));
         return AppleLoginResult.signUpRequired(signupToken);

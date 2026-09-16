@@ -43,8 +43,8 @@ public class PendingAppleAuthorizationCleanupScheduler {
             repository.delete(authorization);
         } catch (RuntimeException exception) {
             log.warn(
-                    "만료된 임시 Apple 인증 정보 폐기에 실패했습니다. uploadId={}",
-                    authorization.getUploadId(),
+                    "만료된 임시 Apple 인증 정보 폐기에 실패했습니다. id={}",
+                    authorization.getId(),
                     exception);
         }
     }
