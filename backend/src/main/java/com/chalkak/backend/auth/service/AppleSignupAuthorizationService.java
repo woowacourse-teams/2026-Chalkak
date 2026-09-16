@@ -11,7 +11,9 @@ import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +22,46 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AppleSignupAuthorizationService {
 
+    /**
+     * 가입이 끝나지 않은 Apple Refresh Token의 임시 보관 기간. 클라이언트는 로그인에 쓴 ID
+     * Token으로 업로드 URL을 다시 요청하므로, Apple ID Token 수명 10분 안에 업로드 URL을 받고
+     * 그 뒤 회원가입 토큰(5분) 안에 가입을 끝낼 시간을 덮는다.
+     */
+    private static final Duration PENDING_AUTHORIZATION_EXPIRATION =
+            Duration.ofMinutes(15);
+
     private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
     private final SocialIdentityFingerprintEncoder fingerprintEncoder;
     private final Clock clock;
+
+    /**
+     * 만료 전 보관분이 있으면 만료만 다시 밀고 재사용했음을 알린다. 재로그인마다 새로
+     * 교환하면 Apple에 grant가 하나씩 늘어나는데, 이미 보관한 Refresh Token으로 탈퇴 시
+     * 폐기가 가능하므로 다시 받을 이유가 없다.
+     */
+    @Transactional
+    public boolean renewIfPresent(VerifiedSocialIdentity identity) {
+        Optional<PendingAppleAuthorization> pendingAuthorization =
+                pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
+                        subjectHmac(identity),
+                        clock.instant());
+        if (pendingAuthorization.isEmpty()) {
+            return false;
+        }
+        pendingAuthorization.get().extendTo(expiresAt());
+        return true;
+    }
+
+    public void store(
+            VerifiedSocialIdentity identity,
+            String encryptedRefreshToken
+    ) {
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                subjectHmac(identity),
+                encryptedRefreshToken,
+                expiresAt()));
+    }
 
     /**
      * Apple 신규 회원은 로그인 때 보관한 Refresh Token이 있어야 가입을 끝낼 수 있으므로,
@@ -35,10 +73,8 @@ public class AppleSignupAuthorizationService {
         if (identity.provider() != SocialProvider.APPLE) {
             return;
         }
-        PendingAppleAuthorization pendingAuthorization = getPendingAuthorization(
-                fingerprintEncoder.encode(
-                        identity.provider(),
-                        identity.subject()));
+        PendingAppleAuthorization pendingAuthorization =
+                getPendingAuthorization(subjectHmac(identity));
         pendingAuthorization.extendTo(expiresAt);
     }
 
@@ -62,6 +98,14 @@ public class AppleSignupAuthorizationService {
                 socialAccount,
                 pendingAuthorization.getEncryptedRefreshToken()));
         pendingAuthorizationRepository.delete(pendingAuthorization);
+    }
+
+    private String subjectHmac(VerifiedSocialIdentity identity) {
+        return fingerprintEncoder.encode(identity.provider(), identity.subject());
+    }
+
+    private Instant expiresAt() {
+        return clock.instant().plus(PENDING_AUTHORIZATION_EXPIRATION);
     }
 
     private PendingAppleAuthorization getPendingAuthorization(String subjectHmac) {

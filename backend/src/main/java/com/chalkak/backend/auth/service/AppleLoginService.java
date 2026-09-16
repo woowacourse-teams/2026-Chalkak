@@ -1,13 +1,9 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
-import java.time.Clock;
-import java.time.Duration;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,20 +12,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AppleLoginService {
 
-    /**
-     * 가입이 끝나지 않은 Apple Refresh Token의 임시 보관 기간. 클라이언트는 로그인에 쓴 ID
-     * Token으로 업로드 URL을 다시 요청하므로, Apple ID Token 수명 10분 안에 업로드 URL을 받고
-     * 그 뒤 회원가입 토큰(5분) 안에 가입을 끝낼 시간을 덮는다.
-     */
-    private static final Duration PENDING_AUTHORIZATION_EXPIRATION =
-            Duration.ofMinutes(15);
-
     private final SocialIdentityVerifier socialIdentityVerifier;
     private final AppleTokenClient appleTokenClient;
     private final AppleAuthorizationCipher authorizationCipher;
-    private final PendingAppleAuthorizationRepository pendingAuthorizationRepository;
-    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
-    private final Clock clock;
+    private final AppleSignupAuthorizationService appleSignupAuthorizationService;
     private final ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
 
     /**
@@ -43,9 +29,14 @@ public class AppleLoginService {
      * 저장된 토큰이 무효인 채로 남는데, 그때는 이미 사용자가 직접 연동을 끊은 상태라
      * 탈퇴 시 폐기 요청도 정상 응답을 받는다.
      *
+     * <p>신규 회원도 만료 전 임시 보관분이 있으면 교환하지 않는다. 같은 이유로 grant가 쌓이기
+     * 때문이며, 이때 요청의 authorizationCode는 쓰이지 않는다. 신원은 ID Token의 서명과 nonce로
+     * 이미 확인했고 code의 용도인 폐기용 토큰은 보관돼 있으므로, 검증할 대상이 남지 않는다.
+     *
      * <p>이 메서드 전체에 트랜잭션을 적용하지 않는 것은 신규 회원 경로의 Apple 토큰 교환
-     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 기존 회원 경로의 DB 작업은
-     * {@link ExistingSocialAccountLoginProcessor}가 자신의 트랜잭션 안에서 처리한다.
+     * HTTP 호출 중 DB 트랜잭션과 커넥션을 점유하지 않기 위해서다. 보관분 조회·갱신과 저장은
+     * {@link AppleSignupAuthorizationService}가, 기존 회원 경로의 DB 작업은
+     * {@link ExistingSocialAccountLoginProcessor}가 각자의 트랜잭션 안에서 처리한다.
      */
     public AppleLoginResult login(
             String idToken,
@@ -62,9 +53,11 @@ public class AppleLoginService {
         if (loginSuccess.isPresent()) {
             return toLoginSuccess(loginSuccess.get());
         }
-        storePendingAuthorization(
-                identity,
-                exchangeAuthorization(identity, authorizationCode, rawNonce));
+        if (!appleSignupAuthorizationService.renewIfPresent(identity)) {
+            appleSignupAuthorizationService.store(
+                    identity,
+                    exchangeAuthorization(identity, authorizationCode, rawNonce));
+        }
         return AppleLoginResult.signUpRequired();
     }
 
@@ -102,15 +95,4 @@ public class AppleLoginService {
         }
     }
 
-    private void storePendingAuthorization(
-            VerifiedSocialIdentity identity,
-            String encryptedRefreshToken
-    ) {
-        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
-                fingerprintEncoder.encode(
-                        identity.provider(),
-                        identity.subject()),
-                encryptedRefreshToken,
-                clock.instant().plus(PENDING_AUTHORIZATION_EXPIRATION)));
-    }
 }

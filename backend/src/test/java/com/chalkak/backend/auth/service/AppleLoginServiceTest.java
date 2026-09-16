@@ -267,6 +267,99 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 Instant.now())).isEmpty();
     }
 
+    @Test
+    @DisplayName("만료 전 임시 인증 정보가 있으면 authorizationCode를 다시 교환하지 않는다")
+    void login_newAccountWithPendingAuthorization_skipsExchange() {
+        // Given
+        // 재로그인마다 교환하면 Apple에 폐기할 수 없는 grant가 하나씩 쌓인다.
+        givenVerifiedIdToken();
+        savePendingAuthorization(
+                "stored-encrypted-token",
+                Instant.now().plus(Duration.ofMinutes(1)));
+
+        // When
+        AppleLoginResult result = appleLoginService.login(
+                ID_TOKEN,
+                AUTHORIZATION_CODE,
+                RAW_NONCE);
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        verifyNoInteractions(appleTokenClient, authorizationCipher);
+        assertThat(countPendingAuthorizations()).isEqualTo(1);
+        assertThat(latestPendingAuthorization().getEncryptedRefreshToken())
+                .isEqualTo("stored-encrypted-token");
+    }
+
+    @Test
+    @DisplayName("만료 전 임시 인증 정보가 있으면 만료를 재로그인 시점 기준으로 다시 민다")
+    void login_newAccountWithPendingAuthorization_renewsExpiry() {
+        // Given
+        givenVerifiedIdToken();
+        savePendingAuthorization(
+                "stored-encrypted-token",
+                Instant.now().plus(Duration.ofMinutes(1)));
+        Instant before = Instant.now();
+
+        // When
+        appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
+        Instant after = Instant.now();
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(latestPendingAuthorization().getExpiresAt()).isBetween(
+                before.plus(PENDING_EXPIRATION),
+                after.plus(PENDING_EXPIRATION));
+    }
+
+    @Test
+    @DisplayName("임시 인증 정보가 만료됐으면 다시 교환해 보관하고 이전 행은 남긴다")
+    void login_newAccountWithExpiredPendingAuthorization_exchangesAgain() {
+        // Given
+        // 이전 행의 RT는 아직 Apple에 폐기되지 않았으므로 정리 스케줄러가 처리하도록 남긴다.
+        givenSuccessfulAppleAuthentication();
+        savePendingAuthorization(
+                "expired-encrypted-token",
+                Instant.now().minusSeconds(1));
+
+        // When
+        appleLoginService.login(ID_TOKEN, AUTHORIZATION_CODE, RAW_NONCE);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        verify(appleTokenClient).exchangeAuthorizationCode(AUTHORIZATION_CODE);
+        assertThat(countPendingAuthorizations()).isEqualTo(2);
+        assertThat(latestPendingAuthorization().getEncryptedRefreshToken())
+                .isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+    }
+
+    private void savePendingAuthorization(
+            String encryptedRefreshToken,
+            Instant expiresAt
+    ) {
+        pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
+                subjectHmac(),
+                encryptedRefreshToken,
+                expiresAt));
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private PendingAppleAuthorization latestPendingAuthorization() {
+        return pendingAuthorizationRepository
+                .findLatestUnexpiredBySubjectHmac(subjectHmac(), Instant.now())
+                .orElseThrow();
+    }
+
+    private long countPendingAuthorizations() {
+        return entityManager.createQuery(
+                        "SELECT count(a) FROM PendingAppleAuthorization a",
+                        Long.class)
+                .getSingleResult();
+    }
+
     private void givenVerifiedIdToken() {
         willReturn(identity(SUBJECT))
                 .given(appleIdTokenVerifier)
