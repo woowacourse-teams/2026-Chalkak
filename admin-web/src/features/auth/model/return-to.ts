@@ -1,5 +1,5 @@
 const INTERNAL_ORIGIN = "https://admin.invalid";
-const ADMIN_PATH = /^\/(?:$|(?:posts|users|topics|audit-logs|pushes)(?:\/|$))/;
+const ADMIN_PATH = /^\/(?:$|(?:posts|users|topics|audit-logs|feedbacks|pushes)(?:\/|$))/;
 
 /** Only return to an internal admin screen, never a login loop or external URL. */
 export function getSafeReturnTo(value: string | null | undefined): string {

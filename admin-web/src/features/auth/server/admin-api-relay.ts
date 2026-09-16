@@ -25,6 +25,7 @@ const ROUTES = [
   { pattern: /^\/topics$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/topics/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
   { pattern: /^\/audit-logs$/, methods: ["GET"] },
+  { pattern: /^\/feedbacks$/, methods: ["GET"] },
 ];
 
 class RelayError extends Error {

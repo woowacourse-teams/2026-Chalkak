@@ -17,6 +17,11 @@ describe("admin return path", () => {
     expect(getLoginUrl(path)).toBe("/login?" + new URLSearchParams({ returnTo: path }));
   });
 
+  it("keeps the feedback list with its order and page", () => {
+    const path = "/feedbacks?sort=createdAtAsc&page=2";
+    expect(getSafeReturnTo(path)).toBe(path);
+  });
+
   it("defaults to home for missing paths", () => {
     expect(getSafeReturnTo(null)).toBe("/");
     expect(getLoginUrl("/")).toBe("/login");
