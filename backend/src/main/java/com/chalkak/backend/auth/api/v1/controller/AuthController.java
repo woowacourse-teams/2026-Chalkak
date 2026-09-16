@@ -3,7 +3,8 @@ package com.chalkak.backend.auth.api.v1.controller;
 import com.chalkak.backend.auth.api.v1.docs.AuthApiDocs;
 import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.AppleLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
@@ -40,12 +41,13 @@ public class AuthController implements AuthApiDocs {
     @Override
     @PostMapping("/social-login")
     public ResponseEntity<SocialLoginResponse> socialLogin(
-            @Valid @RequestBody SocialIdTokenRequest request
+            @Valid @RequestBody SocialLoginRequest request
     ) {
         SocialLoginResult result = socialLoginService.login(
                 request.provider(),
                 request.idToken(),
-                request.rawNonce());
+                request.rawNonce(),
+                request.authorizationCode());
 
         return ResponseEntity.ok(SocialLoginResponse.from(result));
     }
@@ -67,7 +69,7 @@ public class AuthController implements AuthApiDocs {
     @PostMapping("/social-signup/signature/uploads")
     public ResponseEntity<SocialSignupSignatureUploadResponse>
             createSocialSignupSignatureUpload(
-                    @Valid @RequestBody SocialIdTokenRequest request
+                    @Valid @RequestBody SocialSignupSignatureUploadRequest request
             ) {
         SocialSignupSignatureUploadResult result =
                 socialSignupService.createSignatureUpload(

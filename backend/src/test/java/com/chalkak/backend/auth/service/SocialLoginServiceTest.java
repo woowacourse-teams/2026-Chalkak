@@ -2,12 +2,14 @@ package com.chalkak.backend.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willReturn;
 
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ForbiddenException;
@@ -18,12 +20,14 @@ import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.user.service.UserWithdrawalService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +37,9 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private static final String ID_TOKEN = "google-id-token";
     private static final String RAW_NONCE = "raw-nonce";
     private static final String SUBJECT = "google-subject";
+    private static final String APPLE_ID_TOKEN = "apple-id-token";
+    private static final String APPLE_SUBJECT = "apple-subject";
+    private static final String AUTHORIZATION_CODE = "apple-authorization-code";
 
     @Autowired
     private SocialLoginService socialLoginService;
@@ -58,6 +65,18 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     @MockitoSpyBean(name = "googleIdTokenVerifier")
     private IdTokenVerifier googleIdTokenVerifier;
 
+    @MockitoSpyBean(name = "appleIdTokenVerifier")
+    private IdTokenVerifier appleIdTokenVerifier;
+
+    @MockitoBean
+    private AppleTokenClient appleTokenClient;
+
+    @MockitoBean
+    private AppleAuthorizationCipher authorizationCipher;
+
+    @Autowired
+    private PendingAppleAuthorizationRepository pendingAuthorizationRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -79,7 +98,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
@@ -104,7 +124,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         assertThat(result.refreshToken().value()).isNotBlank();
@@ -130,7 +151,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -156,7 +178,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -183,7 +206,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE,
+                null))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("탈퇴한 차단 소셜 계정입니다.");
     }
@@ -208,7 +232,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -236,7 +261,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -257,22 +283,55 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE,
+                null);
 
         // Then
         assertThat(result.accessToken()).isNull();
     }
 
     @Test
-    @DisplayName("Apple 제공자는 소셜 로그인 엔드포인트에서 지원하지 않는 제공자로 거절한다")
-    void login_appleProvider_throwsBusinessException() {
-        // When & Then
-        assertThatThrownBy(() -> socialLoginService.login(
+    @DisplayName("신규 Apple 사용자는 공통 로그인으로 가입 필요를 받고 Refresh Token이 보관된다")
+    void login_newAppleAccount_storesPendingAuthorization() {
+        // Given
+        VerifiedSocialIdentity appleIdentity = appleIdentity();
+        willReturn(appleIdentity)
+                .given(appleIdTokenVerifier)
+                .verify(APPLE_ID_TOKEN, RAW_NONCE);
+        given(appleTokenClient.exchangeAuthorizationCode(AUTHORIZATION_CODE))
+                .willReturn(new AppleTokenExchangeResult(
+                        "exchanged-apple-id-token",
+                        "apple-refresh-token"));
+        willReturn(appleIdentity)
+                .given(appleIdTokenVerifier)
+                .verify("exchanged-apple-id-token", RAW_NONCE);
+        given(authorizationCipher.encrypt("apple-refresh-token"))
+                .willReturn("encrypted-apple-refresh-token");
+
+        // When
+        SocialLoginResult result = socialLoginService.login(
                 SocialProvider.APPLE,
-                "apple-id-token",
-                RAW_NONCE))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("지원하지 않는 소셜 로그인 제공자입니다.");
+                APPLE_ID_TOKEN,
+                RAW_NONCE,
+                AUTHORIZATION_CODE);
+        flushAndClear();
+
+        // Then
+        assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
+        assertThat(pendingAuthorizationRepository
+                .findLatestUnexpiredBySubjectHmacForUpdate(
+                        fingerprintEncoder.encode(SocialProvider.APPLE, APPLE_SUBJECT),
+                        Instant.now())
+                .orElseThrow()
+                .getEncryptedRefreshToken())
+                .isEqualTo("encrypted-apple-refresh-token");
+    }
+
+    private VerifiedSocialIdentity appleIdentity() {
+        return new VerifiedSocialIdentity(
+                SocialProvider.APPLE,
+                APPLE_SUBJECT,
+                "user@privaterelay.appleid.com");
     }
 
     private VerifiedSocialIdentity identity() {

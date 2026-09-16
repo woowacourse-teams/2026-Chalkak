@@ -152,7 +152,7 @@ class AuthControllerTest {
     void socialLogin_existingUser_returnsLoginSuccess() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
@@ -181,7 +181,7 @@ class AuthControllerTest {
     @DisplayName("신규 회원이 소셜 로그인하면 회원가입 필요 상태를 반환한다")
     void socialLogin_newUser_returnsSignUpRequired() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.GOOGLE, "google-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -205,7 +205,7 @@ class AuthControllerTest {
     @DisplayName("Kakao ID Token으로 소셜 로그인할 수 있다")
     void socialLogin_kakaoProvider_returnsLoginResult() throws Exception {
         // Given
-        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token", "raw-nonce"))
+        given(socialLoginService.login(SocialProvider.KAKAO, "kakao-id-token", "raw-nonce", null))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then

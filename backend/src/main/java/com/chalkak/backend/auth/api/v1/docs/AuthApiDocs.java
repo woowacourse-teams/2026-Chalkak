@@ -2,7 +2,8 @@ package com.chalkak.backend.auth.api.v1.docs;
 
 import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
 import com.chalkak.backend.auth.api.v1.dto.response.AppleLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
@@ -31,7 +32,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청 또는 지원하지 않는 제공자",
+                    description = "잘못된 요청 또는 Authorization Code 조건 위반"
+                            + "(APPLE인데 없음, 다른 제공자가 보냄)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -39,7 +41,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token 또는 nonce(원본 nonce의 SHA-256 소문자 hex와 ID Token의 nonce 불일치)",
+                    description = "유효하지 않은 ID Token, nonce(원본 nonce의 SHA-256 소문자 hex와"
+                            + " ID Token의 nonce 불일치) 또는 Apple Authorization Code",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -54,7 +57,7 @@ public interface AuthApiDocs {
                     )
             )
     })
-    ResponseEntity<SocialLoginResponse> socialLogin(SocialIdTokenRequest request);
+    ResponseEntity<SocialLoginResponse> socialLogin(SocialLoginRequest request);
 
     @Operation(summary = "Apple 로그인")
     @ApiResponses({
@@ -126,7 +129,7 @@ public interface AuthApiDocs {
     })
     ResponseEntity<SocialSignupSignatureUploadResponse>
             createSocialSignupSignatureUpload(
-                    SocialIdTokenRequest request
+                    SocialSignupSignatureUploadRequest request
             );
 
     @Operation(summary = "소셜 회원가입 완료")
