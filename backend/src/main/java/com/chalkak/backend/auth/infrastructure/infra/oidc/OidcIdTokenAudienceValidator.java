@@ -1,7 +1,7 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
-import java.util.List;
 import com.chalkak.backend.auth.domain.SocialProvider;
+import java.util.List;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
