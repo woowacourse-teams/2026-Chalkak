@@ -16,7 +16,7 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +30,7 @@ class PendingAppleAuthorizationCleanupSchedulerTest
         extends IntegrationTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-09-04T00:00:00Z");
+    private static final String SUBJECT_HMAC = "a".repeat(64);
     private static final String EXPIRED_ENCRYPTED_TOKEN = "expired-encrypted-token";
     private static final String BOUNDARY_ENCRYPTED_TOKEN = "boundary-encrypted-token";
     private static final String LIVE_ENCRYPTED_TOKEN = "live-encrypted-token";
@@ -71,13 +72,9 @@ class PendingAppleAuthorizationCleanupSchedulerTest
     @DisplayName("만료된 임시 Apple RT를 트랜잭션 밖에서 폐기한 뒤 삭제한다")
     void revokeAndDeleteExpiredAuthorizations_expiredRecords_revokesAndDeletes() {
         // Given
-        UUID expiredUploadId = save(
-                EXPIRED_ENCRYPTED_TOKEN,
-                NOW.minus(Duration.ofSeconds(1)));
-        UUID boundaryUploadId = save(BOUNDARY_ENCRYPTED_TOKEN, NOW);
-        UUID liveUploadId = save(
-                LIVE_ENCRYPTED_TOKEN,
-                NOW.plus(Duration.ofMinutes(5)));
+        save(EXPIRED_ENCRYPTED_TOKEN, NOW.minus(Duration.ofSeconds(1)));
+        save(BOUNDARY_ENCRYPTED_TOKEN, NOW);
+        save(LIVE_ENCRYPTED_TOKEN, NOW.plus(Duration.ofMinutes(5)));
         given(authorizationCipher.decrypt(EXPIRED_ENCRYPTED_TOKEN))
                 .willReturn("expired-refresh-token");
         given(authorizationCipher.decrypt(BOUNDARY_ENCRYPTED_TOKEN))
@@ -96,21 +93,16 @@ class PendingAppleAuthorizationCleanupSchedulerTest
         // Then
         verify(appleTokenClient).revokeRefreshToken("expired-refresh-token");
         verify(appleTokenClient).revokeRefreshToken("boundary-refresh-token");
-        assertThat(repository.findByUploadId(expiredUploadId)).isEmpty();
-        assertThat(repository.findByUploadId(boundaryUploadId)).isEmpty();
-        assertThat(repository.findByUploadId(liveUploadId)).isPresent();
+        assertThat(remainingEncryptedTokens())
+                .containsExactly(LIVE_ENCRYPTED_TOKEN);
     }
 
     @Test
     @DisplayName("한 RT의 폐기가 실패하면 해당 행을 남기고 나머지 RT는 계속 처리한다")
     void revokeAndDeleteExpiredAuthorizations_revocationFailure_retainsAndContinues() {
         // Given
-        UUID failedUploadId = save(
-                FAILED_ENCRYPTED_TOKEN,
-                NOW.minus(Duration.ofMinutes(2)));
-        UUID succeededUploadId = save(
-                EXPIRED_ENCRYPTED_TOKEN,
-                NOW.minus(Duration.ofMinutes(1)));
+        save(FAILED_ENCRYPTED_TOKEN, NOW.minus(Duration.ofMinutes(2)));
+        save(EXPIRED_ENCRYPTED_TOKEN, NOW.minus(Duration.ofMinutes(1)));
         given(authorizationCipher.decrypt(FAILED_ENCRYPTED_TOKEN))
                 .willReturn("failed-refresh-token");
         given(authorizationCipher.decrypt(EXPIRED_ENCRYPTED_TOKEN))
@@ -124,32 +116,35 @@ class PendingAppleAuthorizationCleanupSchedulerTest
 
         // Then
         verify(appleTokenClient).revokeRefreshToken("expired-refresh-token");
-        assertThat(repository.findByUploadId(failedUploadId)).isPresent();
-        assertThat(repository.findByUploadId(succeededUploadId)).isEmpty();
+        assertThat(remainingEncryptedTokens())
+                .containsExactly(FAILED_ENCRYPTED_TOKEN);
     }
 
     @Test
     @DisplayName("유효한 임시 Apple 인증 정보만 있으면 복호화와 폐기를 요청하지 않는다")
     void revokeAndDeleteExpiredAuthorizations_liveRecord_doesNothing() {
         // Given
-        UUID liveUploadId = save(
-                LIVE_ENCRYPTED_TOKEN,
-                NOW.plus(Duration.ofMinutes(5)));
+        save(LIVE_ENCRYPTED_TOKEN, NOW.plus(Duration.ofMinutes(5)));
 
         // When
         cleanupScheduler.revokeAndDeleteExpiredAuthorizations();
 
         // Then
         verifyNoInteractions(authorizationCipher, appleTokenClient);
-        assertThat(repository.findByUploadId(liveUploadId)).isPresent();
+        assertThat(remainingEncryptedTokens())
+                .containsExactly(LIVE_ENCRYPTED_TOKEN);
     }
 
-    private UUID save(String encryptedRefreshToken, Instant expiresAt) {
-        UUID uploadId = UUID.randomUUID();
+    private void save(String encryptedRefreshToken, Instant expiresAt) {
         repository.save(PendingAppleAuthorization.create(
-                uploadId,
+                SUBJECT_HMAC,
                 encryptedRefreshToken,
                 expiresAt));
-        return uploadId;
+    }
+
+    private List<String> remainingEncryptedTokens() {
+        return jdbcTemplate.queryForList(
+                "SELECT encrypted_refresh_token FROM pending_apple_authorizations",
+                String.class);
     }
 }
