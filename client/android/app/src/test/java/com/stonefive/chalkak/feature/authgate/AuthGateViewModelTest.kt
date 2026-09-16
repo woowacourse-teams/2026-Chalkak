@@ -45,6 +45,7 @@ private class FakeAuthGateRepository : AuthRepository {
     override suspend fun login(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): SocialLoginResult = error("Not used")
 
     override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult = error("Not used")

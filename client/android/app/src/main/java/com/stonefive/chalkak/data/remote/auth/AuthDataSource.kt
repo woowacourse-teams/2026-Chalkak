@@ -10,11 +10,13 @@ interface AuthDataSource {
     suspend fun socialLogin(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SocialLoginResponse>
 
     suspend fun createSignatureUpload(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SignatureUploadResponse>
 
     suspend fun socialSignUp(signupToken: String): ApiResult<SocialSignUpResponse>

@@ -5,15 +5,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class KakaoIdTokenClientTest {
+    private companion object {
+        const val RAW_NONCE = "raw-kakao-nonce"
+    }
+
     @Test
     fun `returns Talk id token when KakaoTalk login succeeds`() = runTest {
         val result = getIdToken(
             isKakaoTalkLoginAvailable = { true },
-            loginWithKakaoTalk = { KakaoCredentialResult.Success("talk-id-token") },
+            loginWithKakaoTalk = { rawNonce -> KakaoCredentialResult.Success("talk-id-token", rawNonce) },
             loginWithKakaoAccount = { error("Account fallback should not run") },
+            rawNonce = RAW_NONCE,
         )
 
-        assertEquals(KakaoCredentialResult.Success("talk-id-token"), result)
+        assertEquals(KakaoCredentialResult.Success("talk-id-token", RAW_NONCE), result)
     }
 
     @Test
@@ -22,6 +27,7 @@ class KakaoIdTokenClientTest {
             isKakaoTalkLoginAvailable = { true },
             loginWithKakaoTalk = { KakaoCredentialResult.Cancelled },
             loginWithKakaoAccount = { error("Account fallback should not run") },
+            rawNonce = RAW_NONCE,
         )
 
         assertEquals(KakaoCredentialResult.Cancelled, result)
@@ -34,10 +40,11 @@ class KakaoIdTokenClientTest {
             loginWithKakaoTalk = {
                 KakaoCredentialResult.Failure(KakaoCredentialFailure.LOGIN_FAILED)
             },
-            loginWithKakaoAccount = { KakaoCredentialResult.Success("account-id-token") },
+            loginWithKakaoAccount = { rawNonce -> KakaoCredentialResult.Success("account-id-token", rawNonce) },
+            rawNonce = RAW_NONCE,
         )
 
-        assertEquals(KakaoCredentialResult.Success("account-id-token"), result)
+        assertEquals(KakaoCredentialResult.Success("account-id-token", RAW_NONCE), result)
     }
 
     @Test
@@ -45,10 +52,11 @@ class KakaoIdTokenClientTest {
         val result = getIdToken(
             isKakaoTalkLoginAvailable = { false },
             loginWithKakaoTalk = { error("Talk login should not run") },
-            loginWithKakaoAccount = { KakaoCredentialResult.Success("account-id-token") },
+            loginWithKakaoAccount = { rawNonce -> KakaoCredentialResult.Success("account-id-token", rawNonce) },
+            rawNonce = RAW_NONCE,
         )
 
-        assertEquals(KakaoCredentialResult.Success("account-id-token"), result)
+        assertEquals(KakaoCredentialResult.Success("account-id-token", RAW_NONCE), result)
     }
 
     @Test
@@ -60,12 +68,13 @@ class KakaoIdTokenClientTest {
             isKakaoTalkLoginAvailable = { error("Availability check failed") },
             loginWithKakaoTalk = {
                 talkLoginRequests += 1
-                KakaoCredentialResult.Success("talk-id-token")
+                KakaoCredentialResult.Success("talk-id-token", RAW_NONCE)
             },
             loginWithKakaoAccount = {
                 accountLoginRequests += 1
-                KakaoCredentialResult.Success("account-id-token")
+                KakaoCredentialResult.Success("account-id-token", RAW_NONCE)
             },
+            rawNonce = RAW_NONCE,
         )
 
         assertEquals(KakaoCredentialResult.Failure(KakaoCredentialFailure.UNKNOWN), result)
@@ -81,6 +90,7 @@ class KakaoIdTokenClientTest {
             loginWithKakaoAccount = {
                 KakaoCredentialResult.Failure(KakaoCredentialFailure.CONFIGURATION)
             },
+            rawNonce = RAW_NONCE,
         )
 
         assertEquals(

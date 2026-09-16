@@ -56,7 +56,11 @@ class AuthDataSourceImplTest {
                 ),
         )
 
-        val result = dataSource.socialLogin(SocialLoginProvider.GOOGLE, "id-token")
+        val result = dataSource.socialLogin(
+            provider = SocialLoginProvider.GOOGLE,
+            idToken = "id-token",
+            rawNonce = "raw-google-nonce",
+        )
         val request = server.takeRequest()
 
         assertEquals(
@@ -75,6 +79,7 @@ class AuthDataSourceImplTest {
         val body = request.body.readUtf8()
         assertTrue(body.contains("\"provider\":\"GOOGLE\""))
         assertTrue(body.contains("\"idToken\":\"id-token\""))
+        assertTrue(body.contains("\"rawNonce\":\"raw-google-nonce\""))
     }
 
     @Test
@@ -86,7 +91,11 @@ class AuthDataSourceImplTest {
                 .setBody("""{"status":"SIGN_UP_REQUIRED"}"""),
         )
 
-        val result = dataSource.socialLogin(SocialLoginProvider.KAKAO, "kakao-id-token")
+        val result = dataSource.socialLogin(
+            provider = SocialLoginProvider.KAKAO,
+            idToken = "kakao-id-token",
+            rawNonce = "raw-kakao-nonce",
+        )
         val body = server
             .takeRequest()
             .body
@@ -95,6 +104,7 @@ class AuthDataSourceImplTest {
         assertEquals(ApiResult.Success(SocialLoginResponse.SignUpRequired), result)
         assertTrue(body.contains("\"provider\":\"KAKAO\""))
         assertTrue(body.contains("\"idToken\":\"kakao-id-token\""))
+        assertTrue(body.contains("\"rawNonce\":\"raw-kakao-nonce\""))
     }
 
     @Test
@@ -106,7 +116,11 @@ class AuthDataSourceImplTest {
                 .setBody("""{"status":"LOGIN_SUCCESS","userId":"user-id","expiresIn":3600}"""),
         )
 
-        val result = dataSource.socialLogin(SocialLoginProvider.GOOGLE, "id-token")
+        val result = dataSource.socialLogin(
+            provider = SocialLoginProvider.GOOGLE,
+            idToken = "id-token",
+            rawNonce = "raw-google-nonce",
+        )
 
         assertEquals(ApiResult.Failure(ApiError.InvalidResponse), result)
     }
@@ -125,7 +139,10 @@ class AuthDataSourceImplTest {
         val result = dataSource.createSignatureUpload(
             provider = SocialLoginProvider.GOOGLE,
             idToken = "id-token",
+            rawNonce = "raw-google-nonce",
         )
+
+        val request = server.takeRequest()
 
         assertEquals(
             ApiResult.Success(
@@ -138,6 +155,12 @@ class AuthDataSourceImplTest {
                 ),
             ),
             result,
+        )
+        assertEquals("/api/v1/auth/social-signup/signature/uploads", request.path)
+        assertTrue(
+            request.body
+                .readUtf8()
+                .contains("\"rawNonce\":\"raw-google-nonce\""),
         )
     }
 
