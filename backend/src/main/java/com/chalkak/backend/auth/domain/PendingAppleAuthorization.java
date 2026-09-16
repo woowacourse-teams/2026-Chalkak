@@ -5,29 +5,46 @@ import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.PostLoad;
-import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
-import org.springframework.data.domain.Persistable;
+import org.hibernate.annotations.Generated;
 
+/**
+ * 가입이 끝나지 않은 Apple 신규 회원의 Refresh Token을 신원별로 임시 보관한다.
+ *
+ * <p>업로드 식별자가 아니라 신원으로 보관하는 것은, 같은 사용자가 다시 로그인해도 이미 교환한
+ * Refresh Token을 그대로 재사용하기 위해서다. Apple 폐기는 토큰 단위라 덮어쓴 토큰은 다시
+ * 폐기할 수 없으므로, 한 신원에 여러 행이 남을 수 있고 각 행은 폐기될 때까지 유지한다.
+ */
 @Entity
 @Table(name = "pending_apple_authorizations")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PendingAppleAuthorization implements Persistable<UUID> {
+public class PendingAppleAuthorization {
 
     private static final int ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH = 4096;
+    private static final Pattern SUBJECT_HMAC_PATTERN =
+            Pattern.compile("^[0-9a-f]{64}$");
 
     @Id
-    @Column(name = "upload_id", nullable = false, updatable = false)
-    private UUID uploadId;
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
+
+    @Column(
+            name = "subject_hmac",
+            nullable = false,
+            updatable = false,
+            length = 64)
+    private String subjectHmac;
 
     @Column(
             name = "encrypted_refresh_token",
@@ -36,57 +53,46 @@ public class PendingAppleAuthorization implements Persistable<UUID> {
             length = ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH)
     private String encryptedRefreshToken;
 
-    @Column(name = "expires_at", nullable = false, updatable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Transient
-    private boolean newEntity = true;
-
     public static PendingAppleAuthorization create(
-            UUID uploadId,
+            String subjectHmac,
             String encryptedRefreshToken,
             Instant expiresAt
     ) {
-        validate(uploadId, encryptedRefreshToken, expiresAt);
+        validate(subjectHmac, encryptedRefreshToken, expiresAt);
 
         PendingAppleAuthorization authorization =
                 new PendingAppleAuthorization();
-        authorization.uploadId = uploadId;
+        authorization.subjectHmac = subjectHmac;
         authorization.encryptedRefreshToken = encryptedRefreshToken;
         authorization.expiresAt = expiresAt;
         return authorization;
     }
 
-    public boolean isExpired(Instant now) {
-        return !expiresAt.isAfter(now);
-    }
-
-    @Override
-    public UUID getId() {
-        return uploadId;
-    }
-
-    @Override
-    public boolean isNew() {
-        return newEntity;
-    }
-
-    @PostLoad
-    @PostPersist
-    void markNotNew() {
-        newEntity = false;
+    /**
+     * 만료를 앞으로만 민다. 로그인 재사용은 재로그인 시점 기준으로, 업로드 URL 발급은
+     * 회원가입 토큰 만료에 맞춰 각각 갱신을 요청하는데, 이미 더 뒤인 만료를 당기면 가입을
+     * 끝낼 시간이 줄어든다.
+     */
+    public void extendTo(Instant candidate) {
+        if (candidate.isAfter(expiresAt)) {
+            expiresAt = candidate;
+        }
     }
 
     private static void validate(
-            UUID uploadId,
+            String subjectHmac,
             String encryptedRefreshToken,
             Instant expiresAt
     ) {
-        if (uploadId == null
+        if (subjectHmac == null
+                || !SUBJECT_HMAC_PATTERN.matcher(subjectHmac).matches()
                 || encryptedRefreshToken == null
                 || encryptedRefreshToken.isBlank()
                 || encryptedRefreshToken.length()

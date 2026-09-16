@@ -7,5 +7,5 @@ public interface IdTokenVerifier {
 
     SocialProvider getProvider();
 
-    VerifiedSocialIdentity verify(String idToken);
+    VerifiedSocialIdentity verify(String idToken, String rawNonce);
 }

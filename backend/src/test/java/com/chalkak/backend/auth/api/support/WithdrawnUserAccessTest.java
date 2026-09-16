@@ -201,6 +201,21 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
                 .andExpect(withdrawn());
     }
 
+    @Test
+    @DisplayName("탈퇴 회원은 피드백을 제출할 수 없다")
+    void submitFeedback_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/feedbacks")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "탈퇴 후에 남기는 의견입니다."
+                                }
+                                """))
+                .andExpect(withdrawn());
+    }
+
     private ResultMatcher withdrawn() {
         return result -> {
             status().isUnauthorized().match(result);

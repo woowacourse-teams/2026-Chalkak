@@ -28,8 +28,6 @@ class ConsumedSignupTokenTest {
         // Then
         assertThat(token.getJti()).isEqualTo(jti);
         assertThat(token.getExpiresAt()).isEqualTo(EXPIRES_AT);
-        assertThat(token.getId()).isEqualTo(jti);
-        assertThat(token.isNew()).isTrue();
     }
 
     @ParameterizedTest

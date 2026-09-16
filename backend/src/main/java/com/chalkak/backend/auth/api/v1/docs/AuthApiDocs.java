@@ -1,11 +1,9 @@
 package com.chalkak.backend.auth.api.v1.docs;
 
-import com.chalkak.backend.auth.api.v1.dto.request.AppleLoginRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.AppleSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.RefreshTokenRequest;
-import com.chalkak.backend.auth.api.v1.dto.request.SocialIdTokenRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialLoginRequest;
+import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupSignatureUploadRequest;
 import com.chalkak.backend.auth.api.v1.dto.request.SocialSignupRequest;
-import com.chalkak.backend.auth.api.v1.dto.response.AppleLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialLoginResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupResponse;
 import com.chalkak.backend.auth.api.v1.dto.response.SocialSignupSignatureUploadResponse;
@@ -32,7 +30,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청 또는 지원하지 않는 제공자",
+                    description = "잘못된 요청 또는 Authorization Code 조건 위반"
+                            + "(APPLE인데 없음, 다른 제공자가 보냄)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -40,7 +39,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token",
+                    description = "유효하지 않은 ID Token, nonce(원본 nonce의 SHA-256 소문자 hex와"
+                            + " ID Token의 nonce 불일치) 또는 Apple Authorization Code",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -55,78 +55,7 @@ public interface AuthApiDocs {
                     )
             )
     })
-    ResponseEntity<SocialLoginResponse> socialLogin(SocialIdTokenRequest request);
-
-    @Operation(summary = "Apple 로그인")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "로그인 성공 또는 회원가입 필요",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "필수 요청 값 누락",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 ID Token, nonce 또는 Authorization Code",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "차단된 Apple 계정",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<AppleLoginResponse> appleLogin(AppleLoginRequest request);
-
-    @Operation(summary = "Apple 회원가입용 서명 이미지 업로드 URL 발급")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "업로드 URL 발급 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Apple 회원가입 토큰이 아니거나 이미 가입된 계정",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않거나 만료된 회원가입 토큰",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "차단된 Apple 계정",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<SocialSignupSignatureUploadResponse>
-            createAppleSignupSignatureUpload(
-                    AppleSignupSignatureUploadRequest request
-            );
+    ResponseEntity<SocialLoginResponse> socialLogin(SocialLoginRequest request);
 
     @Operation(summary = "소셜 회원가입용 서명 이미지 업로드 URL 발급")
     @ApiResponses({
@@ -137,7 +66,9 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청 또는 이미 가입된 소셜 계정",
+                    description = "잘못된 요청, 이미 가입된 소셜 계정 또는"
+                            + " 만료되었거나 없는 Apple 임시 인증 정보"
+                            + "(Apple은 로그인으로 임시 인증 정보를 먼저 만들어야 한다)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -145,7 +76,7 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "유효하지 않은 ID Token",
+                    description = "유효하지 않은 ID Token 또는 nonce(원본 nonce의 SHA-256 소문자 hex와 ID Token의 nonce 불일치)",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -162,7 +93,7 @@ public interface AuthApiDocs {
     })
     ResponseEntity<SocialSignupSignatureUploadResponse>
             createSocialSignupSignatureUpload(
-                    SocialIdTokenRequest request
+                    SocialSignupSignatureUploadRequest request
             );
 
     @Operation(summary = "소셜 회원가입 완료")
@@ -174,7 +105,11 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청, 처리 중인 서명 이미지 또는 사용할 수 없는 이미지",
+                    description = "잘못된 요청, 이미 가입된 소셜 계정(탈퇴 회원),"
+                            + " 이미 사용된 회원가입 토큰, 만료되었거나 없는 Apple 임시 인증 정보,"
+                            + " 처리 중인 서명 이미지 또는 사용할 수 없는 이미지."
+                            + " 서명 이미지 처리 중일 때만 errorCode가 SIGNATURE_PROCESSING_PENDING이며,"
+                            + " 같은 회원가입 토큰으로 다시 요청한다. 나머지는 BUSINESS_ERROR다",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
