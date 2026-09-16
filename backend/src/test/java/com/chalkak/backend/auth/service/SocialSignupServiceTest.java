@@ -910,7 +910,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     private Optional<PendingAppleAuthorization> findPendingAppleAuthorization() {
-        return pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
+        return pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmacForUpdate(
                 appleSubjectHmac(),
                 Instant.now());
     }

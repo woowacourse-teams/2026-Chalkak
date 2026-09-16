@@ -21,14 +21,6 @@ public class PendingAppleAuthorizationRepositoryImpl
     }
 
     @Override
-    public Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmac(
-            String subjectHmac,
-            Instant now
-    ) {
-        return repository.findLatestUnexpired(subjectHmac, now);
-    }
-
-    @Override
     public Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmacForUpdate(
             String subjectHmac,
             Instant now

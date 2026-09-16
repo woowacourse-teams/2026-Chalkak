@@ -39,13 +39,18 @@ public class AppleSignupAuthorizationService {
      * 만료 전 보관분이 있으면 만료만 다시 밀고 재사용했음을 알린다. 재로그인마다 새로
      * 교환하면 Apple에 grant가 하나씩 늘어나는데, 이미 보관한 Refresh Token으로 탈퇴 시
      * 폐기가 가능하므로 다시 받을 이유가 없다.
+     *
+     * <p>행을 잠그고 읽는 것은 만료를 미는 경로가 로그인과 업로드 URL 발급 둘이기 때문이다.
+     * 같은 신원의 두 요청이 잠금 없이 같은 값을 읽으면 나중에 쓴 쪽이 이겨,
+     * {@link PendingAppleAuthorization#extendTo}가 약속한 "앞으로만 간다"가 깨진다.
      */
     @Transactional
     public boolean renewIfPresent(VerifiedSocialIdentity identity) {
         Optional<PendingAppleAuthorization> pendingAuthorization =
-                pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
-                        subjectHmac(identity),
-                        clock.instant());
+                pendingAuthorizationRepository
+                        .findLatestUnexpiredBySubjectHmacForUpdate(
+                                subjectHmac(identity),
+                                clock.instant());
         if (pendingAuthorization.isEmpty()) {
             return false;
         }
@@ -74,7 +79,7 @@ public class AppleSignupAuthorizationService {
             return;
         }
         PendingAppleAuthorization pendingAuthorization =
-                getPendingAuthorization(subjectHmac(identity));
+                getPendingAuthorizationForUpdate(subjectHmac(identity));
         pendingAuthorization.extendTo(expiresAt);
     }
 
@@ -106,12 +111,6 @@ public class AppleSignupAuthorizationService {
 
     private Instant expiresAt() {
         return clock.instant().plus(PENDING_AUTHORIZATION_EXPIRATION);
-    }
-
-    private PendingAppleAuthorization getPendingAuthorization(String subjectHmac) {
-        return pendingAuthorizationRepository
-                .findLatestUnexpiredBySubjectHmac(subjectHmac, clock.instant())
-                .orElseThrow(this::pendingAuthorizationNotFound);
     }
 
     private PendingAppleAuthorization getPendingAuthorizationForUpdate(

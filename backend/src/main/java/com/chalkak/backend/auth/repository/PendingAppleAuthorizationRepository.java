@@ -9,11 +9,6 @@ public interface PendingAppleAuthorizationRepository {
 
     PendingAppleAuthorization save(PendingAppleAuthorization authorization);
 
-    Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmac(
-            String subjectHmac,
-            Instant now
-    );
-
     Optional<PendingAppleAuthorization> findLatestUnexpiredBySubjectHmacForUpdate(
             String subjectHmac,
             Instant now

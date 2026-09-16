@@ -32,7 +32,7 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("한 신원에 만료 전 행이 여러 개면 가장 나중에 만든 행을 반환한다")
-    void findLatestUnexpiredBySubjectHmac_multipleRows_returnsLatest() {
+    void findLatestUnexpiredBySubjectHmacForUpdate_multipleRows_returnsLatest() {
         // Given
         // 재로그인으로 행이 쌓여도 정식 보관으로 옮길 대상은 마지막 교환 결과 하나뿐이다.
         save(SUBJECT_HMAC, "first-token", EXPIRES_AT);
@@ -41,7 +41,7 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
 
         // When
         Optional<PendingAppleAuthorization> found = repository
-                .findLatestUnexpiredBySubjectHmac(SUBJECT_HMAC, BEFORE_EXPIRY);
+                .findLatestUnexpiredBySubjectHmacForUpdate(SUBJECT_HMAC, BEFORE_EXPIRY);
 
         // Then
         assertThat(found).isPresent();
@@ -50,53 +50,34 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("만료 시각이 지난 행은 반환하지 않는다")
-    void findLatestUnexpiredBySubjectHmac_atExpiryBoundary_excludesExpired() {
+    void findLatestUnexpiredBySubjectHmacForUpdate_atExpiryBoundary_excludesExpired() {
         // Given
         save(SUBJECT_HMAC, "boundary-token", EXPIRES_AT);
 
         // When & Then
-        assertThat(repository.findLatestUnexpiredBySubjectHmac(
+        assertThat(repository.findLatestUnexpiredBySubjectHmacForUpdate(
                 SUBJECT_HMAC,
                 EXPIRES_AT.minusMillis(1))).isPresent();
-        assertThat(repository.findLatestUnexpiredBySubjectHmac(
+        assertThat(repository.findLatestUnexpiredBySubjectHmacForUpdate(
                 SUBJECT_HMAC,
                 EXPIRES_AT)).isEmpty();
-        assertThat(repository.findLatestUnexpiredBySubjectHmac(
+        assertThat(repository.findLatestUnexpiredBySubjectHmacForUpdate(
                 SUBJECT_HMAC,
                 EXPIRES_AT.plusMillis(1))).isEmpty();
     }
 
     @Test
     @DisplayName("다른 신원의 임시 인증 정보는 반환하지 않는다")
-    void findLatestUnexpiredBySubjectHmac_otherSubjectHmac_returnsEmpty() {
+    void findLatestUnexpiredBySubjectHmacForUpdate_otherSubjectHmac_returnsEmpty() {
         // Given
         save(OTHER_SUBJECT_HMAC, "other-token", EXPIRES_AT);
 
         // When
         Optional<PendingAppleAuthorization> found = repository
-                .findLatestUnexpiredBySubjectHmac(SUBJECT_HMAC, BEFORE_EXPIRY);
+                .findLatestUnexpiredBySubjectHmacForUpdate(SUBJECT_HMAC, BEFORE_EXPIRY);
 
         // Then
         assertThat(found).isEmpty();
-    }
-
-    @Test
-    @DisplayName("잠금 조회도 한 신원의 가장 나중에 만든 만료 전 행을 반환한다")
-    void findLatestUnexpiredBySubjectHmacForUpdate_multipleRows_returnsLatest() {
-        // Given
-        save(SUBJECT_HMAC, "first-token", EXPIRES_AT);
-        save(SUBJECT_HMAC, "second-token", EXPIRES_AT);
-
-        // When
-        Optional<PendingAppleAuthorization> found = repository
-                .findLatestUnexpiredBySubjectHmacForUpdate(
-                        SUBJECT_HMAC,
-                        BEFORE_EXPIRY);
-
-        // Then
-        assertThat(found).isPresent();
-        assertThat(found.get().getEncryptedRefreshToken())
-                .isEqualTo("second-token");
     }
 
     private void save(

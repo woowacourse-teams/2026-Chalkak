@@ -45,7 +45,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
     private static final String SUBJECT = "apple-subject";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
-    /** AppleLoginService.PENDING_AUTHORIZATION_EXPIRATION */
+    /** AppleSignupAuthorizationService.PENDING_AUTHORIZATION_EXPIRATION */
     private static final Duration PENDING_EXPIRATION = Duration.ofMinutes(15);
 
     @Autowired
@@ -168,7 +168,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.accessToken()).isNull();
         PendingAppleAuthorization pendingAuthorization =
                 pendingAuthorizationRepository
-                        .findLatestUnexpiredBySubjectHmac(
+                        .findLatestUnexpiredBySubjectHmacForUpdate(
                                 subjectHmac(),
                                 Instant.now())
                         .orElseThrow();
@@ -264,7 +264,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Apple 통신 실패");
         verifyNoInteractions(authorizationCipher);
-        assertThat(pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmac(
+        assertThat(pendingAuthorizationRepository.findLatestUnexpiredBySubjectHmacForUpdate(
                 subjectHmac(),
                 Instant.now())).isEmpty();
     }
@@ -351,7 +351,7 @@ class AppleLoginServiceTest extends IntegrationTestSupport {
 
     private PendingAppleAuthorization latestPendingAuthorization() {
         return pendingAuthorizationRepository
-                .findLatestUnexpiredBySubjectHmac(subjectHmac(), Instant.now())
+                .findLatestUnexpiredBySubjectHmacForUpdate(subjectHmac(), Instant.now())
                 .orElseThrow();
     }
 
