@@ -56,6 +56,9 @@ data object Record
 data object Settings
 
 @Serializable
+data object Feedback
+
+@Serializable
 data class PhotoUpload(val topicDate: String)
 
 @Serializable
