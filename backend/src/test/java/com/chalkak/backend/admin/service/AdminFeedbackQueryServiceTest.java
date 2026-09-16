@@ -41,7 +41,7 @@ class AdminFeedbackQueryServiceTest {
 
     @Test
     @DisplayName("탈퇴한 작성자의 피드백은 WITHDRAWN 상태로 내려준다")
-    void getFeedbacks_withdrawnWriter_derivesWithdrawnStatus() {
+    void getFeedbacks_withdrawnAuthor_derivesWithdrawnStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
                 AdminFeedbackQuerySort.CREATED_AT_DESC, 1, 20))
@@ -53,13 +53,13 @@ class AdminFeedbackQueryServiceTest {
 
         // Then
         assertThat(result.feedbacks()).singleElement()
-                .extracting(feedback -> feedback.writer().status())
+                .extracting(feedback -> feedback.author().status())
                 .isEqualTo(AdminUserStatus.WITHDRAWN);
     }
 
     @Test
     @DisplayName("정지된 작성자의 피드백은 BANNED 상태로 내려준다")
-    void getFeedbacks_bannedWriter_derivesBannedStatus() {
+    void getFeedbacks_bannedAuthor_derivesBannedStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
                 AdminFeedbackQuerySort.CREATED_AT_ASC, 1, 20))
@@ -71,7 +71,7 @@ class AdminFeedbackQueryServiceTest {
 
         // Then
         assertThat(result.feedbacks()).singleElement()
-                .extracting(feedback -> feedback.writer().status())
+                .extracting(feedback -> feedback.author().status())
                 .isEqualTo(AdminUserStatus.BANNED);
     }
 

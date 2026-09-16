@@ -29,7 +29,7 @@ public record AdminFeedbackListResponse(
             UUID feedbackId,
             String content,
             Instant createdAt,
-            WriterResponse writer
+            AuthorResponse author
     ) {
 
         private static FeedbackResponse from(AdminFeedbackListResult.FeedbackSummary feedback) {
@@ -37,12 +37,12 @@ public record AdminFeedbackListResponse(
                     feedback.feedbackId(),
                     feedback.content(),
                     feedback.createdAt(),
-                    WriterResponse.from(feedback.writer()));
+                    AuthorResponse.from(feedback.author()));
         }
     }
 
-    @Schema(name = "AdminFeedbackWriter")
-    public record WriterResponse(
+    @Schema(name = "AdminFeedbackListAuthor")
+    public record AuthorResponse(
             UUID userId,
             @Schema(nullable = true)
             String email,
@@ -51,12 +51,12 @@ public record AdminFeedbackListResponse(
             String appVersion
     ) {
 
-        private static WriterResponse from(AdminFeedbackListResult.Writer writer) {
-            return new WriterResponse(
-                    writer.userId(),
-                    writer.email(),
-                    writer.status(),
-                    writer.appVersion());
+        private static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
+            return new AuthorResponse(
+                    author.userId(),
+                    author.email(),
+                    author.status(),
+                    author.appVersion());
         }
     }
 }

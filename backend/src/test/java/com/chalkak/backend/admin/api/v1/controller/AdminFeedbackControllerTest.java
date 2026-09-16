@@ -76,10 +76,10 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(FEEDBACK_ID.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].content").value("사진 업로드가 느려요."))
                 .andExpect(jsonPath("$.feedbacks[0].createdAt").value("2026-09-16T01:00:00Z"))
-                .andExpect(jsonPath("$.feedbacks[0].writer.userId").value(USER_ID.toString()))
-                .andExpect(jsonPath("$.feedbacks[0].writer.email").value("user@example.com"))
-                .andExpect(jsonPath("$.feedbacks[0].writer.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.feedbacks[0].writer.appVersion").value("1.2.3"));
+                .andExpect(jsonPath("$.feedbacks[0].author.userId").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].author.email").value("user@example.com"))
+                .andExpect(jsonPath("$.feedbacks[0].author.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.feedbacks[0].author.appVersion").value("1.2.3"));
 
         then(adminFeedbackQueryService).should()
                 .getFeedbacks(AdminFeedbackSort.CREATED_AT_DESC, 1, 20);
@@ -135,7 +135,7 @@ class AdminFeedbackControllerTest {
                         FEEDBACK_ID,
                         "사진 업로드가 느려요.",
                         CREATED_AT,
-                        new AdminFeedbackListResult.Writer(
+                        new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,
                                 "user@example.com",
                                 AdminUserStatus.ACTIVE,

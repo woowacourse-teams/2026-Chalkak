@@ -53,9 +53,9 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
                     signature_original_storage_key, signature_thumbnail_storage_key,
                     created_at, updated_at
                 ) VALUES (
-                    ?, 'writer@chalkak.test', 'ACTIVE',
-                    'chalkak/signatures/original/writer.png',
-                    'chalkak/signatures/thumbnail/writer.png',
+                    ?, 'author@chalkak.test', 'ACTIVE',
+                    'chalkak/signatures/original/author.png',
+                    'chalkak/signatures/thumbnail/author.png',
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);

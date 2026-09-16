@@ -37,7 +37,7 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListItem.properties[*]")
                         .exists())
-                .andExpect(jsonPath("$.components.schemas.AdminFeedbackWriter.properties[*]")
+                .andExpect(jsonPath("$.components.schemas.AdminFeedbackListAuthor.properties[*]")
                         .exists());
     }
 

@@ -19,14 +19,14 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 feedback.id,
                 feedback.content,
                 feedback.createdAt,
-                user.id,
-                user.email,
-                user.status,
-                user.appVersion,
-                user.deletedAt
+                author.id,
+                author.email,
+                author.status,
+                author.appVersion,
+                author.deletedAt
             )
             FROM Feedback feedback
-            JOIN User user ON user.id = feedback.userId
+            JOIN User author ON author.id = feedback.userId
             """;
 
     private final EntityManager entityManager;

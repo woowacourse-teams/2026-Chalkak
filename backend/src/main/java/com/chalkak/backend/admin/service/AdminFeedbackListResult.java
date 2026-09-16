@@ -27,7 +27,7 @@ public record AdminFeedbackListResult(
             UUID feedbackId,
             String content,
             Instant createdAt,
-            Writer writer
+            AuthorSummary author
     ) {
 
         private static FeedbackSummary from(AdminFeedbackSummaryProjection feedback) {
@@ -35,23 +35,23 @@ public record AdminFeedbackListResult(
                     feedback.feedbackId(),
                     feedback.content(),
                     feedback.createdAt(),
-                    Writer.from(feedback));
+                    AuthorSummary.from(feedback));
         }
     }
 
-    public record Writer(
+    public record AuthorSummary(
             UUID userId,
             String email,
             AdminUserStatus status,
             String appVersion
     ) {
 
-        private static Writer from(AdminFeedbackSummaryProjection feedback) {
-            return new Writer(
-                    feedback.userId(),
-                    feedback.email(),
-                    AdminUserStatus.from(feedback.userStatus(), feedback.userDeletedAt()),
-                    feedback.appVersion());
+        private static AuthorSummary from(AdminFeedbackSummaryProjection feedback) {
+            return new AuthorSummary(
+                    feedback.authorId(),
+                    feedback.authorEmail(),
+                    AdminUserStatus.from(feedback.authorStatus(), feedback.authorDeletedAt()),
+                    feedback.authorAppVersion());
         }
     }
 }

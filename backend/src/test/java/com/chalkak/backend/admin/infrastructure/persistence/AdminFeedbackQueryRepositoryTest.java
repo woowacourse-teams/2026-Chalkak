@@ -61,7 +61,7 @@ class AdminFeedbackQueryRepositoryTest {
 
     @Test
     @DisplayName("피드백 목록은 작성자 정보와 함께 최신순으로 조회한다")
-    void findFeedbacks_createdAtDesc_returnsNewestFirstWithWriter() {
+    void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
         AdminFeedbackQueryPage page = adminFeedbackQueryRepository.findFeedbacks(
                 AdminFeedbackQuerySort.CREATED_AT_DESC, 1, 20);
@@ -75,11 +75,11 @@ class AdminFeedbackQueryRepositoryTest {
         AdminFeedbackSummaryProjection newest = page.feedbacks().getFirst();
         assertThat(newest.content()).isEqualTo("사진 업로드가 느려요.");
         assertThat(newest.createdAt()).isEqualTo(NEWEST_CREATED_AT);
-        assertThat(newest.userId()).isEqualTo(ACTIVE_USER_ID);
-        assertThat(newest.email()).isEqualTo("active@example.com");
-        assertThat(newest.userStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(newest.appVersion()).isEqualTo("1.2.3");
-        assertThat(newest.userDeletedAt()).isNull();
+        assertThat(newest.authorId()).isEqualTo(ACTIVE_USER_ID);
+        assertThat(newest.authorEmail()).isEqualTo("active@example.com");
+        assertThat(newest.authorStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(newest.authorAppVersion()).isEqualTo("1.2.3");
+        assertThat(newest.authorDeletedAt()).isNull();
     }
 
     @Test
@@ -117,20 +117,20 @@ class AdminFeedbackQueryRepositoryTest {
 
     @Test
     @DisplayName("정지·탈퇴 회원이 남긴 피드백도 상태와 함께 조회한다")
-    void findFeedbacks_bannedAndWithdrawnWriters_areIncluded() {
+    void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
         AdminFeedbackQueryPage page = adminFeedbackQueryRepository.findFeedbacks(
                 AdminFeedbackQuerySort.CREATED_AT_ASC, 1, 20);
 
         // Then
         AdminFeedbackSummaryProjection bannedFeedback = page.feedbacks().getFirst();
-        assertThat(bannedFeedback.userId()).isEqualTo(BANNED_USER_ID);
-        assertThat(bannedFeedback.userStatus()).isEqualTo(UserStatus.BANNED);
-        assertThat(bannedFeedback.userDeletedAt()).isNull();
+        assertThat(bannedFeedback.authorId()).isEqualTo(BANNED_USER_ID);
+        assertThat(bannedFeedback.authorStatus()).isEqualTo(UserStatus.BANNED);
+        assertThat(bannedFeedback.authorDeletedAt()).isNull();
 
         AdminFeedbackSummaryProjection withdrawnFeedback = page.feedbacks().get(1);
-        assertThat(withdrawnFeedback.userId()).isEqualTo(WITHDRAWN_USER_ID);
-        assertThat(withdrawnFeedback.userDeletedAt()).isEqualTo(WITHDRAWN_AT);
+        assertThat(withdrawnFeedback.authorId()).isEqualTo(WITHDRAWN_USER_ID);
+        assertThat(withdrawnFeedback.authorDeletedAt()).isEqualTo(WITHDRAWN_AT);
     }
 
     private void insertUsers() {

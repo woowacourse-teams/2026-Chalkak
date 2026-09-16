@@ -40,8 +40,8 @@ class FeedbackRepositoryTest {
                     signature_thumbnail_storage_key, app_version,
                     created_at, updated_at
                 ) VALUES (
-                    ?, 'writer@example.com', 'ACTIVE',
-                    'signatures/writer-original', 'signatures/writer-thumbnail',
+                    ?, 'author@example.com', 'ACTIVE',
+                    'signatures/author-original', 'signatures/author-thumbnail',
                     '1.2.3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """,
