@@ -41,6 +41,12 @@ rule_pages:
       등록과 취소: [LIKE-003]
       표시와 집계: [LIKE-004]
       게시물 삭제 시 처리: [LIKE-005]
+  docs/business-rules/rules/feedback.md:
+    domain: 피드백
+    pages:
+      제출 자격과 내용: [FEEDBACK-001, FEEDBACK-002]
+      보관과 조회 범위: [FEEDBACK-003]
+      관리자 조회: [FEEDBACK-004]
   docs/business-rules/rules/admin.md:
     domain: 관리자
     pages:
@@ -51,3 +57,4 @@ rule_pages:
       주제 관리: [ADMIN-005]
       관리자 활동 기록: [ADMIN-006, ADMIN-007]
       검수 요청 알림: [ADMIN-008]
+      피드백 조회: [ADMIN-009]
