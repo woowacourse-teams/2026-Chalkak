@@ -45,7 +45,13 @@ struct APIAuthRepositoryTests {
             retryDelay: { _ in }
         )
 
-        #expect(try await repository.login(provider: .kakao, idToken: "kakao-token") == .signUpRequired)
+        #expect(
+            try await repository.login(
+                provider: .kakao,
+                idToken: "kakao-token",
+                rawNonce: "raw-kakao-nonce"
+            ) == .signUpRequired
+        )
         let result = try await repository.completeSocialSignUp(signaturePNG: signaturePNG)
 
         #expect(result == .success(userID: "user-1"))
@@ -54,11 +60,23 @@ struct APIAuthRepositoryTests {
         #expect(requests.count == 5)
         #expect(requests[0].httpMethod == "POST")
         #expect(requests[0].url?.path == "/api/v1/auth/social-login")
-        #expect(jsonBody(requests[0]) == ["provider": "KAKAO", "idToken": "kakao-token"])
+        #expect(
+            jsonBody(requests[0]) == [
+                "provider": "KAKAO",
+                "idToken": "kakao-token",
+                "rawNonce": "raw-kakao-nonce"
+            ]
+        )
 
         #expect(requests[1].httpMethod == "POST")
         #expect(requests[1].url?.path == "/api/v1/auth/social-signup/signature/uploads")
-        #expect(jsonBody(requests[1]) == ["provider": "KAKAO", "idToken": "kakao-token"])
+        #expect(
+            jsonBody(requests[1]) == [
+                "provider": "KAKAO",
+                "idToken": "kakao-token",
+                "rawNonce": "raw-kakao-nonce"
+            ]
+        )
 
         #expect(requests[2].httpMethod == "PUT")
         #expect(requests[2].url?.path == "/signature")
@@ -72,6 +90,67 @@ struct APIAuthRepositoryTests {
         #expect(requests[4].httpMethod == "POST")
         #expect(requests[4].url?.path == "/api/v1/auth/social-signup")
         #expect(jsonBody(requests[4]) == ["signupToken": "signup-token"])
+    }
+
+    @Test("Apple 로그인도 공통 로그인·서명 업로드 API에 rawNonce를 전달한다")
+    func completesAppleSignupWithCommonContract() async throws {
+        MockAuthURLProtocol.install { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api/v1/auth/social-login"):
+                return .json("{\"status\":\"SIGN_UP_REQUIRED\"}")
+            case ("POST", "/api/v1/auth/social-signup/signature/uploads"):
+                return .json(
+                    "{\"uploadId\":\"upload-id\",\"uploadUrl\":\"https://uploads.example.com/signature\",\"expiresInSeconds\":300,\"signupToken\":\"signup-token\"}"
+                )
+            case ("PUT", "/signature"):
+                return .empty
+            case ("POST", "/api/v1/auth/social-signup"):
+                return .json(
+                    "{\"userId\":\"apple-user\",\"accessToken\":\"access-token\",\"expiresIn\":900,\"refreshToken\":\"refresh-token\",\"refreshTokenExpiresIn\":2592000}"
+                )
+            default:
+                return .response(statusCode: 404, body: Data())
+            }
+        }
+        defer {
+            KeychainSessionStore.delete()
+            MockAuthURLProtocol.uninstall()
+        }
+
+        let repository = APIAuthRepository(
+            baseURL: URL(string: "https://api.example.com/api/v1/")!,
+            session: MockAuthURLProtocol.session
+        )
+        let credential = AppleLoginCredential(
+            idToken: "apple-token",
+            authorizationCode: "authorization-code",
+            rawNonce: "raw-apple-nonce"
+        )
+
+        #expect(try await repository.loginWithApple(credential: credential) == .signUpRequired)
+        #expect(
+            try await repository.completeSocialSignUp(signaturePNG: Data([0x01]))
+                == .success(userID: "apple-user")
+        )
+
+        let requests = MockAuthURLProtocol.allRequests()
+        #expect(requests.count == 4)
+        #expect(
+            jsonBody(requests[0]) == [
+                "provider": "APPLE",
+                "idToken": "apple-token",
+                "rawNonce": "raw-apple-nonce",
+                "authorizationCode": "authorization-code"
+            ]
+        )
+        #expect(requests[1].url?.path == "/api/v1/auth/social-signup/signature/uploads")
+        #expect(
+            jsonBody(requests[1]) == [
+                "provider": "APPLE",
+                "idToken": "apple-token",
+                "rawNonce": "raw-apple-nonce"
+            ]
+        )
     }
 
     @Test("로그아웃은 로컬 세션을 먼저 삭제하고 리프레시 토큰을 body로 보낸다")

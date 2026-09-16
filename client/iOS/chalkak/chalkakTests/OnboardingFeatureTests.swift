@@ -139,7 +139,11 @@ private final class SuspendingSignUpAuthRepository: AuthRepository {
     private(set) var didStartSignUp = false
     private(set) var wasCancelled = false
 
-    func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
+    func login(
+        provider: SocialLoginProvider,
+        idToken: String,
+        rawNonce: String
+    ) async throws -> SocialLoginResult {
         .signUpRequired
     }
 
