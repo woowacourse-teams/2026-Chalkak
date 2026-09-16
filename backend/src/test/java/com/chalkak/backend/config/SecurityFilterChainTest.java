@@ -173,7 +173,7 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("로그인 API는 토큰 없이 호출할 수 있다")
     void authApi_withoutToken_reachesController() throws Exception {
         // Given
-        given(socialLoginService.login(any(), any()))
+        given(socialLoginService.login(any(), any(), any(), any()))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -182,7 +182,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                         .content("""
                                 {
                                   "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
+                                  "idToken": "google-id-token",
+                                  "rawNonce": "raw-nonce"
                                 }
                                 """))
                 .andExpect(status().isOk())
