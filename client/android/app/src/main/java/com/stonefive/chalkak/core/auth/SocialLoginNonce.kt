@@ -4,7 +4,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
-internal object SocialLoginNonce {
+object SocialLoginNonce {
     private const val BYTE_COUNT = 32
     private val secureRandom = SecureRandom()
     private val hexDigits = "0123456789abcdef"
