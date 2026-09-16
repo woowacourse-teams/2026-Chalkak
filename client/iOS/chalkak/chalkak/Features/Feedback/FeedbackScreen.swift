@@ -36,6 +36,7 @@ struct FeedbackScreen: View {
                     lineLimit: 8...14,
                     textFont: theme.typography.subheadline,
                     maximumCharacterCount: FeedbackLimits.maximumContentLength,
+                    lengthMetric: .unicodeScalars,
                     height: Metrics.inputHeight
                 )
                 .padding(.top, Metrics.inputTopPadding)
