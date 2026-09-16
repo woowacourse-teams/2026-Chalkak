@@ -24,7 +24,11 @@ enum SocialSignUpFailure: Equatable {
 
 @MainActor
 protocol AuthRepository {
-    func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult
+    func login(
+        provider: SocialLoginProvider,
+        idToken: String,
+        rawNonce: String
+    ) async throws -> SocialLoginResult
     func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult
     func completeSocialSignUp(signaturePNG: Data) async throws -> SocialSignUpResult
     func continueAsGuest() async throws
@@ -41,7 +45,12 @@ extension AuthRepository {
 
 @MainActor
 protocol SocialLoginClient {
-    func idToken() async throws -> String
+    func credential() async throws -> SocialLoginCredential
+}
+
+struct SocialLoginCredential: Equatable, Sendable {
+    let idToken: String
+    let rawNonce: String
 }
 
 struct AppleLoginCredential: Equatable, Sendable {
@@ -98,8 +107,12 @@ final class LoginViewModel: ObservableObject {
                     let credential = try await appleLoginClient.credential()
                     result = try await authRepository.loginWithApple(credential: credential)
                 } else if let client = socialLoginClients[provider] {
-                    let idToken = try await client.idToken()
-                    result = try await authRepository.login(provider: provider, idToken: idToken)
+                    let credential = try await client.credential()
+                    result = try await authRepository.login(
+                        provider: provider,
+                        idToken: credential.idToken,
+                        rawNonce: credential.rawNonce
+                    )
                 } else {
                     return
                 }

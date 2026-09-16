@@ -1,7 +1,9 @@
+import CryptoKit
 import Foundation
 import KakaoSDKAuth
 import KakaoSDKCommon
 import KakaoSDKUser
+import Security
 
 @MainActor
 final class KakaoLoginClient: SocialLoginClient {
@@ -11,8 +13,12 @@ final class KakaoLoginClient: SocialLoginClient {
         self.nativeAppKey = nativeAppKey
     }
 
-    func idToken() async throws -> String {
-        guard nativeAppKey != nil else { throw SocialLoginError.configuration }
+    func credential() async throws -> SocialLoginCredential {
+        guard nativeAppKey?.isEmpty == false else {
+            throw SocialLoginError.configuration
+        }
+        let rawNonce = try Self.makeRawNonce()
+        let hashedNonce = Self.sha256(rawNonce)
 
         return try await withCheckedThrowingContinuation { continuation in
             let completion: (OAuthToken?, Error?) -> Void = { token, error in
@@ -31,15 +37,38 @@ final class KakaoLoginClient: SocialLoginClient {
                     continuation.resume(throwing: SocialLoginError.invalidToken)
                     return
                 }
-                continuation.resume(returning: idToken)
+                continuation.resume(
+                    returning: SocialLoginCredential(idToken: idToken, rawNonce: rawNonce)
+                )
             }
 
             if UserApi.isKakaoTalkLoginAvailable() {
-                UserApi.shared.loginWithKakaoTalk(completion: completion)
+                UserApi.shared.loginWithKakaoTalk(nonce: hashedNonce, completion: completion)
             } else {
-                UserApi.shared.loginWithKakaoAccount(completion: completion)
+                UserApi.shared.loginWithKakaoAccount(nonce: hashedNonce, completion: completion)
             }
         }
+    }
+
+    private static func makeRawNonce(byteCount: Int = 32) throws -> String {
+        var bytes = [UInt8](repeating: 0, count: byteCount)
+        let status = bytes.withUnsafeMutableBytes { buffer in
+            SecRandomCopyBytes(kSecRandomDefault, byteCount, buffer.baseAddress!)
+        }
+        guard status == errSecSuccess else {
+            throw SocialLoginError.failed
+        }
+        return Data(bytes)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private static func sha256(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
