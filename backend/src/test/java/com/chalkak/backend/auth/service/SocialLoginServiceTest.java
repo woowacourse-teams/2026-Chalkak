@@ -9,6 +9,7 @@ import com.chalkak.backend.auth.domain.SocialProvider;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 class SocialLoginServiceTest extends IntegrationTestSupport {
 
     private static final String ID_TOKEN = "google-id-token";
+    private static final String RAW_NONCE = "raw-nonce";
     private static final String SUBJECT = "google-subject";
 
     @Autowired
@@ -65,7 +67,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -76,7 +78,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
@@ -89,7 +92,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -100,7 +103,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.refreshToken().value()).isNotBlank();
@@ -120,12 +124,13 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
 
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -138,7 +143,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -150,7 +155,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -163,7 +169,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -176,7 +182,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN))
+                ID_TOKEN,
+                RAW_NONCE))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("탈퇴한 차단 소셜 계정입니다.");
     }
@@ -187,7 +194,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = UserFixture.create();
         user.ban();
         userRepository.save(user);
@@ -200,7 +207,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -216,7 +224,7 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
         User user = userRepository.save(UserFixture.create());
         socialAccountRepository.save(SocialAccount.create(
                 user,
@@ -227,7 +235,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -242,15 +251,28 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN);
+                .verify(ID_TOKEN, RAW_NONCE);
 
         // When
         SocialLoginResult result = socialLoginService.login(
                 SocialProvider.GOOGLE,
-                ID_TOKEN);
+                ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.accessToken()).isNull();
+    }
+
+    @Test
+    @DisplayName("Apple 제공자는 소셜 로그인 엔드포인트에서 지원하지 않는 제공자로 거절한다")
+    void login_appleProvider_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> socialLoginService.login(
+                SocialProvider.APPLE,
+                "apple-id-token",
+                RAW_NONCE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("지원하지 않는 소셜 로그인 제공자입니다.");
     }
 
     private VerifiedSocialIdentity identity() {

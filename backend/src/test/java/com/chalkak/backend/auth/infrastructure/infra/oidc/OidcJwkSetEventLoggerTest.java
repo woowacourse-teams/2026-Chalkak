@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.events.Event;
@@ -18,7 +19,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 @ExtendWith(OutputCaptureExtension.class)
 class OidcJwkSetEventLoggerTest {
 
-    private static final String RATE_LIMITED_MESSAGE = "Kakao 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.";
+    private static final String RATE_LIMITED_MESSAGE = "KAKAO 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.";
     private static final long FIRST_LOGGED_AT = 1_000_000L;
 
     @Test
@@ -31,7 +32,7 @@ class OidcJwkSetEventLoggerTest {
                 FIRST_LOGGED_AT + 29_999,
                 FIRST_LOGGED_AT + 30_000);
         OidcJwkSetEventLogger eventLogger = new OidcJwkSetEventLogger(
-                "Kakao",
+                SocialProvider.KAKAO,
                 Duration.ofSeconds(30),
                 clock);
         Event<RateLimitedJWKSetSource<SecurityContext>, SecurityContext> event = rateLimitedEvent();

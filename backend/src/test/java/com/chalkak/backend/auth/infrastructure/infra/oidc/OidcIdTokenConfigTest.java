@@ -3,7 +3,6 @@ package com.chalkak.backend.auth.infrastructure.infra.oidc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.service.AppleIdTokenVerifier;
 import com.chalkak.backend.auth.service.IdTokenVerifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +11,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 class OidcIdTokenConfigTest {
+
+    private static final String EMAIL_POLICY_FIELD = "emailPolicy";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(OidcIdTokenConfig.class)
@@ -39,7 +40,29 @@ class OidcIdTokenConfigTest {
                     .isEqualTo(SocialProvider.GOOGLE);
             assertThat(context.getBean("kakaoIdTokenVerifier", IdTokenVerifier.class).getProvider())
                     .isEqualTo(SocialProvider.KAKAO);
-            assertThat(context).hasSingleBean(AppleIdTokenVerifier.class);
+            assertThat(context.getBean("appleIdTokenVerifier", IdTokenVerifier.class).getProvider())
+                    .isEqualTo(SocialProvider.APPLE);
+        });
+    }
+
+    /**
+     * 제공자별로 다른 것은 이메일 정책뿐이라, 어느 제공자에 어떤 정책이 연결됐는지를 여기서 고정한다. Kakao ID Token에는
+     * email_verified가 없어 확인된 이메일만 받는 정책을 걸면 이메일이 항상 버려진다.
+     */
+    @Test
+    @DisplayName("Google·Apple은 확인된 이메일만 받고 Kakao는 받은 이메일을 그대로 쓰도록 등록한다")
+    void create_validProperties_registersProviderEmailPolicies() {
+        // When & Then
+        contextRunner.run(context -> {
+            assertThat(context.getBean("googleIdTokenVerifier"))
+                    .extracting(EMAIL_POLICY_FIELD)
+                    .isEqualTo(OidcEmailPolicy.VERIFIED_ONLY);
+            assertThat(context.getBean("appleIdTokenVerifier"))
+                    .extracting(EMAIL_POLICY_FIELD)
+                    .isEqualTo(OidcEmailPolicy.VERIFIED_ONLY);
+            assertThat(context.getBean("kakaoIdTokenVerifier"))
+                    .extracting(EMAIL_POLICY_FIELD)
+                    .isEqualTo(OidcEmailPolicy.AS_PROVIDED);
         });
     }
 

@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.nimbusds.jose.jwk.source.OutageTolerantJWKSetSource;
 import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
 import com.nimbusds.jose.jwk.source.RetryingJWKSetSource;
@@ -21,17 +22,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class OidcJwkSetEventLogger {
 
-    private final String providerName;
+    private final SocialProvider provider;
     private final long rateLimitedLogIntervalMillis;
     private final Clock clock;
     private final AtomicLong nextRateLimitedLogAtMillis = new AtomicLong(Long.MIN_VALUE);
 
     OidcJwkSetEventLogger(
-            String providerName,
+            SocialProvider provider,
             Duration rateLimitedLogInterval,
             Clock clock
     ) {
-        this.providerName = providerName;
+        this.provider = provider;
         this.rateLimitedLogIntervalMillis = rateLimitedLogInterval.toMillis();
         this.clock = clock;
     }
@@ -42,7 +43,7 @@ final class OidcJwkSetEventLogger {
         }
         log.warn(
                 "{} 공개키 목록 조회에 실패해 한 번 더 시도합니다. cause={}",
-                providerName,
+                provider.name(),
                 retrialEvent.getException().getMessage());
     }
 
@@ -52,7 +53,7 @@ final class OidcJwkSetEventLogger {
         }
         log.warn(
                 "{} 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다. remainingMillis={}, cause={}",
-                providerName,
+                provider.name(),
                 outageEvent.getRemainingTime(),
                 outageEvent.getException().getMessage());
     }
@@ -67,6 +68,6 @@ final class OidcJwkSetEventLogger {
         if (!nextRateLimitedLogAtMillis.compareAndSet(nextLogAt, followingLogAt)) {
             return;
         }
-        log.warn("{} 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.", providerName);
+        log.warn("{} 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.", provider.name());
     }
 }

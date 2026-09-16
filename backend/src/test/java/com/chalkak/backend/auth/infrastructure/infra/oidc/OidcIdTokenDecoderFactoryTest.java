@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.infrastructure.infra.oidc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -44,7 +45,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 @ExtendWith(OutputCaptureExtension.class)
 class OidcIdTokenDecoderFactoryTest {
 
-    private static final String PROVIDER_NAME = "Google";
+    private static final SocialProvider PROVIDER = SocialProvider.GOOGLE;
     private static final String ISSUER = "https://accounts.google.com";
     private static final String AUDIENCE = "backend-client-id";
     private static final String JWK_SET_URI = "https://www.googleapis.com/oauth2/v3/certs";
@@ -60,11 +61,11 @@ class OidcIdTokenDecoderFactoryTest {
         resourceRetriever = new CountingResourceRetriever(
                 new JWKSet(signingKey.toPublicJWK()).toString());
         jwtDecoder = OidcIdTokenDecoderFactory.createDecoder(
-                PROVIDER_NAME,
+                PROVIDER,
                 ISSUER,
                 AUDIENCE,
                 OidcIdTokenDecoderFactory.createJwkSource(
-                        PROVIDER_NAME,
+                        PROVIDER,
                         JWK_SET_URI,
                         resourceRetriever));
     }
@@ -292,7 +293,7 @@ class OidcIdTokenDecoderFactoryTest {
 
         // Then
         assertThat(output.getOut())
-                .containsOnlyOnce("Google 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.");
+                .containsOnlyOnce("GOOGLE 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.");
     }
 
     @Test
@@ -308,7 +309,7 @@ class OidcIdTokenDecoderFactoryTest {
         // Then
         assertThat(jwt.getSubject()).isEqualTo("provider-subject");
         assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
-        assertThat(output.getOut()).contains("Google 공개키 목록 조회에 실패해 한 번 더 시도합니다.");
+        assertThat(output.getOut()).contains("GOOGLE 공개키 목록 조회에 실패해 한 번 더 시도합니다.");
     }
 
     @Test
@@ -355,7 +356,7 @@ class OidcIdTokenDecoderFactoryTest {
         // Then
         assertThat(jwkSet.getKeyByKeyId(KEY_ID)).isNotNull();
         assertThat(resourceRetriever.retrievalCount()).isEqualTo(5);
-        assertThat(output.getOut()).contains("Google 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다.");
+        assertThat(output.getOut()).contains("GOOGLE 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다.");
     }
 
     @Test
@@ -363,7 +364,7 @@ class OidcIdTokenDecoderFactoryTest {
     void createJwkSource_malformedUri_throwsException() {
         // When & Then
         assertThatThrownBy(() -> OidcIdTokenDecoderFactory.createJwkSource(
-                PROVIDER_NAME,
+                PROVIDER,
                 "not a uri",
                 resourceRetriever))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -388,7 +389,7 @@ class OidcIdTokenDecoderFactoryTest {
         server.start();
         try {
             JwtDecoder httpDecoder = OidcIdTokenDecoderFactory.createDecoder(
-                    PROVIDER_NAME,
+                    PROVIDER,
                     ISSUER,
                     "http://127.0.0.1:" + server.getAddress().getPort() + "/certs",
                     AUDIENCE);
@@ -410,7 +411,7 @@ class OidcIdTokenDecoderFactoryTest {
      */
     private JWKSetSource<SecurityContext> jwkSetSourceWithInjectableTime() {
         JWKSetBasedJWKSource<SecurityContext> jwkSource = (JWKSetBasedJWKSource<SecurityContext>) OidcIdTokenDecoderFactory
-                .createJwkSource(PROVIDER_NAME, JWK_SET_URI, resourceRetriever);
+                .createJwkSource(PROVIDER, JWK_SET_URI, resourceRetriever);
         return jwkSource.getJWKSetSource();
     }
 

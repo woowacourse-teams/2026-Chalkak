@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
+import com.chalkak.backend.auth.domain.SocialProvider;
 import java.util.List;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -13,11 +14,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
  */
 final class OidcIdTokenAudienceValidator implements OAuth2TokenValidator<Jwt> {
 
-    private final String providerName;
+    private final SocialProvider provider;
     private final String audience;
 
-    OidcIdTokenAudienceValidator(String providerName, String audience) {
-        this.providerName = providerName;
+    OidcIdTokenAudienceValidator(SocialProvider provider, String audience) {
+        this.provider = provider;
         this.audience = audience;
     }
 
@@ -28,7 +29,7 @@ final class OidcIdTokenAudienceValidator implements OAuth2TokenValidator<Jwt> {
         }
         OAuth2Error error = new OAuth2Error(
                 OAuth2ErrorCodes.INVALID_TOKEN,
-                providerName + " ID Token audience가 허용되지 않았습니다.",
+                provider.name() + " ID Token audience가 허용되지 않았습니다.",
                 null);
         return OAuth2TokenValidatorResult.failure(error);
     }
