@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -48,11 +48,10 @@ class OidcIdTokenVerifierTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"GOOGLE, Google", "KAKAO, Kakao", "APPLE, Apple"})
+    @EnumSource(SocialProvider.class)
     @DisplayName("모든 제공자는 ID Token의 nonce가 원본의 해시와 다르면 인증을 거부한다")
     void verify_mismatchedNonce_throwsUnauthorizedException(
-            SocialProvider provider,
-            String expectedDisplayName
+            SocialProvider provider
     ) {
         // Given
         Jwt jwt = jwtBuilder()
@@ -63,15 +62,14 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage(expectedDisplayName + " ID Token nonce가 일치하지 않습니다.");
+                .hasMessage(provider.name() + " ID Token nonce가 일치하지 않습니다.");
     }
 
     @ParameterizedTest
-    @CsvSource({"GOOGLE, Google", "KAKAO, Kakao", "APPLE, Apple"})
+    @EnumSource(SocialProvider.class)
     @DisplayName("모든 제공자는 ID Token에 nonce가 없으면 인증을 거부한다")
     void verify_missingNonceClaim_throwsUnauthorizedException(
-            SocialProvider provider,
-            String expectedDisplayName
+            SocialProvider provider
     ) {
         // Given
         Jwt jwt = Jwt.withTokenValue(ID_TOKEN)
@@ -85,7 +83,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage(expectedDisplayName + " ID Token nonce가 일치하지 않습니다.");
+                .hasMessage(provider.name() + " ID Token nonce가 일치하지 않습니다.");
     }
 
     @Test
@@ -100,7 +98,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("Kakao ID Token nonce가 일치하지 않습니다.");
+                .hasMessage("KAKAO ID Token nonce가 일치하지 않습니다.");
     }
 
     @Test
@@ -115,7 +113,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("Google ID Token nonce가 일치하지 않습니다.");
+                .hasMessage("GOOGLE ID Token nonce가 일치하지 않습니다.");
     }
 
     @ParameterizedTest
@@ -136,7 +134,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, rawNonce))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("Kakao 로그인 nonce가 필요합니다.");
+                .hasMessage("KAKAO 로그인 nonce가 필요합니다.");
         assertThat(decoded).isFalse();
     }
 
@@ -153,7 +151,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(idToken, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("유효하지 않은 Apple ID Token입니다.");
+                .hasMessage("유효하지 않은 APPLE ID Token입니다.");
     }
 
     @Test
@@ -170,7 +168,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("유효하지 않은 Google ID Token입니다.");
+                .hasMessage("유효하지 않은 GOOGLE ID Token입니다.");
     }
 
     @Test
@@ -188,7 +186,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("Kakao ID Token에 사용자 식별 정보가 없습니다.");
+                .hasMessage("KAKAO ID Token에 사용자 식별 정보가 없습니다.");
     }
 
     @Test
@@ -203,7 +201,7 @@ class OidcIdTokenVerifierTest {
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage("Apple ID Token의 사용자 식별 정보가 너무 깁니다.");
+                .hasMessage("APPLE ID Token의 사용자 식별 정보가 너무 깁니다.");
     }
 
     @Test

@@ -72,7 +72,7 @@ class OidcIdTokenAudienceValidatorTest {
         // Then
         assertThat(result.getErrors())
                 .extracting(OAuth2Error::getDescription)
-                .containsExactly("Google ID Token audience가 허용되지 않았습니다.");
+                .containsExactly("GOOGLE ID Token audience가 허용되지 않았습니다.");
     }
 
     @Test
@@ -100,7 +100,7 @@ class OidcIdTokenAudienceValidatorTest {
         // Then
         assertThat(result.getErrors())
                 .extracting(OAuth2Error::getDescription)
-                .containsExactly("Google ID Token audience가 허용되지 않았습니다.");
+                .containsExactly("GOOGLE ID Token audience가 허용되지 않았습니다.");
     }
 
     private Jwt createJwt(List<String> audiences) {

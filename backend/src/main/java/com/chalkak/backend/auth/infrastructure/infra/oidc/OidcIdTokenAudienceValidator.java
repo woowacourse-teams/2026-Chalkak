@@ -29,7 +29,7 @@ final class OidcIdTokenAudienceValidator implements OAuth2TokenValidator<Jwt> {
         }
         OAuth2Error error = new OAuth2Error(
                 OAuth2ErrorCodes.INVALID_TOKEN,
-                provider.getDisplayName() + " ID Token audience가 허용되지 않았습니다.",
+                provider.name() + " ID Token audience가 허용되지 않았습니다.",
                 null);
         return OAuth2TokenValidatorResult.failure(error);
     }

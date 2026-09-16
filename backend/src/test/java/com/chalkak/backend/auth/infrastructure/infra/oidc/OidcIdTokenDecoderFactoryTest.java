@@ -293,7 +293,7 @@ class OidcIdTokenDecoderFactoryTest {
 
         // Then
         assertThat(output.getOut())
-                .containsOnlyOnce("Google 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.");
+                .containsOnlyOnce("GOOGLE 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.");
     }
 
     @Test
@@ -309,7 +309,7 @@ class OidcIdTokenDecoderFactoryTest {
         // Then
         assertThat(jwt.getSubject()).isEqualTo("provider-subject");
         assertThat(resourceRetriever.retrievalCount()).isEqualTo(2);
-        assertThat(output.getOut()).contains("Google 공개키 목록 조회에 실패해 한 번 더 시도합니다.");
+        assertThat(output.getOut()).contains("GOOGLE 공개키 목록 조회에 실패해 한 번 더 시도합니다.");
     }
 
     @Test
@@ -356,7 +356,7 @@ class OidcIdTokenDecoderFactoryTest {
         // Then
         assertThat(jwkSet.getKeyByKeyId(KEY_ID)).isNotNull();
         assertThat(resourceRetriever.retrievalCount()).isEqualTo(5);
-        assertThat(output.getOut()).contains("Google 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다.");
+        assertThat(output.getOut()).contains("GOOGLE 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다.");
     }
 
     @Test

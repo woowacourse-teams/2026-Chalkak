@@ -43,7 +43,7 @@ final class OidcJwkSetEventLogger {
         }
         log.warn(
                 "{} 공개키 목록 조회에 실패해 한 번 더 시도합니다. cause={}",
-                provider.getDisplayName(),
+                provider.name(),
                 retrialEvent.getException().getMessage());
     }
 
@@ -53,7 +53,7 @@ final class OidcJwkSetEventLogger {
         }
         log.warn(
                 "{} 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다. remainingMillis={}, cause={}",
-                provider.getDisplayName(),
+                provider.name(),
                 outageEvent.getRemainingTime(),
                 outageEvent.getException().getMessage());
     }
@@ -68,6 +68,6 @@ final class OidcJwkSetEventLogger {
         if (!nextRateLimitedLogAtMillis.compareAndSet(nextLogAt, followingLogAt)) {
             return;
         }
-        log.warn("{} 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.", provider.getDisplayName());
+        log.warn("{} 공개키 목록 재조회 제한에 걸려 조회 없이 ID Token 검증에 실패했습니다.", provider.name());
     }
 }
