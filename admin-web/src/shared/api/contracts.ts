@@ -195,6 +195,27 @@ export interface AdminAuditLogListResponse {
   auditLogs: AdminAuditLogResponse[];
 }
 
+export interface AdminFeedbackAuthor {
+  userId: string;
+  email: string | null;
+  status: UserStatus;
+  appVersion: string | null;
+}
+
+export interface AdminFeedbackListItem {
+  feedbackId: string;
+  content: string;
+  createdAt: Instant;
+  author: AdminFeedbackAuthor;
+}
+
+export interface AdminFeedbackListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  feedbacks: AdminFeedbackListItem[];
+}
+
 export type PushStatus = "PENDING" | "SENDING" | "SUCCEEDED" | "FAILED";
 
 export interface AdminPushResponse {

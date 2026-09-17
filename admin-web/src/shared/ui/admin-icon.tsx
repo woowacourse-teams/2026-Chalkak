@@ -3,7 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type AdminIconName =
   | "overview" | "image" | "users" | "topic" | "arrow-right"
   | "arrow-up-right" | "shield" | "lock" | "logout" | "menu"
-  | "close" | "eye" | "eye-off" | "check" | "clock" | "plus";
+  | "close" | "eye" | "eye-off" | "check" | "clock" | "plus" | "message";
 
 const paths: Record<AdminIconName, ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
@@ -22,6 +22,7 @@ const paths: Record<AdminIconName, ReactNode> = {
   check: <path d="m5 12 4 4L19 6" />,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  message: <><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M7 9h10M7 13h6" /></>,
 };
 
 export function AdminIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: AdminIconName }) {

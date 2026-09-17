@@ -344,6 +344,7 @@ describe("admin write and path restrictions", () => {
   it.each([
     ["posts", "POST"], ["auth/login", "GET"], ["auth/me", "POST"],
     ["topics", "PATCH"], ["posts", "HEAD"], ["posts", "OPTIONS"],
+    ["feedbacks", "POST"], ["feedbacks", "DELETE"],
   ])("rejects unsupported method on %s: %s", async (path, method) => {
     const response = await relay(path, { method, cookie: token });
     expect(response.status).toBe(405);
@@ -356,7 +357,7 @@ describe("admin write and path restrictions", () => {
     [`posts/${resourceId}/moderation`, "PUT"], ["users", "GET"], [`users/${resourceId}`, "GET"],
     [`users/${resourceId}/status`, "PATCH"], ["topics", "GET"], ["topics", "POST"],
     [`topics/${resourceId}`, "GET"], [`topics/${resourceId}`, "PUT"], [`topics/${resourceId}`, "DELETE"],
-    ["audit-logs", "GET"],
+    ["audit-logs", "GET"], ["feedbacks", "GET"],
   ])("allows supported path %s: %s", async (path, method) => {
     fetchMock.mockResolvedValue(Response.json({ success: true }));
     const response = await relay(path, { method, cookie: token, body: method === "GET" ? undefined : { reason: "test" } });
