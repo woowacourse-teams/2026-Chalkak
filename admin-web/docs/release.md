@@ -4,7 +4,7 @@
 
 ## 배포 전에 확정할 것
 
-- GitHub 대상 브랜치: `admin-web`. 코드 변경은 별도 PR에서 최신 커밋을 승인받는다.
+- GitHub 대상 브랜치: `admin-web/develop`. 코드 변경은 별도 PR에서 최신 커밋을 승인받는다.
 - Vercel 팀/프로젝트: `chalkak` / `chalkak-admin-web`, Root Directory: `admin-web`.
 - 고정 주소: `https://chalkak-admin-web.vercel.app` — 실제 도메인 연결 상태를 대시보드에서 확인한다.
 - 이번 1차 배포는 **개발 백엔드 `https://chalkak-dev.pysun.kr/api/v1/admin`와 개발 데이터**를 유지한다. Vercel Production은 웹의 배포 환경이며 백엔드 prod 전환을 뜻하지 않는다. 운영 백엔드·API 주소·운영 데이터 사용은 별도 승인을 받는다.
@@ -36,7 +36,7 @@
 ## 배포
 
 1. 승인된 설정과 코드의 SHA를 배포 기록에 남긴다. 실제 비밀값은 기록하지 않는다.
-2. `admin-web`을 추적하는 Production 자동 배포 설정이라면 준비가 끝난 후 PR을 병합한다. 자동 배포가 꺼져 있으면 Vercel에서 정확한 브랜치/커밋의 새 Production 배포를 만든다.
+2. `admin-web/develop`을 추적하는 Production 자동 배포 설정이라면 준비가 끝난 후 PR을 병합한다. 자동 배포가 꺼져 있으면 Vercel에서 정확한 브랜치/커밋의 새 Production 배포를 만든다.
 3. 배포의 Environment가 Production이고 Source SHA가 승인된 코드인지 확인한다. 예전 배포의 Redeploy는 예전 소스를 다시 빌드한다.
 4. Ready 상태와 고정 도메인 연결을 확인한다. 실패하면 Build Logs의 원인을 확인하며, 비밀번호·토큰이 담긴 요청 본문이나 전체 환경변수를 로그에 붙이지 않는다.
 5. 아래 Smoke test를 완료하기 전까지 #187을 닫지 않는다.

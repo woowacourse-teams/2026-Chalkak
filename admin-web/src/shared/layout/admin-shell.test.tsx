@@ -28,11 +28,11 @@ describe("AdminShell", () => {
     logout.mockReset().mockResolvedValue(undefined);
   });
 
-  it("shows only the four working sections and the authenticated account", () => {
+  it("shows only the five working sections and the authenticated account", () => {
     render(<AdminShell><p>게시물 콘텐츠</p></AdminShell>);
 
     const nav = screen.getByRole("navigation", { name: "관리자 메뉴" });
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "처리 이력"]);
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "처리 이력", "피드백"]);
     expect(within(nav).getByRole("link", { name: "게시물" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("operator")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
@@ -48,7 +48,7 @@ describe("AdminShell", () => {
     expect(screen.getByRole("link", { name: "게시물" })).not.toHaveAttribute("aria-current");
   });
 
-  it("uses the same four keyboard-accessible mobile links without a drawer", async () => {
+  it("uses the same five keyboard-accessible mobile links without a drawer", async () => {
     const previousWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
     const user = userEvent.setup();
