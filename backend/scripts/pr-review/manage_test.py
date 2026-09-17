@@ -70,10 +70,14 @@ esac
         self.assertTrue(config_path.is_file())
         self.assertTrue(plist_path.is_file())
         self.assertEqual("codex", json.loads(config_path.read_text())["provider"])
+        self.assertEqual(40, json.loads(config_path.read_text())["refactor_max_changed_files"])
+        self.assertEqual(1800, json.loads(config_path.read_text())["refactor_max_changed_lines"])
 
         status = self.run_manage("status")
         self.assertEqual(0, status.returncode, status.stderr)
         self.assertIn("자동 감시: 실행 중", status.stdout)
+        self.assertIn("일반 한도: 30개 파일 / 1200줄", status.stdout)
+        self.assertIn("리팩터링 한도: 40개 파일 / 1800줄", status.stdout)
 
         stopped = self.run_manage("stop")
         self.assertEqual(0, stopped.returncode, stopped.stderr)
@@ -91,6 +95,13 @@ esac
         self.assertEqual(0, uninstalled.returncode, uninstalled.stderr)
         self.assertFalse(support.exists())
         self.assertFalse(plist_path.exists())
+
+    def test_retry_and_review_again_commands_are_not_available(self):
+        for action in ("retry", "review-again"):
+            with self.subTest(action=action):
+                result = self.run_manage(action)
+                self.assertNotEqual(0, result.returncode)
+                self.assertFalse((self.home / "Library/Application Support/Chalkak PR Review").exists())
 
 
 if __name__ == "__main__":
