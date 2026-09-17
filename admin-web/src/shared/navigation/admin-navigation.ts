@@ -11,6 +11,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { href: "/users", label: "사용자", icon: "users" },
   { href: "/topics", label: "주제", icon: "topic" },
   { href: "/audit-logs", label: "처리 이력", icon: "shield" },
+  { href: "/feedbacks", label: "피드백", icon: "message" },
 ];
 
 export function getCurrentNavigation(pathname: string): AdminNavigationItem {

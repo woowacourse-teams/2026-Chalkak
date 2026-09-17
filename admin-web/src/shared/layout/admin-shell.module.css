@@ -26,7 +26,7 @@
 @media (max-width: 800px) {
   .header { min-height: 64px; gap: 12px; padding: 10px 20px; }
   .brand { font-size: 17px; }
-  .navigation { position: fixed; inset: auto 0 0; z-index: 30; display: grid; min-height: var(--admin-bottom-nav-height); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid #dde1e7; background: #fff; padding: 5px 8px calc(5px + env(safe-area-inset-bottom)); }
+  .navigation { position: fixed; inset: auto 0 0; z-index: 30; display: grid; min-height: var(--admin-bottom-nav-height); grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-top: 1px solid #dde1e7; background: #fff; padding: 5px 8px calc(5px + env(safe-area-inset-bottom)); }
   .navLink, .activeLink { min-height: 58px; flex-direction: column; gap: 5px; border-radius: 6px; padding: 7px 4px; font-size: 11px; }
   .navigation svg { display: block; width: 20px; height: 20px; }
   .activeLink { background: #f2f2fb; }

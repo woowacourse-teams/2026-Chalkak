@@ -2,6 +2,7 @@ import { delay, http, HttpResponse } from "msw";
 
 import type {
   AdminAuditLogResponse,
+  AdminFeedbackListResponse,
   AdminPostCounts,
   AdminPostDetailResponse,
   AdminPostListItem,
@@ -15,6 +16,7 @@ import type {
 import {
   emptyPostListFixture,
   errorFixtures,
+  feedbackFixtures,
   postDetailFixtures,
   topicDetailFixtures,
   userDetailFixtures,
@@ -78,6 +80,31 @@ function withoutSignature(user: AdminUserDetailResponse) {
   const { signature: _signature, ...summary } = user;
   void _signature;
   return summary;
+}
+
+function listFeedbacks(request: Request): AdminFeedbackListResponse {
+  const params = new URL(request.url).searchParams;
+  const sort = params.get("sort") ?? "createdAtDesc";
+  const page = Math.max(1, Number(params.get("page") ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Number(params.get("pageSize") ?? 20)));
+  const feedbacks = [...feedbackFixtures]
+    .sort((left, right) => sort === "createdAtAsc"
+      ? left.createdAt.localeCompare(right.createdAt)
+      : right.createdAt.localeCompare(left.createdAt))
+    .map(({ userId, ...feedback }) => {
+      const user = userStore[userId];
+      return {
+        ...feedback,
+        author: { userId, email: user.email, status: user.status, appVersion: user.appVersion },
+      };
+    });
+  const start = (page - 1) * pageSize;
+  return {
+    currentPage: page,
+    pageSize,
+    hasNext: start + pageSize < feedbacks.length,
+    feedbacks: feedbacks.slice(start, start + pageSize),
+  };
 }
 
 function listUsers(request: Request): AdminUserListResponse {
@@ -229,6 +256,7 @@ export const handlers = [
     mockAdminSignedIn = false;
     return new HttpResponse(null, { status: 204 });
   }),
+  http.get(adminApi + "/feedbacks", ({ request }) => HttpResponse.json(listFeedbacks(request))),
   http.get(adminApi + "/users", ({ request }) => HttpResponse.json(listUsers(request))),
   http.get(adminApi + "/users/:userId", ({ params }) => {
     const user = userStore[String(params.userId)];

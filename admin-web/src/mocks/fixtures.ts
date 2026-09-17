@@ -222,6 +222,40 @@ export const userDetailFixtures: Record<string, AdminUserDetailResponse> = {
   },
 };
 
+export interface FeedbackFixture {
+  feedbackId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+}
+
+export const feedbackIds = {
+  newest: "fdfdfdfd-0003-4fdf-8fdf-fdfdfdfdfdfd",
+  middle: "fdfdfdfd-0002-4fdf-8fdf-fdfdfdfdfdfd",
+  oldest: "fdfdfdfd-0001-4fdf-8fdf-fdfdfdfdfdfd",
+} as const;
+
+export const feedbackFixtures: FeedbackFixture[] = [
+  {
+    feedbackId: feedbackIds.newest,
+    userId: userIds.active,
+    content: "사진 업로드 버튼을 누르고 10초 넘게 기다렸는데 진행이 안 됩니다.\n와이파이 환경이었고, 앱을 다시 켜니 올라가 있었어요.",
+    createdAt: "2026-09-16T06:00:00Z",
+  },
+  {
+    feedbackId: feedbackIds.middle,
+    userId: userIds.banned,
+    content: "계정이 정지된 이유를 알고 싶습니다.",
+    createdAt: "2026-09-15T09:30:00Z",
+  },
+  {
+    feedbackId: feedbackIds.oldest,
+    userId: userIds.withdrawn,
+    content: "탈퇴하기 전에 남깁니다. 주제가 매일 바뀌어서 좋았어요.",
+    createdAt: "2026-07-30T12:00:00Z",
+  },
+];
+
 export const topicIds = {
   beforeOpen: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   open: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",

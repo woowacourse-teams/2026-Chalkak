@@ -75,6 +75,12 @@ describe("user management screens", () => {
     expect(screen.getByRole("link", { name: "← 목록과 필터로 돌아가기" })).toHaveAttribute("href", "/posts?status=REJECTED");
   });
 
+  it("returns to the feedback list the author was opened from", async () => {
+    search.value = "returnTo=%2Ffeedbacks%3Fsort%3DcreatedAtAsc%26page%3D2";
+    render(<QueryProvider><ToastProvider><UserDetailScreen userId={userIds.banned} /></ToastProvider></QueryProvider>);
+    expect(await screen.findByRole("link", { name: "← 목록과 필터로 돌아가기" })).toHaveAttribute("href", "/feedbacks?sort=createdAtAsc&page=2");
+  });
+
   it("requires an audit reason before banning an active user", async () => {
     search.value = "returnTo=%2Fusers%3Fstatus%3DACTIVE";
     const user = userEvent.setup();
