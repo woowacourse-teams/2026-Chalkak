@@ -1,0 +1,36 @@
+{
+  "id": "complete-issue-split",
+  "title": "각 PR이 후속 구현 없이 완성되고 관련 권한·실패·테스트가 포함된 동작 단위 분할",
+  "setup": {
+    "uncommitted_append": {}
+  },
+  "mechanical": {
+    "allowed_changed_paths": [],
+    "required_changed_paths": [],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "complete-units",
+      "check": "각 PR이 후속 구현 없이 완성되고 관련 권한·실패·테스트가 포함된 동작 단위 분할",
+      "evidence": "답변 전체에서 Slack 없는 접수, 검색 없는 목록의 정상 동작과 테스트·권한 누락 여부를 확인"
+    },
+    {
+      "id": "coverage-body",
+      "check": "메인 요구사항을 빠짐없이 배정하고 표 다음 실제 양식의 각 본문을 제시",
+      "evidence": "템플릿 읽기 도구 기록과 전체 초안, 제외 범위·의존성 대조"
+    },
+    {
+      "id": "approval-order",
+      "check": "새 메인을 만들지 않고 작성자·담당자·순차 개발·커밋별 승인 경계를 안내하며 초안까지만 수행",
+      "evidence": "답변과 모든 도구 기록; 등록·개발 시도 금지"
+    }
+  ]
+}

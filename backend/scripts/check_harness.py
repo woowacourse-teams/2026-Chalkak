@@ -13,7 +13,8 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 링크, 안내문의 스킬·규칙 참조. Git 루트에 공통 하네스가 있으면 같은 검사를
 적용하고 비즈니스 규칙의 모든 결정 기록 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
 코드 예제·외부 URL·앵커의 내용, 그 외 플랫폼 확장 필드 전체,
-양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
+순차 개발 공통 문서의 플랫폼 문법 정규화 후 동일성과 Claude attribution도 확인한다.
+그 외 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
 종료 코드: 0 통과(경고 포함), 1 구조 오류, 2 의존성 부족으로 미실행.
 기준: https://agentskills.io/specification
       https://code.claude.com/docs/en/memory#path-specific-rules
@@ -22,6 +23,7 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import re
 import sys
@@ -416,8 +418,49 @@ def check(root: Path, *, rule_paths=RULE_PATHS, markdown_roots=()) -> tuple[list
     return sorted(set(errors)), sorted(set(warnings))
 
 
+# 순차 실행의 핵심 문서는 의도적으로 같은 본문을 유지한다.
+# 인터뷰 UI·플랫폼별 도구 지침처럼 다른 문서의 의미 일치까지 주장하지 않는다.
+WORKFLOW_DOCUMENTS = (
+    "work-breakdown/SKILL.md", "development-workflow/SKILL.md",
+    "commit-conventions/SKILL.md", "issue-pr-workflow/SKILL.md",
+    "branch-workflow/SKILL.md", "branch-workflow/references/stacked-prs.md",
+    "development-workflow/references/work-state.md",
+    "development-workflow/references/completion-gate.md",
+)
+
+
+def check_workflow_contract(root: Path) -> list[str]:
+    errors = []
+    if not any((root / platform / "skills/development-workflow").exists() for platform in (".agents", ".claude")):
+        return errors
+    def normalize(text):
+        return text.replace("../../../../.claude/", "../../../../.agents/").replace("/chalkak-interview", "$chalkak-interview")
+    for relative in WORKFLOW_DOCUMENTS:
+        paths = [root / platform / "skills" / relative for platform in (".agents", ".claude")]
+        try:
+            contents = [normalize(p.read_text(encoding="utf-8")) for p in paths]
+        except (OSError, UnicodeError):
+            errors.append(f"순차 개발 필수 문서 누락·읽기 실패: {relative}")
+            continue
+        if contents[0] != contents[1]:
+            errors.append(f"순차 개발의 Claude·Codex 공통 규칙이 다릅니다: {relative}")
+    for relative in ("scripts/work_state.py", "scripts/workflow_gate.py"):
+        if not (root / relative).is_file():
+            errors.append(f"순차 개발 도구가 없습니다: {relative}")
+    path = root / ".claude/settings.json"
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        attribution = settings.get("attribution", {})
+        if attribution.get("commit") != "" or attribution.get("pr") != "" or attribution.get("sessionUrl") is not False:
+            errors.append(".claude/settings.json: commit·pr attribution은 빈 문자열, sessionUrl은 false여야 합니다")
+    except (OSError, UnicodeError, ValueError, AttributeError):
+        errors.append(".claude/settings.json: attribution 설정을 읽을 수 없습니다")
+    return errors
+
+
 def check_repository(backend: Path) -> tuple[list[str], list[str]]:
     errors, warnings = check(backend)
+    errors.extend(check_workflow_contract(backend))
     repository = backend.parent
     shared = (
         repository / ".agents/skills/business-rules",

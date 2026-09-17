@@ -114,6 +114,8 @@ AI 하네스는 Codex CLI 0.138.0 이상과 Claude Code 2.1.228 이상에서 사
 
 상세 규칙: [Claude](.claude/skills/chalkak-interview/SKILL.md) · [Codex](.agents/skills/chalkak-interview/SKILL.md)
 
+메인 이슈를 제시하고 인터뷰 결과·서브 이슈 분할안을 승인하면 개발을 시작한다. 커밋마다 코드 설명과 메시지를 확인·승인하며, PR 병합과 이슈 완료를 확인한 뒤 다음 이슈로 진행한다. 이슈·PR 담당자는 본인 계정으로 지정한다. 자세한 절차는 [개발 흐름](.agents/skills/development-workflow/SKILL.md)을 참고한다.
+
 ### 운영 방식
 
 하네스는 최소한의 컨벤션으로 시작한다.

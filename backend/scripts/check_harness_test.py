@@ -571,5 +571,32 @@ class CheckHarnessTest(unittest.TestCase):
             self.assertEqual(before, snapshot())
 
 
+
+class WorkflowContractTest(unittest.TestCase):
+    def test_matching_platforms_required_tools_and_attribution(self):
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in check_harness.WORKFLOW_DOCUMENTS:
+                for platform, invocation in ((".agents", "$chalkak-interview"), (".claude", "/chalkak-interview")):
+                    path = root / platform / "skills" / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("Use " + invocation + " now")
+            (root / "scripts").mkdir()
+            for name in ("work_state.py", "workflow_gate.py"):
+                (root / "scripts" / name).write_text("# fixture")
+            settings = root / ".claude/settings.json"
+            settings.write_text(json.dumps({"attribution": {"commit": "", "pr": "", "sessionUrl": False}}))
+            self.assertEqual([], check_harness.check_workflow_contract(root))
+            changed = root / ".claude/skills/commit-conventions/SKILL.md"
+            changed.write_text("Different approval rule")
+            self.assertTrue(any("commit-conventions" in e for e in check_harness.check_workflow_contract(root)))
+            changed.unlink()
+            self.assertTrue(any("누락" in e for e in check_harness.check_workflow_contract(root)))
+            settings.write_text(json.dumps({"attribution": {"commit": "Generated with AI"}}))
+            self.assertTrue(any("attribution" in e for e in check_harness.check_workflow_contract(root)))
+            settings.write_text("null")
+            self.assertTrue(any("attribution" in e for e in check_harness.check_workflow_contract(root)))
+
 if __name__ == "__main__":
     unittest.main()

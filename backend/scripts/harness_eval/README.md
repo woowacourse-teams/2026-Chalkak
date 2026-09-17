@@ -11,6 +11,12 @@
 | `refactor-without-interview` | 미정인 리팩터링 요청에도 심화 인터뷰를 자동 시작하지 않음 | 수동 호출·실제 코드 리팩터링 |
 | `business-rule-documentation` | 코드의 누락 규칙을 관련 MD에 반영하고 종료 시 Notion 수동 반영 위치·문구를 안내 | 코드 전체 정책 감사·실제 Notion 반영 |
 
+| `complete-issue-split` | 완성된 PR 단위·요구사항 배정·실제 본문·두 승인 경계 | 실제 등록 |
+| `commit-unit-approval` / `commit-question` | 이번 커밋만 구현·설명·승인 대기, 질문을 승인으로 해석하지 않음 | 실제 승인 후 커밋 |
+| `review-scope-change` | 리뷰의 정책·기능 확대를 구현 전 승인 대상으로 구분 | 실제 PR 댓글 수집 |
+| `next-issue-unmerged` / `next-issue-close` / `next-issue-incomplete` | 실제 조회 도구로 미병합 차단, 완료 조건 누락 차단, 모의 종료·재조회 후 다음 수정 | 실제 GitHub 서버 변경 |
+| `assignee-repair` | 이슈·PR 모두 본인 담당자 추가·재조회와 기존 담당자 보존 | 실제 인증·권한·API 장애 |
+
 ## 실행
 
 Python 3.11+와 Git을 사용한다. 추가 Python 패키지는 없다. `backend/`에서 실행한다.
@@ -29,7 +35,7 @@ python3 scripts/harness_eval/run.py run --platform both
 python3 -B -m unittest discover -s scripts/harness_eval -p '*_test.py'
 ```
 
-전체 선택은 현재 6개 사례 × 2개 도구 = 12개 세션이다. 한 세션에서 여러 모델 요청이 발생할 수 있다. 세션당 제한은 기본 180초이며 `--timeout`으로 최대 300초까지 설정한다. 정확한 비용·구독 한도는 예측하지 않고 제공된 사용량과 실행 시간을 보관한다.
+전체 선택은 현재 14개 사례 × 2개 도구 = 최대 28개 세션이다. 한 세션에서 여러 모델 요청이 발생할 수 있다. 세션당 제한은 기본 180초이며 `--timeout`으로 최대 300초까지 설정한다. 정확한 비용·구독 한도는 예측하지 않고 제공된 사용량과 실행 시간을 보관한다.
 
 수동 심화 인터뷰의 실제 명령 선택·여러 턴·자유 질문·종료는 [대화형 검사 절차](interview-interactive.md)로 별도 확인한다. 위 단일 입력 평가의 통과가 인터뷰 전체의 통과를 뜻하지 않는다. 대화형 검사도 명시적으로 요청한 경우에만 실행한다.
 
@@ -41,7 +47,11 @@ python3 -B -m unittest discover -s scripts/harness_eval -p '*_test.py'
 
 Claude 연결 코드는 모델 없이 제한 도구·MCP 통신·모의 CLI와 이벤트 처리까지 자체 검사했다. 스킬의 name/description 한 줄 메타데이터와 선택적인 `disable-model-invocation: true`를 지원하며, 수동 전용 설정을 제거하거나 자동 호출 가능 상태로 바꾸지 않는다. 실제 Claude 동작은 팀원이 로그인한 환경에서 `run --platform claude`를 실행하고 기록을 판정해 확인한다.
 
+모의 GitHub 사례는 평가 전용 `mock_github.py`를 임시 `.eval/bin/gh`로 설치하고 격리된 Codex PATH에만 추가한다. 호출·상태 변경은 `.eval/`에 기록하며 네트워크·인증·실제 GitHub에 접근하지 않는다. 지원하지 않는 명령은 실패하며 Claude 제한 도구 모드에서는 해당 사례를 BLOCKED로 보고한다.
+
 현재 도구는 인증을 설정하거나 복사하지 않는다. GitHub 대신 `.invalid` 주소를 가진 임시 저장소에서 작업하고, 사례에 필요한 하네스·양식·최소 자료만 복사한다. `criteria.json`, 실행기와 기대 판정은 AI 작업 폴더 밖에 둔다. 준비·실행 후 임시 폴더는 정리하고 결과는 Git에서 제외된 `build/harness-eval/`에 남긴다. `prepare` 성공은 동작 검사 통과가 아니다.
+
+커밋 설명→질문→수정→승인의 여러 턴은 [순차 개발 대화형 검사](workflow-interactive.md)를 따른다.
 
 ## 결과 판정
 
