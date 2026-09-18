@@ -572,6 +572,92 @@ class CheckHarnessTest(unittest.TestCase):
 
 
 
+class DecisionNotesTest(unittest.TestCase):
+    repository = CheckHarnessTest.repository
+    write = staticmethod(CheckHarnessTest.write)
+    skill = staticmethod(CheckHarnessTest.skill)
+    assert_error_for = CheckHarnessTest.assert_error_for
+
+    def note(self, root, status="방향 합의", name="기록의-이유.md", body="실제로 논의한 근거입니다."):
+        return self.write(root, f"docs/interviews/{name}", f"---\nstatus: {status}\n---\n# 고민\n\n{body}\n")
+
+    def index(self, root, status="방향 합의", target="기록의-이유.md", extra=""):
+        return self.write(root, "docs/interviews/README.md",
+                          "# 기록\n\n| 고민 | 소개 | 상태 |\n| --- | --- | --- |\n"
+                          f"| [기록]({target}) | 근거 공유 | {status} |\n{extra}")
+
+    def test_note_statuses_and_unbounded_body_are_valid_and_read_only(self):
+        for status in ("논의 중", "방향 합의", "구현·검증 완료"):
+            with self.subTest(status=status), self.repository() as root:
+                self.note(root, status=status, body="필요한 근거. " * 1200)
+                self.index(root, status=status)
+                before = {p: p.read_bytes() for p in root.rglob("*.md")}
+                self.assertEqual(([], []), check_harness.check_repository(root))
+                self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*.md")})
+
+    def test_note_status_requires_unique_valid_frontmatter(self):
+        for content in ("# 고민\nstatus: 방향 합의", "```yaml\nstatus: 방향 합의\n```",
+                        "---\nstatus: 완료\n---", "---\nstatus: []\n---",
+                        "---\nstatus: 논의 중\nstatus: 방향 합의\n---"):
+            with self.subTest(content=content), self.repository() as root:
+                path = self.note(root)
+                path.write_text(content, encoding="utf-8")
+                self.index(root)
+                self.assert_error_for(check_harness.check_decision_notes(root), "기록의-이유.md")
+
+    def test_note_index_rejects_missing_duplicate_and_different_status(self):
+        for index in ("missing", "duplicate", "status", "code"):
+            with self.subTest(index=index), self.repository() as root:
+                self.note(root)
+                path = self.index(root, status="논의 중" if index == "status" else "방향 합의")
+                if index == "missing":
+                    path.unlink()
+                elif index == "duplicate":
+                    path.write_text(path.read_text() + "| [중복](./기록의-이유.md) | 이유 | 방향 합의 |\n")
+                elif index == "code":
+                    path.write_text("```markdown\n" + path.read_text() + "```\n")
+                self.assert_error_for(check_harness.check_decision_notes(root), "README.md")
+
+    def test_note_broken_links_are_checked_through_repository(self):
+        from urllib.parse import unquote
+        with self.repository() as root:
+            self.note(root, body="[근거](없는-근거.md)")
+            self.index(root, extra="\n[지워진 문서](없는-문서.md)\n")
+            errors, _ = check_harness.check_repository(root)
+            errors = [unquote(error) for error in errors]
+            self.assert_error_for(errors, "없는-근거.md")
+            self.assert_error_for(errors, "없는-문서.md")
+
+    def test_note_names_and_flat_directory_are_checked(self):
+        for name in ("english.md", "기록--이유.md", "기록 이유.md", "하위/기록.md"):
+            with self.subTest(name=name), self.repository() as root:
+                self.note(root, name=name)
+                self.index(root, target=name)
+                self.assertTrue(any("파일명" in e for e in check_harness.check_decision_notes(root)))
+
+    def test_note_accepts_unicode_normalization_and_encoded_links(self):
+        import unicodedata
+        from urllib.parse import quote
+        with self.repository() as root:
+            name = unicodedata.normalize("NFD", "기록의-이유.md")
+            self.note(root, name=name)
+            self.index(root, target=quote(name))
+            self.assertEqual(([], []), check_harness.check_repository(root))
+
+    def test_note_symlink_loop_is_an_error_not_a_crash(self):
+        with self.repository() as root:
+            path = self.note(root)
+            path.unlink()
+            path.symlink_to(path)
+            self.index(root)
+            self.assert_error_for(check_harness.check_decision_notes(root), "기록의-이유.md")
+
+    def test_note_directory_is_required_when_skill_exists(self):
+        with self.repository() as root:
+            self.write(root, ".agents/skills/decision-notes/SKILL.md", self.skill("decision-notes"))
+            self.assert_error_for(check_harness.check_decision_notes(root), "docs/interviews/README.md")
+
+
 class WorkflowContractTest(unittest.TestCase):
     def test_matching_platforms_required_tools_and_attribution(self):
         import json

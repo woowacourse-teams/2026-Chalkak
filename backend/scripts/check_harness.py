@@ -14,6 +14,7 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 적용하고 비즈니스 규칙의 모든 결정 기록 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
 코드 예제·외부 URL·앵커의 내용, 그 외 플랫폼 확장 필드 전체,
 순차 개발 공통 문서의 플랫폼 문법 정규화 후 동일성과 Claude attribution도 확인한다.
+고민 기록의 한국어 파일명·상태·목차 대응과 로컬 링크도 확인한다.
 그 외 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
 종료 코드: 0 통과(경고 포함), 1 구조 오류, 2 의존성 부족으로 미실행.
 기준: https://agentskills.io/specification
@@ -27,6 +28,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import unicodedata
 from urllib.parse import unquote, urlsplit
 
 try:
@@ -421,6 +423,7 @@ def check(root: Path, *, rule_paths=RULE_PATHS, markdown_roots=()) -> tuple[list
 # 순차 실행의 핵심 문서는 의도적으로 같은 본문을 유지한다.
 # 인터뷰 UI·플랫폼별 도구 지침처럼 다른 문서의 의미 일치까지 주장하지 않는다.
 WORKFLOW_DOCUMENTS = (
+    "decision-notes/SKILL.md",
     "work-breakdown/SKILL.md", "development-workflow/SKILL.md",
     "commit-conventions/SKILL.md", "issue-pr-workflow/SKILL.md",
     "branch-workflow/SKILL.md", "branch-workflow/references/stacked-prs.md",
@@ -458,8 +461,93 @@ def check_workflow_contract(root: Path) -> list[str]:
     return errors
 
 
+def check_decision_notes(root: Path) -> list[str]:
+    """고민 기록의 파일명·상태·목차 대응만 검사한다. 내용의 타당성은 판정하지 않는다."""
+    directory = root / "docs/interviews"
+    enabled = directory.exists() or any(
+        (root / platform / "skills/decision-notes").exists() for platform in (".agents", ".claude")
+    )
+    if not enabled:
+        return []
+    errors = []
+    markdown = MarkdownIt("commonmark").enable("table")
+    statuses = {"논의 중", "방향 합의", "구현·검증 완료"}
+
+    def report(path, message):
+        errors.append(f"{path.relative_to(root)}: {message}")
+
+    def read(path):
+        try:
+            if path.is_symlink():
+                raise ValueError("심볼릭 링크는 고민 기록으로 사용하지 않습니다")
+            return path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError, ValueError) as exc:
+            report(path, f"고민 기록 읽기 실패: {exc}")
+            return ""
+
+    readme = directory / "README.md"
+    index_text = read(readme)
+    notes = {}
+    for path in sorted(directory.rglob("*.md")):
+        if path == readme:
+            continue
+        if path.is_symlink():
+            read(path)
+            continue
+        name = unicodedata.normalize("NFC", path.stem)
+        if (path.parent != directory or not re.fullmatch(r"[가-힣A-Za-z0-9]+(?:-[가-힣A-Za-z0-9]+)*", name)
+                or not re.search(r"[가-힣]", name)):
+            report(path, "한국어 주제를 포함한 단일 하이픈 파일명을 docs/interviews 바로 아래에 두세요")
+        text = read(path)
+        header = re.match(r"\A---\n(.*?)\n---(?:\n|\Z)", text, re.S)
+        status = None
+        try:
+            if not header:
+                raise ValueError("맨 앞 YAML frontmatter에 status가 필요합니다")
+            status = parse_metadata(header[1]).get("status")
+            if not isinstance(status, str) or status not in statuses:
+                raise ValueError("status는 논의 중 / 방향 합의 / 구현·검증 완료 중 하나여야 합니다")
+        except (ValueError, yaml.YAMLError) as exc:
+            report(path, f"잘못된 고민 기록 상태: {exc}")
+        notes[path.resolve()] = status
+
+    listed = set()
+    row = []
+    for token in markdown.parse(index_text):
+        if token.type == "tr_open":
+            row = []
+        elif token.type == "inline":
+            row.append(token)
+        elif token.type == "tr_close":
+            for cell in row:
+                for child in cell.children or []:
+                    if child.type != "link_open":
+                        continue
+                    href = child.attrGet("href")
+                    try:
+                        url = urlsplit(href)
+                        if url.scheme or url.netloc or not url.path:
+                            continue
+                        target = (directory / unquote(url.path)).resolve()
+                    except (ValueError, OSError, RuntimeError):
+                        report(readme, f"잘못된 고민 기록 링크: {href}")
+                        continue
+                    if target not in notes:
+                        continue  # 존재하지 않는 로컬 링크는 공통 Markdown 검사에서 잡는다.
+                    if target in listed:
+                        report(readme, f"중복 고민 기록: {href}")
+                    listed.add(target)
+                    if len(row) != 3 or row[2].content.strip() != notes[target]:
+                        report(readme, f"제목·소개·상태 3열과 문서와 같은 상태가 필요합니다: {href}")
+    for path in sorted(set(notes) - listed):
+        report(readme, f"고민 기록이 목차 표에 없습니다: {path.name}")
+    return errors
+
+
 def check_repository(backend: Path) -> tuple[list[str], list[str]]:
-    errors, warnings = check(backend)
+    note_roots = (Path("docs/interviews"),) if (backend / "docs/interviews").is_dir() else ()
+    errors, warnings = check(backend, markdown_roots=note_roots)
+    errors.extend(check_decision_notes(backend))
     errors.extend(check_workflow_contract(backend))
     repository = backend.parent
     shared = (

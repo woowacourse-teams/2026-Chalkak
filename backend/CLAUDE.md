@@ -19,6 +19,7 @@
 | 합의한 작업의 이슈·PR 단위, 의존 관계·진행 순서와 개발 중 재분할 | `work-breakdown` Skill |
 | 합의한 분할안·이슈 초안으로 개발부터 PR까지 시작·재개 | `development-workflow` Skill |
 | 이슈·PR 작성·등록 | `issue-pr-workflow` Skill |
+| 중요한 기획·개발 선택의 합의 후 고민 기록 작성·갱신 | `decision-notes` Skill |
 | 작업 브랜치 이름·생성·PR 대상·운영 릴리스 브랜치·작업 완료 후 정리 | `branch-workflow` Skill |
 | 커밋 단위 설계·메시지 추천·커밋 생성·정리 | `commit-conventions` Skill |
 | 백엔드 PR의 코드 리뷰·리뷰 댓글 작성 | `backend-pr-review` Skill |
@@ -27,6 +28,7 @@
 - 일반 요청에서는 관련 근거를 확인하고 필요한 확인 질문만 한다. 심화 인터뷰를 요청하는 일반 문장에는 수동 실행 방법을 안내한다. 수동으로 시작한 같은 인터뷰는 답변으로 이어가고, 종료 후 재개는 다시 수동 호출한다.
 - 이슈에 연결된 변경 작업의 착수·진행 갱신·재개에는 [작업 기록](.claude/skills/development-workflow/references/work-state.md)을 사용한다. 새 세션·단순 질문만으로 기록을 읽거나 만들지 않는다.
 - 이슈·PR 양식은 `../.github/ISSUE_TEMPLATE/`와 `../.github/pull_request_template.md`에서 읽는다.
+- 중요한 선택이 합의되면 `decision-notes` Skill으로 고민의 흐름을 기록하고 구현·검증 결과에 맞춰 갱신한다. 단순 대화에는 만들지 않으며 채팅·초안만 요청한 범위와 인터뷰 종료 요청을 우선한다.
 
 ## 순차 개발과 승인 경계
 

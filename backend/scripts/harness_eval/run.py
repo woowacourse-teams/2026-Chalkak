@@ -147,6 +147,11 @@ def compare(before, after, criteria):
     changed = sorted(path for path in old.keys() | new.keys() if old.get(path) != new.get(path))
     checks, errors = criteria["mechanical"], []
     for path in set(changed) - set(checks["allowed_changed_paths"]):
+        # 제목 표현을 정답으로 강제하지 않되, 지정된 폴더의 새 Markdown만 허용한다.
+        new_markdown = (path not in old and Path(path).suffix == ".md"
+                        and Path(path).parent.as_posix() in checks.get("allowed_new_markdown_dirs", []))
+        if new_markdown:
+            continue
         errors.append(f"범위 밖 변경: {path}")
     for path in set(checks["required_changed_paths"]) - set(changed):
         errors.append(f"요청한 변경 없음: {path}")
