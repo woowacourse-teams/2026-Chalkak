@@ -32,13 +32,14 @@ def inspect_material(repo, config_home):
             stop = lines.index("---", 1)
         except ValueError:
             raise ValueError("Claude 스킬의 frontmatter를 확인할 수 없습니다: " + str(path)) from None
-        # 런타임 YAML 파서를 새로 만들지 않는다. name/description 한 줄 메타데이터만 지원한다.
+        # 정적 한 줄 메타데이터만 지원한다. 수동 전용 플래그는 보존하며 실행 권한을 넓히지 않는다.
         headers = lines[1:stop]
-        if (not lines or lines[0] != "---" or len(headers) != 2
+        if (not lines or lines[0] != "---" or len(headers) not in (2, 3)
                 or not re.fullmatch(r"name: [a-z0-9]+(?:-[a-z0-9]+)*", headers[0])
                 or not re.fullmatch(r"description: [^>|].+", headers[1])
+                or (len(headers) == 3 and headers[2] != "disable-model-invocation: true")
                 or re.search(r"!\s*`", text)):
-            raise ValueError("Claude 문서 평가는 name/description의 정적 스킬만 지원합니다: " + str(path))
+            raise ValueError("Claude 문서 평가는 name/description과 선택적인 수동 전용 플래그만 지원합니다: " + str(path))
         name = headers[0].removeprefix("name: ")
         if name != path.parent.name:
             raise ValueError("Claude 스킬 이름과 디렉터리가 일치하지 않습니다: " + str(path))

@@ -11,8 +11,11 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 
 검사: 팀 공통 스킬 메타데이터, 대응 파일, 운영·테스트 paths, 로컬 Markdown
 링크, 안내문의 스킬·규칙 참조. Git 루트에 공통 하네스가 있으면 같은 검사를
-적용하고 비즈니스 규칙 문서 링크도 확인한다. 코드 예제·외부 URL·앵커의 내용,
-플랫폼 확장 필드 전체, 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
+적용하고 비즈니스 규칙의 모든 결정 기록 링크와 심화 인터뷰의 수동 전용 호출 설정도 확인한다.
+코드 예제·외부 URL·앵커의 내용, 그 외 플랫폼 확장 필드 전체,
+순차 개발 공통 문서의 플랫폼 문법 정규화 후 동일성과 Claude attribution도 확인한다.
+고민 기록의 한국어 파일명·상태·목차 대응과 로컬 링크도 확인한다.
+그 외 양쪽 문장의 의미와 실제 AI 행동은 검사하지 않는다.
 종료 코드: 0 통과(경고 포함), 1 구조 오류, 2 의존성 부족으로 미실행.
 기준: https://agentskills.io/specification
       https://code.claude.com/docs/en/memory#path-specific-rules
@@ -21,9 +24,11 @@ Python 3.10+ 사용. 최초 준비 예시(macOS/Linux, backend 디렉터리에�
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import re
 import sys
+import unicodedata
 from urllib.parse import unquote, urlsplit
 
 try:
@@ -43,7 +48,39 @@ NOTION_MAP_FIELDS = {"version", "mode", "location", "rule_pages"}
 RULE_PAGE = re.compile(r"docs/business-rules/rules/[^/]+\.md")
 RULE_BLOCK = re.compile(r"^## ([A-Z][A-Z0-9]*-\d{3}) [^\n]+\n(.*?)(?=^## |\Z)", re.M | re.S)
 RULE_FIELDS = ("규칙", "적용 범위", "예외", "결정 기록")
-DECISION_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+
+
+def decision_links(value: str) -> list[str]:
+    """쉼표나 공백으로 구분한 Markdown 링크만 허용해 잘못된 뒷부분도 잡는다."""
+    tokens = MarkdownIt().parseInline(value.strip())[0].children or []
+    links = []
+    index = 0
+    while index < len(tokens):
+        opening = tokens[index]
+        if opening.type != "link_open" or not opening.attrGet("href"):
+            raise ValueError("결정 문서 링크가 필요합니다")
+        index += 1
+        label = []
+        while index < len(tokens) and tokens[index].type != "link_close":
+            token = tokens[index]
+            if token.type not in {"text", "code_inline", "em_open", "em_close", "strong_open", "strong_close"}:
+                raise ValueError("결정 문서 링크의 이름이 올바르지 않습니다")
+            label.append(token.content)
+            index += 1
+        if index == len(tokens) or not "".join(label).strip():
+            raise ValueError("결정 문서 링크의 이름이 필요합니다")
+        links.append(opening.attrGet("href"))
+        index += 1
+        if index < len(tokens):
+            separator = tokens[index]
+            if separator.type != "text" or not re.fullmatch(r"(?:\s+|\s*,\s*)", separator.content):
+                raise ValueError("결정 문서 링크를 쉼표나 공백으로 구분하세요")
+            index += 1
+            if index == len(tokens):
+                raise ValueError("구분자 뒤에 결정 문서 링크가 필요합니다")
+    if not links:
+        raise ValueError("결정 문서 링크가 필요합니다")
+    return links
 
 
 def parse_metadata(header: str) -> dict:
@@ -73,6 +110,7 @@ def parse_metadata(header: str) -> dict:
 
 def business_rule_inventory(root: Path) -> tuple[dict[str, set[str]], list[str]]:
     """활성 규칙의 형식·목차·결정 기록 연결을 검사한다."""
+    root = root.resolve()
     errors = []
     active = {}
     owners = {}
@@ -113,24 +151,38 @@ def business_rule_inventory(root: Path) -> tuple[dict[str, set[str]], list[str]]
             decision = values.get("결정 기록")
             if not decision or decision == "없음":
                 continue
-            links = DECISION_LINK.findall(decision)
-            if len(links) != 1:
-                report(source, f"{rule_id}의 결정 기록은 없음 또는 결정 문서 링크 하나여야 합니다")
-                continue
-            target = unquote(urlsplit(links[0]).path)
-            decision_path = (source.parent / target).resolve()
-            decision_root = (root / "docs/business-rules/decisions").resolve()
-            if not decision_path.is_relative_to(decision_root) or decision_path.name == "_template.md":
-                report(source, f"{rule_id}의 결정 기록은 decisions 아래 실제 문서를 가리켜야 합니다")
-                continue
             try:
-                decision_text = decision_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError):
-                report(source, f"{rule_id}의 결정 기록 파일을 읽을 수 없습니다: {links[0]}")
+                links = decision_links(decision)
+            except ValueError as exc:
+                report(source, f"{rule_id}의 결정 기록은 없음 또는 결정 문서 링크 목록이어야 합니다: {exc}")
                 continue
-            related = re.findall(r"^- 관련 규칙:[ \t]*(.*)$", decision_text, re.M)
-            if len(related) != 1 or rule_id not in re.findall(r"\b[A-Z][A-Z0-9]*-\d{3}\b", related[0]):
-                report(decision_path, f"관련 규칙에 해당 ID가 없습니다: {rule_id}")
+            decision_root = root / "docs/business-rules/decisions"
+            seen_decisions = set()
+            for link in links:
+                try:
+                    url = urlsplit(link)
+                    target = Path(unquote(url.path))
+                    if url.scheme or url.netloc or url.query or target.is_absolute():
+                        raise ValueError("로컬 상대 경로가 필요합니다")
+                    decision_path = (source.parent / target).resolve()
+                    if (not decision_path.is_relative_to(decision_root)
+                            or decision_path.name == "_template.md" or decision_path.suffix != ".md"):
+                        raise ValueError("decisions 아래 실제 Markdown 문서가 필요합니다")
+                except (OSError, RuntimeError, ValueError) as exc:
+                    report(source, f"{rule_id}의 결정 기록 경로가 올바르지 않습니다: {link} ({exc})")
+                    continue
+                if decision_path in seen_decisions:
+                    report(source, f"{rule_id}의 결정 기록 문서가 중복됩니다: {link}")
+                    continue
+                seen_decisions.add(decision_path)
+                try:
+                    decision_text = decision_path.read_text(encoding="utf-8")
+                except (OSError, UnicodeError, ValueError):
+                    report(source, f"{rule_id}의 결정 기록 파일을 읽을 수 없습니다: {link}")
+                    continue
+                related = re.findall(r"^- 관련 규칙:[ \t]*(.*)$", decision_text, re.M)
+                if len(related) != 1 or rule_id not in re.findall(r"\b[A-Z][A-Z0-9]*-\d{3}\b", related[0]):
+                    report(decision_path, f"관련 규칙에 해당 ID가 없습니다: {rule_id}")
         active[relative] = identifiers
 
     readme = root / "docs/business-rules/README.md"
@@ -273,6 +325,21 @@ def check(root: Path, *, rule_paths=RULE_PATHS, markdown_roots=()) -> tuple[list
                     names.add(name)
                 if not isinstance(description, str) or not description.strip() or len(description) > 1024:
                     report(path, "description은 비어 있지 않은 1~1024자 문자열이어야 합니다")
+                if folder.name == "chalkak-interview":
+                    if platform == ".claude":
+                        if data.get("disable-model-invocation") is not True:
+                            report(path, "수동 인터뷰에는 disable-model-invocation: true가 필요합니다")
+                        if data.get("user-invocable", True) is not True:
+                            report(path, "수동 인터뷰는 사용자가 호출할 수 있어야 합니다")
+                    else:
+                        policy_path = folder / "agents/openai.yaml"
+                        try:
+                            policy = parse_metadata(read(policy_path)).get("policy")
+                        except (ValueError, yaml.YAMLError) as exc:
+                            report(policy_path, f"잘못된 호출 정책 YAML: {str(exc).splitlines()[0]}")
+                        else:
+                            if not isinstance(policy, dict) or policy.get("allow_implicit_invocation") is not False:
+                                report(policy_path, "수동 인터뷰에는 policy.allow_implicit_invocation: false가 필요합니다")
             for path in sorted(directory.rglob("*.md")):
                 read(path)
         platforms[platform] = skills
@@ -353,8 +420,135 @@ def check(root: Path, *, rule_paths=RULE_PATHS, markdown_roots=()) -> tuple[list
     return sorted(set(errors)), sorted(set(warnings))
 
 
+# 순차 실행의 핵심 문서는 의도적으로 같은 본문을 유지한다.
+# 인터뷰 UI·플랫폼별 도구 지침처럼 다른 문서의 의미 일치까지 주장하지 않는다.
+WORKFLOW_DOCUMENTS = (
+    "decision-notes/SKILL.md",
+    "work-breakdown/SKILL.md", "development-workflow/SKILL.md",
+    "commit-conventions/SKILL.md", "issue-pr-workflow/SKILL.md",
+    "branch-workflow/SKILL.md", "branch-workflow/references/stacked-prs.md",
+    "development-workflow/references/work-state.md",
+    "development-workflow/references/completion-gate.md",
+)
+
+
+def check_workflow_contract(root: Path) -> list[str]:
+    errors = []
+    if not any((root / platform / "skills/development-workflow").exists() for platform in (".agents", ".claude")):
+        return errors
+    def normalize(text):
+        return text.replace("../../../../.claude/", "../../../../.agents/").replace("/chalkak-interview", "$chalkak-interview")
+    for relative in WORKFLOW_DOCUMENTS:
+        paths = [root / platform / "skills" / relative for platform in (".agents", ".claude")]
+        try:
+            contents = [normalize(p.read_text(encoding="utf-8")) for p in paths]
+        except (OSError, UnicodeError):
+            errors.append(f"순차 개발 필수 문서 누락·읽기 실패: {relative}")
+            continue
+        if contents[0] != contents[1]:
+            errors.append(f"순차 개발의 Claude·Codex 공통 규칙이 다릅니다: {relative}")
+    for relative in ("scripts/work_state.py", "scripts/workflow_gate.py"):
+        if not (root / relative).is_file():
+            errors.append(f"순차 개발 도구가 없습니다: {relative}")
+    path = root / ".claude/settings.json"
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        attribution = settings.get("attribution", {})
+        if attribution.get("commit") != "" or attribution.get("pr") != "" or attribution.get("sessionUrl") is not False:
+            errors.append(".claude/settings.json: commit·pr attribution은 빈 문자열, sessionUrl은 false여야 합니다")
+    except (OSError, UnicodeError, ValueError, AttributeError):
+        errors.append(".claude/settings.json: attribution 설정을 읽을 수 없습니다")
+    return errors
+
+
+def check_decision_notes(root: Path) -> list[str]:
+    """고민 기록의 파일명·상태·목차 대응만 검사한다. 내용의 타당성은 판정하지 않는다."""
+    directory = root / "docs/interviews"
+    enabled = directory.exists() or any(
+        (root / platform / "skills/decision-notes").exists() for platform in (".agents", ".claude")
+    )
+    if not enabled:
+        return []
+    errors = []
+    markdown = MarkdownIt("commonmark").enable("table")
+    statuses = {"논의 중", "방향 합의", "구현·검증 완료"}
+
+    def report(path, message):
+        errors.append(f"{path.relative_to(root)}: {message}")
+
+    def read(path):
+        try:
+            if path.is_symlink():
+                raise ValueError("심볼릭 링크는 고민 기록으로 사용하지 않습니다")
+            return path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError, ValueError) as exc:
+            report(path, f"고민 기록 읽기 실패: {exc}")
+            return ""
+
+    readme = directory / "README.md"
+    index_text = read(readme)
+    notes = {}
+    for path in sorted(directory.rglob("*.md")):
+        if path == readme:
+            continue
+        if path.is_symlink():
+            read(path)
+            continue
+        name = unicodedata.normalize("NFC", path.stem)
+        if (path.parent != directory or not re.fullmatch(r"[가-힣A-Za-z0-9]+(?:-[가-힣A-Za-z0-9]+)*", name)
+                or not re.search(r"[가-힣]", name)):
+            report(path, "한국어 주제를 포함한 단일 하이픈 파일명을 docs/interviews 바로 아래에 두세요")
+        text = read(path)
+        header = re.match(r"\A---\n(.*?)\n---(?:\n|\Z)", text, re.S)
+        status = None
+        try:
+            if not header:
+                raise ValueError("맨 앞 YAML frontmatter에 status가 필요합니다")
+            status = parse_metadata(header[1]).get("status")
+            if not isinstance(status, str) or status not in statuses:
+                raise ValueError("status는 논의 중 / 방향 합의 / 구현·검증 완료 중 하나여야 합니다")
+        except (ValueError, yaml.YAMLError) as exc:
+            report(path, f"잘못된 고민 기록 상태: {exc}")
+        notes[path.resolve()] = status
+
+    listed = set()
+    row = []
+    for token in markdown.parse(index_text):
+        if token.type == "tr_open":
+            row = []
+        elif token.type == "inline":
+            row.append(token)
+        elif token.type == "tr_close":
+            for cell in row:
+                for child in cell.children or []:
+                    if child.type != "link_open":
+                        continue
+                    href = child.attrGet("href")
+                    try:
+                        url = urlsplit(href)
+                        if url.scheme or url.netloc or not url.path:
+                            continue
+                        target = (directory / unquote(url.path)).resolve()
+                    except (ValueError, OSError, RuntimeError):
+                        report(readme, f"잘못된 고민 기록 링크: {href}")
+                        continue
+                    if target not in notes:
+                        continue  # 존재하지 않는 로컬 링크는 공통 Markdown 검사에서 잡는다.
+                    if target in listed:
+                        report(readme, f"중복 고민 기록: {href}")
+                    listed.add(target)
+                    if len(row) != 3 or row[2].content.strip() != notes[target]:
+                        report(readme, f"제목·소개·상태 3열과 문서와 같은 상태가 필요합니다: {href}")
+    for path in sorted(set(notes) - listed):
+        report(readme, f"고민 기록이 목차 표에 없습니다: {path.name}")
+    return errors
+
+
 def check_repository(backend: Path) -> tuple[list[str], list[str]]:
-    errors, warnings = check(backend)
+    note_roots = (Path("docs/interviews"),) if (backend / "docs/interviews").is_dir() else ()
+    errors, warnings = check(backend, markdown_roots=note_roots)
+    errors.extend(check_decision_notes(backend))
+    errors.extend(check_workflow_contract(backend))
     repository = backend.parent
     shared = (
         repository / ".agents/skills/business-rules",

@@ -98,6 +98,11 @@ def prepare(case, output, repo, source=BACKEND.parent):
     setup = criteria["setup"]
     for relative in setup.get("copy_source_paths", []):
         copy_files(within(source, relative), within(repo, relative))
+    if setup.get("mock_github"):
+        mock = repo / ".eval/bin/gh"
+        mock.parent.mkdir(parents=True, exist_ok=True)
+        copy_files(HERE / "mock_github.py", mock)
+        mock.chmod(0o755)
     branch = setup.get("branch", "be/develop")
     if not isinstance(branch, str) or not re.fullmatch(r"[A-Za-z0-9._/#-]+", branch):
         raise ValueError("평가용 브랜치 이름이 올바르지 않습니다")
@@ -142,6 +147,11 @@ def compare(before, after, criteria):
     changed = sorted(path for path in old.keys() | new.keys() if old.get(path) != new.get(path))
     checks, errors = criteria["mechanical"], []
     for path in set(changed) - set(checks["allowed_changed_paths"]):
+        # 제목 표현을 정답으로 강제하지 않되, 지정된 폴더의 새 Markdown만 허용한다.
+        new_markdown = (path not in old and Path(path).suffix == ".md"
+                        and Path(path).parent.as_posix() in checks.get("allowed_new_markdown_dirs", []))
+        if new_markdown:
+            continue
         errors.append(f"범위 밖 변경: {path}")
     for path in set(checks["required_changed_paths"]) - set(changed):
         errors.append(f"요청한 변경 없음: {path}")
@@ -350,6 +360,8 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
             binary = shutil.which(platform)
             if not binary:
                 reason = f"{platform} CLI가 설치되어 있지 않습니다"
+            elif platform == "claude" and criteria["setup"].get("mock_github"):
+                reason = "모의 GitHub 사례는 현재 Codex의 격리된 shell에서만 지원합니다"
             elif platform == "claude":
                 command, metadata = claude_adapter.build_command(binary, repo, destination)
                 report.update(metadata)
@@ -358,6 +370,8 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                 version = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=10)
                 report["cli_version"] = version.stdout.strip()
                 config = codex_config(repo, BACKEND.parent)
+                if criteria["setup"].get("mock_github"):
+                    config += overrides({"shell_environment_policy.set.PATH": str(repo / ".eval/bin") + ":/Library/Developer/CommandLineTools/usr/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"})
                 settings = model_settings()
                 report["model_settings"] = settings or {"model": "CLI 기본값 (사용량 기록과 별도)"}
                 report["mode"] = "native exec; 개인 설정 제외, 전역 지침/관리자 정책은 유지"

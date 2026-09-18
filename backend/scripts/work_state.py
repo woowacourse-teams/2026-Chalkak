@@ -23,7 +23,7 @@ except ImportError:
     fcntl = None
 
 LIMIT = 8192
-FIELDS = {"goal", "done", "remaining", "next", "scope", "decisions", "blockers", "links", "stack"}
+FIELDS = {"goal", "done", "remaining", "next", "scope", "decisions", "blockers", "links", "stack", "workflow", "commit_unit"}
 
 
 def git(root, *arguments):
@@ -147,6 +147,7 @@ def record(root, issue, current):
             or (verification is not None and (not isinstance(verification, dict) or not valid_state(verification.get("code_state"))))):
         raise ValueError("현재 backend·저장소·이슈의 유효한 기록이 아닙니다")
     validate_work(value.get("work"))
+    validate_issue(value["work"], issue)
     return value
 
 
@@ -155,15 +156,20 @@ def load(root, issue):
     value = record(root, issue, current)
     state = {key: current[key] for key in ("head", "fingerprint")}
     verification = value.get("verification") if value else None
+    unit = value["work"].get("commit_unit") if value else None
     return {"revision": value["revision"] if value else "missing", "record": value, "current": current,
-            "matches": {"record": bool(value and value["branch"] == current["branch"] and value.get("code_state") == state),
+            "matches": {"commit_approval": bool(unit and unit.get("status") == "approved"
+                                               and unit.get("head") == current["head"]
+                                               and unit.get("fingerprint") == current["fingerprint"]
+                                               and value["branch"] == current["branch"]),
+                        "record": bool(value and value["branch"] == current["branch"] and value.get("code_state") == state),
                         "verification": bool(verification and verification.get("code_state") == state)}}
 
 
 def merge(previous, patch):
     result = dict(previous)
     for key, value in patch.items():
-        result[key] = merge(result[key], value) if isinstance(value, dict) and isinstance(result.get(key), dict) else value
+        result[key] = merge(result[key], value) if key not in {"workflow", "commit_unit"} and isinstance(value, dict) and isinstance(result.get(key), dict) else value
     return result
 
 
@@ -174,6 +180,56 @@ def validate_work(work):
         raise ValueError("work.goal·next는 비어 있지 않은 문자열이어야 합니다")
     if any(not isinstance(work.get(key), list) or any(not isinstance(item, str) for item in work[key]) for key in ("done", "remaining")):
         raise ValueError("work.done·remaining은 문자열 배열이어야 합니다")
+
+
+    workflow = work.get("workflow")
+    if workflow is not None:
+        expected = {"main_issue", "order", "phase", "approval_basis", "pending_change"}
+        if not isinstance(workflow, dict) or set(workflow) != expected:
+            raise ValueError("workflow는 정의된 전체 필드를 함께 갱신하세요")
+        order = workflow["order"]
+        if (type(workflow["main_issue"]) is not int or workflow["main_issue"] <= 0
+                or not isinstance(order, list) or not order
+                or any(type(n) is not int or n <= 0 for n in order)
+                or len(set(order)) != len(order) or workflow["main_issue"] in order):
+            raise ValueError("메인 이슈와 중복 없는 실제 서브 이슈 순서가 필요합니다")
+        if workflow["phase"] not in {"implementation", "commit_approval", "review_wait", "scope_approval", "merge_check", "completed"}:
+            raise ValueError("알 수 없는 workflow 단계입니다")
+        if (not isinstance(workflow["approval_basis"], str) or not workflow["approval_basis"].strip()
+                or not isinstance(workflow["pending_change"], str)):
+            raise ValueError("분할 실행 승인 근거와 범위 변경 내용을 기록하세요")
+        if workflow["phase"] == "scope_approval" and not workflow["pending_change"].strip():
+            raise ValueError("범위 승인 대기에는 변경 제안이 필요합니다")
+    unit = work.get("commit_unit")
+    if unit is not None:
+        expected = {"goal", "status", "paths", "message", "fingerprint", "head", "approval_basis"}
+        if not isinstance(unit, dict) or set(unit) != expected:
+            raise ValueError("commit_unit은 정의된 전체 필드를 함께 갱신하세요")
+        if any(not isinstance(unit[k], str) for k in expected - {"paths"}) or not unit["goal"].strip():
+            raise ValueError("커밋 단위의 문자열 필드를 확인하세요")
+        if unit["status"] not in {"implementing", "awaiting_approval", "approved", "committed"}:
+            raise ValueError("알 수 없는 커밋 승인 상태입니다")
+        paths = unit["paths"]
+        if (not isinstance(paths, list) or not paths or any(not isinstance(p, str) or not p.strip()
+                or Path(p).is_absolute() or ".." in Path(p).parts or not Path(p).parts for p in paths)
+                or len(set(paths)) != len(paths)):
+            raise ValueError("커밋 경로는 중복 없는 backend 상대 경로 배열이어야 합니다")
+        if unit["status"] != "implementing" and (not unit["message"].strip()
+                or not re.fullmatch(r"[a-f0-9]{64}", unit["fingerprint"])
+                or not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", unit["head"])):
+            raise ValueError("승인 대상 메시지·HEAD·코드 지문이 필요합니다")
+        if unit["status"] in {"approved", "committed"} and not unit["approval_basis"].strip():
+            raise ValueError("커밋 승인 근거가 필요합니다")
+        if unit["status"] in {"implementing", "awaiting_approval"} and unit["approval_basis"]:
+            raise ValueError("미승인 단위에 이전 승인 근거를 재사용할 수 없습니다")
+    if workflow and workflow["phase"] == "commit_approval" and (not unit or unit["status"] != "awaiting_approval"):
+        raise ValueError("커밋 승인 대기 단계와 현재 단위가 일치하지 않습니다")
+
+
+def validate_issue(work, issue):
+    workflow = work.get("workflow")
+    if workflow and issue not in workflow["order"] and issue != workflow["main_issue"]:
+        raise ValueError("현재 이슈가 승인된 메인·서브 이슈에 없습니다")
 
 
 def expect(value, revision):
@@ -196,6 +252,7 @@ def save(root, issue, expected_revision, payload, record_checks=False, checked_f
             raise ValueError("현재 브랜치와 이슈·기존 기록 브랜치가 일치하지 않습니다")
         work = merge(old["work"] if old else {}, payload.get("work", {}))
         validate_work(work)
+        validate_issue(work, issue)
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         code_state = {key: current[key] for key in ("head", "fingerprint")}
         verification = old.get("verification") if old else None

@@ -204,6 +204,48 @@ class CheckHarnessTest(unittest.TestCase):
 
             self.assert_error_for(errors, relative)
 
+    def add_manual_interview(self, root):
+        for platform in (".agents", ".claude"):
+            content = self.skill("chalkak-interview")
+            if platform == ".claude":
+                content = content.replace("description:", "disable-model-invocation: true\ndescription:")
+            self.write(root, f"{platform}/skills/chalkak-interview/SKILL.md", content)
+        return self.write(root, ".agents/skills/chalkak-interview/agents/openai.yaml",
+                          "policy:\n  allow_implicit_invocation: false\n")
+
+    def test_manual_interview_rejects_implicit_or_hidden_claude_invocation(self):
+        with self.repository() as root:
+            self.add_manual_interview(root)
+            self.assertEqual(([], []), check_harness.check(root))
+            relative = ".claude/skills/chalkak-interview/SKILL.md"
+            path = root / relative
+            original = path.read_text()
+            for replacement in ("", "disable-model-invocation: false\n",
+                                'disable-model-invocation: "true"\n',
+                                "disable-model-invocation: true\nuser-invocable: false\n"):
+                with self.subTest(replacement=replacement):
+                    path.write_text(original.replace("disable-model-invocation: true\n", replacement))
+                    errors, _ = check_harness.check(root)
+                    self.assert_error_for(errors, relative)
+
+    def test_manual_interview_requires_explicit_codex_policy(self):
+        with self.repository() as root:
+            path = self.add_manual_interview(root)
+            for policy in (None, "{}\n", "policy: null\n", "policy: []\n",
+                           "policy:\n  allow_implicit_invocation: true\n",
+                           'policy:\n  allow_implicit_invocation: "false"\n',
+                           "policy: [\n", "policy: {}\npolicy: {}\n"):
+                with self.subTest(policy=policy):
+                    if policy is None:
+                        path.unlink()
+                    else:
+                        path.write_text(policy)
+                    errors, _ = check_harness.check(root)
+                    self.assert_error_for(errors, "agents/openai.yaml")
+            path.write_text('interface:\n  display_name: "심화 인터뷰"\n'
+                            'policy:\n  allow_implicit_invocation: false\n')
+            self.assertEqual(([], []), check_harness.check(root))
+
     def test_relative_links_resolve_from_the_document_directory(self):
         documents = (
             ".agents/skills/demo/SKILL.md",
@@ -406,6 +448,241 @@ class CheckHarnessTest(unittest.TestCase):
             decision.write_text("# 변경 이유\n- 관련 규칙: EXAMPLE-001\n")
             self.assertEqual(0, self.run_cli(root).returncode)
 
+    @contextmanager
+    def decision_repository(self, value):
+        with self.repository() as root:
+            repository = self.shared_repository(root)
+            rule = repository / "docs/business-rules/rules/example.md"
+            rule.write_text(rule.read_text().replace("- 결정 기록: 없음", f"- 결정 기록: {value}"))
+            for name in ("first.md", "second.md", "third.md", "변경 (v2).md"):
+                self.write(repository, f"docs/business-rules/decisions/{name}",
+                           "# 변경 이유\n- 관련 규칙: OTHER-001, EXAMPLE-001\n")
+            yield root, repository
+
+    def test_decision_records_accept_none_single_and_multiple_markdown_links(self):
+        values = (
+            "없음",
+            "[첫 기록](../decisions/first.md)",
+            "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)",
+            "[첫 기록](../decisions/first.md) [둘째 기록](../decisions/second.md) "
+            "[셋째 기록](../decisions/third.md)",
+            '[**첫 기록**](../decisions/first.md#context "변경 이유"), '
+            "[공백과 괄호](<../decisions/변경 (v2).md>)",
+        )
+        for value in values:
+            with self.subTest(value=value), self.decision_repository(value) as (root, _):
+                result = self.run_cli(root)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_every_decision_link_is_checked_even_after_an_invalid_link(self):
+        value = ", ".join(f"[{name}](../decisions/{name}.md)" for name in ("first", "second", "third"))
+        with self.decision_repository(value) as (root, repository):
+            decisions = repository / "docs/business-rules/decisions"
+            (decisions / "first.md").unlink()
+            (decisions / "second.md").write_text("# 다른 규칙\n- 관련 규칙: EXAMPLE-0010\n")
+            (decisions / "third.md").write_bytes(b"\xff")
+
+            result = self.run_cli(root)
+
+            self.assertEqual(1, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            for name in ("first.md", "second.md", "third.md"):
+                self.assertIn(name, result.stderr)
+
+    def test_second_decision_requires_one_related_rule_field_with_matching_id(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        for content in ("# 필드 없음\n", "- 관련 규칙: OTHER-001\n",
+                        "- 관련 규칙: EXAMPLE-001\n- 관련 규칙: EXAMPLE-001\n"):
+            with self.subTest(content=content), self.decision_repository(value) as (_, repository):
+                (repository / "docs/business-rules/decisions/second.md").write_text(content)
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assert_error_for(errors, "decisions/second.md")
+
+    def test_decision_records_reject_malformed_or_non_link_content(self):
+        good = "[첫 기록](../decisions/first.md)"
+        values = (
+            "", "미정", f"없음, {good}", f"{good}, [깨짐](../decisions/second.md",
+            f"{good}, 설명만 있음", f"{good},", f", {good}", f"{good},, {good}",
+            f"`{good}`", f"!{good}", f"{good}, [ ](../decisions/second.md)",
+            f"{good}, [빈 경로]()", f"{good}, [참조][missing]",
+        )
+        for value in values:
+            with self.subTest(value=value), self.decision_repository(value) as (_, repository):
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_require_local_markdown_files_inside_decisions(self):
+        targets = (
+            "../outside.md", "../decisions/../outside.md", "../decisions/%2e%2e/outside.md",
+            "../decisions/_template.md", "../decisions/notes.txt", "../decisions/folder.md",
+            "https:../decisions/second.md", "//example.invalid/second.md",
+            "../decisions/second.md?raw=1", "../decisions/bad%00.md",
+            "ABSOLUTE", "FILE_URL", "REMOTE_WITH_LOCAL_PATH",
+        )
+        for target in targets:
+            with self.subTest(target=target), self.decision_repository("없음") as (_, repository):
+                second = repository / "docs/business-rules/decisions/second.md"
+                href = {"ABSOLUTE": str(second), "FILE_URL": second.as_uri(),
+                        "REMOTE_WITH_LOCAL_PATH": f"https://example.invalid{second}"}.get(target, target)
+                for name in ("outside.md", "decisions/_template.md", "decisions/notes.txt"):
+                    self.write(repository, f"docs/business-rules/{name}", "- 관련 규칙: EXAMPLE-001\n")
+                (repository / "docs/business-rules/decisions/folder.md").mkdir()
+                rule = repository / "docs/business-rules/rules/example.md"
+                rule.write_text(rule.read_text().replace("- 결정 기록: 없음",
+                                f"- 결정 기록: [첫 기록](../decisions/first.md), [잘못된 기록]({href})"))
+
+                _, errors = check_harness.business_rule_inventory(repository)
+
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_reject_symlink_escape_and_loops_without_crashing(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        for loop in (False, True):
+            with self.subTest(loop=loop), self.decision_repository(value) as (_, repository):
+                second = repository / "docs/business-rules/decisions/second.md"
+                second.unlink()
+                outside = self.write(repository, "outside.md", "- 관련 규칙: EXAMPLE-001\n")
+                second.symlink_to(second if loop else outside)
+
+                _, errors = check_harness.business_rule_inventory(repository)
+
+                self.assert_error_for(errors, "rules/example.md")
+
+    def test_decision_links_reject_duplicate_documents_after_path_resolution(self):
+        for alias in ("first.md", "./first.md", "%66irst.md", "first.md#another-section"):
+            value = f"[첫 기록](../decisions/first.md), [중복](../decisions/{alias})"
+            with self.subTest(alias=alias), self.decision_repository(value) as (_, repository):
+                _, errors = check_harness.business_rule_inventory(repository)
+                self.assertTrue(any("중복" in error for error in errors), errors)
+
+    def test_multiple_decision_validation_is_deterministic_and_read_only(self):
+        value = "[첫 기록](../decisions/first.md), [둘째 기록](../decisions/second.md)"
+        with self.decision_repository(value) as (_, repository):
+            def snapshot():
+                return {path.relative_to(repository): path.read_bytes()
+                        for path in repository.rglob("*") if path.is_file()}
+
+            before = snapshot()
+            first = check_harness.business_rule_inventory(repository)
+            second = check_harness.business_rule_inventory(repository)
+
+            self.assertEqual([], first[1])
+            self.assertEqual(first, second)
+            self.assertEqual(before, snapshot())
+
+
+
+class DecisionNotesTest(unittest.TestCase):
+    repository = CheckHarnessTest.repository
+    write = staticmethod(CheckHarnessTest.write)
+    skill = staticmethod(CheckHarnessTest.skill)
+    assert_error_for = CheckHarnessTest.assert_error_for
+
+    def note(self, root, status="방향 합의", name="기록의-이유.md", body="실제로 논의한 근거입니다."):
+        return self.write(root, f"docs/interviews/{name}", f"---\nstatus: {status}\n---\n# 고민\n\n{body}\n")
+
+    def index(self, root, status="방향 합의", target="기록의-이유.md", extra=""):
+        return self.write(root, "docs/interviews/README.md",
+                          "# 기록\n\n| 고민 | 소개 | 상태 |\n| --- | --- | --- |\n"
+                          f"| [기록]({target}) | 근거 공유 | {status} |\n{extra}")
+
+    def test_note_statuses_and_unbounded_body_are_valid_and_read_only(self):
+        for status in ("논의 중", "방향 합의", "구현·검증 완료"):
+            with self.subTest(status=status), self.repository() as root:
+                self.note(root, status=status, body="필요한 근거. " * 1200)
+                self.index(root, status=status)
+                before = {p: p.read_bytes() for p in root.rglob("*.md")}
+                self.assertEqual(([], []), check_harness.check_repository(root))
+                self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*.md")})
+
+    def test_note_status_requires_unique_valid_frontmatter(self):
+        for content in ("# 고민\nstatus: 방향 합의", "```yaml\nstatus: 방향 합의\n```",
+                        "---\nstatus: 완료\n---", "---\nstatus: []\n---",
+                        "---\nstatus: 논의 중\nstatus: 방향 합의\n---"):
+            with self.subTest(content=content), self.repository() as root:
+                path = self.note(root)
+                path.write_text(content, encoding="utf-8")
+                self.index(root)
+                self.assert_error_for(check_harness.check_decision_notes(root), "기록의-이유.md")
+
+    def test_note_index_rejects_missing_duplicate_and_different_status(self):
+        for index in ("missing", "duplicate", "status", "code"):
+            with self.subTest(index=index), self.repository() as root:
+                self.note(root)
+                path = self.index(root, status="논의 중" if index == "status" else "방향 합의")
+                if index == "missing":
+                    path.unlink()
+                elif index == "duplicate":
+                    path.write_text(path.read_text() + "| [중복](./기록의-이유.md) | 이유 | 방향 합의 |\n")
+                elif index == "code":
+                    path.write_text("```markdown\n" + path.read_text() + "```\n")
+                self.assert_error_for(check_harness.check_decision_notes(root), "README.md")
+
+    def test_note_broken_links_are_checked_through_repository(self):
+        from urllib.parse import unquote
+        with self.repository() as root:
+            self.note(root, body="[근거](없는-근거.md)")
+            self.index(root, extra="\n[지워진 문서](없는-문서.md)\n")
+            errors, _ = check_harness.check_repository(root)
+            errors = [unquote(error) for error in errors]
+            self.assert_error_for(errors, "없는-근거.md")
+            self.assert_error_for(errors, "없는-문서.md")
+
+    def test_note_names_and_flat_directory_are_checked(self):
+        for name in ("english.md", "기록--이유.md", "기록 이유.md", "하위/기록.md"):
+            with self.subTest(name=name), self.repository() as root:
+                self.note(root, name=name)
+                self.index(root, target=name)
+                self.assertTrue(any("파일명" in e for e in check_harness.check_decision_notes(root)))
+
+    def test_note_accepts_unicode_normalization_and_encoded_links(self):
+        import unicodedata
+        from urllib.parse import quote
+        with self.repository() as root:
+            name = unicodedata.normalize("NFD", "기록의-이유.md")
+            self.note(root, name=name)
+            self.index(root, target=quote(name))
+            self.assertEqual(([], []), check_harness.check_repository(root))
+
+    def test_note_symlink_loop_is_an_error_not_a_crash(self):
+        with self.repository() as root:
+            path = self.note(root)
+            path.unlink()
+            path.symlink_to(path)
+            self.index(root)
+            self.assert_error_for(check_harness.check_decision_notes(root), "기록의-이유.md")
+
+    def test_note_directory_is_required_when_skill_exists(self):
+        with self.repository() as root:
+            self.write(root, ".agents/skills/decision-notes/SKILL.md", self.skill("decision-notes"))
+            self.assert_error_for(check_harness.check_decision_notes(root), "docs/interviews/README.md")
+
+
+class WorkflowContractTest(unittest.TestCase):
+    def test_matching_platforms_required_tools_and_attribution(self):
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in check_harness.WORKFLOW_DOCUMENTS:
+                for platform, invocation in ((".agents", "$chalkak-interview"), (".claude", "/chalkak-interview")):
+                    path = root / platform / "skills" / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("Use " + invocation + " now")
+            (root / "scripts").mkdir()
+            for name in ("work_state.py", "workflow_gate.py"):
+                (root / "scripts" / name).write_text("# fixture")
+            settings = root / ".claude/settings.json"
+            settings.write_text(json.dumps({"attribution": {"commit": "", "pr": "", "sessionUrl": False}}))
+            self.assertEqual([], check_harness.check_workflow_contract(root))
+            changed = root / ".claude/skills/commit-conventions/SKILL.md"
+            changed.write_text("Different approval rule")
+            self.assertTrue(any("commit-conventions" in e for e in check_harness.check_workflow_contract(root)))
+            changed.unlink()
+            self.assertTrue(any("누락" in e for e in check_harness.check_workflow_contract(root)))
+            settings.write_text(json.dumps({"attribution": {"commit": "Generated with AI"}}))
+            self.assertTrue(any("attribution" in e for e in check_harness.check_workflow_contract(root)))
+            settings.write_text("null")
+            self.assertTrue(any("attribution" in e for e in check_harness.check_workflow_contract(root)))
 
 if __name__ == "__main__":
     unittest.main()

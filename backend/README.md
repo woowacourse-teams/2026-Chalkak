@@ -103,7 +103,22 @@ claude
 
 AI 하네스는 Codex CLI 0.138.0 이상과 Claude Code 2.1.228 이상에서 사용한다.
 
+### 심화 인터뷰
+
+신규 기능·기능 변경·리팩터링의 요구사항을 질문과 답변으로 구체화한다. 필요할 때 입력창에서 직접 실행한다.
+
+| 도구 | 사용법 |
+| --- | --- |
+| Claude | `/chalkak-interview 작업 내용` |
+| Codex | `$chalkak-interview 작업 내용` |
+
+상세 규칙: [Claude](.claude/skills/chalkak-interview/SKILL.md) · [Codex](.agents/skills/chalkak-interview/SKILL.md)
+
+메인 이슈를 제시하고 인터뷰 결과·서브 이슈 분할안을 승인하면 개발을 시작한다. 커밋마다 코드 설명과 메시지를 확인·승인하며, PR 병합과 이슈 완료를 확인한 뒤 다음 이슈로 진행한다. 이슈·PR 담당자는 본인 계정으로 지정한다. 자세한 절차는 [개발 흐름](.agents/skills/development-workflow/SKILL.md)을 참고한다.
+
 ### 운영 방식
+
+기획·개발에서 중요한 선택이 합의되면 고민의 흐름을 [고민 기록](docs/interviews/README.md)에 남기고 구현·검증 결과에 맞춰 갱신한다. PR에는 문제·해결·결과를 짧게 적고 상세 기록을 연결한다.
 
 하네스는 최소한의 컨벤션으로 시작한다.
 
