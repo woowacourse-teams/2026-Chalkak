@@ -11,11 +11,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -25,6 +30,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
@@ -57,7 +65,16 @@ fun DisplayRoute(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DisplayScreen(
         uiState = uiState,
@@ -88,9 +105,15 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
     onRetryClick: () -> Unit = {},
 ) {
-    val gridState = rememberLazyStaggeredGridState()
-    val settleScope = rememberCoroutineScope()
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
+    val gridState = remember(uiState.selectedDate) {
+        LazyStaggeredGridState()
+    }
+    val settleScope = rememberCoroutineScope()
+    var appliedScrollKey by remember {
+        mutableStateOf(uiState.selectedDate to selectedSort)
+    }
+    var appliedRandomSeed by remember { mutableStateOf(uiState.randomSeed) }
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val scrollState = rememberDisplayScrollBehaviorState(
@@ -109,9 +132,19 @@ fun DisplayScreen(
             .toDp()
     }
 
-    LaunchedEffect(uiState.selectedDate, selectedSort) {
-        scrollState.reset()
-        gridState.scrollToItem(0)
+    SideEffect {
+        val scrollKey = uiState.selectedDate to selectedSort
+        if (appliedScrollKey != scrollKey) {
+            // 새 소트/날짜가 그려지는 frame에서만 상단 상태를 적용해 이중 이동을 막는다.
+            scrollState.reset()
+            gridState.requestScrollToItem(0)
+            appliedScrollKey = scrollKey
+        }
+        if (appliedRandomSeed != uiState.randomSeed) {
+            // 랜덤 결과가 재배치되는 동일한 layout pass에서 0번 anchor를 고정한다.
+            gridState.requestScrollToItem(0)
+            appliedRandomSeed = uiState.randomSeed
+        }
     }
 
     LaunchedEffect(

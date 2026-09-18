@@ -10,6 +10,7 @@ data class HomeUiState(
     val topicDate: LocalDate? = null,
     val topic: String = "",
     val photos: List<Post> = emptyList(),
+    val contentRevision: Int = 0,
     val selectedSort: PostSort = PostSort.LATEST,
     val likedPhotoIds: Set<String> = emptySet(),
     val currentPage: Int = 0,

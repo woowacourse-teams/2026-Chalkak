@@ -48,11 +48,12 @@ class AuthRepositoryImplTest {
             ),
         )
 
-        val result = repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        val result = repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
 
         assertEquals(SocialLoginResult.LoginSuccess("user-id"), result)
         assertEquals(SocialLoginProvider.GOOGLE, authDataSource.loginProvider)
         assertEquals("id-token", authDataSource.loginIdToken)
+        assertEquals("raw-google-nonce", authDataSource.loginRawNonce)
         assertEquals(UserSessionState.Authenticated("user-id"), sessionStore.sessionState.value)
         assertEquals(
             LocalSession.Authenticated(
@@ -80,11 +81,12 @@ class AuthRepositoryImplTest {
             ),
         )
 
-        val result = repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+        val result = repository.login(SocialLoginProvider.KAKAO, "kakao-id-token", "raw-kakao-nonce")
 
         assertEquals(SocialLoginResult.LoginSuccess("user-id"), result)
         assertEquals(SocialLoginProvider.KAKAO, authDataSource.loginProvider)
         assertEquals("kakao-id-token", authDataSource.loginIdToken)
+        assertEquals("raw-kakao-nonce", authDataSource.loginRawNonce)
     }
 
     @Test
@@ -105,11 +107,12 @@ class AuthRepositoryImplTest {
             ),
         )
 
-        repository.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+        repository.login(SocialLoginProvider.KAKAO, "kakao-id-token", "raw-kakao-nonce")
         repository.completeSocialSignUp(byteArrayOf(1))
 
         assertEquals(SocialLoginProvider.KAKAO, authDataSource.createUploadProvider)
         assertEquals("kakao-id-token", authDataSource.createUploadIdToken)
+        assertEquals("raw-kakao-nonce", authDataSource.createUploadRawNonce)
     }
 
     @Test
@@ -134,7 +137,7 @@ class AuthRepositoryImplTest {
         )
         val signaturePng = byteArrayOf(1, 2, 3)
 
-        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
         val result = repository.completeSocialSignUp(signaturePng)
 
         assertEquals(SocialSignUpResult.Success("new-user-id"), result)
@@ -164,7 +167,7 @@ class AuthRepositoryImplTest {
             )
         }
 
-        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
         val result = repository.completeSocialSignUp(byteArrayOf(1))
 
         assertEquals(
@@ -183,7 +186,7 @@ class AuthRepositoryImplTest {
         )
         uploader.result = SignatureUploadResult.InvalidUploadUrl
 
-        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
         val result = repository.completeSocialSignUp(byteArrayOf(1))
 
         assertEquals(
@@ -205,7 +208,7 @@ class AuthRepositoryImplTest {
                 refreshTokenExpiresIn = 2_592_000,
             ),
         )
-        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
 
         repository.logout()
 
@@ -235,7 +238,7 @@ class AuthRepositoryImplTest {
         authDataSource.signUpResults += ApiResult.Success(SocialSignUpResponse("new-user-id"))
         authDataSource.postSignUpLoginResult = ApiResult.Failure(ApiError.Network)
 
-        repository.login(SocialLoginProvider.GOOGLE, "id-token")
+        repository.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
         val firstResult = repository.completeSocialSignUp(byteArrayOf(1))
         val secondResult = repository.completeSocialSignUp(byteArrayOf(1))
 
@@ -262,8 +265,10 @@ private class FakeAuthDataSource : AuthDataSource {
     var loginCount = 0
     var loginProvider: SocialLoginProvider? = null
     var loginIdToken: String? = null
+    var loginRawNonce: String? = null
     var createUploadProvider: SocialLoginProvider? = null
     var createUploadIdToken: String? = null
+    var createUploadRawNonce: String? = null
     var createUploadCount = 0
     var signUpCount = 0
     val signupTokens = mutableListOf<String>()
@@ -272,9 +277,11 @@ private class FakeAuthDataSource : AuthDataSource {
     override suspend fun socialLogin(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SocialLoginResponse> {
         loginProvider = provider
         loginIdToken = idToken
+        loginRawNonce = rawNonce
         loginCount += 1
         return if (loginCount > 1) {
             postSignUpLoginResult ?: loginResult
@@ -286,9 +293,11 @@ private class FakeAuthDataSource : AuthDataSource {
     override suspend fun createSignatureUpload(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SignatureUploadResponse> {
         createUploadProvider = provider
         createUploadIdToken = idToken
+        createUploadRawNonce = rawNonce
         createUploadCount += 1
         return ApiResult.Success(
             SignatureUploadResponse(

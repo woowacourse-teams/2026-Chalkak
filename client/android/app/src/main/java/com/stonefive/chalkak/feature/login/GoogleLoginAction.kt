@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun rememberGoogleLoginAction(
     onStart: () -> Boolean,
-    onSuccess: (String) -> Unit,
+    onSuccess: (idToken: String, rawNonce: String) -> Unit,
     onCancelled: () -> Unit,
     onFailure: (String) -> Unit,
 ): () -> Unit {
@@ -42,7 +42,7 @@ fun rememberGoogleLoginAction(
                 coroutineScope.launch {
                     try {
                         when (val result = googleIdTokenClient.getIdToken(currentActivity)) {
-                            is GoogleCredentialResult.Success -> currentOnSuccess(result.idToken)
+                            is GoogleCredentialResult.Success -> currentOnSuccess(result.idToken, result.rawNonce)
 
                             GoogleCredentialResult.Cancelled -> currentOnCancelled()
 

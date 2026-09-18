@@ -262,6 +262,7 @@ private fun HomeContent(
         ) {
             HomePhotoList(
                 photos = uiState.photos,
+                contentRevision = uiState.contentRevision,
                 likedPhotoIds = uiState.likedPhotoIds,
                 isLoadingNext = uiState.isLoadingNext,
                 areLikesEnabled = uiState.areLikesEnabled,

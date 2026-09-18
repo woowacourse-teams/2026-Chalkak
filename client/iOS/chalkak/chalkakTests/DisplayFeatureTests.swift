@@ -67,6 +67,178 @@ struct DisplayViewModelTests {
         #expect(recorder.firstPages.last?.1 == .random)
     }
 
+    @Test("정렬 변경 중에는 기존 사진을 유지하고 재선택하면 정렬별 캐시를 즉시 보여준다")
+    func sortChangeKeepsVisibleContentAndReusesCache() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let latestPhoto = Self.photo(id: "latest-photo")
+        let popularPhoto = Self.photo(id: "popular-photo")
+        let gate = DisplayFirstPageGate()
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "전시",
+                selectedSort: .latest,
+                photos: [latestPhoto],
+                currentPage: 1,
+                hasNext: true
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) },
+            nextPageHandler: { request in
+                recorder.nextPages.append(
+                    (request.topicDate, request.sort, request.page, request.randomSeed)
+                )
+                return .success(
+                    DisplayPage(
+                        photos: [],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        let popularLoad = Task { await viewModel.selectSort(.popular) }
+        await gate.waitForRequestCount(1)
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.selectedSort == .popular)
+        #expect(viewModel.viewState.photos == [latestPhoto])
+
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(recorder.nextPages.isEmpty)
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(
+                Self.content(
+                    date: latestDate,
+                    page: DisplayPage(
+                        photos: [popularPhoto],
+                        currentPage: 1,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            )
+        )
+        await popularLoad.value
+
+        let latestLoad = Task { await viewModel.selectSort(.latest) }
+        await gate.waitForRequestCount(2)
+
+        #expect(viewModel.viewState.selectedSort == .latest)
+        #expect(viewModel.viewState.photos == [latestPhoto])
+
+        gate.completeRequest(at: 1, with: .success(Self.content(date: latestDate)))
+        await latestLoad.value
+    }
+
+    @Test("캐시된 다음 페이지는 첫 페이지 재검증 뒤에도 유지한다")
+    func refreshPreservesCachedTailPages() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort in
+                .success(
+                    Self.content(
+                        date: date,
+                        page: DisplayPage(
+                            photos: [Self.photo(id: sort == .popular ? "popular-photo" : "latest-photo")],
+                            currentPage: 1,
+                            hasNext: sort == .popular,
+                            randomSeed: nil
+                        )
+                    )
+                )
+            },
+            nextPageHandler: { request in
+                .success(
+                    DisplayPage(
+                        photos: [Self.photo(id: "popular-tail")],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            }
+        )
+
+        await viewModel.load()
+        await viewModel.selectSort(.popular)
+        await viewModel.didReachEndThreshold(true)
+        #expect(viewModel.viewState.photos.map(\.id) == ["popular-photo", "popular-tail"])
+
+        await viewModel.selectSort(.latest)
+        await viewModel.selectSort(.popular)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["popular-photo", "popular-tail"])
+        #expect(viewModel.viewState.currentPage == 2)
+        #expect(!viewModel.viewState.hasNext)
+    }
+
+    @Test("랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다")
+    func randomRefreshPreservesOnlySameSeedTail() async {
+        let latestDate = Self.date(2026, 9, 2)
+        var randomSeed = "seed-1"
+        var randomFirstPhotoID = "random-first-1"
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort in
+                .success(
+                    Self.content(
+                        date: date,
+                        page: DisplayPage(
+                            photos: [
+                                Self.photo(
+                                    id: sort == .random ? randomFirstPhotoID : "latest-photo"
+                                )
+                            ],
+                            currentPage: 1,
+                            hasNext: true,
+                            randomSeed: sort == .random ? randomSeed : nil
+                        )
+                    )
+                )
+            },
+            nextPageHandler: { request in
+                .success(
+                    DisplayPage(
+                        photos: [Self.photo(id: "random-tail")],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        await viewModel.load()
+        await viewModel.selectSort(.random)
+        await viewModel.didReachEndThreshold(true)
+        await viewModel.selectSort(.latest)
+        await viewModel.selectSort(.random)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["random-first-1", "random-tail"])
+        #expect(viewModel.viewState.currentPage == 2)
+        #expect(!viewModel.viewState.hasNext)
+
+        await viewModel.selectSort(.latest)
+        randomSeed = "seed-2"
+        randomFirstPhotoID = "random-first-2"
+        await viewModel.selectSort(.random)
+
+        #expect(viewModel.viewState.photos.map(\.id) == ["random-first-2"])
+        #expect(viewModel.viewState.currentPage == 1)
+        #expect(viewModel.viewState.hasNext)
+        #expect(viewModel.viewState.randomSeed == "seed-2")
+    }
+
     @Test("이전 날짜 404만 최초 전시일 경계로 기록하고 성공 콘텐츠를 복원한다")
     func recordsOnlyPreviousNotFoundAsBoundary() async {
         let latestDate = Self.date(2026, 9, 2)
@@ -126,6 +298,126 @@ struct DisplayViewModelTests {
 
         #expect(viewModel.viewState.selectedDate == archiveDate)
         #expect(viewModel.viewState.contentStatus == .error(.server))
+    }
+
+    @Test("탭 재검증은 기존 전시를 유지하고 성공한 최신 값으로 교체한다")
+    func revalidationKeepsCachedContentUntilUpdated() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let updatedPhoto = Self.photo(id: "updated-photo")
+        let gate = DisplayFirstPageGate()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) }
+        )
+
+        let revalidation = Task { await viewModel.revalidate() }
+        await gate.waitForRequestCount(1)
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.topic == "기존 전시")
+        #expect(viewModel.viewState.photos == [cachedPhoto])
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(
+                Self.content(
+                    date: latestDate,
+                    topic: "최신 전시",
+                    page: DisplayPage(
+                        photos: [updatedPhoto],
+                        currentPage: 1,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            )
+        )
+        await revalidation.value
+
+        #expect(viewModel.viewState.topic == "최신 전시")
+        #expect(viewModel.viewState.photos == [updatedPhoto])
+    }
+
+    @Test("탭 재검증 실패는 기존 전시를 유지한다")
+    func failedRevalidationKeepsCachedContent() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { _, _ in .failure(.network) }
+        )
+
+        await viewModel.revalidate()
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.topic == "기존 전시")
+        #expect(viewModel.viewState.photos == [cachedPhoto])
+        #expect(viewModel.event == .showFailure(.network))
+    }
+
+    @Test("탭 재검증 중에는 다음 페이지를 요청하지 않는다")
+    func blocksNextPageWhileRevalidating() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let cachedPhoto = Self.photo(id: "cached-photo")
+        let gate = DisplayFirstPageGate()
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "기존 전시",
+                photos: [cachedPhoto],
+                currentPage: 1,
+                hasNext: true
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) },
+            nextPageHandler: { request in
+                recorder.nextPages.append(
+                    (request.topicDate, request.sort, request.page, request.randomSeed)
+                )
+                return .success(
+                    DisplayPage(
+                        photos: [],
+                        currentPage: request.page,
+                        hasNext: false,
+                        randomSeed: request.randomSeed
+                    )
+                )
+            }
+        )
+
+        let revalidation = Task { await viewModel.revalidate() }
+        await gate.waitForRequestCount(1)
+
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(recorder.nextPages.isEmpty)
+        #expect(!viewModel.viewState.isLoadingNext)
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(Self.content(date: latestDate, topic: "최신 전시"))
+        )
+        await revalidation.value
     }
 
     @Test("랜덤 다음 페이지는 시드를 재사용하고 ID를 페이지 경계에서 제거한다")

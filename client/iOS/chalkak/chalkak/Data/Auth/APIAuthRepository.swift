@@ -30,8 +30,16 @@ final class APIAuthRepository: AuthRepository {
         )
     }
 
-    func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
-        let loginResponse = try await requestLogin(provider: provider, idToken: idToken)
+    func login(
+        provider: SocialLoginProvider,
+        idToken: String,
+        rawNonce: String
+    ) async throws -> SocialLoginResult {
+        let loginResponse = try await requestLogin(
+            provider: provider,
+            idToken: idToken,
+            rawNonce: rawNonce
+        )
         logger.debug(
             "Social login response result=\(loginResponse.status, privacy: .public)"
         )
@@ -42,7 +50,11 @@ final class APIAuthRepository: AuthRepository {
             pendingLogin = nil
             return .authenticated(userID: credentials.userID)
         case "SIGN_UP_REQUIRED":
-            pendingLogin = .social(provider: provider, idToken: idToken)
+            pendingLogin = PendingSocialLogin(
+                provider: provider,
+                idToken: idToken,
+                rawNonce: rawNonce
+            )
             return .signUpRequired
         default:
             throw AuthRepositoryError.invalidResponse
@@ -50,29 +62,27 @@ final class APIAuthRepository: AuthRepository {
     }
 
     func loginWithApple(credential: AppleLoginCredential) async throws -> SocialLoginResult {
-        let endpoint = try apiURL(path: "auth/apple/social-login")
-        let data = try await requestData(
-            url: endpoint,
-            body: try JSONEncoder().encode(AppleLoginRequest(credential: credential))
+        let loginResponse = try await requestLogin(
+            provider: .apple,
+            idToken: credential.idToken,
+            rawNonce: credential.rawNonce,
+            authorizationCode: credential.authorizationCode
         )
-        let response: SocialLoginResponse
-        do {
-            response = try decoder.decode(SocialLoginResponse.self, from: data)
-        } catch {
-            throw AuthRepositoryError.invalidResponse
-        }
-
-        switch response.status {
+        logger.debug(
+            "Apple login response result=\(loginResponse.status, privacy: .public)"
+        )
+        switch loginResponse.status {
         case "LOGIN_SUCCESS":
-            let credentials = try response.validatedCredentials()
+            let credentials = try loginResponse.validatedCredentials()
             try KeychainSessionStore.save(credentials: credentials)
             pendingLogin = nil
             return .authenticated(userID: credentials.userID)
         case "SIGN_UP_REQUIRED":
-            guard let signupToken = response.signupToken, !signupToken.isEmpty else {
-                throw AuthRepositoryError.invalidResponse
-            }
-            pendingLogin = .apple(signupToken: signupToken)
+            pendingLogin = PendingSocialLogin(
+                provider: .apple,
+                idToken: credential.idToken,
+                rawNonce: credential.rawNonce
+            )
             return .signUpRequired
         default:
             throw AuthRepositoryError.invalidResponse
@@ -138,7 +148,9 @@ final class APIAuthRepository: AuthRepository {
 
     private func requestLogin(
         provider: SocialLoginProvider,
-        idToken: String
+        idToken: String,
+        rawNonce: String,
+        authorizationCode: String? = nil
     ) async throws -> SocialLoginResponse {
         let endpoint = try apiURL(path: "auth/social-login")
         logger.debug(
@@ -147,7 +159,12 @@ final class APIAuthRepository: AuthRepository {
         let data = try await requestData(
             url: endpoint,
             body: try JSONEncoder().encode(
-                SocialLoginRequest(provider: provider.rawValue, idToken: idToken)
+                SocialLoginRequest(
+                    provider: provider.rawValue,
+                    idToken: idToken,
+                    rawNonce: rawNonce,
+                    authorizationCode: authorizationCode
+                )
             )
         )
         do {
@@ -160,18 +177,14 @@ final class APIAuthRepository: AuthRepository {
     private func createSignatureUpload(
         for login: PendingSocialLogin
     ) async throws -> SignatureUploadResponse {
-        let endpoint: URL
-        let body: Data
-        switch login {
-        case let .social(provider, idToken):
-            endpoint = try apiURL(path: "auth/social-signup/signature/uploads")
-            body = try JSONEncoder().encode(
-                SignatureUploadRequest(provider: provider.rawValue, idToken: idToken)
+        let endpoint = try apiURL(path: "auth/social-signup/signature/uploads")
+        let body = try JSONEncoder().encode(
+            SignatureUploadRequest(
+                provider: login.provider.rawValue,
+                idToken: login.idToken,
+                rawNonce: login.rawNonce
             )
-        case let .apple(signupToken):
-            endpoint = try apiURL(path: "auth/apple/social-signup/signature/uploads")
-            body = try JSONEncoder().encode(AppleSignatureUploadRequest(signupToken: signupToken))
-        }
+        )
         let data = try await requestData(
             url: endpoint,
             body: body
@@ -291,9 +304,10 @@ final class APIAuthRepository: AuthRepository {
 
 typealias AuthRetryDelay = @Sendable (UInt64) async throws -> Void
 
-private enum PendingSocialLogin {
-    case social(provider: SocialLoginProvider, idToken: String)
-    case apple(signupToken: String)
+private struct PendingSocialLogin {
+    let provider: SocialLoginProvider
+    let idToken: String
+    let rawNonce: String
 }
 
 private enum SignatureUploadError: Error {
@@ -321,27 +335,14 @@ private final class HTTPSRedirectDelegate: NSObject, URLSessionTaskDelegate {
 private struct SocialLoginRequest: Encodable {
     let provider: String
     let idToken: String
-}
-
-private struct AppleLoginRequest: Encodable {
-    let idToken: String
-    let authorizationCode: String
     let rawNonce: String
-
-    init(credential: AppleLoginCredential) {
-        idToken = credential.idToken
-        authorizationCode = credential.authorizationCode
-        rawNonce = credential.rawNonce
-    }
+    let authorizationCode: String?
 }
 
 private struct SignatureUploadRequest: Encodable {
     let provider: String
     let idToken: String
-}
-
-private struct AppleSignatureUploadRequest: Encodable {
-    let signupToken: String
+    let rawNonce: String
 }
 
 private struct SocialSignUpRequest: Encodable {

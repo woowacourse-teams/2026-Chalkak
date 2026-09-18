@@ -15,6 +15,8 @@ import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
+import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
+import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.OkHttpPostImageUploader
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
@@ -23,10 +25,12 @@ import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
+import com.stonefive.chalkak.data.repository.FeedbackRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.FeedbackRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -71,6 +75,13 @@ class AppContainer(context: Context) {
         )
     }
 
+    private val feedbackDataSource: FeedbackDataSource by lazy {
+        FeedbackDataSourceImpl(
+            networkModule.feedbackApi,
+            networkModule.apiRequestExecutor,
+        )
+    }
+
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
         serverClientId = BuildConfig.GOOGLE_SERVER_CLIENT_ID,
@@ -94,6 +105,12 @@ class AppContainer(context: Context) {
             userDataSource = userDataSource,
             signatureUploader = signatureUploader,
             sessionStore = sessionStore,
+        )
+    }
+
+    val feedbackRepository: FeedbackRepository by lazy {
+        FeedbackRepositoryImpl(
+            feedbackDataSource = feedbackDataSource,
         )
     }
 

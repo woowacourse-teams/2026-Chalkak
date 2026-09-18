@@ -41,16 +41,16 @@ fun LoginRoute(
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val loginWithGoogle = rememberGoogleLoginAction(
         onStart = { viewModel.startCredentialRequest(SocialLoginProvider.GOOGLE) },
-        onSuccess = { idToken ->
-            viewModel.login(SocialLoginProvider.GOOGLE, idToken)
+        onSuccess = { idToken, rawNonce ->
+            viewModel.login(SocialLoginProvider.GOOGLE, idToken, rawNonce)
         },
         onCancelled = viewModel::credentialRequestCancelled,
         onFailure = viewModel::credentialRequestFailed,
     )
     val loginWithKakao = rememberKakaoLoginAction(
         onStart = { viewModel.startCredentialRequest(SocialLoginProvider.KAKAO) },
-        onSuccess = { idToken ->
-            viewModel.login(SocialLoginProvider.KAKAO, idToken)
+        onSuccess = { idToken, rawNonce ->
+            viewModel.login(SocialLoginProvider.KAKAO, idToken, rawNonce)
         },
         onCancelled = viewModel::credentialRequestCancelled,
         onFailure = viewModel::credentialRequestFailed,

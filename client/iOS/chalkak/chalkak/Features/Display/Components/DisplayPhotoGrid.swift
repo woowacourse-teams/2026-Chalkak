@@ -41,6 +41,7 @@ struct DisplayPhotoGrid: View {
                     }
                 )
                 .contentShape(Rectangle())
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 .onTapGesture { onSelect(item.photo) }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("피드 열기")
@@ -50,6 +51,7 @@ struct DisplayPhotoGrid: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: 0.2), value: items.map(\.id))
     }
 
     // 항상 더 짧은 열에 다음 사진을 넣는 그리디 패킹.

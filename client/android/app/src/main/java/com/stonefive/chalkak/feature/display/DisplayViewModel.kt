@@ -37,8 +37,11 @@ class DisplayViewModel(
     private var selectedSort = PostSort.LATEST
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
+    private var isRevalidating = false
+    private var hasBeenPresented = false
     private var nextPageJob: Job? = null
     private var nextMessageId = 0L
+    private val displayCache = mutableMapOf<DisplayCacheKey, DisplayCacheEntry>()
 
     init {
         loadDisplay(date = initialDate)
@@ -71,15 +74,48 @@ class DisplayViewModel(
         val state = _uiState.value
         val latestContent = state.content as? DisplayContentState.Latest ?: return
         if (sort == latestContent.selectedSort) return
+        val selectedDate = state.selectedDate ?: return
 
-        val previousState = state
         selectedSort = sort
-        _uiState.update { it.copy(content = DisplayContentState.Loading) }
-        loadDisplay(state.selectedDate, previousState = previousState)
+        val cachedState = displayCache[DisplayCacheKey(selectedDate, sort)]?.state?.copy(
+            latestDate = state.latestDate,
+            earliestDate = state.earliestDate,
+            pendingMessage = null,
+        )
+        val visibleState = cachedState ?: state.copy(
+            content = latestContent.copy(selectedSort = sort),
+            isLoadingNext = false,
+        )
+        _uiState.value = visibleState
+        loadDisplay(
+            date = selectedDate,
+            previousState = cachedState ?: state,
+            keepsContentVisible = true,
+        )
     }
 
     fun retry() {
         loadDisplay(_uiState.value.selectedDate)
+    }
+
+    fun onResume() {
+        if (!hasBeenPresented) {
+            hasBeenPresented = true
+            return
+        }
+        revalidate()
+    }
+
+    fun revalidate() {
+        val state = _uiState.value
+        if (state.content is DisplayContentState.Loading || isRevalidating) return
+
+        val selectedDate = state.selectedDate ?: return
+        loadDisplay(
+            date = selectedDate,
+            previousState = state,
+            keepsContentVisible = true,
+        )
     }
 
     fun onMessageShown(messageId: Long) {
@@ -131,22 +167,28 @@ class DisplayViewModel(
         date: LocalDate?,
         sort: PostSort = selectedSort,
         previousState: DisplayUiState? = null,
+        keepsContentVisible: Boolean = false,
     ) {
         val latestDate = dateProvider()
         val requestedDate = date ?: latestDate
         val requestedSort = if (requestedDate < latestDate) PostSort.POPULAR else sort
         val generation = ++latestLoadGeneration
+        isRevalidating = keepsContentVisible
         nextPageJob?.cancel()
         nextPageJob = null
         isEndThresholdReached = false
 
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    selectedDate = requestedDate,
-                    latestDate = latestDate,
-                    content = DisplayContentState.Loading,
-                )
+            if (keepsContentVisible) {
+                _uiState.update { it.copy(latestDate = latestDate, isLoadingNext = false) }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        selectedDate = requestedDate,
+                        latestDate = latestDate,
+                        content = DisplayContentState.Loading,
+                    )
+                }
             }
             val result = try {
                 repository.getPostContent(
@@ -164,7 +206,11 @@ class DisplayViewModel(
             if (generation != latestLoadGeneration) return@launch
 
             when (result) {
-                is HomeResult.Success -> applyFirstPage(result.value, latestDate)
+                is HomeResult.Success -> applyFirstPage(
+                    postContent = result.value,
+                    latestDate = latestDate,
+                    requestedSort = requestedSort,
+                )
 
                 is HomeResult.Failure -> if (previousState != null) {
                     val isPreviousDateRequest = result.reason == HomeFailure.TopicNotFound &&
@@ -201,36 +247,81 @@ class DisplayViewModel(
                     }
                 }
             }
+            isRevalidating = false
         }
     }
 
     private fun applyFirstPage(
         postContent: PostContent,
         latestDate: LocalDate,
+        requestedSort: PostSort,
     ) {
         val earliestDate = _uiState.value.earliestDate
         loadedDate = postContent.topicDate
+        val cacheKey = DisplayCacheKey(postContent.topicDate, requestedSort)
+        val cachedEntry = displayCache[cacheKey]
+        val canReuseCachedTail = requestedSort != PostSort.RANDOM ||
+            (
+                !postContent.randomSeed.isNullOrBlank() &&
+                    cachedEntry?.state?.randomSeed == postContent.randomSeed
+                )
+        val freshPhotoIds = postContent.photos.mapTo(mutableSetOf(), Post::id)
+        val cachedFirstPagePhotoIds = cachedEntry
+            ?.firstPagePhotoIds
+            .orEmpty()
+            .takeIf { canReuseCachedTail }
+            .orEmpty()
+        val cachedTail = if (canReuseCachedTail) {
+            cachedEntry
+                ?.state
+                ?.photos
+                .orEmpty()
+                .filter { it.id !in cachedFirstPagePhotoIds && it.id !in freshPhotoIds }
+        } else {
+            emptyList()
+        }
+        val mergedPhotos = postContent.photos + cachedTail
+        val cachedTailIds = cachedTail.mapTo(mutableSetOf(), Post::id)
+        val mergedLikedPhotoIds = postContent.likedPhotoIds +
+            cachedEntry
+                ?.state
+                ?.likedPhotoIds
+                .orEmpty()
+                .intersect(cachedTailIds)
         val content = if (postContent.topicDate < latestDate) {
             DisplayContentState.Archive(
-                photos = postContent.photos,
-                featuredPhotos = postContent.photos.take(FEATURED_PHOTO_COUNT),
+                photos = mergedPhotos,
+                featuredPhotos = mergedPhotos.take(FEATURED_PHOTO_COUNT),
             )
         } else {
             DisplayContentState.Latest(
-                photos = postContent.photos,
+                photos = mergedPhotos,
                 selectedSort = selectedSort,
             )
         }
-        _uiState.value = DisplayUiState(
+        val newState = DisplayUiState(
             selectedDate = postContent.topicDate,
             latestDate = latestDate,
             earliestDate = earliestDate,
             topic = postContent.topic,
             content = content,
-            likedPhotoIds = postContent.likedPhotoIds,
-            currentPage = postContent.currentPage,
-            hasNext = postContent.hasNext,
+            likedPhotoIds = mergedLikedPhotoIds,
+            currentPage = cachedEntry
+                ?.state
+                ?.currentPage
+                ?.takeIf { cachedTail.isNotEmpty() }
+                ?: postContent.currentPage,
+            hasNext = cachedEntry
+                ?.state
+                ?.hasNext
+                ?.takeIf { cachedTail.isNotEmpty() }
+                ?: postContent.hasNext,
             randomSeed = postContent.randomSeed,
+        )
+        _uiState.value = newState
+        displayCache[cacheKey] = DisplayCacheEntry(
+            state = newState,
+            firstPagePhotoIds = freshPhotoIds,
         )
     }
 
@@ -242,7 +333,7 @@ class DisplayViewModel(
         ) {
             return
         }
-        if (!state.hasNext || state.isLoadingNext || nextPageJob != null) return
+        if (isRevalidating || !state.hasNext || state.isLoadingNext || nextPageJob != null) return
 
         val sort = when (val content = state.content) {
             is DisplayContentState.Latest -> content.selectedSort
@@ -315,6 +406,23 @@ class DisplayViewModel(
                 isLoadingNext = false,
             )
         }
+        cacheCurrentState()
+    }
+
+    private fun cacheCurrentState() {
+        val state = _uiState.value
+        val date = state.selectedDate ?: return
+        val sort = when (val content = state.content) {
+            is DisplayContentState.Latest -> content.selectedSort
+            is DisplayContentState.Archive -> PostSort.POPULAR
+            else -> return
+        }
+        val key = DisplayCacheKey(date, sort)
+        displayCache[key] = DisplayCacheEntry(
+            state = state.copy(pendingMessage = null),
+            firstPagePhotoIds = displayCache[key]?.firstPagePhotoIds
+                ?: state.photos.mapTo(mutableSetOf(), Post::id),
+        )
     }
 
     companion object {
@@ -339,5 +447,22 @@ class DisplayViewModel(
         text = text,
     )
 }
+
+private data class DisplayCacheKey(
+    val date: LocalDate,
+    val sort: PostSort,
+)
+
+private data class DisplayCacheEntry(
+    val state: DisplayUiState,
+    val firstPagePhotoIds: Set<String>,
+)
+
+private val DisplayUiState.photos: List<Post>
+    get() = when (val content = content) {
+        is DisplayContentState.Latest -> content.photos
+        is DisplayContentState.Archive -> content.photos
+        else -> emptyList()
+    }
 
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"

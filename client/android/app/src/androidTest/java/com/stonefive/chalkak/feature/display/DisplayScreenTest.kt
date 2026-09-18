@@ -25,6 +25,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -44,6 +45,93 @@ class DisplayScreenTest {
             .onNodeWithContentDescription("좋아요 17")
             .assertIsDisplayed()
         composeRule.onAllNodesWithContentDescription("알림").assertCountEquals(0)
+    }
+
+    @Test
+    fun displayPhotoReservesSpaceWhileThumbnailIsLoading() {
+        val loadingPhoto = photo.copy(
+            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+            signatureThumbnailImageUrl = null,
+        )
+        setDisplayContent(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = listOf(loadingPhoto),
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+
+        composeRule.waitForIdle()
+        val bounds = composeRule
+            .onNodeWithContentDescription("사진")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertTrue("photo width should be reserved before load", bounds.width > 0f)
+        assertTrue("photo height should be reserved before load", bounds.height > 0f)
+        assertEquals(1f, bounds.width / bounds.height, 0.02f)
+    }
+
+    @Test
+    fun changingSortAnimatesPhotoPositions() {
+        composeRule.mainClock.autoAdvance = false
+        val photos = List(4) { index ->
+            photo.copy(
+                id = "photo-$index",
+                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+                signatureThumbnailImageUrl = null,
+                contentDescription = "사진 $index",
+            )
+        }
+        val currentUiState = mutableStateOf(
+            latestUiState().copy(
+                content = DisplayContentState.Latest(
+                    photos = photos,
+                    selectedSort = PostSort.LATEST,
+                ),
+            ),
+        )
+        val updateSort: (PostSort) -> Unit = { sort ->
+            val latestContent = currentUiState.value.content as DisplayContentState.Latest
+            currentUiState.value = currentUiState.value.copy(
+                content = latestContent.copy(
+                    photos = latestContent.photos.drop(2) + latestContent.photos.take(2),
+                    selectedSort = sort,
+                ),
+            )
+        }
+
+        composeRule.setContent {
+            ChalkakTheme {
+                DisplayScreen(
+                    uiState = currentUiState.value,
+                    onPreviousDateClick = {},
+                    onNextDateClick = {},
+                    onSortSelected = updateSort,
+                    onFeaturedPageChanged = {},
+                    onEndThresholdChanged = {},
+                    onOpenPhotoUpload = {},
+                    onNavigateToBottomBar = {},
+                )
+            }
+        }
+
+        composeRule.mainClock.advanceTimeBy(500)
+        val startTop = photoTop("사진 0")
+        composeRule.runOnUiThread {
+            updateSort(PostSort.POPULAR)
+        }
+        composeRule.mainClock.advanceTimeBy(120)
+        val transitionTop = photoTop("사진 0")
+        composeRule.mainClock.advanceTimeBy(400)
+        val endTop = photoTop("사진 0")
+
+        assertTrue("sort should move photos", startTop != endTop)
+        assertTrue(
+            "photo should move gradually: start=$startTop, transition=$transitionTop, end=$endTop",
+            transitionTop > startTop && transitionTop < endTop,
+        )
     }
 
     @Test
@@ -245,6 +333,12 @@ class DisplayScreenTest {
             }
         }
     }
+
+    private fun photoTop(contentDescription: String): Float = composeRule
+        .onNodeWithContentDescription(contentDescription)
+        .fetchSemanticsNode()
+        .boundsInRoot
+        .top
 }
 
 private val latestDate = LocalDate.of(2026, 8, 5)

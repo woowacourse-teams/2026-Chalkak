@@ -8,6 +8,7 @@ DerivedData/
 
 # Local iOS configuration values
 chalkak/chalkak/Configuration/Secrets.xcconfig
+GoogleService-Info.plist
 
 # macOS
 .DS_Store

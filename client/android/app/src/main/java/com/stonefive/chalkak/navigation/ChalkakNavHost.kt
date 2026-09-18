@@ -34,6 +34,7 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
+import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
@@ -384,8 +385,26 @@ fun ChalkakNavHost(
                 onOpenTerms = {
                     legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                 },
+                onOpenFeedback = {
+                    if (sessionState is UserSessionState.Authenticated) {
+                        navController.navigate(Feedback)
+                    } else {
+                        showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
+                    }
+                },
                 onNavigateToBottomBar = navigateToBottomBar,
                 onOpenPhotoUpload = openPhotoUpload,
+            )
+        }
+
+        composable<Feedback> {
+            FeedbackRoute(
+                onBack = { navController.popBackStack() },
+                onSubmitted = {
+                    showToast(FEEDBACK_SUBMITTED_MESSAGE)
+                    navController.popBackStack()
+                },
+                onReauthenticationRequired = navigateToLogin,
             )
         }
 
@@ -442,6 +461,19 @@ private fun NavHostController.navigateToBottomBar(
 ) {
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
+    val isDisplayOpenedFromRecord =
+        currentDestination?.hasRoute<Display>() == true &&
+            previousBackStackEntry?.destination?.hasRoute<Record>() == true
+    if (isDisplayOpenedFromRecord) {
+        if (item == ChalkakBottomBarItem.RECORD) {
+            popBackStack()
+            return
+        }
+        if (item == ChalkakBottomBarItem.DISPLAY) return
+
+        popBackStack()
+    }
+
     val destination = when (item) {
         ChalkakBottomBarItem.TODAY -> Today
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
@@ -485,9 +517,13 @@ private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
+private const val FEEDBACK_LOGIN_REQUIRED_MESSAGE = "피드백을 보내려면 로그인이 필요해요"
+private const val FEEDBACK_SUBMITTED_MESSAGE = "피드백을 보내주셔서 감사해요."
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
-    navigate(Display(date = date.toString()))
+    navigate(Display(date = date.toString())) {
+        launchSingleTop = true
+    }
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {

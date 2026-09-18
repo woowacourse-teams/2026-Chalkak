@@ -140,29 +140,30 @@ private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     @State private var showsScrollToTop = false
-    @State private var upwardScrollDistance: CGFloat = 0
+    @State private var scrollTracker = HomeScrollTracker()
+    @State private var scrollPosition = ScrollPosition()
 
     // 아래로 이동할 때는 숨기고, 위로 일정 거리 이동하면 표시하며, 최상단에서는 숨긴다.
     private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
         if newDistance <= HomeMetrics.scrollTopVisibilityThreshold {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             setShowsScrollToTop(false)
             return
         }
 
         guard oldDistance >= 0, newDistance >= 0 else {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             return
         }
 
         let delta = oldDistance - newDistance
         if delta > 0 {
-            upwardScrollDistance += delta
-            if upwardScrollDistance >= HomeMetrics.scrollToTopRevealThreshold {
+            scrollTracker.upwardDistance += delta
+            if scrollTracker.upwardDistance >= HomeMetrics.scrollToTopRevealThreshold {
                 setShowsScrollToTop(true)
             }
         } else if delta < 0 {
-            upwardScrollDistance = 0
+            scrollTracker.upwardDistance = 0
             setShowsScrollToTop(false)
         }
     }
@@ -175,20 +176,22 @@ private struct HomeContent: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
+        VStack(spacing: 0) {
+            // 고정된 상단 바를 스크롤 뷰 밖에 배치해, 배경이 당겨서 새로고침 인디케이터를 가리지 않게 한다.
+            HomeTopBar()
+                .padding(.horizontal, theme.spacing.screenHorizontal)
+                .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
+                .homeBottomDivider()
+                .allowsHitTesting(false)
+
             ScrollView {
                 VStack(spacing: 0) {
-                    Color.clear
-                        .frame(height: HomeMetrics.scrollTopAnchorHeight)
-                        .id(HomeMetrics.scrollTopID)
-
                     HomeTopic(
                         topicDate: viewModel.viewState.topicDate,
                         topic: viewModel.viewState.topic
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.top, HomeTopBarMetrics.height)
                     .homeBottomDivider()
 
                     if viewModel.viewState.photos.isEmpty {
@@ -199,8 +202,8 @@ private struct HomeContent: View {
                         HomePhotoList(
                             photos: viewModel.viewState.photos,
                             likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
-                            isLoadingNext: viewModel.viewState.isLoadingNext,
                             areLikesEnabled: viewModel.viewState.areLikesEnabled,
+                            imageReloadGeneration: viewModel.imageReloadGeneration,
                             onLike: { photoID in
                                 Task { await viewModel.toggleLike(photoID: photoID) }
                             },
@@ -211,18 +214,14 @@ private struct HomeContent: View {
                     }
                 }
             }
-            .overlay(alignment: .top) {
-                HomeTopBar()
-                    .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
-                    .homeBottomDivider()
-                    .allowsHitTesting(false)
-            }
+            // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
+            // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
+            .scrollPosition($scrollPosition, anchor: .top)
             .overlay(alignment: .bottomTrailing) {
                 if showsScrollToTop {
                     Button {
                         withAnimation(.snappy) {
-                            proxy.scrollTo(HomeMetrics.scrollTopID, anchor: .top)
+                            scrollPosition.scrollTo(edge: .top)
                         }
                     } label: {
                         Image(systemName: "arrow.up")
@@ -247,17 +246,20 @@ private struct HomeContent: View {
                 updateScrollToTop(from: oldDistance, to: newDistance)
             }
             .refreshable {
-                // SwiftUI가 refresh-control 작업을 취소하더라도 사용자가 시작한
-                // 네트워크 갱신 자체는 완료되도록 독립된 Task에서 실행한다.
+                // SwiftUI가 새로고침 컨트롤 작업을 취소하더라도, 사용자가 시작한
+                // 네트워크 갱신은 별도 작업으로 끝까지 완료되도록 한다.
                 let refreshTask = Task { await viewModel.refresh() }
                 await refreshTask.value
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: HomeTopBarMetrics.height)
-            }
             .background(theme.colors.background)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.colors.background)
     }
+}
+
+private final class HomeScrollTracker {
+    var upwardDistance: CGFloat = 0
 }
 
 private struct HomeEmptyContent: View {
@@ -290,8 +292,6 @@ private enum Metrics {
 
 private enum HomeMetrics {
     static let topBarOpacity = 0.96
-    static let scrollTopID = "home-scroll-top"
-    static let scrollTopAnchorHeight: CGFloat = 1
     static let scrollTopVisibilityThreshold: CGFloat = 1
     static let scrollToTopRevealThreshold: CGFloat = 12
     static let scrollButtonSize: CGFloat = 48

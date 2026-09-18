@@ -6,4 +6,5 @@ import kotlinx.serialization.Serializable
 data class SignatureUploadRequest(
     val provider: String,
     val idToken: String,
+    val rawNonce: String,
 )

@@ -197,6 +197,7 @@ private class FakeSettingsAuthRepository : AuthRepository {
     override suspend fun login(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): SocialLoginResult = SocialLoginResult.LoginSuccess("user-id")
 
     override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult = error("Not used")
