@@ -2,7 +2,7 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-enum ChalkakImageSource: Equatable, Sendable {
+enum ChalkakImageSource: Hashable, Sendable {
     case asset(String)
     case system(String)
     case remote(URL?)

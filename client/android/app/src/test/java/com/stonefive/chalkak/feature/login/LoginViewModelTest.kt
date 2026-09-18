@@ -29,10 +29,11 @@ class LoginViewModelTest {
     fun `기존 회원 로그인 성공 시 인증 세션으로 전환한다`() = runTest {
         repository.loginResult = SocialLoginResult.LoginSuccess("user-id")
 
-        viewModel.login(SocialLoginProvider.GOOGLE, "id-token")
+        viewModel.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
 
         assertEquals(UserSessionState.Authenticated("user-id"), repository.sessionState.value)
         assertEquals("id-token", repository.idToken)
+        assertEquals("raw-google-nonce", repository.rawNonce)
         assertEquals(LoginStatus.Authenticated, viewModel.uiState.value.status)
     }
 
@@ -40,7 +41,7 @@ class LoginViewModelTest {
     fun `신규 회원이면 회원가입 필요 상태를 제공한다`() = runTest {
         repository.loginResult = SocialLoginResult.SignUpRequired
 
-        viewModel.login(SocialLoginProvider.GOOGLE, "id-token")
+        viewModel.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
 
         assertEquals(LoginStatus.SignUpRequired, viewModel.uiState.value.status)
 
@@ -77,10 +78,11 @@ class LoginViewModelTest {
     fun `Kakao 로그인은 provider와 idToken을 repository로 전달한다`() = runTest {
         repository.loginResult = SocialLoginResult.LoginSuccess("user-id")
 
-        viewModel.login(SocialLoginProvider.KAKAO, "kakao-id-token")
+        viewModel.login(SocialLoginProvider.KAKAO, "kakao-id-token", "raw-kakao-nonce")
 
         assertEquals(SocialLoginProvider.KAKAO, repository.provider)
         assertEquals("kakao-id-token", repository.idToken)
+        assertEquals("raw-kakao-nonce", repository.rawNonce)
         assertEquals(LoginStatus.Authenticated, viewModel.uiState.value.status)
     }
 
@@ -88,7 +90,7 @@ class LoginViewModelTest {
     fun `백엔드 인증 실패를 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
 
-        viewModel.login(SocialLoginProvider.GOOGLE, "id-token")
+        viewModel.login(SocialLoginProvider.GOOGLE, "id-token", "raw-google-nonce")
 
         assertEquals(
             "Google 계정을 확인할 수 없어요. 다시 시도해 주세요.",
@@ -102,7 +104,7 @@ class LoginViewModelTest {
     fun `Kakao 백엔드 인증 실패를 카카오 사용자 메시지로 변환한다`() = runTest {
         repository.loginResult = SocialLoginResult.Failure(SocialAuthFailure.UNAUTHORIZED)
 
-        viewModel.login(SocialLoginProvider.KAKAO, "id-token")
+        viewModel.login(SocialLoginProvider.KAKAO, "id-token", "raw-kakao-nonce")
 
         assertEquals(
             "카카오 계정을 확인할 수 없어요. 다시 시도해 주세요.",
@@ -141,6 +143,7 @@ private class FakeLoginRepository : AuthRepository {
     var loginResult: SocialLoginResult = SocialLoginResult.SignUpRequired
     var provider: SocialLoginProvider? = null
     var idToken: String? = null
+    var rawNonce: String? = null
 
     private val mutableSessionState = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
     override val sessionState: StateFlow<UserSessionState> = mutableSessionState
@@ -148,9 +151,11 @@ private class FakeLoginRepository : AuthRepository {
     override suspend fun login(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): SocialLoginResult {
         this.provider = provider
         this.idToken = idToken
+        this.rawNonce = rawNonce
         if (loginResult is SocialLoginResult.LoginSuccess) {
             mutableSessionState.value = UserSessionState.Authenticated(
                 (loginResult as SocialLoginResult.LoginSuccess).userId,

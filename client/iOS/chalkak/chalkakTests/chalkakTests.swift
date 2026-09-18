@@ -7,25 +7,40 @@ import UIKit
 struct ChalkakTextFieldTests {
     @Test("문자 수보다 짧은 입력은 유지한다")
     func preservesTextWithinLimit() {
-        #expect("찰칵".limited(toCharacterCount: 5) == "찰칵")
+        #expect("찰칵".limited(to: 5, using: .characters) == "찰칵")
     }
 
     @Test("문자 수 제한을 초과한 입력을 자른다")
     func truncatesTextBeyondLimit() {
-        #expect("찰칵사진".limited(toCharacterCount: 2) == "찰칵")
+        #expect("찰칵사진".limited(to: 2, using: .characters) == "찰칵")
     }
 
     @Test("이모지와 조합 문자를 하나의 문자로 계산한다")
     func preservesExtendedGraphemeClusters() {
         let text = "👨‍👩‍👧‍👦e\u{301}사진"
 
-        #expect(text.limited(toCharacterCount: 2) == "👨‍👩‍👧‍👦e\u{301}")
+        #expect(text.limited(to: 2, using: .characters) == "👨‍👩‍👧‍👦e\u{301}")
     }
 
     @Test("0 이하의 제한은 빈 문자열을 반환한다")
     func returnsEmptyTextForNonPositiveLimit() {
-        #expect("찰칵".limited(toCharacterCount: 0).isEmpty)
-        #expect("찰칵".limited(toCharacterCount: -1).isEmpty)
+        #expect("찰칵".limited(to: 0, using: .characters).isEmpty)
+        #expect("찰칵".limited(to: -1, using: .characters).isEmpty)
+    }
+
+    @Test("code point 기준은 이모지의 scalar 수를 그대로 센다")
+    func countsUnicodeScalarsForCodePointMetric() {
+        // 가족 이모지는 4개 이모지 + 3개 ZWJ = scalar(=code point) 7개.
+        #expect("👨‍👩‍👧‍👦".length(using: .unicodeScalars) == 7)
+        #expect("👨‍👩‍👧‍👦".length(using: .characters) == 1)
+    }
+
+    @Test("code point 기준은 서버 검증과 같은 단위로 입력을 제한한다")
+    func truncatesByUnicodeScalarsForCodePointMetric() {
+        // scalar 7개짜리 문자를 7 code point로 제한하면 그대로 유지한다.
+        #expect("👨‍👩‍👧‍👦".limited(to: 7, using: .unicodeScalars) == "👨‍👩‍👧‍👦")
+        // 한도를 넘으면 code point 단위로 잘린다.
+        #expect("찰칵사진".limited(to: 2, using: .unicodeScalars) == "찰칵")
     }
 
     @MainActor

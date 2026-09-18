@@ -18,6 +18,7 @@ struct LoginViewModelTests {
 
         #expect(repository.loginProvider == .google)
         #expect(repository.loginToken == "google-token")
+        #expect(repository.loginRawNonce == "raw-google-token")
         #expect(viewModel.state.status == .authenticated)
     }
 
@@ -92,8 +93,8 @@ private final class MockSocialLoginClient: SocialLoginClient {
         self.token = token
     }
 
-    func idToken() async throws -> String {
-        token
+    func credential() async throws -> SocialLoginCredential {
+        SocialLoginCredential(idToken: token, rawNonce: "raw-\(token)")
     }
 }
 
@@ -101,15 +102,21 @@ private final class MockAuthRepository: AuthRepository {
     let loginResult: SocialLoginResult
     private(set) var loginProvider: SocialLoginProvider?
     private(set) var loginToken: String?
+    private(set) var loginRawNonce: String?
     private(set) var didContinueAsGuest = false
 
     init(loginResult: SocialLoginResult) {
         self.loginResult = loginResult
     }
 
-    func login(provider: SocialLoginProvider, idToken: String) async throws -> SocialLoginResult {
+    func login(
+        provider: SocialLoginProvider,
+        idToken: String,
+        rawNonce: String
+    ) async throws -> SocialLoginResult {
         loginProvider = provider
         loginToken = idToken
+        loginRawNonce = rawNonce
         return loginResult
     }
 

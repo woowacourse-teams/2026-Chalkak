@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.display.component
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +15,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +40,8 @@ fun DisplayPhotoGrid(
     verticalItemSpacing: Dp = 9.dp,
     header: (@Composable () -> Unit)? = null,
 ) {
+    val imageAspectRatios = remember { mutableStateMapOf<String, Float>() }
+
     LaunchedEffect(state, photos.size) {
         snapshotFlow { state.isNearEnd(photos.size) }
             .distinctUntilChanged()
@@ -69,6 +74,21 @@ fun DisplayPhotoGrid(
             DisplayPhotoCard(
                 photo = photo,
                 onClick = { onPhotoClick(photo) },
+                imageAspectRatio = imageAspectRatios[photo.thumbnailImageUrl],
+                onImageAspectRatioAvailable = { aspectRatio ->
+                    if (imageAspectRatios[photo.thumbnailImageUrl] != aspectRatio) {
+                        imageAspectRatios[photo.thumbnailImageUrl] = aspectRatio
+                    }
+                },
+                modifier = Modifier.animateItem(
+                    fadeInSpec = tween(durationMillis = 180),
+                    placementSpec = if (state.isScrollInProgress) {
+                        null
+                    } else {
+                        tween(durationMillis = 240)
+                    },
+                    fadeOutSpec = tween(durationMillis = 120),
+                ),
             )
         }
         if (isLoadingNext) {

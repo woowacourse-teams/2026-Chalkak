@@ -61,6 +61,91 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-stonefive.chalkak.guest-access", "NO"]
+        app.launch()
+
+        let guestButton = app.buttons["로그인 없이 사진 둘러보기"]
+        XCTAssertTrue(guestButton.waitForExistence(timeout: 5))
+        guestButton.tap()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let uploadButton = app.buttons["추가"]
+        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
+        uploadButton.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["게시물을 추가하려면 로그인이 필요해요"]
+                .waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
+    func testGuestSettingsSeparatesFeedbackAndAccountSections() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-stonefive.chalkak.guest-access", "NO"]
+        app.launch()
+
+        let guestButton = app.buttons["로그인 없이 사진 둘러보기"]
+        if guestButton.waitForExistence(timeout: 2) {
+            guestButton.tap()
+        }
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        if app.buttons["로그아웃"].exists {
+            app.buttons["로그아웃"].tap()
+            app.buttons["confirmDialog.confirm"].tap()
+            XCTAssertTrue(guestButton.waitForExistence(timeout: 5))
+            guestButton.tap()
+            settingsButton.tap()
+        }
+
+        XCTAssertTrue(app.staticTexts["정보 및 약관"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["피드백"].exists)
+        XCTAssertTrue(app.staticTexts["계정"].exists)
+        XCTAssertFalse(app.staticTexts["앱 설정"].exists)
+        XCTAssertTrue(app.buttons["로그인"].exists)
+        XCTAssertLessThan(app.staticTexts["계정"].frame.minY, app.staticTexts["피드백"].frame.minY)
+        XCTAssertLessThan(
+            app.staticTexts["피드백"].frame.minY,
+            app.staticTexts["정보 및 약관"].frame.minY
+        )
+
+        app.buttons["피드백 보내기"].tap()
+        XCTAssertTrue(
+            app.staticTexts["피드백을 보내려면 로그인이 필요해요"]
+                .waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
+    func testSettingsUploadButtonOpensPhotoUploadAndReturnsToSettingsForAuthenticatedUser() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let uploadButton = app.buttons["추가"]
+        XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
+        uploadButton.tap()
+
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+
+        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

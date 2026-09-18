@@ -24,6 +24,8 @@ final class DisplayViewModel {
     private var loadedTopicDate: Date?
     private var generation = 0
     private var isEndThresholdReached = false
+    private var isRevalidating = false
+    private var displayCache: [DisplayCacheKey: DisplayCacheEntry] = [:]
 
     init(
         initialState: DisplayViewState? = nil,
@@ -39,6 +41,13 @@ final class DisplayViewModel {
         self.firstPageHandler = firstPageHandler
         self.nextPageHandler = nextPageHandler
         self.selectedLatestSort = initialState.selectedSort
+        if initialState.hasLoadedContent, let selectedDate = initialState.selectedDate {
+            let sort: DisplaySort = initialState.contentStatus == .archive ? .popular : initialState.selectedSort
+            displayCache[DisplayCacheKey(date: Self.startOfDay(selectedDate), sort: sort)] = DisplayCacheEntry(
+                state: initialState,
+                firstPagePhotoIDs: Set(initialState.photos.map(\.id))
+            )
+        }
     }
 
     convenience init(
@@ -96,6 +105,21 @@ final class DisplayViewModel {
         await loadFirstPage(date: requestedDate, latestDate: latestDate, preserves: previous)
     }
 
+    /// 현재 화면의 콘텐츠를 유지한 채 같은 전시를 최신 데이터로 갱신한다.
+    func revalidate() async {
+        guard viewState.contentStatus != .loading, !isRevalidating else { return }
+
+        let previous = viewState.hasLoadedContent ? viewState : nil
+        let latestDate = Self.startOfDay(dateProvider())
+        let requestedDate = viewState.selectedDate ?? initialDate ?? latestDate
+        await loadFirstPage(
+            date: requestedDate,
+            latestDate: latestDate,
+            preserves: previous,
+            keepsContentVisible: previous != nil
+        )
+    }
+
     func moveToPreviousDate() async {
         guard viewState.contentStatus != .loading,
               let selectedDate = viewState.selectedDate
@@ -135,11 +159,28 @@ final class DisplayViewModel {
               let latestDate = viewState.latestDate
         else { return }
 
+        let previousState = viewState
         selectedLatestSort = sort
+        let cacheKey = DisplayCacheKey(date: Self.startOfDay(selectedDate), sort: sort)
+        let cachedState = displayCache[cacheKey].map { entry in
+            var cached = entry.state
+            cached.latestDate = latestDate
+            cached.earliestDate = previousState.earliestDate
+            cached.transientError = nil
+            return cached
+        }
+        if let cachedState {
+            viewState = cachedState
+        } else {
+            viewState.selectedSort = sort
+            viewState.isLoadingNext = false
+            viewState.transientError = nil
+        }
         await loadFirstPage(
             date: selectedDate,
             latestDate: latestDate,
-            preserves: viewState
+            preserves: cachedState ?? previousState,
+            keepsContentVisible: true
         )
     }
 
@@ -168,19 +209,34 @@ final class DisplayViewModel {
         date: Date,
         latestDate: Date,
         preserves previousState: DisplayViewState?,
-        isPreviousDateRequest: Bool = false
+        isPreviousDateRequest: Bool = false,
+        keepsContentVisible: Bool = false
     ) async {
         generation += 1
         let requestGeneration = generation
+        if keepsContentVisible {
+            isRevalidating = true
+        }
+        defer {
+            if requestGeneration == generation {
+                isRevalidating = false
+            }
+        }
         isEndThresholdReached = false
         let requestedDate = Self.startOfDay(date)
         let requestSort: DisplaySort = requestedDate < latestDate ? .popular : selectedLatestSort
 
-        viewState.selectedDate = requestedDate
-        viewState.latestDate = latestDate
-        viewState.contentStatus = .loading
-        viewState.isLoadingNext = false
-        viewState.transientError = nil
+        if keepsContentVisible {
+            viewState.latestDate = latestDate
+            viewState.isLoadingNext = false
+            viewState.transientError = nil
+        } else {
+            viewState.selectedDate = requestedDate
+            viewState.latestDate = latestDate
+            viewState.contentStatus = .loading
+            viewState.isLoadingNext = false
+            viewState.transientError = nil
+        }
 
         let result = await firstPageHandler(requestedDate, requestSort)
         guard requestGeneration == generation else { return }
@@ -216,6 +272,22 @@ final class DisplayViewModel {
     private func apply(_ content: DisplayContent, latestDate: Date) {
         let canonicalDate = Self.startOfDay(content.topicDate)
         let isArchive = canonicalDate < latestDate
+        let cacheKey = DisplayCacheKey(
+            date: canonicalDate,
+            sort: isArchive ? .popular : selectedLatestSort
+        )
+        let cachedEntry = displayCache[cacheKey]
+        let canReuseCachedTail = cacheKey.sort != .random ||
+            (content.page.randomSeed?.isEmpty == false &&
+                cachedEntry?.state.randomSeed == content.page.randomSeed)
+        let freshPhotoIDs = Set(content.page.photos.map(\.id))
+        let cachedFirstPagePhotoIDs = canReuseCachedTail ? cachedEntry?.firstPagePhotoIDs ?? [] : []
+        let cachedTail = canReuseCachedTail
+            ? (cachedEntry?.state.photos.filter {
+                !cachedFirstPagePhotoIDs.contains($0.id) && !freshPhotoIDs.contains($0.id)
+            } ?? [])
+            : []
+        let mergedPhotos = content.page.photos + cachedTail
         loadedTopicDate = canonicalDate
         viewState = DisplayViewState(
             contentStatus: isArchive ? .archive : .latest,
@@ -224,18 +296,27 @@ final class DisplayViewModel {
             earliestDate: viewState.earliestDate,
             topic: content.topic,
             selectedSort: isArchive ? .popular : selectedLatestSort,
-            photos: content.page.photos,
-            featuredPhotos: isArchive ? Array(content.page.photos.prefix(5)) : [],
+            photos: mergedPhotos,
+            featuredPhotos: isArchive ? Array(mergedPhotos.prefix(5)) : [],
             featuredPage: 0,
-            currentPage: content.page.currentPage,
-            hasNext: content.page.hasNext,
+            currentPage: cachedTail.isEmpty
+                ? content.page.currentPage
+                : cachedEntry?.state.currentPage ?? content.page.currentPage,
+            hasNext: cachedTail.isEmpty
+                ? content.page.hasNext
+                : cachedEntry?.state.hasNext ?? content.page.hasNext,
             randomSeed: isArchive ? nil : content.page.randomSeed,
             isLoadingNext: false
+        )
+        displayCache[cacheKey] = DisplayCacheEntry(
+            state: viewState,
+            firstPagePhotoIDs: freshPhotoIDs
         )
     }
 
     private func loadNextPage() async {
-        guard viewState.contentStatus == .latest || viewState.contentStatus == .archive,
+        guard !isRevalidating,
+              viewState.contentStatus == .latest || viewState.contentStatus == .archive,
               viewState.hasNext,
               !viewState.isLoadingNext,
               let loadedTopicDate
@@ -283,6 +364,19 @@ final class DisplayViewModel {
         viewState.randomSeed = sort == .random ? viewState.randomSeed ?? page.randomSeed : nil
         viewState.isLoadingNext = false
         isEndThresholdReached = false
+        cacheCurrentState()
+    }
+
+    private func cacheCurrentState() {
+        guard viewState.hasLoadedContent, let selectedDate = viewState.selectedDate else { return }
+        let sort: DisplaySort = viewState.contentStatus == .archive ? .popular : viewState.selectedSort
+        var cachedState = viewState
+        cachedState.transientError = nil
+        let key = DisplayCacheKey(date: Self.startOfDay(selectedDate), sort: sort)
+        displayCache[key] = DisplayCacheEntry(
+            state: cachedState,
+            firstPagePhotoIDs: displayCache[key]?.firstPagePhotoIDs ?? Set(cachedState.photos.map(\.id))
+        )
     }
 
     private static var calendar: Calendar {
@@ -294,6 +388,16 @@ final class DisplayViewModel {
     private static func startOfDay(_ date: Date) -> Date {
         calendar.startOfDay(for: date)
     }
+}
+
+private struct DisplayCacheKey: Hashable {
+    let date: Date
+    let sort: DisplaySort
+}
+
+private struct DisplayCacheEntry {
+    let state: DisplayViewState
+    let firstPagePhotoIDs: Set<DisplayPhoto.ID>
 }
 
 private extension DisplayViewState {

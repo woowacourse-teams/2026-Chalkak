@@ -25,6 +25,8 @@ struct ContentView: View {
     @State private var selectedLegalDocument: LegalDocument?
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var isPhotoUploadPresented = false
+    @State private var feedbackViewModel: FeedbackViewModel?
+    @State private var isFeedbackPresented = false
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
@@ -32,6 +34,11 @@ struct ContentView: View {
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
+    private let analyticsTracker: any AnalyticsTracking
+
+    init(analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker()) {
+        self.analyticsTracker = analyticsTracker
+    }
 
     var body: some View {
         Group {
@@ -66,6 +73,18 @@ struct ContentView: View {
                                     viewModel: photoUploadViewModel,
                                     onBack: showPhotoUploadOrigin,
                                     onSubmitted: showPhotoUploadSuccess,
+                                    onReauthenticationRequired: showLogin
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            }
+                        }
+                        .navigationDestination(isPresented: $isFeedbackPresented) {
+                            if let feedbackViewModel {
+                                FeedbackScreen(
+                                    viewModel: feedbackViewModel,
+                                    onBack: closeFeedback,
+                                    onSubmitted: handleFeedbackSubmitted,
                                     onReauthenticationRequired: showLogin
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
@@ -121,6 +140,12 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.16), value: appVersionGate.requiredUpdateStoreURL)
+        .onAppear {
+            trackCurrentScreen()
+        }
+        .onChange(of: currentAnalyticsScreen) { _, _ in
+            trackCurrentScreen()
+        }
         .task {
             await appVersionGate.checkForUpdate()
         }
@@ -146,8 +171,10 @@ struct ContentView: View {
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
+                onOpenFeedback: openFeedback,
                 onSignedOut: showLogin,
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                onOpenPhotoUpload: { openPhotoUpload(from: .settings) }
             )
         case .record:
             RecordScreen(
@@ -190,7 +217,20 @@ struct ContentView: View {
             return
         }
 
+        analyticsTracker.trackBottomNavigationSelection(destination: item.rawValue)
+
+        let shouldRevalidateDisplay = item == .display
+            && displayViewModel.viewState.contentStatus != .loading
+        let shouldRevalidateRecord = item == .record
+            && recordViewModel.viewState.contentStatus != .loading
+
         selectedTab = item
+
+        if shouldRevalidateDisplay {
+            Task { await displayViewModel.revalidate() }
+        } else if shouldRevalidateRecord {
+            Task { await recordViewModel.revalidate() }
+        }
     }
 
     private func openDisplay(at date: Date) {
@@ -214,7 +254,7 @@ struct ContentView: View {
     }
 
     private func openPhotoUpload(from tab: ChalkakBottomBarItem) {
-        guard KeychainSessionStore.hasAuthenticatedSession() else {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isPhotoUploadEntryUITest else {
             showMessage("게시물을 추가하려면 로그인이 필요해요")
             return
         }
@@ -288,6 +328,26 @@ struct ContentView: View {
         selectedTab = photoUploadReturnTab
     }
 
+    private func openFeedback() {
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("피드백을 보내려면 로그인이 필요해요")
+            return
+        }
+
+        feedbackViewModel = Self.makeFeedbackViewModel()
+        isFeedbackPresented = true
+    }
+
+    private func closeFeedback() {
+        isFeedbackPresented = false
+        feedbackViewModel = nil
+    }
+
+    private func handleFeedbackSubmitted() {
+        closeFeedback()
+        showMessage("피드백을 보내주셔서 감사해요.")
+    }
+
     private func showServiceTerms() {
         selectedLegalDocument = .termsOfService
     }
@@ -303,6 +363,8 @@ struct ContentView: View {
         selectedLegalDocument = nil
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
+        feedbackViewModel = nil
+        isFeedbackPresented = false
         successSubmission = nil
         resetMainState()
         route = .login
@@ -312,6 +374,8 @@ struct ContentView: View {
         selectedTab = .today
         selectedFeed = nil
         isPhotoUploadPresented = false
+        feedbackViewModel = nil
+        isFeedbackPresented = false
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
@@ -365,6 +429,19 @@ struct ContentView: View {
     }
 
     private static func makeSettingsViewModel() -> SettingsViewModel {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return SettingsViewModel(
+                initialState: SettingsViewState(
+                    isLoading: false,
+                    isLoggedIn: true,
+                    version: AppVersion.currentString()
+                ),
+                isAuthenticated: { true }
+            )
+        }
+#endif
+
         let configuration = AppConfiguration()
         let apiClient = SettingsAPIClient(
             baseURL: configuration.apiBaseURL,
@@ -384,7 +461,32 @@ struct ContentView: View {
         )
     }
 
+    private static func makeFeedbackViewModel() -> FeedbackViewModel {
+        let apiClient = FeedbackAPIClient(
+            configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return FeedbackViewModel(
+            submitFeedback: { content in
+                _ = try await apiClient.submitFeedback(content: content)
+            }
+        )
+    }
+
     private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return PhotoUploadViewModel(
+                topicDate: topicDate,
+                repository: PhotoUploadRepository(
+                    getCreationTopic: { date in
+                        .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
+                    }
+                )
+            )
+        }
+#endif
+
         let appConfiguration = AppConfiguration()
         let apiClient = PhotoUploadAPIClient(
             configuration: PhotoUploadAPIConfiguration(
@@ -400,6 +502,19 @@ struct ContentView: View {
     }
 
     private static func makePhotoUploadEntryGate() -> PhotoUploadEntryGate {
+#if DEBUG
+        if isPhotoUploadEntryUITest {
+            return PhotoUploadEntryGate {
+                PhotoUploadTodayPostStatus(
+                    topicDate: PhotoUploadDate.today(),
+                    isPosted: false,
+                    postID: nil,
+                    moderationStatus: nil
+                )
+            }
+        }
+#endif
+
         let appConfiguration = AppConfiguration()
         let apiClient = PhotoUploadAPIClient(
             configuration: PhotoUploadAPIConfiguration(
@@ -415,13 +530,40 @@ struct ContentView: View {
         AppConfiguration().apiBaseURL ?? HomeAPIConfiguration.development.baseURL
     }
 
+    private static var isPhotoUploadEntryUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-photo-upload-entry")
+#else
+        false
+#endif
+    }
+
     private static var initialRoute: AppRoute {
 #if DEBUG
+        if isPhotoUploadEntryUITest {
+            return .home
+        }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
 #endif
         return KeychainSessionStore.hasActiveSession() ? .home : .login
+    }
+
+    private var currentAnalyticsScreen: AnalyticsScreen? {
+        guard route == .home, !isPhotoUploadPresented else { return nil }
+        if selectedFeed != nil {
+            return AnalyticsScreen(name: "feed", screenClass: "Feed")
+        }
+        return selectedTab.analyticsScreen
+    }
+
+    private func trackCurrentScreen() {
+        guard let screen = currentAnalyticsScreen else { return }
+        analyticsTracker.trackScreenView(
+            screenName: screen.name,
+            screenClass: screen.screenClass
+        )
     }
 }
 
@@ -430,6 +572,26 @@ private enum AppRoute: Equatable {
     case onboarding
     case home
     case photoUploadSuccess
+}
+
+private struct AnalyticsScreen: Equatable {
+    let name: String
+    let screenClass: String
+}
+
+private extension ChalkakBottomBarItem {
+    var analyticsScreen: AnalyticsScreen {
+        switch self {
+        case .today:
+            AnalyticsScreen(name: "today", screenClass: "Today")
+        case .display:
+            AnalyticsScreen(name: "display", screenClass: "Display")
+        case .record:
+            AnalyticsScreen(name: "record", screenClass: "Record")
+        case .settings:
+            AnalyticsScreen(name: "settings", screenClass: "Settings")
+        }
+    }
 }
 
 private enum ContentMetrics {

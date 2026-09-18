@@ -118,6 +118,18 @@ struct SettingsInformationCard: View {
     }
 }
 
+struct SettingsFeedbackCard: View {
+    let onFeedback: () -> Void
+
+    var body: some View {
+        SettingsCard {
+            SettingsRow(title: "피드백 보내기", action: onFeedback) {
+                SettingsChevron()
+            }
+        }
+    }
+}
+
 struct SettingsAccountCard: View {
     @Environment(\.chalkakTheme) private var theme
     let onLogout: () -> Void

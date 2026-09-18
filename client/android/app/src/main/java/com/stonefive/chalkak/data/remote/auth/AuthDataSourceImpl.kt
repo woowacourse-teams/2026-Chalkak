@@ -20,12 +20,14 @@ class AuthDataSourceImpl(
     override suspend fun socialLogin(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SocialLoginResponse> = when (
         val result = requestExecutor.execute {
             api.socialLogin(
                 SocialLoginRequest(
                     provider = provider.name,
                     idToken = idToken,
+                    rawNonce = rawNonce,
                 ),
             )
         }
@@ -42,11 +44,13 @@ class AuthDataSourceImpl(
     override suspend fun createSignatureUpload(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): ApiResult<SignatureUploadResponse> = requestExecutor.execute {
         api.createSignatureUpload(
             SignatureUploadRequest(
                 provider = provider.name,
                 idToken = idToken,
+                rawNonce = rawNonce,
             ),
         )
     }

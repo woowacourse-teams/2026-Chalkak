@@ -23,12 +23,14 @@ import kotlinx.coroutines.launch
 
 @Stable
 class DisplayScrollBehaviorState(
-    private val gridState: LazyStaggeredGridState,
+    gridState: LazyStaggeredGridState,
     private val settleScope: CoroutineScope,
     private val scrollToTopToggleThresholdPx: Float,
-    private val hasFilter: Boolean,
+    hasFilter: Boolean,
     val bottomBarState: BottomBarScrollState,
 ) {
+    private var gridState = gridState
+    private var hasFilter = hasFilter
     var headerOffset by mutableFloatStateOf(0f)
         private set
     var headerHeight by mutableIntStateOf(0)
@@ -133,6 +135,14 @@ class DisplayScrollBehaviorState(
         isFilterTargetHidden = false
     }
 
+    fun updateLayout(
+        gridState: LazyStaggeredGridState,
+        hasFilter: Boolean,
+    ) {
+        this.gridState = gridState
+        this.hasFilter = hasFilter
+    }
+
     fun updateScrollToTopVisibility() {
         if (!gridState.canScrollBackward && headerOffset == 0f && filterOffset == 0f) {
             bottomBarState.hideScrollToTopButton()
@@ -181,11 +191,9 @@ fun rememberDisplayScrollBehaviorState(
     hasFilter: Boolean,
 ): DisplayScrollBehaviorState {
     val bottomBarState = rememberBottomBarScrollState()
-    return remember(
-        gridState,
+    val state = remember(
         settleScope,
         scrollToTopToggleThresholdPx,
-        hasFilter,
         bottomBarState,
     ) {
         DisplayScrollBehaviorState(
@@ -196,4 +204,9 @@ fun rememberDisplayScrollBehaviorState(
             bottomBarState = bottomBarState,
         )
     }
+    state.updateLayout(
+        gridState = gridState,
+        hasFilter = hasFilter,
+    )
+    return state
 }

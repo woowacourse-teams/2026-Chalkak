@@ -13,6 +13,7 @@ final class RecordViewModel {
     private let monthProvider: MonthProvider
     private let calendarHandler: CalendarHandler
     private var generation = 0
+    private var isRevalidating = false
 
     init(
         initialState: RecordViewState? = nil,
@@ -68,6 +69,17 @@ final class RecordViewModel {
         await loadCalendar(month: viewState.month)
     }
 
+    /// 현재 달력 데이터를 유지한 채 같은 월을 최신 데이터로 갱신한다.
+    func revalidate() async {
+        guard viewState.contentStatus != .loading, !isRevalidating else { return }
+
+        isRevalidating = true
+        defer { isRevalidating = false }
+
+        let previous = viewState.contentStatus == .loaded ? viewState : nil
+        await loadCalendar(month: viewState.month, preserving: previous)
+    }
+
     func onCalendarImageSaved(_ saved: Bool) {
         event = .showToast(saved ? "달력을 이미지로 저장했어요" : "이미지 저장에 실패했어요")
     }
@@ -87,18 +99,25 @@ final class RecordViewModel {
         }
     }
 
-    private func loadCalendar(month: RecordMonth) async {
+    private func loadCalendar(
+        month: RecordMonth,
+        preserving previousState: RecordViewState? = nil
+    ) async {
         generation += 1
         let requestGeneration = generation
         let latestMonth = max(viewState.latestMonth, monthProvider())
 
-        viewState = RecordViewState(
-            contentStatus: .loading,
-            month: month,
-            latestMonth: latestMonth,
-            posts: [],
-            selectedDate: nil
-        )
+        if previousState != nil {
+            viewState.latestMonth = latestMonth
+        } else {
+            viewState = RecordViewState(
+                contentStatus: .loading,
+                month: month,
+                latestMonth: latestMonth,
+                posts: [],
+                selectedDate: nil
+            )
+        }
 
         let result = await calendarHandler(month)
         guard requestGeneration == generation else { return }
@@ -113,13 +132,19 @@ final class RecordViewModel {
                 selectedDate: calendar.posts.first?.topicDate
             )
         case let .failure(error):
-            viewState = RecordViewState(
-                contentStatus: .error(error),
-                month: month,
-                latestMonth: latestMonth,
-                posts: [],
-                selectedDate: nil
-            )
+            if var previousState {
+                previousState.latestMonth = latestMonth
+                viewState = previousState
+                event = .showToast(error.message)
+            } else {
+                viewState = RecordViewState(
+                    contentStatus: .error(error),
+                    month: month,
+                    latestMonth: latestMonth,
+                    posts: [],
+                    selectedDate: nil
+                )
+            }
         }
     }
 }

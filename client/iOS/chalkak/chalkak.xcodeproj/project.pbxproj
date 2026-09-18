@@ -11,6 +11,7 @@
 		64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */; };
 		64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA23028544800ECB6E1 /* KakaoSDKUser */; };
 		64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */; };
+		64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */,
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
@@ -123,6 +125,7 @@
 			);
 			name = chalkak;
 			packageProductDependencies = (
+				64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */,
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
@@ -211,6 +214,7 @@
 			mainGroup = 64DDEA643028544700ECB6E1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				64DDEA97028544800ECB6E1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				64DDEA98028544800ECB6E1 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
 				64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */,
@@ -414,7 +418,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = chalkak.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5XL9G5DWBD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -437,7 +441,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonefive.chalkak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -464,7 +468,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = chalkak.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5XL9G5DWBD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -487,7 +491,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonefive.chalkak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -673,6 +677,14 @@
 				minimumVersion = 0.9.1;
 			};
 		};
+		64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.19.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -695,6 +707,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEAAF3028544800ECB6E1 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */;
 			productName = SDWebImageWebPCoder;
+		};
+		64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

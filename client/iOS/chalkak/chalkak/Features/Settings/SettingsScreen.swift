@@ -34,6 +34,7 @@ struct SettingsScreen: View {
     var onLogin: () -> Void = {}
     var onPrivacyPolicy: () -> Void = {}
     var onTerms: () -> Void = {}
+    var onOpenFeedback: () -> Void = {}
     var onSignedOut: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenPhotoUpload: () -> Void = {}
@@ -45,24 +46,49 @@ struct SettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                SettingsSectionLabel(text: "앱 설정")
+                if viewModel.viewState.isLoading || viewModel.viewState.isLoggedIn {
+                    SettingsSectionLabel(text: "앱 설정")
+
+                    Group {
+                        if viewModel.viewState.isLoading {
+                            Color.clear.frame(height: Metrics.loadingHeight)
+                        } else {
+                            SettingsSignatureCard(
+                                signatureSource: viewModel.viewState.signatureURL.map(ChalkakImageSource.remote),
+                                onChange: { isSignatureChangePresented = true }
+                            )
+                        }
+                    }
+                    .padding(.top, theme.spacing.lg)
+                }
+
+                SettingsSectionLabel(text: "계정")
+                    .padding(.top, viewModel.viewState.isLoading || viewModel.viewState.isLoggedIn
+                        ? Metrics.appToAccountSpacing : 0)
 
                 Group {
-                    if viewModel.viewState.isLoading {
-                        Color.clear.frame(height: Metrics.loadingHeight)
-                    } else if viewModel.viewState.isLoggedIn {
-                        SettingsSignatureCard(
-                            signatureSource: viewModel.viewState.signatureURL.map(ChalkakImageSource.remote),
-                            onChange: { isSignatureChangePresented = true }
+                    if viewModel.viewState.isLoggedIn {
+                        SettingsAccountCard(
+                            onLogout: viewModel.showLogoutDialog,
+                            onWithdraw: viewModel.showWithdrawDialog,
+                            isEnabled: !viewModel.viewState.isAccountActionInProgress
                         )
-                    } else {
+                    } else if !viewModel.viewState.isLoading {
                         SettingsLoginButton(onClick: onLogin)
+                    } else {
+                        Color.clear.frame(height: Metrics.loadingHeight)
                     }
                 }
                 .padding(.top, theme.spacing.lg)
 
+                SettingsSectionLabel(text: "피드백")
+                    .padding(.top, theme.spacing.xxl)
+
+                SettingsFeedbackCard(onFeedback: onOpenFeedback)
+                    .padding(.top, theme.spacing.lg)
+
                 SettingsSectionLabel(text: "정보 및 약관")
-                    .padding(.top, Metrics.appToInformationSpacing)
+                    .padding(.top, theme.spacing.xxl)
 
                 SettingsInformationCard(
                     version: viewModel.viewState.version,
@@ -70,15 +96,6 @@ struct SettingsScreen: View {
                     onTerms: onTerms
                 )
                 .padding(.top, theme.spacing.lg)
-
-                if viewModel.viewState.isLoggedIn {
-                    SettingsAccountCard(
-                        onLogout: viewModel.showLogoutDialog,
-                        onWithdraw: viewModel.showWithdrawDialog,
-                        isEnabled: !viewModel.viewState.isAccountActionInProgress
-                    )
-                    .padding(.top, theme.spacing.xxl)
-                }
             }
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.top, Metrics.topPadding)
@@ -167,7 +184,7 @@ struct SettingsScreen: View {
 
 private enum Metrics {
     static let topPadding: CGFloat = 48
-    static let appToInformationSpacing: CGFloat = 36
+    static let appToAccountSpacing: CGFloat = 36
     static let loadingHeight: CGFloat = 56
     static let toastBottomPadding: CGFloat = 88
 }

@@ -35,10 +35,12 @@ class AuthRepositoryImpl(
     override suspend fun login(
         provider: SocialLoginProvider,
         idToken: String,
-    ): SocialLoginResult = when (val result = authDataSource.socialLogin(provider, idToken)) {
+        rawNonce: String,
+    ): SocialLoginResult = when (val result = authDataSource.socialLogin(provider, idToken, rawNonce)) {
         is ApiResult.Success -> handleLoginResponse(
             provider = provider,
             idToken = idToken,
+            rawNonce = rawNonce,
             response = result.value,
         )
 
@@ -56,6 +58,7 @@ class AuthRepositoryImpl(
             val result = authDataSource.createSignatureUpload(
                 provider = login.provider,
                 idToken = login.idToken,
+                rawNonce = login.rawNonce,
             )
         ) {
             is ApiResult.Success -> result.value
@@ -100,6 +103,7 @@ class AuthRepositoryImpl(
     private suspend fun handleLoginResponse(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
         response: SocialLoginResponse,
     ): SocialLoginResult = when (response) {
         is SocialLoginResponse.LoginSuccess -> {
@@ -110,7 +114,7 @@ class AuthRepositoryImpl(
         }
 
         SocialLoginResponse.SignUpRequired -> {
-            pendingLogin = PendingSocialLogin(provider, idToken)
+            pendingLogin = PendingSocialLogin(provider, idToken, rawNonce)
             SocialLoginResult.SignUpRequired
         }
     }
@@ -150,7 +154,7 @@ class AuthRepositoryImpl(
         userId: String,
         login: PendingSocialLogin,
     ): SocialSignUpResult = when (
-        val result = authDataSource.socialLogin(login.provider, login.idToken)
+        val result = authDataSource.socialLogin(login.provider, login.idToken, login.rawNonce)
     ) {
         is ApiResult.Success -> {
             when (val response = result.value) {
@@ -215,6 +219,7 @@ class AuthRepositoryImpl(
     private data class PendingSocialLogin(
         val provider: SocialLoginProvider,
         val idToken: String,
+        val rawNonce: String,
     )
 
     private companion object {

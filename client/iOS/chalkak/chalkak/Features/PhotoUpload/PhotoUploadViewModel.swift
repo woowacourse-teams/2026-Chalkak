@@ -73,7 +73,7 @@ final class PhotoUploadViewModel {
         case .cameraClicked:
             publish(.openCamera)
         case let .captionChanged(caption):
-            viewState.caption = caption.limited(toCharacterCount: Constants.captionMaxLength)
+            viewState.caption = caption.limited(to: Constants.captionMaxLength, using: .characters)
         case .submitClicked:
             submit()
         case let .messageShown(messageID):

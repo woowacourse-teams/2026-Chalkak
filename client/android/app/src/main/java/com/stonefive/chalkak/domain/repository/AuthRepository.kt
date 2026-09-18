@@ -12,6 +12,7 @@ interface AuthRepository {
     suspend fun login(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ): SocialLoginResult
 
     suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult

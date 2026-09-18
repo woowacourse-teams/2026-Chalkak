@@ -24,10 +24,14 @@ class GoogleIdTokenClient(
             return GoogleCredentialResult.Failure(GoogleCredentialFailure.CONFIGURATION)
         }
 
+        val rawNonce = SocialLoginNonce.generate()
         val request = GetCredentialRequest
             .Builder()
             .addCredentialOption(
-                GetSignInWithGoogleOption.Builder(serverClientId).build(),
+                GetSignInWithGoogleOption
+                    .Builder(serverClientId)
+                    .setNonce(SocialLoginNonce.sha256Hex(rawNonce))
+                    .build(),
             ).build()
 
         return try {
@@ -35,7 +39,7 @@ class GoogleIdTokenClient(
                 .getCredential(
                     context = activity,
                     request = request,
-                ).toGoogleCredentialResult()
+                ).toGoogleCredentialResult(rawNonce)
         } catch (error: CancellationException) {
             throw error
         } catch (error: GetCredentialCancellationException) {
@@ -57,7 +61,9 @@ class GoogleIdTokenClient(
         }
     }
 
-    private fun androidx.credentials.GetCredentialResponse.toGoogleCredentialResult(): GoogleCredentialResult {
+    private fun androidx.credentials.GetCredentialResponse.toGoogleCredentialResult(
+        rawNonce: String,
+    ): GoogleCredentialResult {
         val customCredential = credential as? CustomCredential
             ?: return GoogleCredentialResult.Failure(GoogleCredentialFailure.UNEXPECTED_CREDENTIAL)
         if (customCredential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
@@ -67,6 +73,7 @@ class GoogleIdTokenClient(
         return try {
             GoogleCredentialResult.Success(
                 GoogleIdTokenCredential.createFrom(customCredential.data).idToken,
+                rawNonce,
             )
         } catch (error: GoogleIdTokenParsingException) {
             GoogleCredentialResult.Failure(GoogleCredentialFailure.INVALID_CREDENTIAL)
@@ -75,7 +82,10 @@ class GoogleIdTokenClient(
 }
 
 sealed interface GoogleCredentialResult {
-    data class Success(val idToken: String) : GoogleCredentialResult
+    data class Success(
+        val idToken: String,
+        val rawNonce: String,
+    ) : GoogleCredentialResult
 
     data object Cancelled : GoogleCredentialResult
 

@@ -14,6 +14,7 @@ import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.YearMonth
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -118,6 +119,63 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `재진입 재검증은 기존 기록을 유지한 채 최신 응답으로 교체한다`() = runTest {
+        advanceUntilIdle()
+        val pendingResult = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = pendingResult
+        val previousPosts = viewModel.uiState.value.posts
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        assertEquals(previousPosts, viewModel.uiState.value.posts)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(2, repository.requests.size)
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostCalendar(
+                    month = RecordTestMonth,
+                    posts = listOf(
+                        PostCalendarItem(
+                            postId = "post-7",
+                            topicDate = RecordTestMonth.atDay(7),
+                            thumbnailImageUrl = "photo-7",
+                            status = PostStatus.APPROVED,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("post-7"),
+            viewModel.uiState.value.posts
+                .map(PostCalendarItem::postId),
+        )
+    }
+
+    @Test
+    fun `재진입 재검증 실패는 기존 기록을 유지하고 Toast 메시지를 보낸다`() = runTest {
+        advanceUntilIdle()
+        repository.pendingCalendarResult = CompletableDeferred<HomeResult<PostCalendar>>().apply {
+            complete(HomeResult.Failure(HomeFailure.Network))
+        }
+        val previousPosts = viewModel.uiState.value.posts
+
+        viewModel.onResume()
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(previousPosts, viewModel.uiState.value.posts)
+        assertEquals(
+            "기록을 불러오지 못했어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
     fun `인증되지 않은 기록 조회는 로그인 필요 상태로 표시한다`() = runTest {
         advanceUntilIdle()
         val unauthorizedMonth = RecordTestMonth.minusMonths(1)
@@ -191,9 +249,11 @@ private class FakePostRepository : PostRepository {
     val requests = mutableListOf<YearMonth>()
     var failureMonth: YearMonth? = null
     var unauthorizedMonth: YearMonth? = null
+    var pendingCalendarResult: CompletableDeferred<HomeResult<PostCalendar>>? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> {
         requests += month
+        pendingCalendarResult?.let { return it.await() }
         if (month == unauthorizedMonth) return HomeResult.Failure(HomeFailure.Unauthorized)
         if (month == failureMonth) return HomeResult.Failure(HomeFailure.Http(400))
 

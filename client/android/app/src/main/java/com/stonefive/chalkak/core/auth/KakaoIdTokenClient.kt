@@ -14,20 +14,21 @@ private typealias KakaoLoginCallback = (OAuthToken?, Throwable?) -> Unit
 class KakaoIdTokenClient(private val loginGateway: KakaoLoginGateway = UserApiClientKakaoLoginGateway()) {
     suspend fun getIdToken(context: Context): KakaoCredentialResult = getIdToken(
         isKakaoTalkLoginAvailable = { loginGateway.isKakaoTalkLoginAvailable(context) },
-        loginWithKakaoTalk = { loginGateway.loginWithKakaoTalk(context) },
-        loginWithKakaoAccount = { loginGateway.loginWithKakaoAccount(context) },
+        loginWithKakaoTalk = { rawNonce -> loginGateway.loginWithKakaoTalk(context, rawNonce) },
+        loginWithKakaoAccount = { rawNonce -> loginGateway.loginWithKakaoAccount(context, rawNonce) },
     )
 }
 
 suspend fun getIdToken(
     isKakaoTalkLoginAvailable: () -> Boolean,
-    loginWithKakaoTalk: suspend () -> KakaoCredentialResult,
-    loginWithKakaoAccount: suspend () -> KakaoCredentialResult,
+    loginWithKakaoTalk: suspend (rawNonce: String) -> KakaoCredentialResult,
+    loginWithKakaoAccount: suspend (rawNonce: String) -> KakaoCredentialResult,
+    rawNonce: String = SocialLoginNonce.generate(),
 ): KakaoCredentialResult = try {
     if (!isKakaoTalkLoginAvailable()) {
-        loginWithKakaoAccount()
+        loginWithKakaoAccount(rawNonce)
     } else {
-        when (val result = loginWithKakaoTalk()) {
+        when (val result = loginWithKakaoTalk(rawNonce)) {
             is KakaoCredentialResult.Success,
             KakaoCredentialResult.Cancelled,
             -> result
@@ -36,7 +37,7 @@ suspend fun getIdToken(
                 if (result.reason == KakaoCredentialFailure.CONFIGURATION) {
                     result
                 } else {
-                    loginWithKakaoAccount()
+                    loginWithKakaoAccount(rawNonce)
                 }
             }
         }
@@ -50,41 +51,66 @@ suspend fun getIdToken(
 interface KakaoLoginGateway {
     fun isKakaoTalkLoginAvailable(context: Context): Boolean
 
-    suspend fun loginWithKakaoTalk(context: Context): KakaoCredentialResult
+    suspend fun loginWithKakaoTalk(
+        context: Context,
+        rawNonce: String,
+    ): KakaoCredentialResult
 
-    suspend fun loginWithKakaoAccount(context: Context): KakaoCredentialResult
+    suspend fun loginWithKakaoAccount(
+        context: Context,
+        rawNonce: String,
+    ): KakaoCredentialResult
 }
 
 private class UserApiClientKakaoLoginGateway(private val userApiClient: UserApiClient = UserApiClient.instance) :
     KakaoLoginGateway {
     override fun isKakaoTalkLoginAvailable(context: Context): Boolean = userApiClient.isKakaoTalkLoginAvailable(context)
 
-    override suspend fun loginWithKakaoTalk(context: Context): KakaoCredentialResult = loginWithKakao { callback ->
-        userApiClient.loginWithKakaoTalk(context, callback = callback)
+    override suspend fun loginWithKakaoTalk(
+        context: Context,
+        rawNonce: String,
+    ): KakaoCredentialResult = loginWithKakao(rawNonce) { callback ->
+        userApiClient.loginWithKakaoTalk(
+            context,
+            nonce = SocialLoginNonce.sha256Hex(rawNonce),
+            callback = callback,
+        )
     }
 
-    override suspend fun loginWithKakaoAccount(context: Context): KakaoCredentialResult = loginWithKakao { callback ->
-        userApiClient.loginWithKakaoAccount(context, callback = callback)
+    override suspend fun loginWithKakaoAccount(
+        context: Context,
+        rawNonce: String,
+    ): KakaoCredentialResult = loginWithKakao(rawNonce) { callback ->
+        userApiClient.loginWithKakaoAccount(
+            context,
+            nonce = SocialLoginNonce.sha256Hex(rawNonce),
+            callback = callback,
+        )
     }
 
-    private suspend fun loginWithKakao(startLogin: (KakaoLoginCallback) -> Unit): KakaoCredentialResult =
-        suspendCancellableCoroutine { continuation ->
-            try {
-                startLogin { token, error ->
-                    if (continuation.isActive) {
-                        continuation.resume(token.toKakaoCredentialResult(error))
-                    }
+    private suspend fun loginWithKakao(
+        rawNonce: String,
+        startLogin: (KakaoLoginCallback) -> Unit,
+    ): KakaoCredentialResult = suspendCancellableCoroutine { continuation ->
+        try {
+            startLogin { token, error ->
+                if (continuation.isActive) {
+                    continuation.resume(token.toKakaoCredentialResult(error, rawNonce))
                 }
-            } catch (error: CancellationException) {
-                continuation.cancel(error)
-            } catch (error: Exception) {
-                continuation.resume(
-                    KakaoCredentialResult.Failure(KakaoCredentialFailure.LOGIN_FAILED),
-                )
             }
+        } catch (error: CancellationException) {
+            continuation.cancel(error)
+        } catch (error: Exception) {
+            continuation.resume(
+                KakaoCredentialResult.Failure(KakaoCredentialFailure.LOGIN_FAILED),
+            )
         }
+    }
 
-    private fun OAuthToken?.toKakaoCredentialResult(error: Throwable?): KakaoCredentialResult {
+    private fun OAuthToken?.toKakaoCredentialResult(
+        error: Throwable?,
+        rawNonce: String,
+    ): KakaoCredentialResult {
         if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
             return KakaoCredentialResult.Cancelled
         }
@@ -96,13 +122,16 @@ private class UserApiClientKakaoLoginGateway(private val userApiClient: UserApiC
         return if (idToken.isNullOrBlank()) {
             KakaoCredentialResult.Failure(KakaoCredentialFailure.CONFIGURATION)
         } else {
-            KakaoCredentialResult.Success(idToken)
+            KakaoCredentialResult.Success(idToken, rawNonce)
         }
     }
 }
 
 sealed interface KakaoCredentialResult {
-    data class Success(val idToken: String) : KakaoCredentialResult
+    data class Success(
+        val idToken: String,
+        val rawNonce: String,
+    ) : KakaoCredentialResult
 
     data object Cancelled : KakaoCredentialResult
 

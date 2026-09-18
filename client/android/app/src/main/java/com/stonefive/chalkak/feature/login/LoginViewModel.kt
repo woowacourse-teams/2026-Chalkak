@@ -35,6 +35,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
     fun login(
         provider: SocialLoginProvider,
         idToken: String,
+        rawNonce: String,
     ) {
         _uiState.value = LoginUiState(
             status = LoginStatus.Loading,
@@ -42,7 +43,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
         )
         viewModelScope.launch {
             try {
-                when (val result = authRepository.login(provider, idToken)) {
+                when (val result = authRepository.login(provider, idToken, rawNonce)) {
                     is SocialLoginResult.LoginSuccess -> {
                         _uiState.value = LoginUiState(
                             status = LoginStatus.Authenticated,

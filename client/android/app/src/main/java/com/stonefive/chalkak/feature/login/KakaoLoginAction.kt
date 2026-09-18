@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun rememberKakaoLoginAction(
     onStart: () -> Boolean,
-    onSuccess: (String) -> Unit,
+    onSuccess: (idToken: String, rawNonce: String) -> Unit,
     onCancelled: () -> Unit,
     onFailure: (String) -> Unit,
 ): () -> Unit {
@@ -42,7 +42,7 @@ fun rememberKakaoLoginAction(
                 coroutineScope.launch {
                     try {
                         when (val result = kakaoIdTokenClient.getIdToken(currentActivity)) {
-                            is KakaoCredentialResult.Success -> currentOnSuccess(result.idToken)
+                            is KakaoCredentialResult.Success -> currentOnSuccess(result.idToken, result.rawNonce)
 
                             KakaoCredentialResult.Cancelled -> currentOnCancelled()
 

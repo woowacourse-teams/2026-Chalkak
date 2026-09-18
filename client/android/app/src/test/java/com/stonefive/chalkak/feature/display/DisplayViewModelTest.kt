@@ -16,6 +16,8 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +26,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DisplayViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -112,6 +115,62 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `정렬 변경 중에는 기존 사진을 유지하고 재선택하면 정렬별 캐시를 즉시 보여준다`() = runTest {
+        repository.firstPagePhotoIdsBySort[PostSort.POPULAR] = "popular-photo"
+        repository.firstPageHasNext = true
+        repository.nextPageResult = HomeResult.Success(
+            PostPage(
+                photos = listOf(post.copy(id = "popular-tail")),
+                likedPhotoIds = emptySet(),
+                currentPage = 2,
+                hasNext = false,
+                randomSeed = null,
+            ),
+        )
+
+        viewModel.selectSort(PostSort.POPULAR)
+        viewModel.updateEndThreshold(true)
+
+        assertEquals(
+            listOf("popular-photo", "popular-tail"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.selectSort(PostSort.LATEST)
+
+        val cachedContent = viewModel.uiState.value.content as DisplayContentState.Latest
+        assertEquals(PostSort.LATEST, cachedContent.selectedSort)
+        assertEquals(listOf(post.id), cachedContent.photos.map(Post::id))
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = LATEST_DATE,
+                    topic = "갱신된 전시",
+                    photos = listOf(post.copy(id = "refreshed-photo")),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("refreshed-photo"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+
+        repository.pendingContentResult = null
+        viewModel.selectSort(PostSort.POPULAR)
+
+        assertEquals(
+            listOf("popular-photo", "popular-tail"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+    }
+
+    @Test
     fun `정렬 갱신 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
         val previousContent = viewModel.uiState.value.content
         repository.firstPageFailure = HomeFailure.Network
@@ -119,6 +178,54 @@ class DisplayViewModelTest {
         viewModel.selectSort(PostSort.POPULAR)
 
         assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `재진입 재검증은 기존 전시를 유지한 채 최신 응답으로 교체한다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        val previousContent = viewModel.uiState.value.content
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        assertEquals(previousContent, viewModel.uiState.value.content)
+        assertEquals(2, repository.requests.size)
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = LATEST_DATE,
+                    topic = "새 전시",
+                    photos = listOf(post.copy(id = "updated-photo")),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("새 전시", viewModel.uiState.value.topic)
+        assertEquals(
+            listOf("updated-photo"),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+    }
+
+    @Test
+    fun `재진입 재검증 실패는 기존 전시를 유지하고 Toast 메시지를 보낸다`() = runTest {
+        repository.firstPageFailure = HomeFailure.Network
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        assertEquals(
+            listOf(post.id),
+            (viewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
         assertEquals(
             "전시를 불러오지 못했어요",
             (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
@@ -192,6 +299,52 @@ class DisplayViewModelTest {
             2,
             (randomViewModel.uiState.value.content as DisplayContentState.Latest).photos.size,
         )
+    }
+
+    @Test
+    fun `랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            firstPagePhotoIdsBySort[PostSort.RANDOM] = "random-first-1"
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "random-tail")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = false,
+                    randomSeed = "seed-1",
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository)
+
+        randomViewModel.selectSort(PostSort.RANDOM)
+        randomViewModel.updateEndThreshold(true)
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        var randomState = randomViewModel.uiState.value
+        assertEquals(
+            listOf("random-first-1", "random-tail"),
+            (randomState.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals(2, randomState.currentPage)
+        assertFalse(randomState.hasNext)
+
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomRepository.firstPageRandomSeed = "seed-2"
+        randomRepository.firstPagePhotoIdsBySort[PostSort.RANDOM] = "random-first-2"
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        randomState = randomViewModel.uiState.value
+        assertEquals(
+            listOf("random-first-2"),
+            (randomState.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals(1, randomState.currentPage)
+        assertTrue(randomState.hasNext)
+        assertEquals("seed-2", randomState.randomSeed)
     }
 
     @Test
@@ -327,6 +480,7 @@ private class FakePostRepository : PostRepository {
     var topicNotFoundDates: Set<LocalDate> = emptySet()
     var firstPageFailure: HomeFailure? = null
     var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
+    val firstPagePhotoIdsBySort = mutableMapOf<PostSort, String>()
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -358,7 +512,7 @@ private class FakePostRepository : PostRepository {
                 photos = if (selectedDate < LATEST_DATE) {
                     listOf(post, post.copy(id = "archive-photo"))
                 } else {
-                    listOf(post)
+                    listOf(post.copy(id = firstPagePhotoIdsBySort[query.sort] ?: post.id))
                 },
                 likedPhotoIds = emptySet(),
                 hasNext = firstPageHasNext,

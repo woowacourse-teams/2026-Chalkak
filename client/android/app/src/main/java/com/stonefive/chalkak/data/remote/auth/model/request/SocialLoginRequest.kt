@@ -6,4 +6,5 @@ import kotlinx.serialization.Serializable
 data class SocialLoginRequest(
     val provider: String,
     val idToken: String,
+    val rawNonce: String,
 )

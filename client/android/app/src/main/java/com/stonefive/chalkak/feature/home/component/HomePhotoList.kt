@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @Composable
 fun HomePhotoList(
     photos: List<Post>,
+    contentRevision: Int,
     likedPhotoIds: Set<String>,
     isLoadingNext: Boolean,
     areLikesEnabled: Boolean,
@@ -38,6 +41,8 @@ fun HomePhotoList(
     state: LazyListState = rememberLazyListState(),
     topContentPadding: Dp = 0.dp,
 ) {
+    val imageAspectRatios = remember { mutableStateMapOf<String, Float>() }
+
     LaunchedEffect(state, photos.size) {
         snapshotFlow { state.isNearEnd(photos.size) }
             .distinctUntilChanged()
@@ -55,13 +60,19 @@ fun HomePhotoList(
     ) {
         items(
             items = photos,
-            key = Post::id,
+            key = { photo -> "$contentRevision:${photo.id}" },
         ) { photo ->
             HomePhotoCard(
                 photo = photo,
                 isLiked = photo.id in likedPhotoIds,
                 isLikeEnabled = areLikesEnabled,
                 onLikeClick = { onLikeClick(photo.id) },
+                imageAspectRatio = imageAspectRatios[photo.originalImageUrl],
+                onImageAspectRatioAvailable = { aspectRatio ->
+                    if (imageAspectRatios[photo.originalImageUrl] != aspectRatio) {
+                        imageAspectRatios[photo.originalImageUrl] = aspectRatio
+                    }
+                },
             )
         }
         if (isLoadingNext) {
@@ -116,6 +127,7 @@ private fun HomePhotoListPreview() {
                     likeCount = 12,
                 ),
             ),
+            contentRevision = 1,
             likedPhotoIds = setOf("preview-1"),
             isLoadingNext = true,
             areLikesEnabled = true,
