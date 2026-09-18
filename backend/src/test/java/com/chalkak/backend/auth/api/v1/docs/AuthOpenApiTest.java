@@ -100,6 +100,38 @@ class AuthOpenApiTest extends IntegrationTestSupport {
     }
 
     /**
+     * Presigned URL은 PUT 방식과 서명에 포함된 Content-Type을 지켜야 사용할 수 있다.
+     * 둘 다 5분 유효하지만 expiresInSeconds는 signupToken이 아닌 URL 만료를 의미한다.
+     */
+    @Test
+    @DisplayName("사용자 문서는 서명 업로드 URL의 사용 조건과 만료 대상을 구분한다")
+    void userApiDocs_signatureUpload_exposesUploadUrlContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.components.schemas.SocialSignupSignatureUploadResponse"
+                                + ".properties.uploadUrl.description")
+                        .value(containsString("S3 Presigned PUT URL")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.SocialSignupSignatureUploadResponse"
+                                + ".properties.uploadUrl.description")
+                        .value(containsString("image/png")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.SocialSignupSignatureUploadResponse"
+                                + ".properties.uploadUrl.description")
+                        .value(containsString("1 MiB")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.SocialSignupSignatureUploadResponse"
+                                + ".properties.expiresInSeconds.description")
+                        .value(containsString("signupToken의 만료 시간이 아님")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.SocialSignupSignatureUploadResponse"
+                                + ".properties.expiresInSeconds.example")
+                        .value(300));
+    }
+
+    /**
      * 가입 완료의 400 중 사인 이미지 처리 중만 errorCode가 다르다. 클라이언트는 이 값으로 같은
      * 회원가입 토큰의 재시도 여부를 판단하므로 문서에서 빠지면 안 된다.
      */
