@@ -22,6 +22,27 @@ class PostOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("user-api 캘린더 문서는 기존 응답 구조에서 승인 대기·승인 상태만 제공한다")
+    void userApiDocs_getMyPostCalendar_exposesPendingAndApprovedStatuses() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse.properties")
+                        .value(aMapWithSize(4)))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarPostResponse.properties.topicDate")
+                                .exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse.properties.postId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse"
+                        + ".properties.thumbnailImageUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse"
+                        + ".properties.status.enum")
+                        .value(containsInAnyOrder("PENDING", "APPROVED")));
+    }
+
+    @Test
     @DisplayName("user-api 문서는 본인 게시물 삭제 계약을 제공한다")
     void userApiDocs_deletePost_exposesContract() throws Exception {
         // When & Then

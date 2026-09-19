@@ -73,11 +73,13 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("본인의 월별 게시물을 캘린더 결과로 반환한다")
+    @DisplayName("본인의 월별 승인 대기·승인 게시물의 사진과 상태를 반환한다")
     void getMyPostCalendar_validYearMonth_returnsCalendarResult() {
         // Given
         given(imageUrlProvider.getUrl(APPROVED_THUMBNAIL_KEY))
                 .willReturn("https://cdn.example.com/posts/approved.webp");
+        given(imageUrlProvider.getUrl(PENDING_THUMBNAIL_KEY))
+                .willReturn("https://cdn.example.com/posts/pending.webp");
 
         // When
         PostCalendarResult result = postQueryService.getMyPostCalendar(
@@ -95,6 +97,12 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
                                 ModerationStatus.APPROVED
+                        ),
+                        new PostCalendarResult.PostSummary(
+                                LocalDate.of(2026, 8, 31),
+                                PENDING_POST_ID,
+                                "https://cdn.example.com/posts/pending.webp",
+                                ModerationStatus.PENDING
                         )
                 )
         ));

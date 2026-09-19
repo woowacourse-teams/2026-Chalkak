@@ -326,7 +326,7 @@ public interface PostApiDocs {
 
     @Operation(
             summary = "내 게시물 캘린더 조회",
-            description = "조회 연월에 작성한 APPROVED 상태의 게시물만 주제 날짜순으로 반환합니다."
+            description = "조회 연월의 주제에 작성한 본인의 PENDING·APPROVED 게시물을 주제 날짜순으로 반환합니다."
     )
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({

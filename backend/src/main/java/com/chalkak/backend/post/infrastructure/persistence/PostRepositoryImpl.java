@@ -29,6 +29,7 @@ public class PostRepositoryImpl implements PostRepository {
             "ux_photos_original_storage_key"
     );
     private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
+            ModerationStatus.PENDING,
             ModerationStatus.APPROVED
     );
 
