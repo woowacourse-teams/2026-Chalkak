@@ -2,6 +2,7 @@ package com.chalkak.backend.post.repository;
 
 import com.chalkak.backend.post.domain.Post;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +40,8 @@ public interface PostRepository {
             LocalDate startDate,
             LocalDate endDate
     );
+
+    List<YearMonth> findCalendarMonthsByAuthorId(UUID authorId);
 
     PostSlice findVisibleRecentByTopicId(
             UUID topicId,

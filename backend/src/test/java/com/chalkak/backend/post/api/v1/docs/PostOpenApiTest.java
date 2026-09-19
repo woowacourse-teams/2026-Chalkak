@@ -153,4 +153,37 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
                         .value(hasKey("accessToken")));
     }
+    @Test
+    @DisplayName("연월 목록 문서는 입력 없이 숫자 연월 배열과 인증 계약을 제공한다")
+    void userApiDocs_getMyPostCalendarMonths_exposesMonthsAndSecurity() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.security[0]")
+                        .value(hasKey("accessToken")))
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['403']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse.properties")
+                        .value(aMapWithSize(1)))
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse"
+                        + ".properties.months.type").value("array"))
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse"
+                        + ".properties.months.items['$ref']")
+                        .value("#/components/schemas/CalendarMonthResponse"))
+                .andExpect(jsonPath("$.components.schemas.CalendarMonthResponse.properties")
+                        .value(aMapWithSize(2)))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarMonthResponse.properties.year.type")
+                                .value("integer"))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarMonthResponse.properties.month.type")
+                                .value("integer"));
+    }
+
 }
