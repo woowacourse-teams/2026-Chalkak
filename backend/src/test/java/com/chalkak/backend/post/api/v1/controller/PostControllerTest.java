@@ -1059,4 +1059,36 @@ class PostControllerTest {
 
         verify(postQueryService, never()).getMyPostCalendar(any(), any());
     }
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("연월 입력 없이 캘린더 기록 연월을 숫자 필드로 반환한다")
+    void getMyPostCalendarMonths_withoutYearMonth_returnsMonths() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendarMonths(USER_ID))
+                .willReturn(List.of(YearMonth.of(2026, 5), YearMonth.of(2025, 12)));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months.length()").value(2))
+                .andExpect(jsonPath("$.months[0].year").value(2026))
+                .andExpect(jsonPath("$.months[0].month").value(5))
+                .andExpect(jsonPath("$.months[1].year").value(2025))
+                .andExpect(jsonPath("$.months[1].month").value(12));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("기록이 없으면 200과 빈 연월 배열을 반환한다")
+    void getMyPostCalendarMonths_noPosts_returnsEmptyArray() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendarMonths(USER_ID)).willReturn(List.of());
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months").isArray())
+                .andExpect(jsonPath("$.months").isEmpty());
+    }
+
 }

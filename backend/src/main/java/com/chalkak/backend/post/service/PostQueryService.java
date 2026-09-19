@@ -89,6 +89,11 @@ public class PostQueryService {
         return PostCalendarResult.from(yearMonth, posts, imageUrlProvider);
     }
 
+    public List<YearMonth> getMyPostCalendarMonths(UUID userId) {
+        validateUser(userId);
+        return postRepository.findCalendarMonthsByAuthorId(userId);
+    }
+
     public PostListResult getPosts(
             LocalDate topicDate,
             PostSort sort,
