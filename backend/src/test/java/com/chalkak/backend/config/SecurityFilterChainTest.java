@@ -495,6 +495,7 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 """, userId);
         return userId;
     }
+
     @Test
     @DisplayName("회원 토큰으로 연월 목록을 조회하면 200을 반환한다")
     void postCalendarMonths_validAccessToken_returnsOk() throws Exception {
@@ -531,5 +532,4 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
-
 }

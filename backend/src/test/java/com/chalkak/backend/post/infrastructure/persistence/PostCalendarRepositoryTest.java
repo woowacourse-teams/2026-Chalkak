@@ -7,6 +7,7 @@ import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -14,14 +15,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import java.time.YearMonth;
-import org.junit.jupiter.params.provider.EnumSource;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -209,6 +209,7 @@ class PostCalendarRepositoryTest {
                 )
                 """, postId, userId, topicDate, photoId, moderationStatus.name());
     }
+
     @Test
     @DisplayName("주제 날짜 기준 전체 연월을 중복 없이 최신순으로 조회한다")
     void findCalendarMonthsByAuthorId_multipleYears_returnsDistinctMonthsDescending() {
@@ -332,5 +333,4 @@ class PostCalendarRepositoryTest {
         // Then
         assertThat(result).containsExactly(YearMonth.of(2026, 9), YearMonth.of(2026, 7));
     }
-
 }

@@ -153,6 +153,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
                         .value(hasKey("accessToken")));
     }
+
     @Test
     @DisplayName("연월 목록 문서는 입력 없이 숫자 연월 배열과 인증 계약을 제공한다")
     void userApiDocs_getMyPostCalendarMonths_exposesMonthsAndSecurity() throws Exception {
@@ -185,5 +186,4 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         jsonPath("$.components.schemas.CalendarMonthResponse.properties.month.type")
                                 .value("integer"));
     }
-
 }

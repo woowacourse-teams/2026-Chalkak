@@ -242,6 +242,7 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
         return result -> assertThat(result.getResponse().getStatus())
                 .isNotEqualTo(HttpStatus.FORBIDDEN.value());
     }
+
     @Test
     @DisplayName("정지 회원도 캘린더 기록 연월을 조회할 수 있다")
     void getMyPostCalendarMonths_suspendedUser_returnsOk() throws Exception {
@@ -251,5 +252,4 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.months").isEmpty());
     }
-
 }

@@ -176,6 +176,7 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 )
                 """, postId, USER_ID, topicId, photoId, moderationStatus.name());
     }
+
     @Test
     @DisplayName("본인의 캘린더 기록 연월을 조회한다")
     void getMyPostCalendarMonths_validUser_returnsRecordedMonths() {
@@ -227,5 +228,4 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
     }
-
 }

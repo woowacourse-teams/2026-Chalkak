@@ -222,6 +222,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
             jsonPath("$.errorCode").value("UNAUTHORIZED").match(result);
         };
     }
+
     @Test
     @DisplayName("탈퇴 회원은 캘린더 기록 연월을 조회할 수 없다")
     void getMyPostCalendarMonths_withdrawnUser_returnsUnauthorized() throws Exception {
@@ -230,5 +231,4 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
-
 }

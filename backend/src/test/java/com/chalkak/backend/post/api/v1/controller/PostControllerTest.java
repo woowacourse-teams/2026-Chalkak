@@ -1059,6 +1059,7 @@ class PostControllerTest {
 
         verify(postQueryService, never()).getMyPostCalendar(any(), any());
     }
+
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("연월 입력 없이 캘린더 기록 연월을 숫자 필드로 반환한다")
@@ -1090,5 +1091,4 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.months").isArray())
                 .andExpect(jsonPath("$.months").isEmpty());
     }
-
 }
