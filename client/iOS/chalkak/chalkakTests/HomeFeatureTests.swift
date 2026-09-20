@@ -119,6 +119,20 @@ struct HomeScreenTests {
 
         #expect(viewModel.event == .navigateToBottomBar(.display))
     }
+
+    @MainActor
+    @Test("오늘 탭 재선택은 최상단 이동 요청을 발생시킨다")
+    func requestsScrollToTopWhenTodayIsSelected() async {
+        let viewModel = HomeViewModel(
+            initialState: HomePreviewData.contentState,
+            refreshHandler: { _ in .success(HomePreviewData.contentState) }
+        )
+        let initialRequestID = viewModel.scrollToTopRequestID
+
+        await viewModel.selectBottomBarItem(.today)
+
+        #expect(viewModel.scrollToTopRequestID == initialRequestID + 1)
+    }
 }
 
 @MainActor
