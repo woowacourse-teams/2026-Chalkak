@@ -131,6 +131,25 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     );
 
     @Query("""
+            SELECT DISTINCT year(topic.topicDate) AS year, month(topic.topicDate) AS month
+            FROM Post post
+            JOIN post.topic topic
+            JOIN post.photo photo
+            JOIN post.author author
+            WHERE author.id = :authorId
+              AND post.moderationStatus IN :moderationStatuses
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+              AND author.deletedAt IS NULL
+            ORDER BY year(topic.topicDate) DESC, month(topic.topicDate) DESC
+            """)
+    List<PostCalendarMonthProjection> findCalendarMonthsByAuthorId(
+            @Param("authorId") UUID authorId,
+            @Param("moderationStatuses") Set<ModerationStatus> moderationStatuses
+    );
+
+    @Query("""
             SELECT post
             FROM Post post
             JOIN post.topic topic

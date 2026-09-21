@@ -13,6 +13,7 @@ import com.chalkak.backend.post.api.v1.dto.request.PostCalendarRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostUpdateRequest;
+import com.chalkak.backend.post.api.v1.dto.response.PostCalendarMonthsResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCalendarResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
@@ -169,6 +170,18 @@ public class PostController implements PostApiDocs {
         );
 
         return ResponseEntity.ok(PostCalendarResponse.from(result));
+    }
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/calendar/months")
+    public ResponseEntity<PostCalendarMonthsResponse> getMyPostCalendarMonths(
+            @OptionalLoginUser Optional<AuthenticatedUser> loginUser
+    ) {
+        UUID userId = requireUserId(loginUser);
+
+        return ResponseEntity.ok(PostCalendarMonthsResponse.fromYearMonths(
+                postQueryService.getMyPostCalendarMonths(userId)));
     }
 
     @Override

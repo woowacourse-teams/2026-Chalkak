@@ -495,4 +495,41 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 """, userId);
         return userId;
     }
+
+    @Test
+    @DisplayName("회원 토큰으로 연월 목록을 조회하면 200을 반환한다")
+    void postCalendarMonths_validAccessToken_returnsOk() throws Exception {
+        // Given
+        UUID userId = createUser();
+        given(postQueryService.getMyPostCalendarMonths(userId)).willReturn(List.of());
+        String token = accessTokenProvider.issue(userId).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months").isEmpty());
+    }
+
+    @Test
+    @DisplayName("연월 목록은 토큰 없이 조회할 수 없다")
+    void postCalendarMonths_withoutToken_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 회원의 연월 목록을 조회할 수 없다")
+    void postCalendarMonths_adminToken_returnsForbidden() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
 }

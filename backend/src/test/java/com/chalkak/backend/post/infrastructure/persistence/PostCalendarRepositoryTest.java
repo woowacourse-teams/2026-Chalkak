@@ -7,6 +7,7 @@ import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -206,5 +208,129 @@ class PostCalendarRepositoryTest {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, postId, userId, topicDate, photoId, moderationStatus.name());
+    }
+
+    @Test
+    @DisplayName("주제 날짜 기준 전체 연월을 중복 없이 최신순으로 조회한다")
+    void findCalendarMonthsByAuthorId_multipleYears_returnsDistinctMonthsDescending() {
+        // Given
+        insertPost(
+                UUID.fromString("00000000-0000-0000-0000-000000000210"),
+                USER_ID,
+                LocalDate.of(2025, 12, 31),
+                ModerationStatus.PENDING);
+        insertPost(UUID.randomUUID(), USER_ID, LocalDate.of(2026, 1, 1), ModerationStatus.APPROVED);
+        insertPost(UUID.randomUUID(), USER_ID, LocalDate.of(2025, 8, 31), ModerationStatus.PENDING);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(USER_ID);
+
+        // Then
+        assertThat(result).containsExactly(
+                YearMonth.of(2026, 9),
+                YearMonth.of(2026, 8),
+                YearMonth.of(2026, 7),
+                YearMonth.of(2026, 1),
+                YearMonth.of(2025, 12),
+                YearMonth.of(2025, 8));
+    }
+
+    @ParameterizedTest
+    @EnumSource(ModerationStatus.class)
+    @DisplayName("캘린더에 표시되는 검수 상태의 연월만 포함한다")
+    void findCalendarMonthsByAuthorId_moderationStatus_returnsOnlyVisibleMonths(
+            ModerationStatus moderationStatus
+    ) {
+        // Given
+        insertPost(UUID.randomUUID(), USER_ID, LocalDate.of(2026, 4, 1), moderationStatus);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(USER_ID);
+
+        // Then
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED) {
+            assertThat(result).contains(YearMonth.of(2026, 4));
+        } else {
+            assertThat(result).doesNotContain(YearMonth.of(2026, 4));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"posts", "topics", "photos", "users"})
+    @DisplayName("게시물이나 연결 자원이 모두 삭제되면 연월 목록은 비어 있다")
+    void findCalendarMonthsByAuthorId_deletedResource_returnsEmpty(String table) {
+        // Given
+        jdbcTemplate.update("UPDATE " + table + " SET deleted_at = CURRENT_TIMESTAMP");
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 기록만 있는 달은 연월 목록에서 제외한다")
+    void findCalendarMonthsByAuthorId_otherUserMonth_excludesMonth() {
+        // Given
+        insertPost(
+                UUID.randomUUID(),
+                OTHER_USER_ID,
+                LocalDate.of(2026, 4, 1),
+                ModerationStatus.APPROVED);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(USER_ID);
+
+        // Then
+        assertThat(result).containsExactly(
+                YearMonth.of(2026, 9), YearMonth.of(2026, 8), YearMonth.of(2026, 7));
+    }
+
+    @Test
+    @DisplayName("기록이 없는 사용자의 연월 목록은 비어 있다")
+    void findCalendarMonthsByAuthorId_noPosts_returnsEmpty() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        insertUser(userId, "empty-calendar@example.com");
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(userId);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 달의 기록이 남아 있으면 유지하고 마지막 기록 삭제 시 그 달을 제외한다")
+    void findCalendarMonthsByAuthorId_lastPostDeleted_removesOnlyThatMonth() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                APPROVED_POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(postRepository.findCalendarMonthsByAuthorId(USER_ID))
+                .contains(YearMonth.of(2026, 8));
+
+        // When
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                PENDING_POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+        List<YearMonth> result = postRepository.findCalendarMonthsByAuthorId(USER_ID);
+
+        // Then
+        assertThat(result).containsExactly(YearMonth.of(2026, 9), YearMonth.of(2026, 7));
     }
 }
