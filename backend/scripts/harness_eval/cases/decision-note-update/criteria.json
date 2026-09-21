@@ -1,0 +1,48 @@
+{
+  "id": "decision-note-update",
+  "title": "변경된 합의를 기존 고민 문서에 반영하고 사용자 기록 보존",
+  "setup": {
+    "uncommitted_append": {
+      "backend/docs/interviews/사진-변환의-처리-방식.md": "\n> 검토 메모: 중복 요청 방지 방식은 다음 논의에서 결정한다.\n"
+    }
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      "backend/docs/interviews/사진-변환의-처리-방식.md",
+      "backend/docs/interviews/README.md"
+    ],
+    "required_changed_paths": [
+      "backend/docs/interviews/사진-변환의-처리-방식.md",
+      "backend/docs/interviews/README.md"
+    ],
+    "required_text": {},
+    "preserved_text": {
+      "backend/docs/interviews/사진-변환의-처리-방식.md": [
+        "> 검토 메모: 중복 요청 방지 방식은 다음 논의에서 결정한다."
+      ]
+    },
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "update-existing",
+      "check": "새 문서나 대화 전문을 추가하지 않고 기존 고민 문서와 목차를 새 합의에 맞게 갱신한다.",
+      "evidence": "before/after 및 전체 변경 경로를 확인한다."
+    },
+    {
+      "id": "preserve-history",
+      "check": "동기 방식을 선택했던 당시의 근거와 이번에 달라진 큐·상태 조회 여건을 보존하여 선택 변화의 이유를 연결한다. 사용자 메모를 훼손하지 않는다.",
+      "evidence": "이전 본문·사용자 미커밋 메모·현재 결과를 대조한다."
+    },
+    {
+      "id": "keep-uncertainty",
+      "check": "비동기 방향은 합의로 표시하되 중복 요청 방지 미결정과 구현·실험 미완료를 남긴다. 구현·검증 완료로 승격하거나 실험 수치를 지어내지 않는다.",
+      "evidence": "문서와 목차 상태 및 답변을 대조한다."
+    }
+  ]
+}

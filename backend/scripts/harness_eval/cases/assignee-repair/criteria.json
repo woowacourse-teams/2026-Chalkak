@@ -1,0 +1,36 @@
+{
+  "id": "assignee-repair",
+  "title": "기존 이슈와 PR 모두 본인을 담당자로 추가하고 각각 다시 조회",
+  "setup": {
+    "uncommitted_append": {},
+    "mock_github": true
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      ".eval/calls.jsonl",
+      ".eval/state.json"
+    ],
+    "required_changed_paths": [
+      ".eval/state.json"
+    ],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "both-assigned",
+      "check": "기존 이슈와 PR 모두 본인을 담당자로 추가하고 각각 다시 조회",
+      "evidence": "모의 호출·최종 state에서 issue와 PR assignees 모두 fixture-author 및 기존 teammate 보존"
+    },
+    {
+      "id": "no-duplicate",
+      "check": "담당자만 보완하고 생성·본문·라벨·코드·Git 변경은 없음",
+      "evidence": "모든 도구 기록·diff, 확인되지 않은 성공 주장 금지"
+    }
+  ]
+}

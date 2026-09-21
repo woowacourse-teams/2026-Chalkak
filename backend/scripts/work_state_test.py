@@ -219,5 +219,63 @@ class WorkStateTests(unittest.TestCase):
             state.remove(self.root, 7, first["revision"])
 
 
+
+class WorkflowStateTests(unittest.TestCase):
+    setUp = WorkStateTests.setUp
+    git = WorkStateTests.git
+    create = WorkStateTests.create
+    def workflow(self):
+        return {"main_issue": 1, "order": [7, 8], "phase": "implementation", "approval_basis": "사용자 분할안 승인", "pending_change": ""}
+
+    def unit(self, status="awaiting_approval"):
+        current = state.snapshot(self.root)
+        return {"goal": "안내 보완", "status": status, "paths": ["example.txt"], "message": "docs: 안내 보완", "head": current["head"], "fingerprint": current["fingerprint"], "approval_basis": "사용자 현재 변경 승인" if status in {"approved", "committed"} else ""}
+
+    def test_workflow_and_current_commit_are_updated_without_old_approval(self):
+        self.work.update(workflow=self.workflow(), commit_unit=self.unit("approved"))
+        first = self.create()
+        updated = state.save(self.root, 7, first["revision"], {"work": {"commit_unit": self.unit("implementing")}})
+        self.assertEqual("", updated["record"]["work"]["commit_unit"]["approval_basis"])
+        with self.assertRaises(ValueError):
+            state.save(self.root, 7, updated["revision"], {"work": {"commit_unit": {"goal": "다른 단위"}}})
+
+    def test_invalid_plan_and_current_issue_are_rejected(self):
+        for key, value in (("order", [7, 7]), ("order", [1, 7]), ("order", [True]), ("order", [8, 9]), ("phase", "parallel"), ("approval_basis", ""), ("phase", "scope_approval")):
+            with self.subTest(key=key, value=value):
+                self.work["workflow"] = self.workflow()
+                self.work["workflow"][key] = value
+                with self.assertRaises(ValueError):
+                    self.create()
+
+    def test_approval_requires_specific_message_code_and_user_basis(self):
+        for key, value in (("message", ""), ("fingerprint", "old"), ("head", ""), ("approval_basis", ""), ("paths", ["../client/x"]), ("paths", ["/tmp/x"]), ("paths", ["x", "x"])):
+            with self.subTest(key=key):
+                self.work["commit_unit"] = self.unit("approved")
+                self.work["commit_unit"][key] = value
+                with self.assertRaises(ValueError):
+                    self.create()
+
+    def test_approved_code_match_is_invalidated_by_actual_file_change(self):
+        self.work["commit_unit"] = self.unit("approved")
+        self.create()
+        self.assertTrue(state.load(self.root, 7)["matches"]["commit_approval"])
+        self.code.write_text("different approved content")
+        self.assertFalse(state.load(self.root, 7)["matches"]["commit_approval"])
+
+    def test_waiting_phase_cannot_contain_approved_or_missing_unit(self):
+        self.work["workflow"] = self.workflow()
+        self.work["workflow"]["phase"] = "commit_approval"
+        with self.assertRaises(ValueError):
+            self.create()
+        self.work["commit_unit"] = self.unit("approved")
+        with self.assertRaises(ValueError):
+            self.create()
+        self.work["commit_unit"] = self.unit()
+        saved = self.create()
+        self.code.write_text("changed after approval request")
+        self.assertFalse(state.load(self.root, 7)["matches"]["record"])
+        self.assertEqual(saved["record"]["work"]["commit_unit"], state.load(self.root, 7)["record"]["work"]["commit_unit"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -39,6 +39,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -949,10 +950,12 @@ class PostControllerTest {
         then(postQueryService).shouldHaveNoInteractions();
     }
 
-    @Test
+    @ParameterizedTest
+    @EnumSource(value = ModerationStatus.class, names = {"PENDING", "APPROVED"})
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("내 게시물 캘린더 조회에 성공하면 월별 결과를 반환한다")
-    void getMyPostCalendar_validRequest_returnsCalendar() throws Exception {
+    @DisplayName("내 게시물 캘린더는 승인 대기·승인 게시물의 사진과 실제 상태를 반환한다")
+    void getMyPostCalendar_supportedStatus_returnsCalendar(ModerationStatus moderationStatus)
+            throws Exception {
         // Given
         given(postQueryService.getMyPostCalendar(USER_ID, YearMonth.of(2026, 8)))
                 .willReturn(new PostCalendarResult(
@@ -962,8 +965,8 @@ class PostControllerTest {
                                 new PostCalendarResult.PostSummary(
                                         LocalDate.of(2026, 8, 12),
                                         POST_ID,
-                                        "https://cdn.example.com/posts/approved.webp",
-                                        ModerationStatus.APPROVED
+                                        "https://cdn.example.com/posts/calendar.webp",
+                                        moderationStatus
                                 )
                         )
                 ));
@@ -979,8 +982,8 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts[0].topicDate").value("2026-08-12"))
                 .andExpect(jsonPath("$.posts[0].postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
-                        .value("https://cdn.example.com/posts/approved.webp"))
-                .andExpect(jsonPath("$.posts[0].status").value("APPROVED"))
+                        .value("https://cdn.example.com/posts/calendar.webp"))
+                .andExpect(jsonPath("$.posts[0].status").value(moderationStatus.name()))
                 .andExpect(jsonPath("$.posts.length()").value(1));
     }
 
@@ -1055,5 +1058,37 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 
         verify(postQueryService, never()).getMyPostCalendar(any(), any());
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("연월 입력 없이 캘린더 기록 연월을 숫자 필드로 반환한다")
+    void getMyPostCalendarMonths_withoutYearMonth_returnsMonths() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendarMonths(USER_ID))
+                .willReturn(List.of(YearMonth.of(2026, 5), YearMonth.of(2025, 12)));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months.length()").value(2))
+                .andExpect(jsonPath("$.months[0].year").value(2026))
+                .andExpect(jsonPath("$.months[0].month").value(5))
+                .andExpect(jsonPath("$.months[1].year").value(2025))
+                .andExpect(jsonPath("$.months[1].month").value(12));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("기록이 없으면 200과 빈 연월 배열을 반환한다")
+    void getMyPostCalendarMonths_noPosts_returnsEmptyArray() throws Exception {
+        // Given
+        given(postQueryService.getMyPostCalendarMonths(USER_ID)).willReturn(List.of());
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/calendar/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months").isArray())
+                .andExpect(jsonPath("$.months").isEmpty());
     }
 }

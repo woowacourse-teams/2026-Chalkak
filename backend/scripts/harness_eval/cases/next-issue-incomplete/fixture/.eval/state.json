@@ -1,0 +1,41 @@
+{
+  "issue": {
+    "number": 901,
+    "id": 100901,
+    "html_url": "https://github.com/team/fixture/issues/901",
+    "state": "closed",
+    "state_reason": "completed",
+    "body": "## 완료 조건\n- README 준비 도구에 JDK 25 명시\n",
+    "assignees": [
+      {
+        "login": "teammate"
+      }
+    ]
+  },
+  "pr": {
+    "number": 911,
+    "html_url": "https://github.com/team/fixture/pull/911",
+    "state": "closed",
+    "merged": true,
+    "merged_at": "2026-09-17T00:00:00Z",
+    "base": {
+      "ref": "be/develop",
+      "repo": {
+        "full_name": "team/fixture"
+      }
+    },
+    "body": "## 🔗 연관된 이슈\n\n- #901\n\n## 작업 내용\n문서 제목 정리만 반영했습니다.\n",
+    "assignees": [
+      {
+        "login": "teammate"
+      }
+    ]
+  },
+  "files": [
+    {
+      "filename": "backend/README.md",
+      "status": "modified",
+      "patch": "@@ -1 +1 @@\n-# 실행\n+# 로컬 실행"
+    }
+  ]
+}

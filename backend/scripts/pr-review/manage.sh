@@ -22,7 +22,6 @@ usage() {
   start        자동 감시 시작
   stop         자동 감시 중지
   run-once     지금 한 번 확인
-  retry        실패한 PR을 다시 확인
   logs         최근 로그 확인
   uninstall    자동 감시와 로컬 설정 제거
 EOF
@@ -113,8 +112,8 @@ install_service() {
   "${gh_command}" auth status
   repository="$(cd "${BACKEND_DIR}" && "${gh_command}" repo view --json nameWithOwner --jq .nameWithOwner)"
   choose_provider
-  write_configuration "${repository}" "${gh_command}" "${python_command}"
   unload_service
+  write_configuration "${repository}" "${gh_command}" "${python_command}"
   load_service
   echo "설치 완료: ${PROVIDER}로 백엔드 PR을 5분마다 확인합니다."
   echo "상태 확인: ./scripts/pr-review/manage.sh status"
@@ -135,8 +134,8 @@ configure_provider() {
   "${gh_command}" auth status
   repository="$("${python_command}" -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository"])' "${CONFIG_FILE}")"
   choose_provider
-  write_configuration "${repository}" "${gh_command}" "${python_command}"
   unload_service
+  write_configuration "${repository}" "${gh_command}" "${python_command}"
   load_service
   echo "리뷰 AI를 ${PROVIDER}로 변경했습니다."
 }
@@ -185,29 +184,6 @@ run_once() {
   "$(command -v python3)" "${SCRIPT_DIR}/watcher.py" run --config "${CONFIG_FILE}" --once
 }
 
-retry_failed() {
-  require_command python3
-  if [ ! -f "${CONFIG_FILE}" ]; then
-    echo "먼저 install을 실행하세요." >&2
-    exit 1
-  fi
-  "$(command -v python3)" - "${STATE_FILE}" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-if path.exists():
-    state = json.loads(path.read_text())
-    state["runs"] = {
-        key: value for key, value in state.get("runs", {}).items()
-        if value.get("status") != "failed"
-    }
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n")
-PY
-  run_once
-}
-
 show_logs() {
   if [ ! -d "${SUPPORT_DIR}" ]; then
     echo "로그가 없습니다."
@@ -231,7 +207,6 @@ case "${1:-}" in
   start) start_service ;;
   stop) stop_service ;;
   run-once) run_once ;;
-  retry) retry_failed ;;
   logs) show_logs ;;
   uninstall) uninstall_service ;;
   help|-h|--help|"") usage ;;

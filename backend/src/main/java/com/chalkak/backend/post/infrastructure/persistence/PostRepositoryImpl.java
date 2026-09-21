@@ -7,6 +7,7 @@ import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +30,7 @@ public class PostRepositoryImpl implements PostRepository {
             "ux_photos_original_storage_key"
     );
     private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
+            ModerationStatus.PENDING,
             ModerationStatus.APPROVED
     );
 
@@ -112,6 +114,15 @@ public class PostRepositoryImpl implements PostRepository {
                 endDate,
                 CALENDAR_MODERATION_STATUSES
         );
+    }
+
+    @Override
+    public List<YearMonth> findCalendarMonthsByAuthorId(UUID authorId) {
+        return postJpaRepository.findCalendarMonthsByAuthorId(
+                authorId,
+                CALENDAR_MODERATION_STATUSES).stream()
+                .map(month -> YearMonth.of(month.getYear(), month.getMonth()))
+                .toList();
     }
 
     @Override

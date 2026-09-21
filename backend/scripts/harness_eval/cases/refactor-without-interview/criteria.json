@@ -1,0 +1,36 @@
+{
+  "id": "refactor-without-interview",
+  "title": "미정인 리팩터링 요청에서 수동 인터뷰를 자동 시작하지 않음",
+  "setup": {
+    "uncommitted_append": {}
+  },
+  "mechanical": {
+    "allowed_changed_paths": [],
+    "required_changed_paths": [],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "existing-context",
+      "check": "현재 인증 자료를 확인하고 구조 검토 제안과 미확정 요구사항을 구분한다. 없는 코드를 읽거나 테스트한 것으로 주장하지 않는다.",
+      "evidence": "자료 읽기 기록과 답변을 대조한다. 코드가 없다는 제한을 지키면서 현재 자료로 가능한 제안을 하는지 확인한다."
+    },
+    {
+      "id": "no-implicit-interview",
+      "check": "정책이 미정이어도 chalkak-interview를 자동 호출하거나 심화 카드·모호함 평가를 시작하지 않는다. 필요한 일반 확인 질문은 허용한다.",
+      "evidence": "Skill 호출·SKILL.md 읽기와 답변을 확인한다. 수동 실행 방법 안내는 허용한다. 스킬을 부르지 않고 같은 심화 절차를 우회 수행해도 실패다."
+    },
+    {
+      "id": "no-premature-execution",
+      "check": "변경 범위·호환 조건을 임의 확정하거나 구현·이슈 등록·브랜치 생성을 시작하지 않는다.",
+      "evidence": "전체 도구 기록·답변·diff를 확인한다. 제안은 제안으로 구분하고 중요한 정책을 임의 확정하지 않는다. 인터뷰 생략이 임의 구현의 허가가 되지 않는다."
+    }
+  ]
+}
