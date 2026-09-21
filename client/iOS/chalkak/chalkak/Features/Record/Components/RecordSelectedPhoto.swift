@@ -29,6 +29,9 @@ struct RecordSelectedPhoto: View {
                     .padding(.trailing, Metrics.statusTrailingPadding)
             }
         }
+        .onChange(of: post.postId) { _, _ in
+            isStatusMessageVisible = false
+        }
     }
 
     private var pendingStatus: some View {
