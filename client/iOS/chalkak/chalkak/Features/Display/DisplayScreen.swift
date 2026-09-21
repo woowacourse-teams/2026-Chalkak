@@ -140,7 +140,8 @@ struct DisplayScreen: View {
                     DisplayFeaturedCarousel(
                         photos: viewModel.viewState.featuredPhotos,
                         currentPage: viewModel.viewState.featuredPage,
-                        onPageChange: { viewModel.updateFeaturedPage($0) }
+                        onPageChange: { viewModel.updateFeaturedPage($0) },
+                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                     // 페이저가 이웃 카드를 화면 폭까지 peek 하도록 화면 좌우 여백을 상쇄한다.
                     .padding(.horizontal, -theme.spacing.screenHorizontal)
