@@ -6,6 +6,7 @@ import SwiftUI
 struct RecordSelectedPhoto: View {
     @Environment(\.chalkakTheme) private var theme
     let post: RecordPost
+    @State private var isStatusMessageVisible = false
 
     var body: some View {
         ChalkakImage(
@@ -21,6 +22,65 @@ struct RecordSelectedPhoto: View {
                 .padding(.leading, Metrics.labelPadding)
                 .padding(.top, Metrics.labelPadding)
         }
+        .overlay(alignment: .topTrailing) {
+            if post.status == .pending {
+                pendingStatus
+                    .padding(.top, Metrics.statusTopPadding)
+                    .padding(.trailing, Metrics.statusTrailingPadding)
+            }
+        }
+    }
+
+    private var pendingStatus: some View {
+        Button {
+            withAnimation(.snappy) {
+                isStatusMessageVisible.toggle()
+            }
+        } label: {
+            HStack(spacing: theme.spacing.sm) {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(theme.colors.onActionPrimary)
+                    .accessibilityHidden(true)
+
+                Text("사진 반영 중")
+                    .font(theme.typography.subheadline)
+                    .foregroundStyle(theme.colors.onActionPrimary)
+            }
+            .padding(.horizontal, theme.spacing.md)
+            .frame(minHeight: Metrics.statusMinimumTouchHeight)
+            .background(
+                theme.colors.actionPrimary.opacity(Metrics.statusBackgroundOpacity),
+                in: theme.shapes.pill
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("사진 반영 중")
+        .accessibilityHint("자세한 안내 보기")
+        .overlay(alignment: .bottomTrailing) {
+            if isStatusMessageVisible {
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("사진을 반영하고 있어요.\n표시되기까지 조금 시간이 걸릴 수도 있어요!")
+                        .font(theme.typography.footnote)
+                        .foregroundStyle(theme.colors.onActionPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(theme.spacing.md)
+                        .frame(width: Metrics.bubbleWidth, alignment: .leading)
+                        .background(
+                            theme.colors.actionPrimary,
+                            in: RoundedRectangle(cornerRadius: theme.shapes.button)
+                        )
+
+                    RecordStatusBubbleTail()
+                        .fill(theme.colors.actionPrimary)
+                        .frame(width: Metrics.bubbleTailWidth, height: Metrics.bubbleTailHeight)
+                        .padding(.trailing, Metrics.bubbleTailTrailingPadding)
+                }
+                .offset(y: -Metrics.statusMinimumTouchHeight)
+                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)))
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -34,6 +94,25 @@ struct RecordSelectedPhoto: View {
 
 private enum Metrics {
     static let labelPadding: CGFloat = 15
+    static let statusTopPadding: CGFloat = 8
+    static let statusTrailingPadding: CGFloat = 12
+    static let statusMinimumTouchHeight: CGFloat = 44
+    static let statusBackgroundOpacity = 0.88
+    static let bubbleWidth: CGFloat = 300
+    static let bubbleTailWidth: CGFloat = 14
+    static let bubbleTailHeight: CGFloat = 7
+    static let bubbleTailTrailingPadding: CGFloat = 24
+}
+
+private struct RecordStatusBubbleTail: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
 }
 
 #Preview("Record Selected Photo", traits: .sizeThatFitsLayout) {
