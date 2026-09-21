@@ -73,11 +73,13 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("본인의 월별 게시물을 캘린더 결과로 반환한다")
+    @DisplayName("본인의 월별 승인 대기·승인 게시물의 사진과 상태를 반환한다")
     void getMyPostCalendar_validYearMonth_returnsCalendarResult() {
         // Given
         given(imageUrlProvider.getUrl(APPROVED_THUMBNAIL_KEY))
                 .willReturn("https://cdn.example.com/posts/approved.webp");
+        given(imageUrlProvider.getUrl(PENDING_THUMBNAIL_KEY))
+                .willReturn("https://cdn.example.com/posts/pending.webp");
 
         // When
         PostCalendarResult result = postQueryService.getMyPostCalendar(
@@ -95,6 +97,12 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
                                 ModerationStatus.APPROVED
+                        ),
+                        new PostCalendarResult.PostSummary(
+                                LocalDate.of(2026, 8, 31),
+                                PENDING_POST_ID,
+                                "https://cdn.example.com/posts/pending.webp",
+                                ModerationStatus.PENDING
                         )
                 )
         ));
@@ -167,5 +175,57 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                     ?, ?, ?, ?, ?::moderation_status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, postId, USER_ID, topicId, photoId, moderationStatus.name());
+    }
+
+    @Test
+    @DisplayName("본인의 캘린더 기록 연월을 조회한다")
+    void getMyPostCalendarMonths_validUser_returnsRecordedMonths() {
+        // When
+        List<YearMonth> result = postQueryService.getMyPostCalendarMonths(USER_ID);
+
+        // Then
+        assertThat(result).containsExactly(YearMonth.of(2026, 8));
+    }
+
+    @Test
+    @DisplayName("캘린더 기록이 없으면 현재 달을 추가하지 않고 빈 목록을 반환한다")
+    void getMyPostCalendarMonths_noPosts_returnsEmpty() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+                USER_ID);
+
+        // When
+        List<YearMonth> result = postQueryService.getMyPostCalendarMonths(USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자의 연월 조회는 인증 예외를 발생시킨다")
+    void getMyPostCalendarMonths_unknownUser_throwsUnauthorizedException() {
+        // When
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
+                () -> postQueryService.getMyPostCalendarMonths(UUID.randomUUID()));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 사용자의 연월 조회는 빈 목록 대신 인증 예외를 발생시킨다")
+    void getMyPostCalendarMonths_deletedUser_throwsUnauthorizedException() {
+        // Given
+        jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                USER_ID);
+
+        // When
+        UnauthorizedException exception = catchThrowableOfType(
+                UnauthorizedException.class,
+                () -> postQueryService.getMyPostCalendarMonths(USER_ID));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 }

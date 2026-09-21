@@ -11,5 +11,10 @@
         "../client"
       ]
     }
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
   }
 }

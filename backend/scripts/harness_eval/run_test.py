@@ -149,6 +149,25 @@ class HarnessEvaluationTests(unittest.TestCase):
         errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
         self.assertTrue(any("preserved_text" in error and "8080" in error for error in errors))
 
+    def test_new_markdown_permission_does_not_allow_existing_files_or_nested_paths(self):
+        before = {"files": {"backend/docs/interviews/기존.md": "보존"},
+                  "refs": "same", "head": "same", "config": "same"}
+        criteria = {"mechanical": {"allowed_changed_paths": [], "required_changed_paths": [],
+                    "allowed_new_markdown_dirs": ["backend/docs/interviews"],
+                    "required_text": {}, "preserved_text": {}}}
+        for path, allowed in (("backend/docs/interviews/새로운-선택.md", True),
+                              ("backend/docs/interviews/기존.md", False),
+                              ("backend/docs/interviews/sub/선택.md", False),
+                              ("backend/docs/interviews/실행.py", False),
+                              ("backend/docs/다른-범위.md", False)):
+            with self.subTest(path=path):
+                after = {**before, "files": {**before["files"], path: "수정"}}
+                errors, _ = runner.compare(before, after, criteria)
+                self.assertEqual(not allowed, bool(errors), errors)
+        after = {**before, "files": {}}
+        errors, _ = runner.compare(before, after, criteria)
+        self.assertTrue(errors, "기존 문서 삭제도 허용하면 안 됩니다")
+
     def test_business_rule_case_uses_shared_skill_and_allows_only_rule_document(self):
         shared = {
             "AGENTS.md": "# Shared\n",

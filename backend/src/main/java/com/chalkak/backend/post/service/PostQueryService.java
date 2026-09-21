@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 게시물 단건·목록 조회. 공개된 게시물만 다루므로 상태를 바꾸지 않고, 잠금도 필요 없다. 상태를 바꾸는 흐름은
+ * 게시물 단건·목록과 본인 게시물 조회. 상태를 바꾸지 않고, 잠금도 필요 없다. 상태를 바꾸는 흐름은
  * {@link PostCommandService}가 맡는다.
  */
 @Service
@@ -87,6 +87,11 @@ public class PostQueryService {
         );
 
         return PostCalendarResult.from(yearMonth, posts, imageUrlProvider);
+    }
+
+    public List<YearMonth> getMyPostCalendarMonths(UUID userId) {
+        validateUser(userId);
+        return postRepository.findCalendarMonthsByAuthorId(userId);
     }
 
     public PostListResult getPosts(

@@ -27,7 +27,7 @@ public record PostCalendarResponse(
             LocalDate topicDate,
             UUID postId,
             String thumbnailImageUrl,
-            @Schema(allowableValues = {"APPROVED"})
+            @Schema(allowableValues = {"PENDING", "APPROVED"})
             ModerationStatus status
     ) {
 

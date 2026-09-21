@@ -1,0 +1,38 @@
+{
+  "id": "review-scope-change",
+  "title": "정책 변경과 후속 검색 범위 이동을 구분해 구현을 보류하고 영향받는 부분 승인 요청",
+  "setup": {
+    "uncommitted_append": {},
+    "branch": "be/feature/#902-admin-list",
+    "copy_source_paths": [
+      "backend/scripts/work_state.py"
+    ]
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      "backend/.harness/state/issue-902.json",
+      "backend/.harness/state/.lock"
+    ],
+    "required_changed_paths": [],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "scope-stop",
+      "check": "정책 변경과 후속 검색 범위 이동을 구분해 구현을 보류하고 영향받는 부분 승인 요청",
+      "evidence": "문서 diff와 답변·명령; 바로 일반 사용자 공개로 바꾸면 실패"
+    },
+    {
+      "id": "retain-agreement",
+      "check": "현재 승인된 권한·검색 제외 조건을 보존하고 전체 인터뷰를 다시 시작하지 않음",
+      "evidence": "현재 자료와 답변 대조"
+    }
+  ]
+}

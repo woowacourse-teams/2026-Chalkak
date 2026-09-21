@@ -6,6 +6,7 @@ import com.chalkak.backend.post.api.v1.dto.request.PostCalendarRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostCreateRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostListRequest;
 import com.chalkak.backend.post.api.v1.dto.request.PostUpdateRequest;
+import com.chalkak.backend.post.api.v1.dto.response.PostCalendarMonthsResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCalendarResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
@@ -326,7 +327,7 @@ public interface PostApiDocs {
 
     @Operation(
             summary = "내 게시물 캘린더 조회",
-            description = "조회 연월에 작성한 APPROVED 상태의 게시물만 주제 날짜순으로 반환합니다."
+            description = "조회 연월의 주제에 작성한 본인의 PENDING·APPROVED 게시물을 주제 날짜순으로 반환합니다."
     )
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
@@ -354,6 +355,21 @@ public interface PostApiDocs {
     })
     ResponseEntity<PostCalendarResponse> getMyPostCalendar(
             @ParameterObject PostCalendarRequest request,
+            @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
+    );
+
+    @Operation(summary = "내 캘린더 게시물이 있는 연월 목록 조회", description = """
+            전체 기간에서 본인의 PENDING·APPROVED 게시물이 있는 연월을 주제 날짜 기준으로 반환합니다.
+            삭제된 게시물·주제·사진은 제외하며, 연월은 중복 없이 최신순입니다.
+            게시물이 없으면 months는 빈 배열이고, 기록이 없는 현재 달을 임의로 포함하지 않습니다.
+            """)
+    @SecurityRequirement(name = "accessToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "내 캘린더 기록 연월 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보 또는 탈퇴한 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PostCalendarMonthsResponse> getMyPostCalendarMonths(
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 

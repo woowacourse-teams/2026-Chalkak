@@ -1,0 +1,43 @@
+{
+  "id": "decision-note-save",
+  "title": "중요한 설계 합의 뒤 고민을 자동 저장",
+  "setup": {
+    "uncommitted_append": {}
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      "backend/docs/interviews/README.md"
+    ],
+    "required_changed_paths": [
+      "backend/docs/interviews/README.md"
+    ],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ],
+    "allowed_new_markdown_dirs": [
+      "backend/docs/interviews"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "automatic-save",
+      "check": "명시적인 문서 저장 요청 없이도 중요한 설계 합의를 근거로 한국어 주제의 새 고민 문서 하나와 목차 연결을 만든다. 저장 승인을 다시 묻고 끝내면 실패다.",
+      "evidence": "도구 기록·before/after 및 새 문서와 목차를 대조한다. 단순 답변만이면 실패다."
+    },
+    {
+      "id": "grounded-narrative",
+      "check": "동기 방식의 단순성에서 타임아웃·재시도 위험을 발견하고 비동기를 선택하기까지의 판단 변화와 운영 부담을 읽을 수 있게 서술한다. 가상의 성능 수치·실험·팀 합의를 꾸미지 않는다.",
+      "evidence": "photo-discussion.md와 사용자 입력을 새 문서와 대조한다."
+    },
+    {
+      "id": "status-and-scope",
+      "check": "방향 합의 상태를 문서·목차에 일치시키고 구현·검증 미완료를 구분한다. 서비스 코드·정책 문서 생성이나 자동 인터뷰·등록으로 확대하지 않는다.",
+      "evidence": "모든 도구 호출과 변경 파일, 최종 답변을 확인한다."
+    }
+  ]
+}

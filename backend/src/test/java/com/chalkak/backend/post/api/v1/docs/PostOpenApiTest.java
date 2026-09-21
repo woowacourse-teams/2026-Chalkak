@@ -22,6 +22,27 @@ class PostOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("user-api 캘린더 문서는 기존 응답 구조에서 승인 대기·승인 상태만 제공한다")
+    void userApiDocs_getMyPostCalendar_exposesPendingAndApprovedStatuses() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse.properties")
+                        .value(aMapWithSize(4)))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarPostResponse.properties.topicDate")
+                                .exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse.properties.postId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse"
+                        + ".properties.thumbnailImageUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.CalendarPostResponse"
+                        + ".properties.status.enum")
+                        .value(containsInAnyOrder("PENDING", "APPROVED")));
+    }
+
+    @Test
     @DisplayName("user-api 문서는 본인 게시물 삭제 계약을 제공한다")
     void userApiDocs_deletePost_exposesContract() throws Exception {
         // When & Then
@@ -131,5 +152,38 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(aMapWithSize(1)))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
                         .value(hasKey("accessToken")));
+    }
+
+    @Test
+    @DisplayName("연월 목록 문서는 입력 없이 숫자 연월 배열과 인증 계약을 제공한다")
+    void userApiDocs_getMyPostCalendarMonths_exposesMonthsAndSecurity() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.security[0]")
+                        .value(hasKey("accessToken")))
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/calendar/months'].get.responses['403']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse.properties")
+                        .value(aMapWithSize(1)))
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse"
+                        + ".properties.months.type").value("array"))
+                .andExpect(jsonPath("$.components.schemas.PostCalendarMonthsResponse"
+                        + ".properties.months.items['$ref']")
+                        .value("#/components/schemas/CalendarMonthResponse"))
+                .andExpect(jsonPath("$.components.schemas.CalendarMonthResponse.properties")
+                        .value(aMapWithSize(2)))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarMonthResponse.properties.year.type")
+                                .value("integer"))
+                .andExpect(
+                        jsonPath("$.components.schemas.CalendarMonthResponse.properties.month.type")
+                                .value("integer"));
     }
 }
