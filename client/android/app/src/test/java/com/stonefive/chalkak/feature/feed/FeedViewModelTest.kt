@@ -12,6 +12,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
@@ -425,6 +426,42 @@ class FeedViewModelTest {
         )
         assertFalse(selectedViewModel.uiState.value.isDeleting)
     }
+
+    @Test
+    fun `내 게시물 제목 수정 성공 시 화면 제목과 완료 상태를 갱신한다`() = runTest {
+        repository.titleUpdateResult = HomeResult.Success(
+            PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+        )
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        val selectedViewModel = FeedViewModel(
+            repository = repository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 3일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+            ),
+        )
+
+        selectedViewModel.updatePostTitle("  수정한 제목  ")
+        advanceUntilIdle()
+
+        assertEquals(PHOTO_ID to "  수정한 제목  ", repository.updatedTitle)
+        assertEquals("수정한 제목", selectedViewModel.uiState.value.content?.post?.title)
+        assertEquals(PHOTO_ID, selectedViewModel.uiState.value.titleUpdateSuccessPostId)
+        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+    }
+
+    @Test
+    fun `다른 사용자 게시물은 제목 수정 요청을 보내지 않는다`() = runTest {
+        viewModel.updatePostTitle("수정 시도")
+        advanceUntilIdle()
+
+        assertEquals(null, repository.updatedTitle)
+    }
 }
 
 private const val PHOTO_ID = "photo-1"
@@ -439,6 +476,10 @@ private class FakePostRepository : PostRepository {
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
     var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
     var deletedPostId: String? = null
+    var titleUpdateResult: HomeResult<PostTitleUpdate> = HomeResult.Success(
+        PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+    )
+    var updatedTitle: Pair<String, String?>? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
@@ -447,6 +488,14 @@ private class FakePostRepository : PostRepository {
     override suspend fun deletePost(postId: String): HomeResult<Unit> {
         deletedPostId = postId
         return deleteResult
+    }
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<PostTitleUpdate> {
+        updatedTitle = postId to title
+        return titleUpdateResult
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -477,6 +526,11 @@ private class ControlledPostRepository : PostRepository {
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<PostTitleUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 

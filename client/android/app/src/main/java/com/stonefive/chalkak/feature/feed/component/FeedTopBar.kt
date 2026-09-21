@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,8 +28,11 @@ fun FeedTopBar(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     isDeleteVisible: Boolean,
-    isDeleteEnabled: Boolean = true,
     modifier: Modifier = Modifier,
+    onEditClick: () -> Unit = {},
+    isEditVisible: Boolean = isDeleteVisible,
+    isDeleteEnabled: Boolean = true,
+    isEditEnabled: Boolean = isDeleteEnabled,
 ) {
     Row(
         modifier = modifier,
@@ -53,27 +57,60 @@ fun FeedTopBar(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        if (isDeleteVisible) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .semantics { contentDescription = "삭제" }
-                    .clickable(
-                        enabled = isDeleteEnabled,
-                        interactionSource = null,
-                        indication = null,
-                        role = Role.Button,
-                        onClick = onDeleteClick,
-                    ),
-                contentAlignment = Alignment.Center,
+        if (isEditVisible || isDeleteVisible) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "삭제",
-                    color = ChalkakTheme.colors.destructive,
-                    style = ChalkakTheme.typography.callout,
-                )
+                if (isEditVisible) {
+                    ActionText(
+                        text = "수정",
+                        contentDescription = "수정",
+                        enabled = isEditEnabled,
+                        onClick = onEditClick,
+                        color = ChalkakTheme.colors.actionPrimary,
+                    )
+                }
+                if (isDeleteVisible) {
+                    ActionText(
+                        text = "삭제",
+                        contentDescription = "삭제",
+                        enabled = isDeleteEnabled,
+                        onClick = onDeleteClick,
+                        color = ChalkakTheme.colors.destructive,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ActionText(
+    text: String,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    color: androidx.compose.ui.graphics.Color,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .semantics { this.contentDescription = contentDescription }
+            .clickable(
+                enabled = enabled,
+                interactionSource = null,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = color,
+            style = ChalkakTheme.typography.callout,
+        )
     }
 }
 

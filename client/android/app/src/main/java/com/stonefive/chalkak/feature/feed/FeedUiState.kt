@@ -8,7 +8,9 @@ data class FeedUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val isDeleting: Boolean = false,
+    val isUpdatingTitle: Boolean = false,
     val deleteSuccessPostId: String? = null,
+    val titleUpdateSuccessPostId: String? = null,
     val errorMessage: String? = null,
     val pendingMessage: UiMessage? = null,
 )

@@ -125,7 +125,7 @@ class FeedViewModel(
     fun deletePost() {
         val state = _uiState.value
         val post = state.content?.post ?: return
-        if (!post.isOwnedByCurrentUser || state.isDeleting) return
+        if (!post.isOwnedByCurrentUser || state.isDeleting || state.isUpdatingTitle) return
 
         _uiState.update {
             it.copy(
@@ -156,6 +156,58 @@ class FeedViewModel(
                     it.copy(
                         isDeleting = false,
                         pendingMessage = nextSnackbar(result.reason.toDeleteErrorMessage()),
+                    )
+                }
+            }
+        }
+    }
+
+    fun updatePostTitle(title: String?) {
+        val state = _uiState.value
+        val post = state.content?.post ?: return
+        if (!post.isOwnedByCurrentUser || state.isDeleting || state.isUpdatingTitle) return
+
+        _uiState.update {
+            it.copy(
+                isUpdatingTitle = true,
+                titleUpdateSuccessPostId = null,
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                repository.updatePostTitle(post.id, title)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                HomeResult.Failure(HomeFailure.Network)
+            }
+
+            when (result) {
+                is HomeResult.Success -> {
+                    _uiState.update { currentState ->
+                        val currentContent = currentState.content ?: return@update currentState.copy(
+                            isUpdatingTitle = false,
+                        )
+                        val updatedTitle = result.value.title
+                        val updatedPost = currentContent.post.copy(
+                            title = updatedTitle,
+                            contentDescription = updatedTitle.toContentDescription(),
+                        )
+                        currentState.copy(
+                            isUpdatingTitle = false,
+                            titleUpdateSuccessPostId = post.id,
+                            content = currentContent.copy(
+                                post = updatedPost,
+                            ),
+                            pendingMessage = nextSnackbar("제목을 수정했어요"),
+                        )
+                    }
+                }
+
+                is HomeResult.Failure -> _uiState.update {
+                    it.copy(
+                        isUpdatingTitle = false,
+                        pendingMessage = nextSnackbar(result.reason.toTitleUpdateErrorMessage()),
                     )
                 }
             }
@@ -328,9 +380,29 @@ class FeedViewModel(
         else -> "게시물을 삭제하지 못했어요"
     }
 
+    private fun HomeFailure.toTitleUpdateErrorMessage(): String = when (this) {
+        is HomeFailure.Http -> when (statusCode) {
+            400 -> "수정할 수 없는 상태이거나 주제 참여 기간이 끝났어요"
+            403 -> "본인의 게시물만 수정할 수 있어요"
+            404 -> "게시물을 찾을 수 없어요"
+            else -> "게시물 제목을 수정하지 못했어요"
+        }
+
+        HomeFailure.Unauthorized -> "로그인이 필요해요"
+
+        HomeFailure.Network -> "네트워크 연결을 확인해 주세요"
+
+        else -> "게시물 제목을 수정하지 못했어요"
+    }
+
     private fun HomeFailure.isPostNotFound(): Boolean = this is HomeFailure.Http && statusCode == 404
 
     private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
+
+    private fun String?.toContentDescription(): String = this
+        ?.takeIf(String::isNotBlank)
+        ?.let { "작품 이미지: $it" }
+        ?: "무제 작품 이미지"
 
     companion object {
         fun factory(

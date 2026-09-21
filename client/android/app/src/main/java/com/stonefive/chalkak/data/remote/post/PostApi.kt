@@ -7,6 +7,8 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateRequest
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import retrofit2.Response
 import retrofit2.http.Body
@@ -38,6 +40,12 @@ interface PostApi {
 
     @DELETE("posts/{postId}")
     suspend fun deletePost(@Path("postId") postId: String): Response<Unit>
+
+    @PUT("posts/{postId}")
+    suspend fun updatePostTitle(
+        @Path("postId") postId: String,
+        @Body request: PostTitleUpdateRequest,
+    ): Response<PostTitleUpdateResponse>
 
     @GET("posts")
     suspend fun getPosts(
