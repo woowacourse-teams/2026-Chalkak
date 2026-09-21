@@ -5,6 +5,8 @@ struct FeedScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: FeedViewModel
     @State private var showsDeleteDialog = false
+    @State private var showsTitleEditDialog = false
+    @State private var titleDraft = ""
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
@@ -25,9 +27,15 @@ struct FeedScreen: View {
             VStack(spacing: 0) {
                 FeedTopBar(
                     onBack: { dismiss() },
+                    onEdit: {
+                        titleDraft = viewModel.viewState.content?.post.title ?? ""
+                        showsTitleEditDialog = true
+                    },
                     onDelete: { showsDeleteDialog = true },
+                    isEditVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
                     isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
-                    isDeleteEnabled: !viewModel.viewState.isDeleting
+                    isEditEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle,
+                    isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
                 )
                     .padding(.leading, Metrics.topBarLeading)
                     .padding(.trailing, Metrics.topBarTrailing)
@@ -48,6 +56,9 @@ struct FeedScreen: View {
                 onDeleted(postID)
             }
         }
+        .onChange(of: viewModel.viewState.titleUpdateVersion) { _, _ in
+            showsTitleEditDialog = false
+        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -66,6 +77,17 @@ struct FeedScreen: View {
                         viewModel.deletePost()
                     },
                     onDismiss: { showsDeleteDialog = false }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .overlay {
+            if showsTitleEditDialog {
+                FeedTitleEditDialog(
+                    title: $titleDraft,
+                    isSubmitting: viewModel.viewState.isUpdatingTitle,
+                    onConfirm: { viewModel.updatePostTitle(titleDraft) },
+                    onDismiss: { showsTitleEditDialog = false }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
@@ -161,6 +183,10 @@ struct FeedScreen: View {
         switch event {
         case let .showDeleteFailure(error):
             showMessage(error.deleteMessage)
+        case .showTitleUpdateSuccess:
+            showMessage("제목을 수정했어요")
+        case let .showTitleUpdateFailure(error):
+            showMessage(error.titleUpdateMessage)
         }
         viewModel.consumeEvent()
     }

@@ -37,10 +37,25 @@ enum FeedError: Error, Equatable, Sendable {
             "게시물을 삭제하지 못했어요"
         }
     }
+
+    var titleUpdateMessage: String {
+        switch self {
+        case .notFound:
+            "게시물을 찾을 수 없어요"
+        case .network:
+            "네트워크 연결을 확인해 주세요"
+        case .client:
+            "수정할 수 없는 상태이거나 주제 참여 기간이 끝났어요"
+        case .invalidResponse, .server, .generic:
+            "게시물 제목을 수정하지 못했어요"
+        }
+    }
 }
 
 enum FeedEvent: Equatable, Sendable {
     case showDeleteFailure(FeedError)
+    case showTitleUpdateSuccess
+    case showTitleUpdateFailure(FeedError)
 }
 
 struct FeedPost: Identifiable, Equatable, Sendable {
@@ -67,7 +82,9 @@ struct FeedViewState: Equatable, Sendable {
     // 상세 조회로 확정되기 전까지 좋아요 동작을 막는다.
     var isLikeEnabled = false
     var isDeleting = false
+    var isUpdatingTitle = false
     var deletedPostID: FeedPost.ID?
+    var titleUpdateVersion = 0
 }
 
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.

@@ -3,8 +3,11 @@ import SwiftUI
 struct FeedTopBar: View {
     @Environment(\.chalkakTheme) private var theme
     let onBack: () -> Void
+    var onEdit: () -> Void = {}
     var onDelete: () -> Void = {}
+    var isEditVisible = false
     var isDeleteVisible = false
+    var isEditEnabled = true
     var isDeleteEnabled = true
 
     var body: some View {
@@ -21,19 +24,45 @@ struct FeedTopBar: View {
 
             Spacer(minLength: 0)
 
-            if isDeleteVisible {
-                Button(action: onDelete) {
-                    Text("삭제")
-                        .font(theme.typography.callout)
-                        .foregroundStyle(theme.colors.error)
-                        .frame(width: Metrics.touchSize, height: Metrics.touchSize)
-                        .contentShape(Rectangle())
+            if isEditVisible || isDeleteVisible {
+                HStack(spacing: 0) {
+                    if isEditVisible {
+                        actionButton(
+                            title: "수정",
+                            color: theme.colors.actionPrimary,
+                            isEnabled: isEditEnabled,
+                            action: onEdit
+                        )
+                    }
+                    if isDeleteVisible {
+                        actionButton(
+                            title: "삭제",
+                            color: theme.colors.error,
+                            isEnabled: isDeleteEnabled,
+                            action: onDelete
+                        )
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(!isDeleteEnabled)
-                .accessibilityLabel("삭제")
             }
         }
+    }
+
+    private func actionButton(
+        title: String,
+        color: Color,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(theme.typography.callout)
+                .foregroundStyle(color)
+                .frame(width: Metrics.touchSize, height: Metrics.touchSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(title)
     }
 }
 

@@ -149,6 +149,43 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.deletedPostID == "post-1")
     }
 
+    @Test("내 게시물 제목 수정은 공백을 제거하고 완료 상태를 반영한다")
+    func updatesOnlyOwnedPostTitle() async {
+        var requestedTitle: String?
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            updateTitleHandler: { postID, title in
+                #expect(postID == "post-1")
+                requestedTitle = title
+                return .success(FeedTitleUpdate(postID: postID, title: title))
+            }
+        )
+
+        viewModel.updatePostTitle("  수정한 제목  ")
+        await Self.waitUntil { viewModel.event == .showTitleUpdateSuccess }
+
+        #expect(requestedTitle == "수정한 제목")
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+        #expect(!viewModel.viewState.isUpdatingTitle)
+
+        let otherViewModel = FeedViewModel(
+            postID: "post-2",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: false),
+            isLikeConfirmed: true,
+            updateTitleHandler: { _, _ in
+                Issue.record("다른 사용자의 게시물은 제목 수정 요청을 보내면 안 됩니다")
+                return .success(FeedTitleUpdate(postID: "post-2", title: "수정"))
+            }
+        )
+
+        otherViewModel.updatePostTitle("수정 시도")
+
+        #expect(otherViewModel.viewState.content?.post.title == "제목")
+        #expect(otherViewModel.event == nil)
+    }
+
     @Test("기록에서 들어온 FeedTarget은 상세 응답 후에도 내 게시물로 유지된다")
     func recordTargetKeepsOwnershipAfterDetailLoad() async {
         let target = FeedTarget(postID: "post-1", isOwnedByCurrentUser: true)
