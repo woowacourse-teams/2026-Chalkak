@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -57,7 +56,6 @@ private val StatusTopPadding = 8.dp
 private val StatusTrailingPadding = 12.dp
 private val StatusMinimumTouchHeight = 44.dp
 private val StatusIndicatorSize = 16.dp
-private val StatusBubbleWidth = 300.dp
 private val StatusBubbleTailWidth = 14.dp
 private val StatusBubbleTailHeight = 7.dp
 private val StatusBubbleTailTrailingPadding = 24.dp
@@ -214,11 +212,13 @@ private fun PendingStatusMessage() {
             color = ChalkakTheme.colors.onActionPrimary,
             style = ChalkakTheme.typography.footnote,
             modifier = Modifier
-                .width(StatusBubbleWidth)
                 .background(
                     color = statusColor,
                     shape = ChalkakTheme.shapes.button,
-                ).padding(ChalkakTheme.spacing.md),
+                ).padding(
+                    horizontal = ChalkakTheme.spacing.lg,
+                    vertical = ChalkakTheme.spacing.md,
+                ),
         )
         Canvas(
             modifier = Modifier
