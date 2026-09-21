@@ -37,6 +37,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.component.FeedContent
 import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
+import java.time.LocalDate
 
 @Composable
 fun FeedRoute(
@@ -140,7 +141,7 @@ fun FeedScreen(
                 onDeleteClick = { showDeleteDialog = true },
                 isEditVisible = uiState.content
                     ?.post
-                    ?.isOwnedByCurrentUser == true,
+                    ?.isOwnedByCurrentUser == true && uiState.isTitleEditable,
                 isDeleteVisible = uiState.content
                     ?.post
                     ?.isOwnedByCurrentUser == true,
@@ -148,7 +149,8 @@ fun FeedScreen(
                 isEditEnabled =
                     !uiState.isDeleting &&
                         !uiState.isUpdatingTitle &&
-                        !uiState.isRefreshing,
+                        !uiState.isRefreshing &&
+                        uiState.isTitleEditable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
@@ -223,6 +225,8 @@ private fun FeedScreenPreview() {
                         isOwnedByCurrentUser = true,
                     ),
                     isLiked = false,
+                    topicDate = LocalDate
+                        .of(2026, 8, 3),
                 ),
             ),
             onNavigateBack = {},

@@ -5,6 +5,7 @@ import com.stonefive.chalkak.domain.model.Post
 
 data class FeedUiState(
     val content: FeedContentState.Success? = null,
+    val isTitleEditable: Boolean = false,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val isDeleting: Boolean = false,
@@ -21,5 +22,6 @@ sealed interface FeedContentState {
         val topic: String,
         val post: Post,
         val isLiked: Boolean,
+        val topicDate: java.time.LocalDate? = null,
     ) : FeedContentState
 }

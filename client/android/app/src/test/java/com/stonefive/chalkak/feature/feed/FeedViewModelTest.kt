@@ -82,6 +82,7 @@ class FeedViewModelTest {
                 topic = "바다",
                 post = selectedPost,
                 isLiked = false,
+                topicDate = LocalDate.of(2026, 8, 5),
             ),
         )
 
@@ -150,6 +151,7 @@ class FeedViewModelTest {
                 topic = "바다",
                 post = selectedPost,
                 isLiked = false,
+                topicDate = LocalDate.of(2026, 8, 5),
             ),
             postId = selectedPost.id,
         )
@@ -212,6 +214,7 @@ class FeedViewModelTest {
                 topic = "바다",
                 post = selectedPost,
                 isLiked = false,
+                topicDate = LocalDate.of(2026, 8, 5),
             ),
             postId = selectedPost.id,
         )
@@ -443,7 +446,9 @@ class FeedViewModelTest {
                 topic = "하늘하늘하늘",
                 post = ownedPost,
                 isLiked = false,
+                topicDate = TEST_DATE,
             ),
+            dateProvider = { TEST_DATE },
         )
 
         selectedViewModel.updatePostTitle("  수정한 제목  ")
@@ -458,6 +463,35 @@ class FeedViewModelTest {
         )
         assertEquals(PHOTO_ID, selectedViewModel.uiState.value.titleUpdateSuccessPostId)
         assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+        assertEquals(
+            "제목을 수정했어요",
+            (selectedViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `지난 주제의 내 게시물은 제목 수정 요청을 보내지 않는다`() = runTest {
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        val selectedViewModel = FeedViewModel(
+            repository = repository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 27일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+                topicDate = TEST_DATE.minusDays(1),
+            ),
+            dateProvider = { TEST_DATE },
+        )
+
+        selectedViewModel.updatePostTitle("수정 시도")
+        advanceUntilIdle()
+
+        assertEquals(null, repository.updatedTitle)
+        assertFalse(selectedViewModel.uiState.value.isTitleEditable)
     }
 
     @Test

@@ -33,6 +33,7 @@ class FeedViewModel(
     private val _uiState = MutableStateFlow(
         FeedUiState(
             content = initialContent,
+            isTitleEditable = initialContent?.topicDate == dateProvider(),
             isLoading = initialContent == null,
             isRefreshing = initialContent != null && postId != null,
         ),
@@ -167,6 +168,7 @@ class FeedViewModel(
         val post = state.content?.post ?: return
         if (
             !post.isOwnedByCurrentUser ||
+            !state.isTitleEditable ||
             state.isDeleting ||
             state.isUpdatingTitle ||
             state.isRefreshing
@@ -206,7 +208,7 @@ class FeedViewModel(
                             content = currentContent.copy(
                                 post = updatedPost,
                             ),
-                            pendingMessage = nextSnackbar("제목을 수정했어요"),
+                            pendingMessage = nextToast("제목을 수정했어요"),
                         )
                     }
                 }
@@ -214,7 +216,7 @@ class FeedViewModel(
                 is HomeResult.Failure -> _uiState.update {
                     it.copy(
                         isUpdatingTitle = false,
-                        pendingMessage = nextSnackbar(result.reason.toTitleUpdateErrorMessage()),
+                        pendingMessage = nextToast(result.reason.toTitleUpdateErrorMessage()),
                     )
                 }
             }
@@ -270,7 +272,9 @@ class FeedViewModel(
                     topic = content.topic,
                     post = post,
                     isLiked = post.isLiked,
+                    topicDate = content.topicDate,
                 ),
+                isTitleEditable = content.topicDate == dateProvider(),
             )
         }
     }
@@ -349,10 +353,12 @@ class FeedViewModel(
             topic = detail.topic,
             post = updatedPost,
             isLiked = updatedPost.isLiked,
+            topicDate = detail.topicDate,
         )
         _uiState.update { state ->
             state.copy(
                 content = if (state.content == updatedContent) state.content else updatedContent,
+                isTitleEditable = detail.topicDate == dateProvider(),
                 isLoading = false,
                 isRefreshing = false,
                 errorMessage = null,

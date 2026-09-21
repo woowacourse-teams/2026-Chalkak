@@ -17,6 +17,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.FeedContentState
+import java.time.LocalDate
 
 private val FeedCaptionHorizontalPadding = 20.dp
 
@@ -56,6 +57,8 @@ private fun FeedContentPreview() {
                     likeCount = 24,
                 ),
                 isLiked = false,
+                topicDate = LocalDate
+                    .of(2026, 8, 3),
             ),
             onLikeClick = {},
             modifier = Modifier.fillMaxSize(),

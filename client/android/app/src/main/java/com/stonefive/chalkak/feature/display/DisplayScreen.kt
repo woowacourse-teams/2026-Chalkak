@@ -62,7 +62,7 @@ fun DisplayRoute(
         key = "display-${initialDate ?: "latest"}",
         factory = DisplayViewModel.factory(initialDate),
     ),
-    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+    onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -102,7 +102,7 @@ fun DisplayScreen(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+    onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
     onRetryClick: () -> Unit = {},
 ) {
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
@@ -175,6 +175,7 @@ fun DisplayScreen(
                         ?.toFeedDateLabel()
                         .orEmpty(),
                     uiState.topic,
+                    uiState.selectedDate,
                 )
             },
             topContentPadding = bodyTopContentPadding,

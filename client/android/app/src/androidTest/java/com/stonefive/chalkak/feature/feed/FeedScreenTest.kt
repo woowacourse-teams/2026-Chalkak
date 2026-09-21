@@ -14,6 +14,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
+import java.time.LocalDate
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -80,6 +81,13 @@ class FeedScreenTest {
     }
 
     @Test
+    fun editButtonIsHiddenForPastTopic() {
+        setFeedContent()
+
+        composeRule.onAllNodesWithContentDescription("수정").assertCountEquals(0)
+    }
+
+    @Test
     fun tappingLikeAreaInvokesCallback() {
         var likeClicked = false
         setFeedContent(onLikeClick = { likeClicked = true })
@@ -128,5 +136,6 @@ private val feedUiState = FeedUiState(
             isOwnedByCurrentUser = true,
         ),
         isLiked = false,
+        topicDate = LocalDate.of(2026, 8, 3),
     ),
 )

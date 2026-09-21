@@ -231,7 +231,7 @@ class DisplayScreenTest {
         var selected: Triple<Post, String, String>? = null
         setDisplayContent(
             uiState = latestUiState(),
-            onOpenFeed = { post, dateLabel, topic ->
+            onOpenFeed = { post, dateLabel, topic, _ ->
                 selected = Triple(post, dateLabel, topic)
             },
         )
@@ -304,7 +304,7 @@ class DisplayScreenTest {
     private fun setDisplayContent(
         uiState: DisplayUiState,
         onSortSelected: (PostSort) -> Unit = {},
-        onOpenFeed: (Post, String, String) -> Unit = { _, _, _ -> },
+        onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
         onPreviousDateClick: () -> Unit = {},
         onNextDateClick: () -> Unit = {},
     ) {
