@@ -450,7 +450,12 @@ class FeedViewModelTest {
         advanceUntilIdle()
 
         assertEquals(PHOTO_ID to "  수정한 제목  ", repository.updatedTitle)
-        assertEquals("수정한 제목", selectedViewModel.uiState.value.content?.post?.title)
+        assertEquals(
+            "수정한 제목",
+            selectedViewModel.uiState.value.content
+                ?.post
+                ?.title,
+        )
         assertEquals(PHOTO_ID, selectedViewModel.uiState.value.titleUpdateSuccessPostId)
         assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
     }
@@ -461,6 +466,37 @@ class FeedViewModelTest {
         advanceUntilIdle()
 
         assertEquals(null, repository.updatedTitle)
+    }
+
+    @Test
+    fun `상세 새로고침 중에는 제목 수정 요청을 보내지 않는다`() = runTest {
+        val detailRequest = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply {
+            this.detailRequest = detailRequest
+        }
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 3일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+            ),
+            postId = ownedPost.id,
+        )
+
+        assertTrue(selectedViewModel.uiState.value.isRefreshing)
+        selectedViewModel.updatePostTitle("수정 시도")
+
+        assertEquals(null, selectedRepository.updatedTitle)
+        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+
+        detailRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
     }
 }
 

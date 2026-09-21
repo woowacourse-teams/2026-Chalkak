@@ -80,6 +80,7 @@ final class FeedViewModel {
             viewState.contentStatus = .loading
         }
         let likeGenerationAtStart = likeGeneration
+        let titleUpdateVersionAtStart = viewState.titleUpdateVersion
 
         switch await detailHandler(postID) {
         case let .success(content):
@@ -88,6 +89,10 @@ final class FeedViewModel {
             if likeGeneration != likeGenerationAtStart, let current = viewState.content {
                 merged.post.isLiked = current.post.isLiked
                 merged.post.likeCount = current.post.likeCount
+            }
+            if viewState.titleUpdateVersion != titleUpdateVersionAtStart,
+               let current = viewState.content {
+                merged.post.title = current.post.title
             }
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true

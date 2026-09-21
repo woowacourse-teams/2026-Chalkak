@@ -165,7 +165,14 @@ class FeedViewModel(
     fun updatePostTitle(title: String?) {
         val state = _uiState.value
         val post = state.content?.post ?: return
-        if (!post.isOwnedByCurrentUser || state.isDeleting || state.isUpdatingTitle) return
+        if (
+            !post.isOwnedByCurrentUser ||
+            state.isDeleting ||
+            state.isUpdatingTitle ||
+            state.isRefreshing
+        ) {
+            return
+        }
 
         _uiState.update {
             it.copy(

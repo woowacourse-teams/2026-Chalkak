@@ -67,15 +67,18 @@ class PostRepositoryImpl(
     override suspend fun updatePostTitle(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = when (val result = remoteDataSource.updatePostTitle(
+    ): HomeResult<PostTitleUpdate> = when (
+        val result = remoteDataSource.updatePostTitle(
             postId = postId,
             title = title.normalizeTitle(),
-        )) {
+        )
+    ) {
         is ApiResult.Success -> if (result.value.postId == postId) {
             HomeResult.Success(
                 PostTitleUpdate(
                     postId = result.value.postId,
-                    title = result.value.title.normalizeTitle(),
+                    title = result.value.title
+                        .normalizeTitle(),
                 ),
             )
         } else {

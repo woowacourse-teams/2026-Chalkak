@@ -35,8 +35,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.component.FeedContent
-import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
+import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 
 @Composable
 fun FeedRoute(
@@ -131,16 +131,24 @@ fun FeedScreen(
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
                 onEditClick = {
-                    titleDraft = uiState.content?.post?.title.orEmpty()
+                    titleDraft = uiState.content
+                        ?.post
+                        ?.title
+                        .orEmpty()
                     showTitleEditDialog = true
                 },
                 onDeleteClick = { showDeleteDialog = true },
-                isEditVisible = uiState.content?.post?.isOwnedByCurrentUser == true,
+                isEditVisible = uiState.content
+                    ?.post
+                    ?.isOwnedByCurrentUser == true,
                 isDeleteVisible = uiState.content
                     ?.post
                     ?.isOwnedByCurrentUser == true,
                 isDeleteEnabled = !uiState.isDeleting,
-                isEditEnabled = !uiState.isDeleting && !uiState.isUpdatingTitle,
+                isEditEnabled =
+                    !uiState.isDeleting &&
+                        !uiState.isUpdatingTitle &&
+                        !uiState.isRefreshing,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()

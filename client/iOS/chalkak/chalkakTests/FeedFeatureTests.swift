@@ -186,6 +186,38 @@ struct FeedViewModelTests {
         #expect(otherViewModel.event == nil)
     }
 
+    @Test("상세 응답이 늦게 도착해도 조회 중 수정한 제목을 유지한다")
+    func detailLoadPreservesTitleUpdatedWhileRefreshing() async {
+        let gate = AsyncGate()
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            detailHandler: { _ in
+                await gate.waitForRelease()
+                var detail = Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
+                detail.post.title = "상세 응답 제목"
+                return .success(detail)
+            },
+            updateTitleHandler: { postID, title in
+                .success(FeedTitleUpdate(postID: postID, title: title))
+            }
+        )
+
+        let loadTask = Task { await viewModel.load() }
+        await gate.waitUntilEntered()
+
+        viewModel.updatePostTitle("수정한 제목")
+        await Self.waitUntil { viewModel.viewState.titleUpdateVersion == 1 }
+
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+
+        gate.release()
+        await loadTask.value
+
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+    }
+
     @Test("기록에서 들어온 FeedTarget은 상세 응답 후에도 내 게시물로 유지된다")
     func recordTargetKeepsOwnershipAfterDetailLoad() async {
         let target = FeedTarget(postID: "post-1", isOwnedByCurrentUser: true)
