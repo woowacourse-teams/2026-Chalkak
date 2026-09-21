@@ -68,7 +68,7 @@ private struct DisplayFeaturedCard: View {
         .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
         .overlay(alignment: .bottomLeading) {
-            DisplayLikeBadge(likeCount: photo.likeCount)
+            DisplayLikeBadge(likeCount: photo.likeCount, isLiked: photo.isLiked)
                 .padding(Metrics.badgeInset)
         }
         .overlay(alignment: .bottom) {
