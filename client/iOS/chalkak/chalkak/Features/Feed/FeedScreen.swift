@@ -32,9 +32,13 @@ struct FeedScreen: View {
                         showsTitleEditDialog = true
                     },
                     onDelete: { showsDeleteDialog = true },
-                    isEditVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
+                    isEditVisible: viewModel.viewState.content.map {
+                        $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
+                    } == true,
                     isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
-                    isEditEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle,
+                    isEditEnabled: !viewModel.viewState.isDeleting &&
+                        !viewModel.viewState.isUpdatingTitle &&
+                        viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
                     isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
                 )
                     .padding(.leading, Metrics.topBarLeading)

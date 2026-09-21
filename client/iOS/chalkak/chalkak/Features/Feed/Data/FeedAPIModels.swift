@@ -44,6 +44,7 @@ struct FeedPostDetailResponse: Decodable {
 
         return FeedContent(
             dateLabel: FeedDateLabel.make(from: topicDate),
+            topicDate: topicDate,
             topic: topic.title,
             post: FeedPost(
                 id: id,

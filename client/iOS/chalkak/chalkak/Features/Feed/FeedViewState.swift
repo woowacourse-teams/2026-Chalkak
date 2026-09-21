@@ -71,6 +71,7 @@ struct FeedPost: Identifiable, Equatable, Sendable {
 
 struct FeedContent: Equatable, Sendable {
     var dateLabel: String
+    var topicDate: Date
     var topic: String
     var post: FeedPost
 }
@@ -136,5 +137,10 @@ enum FeedDateLabel {
         let month = components.month ?? 1
         let day = components.day ?? 1
         return "\(month)월 \(day)일의 주제"
+    }
+
+    static func isToday(_ date: Date, now: Date = Date()) -> Bool {
+        calendar.dateComponents([.year, .month, .day], from: date) ==
+            calendar.dateComponents([.year, .month, .day], from: now)
     }
 }

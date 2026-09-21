@@ -186,6 +186,31 @@ struct FeedViewModelTests {
         #expect(otherViewModel.event == nil)
     }
 
+    @Test("지난 주제의 내 게시물은 제목 수정 요청을 보내지 않는다")
+    func refusesTitleUpdateForPastTopic() async {
+        var didRequestUpdate = false
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(
+                isLiked: false,
+                likeCount: 3,
+                isOwnedByCurrentUser: true,
+                topicDate: Date(timeIntervalSinceNow: -172_800)
+            ),
+            isLikeConfirmed: true,
+            updateTitleHandler: { _, _ in
+                didRequestUpdate = true
+                return .success(FeedTitleUpdate(postID: "post-1", title: "수정"))
+            }
+        )
+
+        viewModel.updatePostTitle("수정 시도")
+        await Task.yield()
+
+        #expect(!didRequestUpdate)
+        #expect(!viewModel.viewState.isUpdatingTitle)
+    }
+
     @Test("상세 응답이 늦게 도착해도 조회 중 수정한 제목을 유지한다")
     func detailLoadPreservesTitleUpdatedWhileRefreshing() async {
         let gate = AsyncGate()
@@ -249,10 +274,12 @@ struct FeedViewModelTests {
         isLiked: Bool,
         likeCount: Int,
         topic: String = "하늘",
-        isOwnedByCurrentUser: Bool = false
+        isOwnedByCurrentUser: Bool = false,
+        topicDate: Date = Date()
     ) -> FeedContent {
         FeedContent(
             dateLabel: "8월 3일의 주제",
+            topicDate: topicDate,
             topic: topic,
             post: FeedPost(
                 id: "post-1",

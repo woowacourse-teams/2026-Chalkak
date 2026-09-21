@@ -39,13 +39,15 @@ struct FeedTitleEditDialog: View {
                         title: "취소",
                         action: onDismiss,
                         isEnabled: !isSubmitting,
-                        fillsWidth: true
+                        fillsWidth: true,
+                        verticalPadding: Metrics.buttonVerticalPadding
                     )
                     ChalkakButton(
                         title: isSubmitting ? "저장 중..." : "저장",
                         action: onConfirm,
                         isEnabled: !isSubmitting,
-                        fillsWidth: true
+                        fillsWidth: true,
+                        verticalPadding: Metrics.buttonVerticalPadding
                     )
                 }
                 .padding(.top, theme.spacing.lg)
@@ -75,4 +77,5 @@ private enum Metrics {
     static let topPadding: CGFloat = 24
     static let bottomPadding: CGFloat = 26
     static let buttonSpacing: CGFloat = 10
+    static let buttonVerticalPadding: CGFloat = 14
 }

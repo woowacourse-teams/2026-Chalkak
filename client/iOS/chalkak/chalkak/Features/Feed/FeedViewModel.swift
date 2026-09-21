@@ -176,6 +176,7 @@ final class FeedViewModel {
     func updatePostTitle(_ title: String?) {
         guard let current = viewState.content,
               current.post.isOwnedByCurrentUser,
+              FeedDateLabel.isToday(current.topicDate),
               !viewState.isDeleting,
               !viewState.isUpdatingTitle
         else { return }
