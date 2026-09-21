@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -104,6 +105,7 @@ fun DisplayPhotoCard(
 
         DisplayLikeCount(
             likeCount = photo.likeCount,
+            isLiked = photo.isLiked,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(10.dp),
@@ -141,17 +143,21 @@ private fun aspectRatioForSize(
 @Composable
 fun DisplayLikeCount(
     likeCount: Int,
+    isLiked: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.semantics {
             contentDescription = "좋아요 $likeCount"
+            stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
         },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_heart),
+            painter = painterResource(
+                if (isLiked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
+            ),
             contentDescription = null,
             tint = ChalkakTheme.colors.textOnImage,
             modifier = Modifier.size(18.dp),
