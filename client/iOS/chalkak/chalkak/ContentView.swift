@@ -112,6 +112,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
         }
+        .onChange(of: selectedFeed) { previousFeed, currentFeed in
+            guard previousFeed != nil, currentFeed == nil else { return }
+            Task { await displayViewModel.revalidate() }
+        }
         .overlay(alignment: .bottom) {
             if let message {
                 Text(message)
