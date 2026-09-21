@@ -7,6 +7,7 @@ import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import java.time.YearMonth
 
 interface PostRepository {
@@ -15,6 +16,11 @@ interface PostRepository {
     suspend fun getPostDetail(postId: String): HomeResult<PostDetail>
 
     suspend fun deletePost(postId: String): HomeResult<Unit>
+
+    suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<PostTitleUpdate>
 
     suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent>
 

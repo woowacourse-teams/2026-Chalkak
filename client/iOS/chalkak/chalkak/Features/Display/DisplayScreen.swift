@@ -15,6 +15,7 @@ struct DisplayScreen: View {
         return FeedTarget(
             seed: FeedContent(
                 dateLabel: dateLabel,
+                topicDate: viewModel.viewState.selectedDate ?? Date(),
                 topic: viewModel.viewState.topic,
                 post: FeedPost(
                     id: photo.id,

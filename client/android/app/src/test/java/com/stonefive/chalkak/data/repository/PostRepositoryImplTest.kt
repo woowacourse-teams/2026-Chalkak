@@ -9,6 +9,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
@@ -238,6 +239,26 @@ class PostRepositoryImplTest {
             HomeResult.Failure(HomeFailure.Http(403)),
             repository.deletePost("photo-1"),
         )
+    }
+
+    @Test
+    fun `게시물 제목은 앞뒤 공백을 제거하고 빈 제목은 null로 변환한다`() = runTest {
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostTitleUpdateResponse("photo-1", "수정한 제목"),
+        )
+
+        val result = repository.updatePostTitle("photo-1", "  수정한 제목  ") as HomeResult.Success
+
+        assertEquals("photo-1" to "수정한 제목", remoteDataSource.updatedTitle)
+        assertEquals("수정한 제목", result.value.title)
+
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostTitleUpdateResponse("photo-1", null),
+        )
+        val cleared = repository.updatePostTitle("photo-1", "   ") as HomeResult.Success
+
+        assertEquals("photo-1" to null, remoteDataSource.updatedTitle)
+        assertEquals(null, cleared.value.title)
     }
 
     @Test
@@ -492,6 +513,8 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var calendarResult: ApiResult<PostCalendarResponse> = ApiResult.Success(calendarResponse())
     var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit)
+    var titleUpdateResult: ApiResult<PostTitleUpdateResponse> = ApiResult.Failure(ApiError.Network)
+    var updatedTitle: Pair<String, String?>? = null
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
         PostLikeResponse(
             postId = "photo-1",
@@ -507,6 +530,14 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
 
     override suspend fun deletePost(postId: String): ApiResult<Unit> = deleteResult
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): ApiResult<PostTitleUpdateResponse> {
+        updatedTitle = postId to title
+        return titleUpdateResult
+    }
 
     override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> {
         postsQueries += query

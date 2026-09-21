@@ -6,6 +6,7 @@ struct ChalkakButton: View {
     let action: () -> Void
     var isEnabled = true
     var fillsWidth = false
+    var verticalPadding: CGFloat = 17
 
     var body: some View {
         Button(action: action) {
@@ -13,7 +14,7 @@ struct ChalkakButton: View {
                 .font(theme.typography.callout)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .padding(.horizontal, theme.spacing.xl)
-                .padding(.vertical, Metrics.verticalPadding)
+                .padding(.vertical, verticalPadding)
                 .foregroundStyle(
                     isEnabled ? theme.colors.onActionPrimary : theme.colors.textPrimary
                 )
@@ -28,10 +29,6 @@ struct ChalkakButton: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
     }
-}
-
-private enum Metrics {
-    static let verticalPadding: CGFloat = 17
 }
 
 #Preview("Filled Button") {

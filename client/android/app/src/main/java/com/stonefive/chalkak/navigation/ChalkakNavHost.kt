@@ -265,7 +265,7 @@ fun ChalkakNavHost(
                 onOpenPhotoUpload = openPhotoUpload,
                 onNavigateToBottomBar = navigateToBottomBar,
                 initialDate = display.date.toLocalDateOrNull(),
-                onOpenFeed = { post, dateLabel, topic ->
+                onOpenFeed = { post, dateLabel, topic, topicDate ->
                     if (sessionState is UserSessionState.Authenticated) {
                         navController.navigate(
                             Feed(
@@ -280,6 +280,7 @@ fun ChalkakNavHost(
                                 isLiked = post.isLiked,
                                 dateLabel = dateLabel,
                                 topic = topic,
+                                topicDate = topicDate?.toString(),
                                 isOwnedByCurrentUser = post.isOwnedByCurrentUser,
                             ),
                         )
@@ -311,6 +312,7 @@ fun ChalkakNavHost(
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                     ),
                     isLiked = false,
+                    topicDate = feed.topicDate?.toLocalDateOrNull(),
                 ),
                 onNavigateBack = { navController.popBackStack() },
                 onPostDeleted = { postId ->
