@@ -11,6 +11,7 @@ extension Notification.Name {
 protocol DailyNotificationScheduling {
     func requestAuthorization() async throws -> Bool
     func scheduleDaily(at time: DateComponents) async throws
+    func cancelDaily()
 }
 
 struct UserNotificationDailyScheduler: DailyNotificationScheduling {
@@ -43,5 +44,9 @@ struct UserNotificationDailyScheduler: DailyNotificationScheduling {
         )
 
         try await center.add(request)
+    }
+
+    func cancelDaily() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.requestIdentifier])
     }
 }

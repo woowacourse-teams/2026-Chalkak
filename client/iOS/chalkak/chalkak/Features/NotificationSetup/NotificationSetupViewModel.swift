@@ -59,6 +59,7 @@ final class NotificationSetupViewModel {
 
     func skip() {
         guard !viewState.isSaving else { return }
+        scheduler.cancelDaily()
         store.completeSetup(time: nil)
         event = .completed
     }

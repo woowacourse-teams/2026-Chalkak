@@ -91,6 +91,7 @@ struct NotificationSetupViewModelTests {
         viewModel.skip()
 
         #expect(scheduler.scheduledTimes.isEmpty)
+        #expect(scheduler.cancelCount == 1)
         #expect(store.completedTimes.count == 1)
         #expect(store.completedTimes.first! == nil)
         #expect(viewModel.event == .completed)
@@ -161,6 +162,7 @@ private final class SchedulerStub: DailyNotificationScheduling {
     let isAuthorized: Bool
     let error: Error?
     private(set) var scheduledTimes: [DateComponents] = []
+    private(set) var cancelCount = 0
 
     init(isAuthorized: Bool, error: Error? = nil) {
         self.isAuthorized = isAuthorized
@@ -174,6 +176,10 @@ private final class SchedulerStub: DailyNotificationScheduling {
     func scheduleDaily(at time: DateComponents) async throws {
         if let error { throw error }
         scheduledTimes.append(time)
+    }
+
+    func cancelDaily() {
+        cancelCount += 1
     }
 }
 
