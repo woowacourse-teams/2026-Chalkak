@@ -38,6 +38,7 @@ import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
+import com.stonefive.chalkak.feature.reminder.ReminderTimeRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -215,7 +216,7 @@ fun ChalkakNavHost(
                         signaturePreviewPng = null
                     },
                     onSignUpSuccess = {
-                        navController.navigate(Today) {
+                        navController.navigate(ReminderTime()) {
                             popUpTo<Terms> { inclusive = true }
                             launchSingleTop = true
                         }
@@ -230,6 +231,25 @@ fun ChalkakNavHost(
                     viewModel = previewSignUpViewModel,
                 )
             }
+        }
+
+        composable<ReminderTime> { backStackEntry ->
+            val reminderTime = backStackEntry.toRoute<ReminderTime>()
+
+            ReminderTimeRoute(
+                onConfigured = {
+                    if (reminderTime.returnToSettings) {
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Today) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                },
+            )
         }
 
         composable<ChangeSignaturePreview> {
@@ -393,6 +413,9 @@ fun ChalkakNavHost(
                     } else {
                         showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                     }
+                },
+                onOpenReminder = {
+                    navController.navigate(ReminderTime(returnToSettings = true))
                 },
                 onNavigateToBottomBar = navigateToBottomBar,
                 onOpenPhotoUpload = openPhotoUpload,

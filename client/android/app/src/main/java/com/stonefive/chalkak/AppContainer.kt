@@ -12,6 +12,9 @@ import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.core.network.AndroidConnectivityObserver
 import com.stonefive.chalkak.core.network.ConnectivityObserver
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
+import com.stonefive.chalkak.data.local.reminder.AndroidReminderAlarmScheduler
+import com.stonefive.chalkak.data.local.reminder.ReminderNotificationManager
+import com.stonefive.chalkak.data.local.reminder.ReminderPreferenceStore
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
@@ -29,17 +32,23 @@ import com.stonefive.chalkak.data.repository.FeedbackRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
+import com.stonefive.chalkak.domain.model.ReminderPreference
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.ReminderPreferenceRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
+    private val applicationContext = context.applicationContext
+
     val analyticsTracker: AnalyticsTracker by lazy {
         FirebaseAnalyticsTracker(context)
     }
@@ -152,5 +161,39 @@ class AppContainer(context: Context) {
 
     val photoUploadEntryRepository: PhotoUploadEntryRepository by lazy {
         postRepositoryImpl
+    }
+
+    val reminderAlarmScheduler by lazy {
+        AndroidReminderAlarmScheduler(applicationContext)
+    }
+
+    val reminderPreferenceRepository: ReminderPreferenceRepository by lazy {
+        ReminderPreferenceStore(
+            context = applicationContext,
+            scope = applicationScope,
+            alarmScheduler = reminderAlarmScheduler,
+        )
+    }
+
+    fun initializeReminder() {
+        ReminderNotificationManager.createChannel(applicationContext)
+        applicationScope.launch {
+            reconcileReminderAlarm()
+        }
+    }
+
+    suspend fun reconcileReminderAlarm() {
+        val preference = reminderPreferenceRepository.preference.first { preference ->
+            preference !is ReminderPreference.Loading
+        }
+        when (preference) {
+            is ReminderPreference.Enabled ->
+                reminderAlarmScheduler.schedule(preference.hour, preference.minute)
+
+            ReminderPreference.Disabled,
+            ReminderPreference.Unconfigured,
+            ReminderPreference.Loading,
+            -> reminderAlarmScheduler.cancel()
+        }
     }
 }

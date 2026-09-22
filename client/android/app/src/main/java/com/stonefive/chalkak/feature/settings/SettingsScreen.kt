@@ -26,11 +26,11 @@ import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDi
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.settings.component.SettingsAccountCard
+import com.stonefive.chalkak.feature.settings.component.SettingsAppCard
 import com.stonefive.chalkak.feature.settings.component.SettingsFeedbackCard
 import com.stonefive.chalkak.feature.settings.component.SettingsInformationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsLoginButton
 import com.stonefive.chalkak.feature.settings.component.SettingsSectionLabel
-import com.stonefive.chalkak.feature.settings.component.SettingsSignatureCard
 
 @Composable
 fun SettingsRoute(
@@ -38,6 +38,7 @@ fun SettingsRoute(
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
     onOpenFeedback: () -> Unit,
+    onOpenReminder: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
@@ -57,6 +58,7 @@ fun SettingsRoute(
         onPrivacyPolicyClick = onOpenPrivacyPolicy,
         onTermsClick = onOpenTerms,
         onFeedbackClick = onOpenFeedback,
+        onReminderClick = onOpenReminder,
         onLogoutClick = viewModel::showLogoutDialog,
         onWithdrawClick = viewModel::showWithdrawDialog,
         onAccountDialogConfirm = viewModel::confirmAccountAction,
@@ -74,6 +76,7 @@ fun SettingsScreen(
     onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
     onFeedbackClick: () -> Unit,
+    onReminderClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onWithdrawClick: () -> Unit,
     onAccountDialogConfirm: () -> Unit,
@@ -115,23 +118,19 @@ fun SettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            if (uiState.isLoading || uiState.isLoggedIn) {
-                SettingsSectionLabel(text = "앱 설정")
+            SettingsSectionLabel(text = "앱 설정")
 
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                if (uiState.isLoading) {
-                    Spacer(modifier = Modifier.height(56.dp))
-                } else {
-                    SettingsSignatureCard(
-                        signatureUrl = uiState.signatureUrl,
-                        onChangeClick = onChangeSignatureClick,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+            SettingsAppCard(
+                showSignature = uiState.isLoggedIn,
+                signatureUrl = uiState.signatureUrl,
+                onReminderClick = onReminderClick,
+                onChangeSignatureClick = onChangeSignatureClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-                Spacer(modifier = Modifier.height(36.dp))
-            }
+            Spacer(modifier = Modifier.height(36.dp))
 
             SettingsSectionLabel(text = "계정")
 
@@ -217,6 +216,7 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onPrivacyPolicyClick = {},
         onTermsClick = {},
         onFeedbackClick = {},
+        onReminderClick = {},
         onLogoutClick = {},
         onWithdrawClick = {},
         onAccountDialogConfirm = {},
