@@ -276,6 +276,11 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
+
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")
 
     override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")

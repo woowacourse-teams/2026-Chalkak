@@ -1,5 +1,8 @@
 package com.stonefive.chalkak
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.setContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
@@ -11,6 +14,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
+import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
@@ -20,6 +27,7 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.navigation.ChalkakNavHost
+import com.stonefive.chalkak.navigation.Display
 import com.stonefive.chalkak.navigation.Terms
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,13 +41,17 @@ class SignatureFlowTest {
 
     @Test
     fun navigatesFromTermsThroughSignaturePreviewToHomeAndDisplay() {
+        grantNotificationPermission()
         val signUpRepository = FakeSignUpRepository()
         val signUpViewModel = SignUpViewModel(signUpRepository)
+        lateinit var navController: NavHostController
 
         composeRule.activity.setContent {
             ChalkakTheme {
+                navController = rememberNavController()
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    navController = navController,
                     startDestination = Terms,
                     signUpViewModel = signUpViewModel,
                 )
@@ -89,6 +101,17 @@ class SignatureFlowTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule
+                .onAllNodesWithText("언제 알려드릴까요?")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule
+            .onNodeWithText("이 시간으로 정할게요")
+            .assertIsEnabled()
+            .performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule
                 .onAllNodesWithText("오늘")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
@@ -97,13 +120,25 @@ class SignatureFlowTest {
 
         composeRule.onNodeWithText("전시").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule
-                .onAllNodesWithText("바다")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
+            navController.currentDestination?.hasRoute<Display>() == true
         }
-        composeRule.onNodeWithText("바다").assertIsDisplayed()
         assertTrue(signUpRepository.completedSignaturePng.isNotEmpty())
+    }
+
+    private fun grantNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            composeRule.activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        InstrumentationRegistry
+            .getInstrumentation()
+            .uiAutomation
+            .grantRuntimePermission(
+                composeRule.activity.packageName,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
     }
 }
 

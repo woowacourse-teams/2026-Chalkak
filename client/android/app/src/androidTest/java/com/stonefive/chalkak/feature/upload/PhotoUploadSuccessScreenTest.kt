@@ -25,7 +25,7 @@ class PhotoUploadSuccessScreenTest {
                     caption = "한낮의 다리",
                     content = PhotoUploadSuccessContent(
                         date = LocalDate.of(2026, 8, 29),
-                        topic = "바다",
+                        topic = "틈",
                         moderationStatus = "PENDING",
                     ),
                     onConfirmClick = {},
@@ -35,7 +35,7 @@ class PhotoUploadSuccessScreenTest {
 
         composeRule.onNodeWithText("2026. 08. 29").assertIsDisplayed()
         composeRule.onNodeWithText("한낮의 다리").assertIsDisplayed()
-        composeRule.onNodeWithText("‘바다’를 기록했어요.").assertIsDisplayed()
+        composeRule.onNodeWithText("‘틈’을 기록했어요.").assertIsDisplayed()
         composeRule
             .onNodeWithText("검수를 기다리고 있어요. 피드 표시까지 시간이 조금 걸릴 수도 있어요!")
             .assertIsDisplayed()

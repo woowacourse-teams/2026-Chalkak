@@ -14,4 +14,13 @@
     <style name="Theme.Chalkak.Splash" parent="Theme.Chalkak">
         <item name="android:windowBackground">@drawable/splash_screen</item>
     </style>
+
+    <style name="Theme.Chalkak.TimePickerSpinner" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#2B2724</item>
+        <item name="android:timePickerStyle">@style/Widget.Chalkak.TimePickerSpinner</item>
+    </style>
+
+    <style name="Widget.Chalkak.TimePickerSpinner" parent="android:style/Widget.Material.Light.TimePicker">
+        <item name="android:timePickerMode">spinner</item>
+    </style>
 </resources>

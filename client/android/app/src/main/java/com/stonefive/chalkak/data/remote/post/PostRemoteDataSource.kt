@@ -5,6 +5,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import java.time.YearMonth
@@ -17,6 +18,11 @@ interface PostRemoteDataSource {
     suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse>
 
     suspend fun deletePost(postId: String): ApiResult<Unit>
+
+    suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): ApiResult<PostTitleUpdateResponse>
 
     suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse>
 
