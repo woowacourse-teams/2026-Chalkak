@@ -589,7 +589,9 @@ struct ContentView: View {
         }
 #endif
         guard KeychainSessionStore.hasActiveSession() else { return .login }
-        return .home
+        return AppRouteResolver.destinationAfterAuthentication(
+            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
+        )
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
