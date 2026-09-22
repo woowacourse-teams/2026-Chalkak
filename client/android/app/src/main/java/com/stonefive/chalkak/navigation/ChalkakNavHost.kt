@@ -450,7 +450,10 @@ fun ChalkakNavHost(
                     moderationStatus = success.moderationStatus,
                 ),
                 onConfirmClick = {
-                    navController.popBackStack()
+                    navController.navigate(Display(date = success.date)) {
+                        popUpTo<Today> { inclusive = false }
+                        launchSingleTop = true
+                    }
                 },
             )
         }
