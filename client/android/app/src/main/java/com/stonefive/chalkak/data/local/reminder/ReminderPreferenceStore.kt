@@ -63,24 +63,32 @@ class ReminderPreferenceStore(
     override suspend fun enable(
         hour: Int,
         minute: Int,
-    ) {
+    ): Result<Unit> {
         require(hour in 0..23)
         require(minute in 0..59)
-        dataStore.edit { preferences ->
-            preferences[modeKey] = MODE_ENABLED
-            preferences[hourKey] = hour
-            preferences[minuteKey] = minute
+        return try {
+            dataStore.edit { preferences ->
+                preferences[modeKey] = MODE_ENABLED
+                preferences[hourKey] = hour
+                preferences[minuteKey] = minute
+            }
+            alarmScheduler.schedule(hour, minute)
+            Result.success(Unit)
+        } catch (error: IOException) {
+            Result.failure(error)
         }
-        alarmScheduler.schedule(hour, minute)
     }
 
-    override suspend fun disable() {
+    override suspend fun disable(): Result<Unit> = try {
         dataStore.edit { preferences ->
             preferences[modeKey] = MODE_DISABLED
             preferences.remove(hourKey)
             preferences.remove(minuteKey)
         }
         alarmScheduler.cancel()
+        Result.success(Unit)
+    } catch (error: IOException) {
+        Result.failure(error)
     }
 }
 

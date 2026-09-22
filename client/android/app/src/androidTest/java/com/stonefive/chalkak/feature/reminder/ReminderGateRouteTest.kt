@@ -52,11 +52,13 @@ private class FakeReminderGateRepository(initialPreference: ReminderPreference) 
     override suspend fun enable(
         hour: Int,
         minute: Int,
-    ) {
+    ): Result<Unit> {
         preferenceState.value = ReminderPreference.Enabled(hour, minute)
+        return Result.success(Unit)
     }
 
-    override suspend fun disable() {
+    override suspend fun disable(): Result<Unit> {
         preferenceState.value = ReminderPreference.Disabled
+        return Result.success(Unit)
     }
 }

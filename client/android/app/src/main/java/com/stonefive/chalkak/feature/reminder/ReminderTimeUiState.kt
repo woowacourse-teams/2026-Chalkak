@@ -1,10 +1,13 @@
 package com.stonefive.chalkak.feature.reminder
 
+import com.stonefive.chalkak.core.ui.UiMessage
+
 data class ReminderTimeUiState(
     val selectedOption: ReminderTimeOption = ReminderTimeOption.EVENING,
     val customHour: Int? = null,
     val customMinute: Int? = null,
     val saveStatus: ReminderSaveStatus = ReminderSaveStatus.IDLE,
+    val pendingMessage: UiMessage? = null,
 ) {
     val customTimeLabel: String?
         get() = customHour?.let { hour ->

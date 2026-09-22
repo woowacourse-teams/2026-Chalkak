@@ -9,7 +9,7 @@ interface ReminderPreferenceRepository {
     suspend fun enable(
         hour: Int,
         minute: Int,
-    )
+    ): Result<Unit>
 
-    suspend fun disable()
+    suspend fun disable(): Result<Unit>
 }
