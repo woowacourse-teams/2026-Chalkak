@@ -11,9 +11,10 @@ final class NotificationSetupViewModel {
     private let store: any NotificationSetupStoring
 
     init() {
-        viewState = NotificationSetupViewState()
+        let store = NotificationSetupStore()
+        self.store = store
         scheduler = UserNotificationDailyScheduler()
-        store = NotificationSetupStore()
+        viewState = Self.initialState(savedTime: store.savedTime)
     }
 
     init(
@@ -64,5 +65,11 @@ final class NotificationSetupViewModel {
 
     func consumeEvent() {
         event = nil
+    }
+
+    private static func initialState(savedTime: DateComponents?) -> NotificationSetupViewState {
+        guard let savedTime else { return NotificationSetupViewState() }
+        let option = NotificationTimeOption.allCases.first { $0.presetTime == savedTime } ?? .custom
+        return NotificationSetupViewState(selectedOption: option, customTime: savedTime)
     }
 }

@@ -121,6 +121,20 @@ struct NotificationSetupStoreTests {
         #expect(store.hasCompletedSetup)
         #expect(defaults.integer(forKey: "notificationSetup.hour") == 7)
         #expect(defaults.integer(forKey: "notificationSetup.minute") == 25)
+        #expect(store.savedTime == DateComponents(hour: 7, minute: 25))
+    }
+
+    @Test
+    func savedTimeIsNilWhenSetupSkipped() throws {
+        let suiteName = "NotificationSetupStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = NotificationSetupStore(defaults: defaults)
+
+        store.completeSetup(time: nil)
+
+        #expect(store.hasCompletedSetup)
+        #expect(store.savedTime == nil)
     }
 }
 
@@ -168,6 +182,10 @@ private final class StoreSpy: NotificationSetupStoring {
 
     var hasCompletedSetup: Bool {
         !completedTimes.isEmpty
+    }
+
+    var savedTime: DateComponents? {
+        completedTimes.last ?? nil
     }
 
     func completeSetup(time: DateComponents?) {

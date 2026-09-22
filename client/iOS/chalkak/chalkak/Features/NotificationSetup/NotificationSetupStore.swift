@@ -2,6 +2,7 @@ import Foundation
 
 protocol NotificationSetupStoring {
     var hasCompletedSetup: Bool { get }
+    var savedTime: DateComponents? { get }
     func completeSetup(time: DateComponents?)
 }
 
@@ -20,6 +21,17 @@ struct NotificationSetupStore: NotificationSetupStoring {
 
     var hasCompletedSetup: Bool {
         defaults.bool(forKey: Key.hasCompletedSetup)
+    }
+
+    var savedTime: DateComponents? {
+        guard defaults.object(forKey: Key.hour) != nil,
+              defaults.object(forKey: Key.minute) != nil else {
+            return nil
+        }
+        return DateComponents(
+            hour: defaults.integer(forKey: Key.hour),
+            minute: defaults.integer(forKey: Key.minute)
+        )
     }
 
     func completeSetup(time: DateComponents?) {

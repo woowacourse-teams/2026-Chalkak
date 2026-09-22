@@ -44,6 +44,18 @@ struct NotificationSetupScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
+        .onAppear {
+            syncCustomDateWithViewState()
+        }
+    }
+
+    private func syncCustomDateWithViewState() {
+        let time = viewModel.viewState.customTime
+        guard let hour = time.hour, let minute = time.minute,
+              let date = Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) else {
+            return
+        }
+        customDate = date
     }
 
     private var header: some View {
