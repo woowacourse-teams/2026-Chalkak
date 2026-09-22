@@ -82,6 +82,54 @@ class ChalkakNavHostTest {
             )
         }
     }
+
+    @Test
+    fun photoUploadSuccessConfirmOpensUploadedDateDisplayAndClearsUploadFlow() {
+        lateinit var navController: NavHostController
+        val uploadedDate = LocalDate.of(2026, 9, 22)
+
+        composeRule.activity.setContent {
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    navController = navController,
+                    startDestination = Today,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            navController.navigate(
+                PhotoUploadSuccess(
+                    imageModel = "uploaded-image",
+                    caption = "업로드 사진",
+                    date = uploadedDate.toString(),
+                    topic = "오늘의 주제",
+                    moderationStatus = "VALIDATING",
+                ),
+            )
+        }
+
+        composeRule.onNodeWithText("확인했어요.").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Display>() == true
+        }
+        composeRule.runOnIdle {
+            assertEquals(
+                uploadedDate.toString(),
+                navController.currentBackStackEntry
+                    ?.toRoute<Display>()
+                    ?.date,
+            )
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<Today>() == true,
+            )
+        }
+    }
 }
 
 private object NoOpAnalyticsTracker : AnalyticsTracker {

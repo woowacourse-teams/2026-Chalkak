@@ -96,7 +96,7 @@ struct ContentView: View {
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
                         submission: successSubmission,
-                        onConfirmClick: closePhotoUploadSuccess
+                        onConfirmClick: showDisplayAfterPhotoUpload
                     )
                 } else {
                     mainTab
@@ -320,10 +320,17 @@ struct ContentView: View {
         route = .photoUploadSuccess
     }
 
-    private func closePhotoUploadSuccess() {
+    private func showDisplayAfterPhotoUpload() {
+        guard let submission = successSubmission else { return }
+
+        displayViewModel = Self.makeDisplayViewModel(
+            initialDate: submission.content.date
+        )
         successSubmission = nil
         photoUploadViewModel = nil
-        showPhotoUploadOrigin()
+        isPhotoUploadPresented = false
+        selectedTab = .display
+        route = .home
     }
 
     private func showPhotoUploadOrigin() {
