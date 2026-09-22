@@ -42,7 +42,6 @@ struct UserNotificationDailyScheduler: DailyNotificationScheduling {
             trigger: trigger
         )
 
-        center.removePendingNotificationRequests(withIdentifiers: [Self.requestIdentifier])
         try await center.add(request)
     }
 }
