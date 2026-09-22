@@ -38,6 +38,7 @@ struct SettingsScreen: View {
     var onSignedOut: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenPhotoUpload: () -> Void = {}
+    var onOpenNotificationSetup: () -> Void = {}
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
@@ -57,6 +58,11 @@ struct SettingsScreen: View {
                                 signatureSource: viewModel.viewState.signatureURL.map(ChalkakImageSource.remote),
                                 onChange: { isSignatureChangePresented = true }
                             )
+
+                            SettingsNotificationCard(
+                                onOpenNotificationSetup: onOpenNotificationSetup
+                            )
+                            .padding(.top, theme.spacing.lg)
                         }
                     }
                     .padding(.top, theme.spacing.lg)
