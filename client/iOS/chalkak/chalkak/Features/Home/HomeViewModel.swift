@@ -12,6 +12,7 @@ final class HomeViewModel {
     private(set) var viewState: HomeViewState
     private(set) var event: HomeEvent?
     private(set) var imageReloadGeneration = 0
+    private(set) var scrollToTopRequestID = 0
 
     private let refreshHandler: RefreshHandler
     private let nextPageHandler: NextPageHandler
@@ -88,6 +89,7 @@ final class HomeViewModel {
 
     func selectBottomBarItem(_ item: ChalkakBottomBarItem) async {
         if item == .today {
+            scrollToTopRequestID += 1
             await refresh()
         } else {
             publish(.navigateToBottomBar(item))

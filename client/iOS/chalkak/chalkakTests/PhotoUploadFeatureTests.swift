@@ -4,6 +4,36 @@ import Testing
 import UIKit
 @testable import chalkak
 
+struct PhotoUploadSuccessContentTests {
+    @Test("받침이 있는 주제에는 을을 사용한다")
+    func usesEulForTopicWithFinalConsonant() {
+        let content = Self.content(topic: "하늘")
+
+        #expect(content.topicSuccessMessage == "‘하늘’을 기록했어요.")
+    }
+
+    @Test("받침이 없는 주제에는 를를 사용한다")
+    func usesReulForTopicWithoutFinalConsonant() {
+        let content = Self.content(topic: "바다")
+
+        #expect(content.topicSuccessMessage == "‘바다’를 기록했어요.")
+    }
+
+    @Test("주제 끝의 공백은 조사를 결정할 때 무시하고 빈 주제는 를를 사용한다")
+    func handlesTrailingWhitespaceAndEmptyTopic() {
+        #expect(Self.content(topic: "하늘 ").topicSuccessMessage == "‘하늘 ’을 기록했어요.")
+        #expect(Self.content(topic: "").topicSuccessMessage == "‘’를 기록했어요.")
+    }
+
+    private static func content(topic: String) -> PhotoUploadSuccessContent {
+        PhotoUploadSuccessContent(
+            date: Date(),
+            topic: topic,
+            moderationStatus: .validating
+        )
+    }
+}
+
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadViewStateTests {

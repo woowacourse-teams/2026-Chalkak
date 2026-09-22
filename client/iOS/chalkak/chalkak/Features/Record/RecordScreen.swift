@@ -117,11 +117,10 @@ struct RecordScreen: View {
             RecordSelectedPhoto(post: selectedPost)
                 .frame(maxWidth: .infinity)
 
-            if selectedPost.status == .pending || selectedPost.status == .approved {
+            if selectedPost.status == .approved {
                 RecordPhotoActions(
                     onFeedClick: { onOpenFeed(selectedPost.postId) },
-                    onDisplayClick: { onOpenDisplay(selectedPost.topicDate) },
-                    isDisplayVisible: selectedPost.status == .approved
+                    onDisplayClick: { onOpenDisplay(selectedPost.topicDate) }
                 )
                 .padding(.leading, Metrics.horizontalPadding)
                 .padding(.top, Metrics.actionsTopPadding)

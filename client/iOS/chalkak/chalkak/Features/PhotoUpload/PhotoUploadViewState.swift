@@ -25,6 +25,22 @@ struct PhotoUploadSuccessContent: Equatable, Sendable {
     let date: Date
     let topic: String
     let moderationStatus: PhotoUploadModerationStatus
+
+    var topicSuccessMessage: String {
+        "‘\(topic)’\(topic.objectParticle) 기록했어요."
+    }
+}
+
+private extension String {
+    var objectParticle: String {
+        guard let scalar = trimmingCharacters(in: .whitespacesAndNewlines).last?.unicodeScalars.first,
+              (0xAC00...0xD7A3).contains(scalar.value)
+        else {
+            return "를"
+        }
+
+        return (scalar.value - 0xAC00).isMultiple(of: 28) ? "를" : "을"
+    }
 }
 
 struct PhotoUploadPreparation: Sendable {

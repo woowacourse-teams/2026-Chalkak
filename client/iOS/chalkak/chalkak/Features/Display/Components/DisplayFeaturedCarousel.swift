@@ -5,6 +5,7 @@ struct DisplayFeaturedCarousel: View {
     let photos: [DisplayPhoto]
     let currentPage: Int
     let onPageChange: (Int) -> Void
+    var onSelect: (DisplayPhoto) -> Void = { _ in }
 
     @State private var scrollID: Int?
 
@@ -13,7 +14,7 @@ struct DisplayFeaturedCarousel: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: Metrics.pageSpacing) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                        DisplayFeaturedCard(photo: photo)
+                        DisplayFeaturedCard(photo: photo, onSelect: { onSelect(photo) })
                             .containerRelativeFrame(.horizontal)
                             .scrollTransition(.interactive, axis: .horizontal) { content, phase in
                                 content
@@ -52,38 +53,43 @@ struct DisplayFeaturedCarousel: View {
 private struct DisplayFeaturedCard: View {
     @Environment(\.chalkakTheme) private var theme
     let photo: DisplayPhoto
+    let onSelect: () -> Void
 
     var body: some View {
-        ZStack {
-            Color.black
+        Button(action: onSelect) {
+            ZStack {
+                Color.black
 
-            ChalkakSignedImage(
-                imageSource: photo.originalImageSource,
-                signatureSource: photo.signatureOriginalImageSource,
-                contentDescription: photo.contentDescription,
-                contentMode: .fit,
-                signatureSize: Metrics.signatureSize
-            )
-        }
-        .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
-        .overlay(alignment: .bottomLeading) {
-            DisplayLikeBadge(likeCount: photo.likeCount)
-                .padding(Metrics.badgeInset)
-        }
-        .overlay(alignment: .bottom) {
-            if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !title.isEmpty {
-                Text(title)
-                    .font(theme.typography.handwriting)
-                    .foregroundStyle(theme.colors.textOnImage)
-                    .lineLimit(1)
-                    .padding(.bottom, Metrics.titleBottomPadding)
-                    .accessibilityHidden(true)
+                ChalkakSignedImage(
+                    imageSource: photo.originalImageSource,
+                    signatureSource: photo.signatureOriginalImageSource,
+                    contentDescription: photo.contentDescription,
+                    contentMode: .fit,
+                    signatureSize: Metrics.signatureSize
+                )
             }
+            .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
+            .overlay(alignment: .bottomLeading) {
+                DisplayLikeBadge(likeCount: photo.likeCount, isLiked: photo.isLiked)
+                    .padding(Metrics.badgeInset)
+            }
+            .overlay(alignment: .bottom) {
+                if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !title.isEmpty {
+                    Text(title)
+                        .font(theme.typography.handwriting)
+                        .foregroundStyle(theme.colors.textOnImage)
+                        .lineLimit(1)
+                        .padding(.bottom, Metrics.titleBottomPadding)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
+        .buttonStyle(.plain)
+        .accessibilityHint("피드 열기")
     }
 }
 
@@ -138,7 +144,8 @@ private extension Int {
     DisplayFeaturedCarousel(
         photos: DisplayPreviewData.archiveState.featuredPhotos,
         currentPage: 0,
-        onPageChange: { _ in }
+        onPageChange: { _ in },
+        onSelect: { _ in }
     )
     .background(ChalkakTheme.light.colors.background)
     .chalkakTheme(.light)

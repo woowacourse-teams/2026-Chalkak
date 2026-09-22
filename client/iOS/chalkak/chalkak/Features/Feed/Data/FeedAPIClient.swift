@@ -14,6 +14,7 @@ struct FeedAPIClient: Sendable {
     private let configuration: FeedAPIConfiguration
     private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
     init(
         configuration: FeedAPIConfiguration = .development,
@@ -27,6 +28,7 @@ struct FeedAPIClient: Sendable {
             sessionStore: .live(accessTokenProvider: accessTokenProvider)
         )
         self.decoder = JSONDecoder()
+        self.encoder = JSONEncoder()
     }
 
     func fetchPostDetail(postID: String) async throws -> FeedContent {
@@ -51,6 +53,71 @@ struct FeedAPIClient: Sendable {
 
     func deletePost(postID: String) async throws {
         try await requestNoContent(path: "posts/\(postID)", method: "DELETE")
+    }
+
+    func updatePostTitle(postID: String, title: String?) async throws -> FeedTitleUpdate {
+        let normalizedTitle: String?
+        if let title {
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
+        } else {
+            normalizedTitle = nil
+        }
+        let body: Data
+        do {
+            body = try encoder.encode(FeedTitleUpdateRequest(title: normalizedTitle))
+        } catch {
+            throw FeedAPIError.invalidResponse
+        }
+
+        let url = configuration.baseURL.appendingPathComponent("posts/\(postID)")
+        guard url.scheme?.lowercased() == "https", url.host?.isEmpty == false else {
+            throw FeedAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            let (data, response) = try await authenticatedClient.data(for: request)
+            guard (200..<300).contains(response.statusCode) else {
+                throw FeedAPIError.http(response.statusCode)
+            }
+            guard !data.isEmpty else {
+                throw FeedAPIError.invalidResponse
+            }
+
+            let decoded: FeedTitleUpdateResponse
+            do {
+                decoded = try decoder.decode(FeedTitleUpdateResponse.self, from: data)
+            } catch {
+                throw FeedAPIError.invalidResponse
+            }
+            guard decoded.postID == postID else {
+                throw FeedAPIError.invalidResponse
+            }
+            let normalizedTitle: String?
+            if let title = decoded.title {
+                let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
+            } else {
+                normalizedTitle = nil
+            }
+            return FeedTitleUpdate(postID: decoded.postID, title: normalizedTitle)
+        } catch let error as FeedAPIError {
+            throw error
+        } catch AuthenticatedHTTPClientError.reauthenticationRequired {
+            throw FeedAPIError.http(401)
+        } catch AuthenticatedHTTPClientError.invalidResponse {
+            throw FeedAPIError.invalidResponse
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw FeedAPIError.network
+        }
     }
 
     private func request<Response: Decodable>(

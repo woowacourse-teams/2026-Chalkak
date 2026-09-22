@@ -27,7 +27,7 @@ struct PhotoUploadSuccessScreen: View {
                 Spacer()
                     .frame(height: 34)
 
-                Text("‘\(submission.content.topic)’를 기록했어요.")
+                Text(submission.content.topicSuccessMessage)
                     .font(theme.typography.title1)
                     .foregroundStyle(theme.colors.textPrimary)
                     .padding(.horizontal, theme.spacing.screenHorizontal)

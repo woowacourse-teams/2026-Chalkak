@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
+    @State private var notificationSetupViewModel = NotificationSetupViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -46,17 +47,22 @@ struct ContentView: View {
             case .login:
                 LoginView(
                     authRepository: authRepository,
-                    onAuthenticated: showHome,
+                    onAuthenticated: showNotificationSetupAfterAuthentication,
                     onGuestAccessGranted: showHome,
                     onSignUpRequired: showOnboarding
                 )
             case .onboarding:
                 OnboardingRoute(
                     authRepository: authRepository,
-                    onFinish: showHome,
+                    onFinish: showNotificationSetupAfterAuthentication,
                     onReauthenticationRequired: showLogin,
                     onServiceTermsView: showServiceTerms,
                     onPrivacyPolicyView: showPrivacyPolicy
+                )
+            case .notificationSetup:
+                NotificationSetupScreen(
+                    viewModel: notificationSetupViewModel,
+                    onFinish: finishNotificationSetup
                 )
             case .home:
                 NavigationStack {
@@ -96,7 +102,7 @@ struct ContentView: View {
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
                         submission: successSubmission,
-                        onConfirmClick: closePhotoUploadSuccess
+                        onConfirmClick: showDisplayAfterPhotoUpload
                     )
                 } else {
                     mainTab
@@ -111,6 +117,13 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dailyReminderNotificationTapped)) { _ in
+            showHome()
+        }
+        .onChange(of: selectedFeed) { previousFeed, currentFeed in
+            guard previousFeed != nil, currentFeed == nil else { return }
+            Task { await displayViewModel.revalidate() }
         }
         .overlay(alignment: .bottom) {
             if let message {
@@ -174,7 +187,8 @@ struct ContentView: View {
                 onOpenFeedback: openFeedback,
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
-                onOpenPhotoUpload: { openPhotoUpload(from: .settings) }
+                onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
+                onOpenNotificationSetup: openNotificationSetup
             )
         case .record:
             RecordScreen(
@@ -249,6 +263,23 @@ struct ContentView: View {
         route = .home
     }
 
+    private func showNotificationSetupAfterAuthentication() {
+        resetMainState()
+        route = AppRouteResolver.destinationAfterAuthentication(
+            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
+        )
+    }
+
+    private func finishNotificationSetup() {
+        route = .home
+    }
+
+    private func openNotificationSetup() {
+        notificationSetupViewModel = NotificationSetupViewModel()
+        selectedTab = .settings
+        route = .notificationSetup
+    }
+
     private func showOnboarding() {
         route = .onboarding
     }
@@ -316,10 +347,17 @@ struct ContentView: View {
         route = .photoUploadSuccess
     }
 
-    private func closePhotoUploadSuccess() {
+    private func showDisplayAfterPhotoUpload() {
+        guard let submission = successSubmission else { return }
+
+        displayViewModel = Self.makeDisplayViewModel(
+            initialDate: submission.content.date
+        )
         successSubmission = nil
         photoUploadViewModel = nil
-        showPhotoUploadOrigin()
+        isPhotoUploadPresented = false
+        selectedTab = .display
+        route = .home
     }
 
     private func showPhotoUploadOrigin() {
@@ -546,8 +584,14 @@ struct ContentView: View {
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
+        if ProcessInfo.processInfo.arguments.contains("-show-notification-setup") {
+            return .notificationSetup
+        }
 #endif
-        return KeychainSessionStore.hasActiveSession() ? .home : .login
+        guard KeychainSessionStore.hasActiveSession() else { return .login }
+        return AppRouteResolver.destinationAfterAuthentication(
+            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
+        )
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
@@ -567,11 +611,20 @@ struct ContentView: View {
     }
 }
 
-private enum AppRoute: Equatable {
+enum AppRoute: Equatable {
     case login
     case onboarding
+    case notificationSetup
     case home
     case photoUploadSuccess
+}
+
+enum AppRouteResolver {
+    static func destinationAfterAuthentication(
+        hasCompletedNotificationSetup: Bool
+    ) -> AppRoute {
+        hasCompletedNotificationSetup ? .home : .notificationSetup
+    }
 }
 
 private struct AnalyticsScreen: Equatable {

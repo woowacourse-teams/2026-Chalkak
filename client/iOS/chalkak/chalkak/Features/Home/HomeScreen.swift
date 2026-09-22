@@ -139,39 +139,15 @@ private struct HomeInitialStatus: View {
 private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
-    @State private var showsScrollToTop = false
-    @State private var scrollTracker = HomeScrollTracker()
     @State private var scrollPosition = ScrollPosition()
 
-    // 아래로 이동할 때는 숨기고, 위로 일정 거리 이동하면 표시하며, 최상단에서는 숨긴다.
-    private func updateScrollToTop(from oldDistance: CGFloat, to newDistance: CGFloat) {
-        if newDistance <= HomeMetrics.scrollTopVisibilityThreshold {
-            scrollTracker.upwardDistance = 0
-            setShowsScrollToTop(false)
-            return
-        }
-
-        guard oldDistance >= 0, newDistance >= 0 else {
-            scrollTracker.upwardDistance = 0
-            return
-        }
-
-        let delta = oldDistance - newDistance
-        if delta > 0 {
-            scrollTracker.upwardDistance += delta
-            if scrollTracker.upwardDistance >= HomeMetrics.scrollToTopRevealThreshold {
-                setShowsScrollToTop(true)
+    private func scrollToTop() {
+        Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) {
+                scrollPosition.scrollTo(id: HomeScrollTarget.top, anchor: .top)
             }
-        } else if delta < 0 {
-            scrollTracker.upwardDistance = 0
-            setShowsScrollToTop(false)
-        }
-    }
-
-    private func setShowsScrollToTop(_ value: Bool) {
-        guard showsScrollToTop != value else { return }
-        withAnimation(.snappy) {
-            showsScrollToTop = value
         }
     }
 
@@ -193,6 +169,7 @@ private struct HomeContent: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .homeBottomDivider()
+                    .id(HomeScrollTarget.top)
 
                     if viewModel.viewState.photos.isEmpty {
                         HomeEmptyContent()
@@ -213,37 +190,13 @@ private struct HomeContent: View {
                         )
                     }
                 }
+                .scrollTargetLayout()
             }
             // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
             // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
             .scrollPosition($scrollPosition, anchor: .top)
-            .overlay(alignment: .bottomTrailing) {
-                if showsScrollToTop {
-                    Button {
-                        withAnimation(.snappy) {
-                            scrollPosition.scrollTo(edge: .top)
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: HomeMetrics.scrollButtonIconSize, weight: .semibold))
-                            .foregroundStyle(theme.colors.iconPrimary)
-                            .frame(
-                                width: HomeMetrics.scrollButtonSize,
-                                height: HomeMetrics.scrollButtonSize
-                            )
-                            .glassEffect(.regular.interactive(), in: .circle)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, theme.spacing.xl)
-                    .padding(.bottom, theme.spacing.lg)
-                    .accessibilityLabel("맨 위로 이동")
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top
-            } action: { oldDistance, newDistance in
-                updateScrollToTop(from: oldDistance, to: newDistance)
+            .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
+                scrollToTop()
             }
             .refreshable {
                 // SwiftUI가 새로고침 컨트롤 작업을 취소하더라도, 사용자가 시작한
@@ -258,8 +211,8 @@ private struct HomeContent: View {
     }
 }
 
-private final class HomeScrollTracker {
-    var upwardDistance: CGFloat = 0
+private enum HomeScrollTarget {
+    static let top = "home-scroll-top"
 }
 
 private struct HomeEmptyContent: View {
@@ -292,10 +245,6 @@ private enum Metrics {
 
 private enum HomeMetrics {
     static let topBarOpacity = 0.96
-    static let scrollTopVisibilityThreshold: CGFloat = 1
-    static let scrollToTopRevealThreshold: CGFloat = 12
-    static let scrollButtonSize: CGFloat = 48
-    static let scrollButtonIconSize: CGFloat = 20
     static let emptyTopPadding: CGFloat = 144
     static let emptyIconSize: CGFloat = 34
     static let messageBottomPadding: CGFloat = 88

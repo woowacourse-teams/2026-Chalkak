@@ -107,7 +107,7 @@ private struct DisplayMasonryCell: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
             .overlay(alignment: .bottomLeading) {
-                DisplayLikeBadge(likeCount: photo.likeCount)
+                DisplayLikeBadge(likeCount: photo.likeCount, isLiked: photo.isLiked)
                     .padding(Metrics.badgeInset)
             }
             .task(id: photo.id) {
@@ -124,10 +124,11 @@ private struct DisplayMasonryCell: View {
 struct DisplayLikeBadge: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
+    let isLiked: Bool
 
     var body: some View {
         HStack(spacing: Metrics.spacing) {
-            Image("ic_heart")
+            Image(isLiked ? "ic_heart_filled" : "ic_heart")
                 .renderingMode(.template)
                 .resizable()
                 .frame(width: Metrics.heartSize, height: Metrics.heartSize)
@@ -138,6 +139,7 @@ struct DisplayLikeBadge: View {
         }
         .foregroundStyle(theme.colors.textOnImage)
         .shadow(color: .black.opacity(Metrics.shadowOpacity), radius: Metrics.shadowRadius, y: 1)
+        .accessibilityValue(isLiked ? "선택됨" : "선택 안 됨")
     }
 
     private enum Metrics {
