@@ -216,7 +216,10 @@ fun ChalkakNavHost(
                         signaturePreviewPng = null
                     },
                     onSignUpSuccess = {
-                        navController.navigate(ReminderTime())
+                        navController.navigate(ReminderTime()) {
+                            popUpTo<Terms> { inclusive = true }
+                            launchSingleTop = true
+                        }
                         signaturePreviewPng = null
                     },
                     onReauthenticationRequired = {
