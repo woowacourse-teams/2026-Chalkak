@@ -60,6 +60,8 @@ class ChalkakRouteTest {
         assertEquals(ChangeSignature, roundTrip(ChangeSignature))
         assertEquals(OnboardingSignaturePreview, roundTrip(OnboardingSignaturePreview))
         assertEquals(ChangeSignaturePreview, roundTrip(ChangeSignaturePreview))
+        assertEquals(ReminderTime(), roundTrip(ReminderTime()))
+        assertEquals(ReminderTime(returnToSettings = true), roundTrip(ReminderTime(true)))
     }
 
     @Test

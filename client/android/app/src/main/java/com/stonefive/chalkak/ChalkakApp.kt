@@ -4,10 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.feature.authgate.AuthGateRoute
+import com.stonefive.chalkak.feature.reminder.ReminderGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 import com.stonefive.chalkak.navigation.ChalkakNavHost
 import com.stonefive.chalkak.navigation.Login
+import com.stonefive.chalkak.navigation.ReminderTime
 import com.stonefive.chalkak.navigation.Today
 
 @Composable
@@ -33,10 +35,22 @@ fun ChalkakApp(
                 )
             },
             appAccessibleContent = { contentModifier ->
-                ChalkakNavHost(
-                    analyticsTracker = analyticsTracker,
+                ReminderGateRoute(
+                    reminderRequiredContent = { gateModifier ->
+                        ChalkakNavHost(
+                            analyticsTracker = analyticsTracker,
+                            modifier = gateModifier,
+                            startDestination = ReminderTime(),
+                        )
+                    },
+                    configuredContent = { gateModifier ->
+                        ChalkakNavHost(
+                            analyticsTracker = analyticsTracker,
+                            modifier = gateModifier,
+                            startDestination = Today,
+                        )
+                    },
                     modifier = contentModifier,
-                    startDestination = Today,
                 )
             },
         )
