@@ -130,6 +130,19 @@ struct SettingsFeedbackCard: View {
     }
 }
 
+struct SettingsNotificationCard: View {
+    let onOpenNotificationSetup: () -> Void
+
+    var body: some View {
+        SettingsCard {
+            SettingsRow(title: "알림 설정", action: onOpenNotificationSetup) {
+                SettingsChevron()
+            }
+        }
+        .accessibilityIdentifier("settings.notificationSetup")
+    }
+}
+
 struct SettingsAccountCard: View {
     @Environment(\.chalkakTheme) private var theme
     let onLogout: () -> Void
