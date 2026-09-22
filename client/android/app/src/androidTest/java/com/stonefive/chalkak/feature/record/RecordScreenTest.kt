@@ -173,9 +173,8 @@ class RecordScreenTest {
     }
 
     @Test
-    fun pendingPhotoOpensInFeedWithoutDisplayAction() {
+    fun pendingPhotoShowsStatusAndHidesActions() {
         val photo = recordPhoto(day = 2).copy(status = PostStatus.PENDING)
-        var openedPostId: String? = null
 
         composeRule.setContent {
             ChalkakTheme {
@@ -191,15 +190,25 @@ class RecordScreenTest {
                     onDateClick = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
-                    onOpenFeed = { openedPostId = it },
                 )
             }
         }
 
-        composeRule.onNodeWithText("피드에서 보기").performClick()
+        composeRule
+            .onNodeWithContentDescription("사진 반영 중")
+            .assertIsDisplayed()
+            .performClick()
 
-        assertEquals(photo.postId, openedPostId)
+        composeRule
+            .onNodeWithText("사진을 반영하고 있어요.\n표시되기까지 조금 시간이 걸릴 수도 있어요!")
+            .assertIsDisplayed()
+        composeRule.onAllNodesWithText("피드에서 보기").assertCountEquals(0)
         composeRule.onAllNodesWithText("전시 보러가기").assertCountEquals(0)
+
+        composeRule.onNodeWithContentDescription("사진 반영 중").performClick()
+        composeRule
+            .onAllNodesWithText("사진을 반영하고 있어요.\n표시되기까지 조금 시간이 걸릴 수도 있어요!")
+            .assertCountEquals(0)
     }
 
     @Test

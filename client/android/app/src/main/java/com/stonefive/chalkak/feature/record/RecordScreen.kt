@@ -260,10 +260,7 @@ fun RecordScreen(
                     post = selectedPost,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (
-                    selectedPost != null &&
-                    selectedPost.status in setOf(PostStatus.PENDING, PostStatus.APPROVED)
-                ) {
+                if (selectedPost?.status == PostStatus.APPROVED) {
                     RecordPhotoActions(
                         onFeedClick = {
                             onOpenFeed(selectedPost.postId)
@@ -271,7 +268,6 @@ fun RecordScreen(
                         onDisplayClick = {
                             onOpenDisplay(selectedPost.topicDate)
                         },
-                        isDisplayVisible = selectedPost.status == PostStatus.APPROVED,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(

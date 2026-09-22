@@ -97,6 +97,19 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun tappingReminderRowInvokesReminderCallback() {
+        var reminderClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(versionName = "1.0"),
+            onReminderClick = { reminderClickCount++ },
+        )
+
+        composeRule.onNodeWithText("알림 설정").performClick()
+
+        assertEquals(1, reminderClickCount)
+    }
+
+    @Test
     fun logoutConfirmationDialogCanBeConfirmed() {
         var confirmed = false
         setSettingsContent(
@@ -138,6 +151,7 @@ class SettingsScreenTest {
         onChangeSignatureClick: () -> Unit = {},
         onPrivacyPolicyClick: () -> Unit = {},
         onTermsClick: () -> Unit = {},
+        onReminderClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
     ) {
@@ -150,6 +164,7 @@ class SettingsScreenTest {
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
                     onFeedbackClick = {},
+                    onReminderClick = onReminderClick,
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,

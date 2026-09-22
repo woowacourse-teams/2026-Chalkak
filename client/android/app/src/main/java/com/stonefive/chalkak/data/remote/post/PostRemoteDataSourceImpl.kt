@@ -6,6 +6,8 @@ import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateRequest
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.YearMonth
@@ -31,6 +33,16 @@ class PostRemoteDataSourceImpl(
 
     override suspend fun deletePost(postId: String): ApiResult<Unit> = requestExecutor.executeNoContent {
         postApi.deletePost(postId)
+    }
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): ApiResult<PostTitleUpdateResponse> = requestExecutor.execute {
+        postApi.updatePostTitle(
+            postId = postId,
+            request = PostTitleUpdateRequest(title = title),
+        )
     }
 
     override suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse> = requestExecutor.execute {

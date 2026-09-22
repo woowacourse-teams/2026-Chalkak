@@ -72,7 +72,7 @@ fun PhotoUploadSuccessScreen(
             Spacer(modifier = Modifier.height(34.dp))
 
             Text(
-                text = "‘${content.topic}’를 기록했어요.",
+                text = "‘${content.topic}’${content.topic.koreanObjectParticle()} 기록했어요.",
                 modifier = Modifier.padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 style = ChalkakTheme.typography.title1,
                 color = ChalkakTheme.colors.textPrimary,
@@ -91,6 +91,19 @@ fun PhotoUploadSuccessScreen(
         }
     }
 }
+
+internal fun String.koreanObjectParticle(): String {
+    val lastCharacter = trimEnd().lastOrNull()
+    val codePoint = lastCharacter?.code ?: return "를"
+    val hasFinalConsonant = codePoint in HANGUL_SYLLABLE_START..HANGUL_SYLLABLE_END &&
+        (codePoint - HANGUL_SYLLABLE_START) % HANGUL_JONGSEONG_COUNT != 0
+
+    return if (hasFinalConsonant) "을" else "를"
+}
+
+private const val HANGUL_SYLLABLE_START = 0xAC00
+private const val HANGUL_SYLLABLE_END = 0xD7A3
+private const val HANGUL_JONGSEONG_COUNT = 28
 
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable

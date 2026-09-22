@@ -21,6 +21,9 @@ data object OnboardingSignaturePreview
 data object ChangeSignaturePreview
 
 @Serializable
+data class ReminderTime(val returnToSettings: Boolean = false)
+
+@Serializable
 data object Today
 
 @Serializable
@@ -39,6 +42,7 @@ data class Feed(
     val isLiked: Boolean = false,
     val dateLabel: String,
     val topic: String,
+    val topicDate: String? = null,
     val isOwnedByCurrentUser: Boolean = false,
     val fetchDetail: Boolean = true,
 )

@@ -5,6 +5,7 @@ import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
@@ -76,6 +77,29 @@ class PostRemoteDataSourceImplTest {
         assertEquals(ApiResult.Success(Unit), result)
         assertEquals("DELETE", request.method)
         assertEquals("/api/v1/posts/$POST_ID", request.path)
+    }
+
+    @Test
+    fun `게시물 제목 수정은 PUT과 제목 body를 전송한다`() = runTest {
+        server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":"수정한 제목"}"""))
+
+        val result = dataSource.updatePostTitle(POST_ID, "수정한 제목")
+        val request = server.takeRequest()
+
+        assertEquals(ApiResult.Success(PostTitleUpdateResponse(POST_ID, "수정한 제목")), result)
+        assertEquals("PUT", request.method)
+        assertEquals("/api/v1/posts/$POST_ID", request.path)
+        assertEquals("{\"title\":\"수정한 제목\"}", request.body.readUtf8())
+    }
+
+    @Test
+    fun `빈 제목 삭제는 null body를 전송한다`() = runTest {
+        server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":null}"""))
+
+        dataSource.updatePostTitle(POST_ID, null)
+
+        val request = server.takeRequest()
+        assertEquals("{\"title\":null}", request.body.readUtf8())
     }
 
     @Test

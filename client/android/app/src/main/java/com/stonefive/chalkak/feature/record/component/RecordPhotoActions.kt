@@ -15,7 +15,6 @@ fun RecordPhotoActions(
     onFeedClick: () -> Unit,
     onDisplayClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isDisplayVisible: Boolean = true,
 ) {
     Row(
         modifier = modifier,
@@ -26,13 +25,11 @@ fun RecordPhotoActions(
             onClick = onFeedClick,
             modifier = Modifier.weight(1f),
         )
-        if (isDisplayVisible) {
-            ChalkakOutlinedButton(
-                text = "전시 보러가기",
-                onClick = onDisplayClick,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        ChalkakOutlinedButton(
+            text = "전시 보러가기",
+            onClick = onDisplayClick,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

@@ -23,6 +23,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -62,6 +63,30 @@ class PostRepositoryImpl(
             is ApiResult.Success -> HomeResult.Success(Unit)
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<PostTitleUpdate> = when (
+        val result = remoteDataSource.updatePostTitle(
+            postId = postId,
+            title = title.normalizeTitle(),
+        )
+    ) {
+        is ApiResult.Success -> if (result.value.postId == postId) {
+            HomeResult.Success(
+                PostTitleUpdate(
+                    postId = result.value.postId,
+                    title = result.value.title
+                        .normalizeTitle(),
+                ),
+            )
+        } else {
+            HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+
+        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+    }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         val topic = when (val result = topicRemoteDataSource.getTopic(query.date)) {
@@ -286,6 +311,10 @@ class PostRepositoryImpl(
     }
 
     private fun Long.toLikeCountOrNull(): Int? = takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
+
+    private fun String?.normalizeTitle(): String? = this
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
 
     private fun ApiError.toDomain(isTopic: Boolean = false): HomeFailure = when (this) {
         ApiError.Network -> HomeFailure.Network

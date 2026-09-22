@@ -35,7 +35,9 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.component.FeedContent
+import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
+import java.time.LocalDate
 
 @Composable
 fun FeedRoute(
@@ -65,6 +67,7 @@ fun FeedRoute(
     FeedScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
+        onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
         snackbarHostState = snackbarHostState,
@@ -81,9 +84,18 @@ fun FeedScreen(
     onLikeClick: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
 ) {
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showTitleEditDialog by rememberSaveable { mutableStateOf(false) }
+    var titleDraft by rememberSaveable { mutableStateOf("") }
+
+    LaunchedEffect(uiState.titleUpdateSuccessPostId) {
+        if (uiState.titleUpdateSuccessPostId != null) {
+            showTitleEditDialog = false
+        }
+    }
 
     if (showDeleteDialog) {
         ChalkakConfirmDialog(
@@ -100,6 +112,17 @@ fun FeedScreen(
         )
     }
 
+    if (showTitleEditDialog) {
+        FeedTitleEditDialog(
+            title = titleDraft,
+            onTitleChange = { titleDraft = it },
+            onConfirm = { onEditTitleClick(titleDraft) },
+            onDismiss = { if (!uiState.isUpdatingTitle) showTitleEditDialog = false },
+            isSubmitting = uiState.isUpdatingTitle,
+            modifier = Modifier.fillMaxWidth(0.88f),
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakBackground,
@@ -108,11 +131,26 @@ fun FeedScreen(
         topBar = {
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
+                onEditClick = {
+                    titleDraft = uiState.content
+                        ?.post
+                        ?.title
+                        .orEmpty()
+                    showTitleEditDialog = true
+                },
                 onDeleteClick = { showDeleteDialog = true },
+                isEditVisible = uiState.content
+                    ?.post
+                    ?.isOwnedByCurrentUser == true && uiState.isTitleEditable,
                 isDeleteVisible = uiState.content
                     ?.post
                     ?.isOwnedByCurrentUser == true,
                 isDeleteEnabled = !uiState.isDeleting,
+                isEditEnabled =
+                    !uiState.isDeleting &&
+                        !uiState.isUpdatingTitle &&
+                        !uiState.isRefreshing &&
+                        uiState.isTitleEditable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
@@ -187,6 +225,8 @@ private fun FeedScreenPreview() {
                         isOwnedByCurrentUser = true,
                     ),
                     isLiked = false,
+                    topicDate = LocalDate
+                        .of(2026, 8, 3),
                 ),
             ),
             onNavigateBack = {},
