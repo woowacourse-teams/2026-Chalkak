@@ -1,0 +1,95 @@
+name: Shared Harness
+
+on:
+  pull_request:
+    branches: [be/develop]
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - .agents/skills/business-rules/**
+      - .claude/skills/business-rules/**
+      - docs/business-rules/**
+      - backend/docs/interviews/**
+      - backend/scripts/shared_harness/**
+      - backend/scripts/check_harness.py
+      - backend/scripts/requirements-harness.txt
+      - .github/workflows/shared-harness.yml
+  push:
+    # Temporary pre-merge route; remove after issue #477 live validation.
+    branches: [be/develop, 'be/feature/#477-shared-harness']
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - .agents/skills/business-rules/**
+      - .claude/skills/business-rules/**
+      - docs/business-rules/**
+      - backend/docs/interviews/**
+      - backend/scripts/shared_harness/**
+      - backend/scripts/check_harness.py
+      - backend/scripts/requirements-harness.txt
+      - .github/workflows/shared-harness.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-harness-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install structural checker dependencies
+        run: python -m pip install -r backend/scripts/requirements-harness.txt
+      - name: Check harness structure
+        working-directory: backend
+        run: python scripts/check_harness.py
+      - name: Test local installation and publication
+        run: python -B -m unittest discover -s backend/scripts/shared_harness -p 'test_*.py'
+      - name: Validate export from this commit
+        run: python backend/scripts/shared_harness/manage.py export --source . --output "$RUNNER_TEMP/harness-verify"
+
+  publish:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/be/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Publish common files to harness/shared
+        run: python backend/scripts/shared_harness/publish.py --source .
+
+  publish-validation:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/be/feature/#477-shared-harness'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Publish only to the isolated validation branch
+        run: python backend/scripts/shared_harness/publish.py --source . --validation
