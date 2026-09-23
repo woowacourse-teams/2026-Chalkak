@@ -15,8 +15,7 @@ on:
       - backend/scripts/requirements-harness.txt
       - .github/workflows/shared-harness.yml
   push:
-    # Temporary pre-merge route; remove after issue #477 live validation.
-    branches: [be/develop, 'be/feature/#477-shared-harness']
+    branches: [be/develop]
     paths:
       - AGENTS.md
       - CLAUDE.md
@@ -75,21 +74,3 @@ jobs:
           python-version: '3.14'
       - name: Publish common files to harness/shared
         run: python backend/scripts/shared_harness/publish.py --source .
-
-  publish-validation:
-    needs: verify
-    if: github.event_name == 'push' && github.ref == 'refs/heads/be/feature/#477-shared-harness'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
-      - name: Publish only to the isolated validation branch
-        run: python backend/scripts/shared_harness/publish.py --source . --validation

@@ -2,7 +2,7 @@
 
 백엔드는 `be/develop` 기반 작업 브랜치에서 공통 하네스를 수정한다. 검토한 공통 파일만 전용 배포 브랜치에 게시하고, Android는 그 배포본을 별도 cache에 내려받아 프로젝트 안에 설치한다. Android 개발 브랜치에 백엔드나 배포 브랜치를 병합하지 않는다.
 
-**현재 상태 (2026-09-23):** 로컬 `be/feature/#477-shared-harness`에 구현 중이며 아직 커밋·push하지 않았다. 원격 작업 브랜치와 `harness/shared`는 없다. 자동 게시·설치·갱신·읽기 전용 보호는 로컬 테스트 대상으로, 실제 GitHub Actions 실행·원격 게시·팀원 설치·로그인 실행·AI 정책 적용은 미검증이다. 아래 사용법은 검증·병합 후 운영할 흐름이며 현재 팀 배포 완료를 뜻하지 않는다.
+**현재 상태 (2026-09-23):** 작업 브랜치를 push해 실제 GitHub Actions에서 최초 게시·문서만 수정·문서만 삭제를 각각 검증했다. `harness/validation-477`의 공통 파일을 원본과 대조하고 실제 client/develop 임시 복제본에서 설치·읽기 전용·sync/apply 버전 전환을 확인했다. 정식 `harness/shared`는 아직 없으며, 검증용 실행 경로를 제거했으며 커밋·PR·병합·최초 정식 게시가 남아 있다. 실제 팀원 설치·macOS 로그인·AI 정책 적용은 미검증이다.
 
 ## 무엇을 함께 공유하는가
 
@@ -21,7 +21,7 @@ Python 3.10 이상, Git, 저장소 읽기 인증이 필요하다. macOS/Linux �
 
 설치 도구는 검토된 백엔드 커밋의 `backend/scripts/shared_harness/manage.py`를 별도 위치에 복사해 사용한다. Android에 이 스크립트가 없으면 백엔드 담당자가 검토된 파일과 원본 커밋을 전달한다. 배포 파일을 내려받는 것만으로 설치 도구 자체를 자동 교체하거나 실행하지 않는다. 도구 변경 시에는 새 파일을 검토한 뒤 다시 복사해야 한다.
 
-정식 자동 게시 대상은 **`harness/shared`**다. 아직 원격에 생성하지 않았으며 `be/develop` 반영 후 최초 자동 게시가 생성한다. 사전 검증은 아래의 별도 `harness/validation-477`을 사용한다. 게시기는 실수로 개발 브랜치에 쓰지 않도록 각 경로의 원본·대상 이름을 고정했다. 아래 컴퓨터 경로는 각자 실제 경로로 변경한다.
+정식 자동 게시 대상은 **`harness/shared`**다. 아직 원격에 생성하지 않았으며 `be/develop` 반영 후 최초 자동 게시가 생성한다. 사전 검증에는 별도 `harness/validation-477`을 사용했고, 해당 실행 경로는 검증 후 제거했다. 게시기는 원본 `be/develop`과 대상 `harness/shared`만 사용한다. 아래 컴퓨터 경로는 각자 실제 경로로 변경한다.
 
 ```bash
 HARNESS_TOOL="$HOME/.local/share/chalkak-harness/manage.py"
@@ -177,14 +177,26 @@ python3 "$HARNESS_TOOL" uninstall --project "$CHALKAK_PROJECT"
 
 ## 검증
 
-### 실제 GitHub Actions 사전 검증 — 준비됨, 아직 미실행
+### 실제 GitHub Actions 사전 검증 — 추가·수정·삭제 통과
 
-로컬 fixture 테스트는 GitHub 이벤트 감지·러너·실제 토큰의 push 권한을 확인하지 못한다. 따라서 병합 전에 다음 절차를 실제 원격에서 수행한다. 현재 사용자 검토·커밋 승인을 기다리고 있으며, 실행 링크와 SHA가 없는 항목을 통과로 기록하지 않는다.
+로컬 fixture 테스트만으로 GitHub 이벤트 감지·러너·실제 토큰의 push 권한을 확인할 수 없어, 사용자 승인 후 아래 세 번의 커밋·push를 실제로 검증했다. 각 실행에서 구조 검사·26개 테스트·검증 배포 게시가 통과했고, 정식 publish 작업은 건너뛰었다.
+
+| 실제 실행 | 원본 커밋 | 자동 생성된 배포 커밋 | 확인 결과 |
+| --- | --- | --- | --- |
+| [최초 게시](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35814456151) | `d39cd18` | `6669ba4` | 검증 브랜치 생성, 임시 문서를 포함한 22개 파일 일치 |
+| [문서만 수정](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35815014984) | `c9f1625` | `750edef` | 문서 한 줄 변경만으로 실행, 수정 내용·원본 SHA 반영 |
+| [문서만 삭제](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35815257055) | `1c44099` | `e91837a` | 임시 문서만 파일·manifest에서 제거, 실제 공통 파일 21개 보존 |
+
+`client/develop@4b5ba2b`를 별도 임시 폴더에 복제해 설치했다. 최초 설치에서 기존 추적 파일 597개 보존과 Codex·Claude 스킬 연결·읽기 전용 쓰기 거절을 확인했다. 수정·삭제 게시마다 sync로는 기존 활성 버전이 유지되고, 변경 목록에 임시 문서 하나만 표시되며, apply 뒤에만 수정·삭제가 반영됐다. 이전 버전 사본과 실제 앱 파일도 유지됐다.
+
+삭제한 `distribution-probe.md`는 이 검증을 위해 만든 비정책 문서다. 좋아요·사진 조회 등 실제 규칙을 삭제하지 않았다. 남은 21개 공통 파일의 내용은 최초 원본 커밋과 모두 일치했다. 로그인 plist가 생성한 실제 실행 명령도 직접 실행해 sync 성공·활성 버전 유지를 확인했지만, launchctl 등록이나 실제 로그아웃·로그인은 수행하지 않았다.
+
+이 실행은 배포·설치 검증이다. AI가 실제 스킬을 읽고 정책을 적용했다는 증거로 사용하지 않는다. 원본 실행 로그와 전체 SHA·버전은 로컬 `backend/build/shared-harness-validation/`에 보관한다. 아래 절차 1~4의 실제 검증을 완료했고, 5의 임시 실행 경로와 전용 테스트 2개도 제거했다. 현재 회귀 테스트는 운영 경로를 다루는 24개이며, 위 실제 Actions 실행 시점에는 임시 경로 테스트를 포함한 26개였다. 원격 검증 브랜치는 실행 증거로 남겨 두었으며 팀 설치에 사용하지 않는다.
 
 - 원본: `be/feature/#477-shared-harness` (현재 작업 브랜치)
 - 검증 배포: `harness/validation-477` (팀 설치 대상 아님)
 - 임시 문서: `docs/business-rules/distribution-probe.md` (정책이 아닌 배포 확인용)
-- workflow의 임시 `publish-validation` 작업과 게시기의 `--validation`은 같은 검사·추출·게시 구현을 사용하되 위 두 브랜치만 연결한다. 정식 `publish`는 `be/develop` push에서만 실행한다.
+- 검증 당시 임시 `publish-validation` 작업과 게시기의 `--validation`은 같은 검사·추출·게시 구현을 사용하되 위 두 브랜치만 연결했다. 검증 후 두 경로를 제거했으며 현재 `publish`는 `be/develop` push에서만 실행한다.
 
 | 순서 | 실제 변경·작업 | 확인할 근거 |
 | --- | --- | --- |
@@ -194,7 +206,7 @@ python3 "$HARNESS_TOOL" uninstall --project "$CHALKAK_PROJECT"
 | 4 | 각 검증 배포본을 새 cache와 임시 client checkout에서 sync/install/apply | sync만으로 활성 버전이 바뀌지 않는지, 변경 목록·명시적 apply·삭제·읽기 전용 권한, 기존 Android 지침·개발 코드 보존 |
 | 5 | 검증 완료 후 임시 trigger/job·`--validation` 경로·전용 테스트를 제거하고 재검사 | 임시 정책 문서가 없고 정식 게시 경로만 PR에 남는지 |
 
-각 단계에서 Actions 실행 URL·원본 SHA·배포 SHA·콘텐츠 버전·관찰 결과를 기록한다. 작업 브랜치의 문서 변경 push마다 해당 실행을 기다린 후 다음 변경을 진행한다. 실패하면 로그와 마지막 정상 배포본을 확인하고 실패를 성공으로 표현하지 않는다. `be/develop`과 정식 `harness/shared`는 사전 검증에서 변경하지 않는다. 원격 검증 브랜치는 결과 확인 후 정리하며 팀원 설치에 사용하지 않는다.
+각 단계의 Actions 실행 URL·원본 SHA·배포 SHA·콘텐츠 버전·관찰 결과를 기록했고, 실행 완료 후 다음 변경을 진행했다. `be/develop`과 정식 `harness/shared`는 사전 검증에서 변경하지 않았다. 원격 검증 브랜치는 증거 확인 후 별도 승인으로 정리하며 팀원 설치에 사용하지 않는다.
 
 사전 검증 통과 후에도 **정식 PR 병합 → `be/develop` 이벤트 → 최초 `harness/shared` 게시**는 한 번 더 확인해야 한다. 검증 브랜치의 성공은 정식 브랜치에 적용되는 권한·브랜치 규칙까지 보장하지 않는다. 실제 팀원 설치·macOS 로그인 실행·Codex/Claude의 정책 읽기는 각각 별도 검증으로 남긴다.
 

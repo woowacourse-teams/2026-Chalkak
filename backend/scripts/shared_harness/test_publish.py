@@ -87,44 +87,6 @@ class PublishTests(unittest.TestCase):
         self.assertIn("최신", result["reason"])
         self.assertEqual(newest["release_commit"], self.head())
 
-    def test_validation_route_updates_only_validation_branch(self):
-        production = publish.publish(self.source)
-        command(self.source, "checkout", "-b", publish.VALIDATION_SOURCE_BRANCH)
-        probe = self.source / "docs/business-rules/distribution-probe.md"
-        for content in (b"distribution probe v1", b"distribution probe v2", None):
-            if content is None:
-                probe.unlink()
-            else:
-                manage.write(probe, content)
-            commit(self.source)
-            command(self.source, "push", "origin", publish.VALIDATION_SOURCE_BRANCH)
-            result = publish.publish(self.source, validation=True)
-            self.assertTrue(result["published"])
-            self.assertEqual(publish.VALIDATION_BRANCH, result["branch"])
-            self.assertEqual(production["release_commit"], self.head())
-            cache = self.root / "validation-cache"
-            manage.sync(cache, str(self.remote), publish.VALIDATION_BRANCH)
-            release = cache / "versions" / result["version"]
-            manifest = manage.verify(release)
-            self.assertEqual(result["source_commit"], manifest["source_commit"])
-            published_probe = release / probe.relative_to(self.source)
-            if content is None:
-                self.assertFalse(published_probe.exists())
-            else:
-                self.assertEqual(content, published_probe.read_bytes())
-        # A validation-only source cannot be sent through the production route.
-        with self.assertRaisesRegex(ValueError, "be/develop에 포함되지 않은"):
-            publish.publish(self.source)
-
-    def test_validation_route_rejects_unpushed_source(self):
-        command(self.source, "checkout", "-b", publish.VALIDATION_SOURCE_BRANCH)
-        command(self.source, "push", "origin", publish.VALIDATION_SOURCE_BRANCH)
-        manage.write(self.source / "docs/business-rules/unpushed.md", b"not on origin")
-        commit(self.source)
-        with self.assertRaisesRegex(ValueError, "포함되지 않은"):
-            publish.publish(self.source, validation=True)
-        self.assertEqual(b"", command(self.remote, "for-each-ref", "refs/heads/harness/"))
-
     def test_unmerged_source_cannot_be_published(self):
         manage.write(self.source / "docs/business-rules/unmerged.md", b"proposal")
         commit(self.source)

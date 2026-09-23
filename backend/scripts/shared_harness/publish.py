@@ -14,9 +14,6 @@ import manage
 
 BRANCH = "harness/shared"
 SOURCE_BRANCH = "be/develop"
-# Temporary pre-merge validation route for issue #477; never used by consumers.
-VALIDATION_SOURCE_BRANCH = "be/feature/#477-shared-harness"
-VALIDATION_BRANCH = "harness/validation-477"
 
 
 def git(source, *args, index=None, input_data=None):
@@ -38,17 +35,15 @@ def ancestor(source, older, newer):
     return result.returncode == 0
 
 
-def publish(source, *, validation=False):
+def publish(source):
     source = source.resolve()
     head = git(source, "rev-parse", "HEAD").decode().strip()
-    # Each route has fixed source/destination refs. No arbitrary-ref publication.
-    source_branch = VALIDATION_SOURCE_BRANCH if validation else SOURCE_BRANCH
-    branch = VALIDATION_BRANCH if validation else BRANCH
-    git(source, "fetch", "--no-tags", "origin", "refs/heads/" + source_branch)
+    # Both refs are fixed. Only integrated source commits can be published.
+    git(source, "fetch", "--no-tags", "origin", "refs/heads/" + SOURCE_BRANCH)
     source_tip = git(source, "rev-parse", "FETCH_HEAD").decode().strip()
     if not ancestor(source, head, source_tip):
-        raise ValueError(source_branch + "에 포함되지 않은 커밋은 게시할 수 없습니다")
-    destination = "refs/heads/" + branch
+        raise ValueError(SOURCE_BRANCH + "에 포함되지 않은 커밋은 게시할 수 없습니다")
+    destination = "refs/heads/" + BRANCH
     existing = git(source, "ls-remote", "--heads", "origin", destination).decode().strip()
     parent = None
     previous = None
@@ -86,17 +81,15 @@ def publish(source, *, validation=False):
         # Regular fast-forward push only. Concurrent updates fail; no retry/force overwrite.
         git(source, "push", "origin", release + ":" + destination)
         return {"published": True, "source_commit": head, "version": manifest["version"],
-                "release_commit": release, "branch": branch}
+                "release_commit": release, "branch": BRANCH}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--validation", action="store_true",
-                        help="#477 사전 검증 전용 브랜치에만 게시 (팀 배포 아님)")
     args = parser.parse_args()
     try:
-        result = publish(args.source, validation=args.validation)
+        result = publish(args.source)
         print(manage.json_bytes(result).decode(), end="")
         summary = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary:
