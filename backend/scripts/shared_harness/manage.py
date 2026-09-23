@@ -216,6 +216,8 @@ def instruction(name):
 
 def activate(project, cache=None):
     project = project.resolve()
+    if (project / ".chalkak-harness/automatic.json").exists():
+        raise ValueError("자동 모드에서는 새 세션이 버전을 선택합니다. install/apply를 반복하지 마세요")
     if Path(git("rev-parse", "--show-toplevel", cwd=project).decode().strip()).resolve() != project:
         raise ValueError("--project는 Git 저장소 최상위 경로여야 합니다")
     local = local_path(project, ".chalkak-harness")
@@ -306,6 +308,9 @@ def activate(project, cache=None):
 
 
 def status(project, check=False):
+    if (project / ".chalkak-harness/automatic.json").exists():
+        import automatic
+        return automatic.status(project, check)
     local = local_path(project, ".chalkak-harness")
     state = read_json(local / "install.json")
     for name in ENTRY:
@@ -336,6 +341,9 @@ def status(project, check=False):
 
 
 def uninstall(project):
+    if (project / ".chalkak-harness/automatic.json").exists():
+        import automatic
+        return automatic.uninstall(project)
     local = local_path(project, ".chalkak-harness")
     with lock(local):
         state = read_json(local / "install.json")
@@ -396,12 +404,23 @@ def main():
     login = sub.add_parser("login-plist")
     login.add_argument("--cache", type=Path, required=True)
     login.add_argument("--output", type=Path, required=True)
+    setup = sub.add_parser("setup", help="macOS 자동 다운로드와 Codex·Claude 세션 연결을 한 번에 설치")
+    setup.add_argument("--project", type=Path, default=Path.cwd())
+    session = sub.add_parser("session", help="설치된 SessionStart hook 전용")
+    session.add_argument("--provider", choices=("codex", "claude"), required=True)
+    session.add_argument("--runtime", type=Path, required=True)
     args = parser.parse_args()
     for key, value in vars(args).items():
         if isinstance(value, Path):
             setattr(args, key, value.expanduser().resolve())
     try:
-        if args.command == "export":
+        if args.command == "setup":
+            import automatic
+            result = automatic.setup(args.project)
+        elif args.command == "session":
+            import automatic
+            result = automatic.session(args.runtime, args.provider, json.load(sys.stdin))
+        elif args.command == "export":
             result = export(args.source, args.output)
         elif args.command == "sync":
             result = sync(args.cache, args.remote, args.branch)
@@ -414,7 +433,13 @@ def main():
         else:
             result = login_plist(args.cache, args.output)
         print(json_bytes(result).decode(), end="")
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+        if args.command == "session":
+            print(json_bytes({"continue": False, "stopReason": "Chalkak 정책 연결 실패: " + str(exc),
+                              "systemMessage": "Chalkak 정책 연결 실패. 설치와 hook 설정을 확인하세요: " + str(exc),
+                              "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
+                                  "Chalkak 공통 정책 연결에 실패했습니다. 정책 의존 작업 전에 설치를 확인하고 최신 정책을 읽었다고 표시하지 마세요. 오류: " + str(exc)}}).decode())
+            return 0
         print("하네스 작업 실패: " + str(exc), file=sys.stderr)
         return 1
     return 0
