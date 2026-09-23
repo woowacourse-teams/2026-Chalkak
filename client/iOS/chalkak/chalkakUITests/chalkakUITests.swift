@@ -63,7 +63,10 @@ final class chalkakUITests: XCTestCase {
     @MainActor
     func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-stonefive.chalkak.guest-access", "NO"]
+        app.launchArguments = [
+            "-stonefive.chalkak.guest-access", "NO",
+            "-notificationSetup.hasCompleted", "YES"
+        ]
         app.launch()
 
         let guestButton = app.buttons["로그인 없이 사진 둘러보기"]
@@ -87,7 +90,10 @@ final class chalkakUITests: XCTestCase {
     @MainActor
     func testGuestSettingsSeparatesFeedbackAndAccountSections() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-stonefive.chalkak.guest-access", "NO"]
+        app.launchArguments = [
+            "-stonefive.chalkak.guest-access", "NO",
+            "-notificationSetup.hasCompleted", "YES"
+        ]
         app.launch()
 
         let guestButton = app.buttons["로그인 없이 사진 둘러보기"]
@@ -143,6 +149,36 @@ final class chalkakUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
+    }
+
+    @MainActor
+    func testNotificationSetupSkipContinuesToHome() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-show-notification-setup"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["notificationSetup.title"]
+                .waitForExistence(timeout: 5)
+        )
+
+        app.buttons["notificationTime.custom"].tap()
+        let pickerDragHandle = app.otherElements["notificationTimePicker.dragHandle"]
+        XCTAssertTrue(pickerDragHandle.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["이 시간 선택하기"].exists)
+        pickerDragHandle.swipeDown()
+        XCTAssertTrue(pickerDragHandle.waitForNonExistence(timeout: 3))
+
+        app.buttons["notificationTime.custom"].tap()
+        app.buttons["이 시간 선택하기"].tap()
+        XCTAssertTrue(
+            app.buttons["notificationTime.custom"].label.contains("직접 설정 ·")
+        )
+
+        app.buttons["notificationSetup.skip"].tap()
+
+        XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
     }
 
     @MainActor

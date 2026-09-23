@@ -149,6 +149,100 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.deletedPostID == "post-1")
     }
 
+    @Test("내 게시물 제목 수정은 공백을 제거하고 완료 상태를 반영한다")
+    func updatesOnlyOwnedPostTitle() async {
+        var requestedTitle: String?
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            updateTitleHandler: { postID, title in
+                #expect(postID == "post-1")
+                requestedTitle = title
+                return .success(FeedTitleUpdate(postID: postID, title: title))
+            }
+        )
+
+        viewModel.updatePostTitle("  수정한 제목  ")
+        await Self.waitUntil { viewModel.event == .showTitleUpdateSuccess }
+
+        #expect(requestedTitle == "수정한 제목")
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+        #expect(!viewModel.viewState.isUpdatingTitle)
+
+        let otherViewModel = FeedViewModel(
+            postID: "post-2",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: false),
+            isLikeConfirmed: true,
+            updateTitleHandler: { _, _ in
+                Issue.record("다른 사용자의 게시물은 제목 수정 요청을 보내면 안 됩니다")
+                return .success(FeedTitleUpdate(postID: "post-2", title: "수정"))
+            }
+        )
+
+        otherViewModel.updatePostTitle("수정 시도")
+
+        #expect(otherViewModel.viewState.content?.post.title == "제목")
+        #expect(otherViewModel.event == nil)
+    }
+
+    @Test("지난 주제의 내 게시물은 제목 수정 요청을 보내지 않는다")
+    func refusesTitleUpdateForPastTopic() async {
+        var didRequestUpdate = false
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(
+                isLiked: false,
+                likeCount: 3,
+                isOwnedByCurrentUser: true,
+                topicDate: Date(timeIntervalSinceNow: -172_800)
+            ),
+            isLikeConfirmed: true,
+            updateTitleHandler: { _, _ in
+                didRequestUpdate = true
+                return .success(FeedTitleUpdate(postID: "post-1", title: "수정"))
+            }
+        )
+
+        viewModel.updatePostTitle("수정 시도")
+        await Task.yield()
+
+        #expect(!didRequestUpdate)
+        #expect(!viewModel.viewState.isUpdatingTitle)
+    }
+
+    @Test("상세 응답이 늦게 도착해도 조회 중 수정한 제목을 유지한다")
+    func detailLoadPreservesTitleUpdatedWhileRefreshing() async {
+        let gate = AsyncGate()
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
+            isLikeConfirmed: true,
+            detailHandler: { _ in
+                await gate.waitForRelease()
+                var detail = Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
+                detail.post.title = "상세 응답 제목"
+                return .success(detail)
+            },
+            updateTitleHandler: { postID, title in
+                .success(FeedTitleUpdate(postID: postID, title: title))
+            }
+        )
+
+        let loadTask = Task { await viewModel.load() }
+        await gate.waitUntilEntered()
+
+        viewModel.updatePostTitle("수정한 제목")
+        await Self.waitUntil { viewModel.viewState.titleUpdateVersion == 1 }
+
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+
+        gate.release()
+        await loadTask.value
+
+        #expect(viewModel.viewState.content?.post.title == "수정한 제목")
+    }
+
     @Test("기록에서 들어온 FeedTarget은 상세 응답 후에도 내 게시물로 유지된다")
     func recordTargetKeepsOwnershipAfterDetailLoad() async {
         let target = FeedTarget(postID: "post-1", isOwnedByCurrentUser: true)
@@ -180,10 +274,12 @@ struct FeedViewModelTests {
         isLiked: Bool,
         likeCount: Int,
         topic: String = "하늘",
-        isOwnedByCurrentUser: Bool = false
+        isOwnedByCurrentUser: Bool = false,
+        topicDate: Date = Date()
     ) -> FeedContent {
         FeedContent(
             dateLabel: "8월 3일의 주제",
+            topicDate: topicDate,
             topic: topic,
             post: FeedPost(
                 id: "post-1",

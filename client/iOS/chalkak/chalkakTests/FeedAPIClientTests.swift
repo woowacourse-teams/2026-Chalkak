@@ -32,6 +32,91 @@ struct FeedAPIClientTests {
         #expect(request.url?.path == "/api/v1/posts/post-1")
     }
 
+    @Test("게시물 제목 수정은 PUT과 정규화된 제목을 전송한다")
+    func updatesPostTitleWithNormalizedBody() async throws {
+        let recorder = FeedAPIRequestRecorder()
+        FeedAPIClientURLProtocol.handler = { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"postId":"post-1","title":"수정한 제목"}"#
+            )
+        }
+        defer { FeedAPIClientURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FeedAPIClientURLProtocol.self]
+        let client = FeedAPIClient(
+            configuration: FeedAPIConfiguration(
+                baseURL: URL(string: "https://example.com/api/v1")!
+            ),
+            session: URLSession(configuration: configuration)
+        )
+
+        let update = try await client.updatePostTitle(
+            postID: "post-1",
+            title: "  수정한 제목  "
+        )
+
+        #expect(update == FeedTitleUpdate(postID: "post-1", title: "수정한 제목"))
+        let request = try #require(await recorder.firstRequest)
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/api/v1/posts/post-1")
+        #expect(Self.bodyString(for: request) == #"{"title":"수정한 제목"}"#)
+    }
+
+    @Test("빈 제목 수정은 null을 전송한다")
+    func clearsPostTitleWithNullBody() async throws {
+        let recorder = FeedAPIRequestRecorder()
+        FeedAPIClientURLProtocol.handler = { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"postId":"post-1","title":null}"#
+            )
+        }
+        defer { FeedAPIClientURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FeedAPIClientURLProtocol.self]
+        let client = FeedAPIClient(
+            configuration: FeedAPIConfiguration(
+                baseURL: URL(string: "https://example.com/api/v1")!
+            ),
+            session: URLSession(configuration: configuration)
+        )
+
+        let update = try await client.updatePostTitle(postID: "post-1", title: "   ")
+
+        #expect(update == FeedTitleUpdate(postID: "post-1", title: nil))
+        let request = try #require(await recorder.firstRequest)
+        #expect(Self.bodyString(for: request) == #"{"title":null}"#)
+    }
+
+    private static func bodyString(for request: URLRequest) -> String? {
+        if let httpBody = request.httpBody {
+            return String(data: httpBody, encoding: .utf8)
+        }
+        guard let stream = request.httpBodyStream else { return nil }
+
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        let bufferSize = 1024
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        while stream.hasBytesAvailable {
+            let count = buffer.withUnsafeMutableBytes { bufferPointer in
+                stream.read(
+                    bufferPointer.bindMemory(to: UInt8.self).baseAddress!,
+                    maxLength: bufferSize
+                )
+            }
+            guard count > 0 else { break }
+            data.append(contentsOf: buffer.prefix(count))
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
     private static func response(
         for request: URLRequest,
         statusCode: Int = 200,

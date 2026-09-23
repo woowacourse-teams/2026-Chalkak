@@ -7,6 +7,7 @@ final class FeedViewModel {
     typealias DetailHandler = @MainActor @Sendable (String) async -> Result<FeedContent, FeedError>
     typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
     typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>
+    typealias UpdateTitleHandler = @MainActor @Sendable (String, String?) async -> Result<FeedTitleUpdate, FeedError>
 
     private(set) var viewState: FeedViewState
     private(set) var event: FeedEvent?
@@ -16,6 +17,7 @@ final class FeedViewModel {
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
+    private let updateTitleHandler: UpdateTitleHandler
     private var likeGeneration = 0
     // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
     private var likeTask: Task<Void, Never>?
@@ -28,7 +30,8 @@ final class FeedViewModel {
         initialState: FeedViewState? = nil,
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
-        deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) }
+        deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) },
+        updateTitleHandler: @escaping UpdateTitleHandler = { _, _ in .failure(.generic) }
     ) {
         self.postID = postID
         self.isOwnedByCurrentUser = isOwnedByCurrentUser
@@ -46,6 +49,7 @@ final class FeedViewModel {
         self.detailHandler = detailHandler
         self.likeHandler = likeHandler
         self.deleteHandler = deleteHandler
+        self.updateTitleHandler = updateTitleHandler
     }
 
     convenience init(target: FeedTarget, apiClient: FeedAPIClient) {
@@ -62,6 +66,11 @@ final class FeedViewModel {
             },
             deleteHandler: { postID in
                 await feedResult { try await apiClient.deletePost(postID: postID) }
+            },
+            updateTitleHandler: { postID, title in
+                await feedResult {
+                    try await apiClient.updatePostTitle(postID: postID, title: title)
+                }
             }
         )
     }
@@ -71,6 +80,7 @@ final class FeedViewModel {
             viewState.contentStatus = .loading
         }
         let likeGenerationAtStart = likeGeneration
+        let titleUpdateVersionAtStart = viewState.titleUpdateVersion
 
         switch await detailHandler(postID) {
         case let .success(content):
@@ -79,6 +89,10 @@ final class FeedViewModel {
             if likeGeneration != likeGenerationAtStart, let current = viewState.content {
                 merged.post.isLiked = current.post.isLiked
                 merged.post.likeCount = current.post.likeCount
+            }
+            if viewState.titleUpdateVersion != titleUpdateVersionAtStart,
+               let current = viewState.content {
+                merged.post.title = current.post.title
             }
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
@@ -139,7 +153,8 @@ final class FeedViewModel {
     func deletePost() {
         guard let current = viewState.content,
               current.post.isOwnedByCurrentUser,
-              !viewState.isDeleting
+              !viewState.isDeleting,
+              !viewState.isUpdatingTitle
         else { return }
 
         viewState.isDeleting = true
@@ -154,6 +169,43 @@ final class FeedViewModel {
             case let .failure(error):
                 self.viewState.isDeleting = false
                 self.event = .showDeleteFailure(error)
+            }
+        }
+    }
+
+    func updatePostTitle(_ title: String?) {
+        guard let current = viewState.content,
+              current.post.isOwnedByCurrentUser,
+              FeedDateLabel.isToday(current.topicDate),
+              !viewState.isDeleting,
+              !viewState.isUpdatingTitle
+        else { return }
+
+        let normalizedTitle: String?
+        if let title {
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
+        } else {
+            normalizedTitle = nil
+        }
+        viewState.isUpdatingTitle = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            switch await self.updateTitleHandler(self.postID, normalizedTitle) {
+            case let .success(update):
+                guard var latest = self.viewState.content else {
+                    self.viewState.isUpdatingTitle = false
+                    return
+                }
+                latest.post.title = update.title
+                self.viewState.content = latest
+                self.viewState.isUpdatingTitle = false
+                self.viewState.titleUpdateVersion += 1
+                self.event = .showTitleUpdateSuccess
+            case let .failure(error):
+                self.viewState.isUpdatingTitle = false
+                self.event = .showTitleUpdateFailure(error)
             }
         }
     }

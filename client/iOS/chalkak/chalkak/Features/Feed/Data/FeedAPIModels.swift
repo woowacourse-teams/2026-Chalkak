@@ -44,6 +44,7 @@ struct FeedPostDetailResponse: Decodable {
 
         return FeedContent(
             dateLabel: FeedDateLabel.make(from: topicDate),
+            topicDate: topicDate,
             topic: topic.title,
             post: FeedPost(
                 id: id,
@@ -84,4 +85,32 @@ struct FeedLikeUpdate: Equatable, Sendable {
     let postID: String
     let isLiked: Bool
     let likeCount: Int
+}
+
+struct FeedTitleUpdateRequest: Encodable {
+    let title: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+    }
+}
+
+struct FeedTitleUpdateResponse: Decodable, Equatable, Sendable {
+    let postID: String
+    let title: String?
+
+    enum CodingKeys: String, CodingKey {
+        case postID = "postId"
+        case title
+    }
+}
+
+struct FeedTitleUpdate: Equatable, Sendable {
+    let postID: String
+    let title: String?
 }

@@ -3,6 +3,7 @@ import Foundation
 enum FeedPreviewData {
     static let content = FeedContent(
         dateLabel: "8월 3일의 주제",
+        topicDate: Date(),
         topic: "하늘하늘하늘",
         post: FeedPost(
             id: "preview",
