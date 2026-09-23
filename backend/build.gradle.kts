@@ -113,6 +113,8 @@ tasks.withType<Test>().configureEach {
 
 tasks.named<Test>("test") {
     dependsOn(checkEnvContract)
+    // Spring integration tests retain multiple application contexts in this worker JVM.
+    maxHeapSize = "1g"
 }
 
 tasks.named("check") {
