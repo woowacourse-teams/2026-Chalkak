@@ -256,6 +256,33 @@ def unregister_agent(path):
     return True
 
 
+def previous_agent(home, root):
+    """Only replace an owned, unchanged definition; migrate the original installer."""
+    path = agent_path(home)
+    owned = root / "agent-owned.json"
+    if not path.exists():
+        if owned.exists():
+            raise ValueError("관리 중인 자동 실행 설정이 삭제되었습니다")
+        return None
+    current = plistlib.loads(path.read_bytes())
+    if owned.exists():
+        if current != core.read_json(owned):
+            raise ValueError("관리 중인 자동 실행 설정이 수정되었습니다")
+    else:
+        # v1 had no ownership file. Require its complete known definition and
+        # the matching recorded Codex hook, not just our Label.
+        definitions = core.read_json(root / "hooks-owned.json")
+        arguments = shlex.split(definitions["codex"]["hooks"][0]["command"])
+        expected_command = [str(root / "manage.py"), "session", "--provider", "codex", "--runtime", str(root)]
+        if arguments[1:] != expected_command:
+            raise ValueError("기존 자동 실행 설정의 소유권을 확인할 수 없습니다")
+        legacy = agent_definition(root)
+        legacy["ProgramArguments"][0] = arguments[0]
+        if current != legacy:
+            raise ValueError("같은 이름의 다른 자동 실행 설정이 있습니다")
+    return current
+
+
 def setup(project, home=None, remote=REMOTE, branch=BRANCH):
     if sys.platform != "darwin":
         raise ValueError("자동 설치는 현재 macOS만 지원합니다")
@@ -266,9 +293,11 @@ def setup(project, home=None, remote=REMOTE, branch=BRANCH):
     core.local_path(project, ".chalkak-harness")
     with lock(root):
         data = registry(root)
+        old_agent = previous_agent(home, root)
         core.sync(root / "cache", remote, branch)
         changes = FileChanges()
         started = False
+        stopped = False
         try:
             install_project(project, root, changes)
             for name in ("manage.py", "automatic.py"):
@@ -282,14 +311,17 @@ def setup(project, home=None, remote=REMOTE, branch=BRANCH):
             changes.write(root / "projects.json", core.json_bytes(data))
             path = agent_path(home)
             definition = agent_definition(root)
-            if path.exists() and plistlib.loads(path.read_bytes()) != definition:
-                raise ValueError("같은 이름의 다른 자동 실행 설정이 있습니다")
+            if old_agent is not None and old_agent != definition:
+                stopped = unregister_agent(path)
             changes.write(path, plistlib.dumps(definition))
+            changes.write(root / "agent-owned.json", core.json_bytes(definition))
             started = register_agent(path)
         except Exception:
             if started:
                 subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(agent_path(home))], capture_output=True, timeout=15)
             changes.rollback()
+            if stopped:
+                register_agent(agent_path(home))
             raise
     return {"installed": True, "mode": "automatic", "project": str(project), "runtime": str(root), "interval_seconds": 300,
             "notice": "Codex hook을 최초 신뢰 승인하고 새 세션을 시작하세요. Claude 설정도 확인하세요. 앱별 실제 hook 실행을 확인해야 합니다. 설치 파일은 커밋하지 마세요."}
@@ -340,7 +372,7 @@ def session(root, provider, event):
         return {}
     try:
         project, common = identity(Path(cwd))
-    except ValueError:
+    except (OSError, ValueError, subprocess.SubprocessError):
         return {}
     data = registry(root)
     if common not in data["repositories"]:
@@ -371,6 +403,12 @@ def session(root, provider, event):
                 if manifest["version"] != binding["version"]:
                     raise ValueError("세션 버전과 문서가 일치하지 않습니다")
                 return context(provider, target, manifest, core.read_json(cache / "check.json"), True)
+            if event.get("source") in ("resume", "compact"):
+                message = ("이 세션은 설치 전에 시작되어 공통 정책의 고정 버전이 없습니다. 기존 대화는 계속할 수 있습니다. "
+                           "정책 의존 작업은 새 세션에서 시작하세요. 최신 정책 연결 성공으로 표시하거나 "
+                           "active/latest 또는 다른 세션의 문서를 대신 사용하지 마세요.")
+                return {"systemMessage": message, "hookSpecificOutput": {
+                    "hookEventName": "SessionStart", "additionalContext": message}}
             if event.get("source") not in ("startup", "clear"):
                 raise ValueError("설치 전에 시작한 세션의 규칙은 자동 교체하지 않습니다. 새 세션을 시작하세요")
             try:
@@ -458,11 +496,14 @@ def uninstall(project, home=None):
                     groups.remove(definition)
                     changes.write(path, core.json_bytes(config))
                 path = agent_path(home)
+                previous_agent(home, root)
                 stopped = unregister_agent(path)
                 changes.remember(path)
                 path.unlink(missing_ok=True)
                 changes.remember(root / "hooks-owned.json")
                 (root / "hooks-owned.json").unlink()
+                changes.remember(root / "agent-owned.json")
+                (root / "agent-owned.json").unlink(missing_ok=True)
             changes.write(root / "projects.json", core.json_bytes(data))
         except Exception:
             changes.rollback()

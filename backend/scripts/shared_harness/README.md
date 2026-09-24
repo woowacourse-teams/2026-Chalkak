@@ -2,13 +2,13 @@
 
 백엔드는 `be/develop` 기반 작업 브랜치에서 공통 하네스를 수정한다. 검토한 공통 파일만 전용 배포 브랜치에 게시하고, Android는 그 배포본을 별도 cache에 내려받아 프로젝트 안에 설치한다. Android 개발 브랜치에 백엔드나 배포 브랜치를 병합하지 않는다.
 
-**현재 상태 (2026-09-23):** PR #478 병합 후 [정식 Actions](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35820287020)가 성공해 `harness/shared`가 생성됐다. 공통 파일 21개와 병합 원본 일치, 실제 client/develop 임시 설치를 확인했다. 후속 변경은 최초 1회 설치·5분 주기 다운로드·Codex/Claude SessionStart의 세션별 버전 고정을 추가한다. 후속 자동화는 아직 커밋·배포 전이며, 실제 팀원 앱의 hook 신뢰·실행과 AI 정책 적용은 별도 검증 대상이다.
+**현재 상태 (2026-09-24):** PR #478 병합 후 [정식 Actions](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35820287020)가 성공해 `harness/shared`가 생성됐다. 공통 파일 21개와 병합 원본 일치, 실제 client/develop 임시 설치를 확인했다. 후속 변경은 최초 1회 설치·5분 주기 다운로드·Codex/Claude SessionStart의 세션별 버전 고정을 추가한다. 후속 자동화는 PR #479에서 리뷰 중이며, 실제 팀원 앱의 hook 신뢰·실행과 AI 정책 적용은 별도 검증 대상이다.
 
 ## Android 자동 모드 — 최초 한 번 설치
 
 짧은 팀원 안내는 [Android 최초 설치](ANDROID_QUICKSTART.md)를 따른다. 새 설치는 자동 모드를 사용하고 아래 수동 모드는 기존 호환용으로 유지한다.
 
-1. 검토한 `install.sh`를 받아 Android 프로젝트 터미널에서 `bash /다운로드/경로/install.sh`를 실행한다. 설치기가 같은 원본 커밋의 도구 두 파일을 받고 `manage.py setup`을 실행한다. 저장소 안에서 실행할 때는 옆의 도구 파일을 사용한다.
+1. 담당자가 검토한 커밋으로 생성한 `install.sh`를 받아 Android 프로젝트 터미널에서 `bash /다운로드/경로/install.sh`를 실행한다. 설치기에 고정된 커밋에서 도구 두 파일을 받고 각각의 SHA-256을 확인한 뒤 `manage.py setup`을 실행한다. 최신 브랜치나 옆에 놓인 Python 파일로 대체하지 않는다. 저장소의 `install.sh`는 배포용 템플릿이므로 직접 실행하면 안내 후 종료한다.
 2. 설치기는 최초 원격 sync, 공통 진입 지침·고정 스킬 연결, 사용자 범위 Codex/Claude SessionStart 설정, macOS LaunchAgent 등록을 수행한다. Python 3.10+와 GitHub SSH 인증이 필요하다.
 3. Codex는 hook 정의의 최초 검토·신뢰 승인이 필요하다. 자동으로 신뢰를 우회하지 않는다. Claude도 설정 적용과 hook 실행을 확인한다. 사용 중인 앱 버전이나 관리자 설정에서 hook을 막으면 설치 성공만으로 자동 동작을 보장하지 않는다.
 4. 새 세션을 시작한다. `SessionStart` 안내의 고정 버전 경로와 실제 문서 읽기를 확인한다. 이후 문서 변경마다 수동 sync/apply를 실행하지 않는다.
@@ -18,6 +18,7 @@
 - **주기 다운로드:** 사용자 로그인과 300초 간격에 공통 브랜치를 cache로 내려받아 검사한다. 잠든 동안 실행되지 않으며 AI를 호출하지 않는다. `git pull`로 앱 브랜치를 병합하지 않는다.
 - **새 세션:** 원격을 다시 확인하고 정상 버전을 프로젝트의 읽기 전용 사본으로 복사한다. 도구 종류와 세션 ID별로 버전을 고정하고 지침·스킬·정책 경로를 hook context로 전달한다.
 - **기존 세션의 재개·압축:** 기존 버전을 그대로 사용한다. 다른 세션이 최신 버전을 사용해도 공용 `active` 포인터를 바꾸지 않는다. 최신 정책으로 옮기려면 새 세션을 시작한다.
+- **설치 전부터 켜둔 세션:** 고정 버전 기록이 없는 재개·압축에서는 새 버전을 임의로 적용하거나 대화를 중단하지 않는다. 경고만 전달하며, 정책 의존 작업은 새 세션에서 시작한다. 손상된 기존 버전 기록은 정상으로 간주하지 않는다.
 - **새 worktree:** 등록한 Git 공통 디렉터리에 속한 worktree는 첫 SessionStart에 지침·스킬을 연결한다. 다른 저장소에는 아무 작업도 하지 않는다. 별도 clone은 다시 설치해야 한다.
 - **오류:** 최신 확인 실패 시 마지막 정상 버전을 유지하고 실패를 안내한다. 설치·해시 검증 실패 또는 hook 미실행을 최신 적용 성공으로 표시하지 않는다. Codex/Claude가 hook을 실행하지 않은 경우에는 프로젝트 지침을 통해 연결 확인을 요구한다.
 
@@ -34,12 +35,32 @@ python3 "$HOME/.local/share/chalkak-harness/automatic/manage.py" uninstall --pro
 
 제거는 해당 등록 저장소와 자동 연결한 worktree의 관리 구간만 지운다. 마지막 저장소를 제거하면 관리하는 hook 정의와 LaunchAgent도 제거한다. 다른 사용자 지침·hook과 다운로드·세션 기록은 보존한다. 도구 자체를 업데이트하려면 세션을 정리하고 검토된 새 설치기로 다시 설치한다. 정책 다운로드가 실행 프로그램을 자동 교체하지는 않는다.
 
+Python 경로가 바뀌었으면 새 설치기로 다시 설치한다. 자신이 설치한 변경되지 않은 LaunchAgent 정의만 교체하고, 이미 실행 중이면 해제 후 다시 등록한다. 재등록에 실패하면 파일과 이전 등록을 복구한다. 사용자 수정 설정은 덮어쓰지 않는다. 인터프리터가 삭제된 순간 자동 복구되는 것은 아니므로 재설치가 필요하다.
+
 기존 수동 로그인 LaunchAgent를 따로 등록했던 경우에는 그 등록을 먼저 해제해 중복 다운로드를 피한다. 자동 설치 도구는 자신이 만든 새 LaunchAgent만 관리한다.
 
 자동 실행 로그는 `~/.local/share/chalkak-harness/automatic/download.log`·`download-error.log`, 최근 확인은 `cache/check.json`에 남는다. 최초 설치의 성공 안내 뒤에도 실제 앱에서 hook이 실행됐는지 확인한다. 기본 사용자 설정 위치는 `~/.codex/hooks.json`과 `~/.claude/settings.json`이며, 별도 프로필 경로를 사용하는 환경은 연결을 추가 확인해야 한다.
 
 - [Codex hook 설정과 신뢰 승인](https://learn.chatgpt.com/docs/hooks)
 - [Claude SessionStart](https://code.claude.com/docs/en/hooks#sessionstart)
+
+### 백엔드 담당자: 검토 버전 설치기 만들기
+
+수정 내용을 커밋·리뷰·병합하고 정식 게시 성공을 확인한 다음, 공개 저장소에서 내려받을 수 있는 검토된 전체 커밋 SHA를 지정한다. Android에는 생성된 파일 하나와 원본 SHA를 전달한다. 자동 발송하지 않는다.
+
+```bash
+python3 scripts/shared_harness/package_installer.py \
+  --source-commit <검토한-40자리-커밋-SHA> \
+  --output build/shared-harness-release/install.sh
+```
+
+템플릿과 두 Python 파일 모두 해당 Git 커밋에서 읽는다. 미커밋 파일은 포함하지 않고 기존 출력 파일도 덮어쓰지 않는다. 생성된 파일에는 커밋과 해시가 들어 있으므로 검토 후 전달한다. 설치기 자체의 출처는 팀이 확인해야 하며, 해시는 서명을 대신하지 않는다. 일반 정책 갱신에는 재설치가 필요 없다.
+
+### 입력 형식과 실제 앱 확인 범위
+
+2026-09-24 공식 문서상 Codex·Claude SessionStart는 모두 `session_id`, `cwd`, `source`를 전달한다. [도구별 예시](fixtures/README.md)를 설치된 CLI에 전달하는 회귀 검사로 입력 처리를 확인한다. 필드가 없다는 이유로 새 세션이라고 추정하지 않는다.
+
+이 검사는 실제 데스크톱 앱이 hook을 실행했다는 증거는 아니다. 팀원 최초 설치에서는 hook 신뢰 승인 후 새 세션에서 정책 경로가 전달되는지, 관련 작업 때 AI가 그 경로의 규칙을 읽는지 확인한다. 확인 전에는 설치 완료와 앱 연결 완료를 구분한다.
 
 
 ## 무엇을 함께 공유하는가

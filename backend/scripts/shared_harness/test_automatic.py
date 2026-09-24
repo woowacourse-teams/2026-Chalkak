@@ -127,9 +127,90 @@ class AutomaticHarnessTests(unittest.TestCase):
 
     def test_preexisting_session_requires_new_session_instead_of_changing_its_rules(self):
         self.setup_auto()
-        with self.assertRaisesRegex(ValueError, "새 세션"):
-            self.event(source="resume")
+        for provider in a.PROVIDERS:
+            for source in ("resume", "compact"):
+                result = self.event(provider=provider, source=source)
+                self.assertNotIn("continue", result)
+                self.assertIn("새 세션", result["systemMessage"])
+                self.assertIn("고정 버전이 없습니다", result["hookSpecificOutput"]["additionalContext"])
         self.assertFalse((self.project / ".chalkak-harness/sessions").exists())
+
+    def test_non_git_directory_is_ignored_for_both_providers(self):
+        self.setup_auto()
+        other = self.root / "not a repository"
+        other.mkdir()
+        for provider in a.PROVIDERS:
+            self.assertEqual({}, self.event(provider=provider, project=other))
+        self.assertEqual([], list(other.iterdir()))
+
+    def test_unavailable_git_and_timeout_do_not_block_global_hook(self):
+        self.setup_auto()
+        for error in (FileNotFoundError("git"), subprocess.TimeoutExpired("git", 60)):
+            with self.subTest(error=error), patch.object(a, "identity", side_effect=error):
+                self.assertEqual({}, self.event())
+
+    def test_documented_provider_payloads_work_through_installed_cli(self):
+        # Official schema fixtures, not a claim of desktop app event capture.
+        self.setup_auto()
+        root = a.runtime(self.home)
+        for provider in a.PROVIDERS:
+            event = json.loads((Path(__file__).parent / "fixtures" / (provider + "-session-start.json")).read_text())
+            event["cwd"] = str(self.project)
+            process = subprocess.run([sys.executable, str(root / "manage.py"), "session",
+                                      "--runtime", str(root), "--provider", provider],
+                                     input=json.dumps(event), text=True, capture_output=True, check=True)
+            result = json.loads(process.stdout)
+            self.assertNotIn("continue", result)
+            self.assertIn(self.pin(event["session_id"], provider)["version"],
+                          result["hookSpecificOutput"]["additionalContext"])
+
+    def test_missing_source_is_not_silently_treated_as_new_session(self):
+        self.setup_auto()
+        with self.assertRaises(ValueError):
+            a.session(a.runtime(self.home), "codex", {"cwd": str(self.project), "session_id": "missing-source"})
+        self.assertFalse((self.project / ".chalkak-harness/sessions").exists())
+
+    def test_python_path_change_replaces_owned_agent_and_hooks(self):
+        self.setup_auto()
+        with patch.object(a.sys, "executable", "/new/python3"), \
+             patch.object(a, "unregister_agent", return_value=True) as stop:
+            self.setup_auto()
+        stop.assert_called_once()
+        definition = plistlib.loads(a.agent_path(self.home).read_bytes())
+        self.assertEqual("/new/python3", definition["ProgramArguments"][0])
+        self.assertEqual(definition, m.read_json(a.runtime(self.home) / "agent-owned.json"))
+        self.assertIn("/new/python3", m.read_json(a.config_path(self.home, "codex"))["hooks"]["SessionStart"][0]["hooks"][0]["command"])
+
+    def test_legacy_agent_migration_uses_old_recorded_interpreter(self):
+        self.setup_auto()
+        (a.runtime(self.home) / "agent-owned.json").unlink()
+        with patch.object(a.sys, "executable", "/new/python3"), patch.object(a, "unregister_agent", return_value=True):
+            self.setup_auto()
+        self.assertEqual("/new/python3", m.read_json(a.runtime(self.home) / "agent-owned.json")["ProgramArguments"][0])
+
+    def test_edited_owned_agent_is_not_overwritten(self):
+        self.setup_auto()
+        path = a.agent_path(self.home)
+        definition = plistlib.loads(path.read_bytes())
+        definition["StartInterval"] = 1
+        path.write_bytes(plistlib.dumps(definition))
+        with self.assertRaisesRegex(ValueError, "자동 실행 설정이 수정"):
+            self.setup_auto()
+        self.assertEqual(definition, plistlib.loads(path.read_bytes()))
+
+    def test_failed_agent_replacement_restores_files_and_old_registration(self):
+        self.setup_auto()
+        paths = [a.agent_path(self.home), a.runtime(self.home) / "agent-owned.json",
+                 a.runtime(self.home) / "hooks-owned.json", a.config_path(self.home, "codex")]
+        before = {p: p.read_bytes() for p in paths}
+        with patch.object(a.sys, "platform", "darwin"), patch.object(a.sys, "executable", "/new/python3"), \
+             patch.object(a, "unregister_agent", return_value=True), \
+             patch.object(a, "register_agent", side_effect=[OSError("bootstrap failed"), True]) as register:
+            with self.assertRaisesRegex(OSError, "bootstrap failed"):
+                a.setup(self.project, self.home, str(self.remote), "main")
+        self.assertEqual(2, register.call_count)
+        for path, value in before.items():
+            self.assertEqual(value, path.read_bytes())
 
     def test_setup_launchd_failure_restores_existing_settings_and_project(self):
         self.home = self.root / "fake home"
