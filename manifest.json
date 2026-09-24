@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "source_commit": "2ff6a09ec7f6daae26ab1a39a74b86b300f9118b",
-  "version": "97280e088b09985bfba3231a16e71414f2cb456f4c6bf65700e1a15fe1362802",
+  "source_commit": "3135f2990fc207177d89f853ce7a70e6e9e48687",
+  "version": "5460f30ad16485ed833cf4ecaf22337f4751b6eb5550d7aac5e7ccc61dab7332",
   "files": {
-    ".agents/skills/business-rules/SKILL.md": "7fed70c2c4e270101af37d0faafb9144b3adacb19be63fa24c020b5d58438f05",
-    ".claude/skills/business-rules/SKILL.md": "7fed70c2c4e270101af37d0faafb9144b3adacb19be63fa24c020b5d58438f05",
+    ".agents/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
+    ".claude/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
     "AGENTS.md": "008b46419fc62b4832269ec6fc551dd17987e0a5e6e833a170f5201ac76660a5",
     "CLAUDE.md": "0956768ccb5d497860e59cd4d002be9e33ccbadc139dddc69b9ed317fd111cf4",
     "backend/docs/interviews/캘린더-기록-연월-조회-방식.md": "16690099121aff0171cca8be003a831afb87b42d65ce980b520befb2c6618d79",
