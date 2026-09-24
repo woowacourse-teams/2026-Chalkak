@@ -267,7 +267,7 @@ class AutomaticHarnessTests(unittest.TestCase):
                 raise OSError("bootstrap failed")
             return True
 
-        with patch.object(a.sys, "executable", "/new/python3"), \
+        with patch.object(a.sys, "platform", "darwin"), patch.object(a.sys, "executable", "/new/python3"), \
              patch.object(a, "unregister_agent", return_value=True), \
              patch.object(a, "register_agent", side_effect=register):
             with self.assertRaisesRegex(OSError, "bootstrap failed"):
