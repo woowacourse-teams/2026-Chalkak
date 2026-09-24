@@ -247,28 +247,45 @@ def register_agent(path):
     return True
 
 
-def unregister_agent(path):
-    name = plistlib.loads(path.read_bytes())["Label"]
-    loaded = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/{name}"], capture_output=True, timeout=10)
+def unregister_agent(path, definition=None):
+    name = (definition or plistlib.loads(path.read_bytes()))["Label"]
+    target = f"gui/{os.getuid()}/{name}"
+    loaded = subprocess.run(["launchctl", "print", target], capture_output=True, timeout=10)
     if loaded.returncode != 0:
         return False
-    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(path)], check=True, capture_output=True, timeout=15)
+    # A deleted plist can still have a loaded service. Stop by its owned label.
+    subprocess.run(["launchctl", "bootout", target], check=True, capture_output=True, timeout=15)
     return True
 
 
+def restore_agent(path, definition):
+    """Restore a stopped registration without retaining a previously missing plist."""
+    missing = not path.exists()
+    if missing:
+        core.write(path, plistlib.dumps(definition))
+    try:
+        register_agent(path)
+    finally:
+        if missing:
+            path.unlink()
+
+
 def previous_agent(home, root):
-    """Only replace an owned, unchanged definition; migrate the original installer."""
+    """Recover missing owned files, but never overwrite a modified definition."""
     path = agent_path(home)
     owned = root / "agent-owned.json"
-    if not path.exists():
-        if owned.exists():
-            raise ValueError("관리 중인 자동 실행 설정이 삭제되었습니다")
-        return None
-    current = plistlib.loads(path.read_bytes())
+    current = plistlib.loads(path.read_bytes()) if path.exists() else None
     if owned.exists():
-        if current != core.read_json(owned):
+        previous = core.read_json(owned)
+        expected = agent_definition(root)
+        expected["ProgramArguments"][0] = previous["ProgramArguments"][0]
+        if previous != expected:
+            raise ValueError("기존 자동 실행 설정의 소유권을 확인할 수 없습니다")
+        if current is not None and current != previous:
             raise ValueError("관리 중인 자동 실행 설정이 수정되었습니다")
     else:
+        if current is None and not (root / "hooks-owned.json").exists():
+            return None
         # v1 had no ownership file. Require its complete known definition and
         # the matching recorded Codex hook, not just our Label.
         definitions = core.read_json(root / "hooks-owned.json")
@@ -276,11 +293,11 @@ def previous_agent(home, root):
         expected_command = [str(root / "manage.py"), "session", "--provider", "codex", "--runtime", str(root)]
         if arguments[1:] != expected_command:
             raise ValueError("기존 자동 실행 설정의 소유권을 확인할 수 없습니다")
-        legacy = agent_definition(root)
-        legacy["ProgramArguments"][0] = arguments[0]
-        if current != legacy:
+        previous = agent_definition(root)
+        previous["ProgramArguments"][0] = arguments[0]
+        if current is not None and current != previous:
             raise ValueError("같은 이름의 다른 자동 실행 설정이 있습니다")
-    return current
+    return previous
 
 
 def setup(project, home=None, remote=REMOTE, branch=BRANCH):
@@ -311,8 +328,8 @@ def setup(project, home=None, remote=REMOTE, branch=BRANCH):
             changes.write(root / "projects.json", core.json_bytes(data))
             path = agent_path(home)
             definition = agent_definition(root)
-            if old_agent is not None and old_agent != definition:
-                stopped = unregister_agent(path)
+            if old_agent is not None and (old_agent != definition or not path.exists()):
+                stopped = unregister_agent(path, old_agent)
             changes.write(path, plistlib.dumps(definition))
             changes.write(root / "agent-owned.json", core.json_bytes(definition))
             started = register_agent(path)
@@ -321,7 +338,7 @@ def setup(project, home=None, remote=REMOTE, branch=BRANCH):
                 subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(agent_path(home))], capture_output=True, timeout=15)
             changes.rollback()
             if stopped:
-                register_agent(agent_path(home))
+                restore_agent(agent_path(home), old_agent)
             raise
     return {"installed": True, "mode": "automatic", "project": str(project), "runtime": str(root), "interval_seconds": 300,
             "notice": "Codex hook을 최초 신뢰 승인하고 새 세션을 시작하세요. Claude 설정도 확인하세요. 앱별 실제 hook 실행을 확인해야 합니다. 설치 파일은 커밋하지 마세요."}
@@ -496,8 +513,9 @@ def uninstall(project, home=None):
                     groups.remove(definition)
                     changes.write(path, core.json_bytes(config))
                 path = agent_path(home)
-                previous_agent(home, root)
-                stopped = unregister_agent(path)
+                old_agent = previous_agent(home, root)
+                if old_agent is not None:
+                    stopped = unregister_agent(path, old_agent)
                 changes.remember(path)
                 path.unlink(missing_ok=True)
                 changes.remember(root / "hooks-owned.json")
@@ -508,6 +526,6 @@ def uninstall(project, home=None):
         except Exception:
             changes.rollback()
             if stopped:
-                register_agent(agent_path(home))
+                restore_agent(agent_path(home), old_agent)
             raise
     return {"removed": True, "notice": "등록된 해당 저장소와 worktree의 자동 연결을 제거했습니다. 버전·세션 기록과 cache는 보존합니다."}

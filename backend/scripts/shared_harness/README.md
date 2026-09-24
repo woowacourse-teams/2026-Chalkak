@@ -37,6 +37,8 @@ python3 "$HOME/.local/share/chalkak-harness/automatic/manage.py" uninstall --pro
 
 Python 경로가 바뀌었으면 새 설치기로 다시 설치한다. 자신이 설치한 변경되지 않은 LaunchAgent 정의만 교체하고, 이미 실행 중이면 해제 후 다시 등록한다. 재등록에 실패하면 파일과 이전 등록을 복구한다. 사용자 수정 설정은 덮어쓰지 않는다. 인터프리터가 삭제된 순간 자동 복구되는 것은 아니므로 재설치가 필요하다.
 
+LaunchAgent의 `.plist` 파일만 삭제했더라도 설치 기록이 남아 있으면 새 설치기로 재설치하거나 위 `uninstall` 명령으로 제거할 수 있다. 파일 없이 남아 있는 자동 실행 등록도 함께 처리한다. 작업 실패 시 기존 파일·hook·실행 등록을 복구하며, 원래 없던 plist는 남기지 않는다. plist 삭제만으로는 실행 중인 등록이나 AI hook이 제거되지 않으므로 정상 중단·제거에는 `uninstall`을 사용한다. 설치 기록을 임의로 삭제하거나 수정하지 않는다.
+
 기존 수동 로그인 LaunchAgent를 따로 등록했던 경우에는 그 등록을 먼저 해제해 중복 다운로드를 피한다. 자동 설치 도구는 자신이 만든 새 LaunchAgent만 관리한다.
 
 자동 실행 로그는 `~/.local/share/chalkak-harness/automatic/download.log`·`download-error.log`, 최근 확인은 `cache/check.json`에 남는다. 최초 설치의 성공 안내 뒤에도 실제 앱에서 hook이 실행됐는지 확인한다. 기본 사용자 설정 위치는 `~/.codex/hooks.json`과 `~/.claude/settings.json`이며, 별도 프로필 경로를 사용하는 환경은 연결을 추가 확인해야 한다.

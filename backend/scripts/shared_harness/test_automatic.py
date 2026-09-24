@@ -188,6 +188,121 @@ class AutomaticHarnessTests(unittest.TestCase):
             self.setup_auto()
         self.assertEqual("/new/python3", m.read_json(a.runtime(self.home) / "agent-owned.json")["ProgramArguments"][0])
 
+    def test_reinstall_recovers_deleted_plist_with_or_without_loaded_service(self):
+        self.setup_auto()
+        path = a.agent_path(self.home)
+        previous = plistlib.loads(path.read_bytes())
+        for loaded in (True, False):
+            with self.subTest(loaded=loaded):
+                path.unlink()
+                with patch.object(a, "unregister_agent", return_value=loaded) as stop:
+                    self.setup_auto()
+                stop.assert_called_once_with(path, previous)
+                self.assertEqual(previous, plistlib.loads(path.read_bytes()))
+                for provider in a.PROVIDERS:
+                    self.assertEqual(1, len(m.read_json(a.config_path(self.home, provider))["hooks"]["SessionStart"]))
+
+    def test_uninstall_removes_hooks_when_plist_was_deleted(self):
+        for loaded in (True, False):
+            with self.subTest(loaded=loaded):
+                self.setup_auto()
+                path = a.agent_path(self.home)
+                previous = plistlib.loads(path.read_bytes())
+                path.unlink()
+                with patch.object(a, "unregister_agent", return_value=loaded) as stop:
+                    a.uninstall(self.project, self.home)
+                stop.assert_called_once_with(path, previous)
+                self.assertFalse(path.exists())
+                self.assertFalse((a.runtime(self.home) / "agent-owned.json").exists())
+                self.assertFalse((self.project / ".chalkak-harness/automatic.json").exists())
+                self.assertEqual({}, a.registry(a.runtime(self.home))["repositories"])
+                for provider in a.PROVIDERS:
+                    self.assertEqual([], m.read_json(a.config_path(self.home, provider))["hooks"]["SessionStart"])
+
+    def test_deleted_legacy_plist_can_be_reinstalled_from_recorded_hook(self):
+        self.setup_auto()
+        a.agent_path(self.home).unlink()
+        (a.runtime(self.home) / "agent-owned.json").unlink()
+        with patch.object(a, "unregister_agent", return_value=True):
+            self.setup_auto()
+        self.assertEqual(a.agent_definition(a.runtime(self.home)), plistlib.loads(a.agent_path(self.home).read_bytes()))
+
+    def test_deleted_plist_with_invalid_ownership_does_not_stop_other_service(self):
+        self.setup_auto()
+        a.agent_path(self.home).unlink()
+        owned = a.runtime(self.home) / "agent-owned.json"
+        definition = m.read_json(owned)
+        definition["Label"] = "other.service"
+        m.write(owned, m.json_bytes(definition))
+        with patch.object(a, "unregister_agent") as stop:
+            with self.assertRaisesRegex(ValueError, "소유권"):
+                self.setup_auto()
+        stop.assert_not_called()
+
+    def test_unregister_deleted_plist_uses_service_target(self):
+        path = self.root / "missing.plist"
+        definition = a.agent_definition(a.runtime(self.root))
+        target = f"gui/{a.os.getuid()}/{definition['Label']}"
+        for loaded in (True, False):
+            with self.subTest(loaded=loaded), patch.object(a.subprocess, "run") as run:
+                run.return_value.returncode = 0 if loaded else 113
+                self.assertEqual(loaded, a.unregister_agent(path, definition))
+                self.assertEqual(["launchctl", "print", target], run.call_args_list[0].args[0])
+                self.assertEqual(2 if loaded else 1, run.call_count)
+                if loaded:
+                    self.assertEqual(["launchctl", "bootout", target], run.call_args_list[1].args[0])
+
+    def test_failed_reinstall_restores_loaded_service_without_recreating_deleted_plist(self):
+        self.setup_auto()
+        path = a.agent_path(self.home)
+        previous = plistlib.loads(path.read_bytes())
+        path.unlink()
+        owned = a.runtime(self.home) / "agent-owned.json"
+        before = owned.read_bytes()
+        registrations = []
+
+        def register(plist):
+            registrations.append(plistlib.loads(plist.read_bytes()))
+            if len(registrations) == 1:
+                raise OSError("bootstrap failed")
+            return True
+
+        with patch.object(a.sys, "executable", "/new/python3"), \
+             patch.object(a, "unregister_agent", return_value=True), \
+             patch.object(a, "register_agent", side_effect=register):
+            with self.assertRaisesRegex(OSError, "bootstrap failed"):
+                a.setup(self.project, self.home, str(self.remote), "main")
+        self.assertEqual("/new/python3", registrations[0]["ProgramArguments"][0])
+        self.assertEqual(previous, registrations[1])
+        self.assertFalse(path.exists())
+        self.assertEqual(before, owned.read_bytes())
+
+    def test_failed_uninstall_restores_hooks_and_service_with_deleted_plist(self):
+        self.setup_auto()
+        path = a.agent_path(self.home)
+        previous = plistlib.loads(path.read_bytes())
+        path.unlink()
+        registry = a.runtime(self.home) / "projects.json"
+        originals = {p: p.read_bytes() for p in (registry, *(a.config_path(self.home, p) for p in a.PROVIDERS))}
+        write = a.FileChanges.write
+
+        def fail_registry(changes, target, contents):
+            if target == registry:
+                raise OSError("registry write failed")
+            return write(changes, target, contents)
+
+        restored = []
+        with patch.object(a.FileChanges, "write", fail_registry), \
+             patch.object(a, "unregister_agent", return_value=True), \
+             patch.object(a, "register_agent", side_effect=lambda p: restored.append(plistlib.loads(p.read_bytes()))):
+            with self.assertRaisesRegex(OSError, "registry write failed"):
+                a.uninstall(self.project, self.home)
+        self.assertEqual([previous], restored)
+        self.assertFalse(path.exists())
+        self.assertTrue((self.project / ".chalkak-harness/automatic.json").exists())
+        for p, content in originals.items():
+            self.assertEqual(content, p.read_bytes())
+
     def test_edited_owned_agent_is_not_overwritten(self):
         self.setup_auto()
         path = a.agent_path(self.home)
