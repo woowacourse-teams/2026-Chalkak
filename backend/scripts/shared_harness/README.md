@@ -2,7 +2,68 @@
 
 백엔드는 `be/develop` 기반 작업 브랜치에서 공통 하네스를 수정한다. 검토한 공통 파일만 전용 배포 브랜치에 게시하고, Android는 그 배포본을 별도 cache에 내려받아 프로젝트 안에 설치한다. Android 개발 브랜치에 백엔드나 배포 브랜치를 병합하지 않는다.
 
-**현재 상태 (2026-09-23):** 작업 브랜치를 push해 실제 GitHub Actions에서 최초 게시·문서만 수정·문서만 삭제를 각각 검증했다. `harness/validation-477`의 공통 파일을 원본과 대조하고 실제 client/develop 임시 복제본에서 설치·읽기 전용·sync/apply 버전 전환을 확인했다. 정식 `harness/shared`는 아직 없으며, 검증용 실행 경로를 제거했으며 커밋·PR·병합·최초 정식 게시가 남아 있다. 실제 팀원 설치·macOS 로그인·AI 정책 적용은 미검증이다.
+**현재 상태 (2026-09-24):** PR #478 병합 후 [정식 Actions](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35820287020)가 성공해 `harness/shared`가 생성됐다. 공통 파일 21개와 병합 원본 일치, 실제 client/develop 임시 설치를 확인했다. 후속 변경은 최초 1회 설치·5분 주기 다운로드·Codex/Claude SessionStart의 세션별 버전 고정을 추가한다. 후속 자동화는 PR #479에서 리뷰 중이며, 실제 팀원 앱의 hook 신뢰·실행과 AI 정책 적용은 별도 검증 대상이다.
+
+## Android 자동 모드 — 최초 한 번 설치
+
+짧은 팀원 안내는 [Android 최초 설치](ANDROID_QUICKSTART.md)를 따른다. 새 설치는 자동 모드를 사용하고 아래 수동 모드는 기존 호환용으로 유지한다.
+
+1. 담당자가 검토한 커밋으로 생성한 `install.sh`를 받아 Android 프로젝트 터미널에서 `bash /다운로드/경로/install.sh`를 실행한다. 설치기에 고정된 커밋에서 도구 두 파일을 받고 각각의 SHA-256을 확인한 뒤 `manage.py setup`을 실행한다. 최신 브랜치나 옆에 놓인 Python 파일로 대체하지 않는다. 저장소의 `install.sh`는 배포용 템플릿이므로 직접 실행하면 안내 후 종료한다.
+2. 설치기는 최초 원격 sync, 공통 진입 지침·고정 스킬 연결, 사용자 범위 Codex/Claude SessionStart 설정, macOS LaunchAgent 등록을 수행한다. Python 3.10+와 GitHub SSH 인증이 필요하다.
+3. Codex는 hook 정의의 최초 검토·신뢰 승인이 필요하다. 자동으로 신뢰를 우회하지 않는다. Claude도 설정 적용과 hook 실행을 확인한다. 사용 중인 앱 버전이나 관리자 설정에서 hook을 막으면 설치 성공만으로 자동 동작을 보장하지 않는다.
+4. 새 세션을 시작한다. `SessionStart` 안내의 고정 버전 경로와 실제 문서 읽기를 확인한다. 이후 문서 변경마다 수동 sync/apply를 실행하지 않는다.
+
+### 자동으로 처리하는 범위
+
+- **주기 다운로드:** 사용자 로그인과 300초 간격에 공통 브랜치를 cache로 내려받아 검사한다. 잠든 동안 실행되지 않으며 AI를 호출하지 않는다. `git pull`로 앱 브랜치를 병합하지 않는다.
+- **새 세션:** 원격을 다시 확인하고 정상 버전을 프로젝트의 읽기 전용 사본으로 복사한다. 도구 종류와 세션 ID별로 버전을 고정하고 지침·스킬·정책 경로를 hook context로 전달한다.
+- **기존 세션의 재개·압축:** 기존 버전을 그대로 사용한다. 다른 세션이 최신 버전을 사용해도 공용 `active` 포인터를 바꾸지 않는다. 최신 정책으로 옮기려면 새 세션을 시작한다.
+- **설치 전부터 켜둔 세션:** 고정 버전 기록이 없는 재개·압축에서는 새 버전을 임의로 적용하거나 대화를 중단하지 않는다. 경고만 전달하며, 정책 의존 작업은 새 세션에서 시작한다. 손상된 기존 버전 기록은 정상으로 간주하지 않는다.
+- **새 worktree:** 등록한 Git 공통 디렉터리에 속한 worktree는 첫 SessionStart에 지침·스킬을 연결한다. 다른 저장소에는 아무 작업도 하지 않는다. 별도 clone은 다시 설치해야 한다.
+- **오류:** 최신 확인 실패 시 마지막 정상 버전을 유지하고 실패를 안내한다. 설치·해시 검증 실패 또는 hook 미실행을 최신 적용 성공으로 표시하지 않는다. Codex/Claude가 hook을 실행하지 않은 경우에는 프로젝트 지침을 통해 연결 확인을 요구한다.
+
+기존 수동 설치는 지침·스킬의 관리 구간을 확인한 뒤 자동 모드로 이전하며 버전 사본과 사용자 내용은 보존한다. 설치 파일·진입 구간은 로컬 전용이다. 설치기는 Git의 로컬 info/exclude에 관리 구간을 추가해 새 파일이 커밋에 섞이지 않도록 한다. 이미 추적 중인 루트 지침 변경은 제외 규칙으로 숨길 수 없으므로 커밋 전에 확인한다. 백엔드 원본에는 이 도구를 중복 설치하지 않는다. 같은 저장소에 속한 worktree라도 기존 스킬과 충돌하면 덮어쓰지 않고 중단한다.
+
+### 자동 모드 상태·제거
+
+저장소 루트에서 실행한다. 상태 조회는 최신 확인과 세션별 버전을 보여줄 뿐 기존 세션의 버전을 바꾸지 않는다.
+
+```bash
+python3 "$HOME/.local/share/chalkak-harness/automatic/manage.py" status --project . --check
+python3 "$HOME/.local/share/chalkak-harness/automatic/manage.py" uninstall --project .
+```
+
+제거는 해당 등록 저장소와 자동 연결한 worktree의 관리 구간만 지운다. 마지막 저장소를 제거하면 관리하는 hook 정의와 LaunchAgent도 제거한다. 다른 사용자 지침·hook과 다운로드·세션 기록은 보존한다. 도구 자체를 업데이트하려면 세션을 정리하고 검토된 새 설치기로 다시 설치한다. 정책 다운로드가 실행 프로그램을 자동 교체하지는 않는다.
+
+Python 경로가 바뀌었으면 새 설치기로 다시 설치한다. 자신이 설치한 변경되지 않은 LaunchAgent 정의만 교체하고, 이미 실행 중이면 해제 후 다시 등록한다. 재등록에 실패하면 파일과 이전 등록을 복구한다. 사용자 수정 설정은 덮어쓰지 않는다. 인터프리터가 삭제된 순간 자동 복구되는 것은 아니므로 재설치가 필요하다.
+
+LaunchAgent의 `.plist` 파일만 삭제했더라도 설치 기록이 남아 있으면 새 설치기로 재설치하거나 위 `uninstall` 명령으로 제거할 수 있다. 파일 없이 남아 있는 자동 실행 등록도 함께 처리한다. 작업 실패 시 기존 파일·hook·실행 등록을 복구하며, 원래 없던 plist는 남기지 않는다. plist 삭제만으로는 실행 중인 등록이나 AI hook이 제거되지 않으므로 정상 중단·제거에는 `uninstall`을 사용한다. 설치 기록을 임의로 삭제하거나 수정하지 않는다.
+
+기존 수동 로그인 LaunchAgent를 따로 등록했던 경우에는 그 등록을 먼저 해제해 중복 다운로드를 피한다. 자동 설치 도구는 자신이 만든 새 LaunchAgent만 관리한다.
+
+자동 실행 로그는 `~/.local/share/chalkak-harness/automatic/download.log`·`download-error.log`, 최근 확인은 `cache/check.json`에 남는다. 최초 설치의 성공 안내 뒤에도 실제 앱에서 hook이 실행됐는지 확인한다. 기본 사용자 설정 위치는 `~/.codex/hooks.json`과 `~/.claude/settings.json`이며, 별도 프로필 경로를 사용하는 환경은 연결을 추가 확인해야 한다.
+
+- [Codex hook 설정과 신뢰 승인](https://learn.chatgpt.com/docs/hooks)
+- [Claude SessionStart](https://code.claude.com/docs/en/hooks#sessionstart)
+
+### 백엔드 담당자: 검토 버전 설치기 만들기
+
+수정 내용을 커밋·리뷰·병합하고 정식 게시 성공을 확인한 다음, 공개 저장소에서 내려받을 수 있는 검토된 전체 커밋 SHA를 지정한다. Android에는 생성된 파일 하나와 원본 SHA를 전달한다. 자동 발송하지 않는다.
+
+```bash
+python3 scripts/shared_harness/package_installer.py \
+  --source-commit <검토한-40자리-커밋-SHA> \
+  --output build/shared-harness-release/install.sh
+```
+
+템플릿과 두 Python 파일 모두 해당 Git 커밋에서 읽는다. 미커밋 파일은 포함하지 않고 기존 출력 파일도 덮어쓰지 않는다. 생성된 파일에는 커밋과 해시가 들어 있으므로 검토 후 전달한다. 설치기 자체의 출처는 팀이 확인해야 하며, 해시는 서명을 대신하지 않는다. 일반 정책 갱신에는 재설치가 필요 없다.
+
+### 입력 형식과 실제 앱 확인 범위
+
+2026-09-24 공식 문서상 Codex·Claude SessionStart는 모두 `session_id`, `cwd`, `source`를 전달한다. [도구별 예시](fixtures/README.md)를 설치된 CLI에 전달하는 회귀 검사로 입력 처리를 확인한다. 필드가 없다는 이유로 새 세션이라고 추정하지 않는다.
+
+이 검사는 실제 데스크톱 앱이 hook을 실행했다는 증거는 아니다. 팀원 최초 설치에서는 hook 신뢰 승인 후 새 세션에서 정책 경로가 전달되는지, 관련 작업 때 AI가 그 경로의 규칙을 읽는지 확인한다. 확인 전에는 설치 완료와 앱 연결 완료를 구분한다.
+
 
 ## 무엇을 함께 공유하는가
 
@@ -15,13 +76,13 @@
 
 원본 커밋, 전체 파일의 SHA-256, 파일 목록으로 계산한 버전을 `manifest.json`에 남긴다. 해시는 전송·수정 오류 검출용이며 서명이 아니다. 팀이 관리하는 원격과 검토된 배포 브랜치를 사용한다.
 
-## 한 번 준비할 것
+## 기존 수동 모드: 한 번 준비할 것
 
 Python 3.10 이상, Git, 저장소 읽기 인증이 필요하다. macOS/Linux 로컬 작업을 지원한다. Windows·클라우드 세션은 이 설치 방식의 검증 대상이 아니다.
 
 설치 도구는 검토된 백엔드 커밋의 `backend/scripts/shared_harness/manage.py`를 별도 위치에 복사해 사용한다. Android에 이 스크립트가 없으면 백엔드 담당자가 검토된 파일과 원본 커밋을 전달한다. 배포 파일을 내려받는 것만으로 설치 도구 자체를 자동 교체하거나 실행하지 않는다. 도구 변경 시에는 새 파일을 검토한 뒤 다시 복사해야 한다.
 
-정식 자동 게시 대상은 **`harness/shared`**다. 아직 원격에 생성하지 않았으며 `be/develop` 반영 후 최초 자동 게시가 생성한다. 사전 검증에는 별도 `harness/validation-477`을 사용했고, 해당 실행 경로는 검증 후 제거했다. 게시기는 원본 `be/develop`과 대상 `harness/shared`만 사용한다. 아래 컴퓨터 경로는 각자 실제 경로로 변경한다.
+정식 자동 게시 대상은 **`harness/shared`**다. PR #478 병합 후 최초 자동 게시로 생성됐다. 사전 검증에는 별도 `harness/validation-477`을 사용했고, 해당 실행 경로는 검증 후 제거했다. 게시기는 원본 `be/develop`과 대상 `harness/shared`만 사용한다. 아래 컴퓨터 경로는 각자 실제 경로로 변경한다.
 
 ```bash
 HARNESS_TOOL="$HOME/.local/share/chalkak-harness/manage.py"
@@ -64,7 +125,7 @@ python3 "$HARNESS_TOOL" export \
   --output /tmp/chalkak-harness-release
 ```
 
-## Android: 최초 설치
+## 기존 수동 모드: Android 최초 설치
 
 AI 세션을 시작하기 전에 실행한다. 설치 대상은 Android 하위 폴더가 아닌 **Git 저장소 최상위 경로**다.
 
@@ -102,7 +163,7 @@ python3 "$HARNESS_TOOL" install \
 
 설치 후 Codex·Claude의 **새 세션**을 시작한다. 스킬 목록에 `business-rules`가 나타나는지, 관련 기능 작업에서 실제 스킬과 필요한 규칙을 읽는지 확인한다. 사용자 범위에 같은 이름의 스킬이나 더 가까운 지침이 있으면 충돌 여부도 확인한다.
 
-## 이후 업데이트와 AI 작업
+## 기존 수동 모드: 업데이트와 AI 작업
 
 ```bash
 python3 "$HARNESS_TOOL" status --project "$CHALKAK_PROJECT" --check
@@ -136,7 +197,7 @@ AI가 실제로 읽은 뒤에는 예를 들어 “좋아요 관련 규칙과 설
 
 파일 권한은 실수 방지 장치다. 컴퓨터 소유자가 의도적으로 권한을 바꾸는 것까지 막지는 못하며, 그런 수정은 이후 해시 검사에서 감지한다. 중앙 배포 브랜치의 쓰기 권한은 별도의 GitHub 저장소 설정이며 이번 로컬 변경으로 팀원 권한을 변경하지 않았다.
 
-## 선택: macOS 로그인할 때 내려받기
+## 기존 수동 모드: 선택적 로그인 내려받기
 
 여기서 로그인은 **맥을 켜고 사용자 계정으로 들어가는 것**이다. GitHub·앱 로그인이 아니다. 최초 수동 sync가 성공한 뒤 각 컴퓨터에서 한 번 등록하면, macOS가 로그인 시 내려받기 프로그램을 실행한다. 프로그램은 별도 임시 폴더에 공통 브랜치를 받아 검사한 다음 cache에 저장한다. **Android 개발 폴더에서 git pull이나 merge를 실행하지 않는다.** 로그인 이후의 모든 push를 실시간 감시하지는 않는다. AI 작업 시작·재개의 `status --check`가 그 사이 변경을 확인한다.
 
@@ -177,6 +238,15 @@ python3 "$HARNESS_TOOL" uninstall --project "$CHALKAK_PROJECT"
 
 ## 검증
 
+### 후속 자동 모드 검증
+
+- 수동/게시 기존 테스트를 포함한 41개 회귀 검사에서 새 세션 최신 선택, 재개·압축의 버전 유지, 동시 Codex/Claude 시작, 새 worktree 연결, 원격 실패, 기존 지침·hook 보존, 이전 수동 설치의 이전/실패 복구, 로컬 Git 제외와 제거를 확인했다.
+- 임시 HOME·테스트 Git 원격으로 실제 launchctl 등록과 300초 주기 설정을 확인했다. kickstart로 설치된 백그라운드 다운로드를 실행해 원격 문서 변경을 받고, 기존/새 세션이 서로 다른 고정 버전을 사용하는 것을 확인했다. 시험 LaunchAgent는 제거했다.
+- 별도 임시 Android clone에서 정식 harness/shared의 실제 백그라운드 SSH 다운로드와 두 도구의 SessionStart JSON 입력 처리를 확인했다. 실제 팀원 앱의 이벤트 발생을 검사한 것은 아니다.
+- Codex CLI 0.155.1의 실제 app-server hooks/list가 SessionStart 설정을 인식하고 신뢰 전에는 untrusted로 표시하는 것을 확인했다. 대화·모델 요청 없이 설정 파서만 검사했다.
+- 실제 로그아웃·로그인, 5분 경과 후 주기 실행, 실제 Orca/Codex 데스크톱의 신뢰 UI·hook 실행, 모델의 정책 읽기·구현은 미검증이다. 구조·도구 검사 통과로 대신하지 않는다.
+
+
 ### 실제 GitHub Actions 사전 검증 — 추가·수정·삭제 통과
 
 로컬 fixture 테스트만으로 GitHub 이벤트 감지·러너·실제 토큰의 push 권한을 확인할 수 없어, 사용자 승인 후 아래 세 번의 커밋·push를 실제로 검증했다. 각 실행에서 구조 검사·26개 테스트·검증 배포 게시가 통과했고, 정식 publish 작업은 건너뛰었다.
@@ -208,7 +278,7 @@ python3 "$HARNESS_TOOL" uninstall --project "$CHALKAK_PROJECT"
 
 각 단계의 Actions 실행 URL·원본 SHA·배포 SHA·콘텐츠 버전·관찰 결과를 기록했고, 실행 완료 후 다음 변경을 진행했다. `be/develop`과 정식 `harness/shared`는 사전 검증에서 변경하지 않았다. 원격 검증 브랜치는 증거 확인 후 별도 승인으로 정리하며 팀원 설치에 사용하지 않는다.
 
-사전 검증 통과 후에도 **정식 PR 병합 → `be/develop` 이벤트 → 최초 `harness/shared` 게시**는 한 번 더 확인해야 한다. 검증 브랜치의 성공은 정식 브랜치에 적용되는 권한·브랜치 규칙까지 보장하지 않는다. 실제 팀원 설치·macOS 로그인 실행·Codex/Claude의 정책 읽기는 각각 별도 검증으로 남긴다.
+PR #478 병합 후 **정식 `be/develop` 이벤트 → `harness/shared` 최초 게시**도 [실제 Actions](https://github.com/woowacourse-teams/2026-Chalkak/actions/runs/35820287020)에서 성공했다. 원본 `2ff6a09`와 배포 `7fa80a3`의 공통 21개 파일 및 임시 Android 설치를 대조했다. 실제 팀원 설치·macOS 로그인 실행·Codex/Claude의 정책 읽기는 각각 별도 검증으로 남긴다.
 
 ### 로컬 회귀 검사
 
