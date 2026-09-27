@@ -24,14 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostUpdateServiceTest extends IntegrationTestSupport {
 
-    private static final UUID AUTHOR_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576a1");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576b1");
-    private static final UUID PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576c1");
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576d1");
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576a1");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576b1");
+    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576c1");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6576d1");
 
     @Autowired
     private PostCommandService postCommandService;
@@ -141,14 +137,12 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // Given
         jdbcTemplate.update(
                 "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID
-        );
+                POST_ID);
 
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목")
-        );
+                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목"));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -161,14 +155,12 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // Given
         jdbcTemplate.update(
                 "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                AUTHOR_ID
-        );
+                AUTHOR_ID);
 
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
-                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목")
-        );
+                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목"));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
@@ -240,7 +232,6 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT updated_at FROM posts WHERE id = ?",
                 Instant.class,
-                POST_ID
-        );
+                POST_ID);
     }
 }

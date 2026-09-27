@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.admin.service.AdminPostSort;
+import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -24,17 +24,11 @@ public record AdminPostListRequest(
         @Schema(description = "작성자 사용자 ID", format = "uuid")
         UUID userId,
 
-        @Schema(
-                description = "등록 시각 조회 시작값(포함)",
-                example = "2026-08-01T00:00:00Z"
-        )
+        @Schema(description = "등록 시각 조회 시작값(포함)", example = "2026-08-01T00:00:00Z")
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
         Instant createdAtFrom,
 
-        @Schema(
-                description = "등록 시각 조회 종료값(포함)",
-                example = "2026-08-31T23:59:59Z"
-        )
+        @Schema(description = "등록 시각 조회 종료값(포함)", example = "2026-08-31T23:59:59Z")
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
         Instant createdAtTo,
 
@@ -42,8 +36,8 @@ public record AdminPostListRequest(
                 description = "등록 시각 정렬",
                 defaultValue = "createdAtDesc",
                 implementation = String.class,
-                allowableValues = {"createdAtDesc", "createdAtAsc"}
-        )
+                allowableValues = {
+                        "createdAtDesc", "createdAtAsc"})
         AdminPostSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1", example = "1")

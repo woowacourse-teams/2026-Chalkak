@@ -16,7 +16,6 @@ import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvid
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -426,7 +425,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         assertThat(pendingAuthorizationRepository
                 .findLatestUnexpiredBySubjectHmacForUpdate(
                         appleSubjectHmac(),
-                        Instant.now())).isEmpty();
+                        Instant.now()))
+                .isEmpty();
     }
 
     @Test
@@ -562,8 +562,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
 
     private long countPendingAuthorizations() {
         return entityManager.createQuery(
-                        "SELECT count(a) FROM PendingAppleAuthorization a",
-                        Long.class)
+                "SELECT count(a) FROM PendingAppleAuthorization a",
+                Long.class)
                 .getSingleResult();
     }
 

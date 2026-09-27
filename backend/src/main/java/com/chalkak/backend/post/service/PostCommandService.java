@@ -32,8 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 게시물과 이미지 업로드의 상태를 바꾸는 흐름. 업로드 권한 발급, 게시물 생성, 이미지 처리 결과 반영이 모두
- * 같은 업로드 행을 잠그고 겨루므로 한자리에 둔다. 읽기 전용 조회는 {@link PostQueryService}가 맡는다.
+ * 게시물과 이미지 업로드의 상태를 바꾸는 흐름. 업로드 권한 발급, 게시물 생성, 이미지 처리 결과 반영이 모두 같은 업로드 행을 잠그고
+ * 겨루므로 한자리에 둔다. 읽기 전용 조회는 {@link PostQueryService}가 맡는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -55,8 +55,7 @@ public class PostCommandService {
         User uploader = getPostableUser(userId);
 
         PostImageUpload upload = postImageUploadRepository.save(
-                PostImageUpload.createPostImageUpload(uploader, Instant.now())
-        );
+                PostImageUpload.createPostImageUpload(uploader, Instant.now()));
         PresignedPostImageUpload presigned = postImageUploadIssuer.issue(upload.getId());
 
         return new PostImageUploadResult(
@@ -64,8 +63,7 @@ public class PostCommandService {
                 presigned.uploadUrl(),
                 presigned.expiresInSeconds(),
                 presigned.contentType(),
-                presigned.maxBytes()
-        );
+                presigned.maxBytes());
     }
 
     public PostProcessingImageUpload issuePostImageProcessingUpload(UUID uploadId) {
@@ -82,8 +80,7 @@ public class PostCommandService {
         Topic topic = topicRepository.findActiveById(topicId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "게시물을 작성할 주제를 찾을 수 없습니다."
-                ));
+                        "게시물을 작성할 주제를 찾을 수 없습니다."));
         validateTopicOpen(topic);
 
         // S3 확인은 왕복이 길 수 있다. 업로드 행에 비관적 락을 잡은 채 기다리면 같은 업로드의 처리 콜백이
@@ -100,8 +97,7 @@ public class PostCommandService {
         if (!upload.isProcessed() && !stagingImageExists) {
             throw new NotFoundException(
                     ErrorCode.BUSINESS_ERROR,
-                    "업로드한 사진을 찾을 수 없습니다."
-            );
+                    "업로드한 사진을 찾을 수 없습니다.");
         }
 
         String originalStorageKey = postImageStorage.toOriginalStorageKey(photoUploadId);
@@ -112,8 +108,7 @@ public class PostCommandService {
         if (upload.isProcessed()) {
             photo.completeProcessing(
                     postImageStorage.toThumbnailStorageKey(photoUploadId),
-                    upload.getImageMetadata()
-            );
+                    upload.getImageMetadata());
             post.requestModeration();
         }
         Post savedPost = postRepository.save(post);
@@ -136,13 +131,12 @@ public class PostCommandService {
         post.updateTitle(authorId, title, Instant.now());
         return new PostUpdateResult(
                 post.getId(),
-                post.getTitle()
-        );
+                post.getTitle());
     }
 
     /**
-     * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성
-     * 요청이 READY를 보고 사진 처리를 반영한 뒤 관리자 검수 대기 상태로 만든다.
+     * 이미지 처리 완료 콜백. 게시물이 아직 없으면 업로드 상태만 바꾸고 끝낸다. 나중에 도착하는 게시물 생성 요청이 READY를 보고 사진
+     * 처리를 반영한 뒤 관리자 검수 대기 상태로 만든다.
      */
     public void completePostImageProcessing(UUID uploadId, Map<String, Object> imageMetadata) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
@@ -166,8 +160,7 @@ public class PostCommandService {
         findValidatingPost(uploadId).ifPresent(post -> {
             post.getPhoto().completeProcessing(
                     postImageStorage.toThumbnailStorageKey(uploadId),
-                    upload.getImageMetadata()
-            );
+                    upload.getImageMetadata());
             post.requestModeration();
             publishPostModerationPending(post.getId());
         });
@@ -175,8 +168,7 @@ public class PostCommandService {
 
     private void publishPostModerationPending(UUID postId) {
         applicationEventPublisher.publishEvent(
-                new PostModerationPendingEvent(postId, Instant.now())
-        );
+                new PostModerationPendingEvent(postId, Instant.now()));
     }
 
     private void failProcessedUpload(
@@ -199,54 +191,49 @@ public class PostCommandService {
         return postRepository.findByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "게시물을 찾을 수 없습니다."
-                ));
+                        "게시물을 찾을 수 없습니다."));
     }
 
     private Post getActivePostForUpdate(UUID postId) {
         return postRepository.findActiveByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "게시물을 찾을 수 없습니다."
-                ));
+                        "게시물을 찾을 수 없습니다."));
     }
 
     private void validateUpdatableUser(UUID userId) {
         userRepository.findActiveById(userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."
-                ));
+                        "유효하지 않은 인증 정보입니다."));
     }
 
     /**
-     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은
-     * 판정과 이 시점 사이에 회원이 사라질 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
+     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은 판정과 이 시점 사이에 회원이 사라질
+     * 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
      */
     private User getPostableUser(UUID userId) {
         return userRepository.findActiveById(userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."
-                ));
+                        "유효하지 않은 인증 정보입니다."));
     }
 
     private void validateTopicOpen(Topic topic) {
         if (topic.getParticipationPeriod().phaseAt(Instant.now()) != TopicPhase.OPEN) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "현재 게시물을 작성할 수 없는 주제입니다."
-            );
+                    "현재 게시물을 작성할 수 없는 주제입니다.");
         }
     }
 
     /**
-     * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 이미지 처리 대기 상태로 남는다. 작성자에게는 보이지도
-     * 않으면서 같은 주제 재작성만 막으므로, 처리 대기 시간을 넘긴 게시물은 여기서 거절 처리하고 길을 터 준다.
+     * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 이미지 처리 대기 상태로 남는다. 작성자에게는 보이지도 않으면서 같은 주제 재작성만
+     * 막으므로, 처리 대기 시간을 넘긴 게시물은 여기서 거절 처리하고 길을 터 준다.
      */
     private void validatePostNotCreated(UUID userId, UUID topicId, Instant now) {
-        Optional<Post> activePost =
-                postRepository.findActiveByAuthorIdAndTopicIdForUpdate(userId, topicId);
+        Optional<Post> activePost = postRepository.findActiveByAuthorIdAndTopicIdForUpdate(userId,
+                topicId);
         if (activePost.isEmpty()) {
             return;
         }
@@ -260,8 +247,7 @@ public class PostCommandService {
         }
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "이미 해당 주제에 게시물을 작성했습니다."
-        );
+                "이미 해당 주제에 게시물을 작성했습니다.");
     }
 
     private boolean isProcessingTimedOut(Post post, Instant now) {
@@ -277,8 +263,7 @@ public class PostCommandService {
                 .filter(upload -> upload.isOwnedBy(userId))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "업로드한 사진을 찾을 수 없습니다."
-                ));
+                        "업로드한 사진을 찾을 수 없습니다."));
     }
 
     /**
@@ -295,8 +280,7 @@ public class PostCommandService {
         if (photoRepository.existsByOriginalStorageKey(originalStorageKey)) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "이미 사용된 사진입니다."
-            );
+                    "이미 사용된 사진입니다.");
         }
     }
 }

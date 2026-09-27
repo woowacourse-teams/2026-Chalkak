@@ -86,8 +86,8 @@ class AppleHttpTokenClientTest {
                 .andRespond(withSuccess(validTokenResponse(), APPLICATION_JSON));
 
         // When
-        AppleTokenExchangeResult result =
-                tokenClient.exchangeAuthorizationCode("valid-authorization-code");
+        AppleTokenExchangeResult result = tokenClient
+                .exchangeAuthorizationCode("valid-authorization-code");
 
         // Then
         assertThat(result.idToken()).isEqualTo("apple-id-token");
@@ -98,7 +98,8 @@ class AppleHttpTokenClientTest {
     @NullAndEmptySource
     @ValueSource(strings = " ")
     @DisplayName("authorizationCode가 없으면 Apple 토큰 교환을 거부한다")
-    void exchangeAuthorizationCode_missingCode_throwsUnauthorizedException(String authorizationCode) {
+    void exchangeAuthorizationCode_missingCode_throwsUnauthorizedException(
+            String authorizationCode) {
         // When & Then
         assertThatThrownBy(() -> tokenClient.exchangeAuthorizationCode(authorizationCode))
                 .isInstanceOf(UnauthorizedException.class)
@@ -166,7 +167,8 @@ class AppleHttpTokenClientTest {
     @ParameterizedTest
     @MethodSource("invalidTokenResponses")
     @DisplayName("Apple 성공 응답에 필수 토큰 정보가 빠지면 응답 오류로 처리한다")
-    void exchangeAuthorizationCode_invalidTokenResponse_throwsIllegalStateException(String responseBody) {
+    void exchangeAuthorizationCode_invalidTokenResponse_throwsIllegalStateException(
+            String responseBody) {
         // Given
         server.expect(requestTo(TOKEN_URI))
                 .andRespond(withSuccess(responseBody, APPLICATION_JSON));
@@ -200,7 +202,8 @@ class AppleHttpTokenClientTest {
     @NullAndEmptySource
     @ValueSource(strings = " ")
     @DisplayName("Refresh Token이 없으면 Apple 토큰 폐기를 거부한다")
-    void revokeRefreshToken_missingRefreshToken_throwsIllegalArgumentException(String refreshToken) {
+    void revokeRefreshToken_missingRefreshToken_throwsIllegalArgumentException(
+            String refreshToken) {
         // When & Then
         assertThatThrownBy(() -> tokenClient.revokeRefreshToken(refreshToken))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -288,11 +291,12 @@ class AppleHttpTokenClientTest {
     private static Stream<String> invalidTokenResponses() {
         return Stream.of(
                 tokenResponse("", "bearer", 3600, "apple-refresh-token", "apple-id-token"),
-                tokenResponse("apple-access-token", "unknown", 3600, "apple-refresh-token", "apple-id-token"),
-                tokenResponse("apple-access-token", "bearer", 0, "apple-refresh-token", "apple-id-token"),
+                tokenResponse("apple-access-token", "unknown", 3600, "apple-refresh-token",
+                        "apple-id-token"),
+                tokenResponse("apple-access-token", "bearer", 0, "apple-refresh-token",
+                        "apple-id-token"),
                 tokenResponse("apple-access-token", "bearer", 3600, "", "apple-id-token"),
-                tokenResponse("apple-access-token", "bearer", 3600, "apple-refresh-token", "")
-        );
+                tokenResponse("apple-access-token", "bearer", 3600, "apple-refresh-token", ""));
     }
 
     private String validTokenResponse() {

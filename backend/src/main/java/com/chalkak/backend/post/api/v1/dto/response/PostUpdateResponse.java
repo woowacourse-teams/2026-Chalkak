@@ -14,7 +14,6 @@ public record PostUpdateResponse(
     public static PostUpdateResponse from(PostUpdateResult result) {
         return new PostUpdateResponse(
                 result.postId(),
-                result.title()
-        );
+                result.title());
     }
 }

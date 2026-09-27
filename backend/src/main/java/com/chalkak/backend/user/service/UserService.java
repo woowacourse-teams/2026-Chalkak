@@ -65,8 +65,7 @@ public class UserService {
 
     @Transactional
     public String updateSignature(UUID userId, UUID uploadId) {
-        SignatureStorageKeys storageKeys =
-                signatureImageStorage.toStorageKeys(uploadId);
+        SignatureStorageKeys storageKeys = signatureImageStorage.toStorageKeys(uploadId);
 
         User user = userRepository.findActiveByIdForUpdate(userId)
                 .orElseThrow(() -> new UnauthorizedException(
@@ -80,7 +79,7 @@ public class UserService {
 
         if (user.isSignatureProcessingFailed(uploadId)
                 || (user.isSignatureProcessing(uploadId)
-                && isSignatureProcessingTimedOut(user, Instant.now()))) {
+                        && isSignatureProcessingTimedOut(user, Instant.now()))) {
             throw new BusinessException(
                     ErrorCode.SIGNATURE_REUPLOAD_REQUIRED,
                     "사인 이미지 처리에 실패했습니다. "
@@ -138,20 +137,19 @@ public class UserService {
     }
 
     /**
-     * 탈퇴 처리. 소셜 연결을 끊는 것만으로는 이미 발급된 리프레시 토큰이 살아 있어, 탈퇴한 회원이
-     * 절대 만료까지 최장 90일 동안 액세스 토큰을 계속 받아 갈 수 있다. 그래서 모든 기기의 계보를
-     * 여기서 함께 폐기한다. 차단은 계보를 남겨 두는데, 차단 회원은 요청마다 {@code UsableUserPolicy}가
-     * 막으므로 굳이 재로그인까지 강제할 이유가 없기 때문이다.
+     * 탈퇴 처리. 소셜 연결을 끊는 것만으로는 이미 발급된 리프레시 토큰이 살아 있어, 탈퇴한 회원이 절대 만료까지 최장 90일 동안 액세스
+     * 토큰을 계속 받아 갈 수 있다. 그래서 모든 기기의 계보를 여기서 함께 폐기한다. 차단은 계보를 남겨 두는데, 차단 회원은 요청마다
+     * {@code UsableUserPolicy}가 막으므로 굳이 재로그인까지 강제할 이유가 없기 때문이다.
      *
-     * <p>revokedConnections는 이 트랜잭션 밖에서 이미 외부 제공자에 폐기를 요청한 연결의
-     * 스냅샷이다. 트랜잭션 진입 시점에 DB의 현재 상태가 그 스냅샷과 정확히 같은지 먼저
-     * 대조하고, 같을 때만 삭제를 진행한다. 그 사이 인증 상태가 바뀌었다면 대조가 실패해
-     * 트랜잭션이 롤백되므로, 폐기되지 않은 연결 정보가 삭제로 함께 사라지는 일이 없다.
-     * 이 검증을 삭제문 하나에만 걸면 소셜 계정을 지울 때 함께
-     * 딸려가는 FK CASCADE 삭제까지는 보호하지 못하므로, 트랜잭션 맨 앞에서 한 번에 막는다.
+     * <p>
+     * revokedConnections는 이 트랜잭션 밖에서 이미 외부 제공자에 폐기를 요청한 연결의 스냅샷이다. 트랜잭션 진입 시점에 DB의
+     * 현재 상태가 그 스냅샷과 정확히 같은지 먼저 대조하고, 같을 때만 삭제를 진행한다. 그 사이 인증 상태가 바뀌었다면 대조가 실패해
+     * 트랜잭션이 롤백되므로, 폐기되지 않은 연결 정보가 삭제로 함께 사라지는 일이 없다. 이 검증을 삭제문 하나에만 걸면 소셜 계정을 지울 때
+     * 함께 딸려가는 FK CASCADE 삭제까지는 보호하지 못하므로, 트랜잭션 맨 앞에서 한 번에 막는다.
      *
-     * <p>외부 소셜 연결 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로, 같은
-     * 패키지의 해당 서비스만 이 메서드를 호출할 수 있도록 package-private으로 제한한다.
+     * <p>
+     * 외부 소셜 연결 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로, 같은 패키지의 해당 서비스만 이
+     * 메서드를 호출할 수 있도록 package-private으로 제한한다.
      */
     @Transactional
     void completeWithdrawal(
@@ -173,8 +171,8 @@ public class UserService {
     }
 
     /**
-     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은
-     * 판정과 이 시점 사이에 회원이 사라질 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
+     * 인가 판정이 이미 탈퇴 회원을 걸러내므로 여기까지 오면 회원은 있어야 한다. 그래도 남겨 두는 것은 판정과 이 시점 사이에 회원이 사라질
+     * 수 있어서이고, 그때의 답은 판정과 같은 401이어야 한다.
      */
     private User getActiveUser(UUID userId) {
         return userRepository.findActiveById(userId)

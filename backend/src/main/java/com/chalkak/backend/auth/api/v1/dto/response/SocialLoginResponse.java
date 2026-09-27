@@ -15,33 +15,27 @@ public record SocialLoginResponse(
         @Schema(description = "LOGIN_SUCCESS일 때만 내려준다", nullable = true)
         UUID userId,
 
-        @Schema(
-                description = "LOGIN_SUCCESS일 때만 내려주는 액세스 토큰",
-                nullable = true
-        )
+        @Schema(description = "LOGIN_SUCCESS일 때만 내려주는 액세스 토큰", nullable = true)
         String accessToken,
 
         @Schema(
                 description = "발급 시점부터의 액세스 토큰 유효 시간(초)."
                         + " LOGIN_SUCCESS일 때만 내려준다",
                 example = "900",
-                nullable = true
-        )
+                nullable = true)
         Long expiresIn,
 
         @Schema(
                 description = "액세스 토큰 재발급에 사용하는 리프레시 토큰."
                         + " LOGIN_SUCCESS일 때만 내려준다",
-                nullable = true
-        )
+                nullable = true)
         String refreshToken,
 
         @Schema(
                 description = "발급 시점부터의 리프레시 토큰 유효 시간(초)."
                         + " LOGIN_SUCCESS일 때만 내려준다",
                 example = "2592000",
-                nullable = true
-        )
+                nullable = true)
         Long refreshTokenExpiresIn
 ) {
 

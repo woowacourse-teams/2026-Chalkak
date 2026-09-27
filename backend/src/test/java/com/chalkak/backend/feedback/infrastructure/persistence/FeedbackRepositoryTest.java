@@ -20,8 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(FeedbackRepositoryImpl.class)
 class FeedbackRepositoryTest {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0198fc30-0000-7000-8000-000000000001");
+    private static final UUID USER_ID = UUID.fromString("0198fc30-0000-7000-8000-000000000001");
 
     @Autowired
     private FeedbackRepository feedbackRepository;

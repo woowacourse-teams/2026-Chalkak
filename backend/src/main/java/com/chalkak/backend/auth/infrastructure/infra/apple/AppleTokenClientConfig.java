@@ -34,8 +34,7 @@ public class AppleTokenClientConfig {
     public RestClient appleTokenRestClient(
             @Qualifier("appleTokenHttpClient") HttpClient httpClient
     ) {
-        JdkClientHttpRequestFactory requestFactory =
-                new JdkClientHttpRequestFactory(httpClient);
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(READ_TIMEOUT);
         return RestClient.builder()
                 .requestFactory(requestFactory)

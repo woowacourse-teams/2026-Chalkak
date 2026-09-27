@@ -11,8 +11,7 @@ class AppleAuthorizationFingerprintEncoderTest {
     @DisplayName("Apple 인증 정보 암호문을 SHA-256 지문으로 변환한다")
     void encode_encryptedRefreshToken_returnsSha256Fingerprint() {
         // Given
-        AppleAuthorizationFingerprintEncoder encoder =
-                new AppleAuthorizationFingerprintEncoder();
+        AppleAuthorizationFingerprintEncoder encoder = new AppleAuthorizationFingerprintEncoder();
 
         // When
         String fingerprint = encoder.encode("encrypted-refresh-token");

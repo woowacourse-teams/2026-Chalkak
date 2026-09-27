@@ -14,13 +14,12 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminPostSortConverter;
-import com.chalkak.backend.admin.service.AdminPostDetail;
-import com.chalkak.backend.admin.service.AdminPostDeletionService;
-import com.chalkak.backend.admin.service.AdminPostListResult;
-import com.chalkak.backend.admin.service.AdminPostModerationResult;
-import com.chalkak.backend.admin.service.AdminPostModerationService;
-import com.chalkak.backend.admin.service.AdminPostQueryService;
-import com.chalkak.backend.admin.service.AdminPostSort;
+import com.chalkak.backend.admin.repository.post.AdminPostSort;
+import com.chalkak.backend.admin.service.post.AdminPostCommandService;
+import com.chalkak.backend.admin.service.post.AdminPostDetail;
+import com.chalkak.backend.admin.service.post.AdminPostListResult;
+import com.chalkak.backend.admin.service.post.AdminPostModerationResult;
+import com.chalkak.backend.admin.service.post.AdminPostQueryService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -56,18 +55,12 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 class AdminPostControllerTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final UUID PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
+    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
     private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
     private static final Instant CREATED_AT = Instant.parse("2026-08-12T03:30:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-12T03:40:00Z");
@@ -81,10 +74,7 @@ class AdminPostControllerTest {
     private AdminPostQueryService adminPostQueryService;
 
     @MockitoBean
-    private AdminPostModerationService adminPostModerationService;
-
-    @MockitoBean
-    private AdminPostDeletionService adminPostDeletionService;
+    private AdminPostCommandService adminPostCommandService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -110,24 +100,19 @@ class AdminPostControllerTest {
                                 USER_ID,
                                 "author@example.com",
                                 UserStatus.ACTIVE,
-                                null
-                        ),
+                                null),
                         new AdminPostListResult.TopicSummary(
                                 TOPIC_ID,
                                 "오늘 가장 기억에 남은 순간",
-                                TOPIC_DATE
-                        ),
+                                TOPIC_DATE),
                         new AdminPostListResult.PhotoSummary(
                                 PHOTO_ID,
                                 "https://cdn.example.com/dev/posts/original.jpg",
-                                "https://cdn.example.com/dev/posts/thumbnail.jpg"
-                        ),
+                                "https://cdn.example.com/dev/posts/thumbnail.jpg"),
                         43L,
                         CREATED_AT,
                         null,
-                        null
-                ))
-        );
+                        null)));
         given(adminPostQueryService.getPosts(
                 null,
                 null,
@@ -137,8 +122,7 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                20
-        )).willReturn(result);
+                20)).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts"))
@@ -162,8 +146,7 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                20
-        );
+                20);
     }
 
     @Test
@@ -182,20 +165,19 @@ class AdminPostControllerTest {
                 createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
-                50
-        )).willReturn(result);
+                50)).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
-                        .queryParam("status", "REJECTED")
-                        .queryParam("topicId", TOPIC_ID.toString())
-                        .queryParam("topicDate", TOPIC_DATE.toString())
-                        .queryParam("userId", USER_ID.toString())
-                        .queryParam("createdAtFrom", createdAtFrom.toString())
-                        .queryParam("createdAtTo", createdAtTo.toString())
-                        .queryParam("sort", "createdAtAsc")
-                        .queryParam("page", "2")
-                        .queryParam("pageSize", "50"))
+                .queryParam("status", "REJECTED")
+                .queryParam("topicId", TOPIC_ID.toString())
+                .queryParam("topicDate", TOPIC_DATE.toString())
+                .queryParam("userId", USER_ID.toString())
+                .queryParam("createdAtFrom", createdAtFrom.toString())
+                .queryParam("createdAtTo", createdAtTo.toString())
+                .queryParam("sort", "createdAtAsc")
+                .queryParam("page", "2")
+                .queryParam("pageSize", "50"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
                 .andExpect(jsonPath("$.pageSize").value(50))
@@ -211,8 +193,7 @@ class AdminPostControllerTest {
                 createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
-                50
-        );
+                50);
     }
 
     @Test
@@ -220,7 +201,7 @@ class AdminPostControllerTest {
     void getPosts_validatingStatus_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
-                        .queryParam("status", "VALIDATING"))
+                .queryParam("status", "VALIDATING"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -240,7 +221,7 @@ class AdminPostControllerTest {
     ) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
-                        .queryParam(parameterName, parameterValue))
+                .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -263,7 +244,7 @@ class AdminPostControllerTest {
             String parameterValue
     ) throws Exception {
         mockMvc.perform(get("/api/v1/admin/posts")
-                        .queryParam(parameterName, parameterValue))
+                .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -284,12 +265,11 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                pageSize
-        )).willReturn(new AdminPostListResult(1, pageSize, false, List.of()));
+                pageSize)).willReturn(new AdminPostListResult(1, pageSize, false, List.of()));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
-                        .queryParam("pageSize", Integer.toString(pageSize)))
+                .queryParam("pageSize", Integer.toString(pageSize)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pageSize").value(pageSize));
     }
@@ -301,8 +281,7 @@ class AdminPostControllerTest {
         AdminPostDetail detail = createDetail(
                 ModerationStatus.REJECTED,
                 MODERATED_AT,
-                DELETED_AT
-        );
+                DELETED_AT);
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
 
         // When & Then
@@ -372,8 +351,7 @@ class AdminPostControllerTest {
         // Given
         given(adminPostQueryService.getPost(POST_ID)).willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR,
-                "게시물을 찾을 수 없습니다."
-        ));
+                "게시물을 찾을 수 없습니다."));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts/{postId}", POST_ID))
@@ -393,23 +371,21 @@ class AdminPostControllerTest {
                 ModerationStatus.APPROVED,
                 ADMIN_ID,
                 MODERATED_AT,
-                null
-        );
-        given(adminPostModerationService.moderate(
+                null);
+        given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null
-        )).willReturn(result);
+                null)).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "APPROVED"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "APPROVED"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.moderationStatus").value("APPROVED"))
@@ -418,12 +394,11 @@ class AdminPostControllerTest {
                 .andExpect(jsonPath("$.rejectionReason").value(nullValue()));
 
         then(adminActorResolver).should().resolve();
-        then(adminPostModerationService).should().moderate(
+        then(adminPostCommandService).should().moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null
-        );
+                null);
     }
 
     @Test
@@ -436,24 +411,22 @@ class AdminPostControllerTest {
                 ModerationStatus.REJECTED,
                 ADMIN_ID,
                 MODERATED_AT,
-                rejectionReason
-        );
-        given(adminPostModerationService.moderate(
+                rejectionReason);
+        given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason
-        )).willReturn(result);
+                rejectionReason)).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "REJECTED",
-                                  "rejectionReason": "운영 정책 위반"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "REJECTED",
+                          "rejectionReason": "운영 정책 위반"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.moderationStatus").value("REJECTED"))
@@ -462,12 +435,11 @@ class AdminPostControllerTest {
                 .andExpect(jsonPath("$.rejectionReason").value(rejectionReason));
 
         then(adminActorResolver).should().resolve();
-        then(adminPostModerationService).should().moderate(
+        then(adminPostCommandService).should().moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason
-        );
+                rejectionReason);
     }
 
     @ParameterizedTest
@@ -476,16 +448,16 @@ class AdminPostControllerTest {
     void moderatePost_nonDecisionStatus_returnsBadRequest(String statusValue) throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "%s"
-                                }
-                                """.formatted(statusValue)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "%s"
+                        }
+                        """.formatted(statusValue)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
@@ -499,12 +471,12 @@ class AdminPostControllerTest {
     void moderatePost_rejectedWithoutReason_returnsBadRequest(String requestBody) throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -512,17 +484,17 @@ class AdminPostControllerTest {
     void moderatePost_approvedWithReason_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "APPROVED",
-                                  "rejectionReason": "승인 요청에는 허용하지 않음"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "APPROVED",
+                          "rejectionReason": "승인 요청에는 허용하지 않음"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -535,33 +507,30 @@ class AdminPostControllerTest {
                 ModerationStatus.REJECTED,
                 ADMIN_ID,
                 MODERATED_AT,
-                rejectionReason
-        );
-        given(adminPostModerationService.moderate(
+                rejectionReason);
+        given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason
-        )).willReturn(result);
+                rejectionReason)).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "REJECTED",
-                                  "rejectionReason": "%s"
-                                }
-                                """.formatted(rejectionReason)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "REJECTED",
+                          "rejectionReason": "%s"
+                        }
+                        """.formatted(rejectionReason)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rejectionReason").value(rejectionReason));
 
-        then(adminPostModerationService).should().moderate(
+        then(adminPostCommandService).should().moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason
-        );
+                rejectionReason);
     }
 
     @Test
@@ -572,17 +541,17 @@ class AdminPostControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "REJECTED",
-                                  "rejectionReason": "%s"
-                                }
-                                """.formatted(rejectionReason)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "REJECTED",
+                          "rejectionReason": "%s"
+                        }
+                        """.formatted(rejectionReason)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
@@ -595,12 +564,12 @@ class AdminPostControllerTest {
     void moderatePost_invalidStatus_returnsBadRequest(String requestBody) throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -608,11 +577,11 @@ class AdminPostControllerTest {
     void moderatePost_emptyBody_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON))
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -620,41 +589,39 @@ class AdminPostControllerTest {
     void moderatePost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", "invalid-post-id")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "APPROVED"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "APPROVED"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
 
-        then(adminPostModerationService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("대기 상태가 아닌 게시물의 검수 요청은 현재 상태 재조회 오류를 반환한다")
     void moderatePost_nonPendingPost_returnsResourceStateChangedError() throws Exception {
         // Given
-        given(adminPostModerationService.moderate(
+        given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null
-        )).willThrow(new BusinessException(
-                ErrorCode.RESOURCE_STATE_CHANGED,
-                "대기 중인 게시물만 검수할 수 있습니다."
-        ));
+                null)).willThrow(new BusinessException(
+                        ErrorCode.RESOURCE_STATE_CHANGED,
+                        "대기 중인 게시물만 검수할 수 있습니다."));
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "APPROVED"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "APPROVED"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
                         .value("RESOURCE_STATE_CHANGED"))
@@ -670,16 +637,16 @@ class AdminPostControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "운영 정책 위반"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "운영 정책 위반"
+                        }
+                        """))
                 .andExpect(status().isNoContent());
 
         then(adminActorResolver).should().resolve();
-        then(adminPostDeletionService).should().deletePost(POST_ID, ADMIN_ID, reason);
+        then(adminPostCommandService).should().deletePost(POST_ID, ADMIN_ID, reason);
     }
 
     @Test
@@ -690,15 +657,15 @@ class AdminPostControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "%s"
-                                }
-                                """.formatted(reason)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "%s"
+                        }
+                        """.formatted(reason)))
                 .andExpect(status().isNoContent());
 
-        then(adminPostDeletionService).should().deletePost(POST_ID, ADMIN_ID, reason);
+        then(adminPostCommandService).should().deletePost(POST_ID, ADMIN_ID, reason);
     }
 
     @ParameterizedTest
@@ -712,12 +679,12 @@ class AdminPostControllerTest {
     void deletePost_missingOrBlankReason_returnsBadRequest(String requestBody) throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostDeletionService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -728,16 +695,16 @@ class AdminPostControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "%s"
-                                }
-                                """.formatted(reason)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "%s"
+                        }
+                        """.formatted(reason)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostDeletionService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -745,11 +712,11 @@ class AdminPostControllerTest {
     void deletePost_emptyBody_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON))
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostDeletionService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -757,17 +724,17 @@ class AdminPostControllerTest {
     void deletePost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", "invalid-post-id")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "운영 정책 위반"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "운영 정책 위반"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
 
-        then(adminPostDeletionService).shouldHaveNoInteractions();
+        then(adminPostCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -776,21 +743,19 @@ class AdminPostControllerTest {
         // Given
         willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR,
-                "게시물을 찾을 수 없습니다."
-        )).given(adminPostDeletionService).deletePost(
-                POST_ID,
-                ADMIN_ID,
-                "운영 정책 위반"
-        );
+                "게시물을 찾을 수 없습니다.")).given(adminPostCommandService).deletePost(
+                        POST_ID,
+                        ADMIN_ID,
+                        "운영 정책 위반");
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "운영 정책 위반"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "운영 정책 위반"
+                        }
+                        """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
@@ -802,21 +767,19 @@ class AdminPostControllerTest {
         // Given
         willThrow(new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "이미지 처리 중인 게시물은 삭제할 수 없습니다."
-        )).given(adminPostDeletionService).deletePost(
-                POST_ID,
-                ADMIN_ID,
-                "운영 정책 위반"
-        );
+                "이미지 처리 중인 게시물은 삭제할 수 없습니다.")).given(adminPostCommandService).deletePost(
+                        POST_ID,
+                        ADMIN_ID,
+                        "운영 정책 위반");
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "운영 정책 위반"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "운영 정책 위반"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
                         .value("BUSINESS_ERROR"));
@@ -828,19 +791,18 @@ class AdminPostControllerTest {
             throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "reason": "중복 삭제 요청"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reason": "중복 삭제 요청"
+                        }
+                        """))
                 .andExpect(status().isNoContent());
 
-        then(adminPostDeletionService).should().deletePost(
+        then(adminPostCommandService).should().deletePost(
                 POST_ID,
                 ADMIN_ID,
-                "중복 삭제 요청"
-        );
+                "중복 삭제 요청");
     }
 
     private AdminPostDetail createDetail(
@@ -856,16 +818,14 @@ class AdminPostControllerTest {
                         USER_ID,
                         "author@example.com",
                         UserStatus.ACTIVE,
-                        deletedAt
-                ),
+                        deletedAt),
                 new AdminPostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
                         TOPIC_DATE,
                         Instant.parse("2026-08-12T00:00:00Z"),
                         Instant.parse("2026-08-13T00:00:00Z"),
-                        null
-                ),
+                        null),
                 new AdminPostDetail.PhotoDetail(
                         PHOTO_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
@@ -873,12 +833,10 @@ class AdminPostControllerTest {
                         Map.of(
                                 "width", 4032,
                                 "height", 3024,
-                                "byteSize", 8_123_456L
-                        ),
+                                "byteSize", 8_123_456L),
                         CREATED_AT,
                         UPDATED_AT,
-                        null
-                ),
+                        null),
                 new AdminPostDetail.ImageUploadDetail(
                         UPLOAD_ID,
                         moderationStatus == ModerationStatus.VALIDATING
@@ -886,15 +844,13 @@ class AdminPostControllerTest {
                                 : PostImageUploadStatus.READY,
                         null,
                         CREATED_AT,
-                        UPDATED_AT
-                ),
+                        UPDATED_AT),
                 43L,
                 CREATED_AT,
                 UPDATED_AT,
                 moderatedAt,
                 null,
                 null,
-                deletedAt
-        );
+                deletedAt);
     }
 }

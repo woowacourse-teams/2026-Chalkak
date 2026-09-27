@@ -34,13 +34,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID SECOND_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
+    private static final UUID SECOND_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID SECOND_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID SECOND_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
 
     @Autowired
     private PostRepository postRepository;
@@ -92,20 +92,21 @@ class PostRepositoryTest {
                     CURRENT_TIMESTAMP
                 )
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    '오늘의 순간',
-                    'APPROVED',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                            '오늘의 순간',
+                            'APPROVED',
+                            CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP
+                        )
+                        """);
 
         entityManager.flush();
         entityManager.clear();
@@ -156,8 +157,7 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
                 POST_ID,
-                SECOND_POST_ID
-        );
+                SECOND_POST_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -230,8 +230,7 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
                 POST_ID,
-                SECOND_POST_ID
-        );
+                SECOND_POST_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -267,8 +266,7 @@ class PostRepositoryTest {
                 TOPIC_ID,
                 "f4c3a091",
                 0,
-                20
-        );
+                20);
         var popularResult = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
 
         // Then
@@ -293,8 +291,7 @@ class PostRepositoryTest {
         // Then
         assertThat(firstResult.posts()).extracting(Post::getId)
                 .containsExactlyElementsOf(
-                        secondResult.posts().stream().map(Post::getId).toList()
-                );
+                        secondResult.posts().stream().map(Post::getId).toList());
         assertThat(firstResult.hasNext()).isFalse();
         assertThat(Hibernate.isInitialized(firstResult.posts().getFirst().getTopic())).isFalse();
         assertThat(Hibernate.isInitialized(firstResult.posts().getFirst().getPhoto())).isTrue();
@@ -311,8 +308,7 @@ class PostRepositoryTest {
                 TOPIC_ID,
                 randomSeed,
                 0,
-                20
-        );
+                20);
 
         // When
         var firstPage = postRepository.findVisibleRandomByTopicId(TOPIC_ID, randomSeed, 0, 1);
@@ -348,8 +344,7 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET moderation_status = ?::moderation_status WHERE id = ?",
                 moderationStatus,
-                POST_ID
-        );
+                POST_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -366,8 +361,7 @@ class PostRepositoryTest {
         // Given
         jdbcTemplate.update(
                 "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID
-        );
+                POST_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -384,8 +378,7 @@ class PostRepositoryTest {
         // Given
         jdbcTemplate.update(
                 "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                TOPIC_ID
-        );
+                TOPIC_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -402,8 +395,7 @@ class PostRepositoryTest {
         // Given
         jdbcTemplate.update(
                 "UPDATE photos SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                PHOTO_ID
-        );
+                PHOTO_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -420,8 +412,7 @@ class PostRepositoryTest {
         // Given
         jdbcTemplate.update(
                 "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                USER_ID
-        );
+                USER_ID);
         entityManager.flush();
         entityManager.clear();
 
@@ -528,19 +519,18 @@ class PostRepositoryTest {
                     User author = entityManager.find(User.class, authorId);
                     Topic topic = entityManager.find(Topic.class, topicId);
                     Photo photo = Photo.createPhoto(orphanStorageKey);
-                    Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
+                    Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(),
+                            null);
 
                     postRepository.save(duplicatePost);
-                })
-        );
+                }));
 
         // Then
         assertThat(exception).hasMessage("이미 사용된 게시물 생성 정보입니다.");
         Integer photoCount = transactionTemplate.execute(status -> jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM photos WHERE original_storage_key = ?",
                 Integer.class,
-                orphanStorageKey
-        ));
+                orphanStorageKey));
         assertThat(photoCount).isZero();
     }
 
@@ -584,8 +574,7 @@ class PostRepositoryTest {
     private void insertSecondVisiblePost() {
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = '2026-08-12T01:00:00Z' WHERE id = ?",
-                POST_ID
-        );
+                POST_ID);
         jdbcTemplate.update("""
                 INSERT INTO users (
                     id, email, status, signature_original_storage_key, created_at, updated_at
@@ -609,20 +598,21 @@ class PostRepositoryTest {
                     CURRENT_TIMESTAMP
                 )
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                    '두 번째 순간',
-                    'APPROVED',
-                    '2026-08-12T02:00:00Z',
-                    CURRENT_TIMESTAMP
-                )
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                            '두 번째 순간',
+                            'APPROVED',
+                            '2026-08-12T02:00:00Z',
+                            CURRENT_TIMESTAMP
+                        )
+                        """);
         entityManager.flush();
         entityManager.clear();
     }
@@ -635,8 +625,7 @@ class PostRepositoryTest {
                 POST_ID,
                 SECOND_USER_ID,
                 SECOND_POST_ID,
-                USER_ID
-        );
+                USER_ID);
         entityManager.flush();
         entityManager.clear();
     }

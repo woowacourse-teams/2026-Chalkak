@@ -5,8 +5,8 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.domain.AdminRefreshToken;
-import com.chalkak.backend.admin.repository.AdminRefreshTokenRepository;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRefreshTokenRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.auth.domain.RefreshToken;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
@@ -34,8 +34,7 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
     private static final Instant REVOKED_THRESHOLD = NOW.minus(Duration.ofDays(7));
     private static final Instant FAR_FUTURE = NOW.plus(Duration.ofDays(30));
-    private static final String PASSWORD_HASH =
-            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     @Autowired
     private RefreshTokenCleanupScheduler refreshTokenCleanupScheduler;

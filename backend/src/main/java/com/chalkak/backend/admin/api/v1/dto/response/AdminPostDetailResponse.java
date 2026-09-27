@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminPostDetail;
+import com.chalkak.backend.admin.service.post.AdminPostDetail;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -15,7 +15,9 @@ public record AdminPostDetailResponse(
         UUID postId,
         @Schema(nullable = true)
         String title,
-        @Schema(allowableValues = {"PENDING", "APPROVED", "REJECTED"})
+        @Schema(
+                allowableValues = {
+                        "PENDING", "APPROVED", "REJECTED"})
         ModerationStatus moderationStatus,
         AuthorResponse author,
         TopicResponse topic,
@@ -49,8 +51,7 @@ public record AdminPostDetailResponse(
                 detail.moderatedAt(),
                 detail.moderatedBy(),
                 detail.rejectionReason(),
-                detail.deletedAt()
-        );
+                detail.deletedAt());
     }
 
     @Schema(name = "AdminPostDetailAuthor")
@@ -71,8 +72,7 @@ public record AdminPostDetailResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt()
-            );
+                    author.deletedAt());
         }
     }
 
@@ -97,8 +97,7 @@ public record AdminPostDetailResponse(
                     topic.topicDate(),
                     topic.startsAt(),
                     topic.endsAt(),
-                    topic.deletedAt()
-            );
+                    topic.deletedAt());
         }
     }
 
@@ -126,8 +125,7 @@ public record AdminPostDetailResponse(
                     PhotoMetadataResponse.from(photo.metadata()),
                     photo.createdAt(),
                     photo.updatedAt(),
-                    photo.deletedAt()
-            );
+                    photo.deletedAt());
         }
     }
 
@@ -146,8 +144,7 @@ public record AdminPostDetailResponse(
             return new PhotoMetadataResponse(
                     toInteger(metadata.get("width")),
                     toInteger(metadata.get("height")),
-                    toLong(metadata.get("byteSize"))
-            );
+                    toLong(metadata.get("byteSize")));
         }
 
         private static Integer toInteger(Object value) {
@@ -178,8 +175,7 @@ public record AdminPostDetailResponse(
                     imageUpload.status(),
                     imageUpload.rejectionReason(),
                     imageUpload.createdAt(),
-                    imageUpload.updatedAt()
-            );
+                    imageUpload.updatedAt());
         }
     }
 }

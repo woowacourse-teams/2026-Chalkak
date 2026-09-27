@@ -2,8 +2,8 @@ package com.chalkak.backend.user.api.internal.v1.controller;
 
 import com.chalkak.backend.auth.api.support.ProcessingCallbackAuthenticator;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
-import com.chalkak.backend.user.api.internal.v1.dto.response.SignatureProcessingUploadUrlsResponse;
 import com.chalkak.backend.user.api.internal.v1.docs.SignatureProcessingCallbackApiDocs;
+import com.chalkak.backend.user.api.internal.v1.dto.response.SignatureProcessingUploadUrlsResponse;
 import com.chalkak.backend.user.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 서명 실패는 secret 불일치나 시계 차를 뜻하는 즉시 알람 대상이므로 일반 요청 오류와 섞이면 안 된다.
  */
 public class SignatureProcessingCallbackController
-        implements SignatureProcessingCallbackApiDocs {
+        implements
+            SignatureProcessingCallbackApiDocs {
 
     static final String CALLBACK_PATH = "/internal/v1/signature-processing";
 
@@ -44,11 +45,9 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "upload-urls"),
                 null,
                 timestamp,
-                signature
-        );
+                signature);
         return ResponseEntity.ok(SignatureProcessingUploadUrlsResponse.from(
-                userService.issueSignatureProcessingUpload(parsedUploadId)
-        ));
+                userService.issueSignatureProcessingUpload(parsedUploadId)));
     }
 
     @Override
@@ -63,8 +62,7 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "complete"),
                 null,
                 timestamp,
-                signature
-        );
+                signature);
         userService.completeSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();
@@ -82,8 +80,7 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "failed"),
                 null,
                 timestamp,
-                signature
-        );
+                signature);
         userService.failSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();

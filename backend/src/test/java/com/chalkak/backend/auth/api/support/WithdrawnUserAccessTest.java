@@ -25,17 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 탈퇴 회원이 남은 토큰으로 무엇도 할 수 없다는 사실을 통째로 고정한다.
  *
- * <p>탈퇴는 상태가 아니라 부재로 다룬다. 토큰은 탈퇴해도 만료 전까지 살아 있으므로, 인증 자체는
- * 통과하고 회원이 없다는 사실만 남는다. 그 사실에 대한 답은 화면마다 달라지면 안 되고 언제나
- * 401 {@code UNAUTHORIZED}여야 한다. {@link RequiresUsableUser}와 {@link RequiresExistingUser}
- * 중 무엇을 붙였든 결과가 같아야 하므로 두 계열을 한 클래스에서 함께 본다.
+ * <p>
+ * 탈퇴는 상태가 아니라 부재로 다룬다. 토큰은 탈퇴해도 만료 전까지 살아 있으므로, 인증 자체는 통과하고 회원이 없다는 사실만 남는다. 그
+ * 사실에 대한 답은 화면마다 달라지면 안 되고 언제나 401 {@code UNAUTHORIZED}여야 한다.
+ * {@link RequiresUsableUser}와 {@link RequiresExistingUser} 중 무엇을 붙였든 결과가 같아야
+ * 하므로 두 계열을 한 클래스에서 함께 본다.
  */
 @Transactional
 @AutoConfigureMockMvc
 class WithdrawnUserAccessTest extends IntegrationTestSupport {
 
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
     @Autowired
     private MockMvc mockMvc;
@@ -49,8 +49,8 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     private String token;
 
     /**
-     * {@code deleted_at}이 찍힌 회원에게 아직 유효한 토큰을 쥐여 준다. 탈퇴 직후 남은 토큰으로
-     * 다시 들어오는 상황이 이 테스트가 재현하려는 유일한 상황이다.
+     * {@code deleted_at}이 찍힌 회원에게 아직 유효한 토큰을 쥐여 준다. 탈퇴 직후 남은 토큰으로 다시 들어오는 상황이 이
+     * 테스트가 재현하려는 유일한 상황이다.
      */
     @BeforeEach
     void setUp() {
@@ -75,7 +75,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void createPostImageUpload_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts/uploads")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -84,15 +84,15 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void createPost_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .header(HttpHeaders.AUTHORIZATION, token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "0198f6c1-62ba-7d30-8b12-0f733b6570b2",
-                                  "photoUploadId": "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                                  "title": "제목"
-                                }
-                                """))
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "0198f6c1-62ba-7d30-8b12-0f733b6570b2",
+                          "photoUploadId": "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+                          "title": "제목"
+                        }
+                        """))
                 .andExpect(withdrawn());
     }
 
@@ -101,7 +101,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void likePost_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}/likes", POST_ID)
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -110,7 +110,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void createSignatureUpload_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/users/me/signature/uploads")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -119,14 +119,14 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void updateSignature_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .header(HttpHeaders.AUTHORIZATION, token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "signatureOriginalUploadId":
-                                      "0198f6c1-62ba-7d30-8b12-0f733b6570e1"
-                                }
-                                """))
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "signatureOriginalUploadId":
+                              "0198f6c1-62ba-7d30-8b12-0f733b6570e1"
+                        }
+                        """))
                 .andExpect(withdrawn());
     }
 
@@ -135,7 +135,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void withdraw_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -144,7 +144,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void getSignature_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/users/me/signature")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -153,7 +153,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void deletePost_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/posts/{postId}", POST_ID)
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -162,9 +162,9 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void getMyPostCalendar_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .queryParam("year", "2026")
-                        .queryParam("month", "8")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .queryParam("year", "2026")
+                .queryParam("month", "8")
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -173,7 +173,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void getPost_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID)
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -182,22 +182,22 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void unlikePost_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/posts/{postId}/likes", POST_ID)
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
     /**
-     * 게시물 목록만 회원 상태 판정 표시가 없다. 비로그인 조회를 허용해야 해서 표시를 붙일 수 없고,
-     * 대신 {@code PostQueryService}가 식별자가 있을 때만 회원을 확인한다. 표시가 없는 경로라
-     * 다른 답을 내놓기 쉬운 자리이므로, 여기서도 결과가 401로 같다는 사실을 따로 못박아 둔다.
+     * 게시물 목록만 회원 상태 판정 표시가 없다. 비로그인 조회를 허용해야 해서 표시를 붙일 수 없고, 대신
+     * {@code PostQueryService}가 식별자가 있을 때만 회원을 확인한다. 표시가 없는 경로라 다른 답을 내놓기 쉬운 자리이므로,
+     * 여기서도 결과가 401로 같다는 사실을 따로 못박아 둔다.
      */
     @Test
     @DisplayName("탈퇴 회원은 게시물 목록도 조회할 수 없다")
     void getPosts_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+                .queryParam("topicDate", "2026-08-12")
+                .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(withdrawn());
     }
 
@@ -206,13 +206,13 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     void submitFeedback_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .header(HttpHeaders.AUTHORIZATION, token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "content": "탈퇴 후에 남기는 의견입니다."
-                                }
-                                """))
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "content": "탈퇴 후에 남기는 의견입니다."
+                        }
+                        """))
                 .andExpect(withdrawn());
     }
 

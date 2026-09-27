@@ -21,8 +21,8 @@ public class AesGcmAppleAuthorizationCipher implements AppleAuthorizationCipher 
     private static final int KEY_HEX_LENGTH = 64;
     private static final int IV_BYTE_LENGTH = 12;
     private static final int AUTHENTICATION_TAG_BIT_LENGTH = 128;
-    private static final int AUTHENTICATION_TAG_BYTE_LENGTH =
-            AUTHENTICATION_TAG_BIT_LENGTH / Byte.SIZE;
+    private static final int AUTHENTICATION_TAG_BYTE_LENGTH = AUTHENTICATION_TAG_BIT_LENGTH
+            / Byte.SIZE;
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final SecretKey secretKey;
@@ -96,8 +96,7 @@ public class AesGcmAppleAuthorizationCipher implements AppleAuthorizationCipher 
 
     private Cipher createCipher(int mode, byte[] iv) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        GCMParameterSpec parameterSpec =
-                new GCMParameterSpec(AUTHENTICATION_TAG_BIT_LENGTH, iv);
+        GCMParameterSpec parameterSpec = new GCMParameterSpec(AUTHENTICATION_TAG_BIT_LENGTH, iv);
         cipher.init(mode, secretKey, parameterSpec);
         return cipher;
     }

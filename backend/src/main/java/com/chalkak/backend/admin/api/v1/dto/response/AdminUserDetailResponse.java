@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminUserDetail;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.user.AdminUserDetail;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -17,12 +17,11 @@ public record AdminUserDetailResponse(
         @Schema(nullable = true)
         SocialProvider socialProvider,
         SignatureResponse signature,
-        AdminUserListResponse.PostCountsResponse postCounts,
+        AdminUserPostCountsResponse postCounts,
         Instant createdAt,
         Instant updatedAt,
         @Schema(nullable = true)
-        Instant deletedAt
-) {
+        Instant deletedAt) {
 
     public static AdminUserDetailResponse from(AdminUserDetail user) {
         return new AdminUserDetailResponse(
@@ -32,7 +31,7 @@ public record AdminUserDetailResponse(
                 user.appVersion(),
                 user.socialProvider(),
                 SignatureResponse.from(user.signature()),
-                AdminUserListResponse.PostCountsResponse.from(user.postCounts()),
+                AdminUserPostCountsResponse.from(user.postCounts()),
                 user.createdAt(),
                 user.updatedAt(),
                 user.deletedAt());

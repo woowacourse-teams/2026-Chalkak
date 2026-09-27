@@ -5,6 +5,5 @@ package com.chalkak.backend.auth.domain;
  */
 public record GeneratedRefreshToken(
         String value,
-        String tokenHash
-) {
+        String tokenHash) {
 }

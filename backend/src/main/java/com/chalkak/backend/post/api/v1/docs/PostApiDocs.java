@@ -30,328 +30,116 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Posts", description = "게시물 API")
 public interface PostApiDocs {
 
-    @Operation(
-            summary = "게시물 이미지 업로드 URL 발급",
-            description = """
-                    S3에 직접 업로드할 presigned PUT URL을 발급합니다.
-                    PUT 요청의 Content-Type은 응답의 `contentType`과 정확히 같아야 합니다.
-                    `maxBytes`를 넘는 이미지와 WebP가 아닌 이미지는 업로드 후 이미지 처리
-                    단계에서 거절되며, 그 업로드 ID로는 게시물을 만들 수 없습니다.
-                    발급받은 `uploadId`는 게시물 생성 요청의 `photoUploadId`로 사용합니다.
-                    """
-    )
+    @Operation(summary = "게시물 이미지 업로드 URL 발급", description = """
+            S3에 직접 업로드할 presigned PUT URL을 발급합니다.
+            PUT 요청의 Content-Type은 응답의 `contentType`과 정확히 같아야 합니다.
+            `maxBytes`를 넘는 이미지와 WebP가 아닌 이미지는 업로드 후 이미지 처리
+            단계에서 거절되며, 그 업로드 ID로는 게시물을 만들 수 없습니다.
+            발급받은 `uploadId`는 게시물 생성 요청의 `photoUploadId`로 사용합니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "업로드 URL 발급 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "이용이 정지된 회원",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "업로드 URL 발급 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "이용이 정지된 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostImageUploadResponse> createPostImageUpload(
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(
-            summary = "게시물 생성",
-            description = "업로드된 사진과 선택 제목을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다."
-    )
+    @Operation(summary = "게시물 생성", description = "업로드된 사진과 선택 제목을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "게시물 생성 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 요청 또는 게시물을 생성할 수 없는 상태",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "이용이 정지된 회원",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "주제 또는 업로드 사진을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "201", description = "게시물 생성 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 게시물을 생성할 수 없는 상태", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "이용이 정지된 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "주제 또는 업로드 사진을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostCreateResponse> createPost(
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser,
             PostCreateRequest request
     );
 
-    @Operation(
-            summary = "게시물 제목 수정",
-            description = """
-                    본인이 작성한 PENDING 또는 APPROVED 게시물의 제목을 수정합니다.
-                    주제 참여 기간이 남아 있어야 하며, 기존 검수 상태와 제출 시각은 유지합니다.
-                    제목의 앞뒤 공백을 제거하고 null 또는 공백이면 제목을 삭제합니다.
-                    """
-    )
+    @Operation(summary = "게시물 제목 수정", description = """
+            본인이 작성한 PENDING 또는 APPROVED 게시물의 제목을 수정합니다.
+            주제 참여 기간이 남아 있어야 하며, 기존 검수 상태와 제출 시각은 유지합니다.
+            제목의 앞뒤 공백을 제거하고 null 또는 공백이면 제목을 삭제합니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "게시물 제목 수정 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 요청 또는 수정할 수 없는 상태",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "본인의 게시물이 아니거나 이용이 정지된 회원",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "게시물 제목 수정 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 수정할 수 없는 상태", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "본인의 게시물이 아니거나 이용이 정지된 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostUpdateResponse> updatePost(
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            String postId,
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4", schema = @Schema(type = "string", format = "uuid")) String postId,
             @Parameter(hidden = true) AuthenticatedUser loginUser,
             PostUpdateRequest request
     );
 
-    @Operation(
-            summary = "본인 게시물 삭제",
-            description = """
-                    본인이 작성한 PENDING 또는 APPROVED 게시물을 삭제합니다.
-                    게시물과 사진은 soft delete되고 연결된 좋아요는 삭제됩니다.
-                    이미 삭제한 게시물에 다시 요청해도 성공으로 처리합니다.
-                    """
-    )
+    @Operation(summary = "본인 게시물 삭제", description = """
+            본인이 작성한 PENDING 또는 APPROVED 게시물을 삭제합니다.
+            게시물과 사진은 soft delete되고 연결된 좋아요는 삭제됩니다.
+            이미 삭제한 게시물에 다시 요청해도 성공으로 처리합니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "204",
-                    description = "게시물 삭제 성공"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 게시물 ID 또는 삭제할 수 없는 상태",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "본인이 작성한 게시물이 아님",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "204", description = "게시물 삭제 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 게시물 ID 또는 삭제할 수 없는 상태", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "본인이 작성한 게시물이 아님", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<Void> deletePost(
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            String postId,
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4", schema = @Schema(type = "string", format = "uuid")) String postId,
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(
-            summary = "게시물 목록 조회",
-            description = "인증 정보가 없으면 isLiked와 isMine은 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다."
-    )
+    @Operation(summary = "게시물 목록 조회", description = "인증 정보가 없으면 isLiked와 isMine은 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "게시물 목록 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 조회 조건",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "해당 날짜의 주제를 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "게시물 목록 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 조회 조건", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "해당 날짜의 주제를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostListResponse> getPosts(
             @ParameterObject PostListRequest request,
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(
-            summary = "오늘 게시물 작성 여부 조회",
-            description = """
-                    지금 참여할 수 있는 주제에 이미 게시물을 썼는지 확인합니다.
-                    작성 화면에 들어가기 전 호출해 isPosted가 true이면 진입을 막고 안내합니다.
-                    주제는 날짜가 아니라 요청 시각의 참여 기간으로 고르므로,
-                    아직 열리지 않았거나 이미 닫힌 주제는 대상이 되지 않습니다.
-                    참여할 수 있는 주제가 없으면 404입니다.
-                    판정 기준은 게시물 생성의 중복 검사와 같습니다.
-                    VALIDATING, PENDING, APPROVED 게시물이 있으면 isPosted가 true입니다.
-                    REJECTED, 삭제된 게시물과 이미지 처리 대기 시간을 넘긴 VALIDATING 게시물은
-                    재작성할 수 있으므로 false입니다.
-                    isPosted가 false이면 postId와 moderationStatus는 null입니다.
-                    """
-    )
+    @Operation(summary = "오늘 게시물 작성 여부 조회", description = """
+            지금 참여할 수 있는 주제에 이미 게시물을 썼는지 확인합니다.
+            작성 화면에 들어가기 전 호출해 isPosted가 true이면 진입을 막고 안내합니다.
+            주제는 날짜가 아니라 요청 시각의 참여 기간으로 고르므로,
+            아직 열리지 않았거나 이미 닫힌 주제는 대상이 되지 않습니다.
+            참여할 수 있는 주제가 없으면 404입니다.
+            판정 기준은 게시물 생성의 중복 검사와 같습니다.
+            VALIDATING, PENDING, APPROVED 게시물이 있으면 isPosted가 true입니다.
+            REJECTED, 삭제된 게시물과 이미지 처리 대기 시간을 넘긴 VALIDATING 게시물은
+            재작성할 수 있으므로 false입니다.
+            isPosted가 false이면 postId와 moderationStatus는 null입니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "오늘 게시물 작성 여부 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "이용이 정지된 회원",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "지금 참여할 수 있는 주제가 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "오늘 게시물 작성 여부 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "이용이 정지된 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "지금 참여할 수 있는 주제가 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<TodayPostStatusResponse> getMyTodayPostStatus(
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(
-            summary = "내 게시물 캘린더 조회",
-            description = "조회 연월의 주제에 작성한 본인의 PENDING·APPROVED 게시물을 주제 날짜순으로 반환합니다."
-    )
+    @Operation(summary = "내 게시물 캘린더 조회", description = "조회 연월의 주제에 작성한 본인의 PENDING·APPROVED 게시물을 주제 날짜순으로 반환합니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "내 게시물 캘린더 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "조회 연월이 올바르지 않음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "내 게시물 캘린더 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "조회 연월이 올바르지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostCalendarResponse> getMyPostCalendar(
             @ParameterObject PostCalendarRequest request,
@@ -376,42 +164,13 @@ public interface PostApiDocs {
     @Operation(summary = "게시물 상세 조회")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "게시물 상세 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 게시물 ID",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "유효하지 않은 인증 정보",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "게시물 상세 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 게시물 ID", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostDetailResponse> getPost(
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
-            )
-            String postId,
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4") String postId,
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 }

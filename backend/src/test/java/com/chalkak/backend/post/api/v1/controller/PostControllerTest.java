@@ -54,17 +54,14 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(GlobalExceptionHandler.class)
 class PostControllerTest {
 
-    private static final String USER_ID_VALUE =
-            "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
+    private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final UUID PHOTO_UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
-    private static final String UPLOAD_URL =
-            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/presigned";
+    private static final UUID PHOTO_UPLOAD_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
+    private static final String UPLOAD_URL = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/presigned";
 
     @Autowired
     private MockMvc mockMvc;
@@ -95,22 +92,19 @@ class PostControllerTest {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
                         false,
-                        false
-                ))
-        );
+                        false)));
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
                 1,
                 20,
-                Optional.empty()
-        ))
+                Optional.empty()))
                 .willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12"))
+                .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").doesNotExist())
                 .andExpect(jsonPath("$.currentPage").value(1))
@@ -157,21 +151,18 @@ class PostControllerTest {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
                         true,
-                        true
-                ))
-        );
+                        true)));
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
                 1,
                 20,
-                Optional.of(USER_ID)
-        )).willReturn(result);
+                Optional.of(USER_ID))).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12"))
+                .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
                 .andExpect(jsonPath("$.posts[0].isLiked").value(true))
@@ -188,22 +179,20 @@ class PostControllerTest {
                 20,
                 false,
                 "f4c3a091",
-                List.of()
-        );
+                List.of());
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 null,
                 1,
                 20,
-                Optional.empty()
-        ))
+                Optional.empty()))
                 .willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam("sort", "random"))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam("sort", "random"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.randomSeed").value("f4c3a091"));
     }
@@ -220,13 +209,12 @@ class PostControllerTest {
                 null,
                 1,
                 20,
-                Optional.empty()
-        )).willReturn(result);
+                Optional.empty())).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam("sort", "popular"))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam("sort", "popular"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts").isEmpty());
     }
@@ -241,24 +229,22 @@ class PostControllerTest {
                 100,
                 false,
                 "f4c3a091",
-                List.of()
-        );
+                List.of());
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 "f4c3a091",
                 2,
                 100,
-                Optional.empty()
-        )).willReturn(result);
+                Optional.empty())).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam("sort", "random")
-                        .queryParam("randomSeed", "f4c3a091")
-                        .queryParam("page", "2")
-                        .queryParam("pageSize", "100"))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam("sort", "random")
+                .queryParam("randomSeed", "f4c3a091")
+                .queryParam("page", "2")
+                .queryParam("pageSize", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
                 .andExpect(jsonPath("$.pageSize").value(100))
@@ -280,21 +266,18 @@ class PostControllerTest {
     ) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam(parameterName, parameterValue))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
         then(postQueryService).shouldHaveNoInteractions();
     }
 
     @ParameterizedTest
-    @CsvSource(
-            delimiter = '|',
-            value = {
-                    "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
-                    "randomSeed | seed! | 조회 조건이 올바르지 않습니다."
-            }
-    )
+    @CsvSource(delimiter = '|', value = {
+            "sort | unknown | sort: 요청 값의 형식이 올바르지 않습니다.",
+            "randomSeed | seed! | 조회 조건이 올바르지 않습니다."
+    })
     @DisplayName("목록 조회 파라미터 형식이 올바르지 않으면 잘못된 요청을 반환한다")
     void getPosts_invalidQueryParameter_returnsBadRequest(
             String parameterName,
@@ -303,8 +286,8 @@ class PostControllerTest {
     ) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam(parameterName, parameterValue))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(expectedMessage));
@@ -319,9 +302,9 @@ class PostControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-08-12")
-                        .queryParam("sort", "random")
-                        .queryParam("randomSeed", tooLongRandomSeed))
+                .queryParam("topicDate", "2026-08-12")
+                .queryParam("sort", "random")
+                .queryParam("randomSeed", tooLongRandomSeed))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -334,7 +317,7 @@ class PostControllerTest {
     void getPosts_invalidTopicDate_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
-                        .queryParam("topicDate", "2026-13-40"))
+                .queryParam("topicDate", "2026-13-40"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -362,15 +345,13 @@ class PostControllerTest {
                 new PostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
-                        LocalDate.of(2026, 8, 12)
-                ),
+                        LocalDate.of(2026, 8, 12)),
                 "https://cdn.example.com/dev/posts/original.jpg",
                 "https://cdn.example.com/dev/posts/thumbnail.jpg",
                 "https://cdn.example.com/dev/signatures/signature.png",
                 "오늘의 순간",
                 43L,
-                true
-        );
+                true);
         given(postQueryService.getPost(POST_ID, USER_ID)).willReturn(detail);
 
         // When & Then
@@ -434,8 +415,7 @@ class PostControllerTest {
         // Given
         given(postQueryService.getPost(POST_ID, USER_ID)).willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR,
-                "게시물을 찾을 수 없습니다."
-        ));
+                "게시물을 찾을 수 없습니다."));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
@@ -455,9 +435,7 @@ class PostControllerTest {
                         UPLOAD_URL,
                         300L,
                         "image/webp",
-                        5_242_880L
-                )
-        );
+                        5_242_880L));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts/uploads"))
@@ -491,19 +469,18 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
-        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+                "오늘의 기록")).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "오늘의 기록"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "오늘의 기록"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.moderationStatus").value("VALIDATING"));
@@ -512,8 +489,7 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
-        );
+                "오늘의 기록");
     }
 
     @Test
@@ -524,17 +500,16 @@ class PostControllerTest {
         given(postCommandService.updatePost(USER_ID, POST_ID, "수정한 제목"))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        "수정한 제목"
-                ));
+                        "수정한 제목"));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "수정한 제목"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.title").value("수정한 제목"))
@@ -551,17 +526,16 @@ class PostControllerTest {
         given(postCommandService.updatePost(USER_ID, POST_ID, null))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        null
-                ));
+                        null));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": null
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": null
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.title").value(nullValue()))
@@ -576,8 +550,8 @@ class PostControllerTest {
     void updatePost_missingTitle_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -592,12 +566,12 @@ class PostControllerTest {
     void updatePost_tooLongNormalizedTitle_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "  12345678901  "
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "  12345678901  "
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("제목은 10자 이하여야 합니다."));
@@ -611,12 +585,12 @@ class PostControllerTest {
     void updatePost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", "invalid-post-id")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "수정한 제목"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
@@ -629,12 +603,12 @@ class PostControllerTest {
     void updatePost_unauthenticated_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "수정한 제목"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목"
+                        }
+                        """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
@@ -682,13 +656,13 @@ class PostControllerTest {
     void createPost_unauthenticated_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
@@ -701,12 +675,12 @@ class PostControllerTest {
     void createPost_missingTopicId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "photoUploadId": "%s"
-                                }
-                                """.formatted(PHOTO_UPLOAD_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "photoUploadId": "%s"
+                        }
+                        """.formatted(PHOTO_UPLOAD_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -721,12 +695,12 @@ class PostControllerTest {
     void createPost_missingPhotoUploadId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s"
-                                }
-                                """.formatted(TOPIC_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s"
+                        }
+                        """.formatted(TOPIC_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -741,14 +715,14 @@ class PostControllerTest {
     void createPost_tooLongTitle_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "12345678901"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "12345678901"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -763,14 +737,14 @@ class PostControllerTest {
     void createPost_tooLongNormalizedTitle_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "  12345678901  "
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "  12345678901  "
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -789,27 +763,26 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
-        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+                paddedTitle))
+                .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "%s"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, paddedTitle)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "%s"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, paddedTitle)))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
-        );
+                paddedTitle);
     }
 
     @Test
@@ -822,28 +795,27 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
-        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+                emojiTitle))
+                .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .characterEncoding(StandardCharsets.UTF_8)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "%s"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, emojiTitle)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .characterEncoding(StandardCharsets.UTF_8)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "%s"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, emojiTitle)))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
-        );
+                emojiTitle);
     }
 
     @Test
@@ -856,27 +828,26 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
-        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+                blankTitle))
+                .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "topicId": "%s",
-                                  "photoUploadId": "%s",
-                                  "title": "%s"
-                                }
-                                """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, blankTitle)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "%s"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, blankTitle)))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
-        );
+                blankTitle);
     }
 
     @Test
@@ -890,8 +861,7 @@ class PostControllerTest {
                         topicDate,
                         true,
                         POST_ID,
-                        ModerationStatus.PENDING
-                ));
+                        ModerationStatus.PENDING));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/today"))
@@ -928,8 +898,7 @@ class PostControllerTest {
         given(postQueryService.getMyTodayPostStatus(USER_ID))
                 .willThrow(new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "참여할 수 있는 주제가 없습니다."
-                ));
+                        "참여할 수 있는 주제가 없습니다."));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/today"))
@@ -966,15 +935,12 @@ class PostControllerTest {
                                         LocalDate.of(2026, 8, 12),
                                         POST_ID,
                                         "https://cdn.example.com/posts/calendar.webp",
-                                        moderationStatus
-                                )
-                        )
-                ));
+                                        moderationStatus))));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .param("year", "2026")
-                        .param("month", "8"))
+                .param("year", "2026")
+                .param("month", "8"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.year").value(2026))
                 .andExpect(jsonPath("$.month").value(8))
@@ -997,8 +963,8 @@ class PostControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .param("year", "2026")
-                        .param("month", "8"))
+                .param("year", "2026")
+                .param("month", "8"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts").isEmpty());
     }
@@ -1009,8 +975,8 @@ class PostControllerTest {
     void getMyPostCalendar_invalidMonth_returnsBadRequest(String month) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .param("year", "2026")
-                        .param("month", month))
+                .param("year", "2026")
+                .param("month", month))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 연월이 올바르지 않습니다."));
@@ -1024,8 +990,8 @@ class PostControllerTest {
     void getMyPostCalendar_invalidYear_returnsBadRequest(String year) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .param("year", year)
-                        .param("month", "8"))
+                .param("year", year)
+                .param("month", "8"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 연월이 올바르지 않습니다."));
@@ -1051,8 +1017,8 @@ class PostControllerTest {
     void getMyPostCalendar_unauthenticated_returnsUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
-                        .param("year", "2026")
-                        .param("month", "8"))
+                .param("year", "2026")
+                .param("month", "8"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));

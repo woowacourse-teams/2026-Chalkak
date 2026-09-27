@@ -12,7 +12,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.test.context.support.WithSecurityContextFactory;
 
 public class WithMockLoginUserSecurityContextFactory
-        implements WithSecurityContextFactory<WithMockLoginUser> {
+        implements
+            WithSecurityContextFactory<WithMockLoginUser> {
 
     @Override
     public SecurityContext createSecurityContext(WithMockLoginUser annotation) {

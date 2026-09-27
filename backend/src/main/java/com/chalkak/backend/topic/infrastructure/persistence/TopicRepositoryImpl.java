@@ -17,8 +17,7 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class TopicRepositoryImpl implements TopicRepository {
 
-    private static final String TOPIC_DATE_UNIQUE_INDEX =
-            "ux_topics_topic_date_active";
+    private static final String TOPIC_DATE_UNIQUE_INDEX = "ux_topics_topic_date_active";
 
     private final TopicJpaRepository topicJpaRepository;
 
@@ -51,8 +50,7 @@ public class TopicRepositoryImpl implements TopicRepository {
     public boolean existsActiveByTopicDateExcludingId(LocalDate topicDate, UUID topicId) {
         return topicJpaRepository.existsByTopicDateAndDeletedAtIsNullAndIdNot(
                 topicDate,
-                topicId
-        );
+                topicId);
     }
 
     @Override
@@ -65,8 +63,7 @@ public class TopicRepositoryImpl implements TopicRepository {
             }
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "해당 날짜의 주제가 이미 존재합니다."
-            );
+                    "해당 날짜의 주제가 이미 존재합니다.");
         }
     }
 
@@ -75,7 +72,7 @@ public class TopicRepositoryImpl implements TopicRepository {
         while (cause != null) {
             if (cause instanceof ConstraintViolationException constraintViolationException
                     && TOPIC_DATE_UNIQUE_INDEX.equals(
-                    constraintViolationException.getConstraintName())) {
+                            constraintViolationException.getConstraintName())) {
                 return true;
             }
             cause = cause.getCause();

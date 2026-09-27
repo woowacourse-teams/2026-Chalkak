@@ -32,8 +32,7 @@ class FeedbackControllerTest {
 
     private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
-    private static final UUID FEEDBACK_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID FEEDBACK_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final Instant CREATED_AT = Instant.parse("2026-09-16T01:00:00Z");
 
     @Autowired
@@ -50,8 +49,8 @@ class FeedbackControllerTest {
                 .willReturn(new FeedbackSubmissionResult(FEEDBACK_ID, CREATED_AT));
 
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"사진 업로드가 느려요.\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"사진 업로드가 느려요.\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.feedbackId").value(FEEDBACK_ID.toString()))
                 .andExpect(jsonPath("$.createdAt").value("2026-09-16T01:00:00Z"));
@@ -64,8 +63,8 @@ class FeedbackControllerTest {
     @DisplayName("내용이 공백뿐이면 400을 반환한다")
     void submitFeedback_blankContent_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"   \"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"   \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("피드백 내용이 필요합니다."));
@@ -82,8 +81,8 @@ class FeedbackControllerTest {
                 .willReturn(new FeedbackSubmissionResult(FEEDBACK_ID, CREATED_AT));
 
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"  " + content + "\\n\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"  " + content + "\\n\"}"))
                 .andExpect(status().isCreated());
     }
 
@@ -94,8 +93,8 @@ class FeedbackControllerTest {
         String content = "가".repeat(Feedback.MAX_CONTENT_LENGTH + 1);
 
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"" + content + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("피드백 내용은 1000자 이하여야 합니다."));
@@ -107,8 +106,8 @@ class FeedbackControllerTest {
     @DisplayName("인증 정보가 없으면 401을 반환한다")
     void submitFeedback_unauthenticated_returnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"사진 업로드가 느려요.\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"사진 업로드가 느려요.\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));

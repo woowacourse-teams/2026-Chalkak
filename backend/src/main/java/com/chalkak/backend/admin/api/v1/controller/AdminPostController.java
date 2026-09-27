@@ -9,12 +9,11 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminPostModerationRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminPostModerationResponse;
-import com.chalkak.backend.admin.service.AdminPostDetail;
-import com.chalkak.backend.admin.service.AdminPostDeletionService;
-import com.chalkak.backend.admin.service.AdminPostListResult;
-import com.chalkak.backend.admin.service.AdminPostModerationResult;
-import com.chalkak.backend.admin.service.AdminPostModerationService;
-import com.chalkak.backend.admin.service.AdminPostQueryService;
+import com.chalkak.backend.admin.service.post.AdminPostCommandService;
+import com.chalkak.backend.admin.service.post.AdminPostDetail;
+import com.chalkak.backend.admin.service.post.AdminPostListResult;
+import com.chalkak.backend.admin.service.post.AdminPostModerationResult;
+import com.chalkak.backend.admin.service.post.AdminPostQueryService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminPostController implements AdminPostApiDocs {
 
     private final AdminPostQueryService adminPostQueryService;
-    private final AdminPostModerationService adminPostModerationService;
-    private final AdminPostDeletionService adminPostDeletionService;
+    private final AdminPostCommandService adminPostCommandService;
 
     @Override
     @GetMapping
@@ -52,8 +50,7 @@ public class AdminPostController implements AdminPostApiDocs {
                 request.createdAtTo(),
                 request.sort(),
                 request.page(),
-                request.pageSize()
-        );
+                request.pageSize());
 
         return ResponseEntity.ok(AdminPostListResponse.from(result));
     }
@@ -65,8 +62,7 @@ public class AdminPostController implements AdminPostApiDocs {
             @PathVariable String postId
     ) {
         AdminPostDetail detail = adminPostQueryService.getPost(
-                CanonicalUuidParser.parse(postId)
-        );
+                CanonicalUuidParser.parse(postId));
 
         return ResponseEntity.ok(AdminPostDetailResponse.from(detail));
     }
@@ -78,12 +74,11 @@ public class AdminPostController implements AdminPostApiDocs {
             @PathVariable String postId,
             @Valid @RequestBody AdminPostModerationRequest request
     ) {
-        AdminPostModerationResult result = adminPostModerationService.moderate(
+        AdminPostModerationResult result = adminPostCommandService.moderate(
                 CanonicalUuidParser.parse(postId),
                 authenticatedAdmin.adminId(),
                 request.status(),
-                request.rejectionReason()
-        );
+                request.rejectionReason());
 
         return ResponseEntity.ok(AdminPostModerationResponse.from(result));
     }
@@ -95,11 +90,10 @@ public class AdminPostController implements AdminPostApiDocs {
             @PathVariable String postId,
             @Valid @RequestBody AdminPostDeletionRequest request
     ) {
-        adminPostDeletionService.deletePost(
+        adminPostCommandService.deletePost(
                 CanonicalUuidParser.parse(postId),
                 authenticatedAdmin.adminId(),
-                request.reason()
-        );
+                request.reason());
 
         return ResponseEntity.noContent().build();
     }

@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.domain.Admin;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.auth.domain.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -39,8 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Transactional
 @Import(AdminSecurityFilterChainTest.TestAdminController.class)
-@TestPropertySource(properties =
-        "chalkak.admin.authentication.development-bypass-enabled=false")
+@TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=false")
 class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
@@ -65,13 +64,13 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("관리자 로그인은 액세스 토큰 없이 호출할 수 있다")
     void login_withoutToken_reachesController() throws Exception {
         mockMvc.perform(post("/api/v1/admin/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "operator",
-                                  "password": "wrong-password"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "username": "operator",
+                          "password": "wrong-password"
+                        }
+                        """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message")
                         .value("아이디 또는 비밀번호가 올바르지 않습니다."));
@@ -91,7 +90,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         String token = accessTokenProvider.issue(UUID.randomUUID()).value();
 
         mockMvc.perform(get("/api/v1/admin/security-test")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
@@ -103,7 +102,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
 
         mockMvc.perform(get("/api/v1/admin/security-test")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.adminId").value(adminId.toString()));
     }
@@ -111,11 +110,12 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @ParameterizedTest
     @MethodSource("protectedAdminEndpoints")
     @DisplayName("로그인 외 모든 실제 관리자 API는 무인증 요청을 401로 거부한다")
-    void adminEndpoints_withoutToken_returnsUnauthorized(String method, String path) throws Exception {
+    void adminEndpoints_withoutToken_returnsUnauthorized(String method, String path)
+            throws Exception {
         // When & Then
         mockMvc.perform(request(HttpMethod.valueOf(method), path)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
@@ -129,9 +129,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
         // When & Then
         mockMvc.perform(request(HttpMethod.valueOf(method), path)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
@@ -148,11 +148,11 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
         // Then
         mockMvc.perform(get("/api/v1/admin/auth/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("security-operator"));
         mockMvc.perform(get("/api/v1/admin/audit-logs")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
     }
 
@@ -167,8 +167,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
         // When
         String refreshed = mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         String rotatedRefreshToken = objectMapper.readTree(refreshed)
@@ -176,15 +176,15 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
         // Then
         mockMvc.perform(post("/api/v1/admin/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isNoContent());
         // 폐기는 벌크 UPDATE라 영속성 컨텍스트의 엔티티가 낡은 채로 남는다. 테스트가 요청들과
         // 트랜잭션을 공유하므로, 비우지 않으면 다음 요청이 DB가 아니라 낡은 엔티티를 보게 된다.
         entityManager.clear();
         mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
     }
@@ -194,20 +194,20 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     void refresh_unknownRefreshToken_returnsReauthenticationRequired() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"refreshToken":"unknown-admin-refresh-token"}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"refreshToken":"unknown-admin-refresh-token"}
+                        """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
     }
 
     private IssuedTokens login(UUID adminId, String username) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"%s","password":"test-password"}
-                                """.formatted(username)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"username":"%s","password":"test-password"}
+                        """.formatted(username)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.adminId").value(adminId.toString()))
                 .andExpect(jsonPath("$.password").doesNotExist())
@@ -221,8 +221,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     private record IssuedTokens(
             String accessToken,
-            String refreshToken
-    ) {
+            String refreshToken) {
     }
 
     private static Stream<Arguments> protectedAdminEndpoints() {
@@ -241,8 +240,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/topics/" + id),
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
-                Arguments.of("GET", "/api/v1/admin/audit-logs")
-        );
+                Arguments.of("GET", "/api/v1/admin/audit-logs"));
     }
 
     @RestController
@@ -250,8 +248,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
         @GetMapping("/api/v1/admin/security-test")
         public AuthenticatedAdmin getCurrentAdmin(
-                @com.chalkak.backend.admin.api.support.CurrentAdmin
-                AuthenticatedAdmin authenticatedAdmin
+                @com.chalkak.backend.admin.api.support.CurrentAdmin AuthenticatedAdmin authenticatedAdmin
         ) {
             return authenticatedAdmin;
         }
