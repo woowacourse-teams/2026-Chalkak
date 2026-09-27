@@ -8,11 +8,15 @@ import java.util.UUID;
 
 public record AdminPostModerationResponse(
         UUID postId,
-        @Schema(allowableValues = {
-                "APPROVED", "REJECTED"}) ModerationStatus moderationStatus,
+        @Schema(
+                allowableValues = {
+                        "APPROVED", "REJECTED"})
+        ModerationStatus moderationStatus,
         UUID moderatedBy,
         Instant moderatedAt,
-        @Schema(nullable = true) String rejectionReason){
+        @Schema(nullable = true)
+        String rejectionReason
+) {
 
     public static AdminPostModerationResponse from(AdminPostModerationResult result) {
         return new AdminPostModerationResponse(

@@ -12,7 +12,8 @@ public record AdminUserListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<UserResponse> users) {
+        List<UserResponse> users
+) {
 
     public static AdminUserListResponse from(AdminUserListResult result) {
         return new AdminUserListResponse(
@@ -27,14 +28,18 @@ public record AdminUserListResponse(
     @Schema(name = "AdminUserListItem")
     public record UserResponse(
             UUID userId,
-            @Schema(nullable = true) String email,
+            @Schema(nullable = true)
+            String email,
             AdminUserStatus status,
-            @Schema(nullable = true) String appVersion,
-            @Schema(nullable = true) SocialProvider socialProvider,
+            @Schema(nullable = true)
+            String appVersion,
+            @Schema(nullable = true)
+            SocialProvider socialProvider,
             AdminUserPostCountsResponse postCounts,
             Instant createdAt,
             Instant updatedAt,
-            @Schema(nullable = true) Instant deletedAt) {
+            @Schema(nullable = true)
+            Instant deletedAt) {
 
         private static UserResponse from(AdminUserListResult.UserSummary user) {
             return new UserResponse(

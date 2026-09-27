@@ -56,9 +56,23 @@ dependencies {
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
+        // DTOs remain checked below with annotation line breaks enabled.
+        targetExclude("src/main/java/**/api/**/dto/**/*.java")
         // Shared trunk ancestor survives squash merges; commits cannot reset this baseline.
         ratchetFrom("50e3764ec85d26714710bb86086edcf493768f26")
-        eclipse("4.37").configFile("config/formatter/eclipse-java.xml")
+        eclipse("4.41").configFile("config/formatter/eclipse-java.xml")
+        removeUnusedImports()
+        lineEndings = com.diffplug.spotless.LineEnding.UNIX
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    format("javaDto", com.diffplug.gradle.spotless.JavaExtension::class.java) {
+        target("src/main/java/**/api/**/dto/**/*.java")
+        ratchetFrom("50e3764ec85d26714710bb86086edcf493768f26")
+        eclipse("4.41").configFile(
+            "config/formatter/eclipse-java.xml",
+            "config/formatter/java-dto.properties",
+        )
         removeUnusedImports()
         lineEndings = com.diffplug.spotless.LineEnding.UNIX
         trimTrailingWhitespace()

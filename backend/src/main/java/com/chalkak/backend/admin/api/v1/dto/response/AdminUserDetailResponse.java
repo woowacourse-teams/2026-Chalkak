@@ -9,15 +9,19 @@ import java.util.UUID;
 
 public record AdminUserDetailResponse(
         UUID userId,
-        @Schema(nullable = true) String email,
+        @Schema(nullable = true)
+        String email,
         AdminUserStatus status,
-        @Schema(nullable = true) String appVersion,
-        @Schema(nullable = true) SocialProvider socialProvider,
+        @Schema(nullable = true)
+        String appVersion,
+        @Schema(nullable = true)
+        SocialProvider socialProvider,
         SignatureResponse signature,
         AdminUserPostCountsResponse postCounts,
         Instant createdAt,
         Instant updatedAt,
-        @Schema(nullable = true) Instant deletedAt) {
+        @Schema(nullable = true)
+        Instant deletedAt) {
 
     public static AdminUserDetailResponse from(AdminUserDetail user) {
         return new AdminUserDetailResponse(
@@ -35,8 +39,11 @@ public record AdminUserDetailResponse(
 
     @Schema(name = "AdminUserSignature")
     public record SignatureResponse(
-            @Schema(nullable = true) String originalImageUrl,
-            @Schema(nullable = true) String thumbnailImageUrl) {
+            @Schema(nullable = true)
+            String originalImageUrl,
+            @Schema(nullable = true)
+            String thumbnailImageUrl
+    ) {
 
         private static SignatureResponse from(AdminUserDetail.Signature signature) {
             return new SignatureResponse(

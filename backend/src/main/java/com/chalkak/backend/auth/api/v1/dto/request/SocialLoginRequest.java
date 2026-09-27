@@ -13,17 +13,28 @@ import jakarta.validation.constraints.NotNull;
  * 그대로 쓴다.
  */
 public record SocialLoginRequest(
-        @Schema(description = "ID Token 발급 소셜 로그인 제공자", allowableValues = {
-                "GOOGLE", "KAKAO",
-                "APPLE"}) @NotNull(message = "소셜 로그인 제공자는 필수입니다.") SocialProvider provider,
+        @Schema(
+                description = "ID Token 발급 소셜 로그인 제공자",
+                allowableValues = {
+                        "GOOGLE", "KAKAO", "APPLE"})
+        @NotNull(message = "소셜 로그인 제공자는 필수입니다.")
+        SocialProvider provider,
 
-        @NotBlank(message = "ID Token은 필수입니다.") String idToken,
+        @NotBlank(message = "ID Token은 필수입니다.")
+        String idToken,
 
-        @Schema(description = "클라이언트가 소셜 로그인 요청 전에 생성한 원본 nonce."
-                + " SDK에는 이 값의 SHA-256 소문자 hex를 전달한다") @NotBlank(message = "rawNonce는 필수입니다.") String rawNonce,
+        @Schema(
+                description = "클라이언트가 소셜 로그인 요청 전에 생성한 원본 nonce."
+                        + " SDK에는 이 값의 SHA-256 소문자 hex를 전달한다")
+        @NotBlank(message = "rawNonce는 필수입니다.")
+        String rawNonce,
 
-        @Schema(description = "Apple 로그인에서 받은 일회용 Authorization Code."
-                + " APPLE일 때만 보내며, 다른 제공자가 보내면 거절한다", nullable = true) String authorizationCode){
+        @Schema(
+                description = "Apple 로그인에서 받은 일회용 Authorization Code."
+                        + " APPLE일 때만 보내며, 다른 제공자가 보내면 거절한다",
+                nullable = true)
+        String authorizationCode
+) {
 
     @JsonIgnore
     @AssertTrue(message = "Authorization Code는 APPLE 로그인에만 필요합니다.")

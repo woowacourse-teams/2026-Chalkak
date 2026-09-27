@@ -9,7 +9,8 @@ import java.util.UUID;
 
 @Schema(description = "관리자 주제 상세")
 public record AdminTopicDetailResponse(
-        @Schema(format = "uuid") UUID topicId,
+        @Schema(format = "uuid")
+        UUID topicId,
         String title,
         LocalDate topicDate,
         Instant startsAt,

@@ -13,7 +13,8 @@ public record AdminAuditLogListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AuditLogResponse> auditLogs) {
+        List<AuditLogResponse> auditLogs
+) {
 
     public static AdminAuditLogListResponse from(AdminAuditLogListResult result) {
         return new AdminAuditLogListResponse(
@@ -31,10 +32,13 @@ public record AdminAuditLogListResponse(
             AdminTargetType targetType,
             UUID targetId,
             String reason,
-            @Schema(description = "작업별 허용 필드로 구성된 변경 전 상태. 민감정보는 포함하지 않습니다.") Map<String, Object> beforeState,
-            @Schema(description = "작업별 허용 필드로 구성된 변경 후 상태. 민감정보는 포함하지 않습니다.") Map<String, Object> afterState,
+            @Schema(description = "작업별 허용 필드로 구성된 변경 전 상태. 민감정보는 포함하지 않습니다.")
+            Map<String, Object> beforeState,
+            @Schema(description = "작업별 허용 필드로 구성된 변경 후 상태. 민감정보는 포함하지 않습니다.")
+            Map<String, Object> afterState,
             Instant occurredAt,
-            UUID requestId) {
+            UUID requestId
+    ) {
 
         private static AuditLogResponse from(AdminAuditLogListResult.AuditLogSummary result) {
             return new AuditLogResponse(

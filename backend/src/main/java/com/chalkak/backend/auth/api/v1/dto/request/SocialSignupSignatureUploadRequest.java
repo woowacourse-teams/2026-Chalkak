@@ -10,9 +10,16 @@ import jakarta.validation.constraints.NotNull;
  * 로그인이 보관해 둔 Refresh Token을 쓰므로 code를 받지 않는다.
  */
 public record SocialSignupSignatureUploadRequest(
-        @Schema(description = "ID Token 발급 소셜 로그인 제공자", allowableValues = {
-                "GOOGLE", "KAKAO",
-                "APPLE"}) @NotNull(message = "소셜 로그인 제공자는 필수입니다.") SocialProvider provider,
-        @NotBlank(message = "ID Token은 필수입니다.") String idToken,
-        @Schema(description = "클라이언트가 소셜 로그인 요청 전에 생성한 원본 nonce. SDK에는 이 값의 SHA-256 소문자 hex를 전달한다") @NotBlank(message = "rawNonce는 필수입니다.") String rawNonce){
+        @Schema(
+                description = "ID Token 발급 소셜 로그인 제공자",
+                allowableValues = {
+                        "GOOGLE", "KAKAO", "APPLE"})
+        @NotNull(message = "소셜 로그인 제공자는 필수입니다.")
+        SocialProvider provider,
+        @NotBlank(message = "ID Token은 필수입니다.")
+        String idToken,
+        @Schema(description = "클라이언트가 소셜 로그인 요청 전에 생성한 원본 nonce. SDK에는 이 값의 SHA-256 소문자 hex를 전달한다")
+        @NotBlank(message = "rawNonce는 필수입니다.")
+        String rawNonce
+) {
 }

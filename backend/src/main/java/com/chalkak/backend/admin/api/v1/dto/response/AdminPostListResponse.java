@@ -13,7 +13,8 @@ public record AdminPostListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<PostResponse> posts) {
+        List<PostResponse> posts
+) {
 
     public static AdminPostListResponse from(AdminPostListResult result) {
         return new AdminPostListResponse(
@@ -28,16 +29,22 @@ public record AdminPostListResponse(
     @Schema(name = "AdminPostListItem")
     public record PostResponse(
             UUID postId,
-            @Schema(nullable = true) String title,
-            @Schema(allowableValues = {
-                    "PENDING", "APPROVED", "REJECTED"}) ModerationStatus moderationStatus,
+            @Schema(nullable = true)
+            String title,
+            @Schema(
+                    allowableValues = {
+                            "PENDING", "APPROVED", "REJECTED"})
+            ModerationStatus moderationStatus,
             AuthorResponse author,
             TopicResponse topic,
             PhotoResponse photo,
             long likeCount,
             Instant createdAt,
-            @Schema(nullable = true) Instant moderatedAt,
-            @Schema(nullable = true) Instant deletedAt){
+            @Schema(nullable = true)
+            Instant moderatedAt,
+            @Schema(nullable = true)
+            Instant deletedAt
+    ) {
 
         private static PostResponse from(AdminPostListResult.PostSummary post) {
             return new PostResponse(
@@ -57,9 +64,12 @@ public record AdminPostListResponse(
     @Schema(name = "AdminPostListAuthor")
     public record AuthorResponse(
             UUID userId,
-            @Schema(nullable = true) String email,
+            @Schema(nullable = true)
+            String email,
             UserStatus status,
-            @Schema(nullable = true) Instant deletedAt) {
+            @Schema(nullable = true)
+            Instant deletedAt
+    ) {
 
         private static AuthorResponse from(AdminPostListResult.AuthorSummary author) {
             if (author == null) {
@@ -77,7 +87,8 @@ public record AdminPostListResponse(
     public record TopicResponse(
             UUID topicId,
             String title,
-            LocalDate topicDate) {
+            LocalDate topicDate
+    ) {
 
         private static TopicResponse from(AdminPostListResult.TopicSummary topic) {
             if (topic == null) {
@@ -91,7 +102,9 @@ public record AdminPostListResponse(
     public record PhotoResponse(
             UUID photoId,
             String originalImageUrl,
-            @Schema(nullable = true) String thumbnailImageUrl) {
+            @Schema(nullable = true)
+            String thumbnailImageUrl
+    ) {
 
         private static PhotoResponse from(AdminPostListResult.PhotoSummary photo) {
             if (photo == null) {

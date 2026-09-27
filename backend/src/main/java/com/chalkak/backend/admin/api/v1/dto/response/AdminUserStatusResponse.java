@@ -7,8 +7,11 @@ import java.util.UUID;
 
 @Schema(description = "관리자 사용자 상태 변경 응답")
 public record AdminUserStatusResponse(
-        @Schema(description = "사용자 ID", format = "uuid") UUID userId,
-        @Schema(description = "변경된 사용자 상태") UserStatus status) {
+        @Schema(description = "사용자 ID", format = "uuid")
+        UUID userId,
+        @Schema(description = "변경된 사용자 상태")
+        UserStatus status
+) {
 
     public static AdminUserStatusResponse from(AdminUserStatusResult result) {
         return new AdminUserStatusResponse(result.userId(), result.status());
