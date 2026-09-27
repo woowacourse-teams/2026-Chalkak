@@ -37,10 +37,7 @@ public class AppleAuthorization {
     @JoinColumn(name = "social_account_id", nullable = false, updatable = false)
     private SocialAccount socialAccount;
 
-    @Column(
-            name = "encrypted_refresh_token",
-            nullable = false,
-            length = ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH)
+    @Column(name = "encrypted_refresh_token", nullable = false, length = ENCRYPTED_REFRESH_TOKEN_MAX_LENGTH)
     private String encryptedRefreshToken;
 
     @CreationTimestamp

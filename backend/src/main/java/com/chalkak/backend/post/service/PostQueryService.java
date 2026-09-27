@@ -55,16 +55,16 @@ public class PostQueryService {
                 post,
                 imageUrlProvider,
                 postLikeRepository.countByPostId(postId),
-                postLikeRepository.existsByPostIdAndUserId(postId, userId)
-        );
+                postLikeRepository.existsByPostIdAndUserId(postId, userId));
     }
 
     /**
-     * 지금 참여할 수 있는 주제에 게시물을 새로 쓸 수 있는지 미리 알려 준다. 판정은 게시물 생성이 거절하는
-     * 규칙과 같아야 한다. 여기서 통과시킨 요청이 생성에서 거절되면 클라이언트가 잘못된 안내를 하게 된다.
+     * 지금 참여할 수 있는 주제에 게시물을 새로 쓸 수 있는지 미리 알려 준다. 판정은 게시물 생성이 거절하는 규칙과 같아야 한다. 여기서
+     * 통과시킨 요청이 생성에서 거절되면 클라이언트가 잘못된 안내를 하게 된다.
      *
-     * <p>주제는 날짜가 아니라 요청 시각의 참여 기간으로 고른다. 참여 기간은 KST 자정에 시작해 24시간
-     * 지속된다는 보장이 없어서, 날짜로 고르면 아직 열리지 않았거나 이미 닫힌 주제를 답하게 된다.
+     * <p>
+     * 주제는 날짜가 아니라 요청 시각의 참여 기간으로 고른다. 참여 기간은 KST 자정에 시작해 24시간 지속된다는 보장이 없어서, 날짜로
+     * 고르면 아직 열리지 않았거나 이미 닫힌 주제를 답하게 된다.
      */
     public TodayPostStatus getMyTodayPostStatus(UUID userId) {
         validateUser(userId);
@@ -83,8 +83,7 @@ public class PostQueryService {
         List<Post> posts = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 userId,
                 yearMonth.atDay(1),
-                yearMonth.atEndOfMonth()
-        );
+                yearMonth.atEndOfMonth());
 
         return PostCalendarResult.from(yearMonth, posts, imageUrlProvider);
     }
@@ -126,22 +125,19 @@ public class PostQueryService {
     ) {
         String effectiveRandomSeed = Objects.requireNonNullElseGet(
                 randomSeed,
-                randomSeedGenerator::generateRandomSeed
-        );
+                randomSeedGenerator::generateRandomSeed);
         PostSlice postSlice = postRepository.findVisibleRandomByTopicId(
                 topic.getId(),
                 effectiveRandomSeed,
                 page - 1,
-                pageSize
-        );
+                pageSize);
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 effectiveRandomSeed,
-                userId
-        );
+                userId);
     }
 
     private PostListResult getPopularPosts(
@@ -153,16 +149,14 @@ public class PostQueryService {
         PostSlice postSlice = postRepository.findVisiblePopularByTopicId(
                 topic.getId(),
                 page - 1,
-                pageSize
-        );
+                pageSize);
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 null,
-                userId
-        );
+                userId);
     }
 
     private PostListResult getRecentPosts(
@@ -174,16 +168,14 @@ public class PostQueryService {
         PostSlice postSlice = postRepository.findVisibleRecentByTopicId(
                 topic.getId(),
                 page - 1,
-                pageSize
-        );
+                pageSize);
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 null,
-                userId
-        );
+                userId);
     }
 
     private PostListResult createPostListResult(
@@ -205,15 +197,13 @@ public class PostQueryService {
                     imageUrlProvider,
                     Map.of(),
                     Set.of(),
-                    userId
-            );
+                    userId);
         }
 
         Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
                 .collect(Collectors.toMap(
                         PostLikeCount::postId,
-                        PostLikeCount::likeCount
-                ));
+                        PostLikeCount::likeCount));
         Set<UUID> likedPostIds = userId
                 .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
                 .orElseGet(Set::of);
@@ -226,21 +216,19 @@ public class PostQueryService {
                 imageUrlProvider,
                 likeCounts,
                 likedPostIds,
-                userId
-        );
+                userId);
     }
 
     private Topic getOpenTopic(Instant now) {
         return topicRepository.findActiveOpenAt(now)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "참여할 수 있는 주제가 없습니다."
-                ));
+                        "참여할 수 있는 주제가 없습니다."));
     }
 
     /**
-     * 이미지 처리 대기 시간을 넘긴 게시물은 생성 흐름이 거절 처리하고 재작성을 열어 주므로 여기서도 막지
-     * 않는다. 상태를 바꾸는 것은 읽기 전용 조회의 몫이 아니라 뒤따르는 생성 요청이 잠금을 잡고 한다.
+     * 이미지 처리 대기 시간을 넘긴 게시물은 생성 흐름이 거절 처리하고 재작성을 열어 주므로 여기서도 막지 않는다. 상태를 바꾸는 것은 읽기
+     * 전용 조회의 몫이 아니라 뒤따르는 생성 요청이 잠금을 잡고 한다.
      */
     private boolean blocksNewPost(Post post, Instant now) {
         return !post.isValidating()
@@ -251,24 +239,21 @@ public class PostQueryService {
         return postRepository.findVisibleById(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "게시물을 찾을 수 없습니다."
-                ));
+                        "게시물을 찾을 수 없습니다."));
     }
 
     private Topic getActiveTopic(LocalDate topicDate) {
         return topicRepository.findActiveByTopicDate(topicDate)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
-                        "해당 날짜의 주제를 찾을 수 없습니다."
-                ));
+                        "해당 날짜의 주제를 찾을 수 없습니다."));
     }
 
     private void validateUser(UUID userId) {
         userRepository.findActiveById(userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."
-                ));
+                        "유효하지 않은 인증 정보입니다."));
     }
 
     private void validateRandomSeedCombination(
@@ -285,8 +270,7 @@ public class PostQueryService {
                 || isSeedMissingAfterFirstRandomPage) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "조회 조건이 올바르지 않습니다."
-            );
+                    "조회 조건이 올바르지 않습니다.");
         }
     }
 
@@ -294,8 +278,7 @@ public class PostQueryService {
         if (topicDate.isAfter(LocalDate.now(KST))) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "미래 날짜의 게시물은 조회할 수 없습니다."
-            );
+                    "미래 날짜의 게시물은 조회할 수 없습니다.");
         }
     }
 }

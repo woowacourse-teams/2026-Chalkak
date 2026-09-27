@@ -30,11 +30,10 @@ public interface UserRefreshTokenJpaRepository extends JpaRepository<UserRefresh
     List<UUID> findLiveSessionIdsByOwnerId(@Param("ownerId") UUID ownerId);
 
     /**
-     * 계보 하나를 트랜잭션이 끝날 때까지 잠근다. 행 잠금과 달리 아직 없는 행까지 덮으므로, 회전이
-     * 만들어 낼 후속 토큰도 같은 잠금 아래에 들어온다. 별도의 해제 호출은 없고 커밋이나 롤백이 푼다.
+     * 계보 하나를 트랜잭션이 끝날 때까지 잠근다. 행 잠금과 달리 아직 없는 행까지 덮으므로, 회전이 만들어 낼 후속 토큰도 같은 잠금 아래에
+     * 들어온다. 별도의 해제 호출은 없고 커밋이나 롤백이 푼다.
      */
-    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:sessionId AS text)))",
-            nativeQuery = true)
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:sessionId AS text)))", nativeQuery = true)
     void lockSession(@Param("sessionId") UUID sessionId);
 
     @Query("""
@@ -68,8 +67,8 @@ public interface UserRefreshTokenJpaRepository extends JpaRepository<UserRefresh
             @Param("revokedAt") Instant revokedAt);
 
     /**
-     * 절대 만료가 지난 토큰을 지운다. 폐기 조건과 한 문장으로 묶으면 서로 다른 두 컬럼에 걸린 OR가
-     * 되어 어느 인덱스도 타지 못하고 전체 스캔이 되므로, 조건마다 문장을 나눠 각자의 인덱스를 쓴다.
+     * 절대 만료가 지난 토큰을 지운다. 폐기 조건과 한 문장으로 묶으면 서로 다른 두 컬럼에 걸린 OR가 되어 어느 인덱스도 타지 못하고 전체
+     * 스캔이 되므로, 조건마다 문장을 나눠 각자의 인덱스를 쓴다.
      */
     @Modifying
     @Query("""

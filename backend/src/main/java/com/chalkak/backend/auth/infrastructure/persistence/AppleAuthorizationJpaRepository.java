@@ -6,7 +6,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppleAuthorizationJpaRepository
-        extends JpaRepository<AppleAuthorization, UUID> {
+        extends
+            JpaRepository<AppleAuthorization, UUID> {
 
     List<AppleAuthorization> findAllBySocialAccountId(UUID socialAccountId);
 

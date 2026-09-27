@@ -10,8 +10,7 @@ import java.util.UUID;
 public record PostCalendarResponse(
         int year,
         int month,
-        List<CalendarPostResponse> posts
-) {
+        List<CalendarPostResponse> posts) {
 
     public static PostCalendarResponse from(PostCalendarResult result) {
         return new PostCalendarResponse(
@@ -19,25 +18,22 @@ public record PostCalendarResponse(
                 result.month(),
                 result.posts().stream()
                         .map(CalendarPostResponse::from)
-                        .toList()
-        );
+                        .toList());
     }
 
     public record CalendarPostResponse(
             LocalDate topicDate,
             UUID postId,
             String thumbnailImageUrl,
-            @Schema(allowableValues = {"PENDING", "APPROVED"})
-            ModerationStatus status
-    ) {
+            @Schema(allowableValues = {
+                    "PENDING", "APPROVED"}) ModerationStatus status){
 
         private static CalendarPostResponse from(PostCalendarResult.PostSummary post) {
             return new CalendarPostResponse(
                     post.topicDate(),
                     post.postId(),
                     post.thumbnailImageUrl(),
-                    post.status()
-            );
+                    post.status());
         }
     }
 }

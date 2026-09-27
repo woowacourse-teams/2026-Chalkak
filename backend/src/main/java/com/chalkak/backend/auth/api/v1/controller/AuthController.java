@@ -49,15 +49,13 @@ public class AuthController implements AuthApiDocs {
 
     @Override
     @PostMapping("/social-signup/signature/uploads")
-    public ResponseEntity<SocialSignupSignatureUploadResponse>
-            createSocialSignupSignatureUpload(
-                    @Valid @RequestBody SocialSignupSignatureUploadRequest request
-            ) {
-        SocialSignupSignatureUploadResult result =
-                socialSignupService.createSignatureUpload(
-                        request.provider(),
-                        request.idToken(),
-                        request.rawNonce());
+    public ResponseEntity<SocialSignupSignatureUploadResponse> createSocialSignupSignatureUpload(
+            @Valid @RequestBody SocialSignupSignatureUploadRequest request
+    ) {
+        SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
+                request.provider(),
+                request.idToken(),
+                request.rawNonce());
 
         return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(result));
     }

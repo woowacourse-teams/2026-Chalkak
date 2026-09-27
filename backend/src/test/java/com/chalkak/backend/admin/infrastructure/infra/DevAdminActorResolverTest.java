@@ -5,15 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.infrastructure.bootstrap.DevelopmentAdminBootstrap;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
-@TestPropertySource(properties =
-        "chalkak.admin.authentication.development-bypass-enabled=true")
+@TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=true")
 class DevAdminActorResolverTest extends IntegrationTestSupport {
 
     @Autowired

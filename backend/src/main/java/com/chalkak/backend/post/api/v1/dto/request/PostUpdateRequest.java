@@ -8,15 +8,7 @@ import jakarta.validation.constraints.AssertTrue;
 
 @Schema(requiredProperties = "title")
 public record PostUpdateRequest(
-        @JsonProperty(required = true)
-        @Schema(
-                description = "수정할 제목. 앞뒤 공백을 제거하며 null 또는 공백이면 제목을 삭제합니다.",
-                example = "수정한 제목",
-                nullable = true,
-                requiredMode = Schema.RequiredMode.REQUIRED
-        )
-        String title
-) {
+        @JsonProperty(required = true) @Schema(description = "수정할 제목. 앞뒤 공백을 제거하며 null 또는 공백이면 제목을 삭제합니다.", example = "수정한 제목", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED) String title) {
 
     @JsonIgnore
     @Schema(hidden = true)

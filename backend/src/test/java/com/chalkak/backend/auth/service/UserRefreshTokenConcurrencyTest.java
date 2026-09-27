@@ -28,17 +28,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * 회전은 다른 스레드의 트랜잭션이 실제로 커밋돼야 검증되므로 {@code @Transactional} 격리를 쓰지 않고
- * 직접 정리한다.
+ * 회전은 다른 스레드의 트랜잭션이 실제로 커밋돼야 검증되므로 {@code @Transactional} 격리를 쓰지 않고 직접 정리한다.
  */
 class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
 
     private static final String SUCCESS = "SUCCESS";
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
-    private static final UUID USER_ID =
-            UUID.fromString("0198fd30-0000-7000-8000-000000000001");
-    private static final UUID SESSION_ID =
-            UUID.fromString("0198fd30-0000-7000-8000-000000000002");
+    private static final UUID USER_ID = UUID.fromString("0198fd30-0000-7000-8000-000000000001");
+    private static final UUID SESSION_ID = UUID.fromString("0198fd30-0000-7000-8000-000000000002");
     private static final String PRESENTED_TOKEN = "concurrent-refresh-token";
     private static final String OTHER_TOKEN = "concurrent-refresh-token-sibling";
 
@@ -129,8 +126,7 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
             Future<RefreshAttempt> secondAttempt = executor.submit(() -> attempt(barrier, second));
             return List.of(
                     firstAttempt.get(10, TimeUnit.SECONDS),
-                    secondAttempt.get(10, TimeUnit.SECONDS)
-            );
+                    secondAttempt.get(10, TimeUnit.SECONDS));
         }
     }
 
@@ -158,8 +154,7 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
         } catch (Exception exception) {
             return new RefreshAttempt(
                     "UNEXPECTED:" + exception.getClass().getSimpleName(),
-                    null
-            );
+                    null);
         }
     }
 
@@ -208,11 +203,11 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
 
     private void insertRefreshToken(String token, Instant rotatedAt) {
         jdbcTemplate.update("""
-                        INSERT INTO user_refresh_tokens (
-                            user_id, session_id, token_hash,
-                            expires_at, absolute_expires_at, rotated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?)
-                        """,
+                INSERT INTO user_refresh_tokens (
+                    user_id, session_id, token_hash,
+                    expires_at, absolute_expires_at, rotated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
                 USER_ID,
                 SESSION_ID,
                 refreshTokenHasher.encode(token),
@@ -242,7 +237,6 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
 
     private record RefreshAttempt(
             String outcome,
-            String issuedToken
-    ) {
+            String issuedToken) {
     }
 }

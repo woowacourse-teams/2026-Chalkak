@@ -7,18 +7,17 @@ import jakarta.persistence.Embeddable;
 import java.util.Objects;
 
 /**
- * 게시물 제목의 정규화·길이 규칙을 한곳에 모은 값 객체. 생성·수정·요청 검증이 모두 이 클래스에 위임해, 같은 규칙이
- * 여러 벌로 복제되어 어긋나는 일을 막는다.
+ * 게시물 제목의 정규화·길이 규칙을 한곳에 모은 값 객체. 생성·수정·요청 검증이 모두 이 클래스에 위임해, 같은 규칙이 여러 벌로 복제되어
+ * 어긋나는 일을 막는다.
  *
- * <p>제목 없음은 {@code PostTitle} 자체가 {@code null}인 것으로만 표현한다. 값이 {@code null}인 인스턴스를
+ * <p>
+ * 제목 없음은 {@code PostTitle} 자체가 {@code null}인 것으로만 표현한다. 값이 {@code null}인 인스턴스를
  * 허용하면 {@code posts.title}이 컬럼 하나뿐이라 두 상태를 구분해 저장할 수 없고, 조회 시 Hibernate가 임베디드
  * 필드를 {@code null}로 복원해 저장 직후 객체와 조회한 객체의 모양이 달라진다.
  */
 @Embeddable
 public record PostTitle(
-        @Column(name = "title", length = PostTitle.MAX_LENGTH)
-        String value
-) {
+        @Column(name = "title", length = PostTitle.MAX_LENGTH) String value) {
 
     private static final int MAX_LENGTH = 10;
 
@@ -28,14 +27,12 @@ public record PostTitle(
         if (value.isEmpty()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "제목 없음은 PostTitle이 아니라 null로 표현해야 합니다."
-            );
+                    "제목 없음은 PostTitle이 아니라 null로 표현해야 합니다.");
         }
         if (exceedsMaxLength(value)) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "제목은 %d자 이하여야 합니다.".formatted(MAX_LENGTH)
-            );
+                    "제목은 %d자 이하여야 합니다.".formatted(MAX_LENGTH));
         }
     }
 
@@ -60,8 +57,9 @@ public record PostTitle(
     }
 
     /**
-     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자 수보다 길게
-     * 계산된다. {@code posts.title}이 code point를 세는 {@code VARCHAR(10)}이므로 길이도 code point로 판정한다.
+     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자
+     * 수보다 길게 계산된다. {@code posts.title}이 code point를 세는 {@code VARCHAR(10)}이므로 길이도
+     * code point로 판정한다.
      */
     private static boolean exceedsMaxLength(String value) {
         return value.codePointCount(0, value.length()) > MAX_LENGTH;

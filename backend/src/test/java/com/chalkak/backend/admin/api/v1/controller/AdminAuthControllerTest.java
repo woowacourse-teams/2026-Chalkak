@@ -12,10 +12,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
-import com.chalkak.backend.admin.service.AdminAuthenticationService;
-import com.chalkak.backend.admin.service.AdminLoginResult;
-import com.chalkak.backend.admin.service.AdminRefreshTokenService;
-import com.chalkak.backend.admin.service.CurrentAdminResult;
+import com.chalkak.backend.admin.service.auth.AdminAuthenticationService;
+import com.chalkak.backend.admin.service.auth.AdminLoginResult;
+import com.chalkak.backend.admin.service.auth.AdminRefreshTokenService;
+import com.chalkak.backend.admin.service.auth.CurrentAdminResult;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.service.TokenRefreshResult;
@@ -69,18 +69,17 @@ class AdminAuthControllerTest {
                         ADMIN_ID,
                         USERNAME,
                         new IssuedAccessToken("admin-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30))
-                ));
+                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "operator",
-                                  "password": "safe-password"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "username": "operator",
+                          "password": "safe-password"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.adminId").value(ADMIN_ID.toString()))
                 .andExpect(jsonPath("$.username").value(USERNAME))
@@ -95,13 +94,13 @@ class AdminAuthControllerTest {
     void login_blankUsername_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": " ",
-                                  "password": "safe-password"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "username": " ",
+                          "password": "safe-password"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -131,17 +130,16 @@ class AdminAuthControllerTest {
                         new IssuedAccessToken("rotated-admin-token", Duration.ofMinutes(15)),
                         new IssuedRefreshToken(
                                 "rotated-admin-refresh-token",
-                                Duration.ofDays(30))
-                ));
+                                Duration.ofDays(30))));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "admin-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "admin-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("rotated-admin-token"))
                 .andExpect(jsonPath("$.expiresIn").value(900))
@@ -154,12 +152,12 @@ class AdminAuthControllerTest {
     void refresh_blankRefreshToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": " "
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": " "
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -177,12 +175,12 @@ class AdminAuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "expired-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "expired-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
     }
@@ -192,12 +190,12 @@ class AdminAuthControllerTest {
     void logout_refreshToken_revokesLineageWithoutAccessToken() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "admin-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "admin-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isNoContent());
 
         then(adminRefreshTokenService).should().logout("admin-refresh-token");
@@ -209,12 +207,12 @@ class AdminAuthControllerTest {
     void logout_blankRefreshToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": " "
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": " "
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 

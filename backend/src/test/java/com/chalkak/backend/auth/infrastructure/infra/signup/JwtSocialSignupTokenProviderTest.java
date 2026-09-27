@@ -33,8 +33,7 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 class JwtSocialSignupTokenProviderTest {
 
     private static final Instant NOW = Instant.parse("2026-08-26T00:00:00Z");
-    private static final String SECRET =
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    private static final String SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String SUBJECT = "google-subject";
 
     @Test

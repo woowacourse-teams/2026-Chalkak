@@ -611,8 +611,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .willReturn(new IssuedSocialSignupToken("social-signup-token"));
 
         // When
-        SocialSignupSignatureUploadResult result =
-                socialSignupService.createSignatureUpload(
+        SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE);
@@ -637,11 +636,10 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         givenAppleSignatureUploadRequest(minutesLater(5));
 
         // When
-        SocialSignupSignatureUploadResult result =
-                socialSignupService.createSignatureUpload(
-                        SocialProvider.APPLE,
-                        APPLE_ID_TOKEN,
-                        RAW_NONCE);
+        SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
+                SocialProvider.APPLE,
+                APPLE_ID_TOKEN,
+                RAW_NONCE);
 
         // Then
         assertThat(result.upload().uploadUrl())
@@ -896,8 +894,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     /**
-     * TIMESTAMPTZ는 마이크로초까지 저장한다. Linux의 {@code Instant.now()}는 나노초까지
-     * 주므로, 자르지 않으면 저장한 값과 읽어온 값이 달라 만료 비교가 실패한다.
+     * TIMESTAMPTZ는 마이크로초까지 저장한다. Linux의 {@code Instant.now()}는 나노초까지 주므로, 자르지 않으면
+     * 저장한 값과 읽어온 값이 달라 만료 비교가 실패한다.
      */
     private Instant minutesLater(int minutes) {
         return Instant.now()
@@ -916,9 +914,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     }
 
     /**
-     * 매번 새 jti를 만든다. 재전송 테스트는 stub 하나를 여러 번 호출해 같은 객체(=같은
-     * jti)를 재사용하는 방식으로 검증하므로, 기본값이 매번 고유해야 서로 다른 테스트가
-     * 우연히 같은 jti로 충돌하지 않는다.
+     * 매번 새 jti를 만든다. 재전송 테스트는 stub 하나를 여러 번 호출해 같은 객체(=같은 jti)를 재사용하는 방식으로 검증하므로,
+     * 기본값이 매번 고유해야 서로 다른 테스트가 우연히 같은 jti로 충돌하지 않는다.
      */
     private String newTokenId() {
         return UUID.randomUUID().toString();

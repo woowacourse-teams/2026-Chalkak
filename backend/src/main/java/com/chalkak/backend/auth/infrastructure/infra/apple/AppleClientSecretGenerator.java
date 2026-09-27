@@ -32,8 +32,7 @@ public class AppleClientSecretGenerator {
     private final ECPrivateKey privateKey;
 
     /**
-     * 개인키를 생성자에서 즉시 파싱해, 설정이 잘못됐을 때 첫 로그인 요청이 아니라 애플리케이션
-     * 기동 시점에 실패하게 한다.
+     * 개인키를 생성자에서 즉시 파싱해, 설정이 잘못됐을 때 첫 로그인 요청이 아니라 애플리케이션 기동 시점에 실패하게 한다.
      */
     public AppleClientSecretGenerator(
             AppleTokenProperties tokenProperties,

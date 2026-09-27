@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminTopicDetail;
+import com.chalkak.backend.admin.service.topic.AdminTopicDetail;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -17,8 +17,7 @@ public record AdminTopicDetailResponse(
         TopicPhase phase,
         AdminTopicPostCounts postCounts,
         Instant createdAt,
-        Instant updatedAt
-) {
+        Instant updatedAt) {
 
     public static AdminTopicDetailResponse from(AdminTopicDetail detail) {
         return new AdminTopicDetailResponse(
@@ -30,7 +29,6 @@ public record AdminTopicDetailResponse(
                 detail.phase(),
                 AdminTopicPostCounts.from(detail.postCounts()),
                 detail.createdAt(),
-                detail.updatedAt()
-        );
+                detail.updatedAt());
     }
 }

@@ -58,8 +58,8 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
     @DisplayName("연결된 소셜 계정이 없으면 빈 값을 반환한다")
     void processIfExists_noSocialAccount_returnsEmpty() {
         // When
-        Optional<SocialLoginSuccess> result =
-                existingSocialAccountLoginProcessor.processIfExists(identity(SocialProvider.GOOGLE));
+        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
+                .processIfExists(identity(SocialProvider.GOOGLE));
 
         // Then
         assertThat(result).isEmpty();
@@ -74,8 +74,8 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        Optional<SocialLoginSuccess> result =
-                existingSocialAccountLoginProcessor.processIfExists(identity(SocialProvider.GOOGLE));
+        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
+                .processIfExists(identity(SocialProvider.GOOGLE));
 
         // Then
         assertThat(result).isEmpty();
@@ -108,8 +108,8 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        Optional<SocialLoginSuccess> result =
-                existingSocialAccountLoginProcessor.processIfExists(identity(SocialProvider.GOOGLE));
+        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
+                .processIfExists(identity(SocialProvider.GOOGLE));
 
         // Then
         assertThat(result).isPresent();
@@ -144,8 +144,8 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        Optional<SocialLoginSuccess> result =
-                existingSocialAccountLoginProcessor.processIfExists(identity(SocialProvider.APPLE));
+        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
+                .processIfExists(identity(SocialProvider.APPLE));
 
         // Then
         assertThat(result).isEmpty();

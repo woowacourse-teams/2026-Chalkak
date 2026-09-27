@@ -2,7 +2,7 @@ package com.chalkak.backend.admin.api.v1.dto.response;
 
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminTargetType;
-import com.chalkak.backend.admin.service.AdminAuditLogListResult;
+import com.chalkak.backend.admin.service.audit.AdminAuditLogListResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
@@ -13,16 +13,14 @@ public record AdminAuditLogListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AuditLogResponse> auditLogs
-) {
+        List<AuditLogResponse> auditLogs) {
 
     public static AdminAuditLogListResponse from(AdminAuditLogListResult result) {
         return new AdminAuditLogListResponse(
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                result.auditLogs().stream().map(AuditLogResponse::from).toList()
-        );
+                result.auditLogs().stream().map(AuditLogResponse::from).toList());
     }
 
     public record AuditLogResponse(
@@ -33,20 +31,17 @@ public record AdminAuditLogListResponse(
             AdminTargetType targetType,
             UUID targetId,
             String reason,
-            @Schema(description = "작업별 허용 필드로 구성된 변경 전 상태. 민감정보는 포함하지 않습니다.")
-            Map<String, Object> beforeState,
-            @Schema(description = "작업별 허용 필드로 구성된 변경 후 상태. 민감정보는 포함하지 않습니다.")
-            Map<String, Object> afterState,
+            @Schema(description = "작업별 허용 필드로 구성된 변경 전 상태. 민감정보는 포함하지 않습니다.") Map<String, Object> beforeState,
+            @Schema(description = "작업별 허용 필드로 구성된 변경 후 상태. 민감정보는 포함하지 않습니다.") Map<String, Object> afterState,
             Instant occurredAt,
-            UUID requestId
-    ) {
+            UUID requestId) {
 
         private static AuditLogResponse from(AdminAuditLogListResult.AuditLogSummary result) {
             return new AuditLogResponse(
                     result.auditLogId(), result.actorAdminId(), result.actorUsername(),
                     result.action(), result.targetType(), result.targetId(), result.reason(),
-                    result.beforeState(), result.afterState(), result.occurredAt(), result.requestId()
-            );
+                    result.beforeState(), result.afterState(), result.occurredAt(),
+                    result.requestId());
         }
     }
 }

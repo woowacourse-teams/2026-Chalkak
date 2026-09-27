@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminPostDetail;
+import com.chalkak.backend.admin.service.post.AdminPostDetail;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -13,10 +13,9 @@ import java.util.UUID;
 
 public record AdminPostDetailResponse(
         UUID postId,
-        @Schema(nullable = true)
-        String title,
-        @Schema(allowableValues = {"PENDING", "APPROVED", "REJECTED"})
-        ModerationStatus moderationStatus,
+        @Schema(nullable = true) String title,
+        @Schema(allowableValues = {
+                "PENDING", "APPROVED", "REJECTED"}) ModerationStatus moderationStatus,
         AuthorResponse author,
         TopicResponse topic,
         PhotoResponse photo,
@@ -24,15 +23,10 @@ public record AdminPostDetailResponse(
         long likeCount,
         Instant createdAt,
         Instant updatedAt,
-        @Schema(nullable = true)
-        Instant moderatedAt,
-        @Schema(nullable = true)
-        UUID moderatedBy,
-        @Schema(nullable = true)
-        String rejectionReason,
-        @Schema(nullable = true)
-        Instant deletedAt
-) {
+        @Schema(nullable = true) Instant moderatedAt,
+        @Schema(nullable = true) UUID moderatedBy,
+        @Schema(nullable = true) String rejectionReason,
+        @Schema(nullable = true) Instant deletedAt){
 
     public static AdminPostDetailResponse from(AdminPostDetail detail) {
         return new AdminPostDetailResponse(
@@ -49,19 +43,15 @@ public record AdminPostDetailResponse(
                 detail.moderatedAt(),
                 detail.moderatedBy(),
                 detail.rejectionReason(),
-                detail.deletedAt()
-        );
+                detail.deletedAt());
     }
 
     @Schema(name = "AdminPostDetailAuthor")
     public record AuthorResponse(
             UUID userId,
-            @Schema(nullable = true)
-            String email,
+            @Schema(nullable = true) String email,
             UserStatus status,
-            @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            @Schema(nullable = true) Instant deletedAt) {
 
         private static AuthorResponse from(AdminPostDetail.AuthorDetail author) {
             if (author == null) {
@@ -71,8 +61,7 @@ public record AdminPostDetailResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt()
-            );
+                    author.deletedAt());
         }
     }
 
@@ -83,9 +72,7 @@ public record AdminPostDetailResponse(
             LocalDate topicDate,
             Instant startsAt,
             Instant endsAt,
-            @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            @Schema(nullable = true) Instant deletedAt) {
 
         private static TopicResponse from(AdminPostDetail.TopicDetail topic) {
             if (topic == null) {
@@ -97,8 +84,7 @@ public record AdminPostDetailResponse(
                     topic.topicDate(),
                     topic.startsAt(),
                     topic.endsAt(),
-                    topic.deletedAt()
-            );
+                    topic.deletedAt());
         }
     }
 
@@ -106,14 +92,11 @@ public record AdminPostDetailResponse(
     public record PhotoResponse(
             UUID photoId,
             String originalImageUrl,
-            @Schema(nullable = true)
-            String thumbnailImageUrl,
+            @Schema(nullable = true) String thumbnailImageUrl,
             PhotoMetadataResponse metadata,
             Instant createdAt,
             Instant updatedAt,
-            @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            @Schema(nullable = true) Instant deletedAt) {
 
         private static PhotoResponse from(AdminPostDetail.PhotoDetail photo) {
             if (photo == null) {
@@ -126,28 +109,22 @@ public record AdminPostDetailResponse(
                     PhotoMetadataResponse.from(photo.metadata()),
                     photo.createdAt(),
                     photo.updatedAt(),
-                    photo.deletedAt()
-            );
+                    photo.deletedAt());
         }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @Schema(name = "AdminPostDetailPhotoMetadata")
     public record PhotoMetadataResponse(
-            @Schema(description = "이미지 가로 픽셀 수", nullable = true)
-            Integer width,
-            @Schema(description = "이미지 세로 픽셀 수", nullable = true)
-            Integer height,
-            @Schema(description = "이미지 바이트 크기", nullable = true)
-            Long byteSize
-    ) {
+            @Schema(description = "이미지 가로 픽셀 수", nullable = true) Integer width,
+            @Schema(description = "이미지 세로 픽셀 수", nullable = true) Integer height,
+            @Schema(description = "이미지 바이트 크기", nullable = true) Long byteSize) {
 
         private static PhotoMetadataResponse from(Map<String, Object> metadata) {
             return new PhotoMetadataResponse(
                     toInteger(metadata.get("width")),
                     toInteger(metadata.get("height")),
-                    toLong(metadata.get("byteSize"))
-            );
+                    toLong(metadata.get("byteSize")));
         }
 
         private static Integer toInteger(Object value) {
@@ -163,11 +140,9 @@ public record AdminPostDetailResponse(
     public record ImageUploadResponse(
             UUID uploadId,
             PostImageUploadStatus status,
-            @Schema(nullable = true)
-            String rejectionReason,
+            @Schema(nullable = true) String rejectionReason,
             Instant createdAt,
-            Instant updatedAt
-    ) {
+            Instant updatedAt) {
 
         private static ImageUploadResponse from(AdminPostDetail.ImageUploadDetail imageUpload) {
             if (imageUpload == null) {
@@ -178,8 +153,7 @@ public record AdminPostDetailResponse(
                     imageUpload.status(),
                     imageUpload.rejectionReason(),
                     imageUpload.createdAt(),
-                    imageUpload.updatedAt()
-            );
+                    imageUpload.updatedAt());
         }
     }
 }

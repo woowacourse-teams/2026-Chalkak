@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminFeedbackListResult;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
@@ -11,8 +11,7 @@ public record AdminFeedbackListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<FeedbackResponse> feedbacks
-) {
+        List<FeedbackResponse> feedbacks) {
 
     public static AdminFeedbackListResponse from(AdminFeedbackListResult result) {
         return new AdminFeedbackListResponse(
@@ -29,8 +28,7 @@ public record AdminFeedbackListResponse(
             UUID feedbackId,
             String content,
             Instant createdAt,
-            AuthorResponse author
-    ) {
+            AuthorResponse author) {
 
         private static FeedbackResponse from(AdminFeedbackListResult.FeedbackSummary feedback) {
             return new FeedbackResponse(
@@ -44,12 +42,9 @@ public record AdminFeedbackListResponse(
     @Schema(name = "AdminFeedbackListAuthor")
     public record AuthorResponse(
             UUID userId,
-            @Schema(nullable = true)
-            String email,
+            @Schema(nullable = true) String email,
             AdminUserStatus status,
-            @Schema(nullable = true)
-            String appVersion
-    ) {
+            @Schema(nullable = true) String appVersion) {
 
         private static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
             return new AuthorResponse(

@@ -3,7 +3,7 @@ package com.chalkak.backend.post.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 
-import com.chalkak.backend.admin.service.AdminPostModerationService;
+import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.BaseException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.infrastructure.persistence.PostRepositoryImpl;
@@ -30,22 +30,17 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
     private static final String SECOND_UPDATE_THREAD = "post-title-second-update";
     private static final String MODERATION_THREAD = "post-title-moderation";
     private static final String DELETION_THREAD = "post-title-deletion";
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577f1");
-    private static final UUID AUTHOR_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577a1");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577b1");
-    private static final UUID PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577c1");
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577d1");
+    private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577f1");
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577a1");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577b1");
+    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577c1");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6577d1");
 
     @Autowired
     private PostCommandService postCommandService;
 
     @Autowired
-    private AdminPostModerationService adminPostModerationService;
+    private AdminPostCommandService adminPostCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -95,12 +90,11 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
         }));
         await(updateLocked, "제목 수정이 게시물 락을 획득하지 못했습니다.");
         Future<Void> moderation = executor.submit(() -> runNamed(MODERATION_THREAD, () -> {
-            adminPostModerationService.moderate(
+            adminPostCommandService.moderate(
                     POST_ID,
                     ADMIN_ID,
                     ModerationStatus.APPROVED,
-                    null
-            );
+                    null);
             return null;
         }));
 
@@ -144,12 +138,11 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<Void> moderation = executor.submit(() -> runNamed(MODERATION_THREAD, () -> {
-            adminPostModerationService.moderate(
+            adminPostCommandService.moderate(
                     POST_ID,
                     ADMIN_ID,
                     ModerationStatus.REJECTED,
-                    "운영 정책 위반"
-            );
+                    "운영 정책 위반");
             return null;
         }));
         await(moderationLocked, "검수 요청이 게시물 락을 획득하지 못했습니다.");

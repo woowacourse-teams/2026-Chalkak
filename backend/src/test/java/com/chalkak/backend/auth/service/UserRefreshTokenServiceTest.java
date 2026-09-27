@@ -344,10 +344,10 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
 
     private TokenRow findTokenRow(String token) {
         return jdbcTemplate.queryForObject("""
-                        SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
-                        FROM user_refresh_tokens
-                        WHERE token_hash = ?
-                        """,
+                SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
+                FROM user_refresh_tokens
+                WHERE token_hash = ?
+                """,
                 (resultSet, rowNumber) -> new TokenRow(
                         resultSet.getObject("session_id", UUID.class),
                         toInstant(resultSet.getTimestamp("rotated_at")),
@@ -369,7 +369,6 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
             Instant rotatedAt,
             Instant revokedAt,
             Instant expiresAt,
-            Instant absoluteExpiresAt
-    ) {
+            Instant absoluteExpiresAt) {
     }
 }

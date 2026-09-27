@@ -27,7 +27,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class PendingAppleAuthorizationCleanupSchedulerTest
-        extends IntegrationTestSupport {
+        extends
+            IntegrationTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-09-04T00:00:00Z");
     private static final String SUBJECT_HMAC = "a".repeat(64);
@@ -80,10 +81,10 @@ class PendingAppleAuthorizationCleanupSchedulerTest
         given(authorizationCipher.decrypt(BOUNDARY_ENCRYPTED_TOKEN))
                 .willReturn("boundary-refresh-token");
         willAnswer(invocation -> {
-                    assertThat(TransactionSynchronizationManager
-                            .isActualTransactionActive()).isFalse();
-                    return null;
-                })
+            assertThat(TransactionSynchronizationManager
+                    .isActualTransactionActive()).isFalse();
+            return null;
+        })
                 .given(appleTokenClient)
                 .revokeRefreshToken("expired-refresh-token");
 

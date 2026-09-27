@@ -20,41 +20,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-@OpenAPIDefinition(
-        info = @Info(
-                title = "Chalkak API",
-                version = "v1",
-                description = "Chalkak 사용자, 운영자 및 내부 API 문서"
-        )
-)
-@SecurityScheme(
-        name = "accessToken",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT",
-        description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰"
-)
-@SecurityScheme(
-        name = "adminAccessToken",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT",
-        description = "관리자 로그인 응답으로 받은 관리자 액세스 토큰"
-)
+@OpenAPIDefinition(info = @Info(title = "Chalkak API", version = "v1", description = "Chalkak 사용자, 운영자 및 내부 API 문서"))
+@SecurityScheme(name = "accessToken", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT", description = "소셜 로그인 또는 회원가입 응답으로 받은 액세스 토큰")
+@SecurityScheme(name = "adminAccessToken", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT", description = "관리자 로그인 응답으로 받은 관리자 액세스 토큰")
 @Configuration(proxyBeanMethods = false)
 @Profile("!prod")
 public class OpenApiConfig {
 
     /**
-     * 관리자 토큰 없이 호출하는 관리자 경로. 자격증명을 아직 받지 못했거나 이미 만료된 자리라
-     * 문서에서도 관리자 인증을 요구하지 않는다. {@code SecurityConfig}의 permitAll 목록과 같은
-     * 범위를 유지해야 문서와 실제 접근 규칙이 어긋나지 않는다.
+     * 관리자 토큰 없이 호출하는 관리자 경로. 자격증명을 아직 받지 못했거나 이미 만료된 자리라 문서에서도 관리자 인증을 요구하지 않는다.
+     * {@code SecurityConfig}의 permitAll 목록과 같은 범위를 유지해야 문서와 실제 접근 규칙이 어긋나지 않는다.
      */
     private static final Set<String> PUBLIC_ADMIN_AUTH_PATHS = Set.of(
             "/api/v1/admin/auth/login",
             "/api/v1/admin/auth/refresh",
-            "/api/v1/admin/auth/logout"
-    );
+            "/api/v1/admin/auth/logout");
 
     @Bean
     public GroupedOpenApi userApi() {
@@ -98,17 +78,15 @@ public class OpenApiConfig {
 
         ComposedSchema nullableImageUploadSchema = new ComposedSchema();
         nullableImageUploadSchema.addOneOfItem(
-                new Schema<>().$ref("#/components/schemas/AdminPostDetailImageUpload")
-        );
+                new Schema<>().$ref("#/components/schemas/AdminPostDetailImageUpload"));
         nullableImageUploadSchema.addOneOfItem(new Schema<>().types(Set.of("null")));
         detailSchema.addProperty("imageUpload", nullableImageUploadSchema);
     }
 
     /**
-     * 게시물 목록 조회는 토큰이 없어도 호출 가능하지만 있으면 isLiked와 isMine이 개인화되는
-     * 선택적 인증이다. swagger-core의 {@code @SecurityRequirement}는 이름이 빈
-     * 요구사항을 표현하지 못해 익명 호출 허용을 애노테이션만으로 선언할 수 없으므로,
-     * 생성된 문서에 빈 SecurityRequirement를 직접 추가해 "인증 없이 호출 가능"과
+     * 게시물 목록 조회는 토큰이 없어도 호출 가능하지만 있으면 isLiked와 isMine이 개인화되는 선택적 인증이다.
+     * swagger-core의 {@code @SecurityRequirement}는 이름이 빈 요구사항을 표현하지 못해 익명 호출 허용을
+     * 애노테이션만으로 선언할 수 없으므로, 생성된 문서에 빈 SecurityRequirement를 직접 추가해 "인증 없이 호출 가능"과
      * "accessToken으로 호출 가능"을 모두 문서화한다.
      */
     private void customizeOptionalAuthOnPostList(OpenAPI openApi) {
@@ -131,9 +109,8 @@ public class OpenApiConfig {
     }
 
     /**
-     * 관리자 API는 기본이 관리자 Bearer 인증이므로 문서에도 일괄로 적용한다. 인증 없이 여는 경로만
-     * 빼는데, 이 경로들은 401도 자동으로 붙이지 않는다. 관리자 인증 실패가 아니라 자격증명 자체의
-     * 문제라 문서 인터페이스가 각자 알맞은 설명으로 선언한다.
+     * 관리자 API는 기본이 관리자 Bearer 인증이므로 문서에도 일괄로 적용한다. 인증 없이 여는 경로만 빼는데, 이 경로들은 401도
+     * 자동으로 붙이지 않는다. 관리자 인증 실패가 아니라 자격증명 자체의 문제라 문서 인터페이스가 각자 알맞은 설명으로 선언한다.
      */
     private void customizeAdminSecurity(OpenAPI openApi) {
         openApi.getPaths().forEach((path, pathItem) -> {
@@ -144,12 +121,12 @@ public class OpenApiConfig {
             }
             pathItem.readOperations().forEach(operation -> {
                 operation.setSecurity(List.of(
-                        new SecurityRequirement().addList("adminAccessToken")
-                ));
+                        new SecurityRequirement().addList("adminAccessToken")));
                 operation.getResponses().putIfAbsent("401", new ApiResponse()
                         .description("관리자 인증 필요")
                         .content(new Content().addMediaType("application/json", new MediaType()
-                                .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse")))));
+                                .schema(new Schema<>()
+                                        .$ref("#/components/schemas/ErrorResponse")))));
             });
         });
     }

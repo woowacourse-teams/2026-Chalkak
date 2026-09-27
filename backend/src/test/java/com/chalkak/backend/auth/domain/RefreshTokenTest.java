@@ -11,10 +11,8 @@ import org.junit.jupiter.api.Test;
 
 class RefreshTokenTest {
 
-    private static final String TOKEN_HASH =
-            "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
-    private static final String SUCCESSOR_TOKEN_HASH =
-            "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
+    private static final String TOKEN_HASH = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
+    private static final String SUCCESSOR_TOKEN_HASH = "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
 
     @Test

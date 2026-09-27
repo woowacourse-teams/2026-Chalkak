@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminPostListResult;
+import com.chalkak.backend.admin.service.post.AdminPostListResult;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -13,8 +13,7 @@ public record AdminPostListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<PostResponse> posts
-) {
+        List<PostResponse> posts) {
 
     public static AdminPostListResponse from(AdminPostListResult result) {
         return new AdminPostListResponse(
@@ -23,27 +22,22 @@ public record AdminPostListResponse(
                 result.hasNext(),
                 result.posts().stream()
                         .map(PostResponse::from)
-                        .toList()
-        );
+                        .toList());
     }
 
     @Schema(name = "AdminPostListItem")
     public record PostResponse(
             UUID postId,
-            @Schema(nullable = true)
-            String title,
-            @Schema(allowableValues = {"PENDING", "APPROVED", "REJECTED"})
-            ModerationStatus moderationStatus,
+            @Schema(nullable = true) String title,
+            @Schema(allowableValues = {
+                    "PENDING", "APPROVED", "REJECTED"}) ModerationStatus moderationStatus,
             AuthorResponse author,
             TopicResponse topic,
             PhotoResponse photo,
             long likeCount,
             Instant createdAt,
-            @Schema(nullable = true)
-            Instant moderatedAt,
-            @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            @Schema(nullable = true) Instant moderatedAt,
+            @Schema(nullable = true) Instant deletedAt){
 
         private static PostResponse from(AdminPostListResult.PostSummary post) {
             return new PostResponse(
@@ -56,20 +50,16 @@ public record AdminPostListResponse(
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt()
-            );
+                    post.deletedAt());
         }
     }
 
     @Schema(name = "AdminPostListAuthor")
     public record AuthorResponse(
             UUID userId,
-            @Schema(nullable = true)
-            String email,
+            @Schema(nullable = true) String email,
             UserStatus status,
-            @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            @Schema(nullable = true) Instant deletedAt) {
 
         private static AuthorResponse from(AdminPostListResult.AuthorSummary author) {
             if (author == null) {
@@ -79,8 +69,7 @@ public record AdminPostListResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt()
-            );
+                    author.deletedAt());
         }
     }
 
@@ -88,8 +77,7 @@ public record AdminPostListResponse(
     public record TopicResponse(
             UUID topicId,
             String title,
-            LocalDate topicDate
-    ) {
+            LocalDate topicDate) {
 
         private static TopicResponse from(AdminPostListResult.TopicSummary topic) {
             if (topic == null) {
@@ -103,9 +91,7 @@ public record AdminPostListResponse(
     public record PhotoResponse(
             UUID photoId,
             String originalImageUrl,
-            @Schema(nullable = true)
-            String thumbnailImageUrl
-    ) {
+            @Schema(nullable = true) String thumbnailImageUrl) {
 
         private static PhotoResponse from(AdminPostListResult.PhotoSummary photo) {
             if (photo == null) {
@@ -114,8 +100,7 @@ public record AdminPostListResponse(
             return new PhotoResponse(
                     photo.photoId(),
                     photo.originalImageUrl(),
-                    photo.thumbnailImageUrl()
-            );
+                    photo.thumbnailImageUrl());
         }
     }
 }

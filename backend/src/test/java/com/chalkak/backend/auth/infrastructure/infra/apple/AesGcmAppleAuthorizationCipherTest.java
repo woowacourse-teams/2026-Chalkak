@@ -12,10 +12,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AesGcmAppleAuthorizationCipherTest {
 
-    private static final String ENCRYPTION_KEY =
-            "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
-    private static final String OTHER_ENCRYPTION_KEY =
-            "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
+    private static final String ENCRYPTION_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    private static final String OTHER_ENCRYPTION_KEY = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
     private static final String REFRESH_TOKEN = "apple-refresh-token";
 
     @Test
@@ -130,8 +128,8 @@ class AesGcmAppleAuthorizationCipherTest {
     }
 
     private AesGcmAppleAuthorizationCipher createCipher(String encryptionKey) {
-        AppleAuthorizationEncryptionProperties properties =
-                new AppleAuthorizationEncryptionProperties(encryptionKey);
+        AppleAuthorizationEncryptionProperties properties = new AppleAuthorizationEncryptionProperties(
+                encryptionKey);
         return new AesGcmAppleAuthorizationCipher(properties);
     }
 }
