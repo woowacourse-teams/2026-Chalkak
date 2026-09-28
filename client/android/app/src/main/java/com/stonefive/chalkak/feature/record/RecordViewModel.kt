@@ -92,7 +92,6 @@ class RecordViewModel(
 
         val previousState = state.takeIf { it.errorMessage == null }
         isRevalidating = true
-        _uiState.update { it.copy(isLoading = true) }
         val generation = ++latestLoadGeneration
         viewModelScope.launch {
             val monthsResult = runCatching { repository.getPostCalendarMonths() }

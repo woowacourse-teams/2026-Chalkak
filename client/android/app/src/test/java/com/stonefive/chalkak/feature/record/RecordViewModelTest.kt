@@ -130,6 +130,7 @@ class RecordViewModelTest {
 
         assertEquals(previousPosts, viewModel.uiState.value.posts)
         assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(true, viewModel.uiState.value.canGoPrevious)
         assertEquals(2, repository.requests.size)
 
         pendingResult.complete(
