@@ -38,6 +38,7 @@ class RecordViewModelTest {
             repository = repository,
             initialMonth = RecordTestMonth,
             latestMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
         )
     }
 
@@ -130,6 +131,7 @@ class RecordViewModelTest {
 
         assertEquals(previousPosts, viewModel.uiState.value.posts)
         assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(true, viewModel.uiState.value.canGoPrevious)
         assertEquals(2, repository.requests.size)
 
         pendingResult.complete(
@@ -189,10 +191,14 @@ class RecordViewModelTest {
     }
 
     @Test
-    fun movesToNextMonthOnlyUpToLatestMonth() = runTest {
+    fun movesToCurrentMonthEvenWhenMonthListResponseOmitsIt() = runTest {
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.canGoNext)
+        assertEquals(
+            listOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
+            viewModel.uiState.value.availableMonths,
+        )
         viewModel.moveToNextMonth()
         advanceUntilIdle()
 
@@ -203,6 +209,26 @@ class RecordViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(RecordTestMonth, RecordLatestMonth), repository.requests)
+    }
+
+    @Test
+    fun currentMonthRemainsAvailableAfterItsLastPostIsDeleted() = runTest {
+        val currentRepository = FakePostRepository()
+        val currentMonthViewModel = RecordViewModel(
+            repository = currentRepository,
+            initialMonth = RecordLatestMonth,
+            latestMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+        )
+        advanceUntilIdle()
+
+        currentMonthViewModel.removeDeletedPost("post-1")
+
+        assertEquals(emptyList<PostCalendarItem>(), currentMonthViewModel.uiState.value.posts)
+        assertEquals(
+            listOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
+            currentMonthViewModel.uiState.value.availableMonths,
+        )
     }
 
     @Test
@@ -265,12 +291,18 @@ private class FakePostRepository : PostRepository {
                         calendarPost(month, day = 2),
                         calendarPost(month, day = 5),
                     )
+                } else if (month == RecordLatestMonth) {
+                    listOf(calendarPost(month, day = 1))
                 } else {
                     emptyList()
                 },
             ),
         )
     }
+
+    override suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = HomeResult.Success(
+        listOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
+    )
 
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 

@@ -4,6 +4,7 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
@@ -526,6 +527,9 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     override suspend fun getTodayPostStatus(): ApiResult<TodayPostResponse> = todayPostResult
 
     override suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse> = calendarResult
+
+    override suspend fun getPostCalendarMonths(): ApiResult<PostCalendarMonthsResponse> =
+        ApiResult.Success(PostCalendarMonthsResponse(months = emptyList()))
 
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = detailResult
 

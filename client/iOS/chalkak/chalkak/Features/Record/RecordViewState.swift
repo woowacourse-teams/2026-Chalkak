@@ -71,6 +71,7 @@ struct RecordViewState: Equatable, Sendable {
     var contentStatus: RecordContentStatus = .loading
     var month: RecordMonth
     var latestMonth: RecordMonth
+    var availableMonths: [RecordMonth]
     var posts: [RecordPost] = []
     var selectedDate: Date?
 
@@ -78,12 +79,14 @@ struct RecordViewState: Equatable, Sendable {
         contentStatus: RecordContentStatus = .loading,
         month: RecordMonth = .current(),
         latestMonth: RecordMonth = .current(),
+        availableMonths: [RecordMonth] = [],
         posts: [RecordPost] = [],
         selectedDate: Date? = nil
     ) {
         self.contentStatus = contentStatus
         self.month = month
         self.latestMonth = latestMonth
+        self.availableMonths = availableMonths
         self.posts = posts
         self.selectedDate = selectedDate
     }
@@ -103,14 +106,12 @@ struct RecordViewState: Equatable, Sendable {
         return false
     }
 
-    /// Android `canGoPrevious = !isLoading` — 과거로는 자유롭게 이동한다.
     var canGoPrevious: Bool {
-        contentStatus != .loading
+        contentStatus != .loading && availableMonths.contains { $0 < month }
     }
 
-    /// Android `canGoNext = !isLoading && month < latestMonth` — 미래 달은 막는다.
     var canGoNext: Bool {
-        contentStatus != .loading && month < latestMonth
+        contentStatus != .loading && availableMonths.contains { $0 > month }
     }
 }
 
