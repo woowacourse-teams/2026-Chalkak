@@ -16,6 +16,7 @@ final class RecordViewModel {
     private let monthListHandler: MonthListHandler
     private var generation = 0
     private var isRevalidating = false
+    private var shouldRetryMonthList = false
 
     init(
         initialState: RecordViewState? = nil,
@@ -67,13 +68,15 @@ final class RecordViewModel {
         switch await monthListHandler() {
         case let .success(months):
             guard requestGeneration == generation else { return }
-            let availableMonths = Array(Set(months)).sorted(by: >)
+            shouldRetryMonthList = false
+            let availableMonths = monthsIncludingCurrent(months)
             let initialMonth = monthProvider()
             viewState.availableMonths = availableMonths
             await loadCalendar(month: initialMonth)
         case .failure:
             guard requestGeneration == generation else { return }
-            viewState.availableMonths = []
+            shouldRetryMonthList = true
+            viewState.availableMonths = monthsIncludingCurrent([])
             await loadCalendar(month: viewState.month)
         }
     }
@@ -96,7 +99,7 @@ final class RecordViewModel {
     }
 
     func retry() async {
-        if viewState.availableMonths.isEmpty {
+        if shouldRetryMonthList || viewState.availableMonths.isEmpty {
             await load()
         } else {
             await loadCalendar(month: viewState.month)
@@ -115,9 +118,12 @@ final class RecordViewModel {
         switch await monthListHandler() {
         case let .success(months):
             guard requestGeneration == generation else { return }
-            viewState.availableMonths = Array(Set(months)).sorted(by: >)
+            shouldRetryMonthList = false
+            viewState.availableMonths = monthsIncludingCurrent(months)
         case let .failure(error):
             guard requestGeneration == generation else { return }
+            shouldRetryMonthList = true
+            viewState.availableMonths = monthsIncludingCurrent(viewState.availableMonths)
             event = .showToast(error.message)
         }
 
@@ -139,9 +145,11 @@ final class RecordViewModel {
 
     func removeDeletedPost(_ postID: RecordPost.ID) {
         viewState.posts.removeAll { $0.postId == postID }
-        if !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
+        if viewState.month != monthProvider(),
+           !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
             viewState.availableMonths.removeAll { $0 == viewState.month }
         }
+        viewState.availableMonths = monthsIncludingCurrent(viewState.availableMonths)
         if viewState.selectedPost == nil {
             viewState.selectedDate = viewState.posts.first?.topicDate
         }
@@ -154,7 +162,8 @@ final class RecordViewModel {
         generation += 1
         let requestGeneration = generation
         let latestMonth = max(viewState.latestMonth, monthProvider())
-        let availableMonths = viewState.availableMonths
+        let availableMonths = monthsIncludingCurrent(viewState.availableMonths)
+        viewState.availableMonths = availableMonths
 
         if previousState != nil {
             viewState.latestMonth = latestMonth
@@ -185,6 +194,7 @@ final class RecordViewModel {
         case let .failure(error):
             if var previousState {
                 previousState.latestMonth = latestMonth
+                previousState.availableMonths = availableMonths
                 viewState = previousState
                 event = .showToast(error.message)
             } else {
@@ -198,5 +208,9 @@ final class RecordViewModel {
                 )
             }
         }
+    }
+
+    private func monthsIncludingCurrent(_ months: [RecordMonth]) -> [RecordMonth] {
+        Array(Set(months + [monthProvider()])).sorted(by: >)
     }
 }
