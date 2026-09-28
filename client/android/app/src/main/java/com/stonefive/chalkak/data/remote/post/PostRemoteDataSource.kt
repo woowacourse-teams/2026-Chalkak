@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
@@ -14,6 +15,8 @@ interface PostRemoteDataSource {
     suspend fun getTodayPostStatus(): ApiResult<TodayPostResponse>
 
     suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse>
+
+    suspend fun getPostCalendarMonths(): ApiResult<PostCalendarMonthsResponse>
 
     suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse>
 

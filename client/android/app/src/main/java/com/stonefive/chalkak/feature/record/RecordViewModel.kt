@@ -37,21 +37,29 @@ class RecordViewModel(
     private var nextMessageId = 0L
 
     init {
-        loadRecord(initialMonth)
+        loadAvailableMonths(initialMonth)
     }
 
     fun moveToPreviousMonth() {
         val state = _uiState.value
         if (!state.canGoPrevious) return
 
-        loadRecord(state.month.minusMonths(1))
+        val previousMonth = state.availableMonths
+            .filter { it < state.month }
+            .maxOrNull()
+            ?: return
+        loadRecord(previousMonth)
     }
 
     fun moveToNextMonth() {
         val state = _uiState.value
         if (!state.canGoNext) return
 
-        loadRecord(state.month.plusMonths(1))
+        val nextMonth = state.availableMonths
+            .filter { it > state.month }
+            .minOrNull()
+            ?: return
+        loadRecord(nextMonth)
     }
 
     fun selectDate(date: LocalDate) {
@@ -62,7 +70,12 @@ class RecordViewModel(
     }
 
     fun retryCurrentMonth() {
-        loadRecord(_uiState.value.month)
+        val state = _uiState.value
+        if (state.availableMonths.isEmpty() && state.errorMessage != null) {
+            loadAvailableMonths(state.month)
+        } else {
+            loadRecord(state.month)
+        }
     }
 
     fun onResume() {
@@ -78,14 +91,54 @@ class RecordViewModel(
         if (state.isLoading || isRevalidating) return
 
         val previousState = state.takeIf { it.errorMessage == null }
-        loadRecord(state.month, previousState = previousState, keepsContentVisible = previousState != null)
+        isRevalidating = true
+        _uiState.update { it.copy(isLoading = true) }
+        val generation = ++latestLoadGeneration
+        viewModelScope.launch {
+            val monthsResult = runCatching { repository.getPostCalendarMonths() }
+                .getOrElse { HomeResult.Failure(HomeFailure.Network) }
+            if (generation != latestLoadGeneration) return@launch
+
+            when (monthsResult) {
+                is HomeResult.Success -> _uiState.update {
+                    it.copy(
+                        availableMonths = monthsResult.value
+                            .distinct()
+                            .sortedDescending(),
+                    )
+                }
+
+                is HomeResult.Failure -> if (previousState != null) {
+                    _uiState.update {
+                        it.copy(pendingMessage = nextToast(monthsResult.reason.toRecordMessage()))
+                    }
+                }
+            }
+
+            isRevalidating = false
+            loadRecord(
+                state.month,
+                previousState = previousState,
+                keepsContentVisible = previousState != null,
+            )
+        }
     }
 
     fun removeDeletedPost(postId: String) {
         _uiState.update { state ->
             val updatedPosts = state.posts.filterNot { it.postId == postId }
+            val updatedMonths = if (updatedPosts.none {
+                    it.topicDate.year == state.month.year &&
+                        it.topicDate.month == state.month.month
+                }
+            ) {
+                state.availableMonths.filterNot { it == state.month }
+            } else {
+                state.availableMonths
+            }
             state.copy(
                 posts = updatedPosts,
+                availableMonths = updatedMonths,
                 selectedDate = state.selectedDate
                     ?.takeIf { selectedDate -> updatedPosts.any { it.topicDate == selectedDate } }
                     ?: updatedPosts.firstOrNull()?.topicDate,
@@ -191,6 +244,45 @@ class RecordViewModel(
                     }
                 }
             isRevalidating = false
+        }
+    }
+
+    private fun loadAvailableMonths(fallbackMonth: YearMonth) {
+        val generation = ++latestLoadGeneration
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                errorMessage = null,
+                isLoginRequired = false,
+            )
+        }
+
+        viewModelScope.launch {
+            val result = runCatching { repository.getPostCalendarMonths() }
+                .getOrElse { HomeResult.Failure(HomeFailure.Network) }
+            if (generation != latestLoadGeneration) return@launch
+
+            when (result) {
+                is HomeResult.Success -> {
+                    val months = result.value
+                        .distinct()
+                        .sortedDescending()
+                    val initialMonth = fallbackMonth
+                    _uiState.update {
+                        it.copy(
+                            month = initialMonth,
+                            latestMonth = maxOf(it.latestMonth, months.firstOrNull() ?: fallbackMonth),
+                            availableMonths = months,
+                        )
+                    }
+                    loadRecord(initialMonth)
+                }
+
+                is HomeResult.Failure -> {
+                    _uiState.update { it.copy(availableMonths = emptyList()) }
+                    loadRecord(fallbackMonth)
+                }
+            }
         }
     }
 

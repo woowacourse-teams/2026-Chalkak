@@ -272,6 +272,10 @@ private class FakePostRepository : PostRepository {
         )
     }
 
+    override suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = HomeResult.Success(
+        listOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
+    )
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")

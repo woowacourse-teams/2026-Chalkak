@@ -13,6 +13,8 @@ import java.time.YearMonth
 interface PostRepository {
     suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar>
 
+    suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = HomeResult.Success(emptyList())
+
     suspend fun getPostDetail(postId: String): HomeResult<PostDetail>
 
     suspend fun deletePost(postId: String): HomeResult<Unit>
