@@ -159,7 +159,7 @@ class RecordViewModel(
                 availableMonths = includeCurrentMonth(remainingMonths),
                 selectedDate = state.selectedDate
                     ?.takeIf { selectedDate -> updatedPosts.any { it.topicDate == selectedDate } }
-                    ?: updatedPosts.firstOrNull()?.topicDate,
+                    ?: updatedPosts.maxByOrNull { it.topicDate }?.topicDate,
             )
         }
     }
@@ -222,7 +222,7 @@ class RecordViewModel(
                                 month = content.value.month,
                                 posts = content.value.posts,
                                 selectedDate = content.value.posts
-                                    .firstOrNull()
+                                    .maxByOrNull { it.topicDate }
                                     ?.topicDate,
                                 isLoading = false,
                                 errorMessage = null,

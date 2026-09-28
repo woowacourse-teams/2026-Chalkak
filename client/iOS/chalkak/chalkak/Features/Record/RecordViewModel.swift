@@ -151,7 +151,7 @@ final class RecordViewModel {
         }
         viewState.availableMonths = monthsIncludingCurrent(viewState.availableMonths)
         if viewState.selectedPost == nil {
-            viewState.selectedDate = viewState.posts.first?.topicDate
+            viewState.selectedDate = viewState.posts.max { $0.topicDate < $1.topicDate }?.topicDate
         }
     }
 
@@ -189,7 +189,7 @@ final class RecordViewModel {
                 latestMonth: latestMonth,
                 availableMonths: availableMonths,
                 posts: calendar.posts,
-                selectedDate: calendar.posts.first?.topicDate
+                selectedDate: calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
             )
         case let .failure(error):
             if var previousState {
