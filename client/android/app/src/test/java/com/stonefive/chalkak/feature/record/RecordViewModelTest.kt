@@ -48,7 +48,7 @@ class RecordViewModelTest {
 
         assertEquals(RecordTestMonth, viewModel.uiState.value.month)
         assertEquals(
-            2,
+            5,
             viewModel.uiState.value.selectedDate
                 ?.dayOfMonth,
         )
