@@ -6,24 +6,28 @@ import Observation
 final class RecordViewModel {
     typealias MonthProvider = @MainActor @Sendable () -> RecordMonth
     typealias CalendarHandler = @MainActor @Sendable (RecordMonth) async -> Result<RecordCalendar, RecordError>
+    typealias MonthListHandler = @MainActor @Sendable () async -> Result<[RecordMonth], RecordError>
 
     private(set) var viewState: RecordViewState
     private(set) var event: RecordEvent?
 
     private let monthProvider: MonthProvider
     private let calendarHandler: CalendarHandler
+    private let monthListHandler: MonthListHandler
     private var generation = 0
     private var isRevalidating = false
 
     init(
         initialState: RecordViewState? = nil,
         monthProvider: @escaping MonthProvider = { .current() },
+        monthListHandler: @escaping MonthListHandler = { .success([]) },
         calendarHandler: @escaping CalendarHandler = { _ in .failure(.generic) }
     ) {
         let latestMonth = monthProvider()
         self.viewState = initialState ?? RecordViewState(month: latestMonth, latestMonth: latestMonth)
         self.monthProvider = monthProvider
         self.calendarHandler = calendarHandler
+        self.monthListHandler = monthListHandler
     }
 
     convenience init(
@@ -32,6 +36,17 @@ final class RecordViewModel {
     ) {
         self.init(
             monthProvider: monthProvider,
+            monthListHandler: {
+                do {
+                    return .success(try await apiClient.fetchCalendarMonths())
+                } catch is CancellationError {
+                    return .failure(.generic)
+                } catch let error as RecordError {
+                    return .failure(error)
+                } catch {
+                    return .failure(.generic)
+                }
+            },
             calendarHandler: { month in
                 do {
                     return .success(try await apiClient.fetchCalendar(month: month))
@@ -47,17 +62,32 @@ final class RecordViewModel {
     }
 
     func load() async {
-        await loadCalendar(month: viewState.month)
+        generation += 1
+        let requestGeneration = generation
+        switch await monthListHandler() {
+        case let .success(months):
+            guard requestGeneration == generation else { return }
+            let availableMonths = Array(Set(months)).sorted(by: >)
+            let initialMonth = monthProvider()
+            viewState.availableMonths = availableMonths
+            await loadCalendar(month: initialMonth)
+        case .failure:
+            guard requestGeneration == generation else { return }
+            viewState.availableMonths = []
+            await loadCalendar(month: viewState.month)
+        }
     }
 
     func moveToPreviousMonth() async {
         guard viewState.canGoPrevious else { return }
-        await loadCalendar(month: viewState.month.adding(months: -1))
+        guard let previousMonth = viewState.availableMonths.filter({ $0 < viewState.month }).max() else { return }
+        await loadCalendar(month: previousMonth)
     }
 
     func moveToNextMonth() async {
         guard viewState.canGoNext else { return }
-        await loadCalendar(month: viewState.month.adding(months: 1))
+        guard let nextMonth = viewState.availableMonths.filter({ $0 > viewState.month }).min() else { return }
+        await loadCalendar(month: nextMonth)
     }
 
     func selectDate(_ date: Date) {
@@ -66,7 +96,11 @@ final class RecordViewModel {
     }
 
     func retry() async {
-        await loadCalendar(month: viewState.month)
+        if viewState.availableMonths.isEmpty {
+            await load()
+        } else {
+            await loadCalendar(month: viewState.month)
+        }
     }
 
     /// 현재 달력 데이터를 유지한 채 같은 월을 최신 데이터로 갱신한다.
@@ -75,6 +109,17 @@ final class RecordViewModel {
 
         isRevalidating = true
         defer { isRevalidating = false }
+
+        generation += 1
+        let requestGeneration = generation
+        switch await monthListHandler() {
+        case let .success(months):
+            guard requestGeneration == generation else { return }
+            viewState.availableMonths = Array(Set(months)).sorted(by: >)
+        case let .failure(error):
+            guard requestGeneration == generation else { return }
+            event = .showToast(error.message)
+        }
 
         let previous = viewState.contentStatus == .loaded ? viewState : nil
         await loadCalendar(month: viewState.month, preserving: previous)
@@ -94,6 +139,9 @@ final class RecordViewModel {
 
     func removeDeletedPost(_ postID: RecordPost.ID) {
         viewState.posts.removeAll { $0.postId == postID }
+        if !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
+            viewState.availableMonths.removeAll { $0 == viewState.month }
+        }
         if viewState.selectedPost == nil {
             viewState.selectedDate = viewState.posts.first?.topicDate
         }
@@ -106,6 +154,7 @@ final class RecordViewModel {
         generation += 1
         let requestGeneration = generation
         let latestMonth = max(viewState.latestMonth, monthProvider())
+        let availableMonths = viewState.availableMonths
 
         if previousState != nil {
             viewState.latestMonth = latestMonth
@@ -114,6 +163,7 @@ final class RecordViewModel {
                 contentStatus: .loading,
                 month: month,
                 latestMonth: latestMonth,
+                availableMonths: availableMonths,
                 posts: [],
                 selectedDate: nil
             )
@@ -128,6 +178,7 @@ final class RecordViewModel {
                 contentStatus: .loaded,
                 month: calendar.month,
                 latestMonth: latestMonth,
+                availableMonths: availableMonths,
                 posts: calendar.posts,
                 selectedDate: calendar.posts.first?.topicDate
             )
@@ -141,6 +192,7 @@ final class RecordViewModel {
                     contentStatus: .error(error),
                     month: month,
                     latestMonth: latestMonth,
+                    availableMonths: availableMonths,
                     posts: [],
                     selectedDate: nil
                 )
