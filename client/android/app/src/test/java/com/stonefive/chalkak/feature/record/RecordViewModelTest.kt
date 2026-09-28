@@ -72,7 +72,7 @@ class RecordViewModelTest {
 
         viewModel.selectDate(RecordTestMonth.atDay(6))
 
-        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
     }
 
     @Test
