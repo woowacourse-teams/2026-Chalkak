@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.service.post;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.within;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -13,6 +14,7 @@ import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -85,6 +87,36 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("게시물을 승인하면 검수 감사 기록과 연결된 알림함 항목을 저장한다")
+    void moderate_approvedRequest_createsNotification() {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+
+        // When
+        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> notification = jdbcTemplate.queryForMap("""
+                SELECT user_id, post_id, event_key, type, title, body, rejection_reason, read_at
+                FROM notifications
+                WHERE post_id = ?
+                """, POST_ID);
+        assertThat(notification.get("user_id")).isEqualTo(USER_ID);
+        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("type")).isEqualTo("POST_APPROVED");
+        assertThat((String) notification.get("title")).isNotBlank();
+        assertThat((String) notification.get("body")).isNotBlank();
+        assertThat(notification.get("rejection_reason")).isNull();
+        assertThat(notification.get("read_at")).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE id = ?",
+                Integer.class,
+                notification.get("event_key"))).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("대기 중인 게시물을 거절하면 정규화한 사유와 처리자를 감사 로그에 저장한다")
     void moderate_rejectedRequest_updatesPostAndCreatesAuditLogWithReason() {
         // Given
@@ -117,6 +149,59 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 "REJECTED",
                 result.moderatedAt(),
                 "운영 정책 위반");
+    }
+
+    @Test
+    @DisplayName("게시물을 반려하면 정규화된 사유를 알림함에 보관한다")
+    void moderate_rejectedRequest_createsNotificationWithReason() {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+
+        // When
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                "  운영 정책 위반  ");
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> notification = jdbcTemplate.queryForMap("""
+                SELECT user_id, post_id, type, title, body, rejection_reason, read_at
+                FROM notifications
+                WHERE post_id = ?
+                """, POST_ID);
+        assertThat(notification.get("user_id")).isEqualTo(USER_ID);
+        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("type")).isEqualTo("POST_REJECTED");
+        assertThat((String) notification.get("title")).isNotBlank();
+        assertThat((String) notification.get("body")).isNotBlank();
+        assertThat(notification.get("rejection_reason")).isEqualTo("운영 정책 위반");
+        assertThat(notification.get("read_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("같은 검수 사건의 알림함 항목은 DB 제약으로 중복 저장할 수 없다")
+    void moderate_duplicateEventKey_rejectsDuplicateNotification() {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+        entityManager.flush();
+        UUID eventKey = jdbcTemplate.queryForObject(
+                "SELECT event_key FROM notifications WHERE post_id = ?",
+                UUID.class,
+                POST_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO notifications (
+                    id, user_id, post_id, event_key, type, title, body, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP
+                )
+                """, UUID.randomUUID(), USER_ID, POST_ID, eventKey))
+                .hasMessageContaining("ux_notifications_user_event");
     }
 
     @Test
