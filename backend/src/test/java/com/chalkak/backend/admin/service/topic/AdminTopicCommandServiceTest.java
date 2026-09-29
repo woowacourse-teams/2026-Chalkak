@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.service.topic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -153,6 +155,18 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result.title()).isEqualTo("새 주제");
+    }
+
+    @Test
+    @DisplayName("DB는 날짜가 다른 주제라도 참여 기간이 겹치면 저장하지 않는다")
+    void insertTopic_overlappingPeriod_violatesDatabaseConstraint() {
+        assertThatThrownBy(() -> insertTopic(
+                UUID.fromString("0198fd20-0000-7000-8000-000000000014"),
+                "겹치는 주제",
+                LocalDate.of(2026, 8, 29),
+                Instant.parse("2026-08-29T14:00:00Z"),
+                Instant.parse("2026-08-29T16:00:00Z")))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
