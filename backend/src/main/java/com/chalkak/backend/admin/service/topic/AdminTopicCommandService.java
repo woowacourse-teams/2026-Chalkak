@@ -47,7 +47,8 @@ public class AdminTopicCommandService {
                 topicDate,
                 new ParticipationPeriod(startsAt, endsAt),
                 now);
-        validateDateAvailable(topicDate, null);
+        validateDateAvailable(topicDate);
+        validatePeriodAvailable(startsAt, endsAt);
         Topic saved = topicRepository.saveAndFlush(topic);
         createAuditLog(
                 adminId,
@@ -73,12 +74,15 @@ public class AdminTopicCommandService {
                 .orElseThrow(this::topicNotFoundException);
         AdminAuditSnapshot beforeState = topicState(topic);
         Instant now = clock.instant();
+        topic.validateEditable(now);
+        ParticipationPeriod participationPeriod = new ParticipationPeriod(startsAt, endsAt);
+        validateDateAvailableExcludingId(topicDate, topicId);
+        validatePeriodAvailableExcludingId(startsAt, endsAt, topicId);
         topic.update(
                 title,
                 topicDate,
-                new ParticipationPeriod(startsAt, endsAt),
+                participationPeriod,
                 now);
-        validateDateAvailable(topicDate, topicId);
         Topic saved = topicRepository.saveAndFlush(topic);
         createAuditLog(
                 adminId,
@@ -119,16 +123,39 @@ public class AdminTopicCommandService {
         }
     }
 
-    private void validateDateAvailable(LocalDate topicDate, UUID excludedTopicId) {
-        boolean duplicated = excludedTopicId == null
-                ? topicRepository.existsActiveByTopicDate(topicDate)
-                : topicRepository.existsActiveByTopicDateExcludingId(
-                        topicDate,
-                        excludedTopicId);
-        if (duplicated) {
+    private void validateDateAvailable(LocalDate topicDate) {
+        if (topicRepository.existsActiveByTopicDate(topicDate)) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "해당 날짜의 주제가 이미 존재합니다.");
+        }
+    }
+
+    private void validateDateAvailableExcludingId(LocalDate topicDate, UUID topicId) {
+        if (topicRepository.existsActiveByTopicDateExcludingId(topicDate, topicId)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "해당 날짜의 주제가 이미 존재합니다.");
+        }
+    }
+
+    private void validatePeriodAvailable(Instant startsAt, Instant endsAt) {
+        if (topicRepository.existsActiveOverlappingPeriod(startsAt, endsAt)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "다른 주제의 참여 기간과 겹칩니다.");
+        }
+    }
+
+    private void validatePeriodAvailableExcludingId(
+            Instant startsAt,
+            Instant endsAt,
+            UUID topicId
+    ) {
+        if (topicRepository.existsActiveOverlappingPeriodExcludingId(startsAt, endsAt, topicId)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "다른 주제의 참여 기간과 겹칩니다.");
         }
     }
 
