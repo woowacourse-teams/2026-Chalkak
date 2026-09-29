@@ -103,6 +103,59 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("날짜가 달라도 참여 기간이 겹치면 주제를 생성하지 않는다")
+    void createTopic_overlappingPeriod_throwsBusinessException() {
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminTopicCommandService.createTopic(
+                        ADMIN_ID,
+                        "겹치는 주제",
+                        LocalDate.of(2026, 8, 29),
+                        Instant.parse("2026-08-29T14:00:00Z"),
+                        Instant.parse("2026-08-29T16:00:00Z")));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("다른 주제의 참여 기간과 겹칩니다.");
+    }
+
+    @Test
+    @DisplayName("이전 종료와 다음 시작이 같은 시각이면 주제를 생성한다")
+    void createTopic_adjacentPeriod_savesTopic() {
+        // When
+        AdminTopicDetail result = adminTopicCommandService.createTopic(
+                ADMIN_ID,
+                "사이 주제",
+                LocalDate.of(2026, 8, 29),
+                Instant.parse("2026-08-28T15:00:00Z"),
+                Instant.parse("2026-08-29T15:00:00Z"));
+
+        // Then
+        assertThat(result.title()).isEqualTo("사이 주제");
+    }
+
+    @Test
+    @DisplayName("삭제된 주제의 기간은 새 주제를 막지 않는다")
+    void createTopic_overlappingDeletedTopic_savesTopic() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                BEFORE_TOPIC_ID);
+
+        // When
+        AdminTopicDetail result = adminTopicCommandService.createTopic(
+                ADMIN_ID,
+                "새 주제",
+                LocalDate.of(2026, 8, 29),
+                Instant.parse("2026-08-29T14:00:00Z"),
+                Instant.parse("2026-08-29T16:00:00Z"));
+
+        // Then
+        assertThat(result.title()).isEqualTo("새 주제");
+    }
+
+    @Test
     @DisplayName("공개 전 주제를 수정하면 변경 전후 감사 로그를 남긴다")
     void updateTopic_beforeOpen_updatesAndAudits() {
         AdminTopicDetail result = adminTopicCommandService.updateTopic(
@@ -119,6 +172,34 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("공개 전 주제의 종료 시각을 늘려 다른 주제와 겹치면 수정하지 않는다")
+    void updateTopic_overlappingPeriod_throwsBusinessException() {
+        // Given
+        insertTopic(
+                UUID.fromString("0198fd20-0000-7000-8000-000000000013"),
+                "다음 주제",
+                LocalDate.of(2026, 8, 31),
+                Instant.parse("2026-08-30T15:00:00Z"),
+                Instant.parse("2026-08-31T15:00:00Z"));
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminTopicCommandService.updateTopic(
+                        BEFORE_TOPIC_ID,
+                        ADMIN_ID,
+                        "공개 전 주제",
+                        LocalDate.of(2026, 8, 30),
+                        Instant.parse("2026-08-29T15:00:00Z"),
+                        Instant.parse("2026-08-30T16:00:00Z")));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("다른 주제의 참여 기간과 겹칩니다.");
+        assertThat(countAudit(BEFORE_TOPIC_ID, "TOPIC_UPDATED")).isZero();
+    }
+
+    @Test
     @DisplayName("참여 중인 주제는 수정할 수 없다")
     void updateTopic_openTopic_throwsStateChanged() {
         BusinessException exception = catchThrowableOfType(
@@ -130,6 +211,22 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                         LocalDate.of(2026, 8, 29),
                         Instant.parse("2026-08-28T15:00:00Z"),
                         Instant.parse("2026-08-29T15:00:00Z")));
+
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
+    }
+
+    @Test
+    @DisplayName("참여 중인 주제는 변경 기간이 다른 주제와 겹쳐도 상태 오류를 먼저 반환한다")
+    void updateTopic_openTopicWithOverlappingPeriod_throwsStateChanged() {
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminTopicCommandService.updateTopic(
+                        OPEN_TOPIC_ID,
+                        ADMIN_ID,
+                        "수정 시도",
+                        LocalDate.of(2026, 8, 28),
+                        Instant.parse("2026-08-27T15:00:00Z"),
+                        Instant.parse("2026-08-30T15:00:00Z")));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
     }

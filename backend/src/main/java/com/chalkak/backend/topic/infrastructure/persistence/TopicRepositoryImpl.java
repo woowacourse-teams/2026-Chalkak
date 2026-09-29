@@ -54,6 +54,21 @@ public class TopicRepositoryImpl implements TopicRepository {
     }
 
     @Override
+    public boolean existsActiveOverlappingPeriod(Instant startsAt, Instant endsAt) {
+        return topicJpaRepository.existsActiveOverlappingPeriod(startsAt, endsAt);
+    }
+
+    @Override
+    public boolean existsActiveOverlappingPeriodExcludingId(
+            Instant startsAt,
+            Instant endsAt,
+            UUID topicId
+    ) {
+        return topicJpaRepository.existsActiveOverlappingPeriodExcludingId(startsAt, endsAt,
+                topicId);
+    }
+
+    @Override
     public Topic saveAndFlush(Topic topic) {
         try {
             return topicJpaRepository.saveAndFlush(topic);
