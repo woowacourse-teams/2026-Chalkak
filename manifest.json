@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "source_commit": "3135f2990fc207177d89f853ce7a70e6e9e48687",
-  "version": "5460f30ad16485ed833cf4ecaf22337f4751b6eb5550d7aac5e7ccc61dab7332",
+  "source_commit": "8c74b18ec745698c94391c81bff319b280eb3d61",
+  "version": "22735680247700fef8f5cface092866d2513249da461c78dbea08951f4847e03",
   "files": {
     ".agents/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
     ".claude/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
@@ -14,6 +14,7 @@
     "docs/business-rules/decisions/2026-09-16-feedback-collection.md": "a611045650c65f32b474466114cc664822816eb623496d594ee8576ca31ca4ec",
     "docs/business-rules/decisions/2026-09-18-calendar-pending-posts.md": "7511e745ac5b8fa0c736e785832043885e96136de366ad889c4109ce31ac1749",
     "docs/business-rules/decisions/2026-09-19-calendar-recorded-months.md": "457866e7a8e0b3173b067c8d24ce4f5b1bb029ba64aecefa47668dbad5877aaf",
+    "docs/business-rules/decisions/2026-09-29-topic-period-overlap.md": "98cd7c045bcb4adf85ec8f67bfba0d09d5978b71b2f9505572203af2c99073bd",
     "docs/business-rules/decisions/_template.md": "514528ba4220affec03596503a1efff931d270762c4e9d5790c15f62e23bf467",
     "docs/business-rules/notion-map.yml": "ba1ee4062352bde28f3e82d1c5216189c705f1110164fa017adc4f073a75b1f2",
     "docs/business-rules/rules/_template.md": "65ecaad08b51b2e783f7a18ddb37a1687fb2adbf6888ee917720e4e6f53a2257",
@@ -22,7 +23,7 @@
     "docs/business-rules/rules/like.md": "77652aad4d639aace231049612ecb5bf574eba703f855d171e19badbe644e093",
     "docs/business-rules/rules/post.md": "0af011f2ad564f3bfc0e95e02113861d6ce63cbbdd55b09bf368c6d5e864f7b1",
     "docs/business-rules/rules/sign.md": "81906a74caeb5f7a4b15e30d6916fdb5fb9a1455c6c7941ca60de2d3e0146280",
-    "docs/business-rules/rules/topic.md": "2bd5503152efe6ba3e8ebfa61989c7a180ac70b94e9789fcbc8a38e3bf1846ac",
+    "docs/business-rules/rules/topic.md": "ec62808811531e9fb9efba2eae969c80651d22c798f0d1cf6ea9ebcbd9767a90",
     "docs/business-rules/rules/user.md": "65c458f3295347198ed183034f7cda4f8e38c5f304c81a9a50ab3a630c8951f3"
   }
 }
