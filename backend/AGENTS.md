@@ -45,7 +45,7 @@
 | --- | --- |
 | `src/main/java/**/*.java` 작업 | `$main-code` |
 | `src/test/java/**/*.java` 작업 | `$test-code` |
-| `src/main/java`의 동작 추가·변경 또는 버그 수정 | `$tdd-workflow` |
+| `src/main/java`의 동작 추가·변경 또는 버그 수정 | `$test-workflow` |
 | `src/main/java`의 클래스·패키지 생성·이동 또는 배치 위치 검토 | `$package-structure` |
 | API JSON 필드·Parameter·URI, Java 변수·필드·매개변수·메서드, DB 식별자 또는 ErrorCode 이름 생성·변경·리뷰 | `$naming-conventions` |
 | API Endpoint, Controller, Request·Response 계약 추가·변경·삭제 또는 API 버전 검토 | `$api-versioning` |
@@ -56,7 +56,7 @@
 
 - 운영 코드와 테스트 코드를 함께 변경하면 양쪽에 해당하는 규칙과 스킬을 모두 적용한다.
 - 테스트 클래스·메서드와 패키지 이름에는 `$naming-conventions`를 사용하지 않는다.
-- Swagger/OpenAPI 문서와 설정만 변경하는 작업에는 `$tdd-workflow`를 사용하지 않는다. 실제 API 동작도 변경하면 그 동작 변경에만 적용한다.
+- Swagger/OpenAPI 문서와 설정만 변경하는 작업에는 `$test-workflow`를 사용하지 않는다. 실제 API 동작도 변경하면 그 동작 변경에만 적용한다.
 
 ## 환경변수와 배포
 
