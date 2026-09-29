@@ -9,8 +9,10 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -136,14 +138,18 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
     ) {
         UUID topicId = UUID.nameUUIDFromBytes(("service-topic-" + topicDate).getBytes());
         UUID photoId = UUID.nameUUIDFromBytes(("service-photo-" + postId).getBytes());
+        ZoneId kst = ZoneId.of("Asia/Seoul");
         jdbcTemplate.update("""
                 INSERT INTO topics (
                     id, title, topic_date, starts_at, ends_at, created_at, updated_at
                 ) VALUES (
-                    ?, '캘린더 서비스 주제', ?, CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    ?, '캘린더 서비스 주제', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
-                """, topicId, topicDate);
+                """,
+                topicId,
+                topicDate,
+                Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()));
         jdbcTemplate.update("""
                 INSERT INTO photos (
                     id, original_storage_key, thumbnail_storage_key, created_at, updated_at

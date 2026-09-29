@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.postgresql.util.PSQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Repository;
 public class TopicRepositoryImpl implements TopicRepository {
 
     private static final String TOPIC_DATE_UNIQUE_INDEX = "ux_topics_topic_date_active";
+    private static final String TOPIC_PERIOD_EXCLUSION_CONSTRAINT = "ex_topics_active_participation_period";
 
     private final TopicJpaRepository topicJpaRepository;
 
@@ -54,25 +56,51 @@ public class TopicRepositoryImpl implements TopicRepository {
     }
 
     @Override
+    public boolean existsActiveOverlappingPeriod(Instant startsAt, Instant endsAt) {
+        return topicJpaRepository.existsActiveOverlappingPeriod(startsAt, endsAt);
+    }
+
+    @Override
+    public boolean existsActiveOverlappingPeriodExcludingId(
+            Instant startsAt,
+            Instant endsAt,
+            UUID topicId
+    ) {
+        return topicJpaRepository.existsActiveOverlappingPeriodExcludingId(startsAt, endsAt,
+                topicId);
+    }
+
+    @Override
     public Topic saveAndFlush(Topic topic) {
         try {
             return topicJpaRepository.saveAndFlush(topic);
         } catch (DataIntegrityViolationException exception) {
-            if (!isTopicDateUniqueViolation(exception)) {
-                throw exception;
+            if (hasConstraintName(exception, TOPIC_DATE_UNIQUE_INDEX)) {
+                throw new BusinessException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "해당 날짜의 주제가 이미 존재합니다.");
             }
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "해당 날짜의 주제가 이미 존재합니다.");
+            if (hasConstraintName(exception, TOPIC_PERIOD_EXCLUSION_CONSTRAINT)) {
+                throw new BusinessException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "다른 주제의 참여 기간과 겹칩니다.");
+            }
+            throw exception;
         }
     }
 
-    private boolean isTopicDateUniqueViolation(Throwable exception) {
+    private boolean hasConstraintName(Throwable exception, String constraintName) {
         Throwable cause = exception;
         while (cause != null) {
             if (cause instanceof ConstraintViolationException constraintViolationException
-                    && TOPIC_DATE_UNIQUE_INDEX.equals(
+                    && constraintName.equals(
                             constraintViolationException.getConstraintName())) {
+                return true;
+            }
+            if (cause instanceof PSQLException postgresqlException
+                    && postgresqlException.getServerErrorMessage() != null
+                    && constraintName.equals(
+                            postgresqlException.getServerErrorMessage().getConstraint())) {
                 return true;
             }
             cause = cause.getCause();

@@ -38,8 +38,6 @@ class PostCreationServiceTest extends IntegrationTestSupport {
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID SECOND_USER_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
-    private static final UUID SECOND_TOPIC_ID = UUID
-            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b3");
     private static final String ORIGINAL_STORAGE_KEY = "chalkak/posts/test/original/"
             + PHOTO_UPLOAD_ID + ".webp";
     private static final String THUMBNAIL_STORAGE_KEY = "chalkak/posts/test/thumbnail/"
@@ -444,7 +442,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     @DisplayName("같은 사진 업로드는 다른 게시물에도 다시 사용할 수 없다")
     void createPost_reusedPhotoUpload_throwsBusinessException() {
         // Given
-        insertSecondUserAndTopic();
+        insertSecondUser();
         given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
                 .willReturn(ORIGINAL_STORAGE_KEY);
@@ -455,7 +453,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 BusinessException.class,
                 () -> postCommandService.createPost(
                         USER_ID,
-                        SECOND_TOPIC_ID,
+                        TOPIC_ID,
                         PHOTO_UPLOAD_ID,
                         null));
 
@@ -599,14 +597,14 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     @DisplayName("다른 회원이 발급받은 업로드 ID는 존재하지 않는 것과 같이 다룬다")
     void createPost_otherUsersUploadId_throwsNotFoundException() {
         // Given
-        insertSecondUserAndTopic();
+        insertSecondUser();
 
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
                 () -> postCommandService.createPost(
                         SECOND_USER_ID,
-                        SECOND_TOPIC_ID,
+                        TOPIC_ID,
                         PHOTO_UPLOAD_ID,
                         null));
 
@@ -663,7 +661,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .isZero();
     }
 
-    private void insertSecondUserAndTopic() {
+    private void insertSecondUser() {
         jdbcTemplate.update("""
                 INSERT INTO users (
                     id, email, status, signature_original_storage_key, created_at, updated_at
@@ -673,15 +671,5 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, SECOND_USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    ?, '두 번째 주제', CURRENT_DATE + 1,
-                    CURRENT_TIMESTAMP - INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, SECOND_TOPIC_ID);
     }
 }

@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Admin Topics", description = "관리자 주제 생명주기 API")
@@ -24,14 +23,8 @@ public interface AdminTopicApiDocs {
     @Operation(summary = "관리자 주제 목록 조회")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 조회 조건",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "400", description = "잘못된 조회 조건", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminTopicListResponse> getTopics(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
@@ -40,14 +33,8 @@ public interface AdminTopicApiDocs {
     @Operation(summary = "관리자 주제 등록")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공", useReturnTypeSchema = true),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 주제 또는 날짜 중복",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "400", description = "잘못된 주제, 날짜 중복 또는 참여 기간 겹침", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminTopicDetailResponse> createTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
@@ -56,18 +43,9 @@ public interface AdminTopicApiDocs {
     @Operation(summary = "관리자 주제 상세 조회")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 주제 ID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "주제를 찾을 수 없음",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "400", description = "잘못된 주제 ID", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "주제를 찾을 수 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminTopicDetailResponse> getTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
@@ -76,18 +54,9 @@ public interface AdminTopicApiDocs {
     @Operation(summary = "관리자 주제 수정")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공", useReturnTypeSchema = true),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 주제·상태 또는 날짜 중복",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "주제를 찾을 수 없음",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "400", description = "잘못된 주제·상태, 날짜 중복 또는 참여 기간 겹침", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "주제를 찾을 수 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminTopicDetailResponse> updateTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
@@ -97,18 +66,9 @@ public interface AdminTopicApiDocs {
     @Operation(summary = "관리자 주제 삭제")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "삭제 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 상태 또는 삭제 사유",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "주제를 찾을 수 없음",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "400", description = "잘못된 상태 또는 삭제 사유", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "주제를 찾을 수 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<Void> deleteTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
