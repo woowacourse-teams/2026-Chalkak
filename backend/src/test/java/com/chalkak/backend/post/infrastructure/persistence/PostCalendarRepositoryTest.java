@@ -6,8 +6,10 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -164,11 +166,12 @@ class PostCalendarRepositoryTest {
     ) {
         UUID topicId = UUID.nameUUIDFromBytes(("topic-" + topicDate).getBytes());
         UUID photoId = UUID.nameUUIDFromBytes(("photo-" + postId).getBytes());
+        ZoneId kst = ZoneId.of("Asia/Seoul");
         jdbcTemplate.update("""
                 INSERT INTO topics (
                     id, title, topic_date, starts_at, ends_at, created_at, updated_at
                 ) SELECT
-                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 day',
+                    ?, ?, ?, ?, ?,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -176,7 +179,13 @@ class PostCalendarRepositoryTest {
                     WHERE topic_date = ?
                       AND deleted_at IS NULL
                 )
-                """, topicId, "캘린더 주제", topicDate, topicDate);
+                """,
+                topicId,
+                "캘린더 주제",
+                topicDate,
+                Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()),
+                topicDate);
         jdbcTemplate.update("""
                 INSERT INTO photos (
                     id, original_storage_key, thumbnail_storage_key, created_at, updated_at
