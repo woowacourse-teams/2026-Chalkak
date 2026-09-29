@@ -66,4 +66,23 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             @Param("userId") UUID userId,
             @Param("readAt") Instant readAt
     );
+
+    @Modifying
+    @Query("""
+            DELETE FROM Notification notification
+            WHERE notification.createdAt < :createdBefore
+                AND notification.userId IN (
+                    SELECT user.id FROM User user WHERE user.deletedAt IS NULL
+                )
+            """)
+    int deleteExpiredForActiveUsers(@Param("createdBefore") Instant createdBefore);
+
+    @Modifying
+    @Query("""
+            DELETE FROM Notification notification
+            WHERE notification.userId IN (
+                SELECT user.id FROM User user WHERE user.deletedAt < :withdrawnBefore
+            )
+            """)
+    int deleteExpiredForWithdrawnUsers(@Param("withdrawnBefore") Instant withdrawnBefore);
 }

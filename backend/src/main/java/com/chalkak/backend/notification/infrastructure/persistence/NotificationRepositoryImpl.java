@@ -54,4 +54,14 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public void markAllRead(UUID userId, Instant readAt) {
         notificationJpaRepository.markAllRead(userId, readAt);
     }
+
+    @Override
+    public void deleteExpiredForActiveUsers(Instant createdBefore) {
+        notificationJpaRepository.deleteExpiredForActiveUsers(createdBefore);
+    }
+
+    @Override
+    public void deleteExpiredForWithdrawnUsers(Instant withdrawnBefore) {
+        notificationJpaRepository.deleteExpiredForWithdrawnUsers(withdrawnBefore);
+    }
 }

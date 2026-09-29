@@ -18,4 +18,8 @@ public interface NotificationRepository {
     int markRead(UUID notificationId, UUID userId, Instant readAt);
 
     void markAllRead(UUID userId, Instant readAt);
+
+    void deleteExpiredForActiveUsers(Instant createdBefore);
+
+    void deleteExpiredForWithdrawnUsers(Instant withdrawnBefore);
 }
