@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.postgresql.util.PSQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
@@ -94,6 +95,12 @@ public class TopicRepositoryImpl implements TopicRepository {
             if (cause instanceof ConstraintViolationException constraintViolationException
                     && constraintName.equals(
                             constraintViolationException.getConstraintName())) {
+                return true;
+            }
+            if (cause instanceof PSQLException postgresqlException
+                    && postgresqlException.getServerErrorMessage() != null
+                    && constraintName.equals(
+                            postgresqlException.getServerErrorMessage().getConstraint())) {
                 return true;
             }
             cause = cause.getCause();

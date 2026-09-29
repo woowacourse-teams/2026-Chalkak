@@ -33,7 +33,7 @@ dependencies {
     implementation("org.springframework.security:spring-security-crypto")
 
     implementation("org.flywaydb:flyway-database-postgresql")
-    runtimeOnly("org.postgresql:postgresql")
+    implementation("org.postgresql:postgresql")
 
     implementation(platform("software.amazon.awssdk:bom:2.54.1"))
     implementation("software.amazon.awssdk:s3")
