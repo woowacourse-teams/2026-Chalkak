@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.service.post;
 
 import com.chalkak.backend.admin.domain.AdminAction;
+import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
@@ -9,6 +10,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.notification.service.UserNotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -33,6 +35,7 @@ public class AdminPostCommandService {
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
     private final AdminAuditLogService adminAuditLogService;
+    private final UserNotificationService userNotificationService;
 
     @Transactional
     public AdminPostModerationResult moderate(
@@ -56,7 +59,7 @@ public class AdminPostCommandService {
         Instant moderatedAt = Instant.now();
         decide(post, status, moderatedAt);
         AdminAuditSnapshot afterState = moderationAfterState(post, adminId);
-        adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
+        AdminAuditLog auditLog = adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 actionOf(status),
                 AdminTargetType.POST,
@@ -65,6 +68,12 @@ public class AdminPostCommandService {
                 beforeState,
                 afterState,
                 UUID.randomUUID()));
+        userNotificationService.createForModeration(
+                post,
+                auditLog.getId(),
+                status,
+                normalizedReason,
+                moderatedAt);
 
         return new AdminPostModerationResult(
                 post.getId(),
