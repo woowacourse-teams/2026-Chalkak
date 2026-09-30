@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.api.v1.docs;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,5 +51,52 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsResponse.properties.moderationPushEnabled.type")
                         .value("boolean"));
+    }
+
+    @Test
+    @DisplayName("수신 설정 수정 문서는 선택 필드·인증·빈 성공 응답·오류 코드를 제공한다")
+    void userApiDocs_exposesSettingsUpdateContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notification-settings'].patch.security[0].accessToken")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/notification-settings'].patch.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notification-settings'].patch.requestBody.required")
+                        .value(true))
+                .andExpect(jsonPath("$.paths['/api/v1/notification-settings'].patch.requestBody"
+                        + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/NotificationSettingsUpdateRequest"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notification-settings'].patch.responses.length()")
+                        .value(4))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notification-settings'].patch.responses['204'].content")
+                        .doesNotExist())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/notification-settings'].patch.responses['400']"
+                                + ".content['application/json'].schema['$ref']")
+                                .value("#/components/schemas/ErrorResponse"))
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/notification-settings'].patch.responses['401']")
+                                .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/notification-settings'].patch.responses['403']")
+                                .exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.NotificationSettingsUpdateRequest.required")
+                                .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.NotificationSettingsUpdateRequest.properties.length()")
+                        .value(2))
+                .andExpect(jsonPath(
+                        "$.components.schemas.NotificationSettingsUpdateRequest.properties.topicPushEnabled.type")
+                        .value(containsInAnyOrder("boolean", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.NotificationSettingsUpdateRequest.properties.moderationPushEnabled.type")
+                        .value(containsInAnyOrder("boolean", "null")));
     }
 }

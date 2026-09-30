@@ -24,4 +24,20 @@ public class NotificationSettingsService {
         return new NotificationSettingsResult(
                 user.isTopicPushEnabled(), user.isModerationPushEnabled());
     }
+
+    @Transactional
+    public void updateSettings(
+            UUID userId,
+            Boolean topicPushEnabled,
+            Boolean moderationPushEnabled
+    ) {
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
+        user.updatePushPreferences(
+                topicPushEnabled == null ? user.isTopicPushEnabled() : topicPushEnabled,
+                moderationPushEnabled == null
+                        ? user.isModerationPushEnabled()
+                        : moderationPushEnabled);
+    }
 }

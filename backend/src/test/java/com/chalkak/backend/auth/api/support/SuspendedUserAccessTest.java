@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.api.support;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -251,6 +252,23 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(true))
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+    }
+
+    @Test
+    @DisplayName("정지 회원도 본인 푸시 수신 설정을 수정할 수 있다")
+    void updateSettings_suspendedUser_returnsNoContent() throws Exception {
+        // When
+        mockMvc.perform(patch("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"topicPushEnabled\":false}"))
+                .andExpect(status().isNoContent());
+
+        // Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicPushEnabled").value(false))
                 .andExpect(jsonPath("$.moderationPushEnabled").value(true));
     }
 

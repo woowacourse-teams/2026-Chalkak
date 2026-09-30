@@ -73,4 +73,80 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "true, true, false, , false, true",
+            "true, true, , false, true, false",
+            "false, false, true, , true, false",
+            "false, false, , true, false, true",
+            "true, true, false, false, false, false",
+            "false, false, true, true, true, true"
+    })
+    @DisplayName("전달한 수신 설정만 저장하고 같은 요청을 반복해도 설정을 유지한다")
+    void updateSettings_providedPreferences_persistsOnlyRequestedValues(
+            boolean initialTopic,
+            boolean initialModeration,
+            Boolean topic,
+            Boolean moderation,
+            boolean expectedTopic,
+            boolean expectedModeration
+    ) {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        user.updatePushPreferences(initialTopic, initialModeration);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        notificationSettingsService.updateSettings(user.getId(), topic, moderation);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(notificationSettingsService.getSettings(user.getId()))
+                .isEqualTo(new NotificationSettingsResult(expectedTopic, expectedModeration));
+
+        // When
+        notificationSettingsService.updateSettings(user.getId(), topic, moderation);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(notificationSettingsService.getSettings(user.getId()))
+                .isEqualTo(new NotificationSettingsResult(expectedTopic, expectedModeration));
+    }
+
+    @Test
+    @DisplayName("없는 회원의 수신 설정 수정은 인증 오류로 거부한다")
+    void updateSettings_missingUser_throwsUnauthorizedException() {
+        // When & Then
+        assertThatThrownBy(
+                () -> notificationSettingsService.updateSettings(UUID.randomUUID(), false, null))
+                .isInstanceOfSatisfying(UnauthorizedException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원의 수신 설정 수정은 거부하고 기존 값을 보존한다")
+    void updateSettings_withdrawnUser_throwsUnauthorizedException() {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        user.withdraw();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(
+                () -> notificationSettingsService.updateSettings(user.getId(), false, null))
+                .isInstanceOfSatisfying(UnauthorizedException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+        entityManager.flush();
+        entityManager.clear();
+        User saved = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(saved.isTopicPushEnabled()).isTrue();
+        assertThat(saved.isModerationPushEnabled()).isTrue();
+    }
 }
