@@ -13,6 +13,19 @@ import org.springframework.data.repository.query.Param;
 public interface UserRefreshTokenJpaRepository extends JpaRepository<UserRefreshToken, UUID> {
 
     @Query("""
+            SELECT CASE WHEN COUNT(token) > 0 THEN true ELSE false END
+            FROM UserRefreshToken token
+            WHERE token.sessionId = :sessionId AND token.user.id = :userId
+                AND token.rotatedAt IS NULL AND token.revokedAt IS NULL
+                AND token.expiresAt > :now AND token.absoluteExpiresAt > :now
+            """)
+    boolean existsUsableBySessionIdAndUserId(
+            @Param("sessionId") UUID sessionId,
+            @Param("userId") UUID userId,
+            @Param("now") Instant now
+    );
+
+    @Query("""
             SELECT refreshToken.sessionId
             FROM UserRefreshToken refreshToken
             WHERE refreshToken.tokenHash = :tokenHash
