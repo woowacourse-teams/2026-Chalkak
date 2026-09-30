@@ -18,8 +18,8 @@ import org.springframework.stereotype.Component;
  * JDK 관리 빈과 Hikari 풀 관리 빈에서 {@link RuntimeSnapshot}을 직접 읽는다.
  *
  * <p>
- * Micrometer 레지스트리를 거치지 않는다. 운영 레지스트리는 필터로 미터를 걸러 낼 수 있어,
- * 레지스트리에서 읽으면 필터 설정 하나로 이 로그의 값이 조용히 사라진다.
+ * Micrometer 레지스트리를 거치지 않는다. 운영 레지스트리는 필터로 미터를 걸러 낼 수 있어, 레지스트리에서 읽으면 필터 설정 하나로
+ * 이 로그의 값이 조용히 사라진다.
  */
 @Component
 @ConditionalOnProperty(prefix = "chalkak.monitoring.runtime-log", name = "enabled", havingValue = "true")

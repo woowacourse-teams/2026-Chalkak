@@ -25,12 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostModerationPendingLogTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0199a003-0000-7000-8000-000000000001");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0199a003-0000-7000-8000-000000000002");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0199a003-0000-7000-8000-000000000003");
+    private static final UUID USER_ID = UUID.fromString("0199a003-0000-7000-8000-000000000001");
+    private static final UUID TOPIC_ID = UUID.fromString("0199a003-0000-7000-8000-000000000002");
+    private static final UUID UPLOAD_ID = UUID.fromString("0199a003-0000-7000-8000-000000000003");
 
     @Autowired
     private PostCommandService postCommandService;
@@ -121,7 +118,6 @@ class PostModerationPendingLogTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }

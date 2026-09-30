@@ -49,8 +49,8 @@ class RuntimeSnapshotReaderTest {
         given(memory.getHeapMemoryUsage()).willReturn(new MemoryUsage(0, 400, 500, -1));
         given(threads.getThreadCount()).willReturn(42);
         givenHikariPool(3, 1);
-        RuntimeSnapshotReader reader =
-                new RuntimeSnapshotReader(memory, List.of(collector(30)), threads, dataSource);
+        RuntimeSnapshotReader reader = new RuntimeSnapshotReader(memory, List.of(collector(30)),
+                threads, dataSource);
 
         // When
         RuntimeSnapshot snapshot = reader.read();
@@ -64,8 +64,8 @@ class RuntimeSnapshotReaderTest {
     void read_noGarbageCollectors_leavesGcTimeAbsent() throws SQLException {
         // Given
         given(memory.getHeapMemoryUsage()).willReturn(new MemoryUsage(0, 400, 500, 1_000));
-        RuntimeSnapshotReader reader =
-                new RuntimeSnapshotReader(memory, List.of(), threads, dataSource);
+        RuntimeSnapshotReader reader = new RuntimeSnapshotReader(memory, List.of(), threads,
+                dataSource);
 
         // When
         RuntimeSnapshot snapshot = reader.read();
@@ -80,8 +80,8 @@ class RuntimeSnapshotReaderTest {
         // Given
         given(memory.getHeapMemoryUsage()).willReturn(new MemoryUsage(0, 400, 500, 1_000));
         given(dataSource.isWrapperFor(HikariDataSource.class)).willReturn(false);
-        RuntimeSnapshotReader reader =
-                new RuntimeSnapshotReader(memory, List.of(), threads, dataSource);
+        RuntimeSnapshotReader reader = new RuntimeSnapshotReader(memory, List.of(), threads,
+                dataSource);
 
         // When
         RuntimeSnapshot snapshot = reader.read();
@@ -100,8 +100,8 @@ class RuntimeSnapshotReaderTest {
         given(hikari.getHikariPoolMXBean()).willReturn(null);
         given(dataSource.isWrapperFor(HikariDataSource.class)).willReturn(true);
         given(dataSource.unwrap(HikariDataSource.class)).willReturn(hikari);
-        RuntimeSnapshotReader reader =
-                new RuntimeSnapshotReader(memory, List.of(), threads, dataSource);
+        RuntimeSnapshotReader reader = new RuntimeSnapshotReader(memory, List.of(), threads,
+                dataSource);
 
         // When
         RuntimeSnapshot snapshot = reader.read();
@@ -118,8 +118,8 @@ class RuntimeSnapshotReaderTest {
         given(memory.getHeapMemoryUsage()).willReturn(new MemoryUsage(0, 400, 500, 1_000));
         given(threads.getThreadCount()).willReturn(42);
         given(dataSource.isWrapperFor(HikariDataSource.class)).willThrow(new SQLException());
-        RuntimeSnapshotReader reader =
-                new RuntimeSnapshotReader(memory, List.of(collector(30)), threads, dataSource);
+        RuntimeSnapshotReader reader = new RuntimeSnapshotReader(memory, List.of(collector(30)),
+                threads, dataSource);
 
         // When
         RuntimeSnapshot snapshot = reader.read();
