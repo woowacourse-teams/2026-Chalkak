@@ -12,6 +12,5 @@ public record AdminAuditLogCommand(
         UUID targetId,
         String reason,
         AdminAuditSnapshot beforeState,
-        AdminAuditSnapshot afterState,
-        UUID requestId) {
+        AdminAuditSnapshot afterState) {
 }

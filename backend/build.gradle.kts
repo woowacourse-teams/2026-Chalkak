@@ -123,6 +123,11 @@ val checkEnvContract = tasks.register<Exec>("checkEnvContract") {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     systemProperty("spring.profiles.active", "test")
+    // dev·prod 프로필로 띄우는 테스트가 /opt/chalkak/logs에 파일 로그를 쓰지 않게 한다.
+    systemProperty(
+        "chalkak.logging.file",
+        layout.buildDirectory.file("test-logs/application.log").get().asFile.path,
+    )
 }
 
 tasks.named<Test>("test") {

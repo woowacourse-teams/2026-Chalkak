@@ -66,8 +66,7 @@ public class AdminPostCommandService {
                 post.getId(),
                 normalizedReason,
                 beforeState,
-                afterState,
-                UUID.randomUUID()));
+                afterState));
         userNotificationService.createForModeration(
                 post,
                 auditLog.getId(),
@@ -110,8 +109,7 @@ public class AdminPostCommandService {
                 post.getId(),
                 normalizedReason,
                 beforeState,
-                deletionState(post),
-                UUID.randomUUID()));
+                deletionState(post)));
     }
 
     private String validateAndNormalizeModeration(

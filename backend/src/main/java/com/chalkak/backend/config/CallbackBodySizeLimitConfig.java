@@ -9,7 +9,8 @@ import org.springframework.core.Ordered;
 
 /**
  * 본문 크기 제한은 이미지 처리 콜백 경로에만 건다. 공개 API는 각자의 검증을 따르고, 이 경로만 인증 이전
- * 단계에서 자원을 쓰기 때문이다.
+ * 단계에서 자원을 쓰기 때문이다. requestId 필터({@link RequestIdFilterConfig})보다 뒤에 실행해 이 필터가 끊은 요청도
+ * 접근 로그에 남긴다.
  */
 @Configuration(proxyBeanMethods = false)
 public class CallbackBodySizeLimitConfig {
@@ -23,7 +24,7 @@ public class CallbackBodySizeLimitConfig {
         FilterRegistrationBean<CallbackBodySizeLimitFilter> registration =
                 new FilterRegistrationBean<>(new CallbackBodySizeLimitFilter(maxBytes));
         registration.addUrlPatterns(CALLBACK_PATH_PATTERN);
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
 
         return registration;
     }
