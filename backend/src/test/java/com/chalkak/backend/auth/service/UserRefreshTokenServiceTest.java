@@ -76,6 +76,11 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
         assertThat(storedTokenHash).isNotEqualTo(issued.value());
         assertThat(storedTokenHash).matches(TOKEN_HASH_PATTERN);
         assertThat(issued.expiresIn()).isEqualTo(Duration.ofDays(30));
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM login_sessions
+                WHERE id = (SELECT session_id FROM user_refresh_tokens WHERE user_id = ?)
+                  AND user_id = ?
+                """, Integer.class, user.getId(), user.getId())).isEqualTo(1);
     }
 
     @Test
@@ -100,6 +105,9 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
         assertThat(successor.rotatedAt()).isNull();
         assertThat(successor.sessionId()).isEqualTo(consumed.sessionId());
         assertThat(successor.absoluteExpiresAt()).isEqualTo(consumed.absoluteExpiresAt());
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM login_sessions WHERE id = ?
+                """, Integer.class, consumed.sessionId())).isEqualTo(1);
     }
 
     @Test

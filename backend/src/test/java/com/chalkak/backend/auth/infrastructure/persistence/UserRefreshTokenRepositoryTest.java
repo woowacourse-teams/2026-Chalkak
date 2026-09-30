@@ -1,7 +1,9 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.auth.domain.LoginSession;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -59,6 +61,26 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         // when & then
         assertThat(userRefreshTokenRepository.findByTokenHash(unknownTokenHash))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("로그인 회차가 없는 회원 리프레시 토큰은 저장할 수 없다")
+    void save_withoutLoginSession_rejectsToken() {
+        // given
+        User user = userRepository.save(createUser());
+        UserRefreshToken token = UserRefreshToken.create(
+                user,
+                UUID.randomUUID(),
+                createTokenHash(),
+                NOW.plusSeconds(3600),
+                NOW.plusSeconds(7200));
+
+        // when & then
+        assertThatThrownBy(() -> {
+            userRefreshTokenRepository.save(token);
+            entityManager.flush();
+        })
+                .hasMessageContaining("fk_user_refresh_tokens_session");
     }
 
     @Test
@@ -180,9 +202,11 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
             Instant absoluteExpiresAt,
             Instant revokedAt
     ) {
+        UUID sessionId = UUID.randomUUID();
+        saveLoginSession(user, sessionId);
         UserRefreshToken refreshToken = UserRefreshToken.create(
                 user,
-                UUID.randomUUID(),
+                sessionId,
                 tokenHash,
                 absoluteExpiresAt,
                 absoluteExpiresAt);
@@ -193,12 +217,21 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
     }
 
     private UserRefreshToken createRefreshToken(User user, UUID sessionId, String tokenHash) {
+        saveLoginSession(user, sessionId);
         return UserRefreshToken.create(
                 user,
                 sessionId,
                 tokenHash,
                 NOW.plusSeconds(3600),
                 NOW.plusSeconds(7200));
+    }
+
+    private void saveLoginSession(User user, UUID sessionId) {
+        if (entityManager.find(LoginSession.class, sessionId) != null) {
+            return;
+        }
+        entityManager.persist(new LoginSession(user, sessionId));
+        entityManager.flush();
     }
 
     private Instant findRevokedAt(String tokenHash) {

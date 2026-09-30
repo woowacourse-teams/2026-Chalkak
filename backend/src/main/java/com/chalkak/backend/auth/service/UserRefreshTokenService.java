@@ -3,6 +3,7 @@ package com.chalkak.backend.auth.service;
 import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.domain.RefreshTokenPolicy;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
+import com.chalkak.backend.auth.repository.LoginSessionRepository;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
@@ -24,6 +25,7 @@ public class UserRefreshTokenService
             RefreshTokenService<User, UserRefreshToken> {
 
     private final AccessTokenIssuer accessTokenIssuer;
+    private final LoginSessionRepository loginSessionRepository;
 
     public UserRefreshTokenService(
             UserRefreshTokenRepository userRefreshTokenRepository,
@@ -31,6 +33,7 @@ public class UserRefreshTokenService
             RefreshTokenHasher refreshTokenHasher,
             RefreshTokenPolicy refreshTokenPolicy,
             AccessTokenIssuer accessTokenIssuer,
+            LoginSessionRepository loginSessionRepository,
             Clock clock
     ) {
         super(
@@ -40,6 +43,7 @@ public class UserRefreshTokenService
                 refreshTokenPolicy,
                 clock);
         this.accessTokenIssuer = accessTokenIssuer;
+        this.loginSessionRepository = loginSessionRepository;
     }
 
     @Override
@@ -50,6 +54,7 @@ public class UserRefreshTokenService
             Instant expiresAt,
             Instant absoluteExpiresAt
     ) {
+        loginSessionRepository.create(user, sessionId);
         return UserRefreshToken.create(
                 user,
                 sessionId,

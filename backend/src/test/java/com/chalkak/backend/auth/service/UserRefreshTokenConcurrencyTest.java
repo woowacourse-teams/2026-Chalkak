@@ -64,6 +64,10 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
                     'signatures/concurrent-refresh', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, USER_ID);
+        jdbcTemplate.update("""
+                INSERT INTO login_sessions (id, user_id, created_at)
+                VALUES (?, ?, ?)
+                """, SESSION_ID, USER_ID, Timestamp.from(NOW));
     }
 
     @AfterEach
@@ -232,6 +236,7 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
 
     private void cleanUp() {
         jdbcTemplate.update("DELETE FROM user_refresh_tokens WHERE user_id = ?", USER_ID);
+        jdbcTemplate.update("DELETE FROM login_sessions WHERE user_id = ?", USER_ID);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", USER_ID);
     }
 
