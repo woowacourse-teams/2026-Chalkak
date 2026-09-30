@@ -22,6 +22,11 @@ spring:
     default-schema: public
     validate-migration-naming: true
 
+  task:
+    scheduling:
+      pool:
+        size: 4
+
 chalkak:
   monitoring:
     runtime-log:
