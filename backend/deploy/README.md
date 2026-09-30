@@ -38,7 +38,7 @@ Pull Request
 | EC2 tag | `Name=chalkak-dev-api` | `Name=chalkak-prod-api` |
 | Spring profile | `dev` | `prod` |
 | Database | 같은 EC2의 Docker PostgreSQL | RDS PostgreSQL |
-| Load balancer | 사용하지 않음 | 기존 ALB target group 연결 |
+| Load balancer | 사용하지 않음 | 사용하지 않음 (공개 EC2 직접 사용) |
 | 배포 승인 | 자동 | Manual approval |
 
 CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 만들기 때문에 개발·운영 파이프라인에서 `chalkak-backend-build` 하나를 공유한다. 동일한 revision을 서버의 `SPRING_PROFILES_ACTIVE`에 따라 `dev` 또는 `prod`로 실행한다.
