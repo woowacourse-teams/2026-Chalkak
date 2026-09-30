@@ -224,6 +224,19 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("탈퇴 회원은 남아 있는 JWT로 푸시 기기를 등록할 수 없다")
+    void registerCurrentDevice_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/push-devices/current")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fcmToken":"withdrawn-device-token"}
+                        """))
+                .andExpect(withdrawn());
+    }
+
+    @Test
     @DisplayName("탈퇴 회원은 캘린더 기록 연월을 조회할 수 없다")
     void getMyPostCalendarMonths_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then

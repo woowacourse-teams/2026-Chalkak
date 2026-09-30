@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +50,12 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     private JwtAccessTokenProvider accessTokenProvider;
 
     private String token;
+
+    @Autowired
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     /**
      * 사인 조회가 스토리지 키를 URL로 바꾸므로 root-prefix에 맞는 키를 넣는다. 픽스처의 기본 키를 쓰면 인가와 무관한 이유로
@@ -232,6 +241,26 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
             jsonPath("$.errorCode").value("FORBIDDEN").match(result);
             jsonPath("$.message").value("차단된 회원입니다.").match(result);
         };
+    }
+
+    @Test
+    @DisplayName("정지 회원도 유효한 로그인에 푸시 기기를 등록할 수 있다")
+    void registerCurrentDevice_suspendedUser_returnsNoContent() throws Exception {
+        // Given
+        UUID userId = UUID.fromString(accessTokenProvider.jwtDecoder()
+                .decode(token.substring("Bearer ".length())).getSubject());
+        User user = userRepository.findById(userId).orElseThrow();
+        UUID sessionId = userRefreshTokenService.issue(user).sessionId();
+        String authorization = "Bearer " + accessTokenProvider.issue(userId, sessionId).value();
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/push-devices/current")
+                .header(HttpHeaders.AUTHORIZATION, authorization)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fcmToken":"suspended-device-token"}
+                        """))
+                .andExpect(status().isNoContent());
     }
 
     /**

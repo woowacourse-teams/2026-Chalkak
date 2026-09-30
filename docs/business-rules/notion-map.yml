@@ -64,3 +64,4 @@ rule_pages:
       검수 결과 알림 생성: [NOTIFICATION-001]
       조회와 읽음: [NOTIFICATION-002, NOTIFICATION-003]
       보관과 삭제: [NOTIFICATION-004]
+      푸시 기기 등록: [NOTIFICATION-005]

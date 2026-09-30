@@ -23,14 +23,17 @@ public class WithMockLoginUserSecurityContextFactory
         }
 
         Instant issuedAt = Instant.now();
-        Jwt jwt = Jwt.withTokenValue("mock-access-token")
+        Jwt.Builder jwtBuilder = Jwt.withTokenValue("mock-access-token")
                 .header("alg", "HS256")
                 .subject(userId)
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("purpose", "ACCESS")
-                .claim("scope", AccessTokenScope.USER.name())
-                .build();
+                .claim("scope", AccessTokenScope.USER.name());
+        if (!annotation.sessionId().isBlank()) {
+            jwtBuilder.claim("session_id", annotation.sessionId());
+        }
+        Jwt jwt = jwtBuilder.build();
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new JwtAuthenticationToken(
