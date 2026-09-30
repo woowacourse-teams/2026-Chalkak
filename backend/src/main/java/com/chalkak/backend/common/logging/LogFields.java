@@ -8,6 +8,8 @@ public final class LogFields {
     public static final String ROUTE = "route";
     public static final String STATUS = "status";
     public static final String DURATION_MS = "durationMs";
+    public static final String ERROR_CODE = "errorCode";
+    public static final String EXCEPTION = "exception";
 
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
