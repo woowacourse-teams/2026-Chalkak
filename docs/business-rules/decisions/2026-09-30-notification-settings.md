@@ -8,4 +8,4 @@
 - 영향 범위: 앱은 GET·PATCH `/api/v1/notification-settings`에서 `topicPushEnabled`와 `moderationPushEnabled`를 사용한다. PATCH는 변경할 항목만 보내고 본문 없는 204를 성공으로 처리한다. 로그인 ID 없는 기존 JWT와 정지 회원도 조회·수정할 수 있지만 탈퇴 회원은 거부한다. 설정은 운영체제 알림 권한이나 실제 수신 성공을 뜻하지 않으며 알림함에는 영향을 주지 않는다. 실제 푸시 발송은 별도 구현 단위다.
 - 관련 규칙: NOTIFICATION-006, USER-002, USER-003
 - 관련 이슈·PR: #491, PR 미등록
-- 선택의 맥락: [푸시 수신 설정을 부분 수정하는 이유](../../../backend/docs/interviews/푸시-수신-설정의-부분-수정.md)
+- 선택의 맥락: [푸시 수신 설정을 부분 수정하는 이유](https://github.com/woowacourse-teams/2026-Chalkak/blob/5520f39d8a520afe5edb129c02780ebae215bf5e/backend/docs/interviews/푸시-수신-설정의-부분-수정.md)
