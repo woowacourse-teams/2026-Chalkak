@@ -37,6 +37,7 @@ import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
+import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.reminder.ReminderTimeRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
@@ -275,7 +276,14 @@ fun ChalkakNavHost(
             HomeRoute(
                 onOpenPhotoUpload = openPhotoUpload,
                 onNavigateToBottomBar = navigateToBottomBar,
+                onOpenNotifications = {
+                    navController.navigate(Notifications) { launchSingleTop = true }
+                },
             )
+        }
+
+        composable<Notifications> {
+            NotificationRoute(onBackClick = { navController.popBackStack() })
         }
 
         composable<Display> { backStackEntry ->
