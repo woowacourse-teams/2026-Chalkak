@@ -36,14 +36,15 @@ class JwtAccessTokenProviderTest {
     private static final Duration EXPIRATION = Duration.ofMinutes(15);
 
     @Test
-    @DisplayName("회원 식별자로 액세스 토큰을 발급하고 검증한다")
-    void issue_validUserId_issuesVerifiableAccessToken() {
+    @DisplayName("회원과 로그인 회차 식별자로 액세스 토큰을 발급하고 검증한다")
+    void issue_validUserIdAndSessionId_issuesVerifiableAccessToken() {
         // Given
         JwtAccessTokenProvider provider = createProvider(NOW);
         UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
 
         // When
-        IssuedAccessToken issuedToken = provider.issue(userId);
+        IssuedAccessToken issuedToken = provider.issue(userId, sessionId);
         Jwt jwt = provider.jwtDecoder().decode(issuedToken.value());
 
         // Then
@@ -51,6 +52,7 @@ class JwtAccessTokenProviderTest {
         assertThat(issuedToken.expiresIn()).isEqualTo(EXPIRATION);
         assertThat(jwt.getSubject()).isEqualTo(userId.toString());
         assertThat(jwt.getClaimAsString("scope")).isEqualTo("USER");
+        assertThat(jwt.getClaimAsString("session_id")).isEqualTo(sessionId.toString());
     }
 
     @Test
@@ -67,6 +69,7 @@ class JwtAccessTokenProviderTest {
         // Then
         assertThat(jwt.getSubject()).isEqualTo(adminId.toString());
         assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
+        assertThat(jwt.getClaimAsString("session_id")).isNull();
     }
 
     @Test
@@ -153,7 +156,7 @@ class JwtAccessTokenProviderTest {
     void decode_tamperedToken_throwsJwtException() {
         // Given
         JwtAccessTokenProvider provider = createProvider(NOW);
-        String token = provider.issue(UUID.randomUUID()).value();
+        String token = provider.issue(UUID.randomUUID(), UUID.randomUUID()).value();
         String tamperedToken = tamperSignature(token);
 
         // When & Then
@@ -165,7 +168,8 @@ class JwtAccessTokenProviderTest {
     @DisplayName("만료 시각을 막 지난 토큰은 허용 오차 안에서 검증할 수 있다")
     void decode_justPastExpiryWithinClockSkew_verifiesAccessToken() {
         // Given
-        String token = createProvider(NOW).issue(UUID.randomUUID()).value();
+        String token = createProvider(NOW)
+                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(29));
 
         // When
@@ -179,7 +183,8 @@ class JwtAccessTokenProviderTest {
     @DisplayName("허용 오차를 넘겨 만료된 토큰은 검증할 수 없다")
     void decode_expiredBeyondClockSkew_throwsJwtException() {
         // Given
-        String token = createProvider(NOW).issue(UUID.randomUUID()).value();
+        String token = createProvider(NOW)
+                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(31));
 
         // When & Then
@@ -209,7 +214,8 @@ class JwtAccessTokenProviderTest {
     @DisplayName("허용 오차와 정확히 같은 시각에 만료된 토큰은 검증할 수 있다")
     void decode_exactlyAtClockSkewBoundary_verifiesAccessToken() {
         // Given
-        String token = createProvider(NOW).issue(UUID.randomUUID()).value();
+        String token = createProvider(NOW)
+                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(30));
 
         // When

@@ -87,7 +87,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @Test
     @DisplayName("일반 사용자 액세스 토큰으로 관리자 API를 호출하면 403을 반환한다")
     void adminApi_userToken_returnsForbidden() throws Exception {
-        String token = accessTokenProvider.issue(UUID.randomUUID()).value();
+        String token = accessTokenProvider.issue(UUID.randomUUID(), UUID.randomUUID()).value();
 
         mockMvc.perform(get("/api/v1/admin/security-test")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -125,7 +125,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("로그인 외 모든 실제 관리자 API는 회원 토큰을 403으로 거부한다")
     void adminEndpoints_userToken_returnsForbidden(String method, String path) throws Exception {
         // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID()).value();
+        String token = accessTokenProvider.issue(UUID.randomUUID(), UUID.randomUUID()).value();
 
         // When & Then
         mockMvc.perform(request(HttpMethod.valueOf(method), path)

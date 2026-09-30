@@ -63,13 +63,14 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         Instant absoluteExpiresAt = refreshTokenPolicy.absoluteExpiresAt(now);
         Instant expiresAt = refreshTokenPolicy.nextExpiresAt(now, absoluteExpiresAt);
         GeneratedRefreshToken generated = refreshTokenGenerator.generateToken();
+        UUID sessionId = UUID.randomUUID();
         refreshTokenRepository.save(createToken(
                 owner,
-                UUID.randomUUID(),
+                sessionId,
                 generated.tokenHash(),
                 expiresAt,
                 absoluteExpiresAt));
-        return toIssuedRefreshToken(generated, now, expiresAt);
+        return toIssuedRefreshToken(generated, now, expiresAt, sessionId);
     }
 
     /**
@@ -168,7 +169,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
                 expiresAt));
         return new TokenRefreshResult(
                 issueAccessToken(consumed),
-                toIssuedRefreshToken(generated, now, expiresAt));
+                toIssuedRefreshToken(generated, now, expiresAt, consumed.getSessionId()));
     }
 
     /**
@@ -197,11 +198,13 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     private IssuedRefreshToken toIssuedRefreshToken(
             GeneratedRefreshToken generated,
             Instant now,
-            Instant expiresAt
+            Instant expiresAt,
+            UUID sessionId
     ) {
         return new IssuedRefreshToken(
                 generated.value(),
-                Duration.between(now, expiresAt));
+                Duration.between(now, expiresAt),
+                sessionId);
     }
 
     /** 실패 원인을 구분해 알리면 토큰 대입 공격에 힌트를 주므로, 모든 거절을 같은 응답으로 묶는다. */

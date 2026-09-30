@@ -67,7 +67,7 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId).value();
+        token = "Bearer " + accessTokenProvider.issue(userId, UUID.randomUUID()).value();
     }
 
     @Test

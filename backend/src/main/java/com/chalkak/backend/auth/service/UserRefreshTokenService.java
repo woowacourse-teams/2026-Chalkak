@@ -74,6 +74,6 @@ public class UserRefreshTokenService
 
     @Override
     protected IssuedAccessToken issueAccessToken(UserRefreshToken consumed) {
-        return accessTokenIssuer.issue(consumed.getUser().getId());
+        return accessTokenIssuer.issue(consumed.getUser().getId(), consumed.getSessionId());
     }
 }

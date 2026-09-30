@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.service;
 
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
@@ -55,10 +56,11 @@ public class ExistingSocialAccountLoginProcessor {
             return Optional.empty();
         }
         UUID userId = user.getId();
+        IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
         return Optional.of(new SocialLoginSuccess(
                 userId,
-                accessTokenIssuer.issue(userId),
-                userRefreshTokenService.issue(user)));
+                accessTokenIssuer.issue(userId, refreshToken.sessionId()),
+                refreshToken));
     }
 
     /**

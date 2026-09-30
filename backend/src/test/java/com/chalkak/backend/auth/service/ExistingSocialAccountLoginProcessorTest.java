@@ -132,6 +132,8 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
         Jwt jwt = accessTokenProvider.jwtDecoder().decode(success.accessToken().value());
         assertThat(success.userId()).isEqualTo(user.getId());
         assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
+        assertThat(jwt.getClaimAsString("session_id"))
+                .isEqualTo(success.refreshToken().sessionId().toString());
         assertThat(success.refreshToken().value()).isNotBlank();
         assertThat(storedRefreshTokenHashes(user)).hasSize(1);
     }

@@ -1,6 +1,7 @@
 package com.chalkak.backend.auth.service;
 
 import com.chalkak.backend.auth.domain.ConsumedSignupToken;
+import com.chalkak.backend.auth.domain.IssuedRefreshToken;
 import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
 import com.chalkak.backend.auth.domain.SocialAccount;
 import com.chalkak.backend.auth.domain.SocialProvider;
@@ -122,10 +123,11 @@ public class SocialSignupService {
      * 자리에서 함께 발급한다.
      */
     private SocialSignupResult toSignupResult(User user) {
+        IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
         return new SocialSignupResult(
                 user.getId(),
-                accessTokenIssuer.issue(user.getId()),
-                userRefreshTokenService.issue(user));
+                accessTokenIssuer.issue(user.getId(), refreshToken.sessionId()),
+                refreshToken);
     }
 
     private User getExistingUser(SocialAccount socialAccount) {
