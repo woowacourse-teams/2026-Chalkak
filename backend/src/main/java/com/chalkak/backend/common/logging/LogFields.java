@@ -14,6 +14,7 @@ public final class LogFields {
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     public static final String TYPE_ACCESS = "access";
+    public static final String TYPE_ERROR = "error";
     public static final String UNMATCHED_ROUTE = "UNMATCHED";
 
     private LogFields() {

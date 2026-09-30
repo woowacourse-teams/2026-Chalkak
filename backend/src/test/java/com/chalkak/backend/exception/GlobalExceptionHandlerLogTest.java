@@ -72,6 +72,7 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("BUSINESS_ERROR");
         assertThat(keyValue(event, "status")).isEqualTo(400);
         assertThat(keyValue(event, "exception")).isEqualTo("HttpMessageNotReadableException");
@@ -92,6 +93,7 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("BUSINESS_ERROR");
         assertThat(keyValue(event, "status")).isEqualTo(400);
         assertThat(keyValue(event, "exception")).isEqualTo("BusinessException");
@@ -112,6 +114,7 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("BUSINESS_ERROR");
         assertThat(keyValue(event, "status")).isEqualTo(405);
         assertThat(keyValue(event, "exception")).isEqualTo("HttpRequestMethodNotSupportedException");
@@ -137,6 +140,7 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("INTERNAL_ERROR");
         assertThat(keyValue(event, "status")).isEqualTo(500);
         assertThat(event.getThrowableProxy().getMessage()).isEqualTo("예상하지 못한 장애");

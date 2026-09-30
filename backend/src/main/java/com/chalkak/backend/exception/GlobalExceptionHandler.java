@@ -147,6 +147,7 @@ public class GlobalExceptionHandler {
         }
 
         log.atError()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_ERROR)
                 .addKeyValue(LogFields.ERROR_CODE, ErrorCode.INTERNAL_ERROR.name())
                 .addKeyValue(LogFields.STATUS, status.value())
                 .setCause(e)
@@ -204,6 +205,7 @@ public class GlobalExceptionHandler {
             ErrorCode errorCode
     ) {
         log.atWarn()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_ERROR)
                 .addKeyValue(LogFields.ERROR_CODE, errorCode.name())
                 .addKeyValue(LogFields.STATUS, status.value())
                 .addKeyValue(LogFields.EXCEPTION, e.getClass().getSimpleName())

@@ -31,6 +31,7 @@ public class UnauthorizedEntryPoint implements AuthenticationEntryPoint {
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         // Bearer 검증 실패 메시지에는 토큰 내용이 섞일 수 있어 예외 종류만 남긴다.
         log.atWarn()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_ERROR)
                 .addKeyValue(LogFields.ERROR_CODE, ErrorCode.UNAUTHORIZED.name())
                 .addKeyValue(LogFields.STATUS, HttpStatus.UNAUTHORIZED.value())
                 .addKeyValue(LogFields.EXCEPTION, authenticationException.getClass().getSimpleName())

@@ -26,6 +26,7 @@ public class ForbiddenAccessDeniedHandler implements AccessDeniedHandler {
             AccessDeniedException accessDeniedException
     ) throws IOException {
         log.atWarn()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_ERROR)
                 .addKeyValue(LogFields.ERROR_CODE, ErrorCode.FORBIDDEN.name())
                 .addKeyValue(LogFields.STATUS, HttpStatus.FORBIDDEN.value())
                 .addKeyValue(LogFields.EXCEPTION, accessDeniedException.getClass().getSimpleName())

@@ -73,6 +73,7 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("UNAUTHORIZED");
         assertThat(keyValue(event, "status")).isEqualTo(401);
         assertThat(keyValue(event, "exception")).isEqualTo("InsufficientAuthenticationException");
@@ -94,6 +95,7 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "exception")).isEqualTo("InvalidBearerTokenException");
         assertThat(event.getFormattedMessage()).doesNotContain(token);
         assertThat(event.getKeyValuePairs())
@@ -116,6 +118,7 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("FORBIDDEN");
         assertThat(keyValue(event, "status")).isEqualTo(403);
         assertThat(keyValue(event, "exception")).isEqualTo("AuthorizationDeniedException");
