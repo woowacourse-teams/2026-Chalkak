@@ -279,10 +279,10 @@
       "width": 24,
       "height": 6,
       "properties": {
-        "title": "DAU (로그인 회원, 일별)",
+        "title": "DAU (게시·좋아요 회원, 일별)",
         "region": "ap-northeast-2",
         "view": "bar",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId) and status < 400\n| stats countDistinct(userId) as dau by bin(1d)"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter (method=\"POST\" and route=\"/api/v1/posts\" and status=201) or (method=\"PUT\" and route=\"/api/v1/posts/{postId}/likes\" and status=200)\n| stats countDistinct(userId) as dau by bin(1d)"
       }
     },
     {
