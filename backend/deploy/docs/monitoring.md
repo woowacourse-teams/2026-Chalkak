@@ -24,7 +24,7 @@ application.log
 | --- | --- |
 | `backend/deploy/monitoring/cloudwatch-agent.dev.json` | dev EC2에 붙여 넣는 CloudWatch Agent 설정 (5단계) |
 | `backend/deploy/monitoring/cloudwatch-agent.prod.json` | prod EC2에 붙여 넣는 CloudWatch Agent 설정 (5단계) |
-| `backend/deploy/monitoring/dashboard.json` | 대시보드 `chalkak-monitoring`의 소스 (9단계) |
+| `backend/deploy/monitoring/dashboard.json` | 대시보드 `DASHBOARD-chalkak`의 소스 (9단계) |
 | `backend/lambda/alarm-notifier/` | SNS 알람을 Slack으로 전달하는 Lambda 코드와 배포 절차 (3단계) |
 
 공유 계정에는 CloudFormation과 AWS Chatbot이 허용되지 않고, IAM role도 새로 만들지 않는다. 그래서 스택이나 템플릿은 없고, 모든 리소스를 CloudWatch·SNS·Lambda 콘솔(리전 `ap-northeast-2`)에서 직접 만든다. 리소스 정의는 이 문서의 표와 `dashboard.json`이다. 공유 계정에는 CLI나 access key도 사용하지 않는다.
@@ -281,7 +281,7 @@ dev와 prod는 같은 문구를 쓴다.
 
 ### 9. 대시보드
 
-1. CloudWatch > 대시보드 > 대시보드 생성에서 이름을 `chalkak-monitoring`으로 만든다. 위젯 추가 창이 나오면 닫는다.
+1. CloudWatch > 대시보드 > 대시보드 생성에서 이름을 `DASHBOARD-chalkak`으로 만든다. 위젯 추가 창이 나오면 닫는다.
 2. 대시보드 **작업 > 소스 보기/편집**을 연다.
 3. `backend/deploy/monitoring/dashboard.json`의 내용을 붙여 넣기 전에 플레이스홀더를 바꾼다.
 
@@ -311,7 +311,7 @@ dev와 prod는 같은 문구를 쓴다.
 - [ ] `type=runtime` 로그가 1분마다 들어온다.
 - [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 4, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
 - [ ] 알람이 `OK` 또는 예상한 `INSUFFICIENT_DATA` 상태다. `chalkak-*-ec2-status-check`, `chalkak-*-5xx`가 `ALARM`이면 즉시 확인한다.
-- [ ] 대시보드 `chalkak-monitoring`의 위젯에 데이터가 표시된다.
+- [ ] 대시보드 `DASHBOARD-chalkak`의 위젯에 데이터가 표시된다.
 - [ ] 로그 rotation 후에도 전송이 이어진다. logback은 매일과 50MB마다 `application.log.<날짜>.<n>.gz`로 롤링한다. 배포 다음 날 서버에서 `ls -l /opt/chalkak/logs`로 롤링된 파일을 확인하고, Logs Insights에서 한국 시각 자정 이후 이벤트가 들어오는지 조회한다. 롤링을 강제로 일으킬 필요는 없다.
 - [ ] `image_processing_abandoned` 로그가 실제로 발생했을 때 `Chalkak/shared`의 `ImageProcessingAbandoned`가 1 이상이 된다. 평소에는 발생하지 않으므로 처음 발생할 때 확인한다.
 - [ ] 에이전트 시작 후에도 로그 그룹 보존 기간이 유지된다(prod 60일, dev 7일).
@@ -396,7 +396,7 @@ Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24
 - 공유 알람(`chalkak-shared-*`)은 prod 토픽에 의존하므로 prod 토픽보다 먼저 지운다.
 
 
-1. 대시보드 `chalkak-monitoring`을 삭제한다.
+1. 대시보드 `DASHBOARD-chalkak`을 삭제한다.
 2. 알람을 삭제한다(경보 > 선택 > 작업 > 삭제). 공유 알람을 먼저 지운다. 알람이 SNS 토픽을 참조하므로 토픽보다 먼저 지운다. 삭제가 안 되면 알람 작업만이라도 비활성화한다.
 3. 메트릭 필터를 삭제한다(로그 그룹 > 지표 필터 탭). 지표 데이터는 만료될 때까지 남는다.
 4. Lambda `chalkak-alarm-notifier`의 SNS 트리거를 지우고 함수를 삭제한다. 그다음 SNS 토픽 `chalkak-dev-alarms`, `chalkak-prod-alarms`를 삭제한다.
