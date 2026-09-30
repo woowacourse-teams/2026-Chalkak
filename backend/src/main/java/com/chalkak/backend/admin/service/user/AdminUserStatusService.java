@@ -50,8 +50,7 @@ public class AdminUserStatusService {
                 user.getId(),
                 normalizedReason,
                 beforeState,
-                afterState,
-                UUID.randomUUID()));
+                afterState));
 
         return new AdminUserStatusResult(user.getId(), user.getStatus());
     }
