@@ -144,7 +144,7 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 
 - `LatencyMs`에는 기본값을 넣지 않는다. 기본값 0을 두면 요청이 없는 구간에도 0ms 샘플이 가짜로 발행되어 p95·p99가 왜곡된다.
 - 접근 로그 한 줄 예시는 `{"type":"access","method":"GET","route":"/api/v1/topics","status":200,"durationMs":42,...}`다.
-- `TopicNotFound`는 `GET /api/v1/topics`가 오늘 날짜의 주제가 없을 때 404를 반환한다는 점을 이용한다. 이 경로의 404가 반복되면 오늘 OPEN 상태의 주제가 없다는 뜻이다.
+- `TopicNotFound`는 `GET /api/v1/topics`가 오늘 날짜의 주제가 없을 때 404를 반환한다는 점을 이용한다. 이 경로의 404가 반복되면 요청한 날짜(앱은 오늘, KST)의 주제 행이 없다는 뜻이다. 주제의 참여 단계(BEFORE_OPEN, OPEN, CLOSED)는 확인하지 않으므로 주제가 있지만 아직 열리지 않은 경우는 잡지 못한다. 알람은 5분 합계가 3건 이상인 구간이 10분 연속일 때만 울려 일시적인 404를 거른다.
 - `ImageProcessingAbandoned`의 패턴은 따옴표를 포함한 텍스트 검색어다. Lambda가 Python logging으로 `[ERROR]<TAB><시각><TAB><요청 ID><TAB>{json}` 형태의 줄을 남기므로 순수 JSON이 아니어서 JSON 패턴으로 매칭할 수 없다. 따옴표로 묶은 검색어는 정확히 그 문구만 매칭하므로 `image_processing_abandon_failed`는 매칭되지 않는다.
 - 필터는 만든 뒤에 들어오는 로그만 지표로 만든다.
 
@@ -251,7 +251,7 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 | `chalkak-prod-disk-used` | `CWAgent` / `disk_used_percent` / `InstanceId=`prod 인스턴스 ID, `path=/`, `fstype=ext4` | Average | 300초 | `> 85` | 2 of 2 | `missing` |
 | `chalkak-prod-memory-used` | `CWAgent` / `mem_used_percent` / `InstanceId=`prod 인스턴스 ID | Average | 300초 | `> 85` | 2 of 2 | `missing` |
 | `chalkak-prod-rds-free-storage` | `AWS/RDS` / `FreeStorageSpace` / `DBInstanceIdentifier=`prod RDS 식별자 | Minimum | 300초 | `< 2147483648` (2 GiB) | 1 of 1 | `missing` |
-| `chalkak-prod-no-open-topic` | `Chalkak/prod` / `TopicNotFound` / 없음 | Sum | 300초 | `>= 1` | 2 of 2 | `notBreaching` |
+| `chalkak-prod-no-open-topic` | `Chalkak/prod` / `TopicNotFound` / 없음 | Sum | 300초 | `>= 3` | 2 of 2 | `notBreaching` |
 
 #### 공유 알람 (토픽 `chalkak-prod-alarms`)
 
@@ -265,14 +265,15 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 #### 알람 설명
 
-dev와 prod는 같은 문구를 쓴다.
+`{env}` 표기가 있는 알람은 dev와 prod가 같은 문구를 쓴다. 디스크 알람만 prod에 Docker가 없어 환경별로 다르다.
 
 - `chalkak-{env}-5xx`: `5분 안에 5xx 응답이 1건 이상 발생했습니다. 먼저 애플리케이션 로그 그룹에서 type=error, errorCode=INTERNAL_ERROR 로그의 requestId와 stack_trace를 확인하세요.`
 - `chalkak-{env}-ec2-status-check`: `EC2 상태 검사가 2분 연속 실패했습니다. 먼저 EC2 콘솔에서 인스턴스 상태 검사(시스템/인스턴스)와 재부팅·중지 여부를 확인하세요.`
-- `chalkak-{env}-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 와 Docker 이미지·로그 크기를 점검하세요.`
-- `chalkak-prod-memory-used`: `메모리 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 free -m 과 docker stats 로 메모리를 많이 쓰는 프로세스를 확인하고 OOM 재시작 여부를 점검하세요.`
+- `chalkak-dev-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 크기와 journalctl --disk-usage 를 점검한 뒤, docker system df 로 Docker 이미지·볼륨·로그 크기도 확인하세요.`
+- `chalkak-prod-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 크기와 journalctl --disk-usage 를 점검하세요.`
+- `chalkak-prod-memory-used`: `메모리 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 free -m, ps aux --sort=-%mem | head, systemctl status chalkak-backend 로 메모리를 많이 쓰는 프로세스와 서비스 상태를 확인하고, journalctl -u chalkak-backend 로 OOM 또는 재시작 여부를 점검하세요.`
 - `chalkak-prod-rds-free-storage`: `RDS 여유 스토리지가 2GiB 미만입니다. 먼저 RDS 콘솔에서 스토리지 사용량과 자동 확장 설정을 확인하고 빠르게 늘어난 테이블이 있는지 점검하세요.`
-- `chalkak-prod-no-open-topic`: `오늘 날짜 주제 조회(GET /api/v1/topics)가 10분 연속 404입니다. 관리자 페이지에서 오늘 날짜의 주제가 OPEN 상태로 있는지 먼저 확인하세요.`
+- `chalkak-prod-no-open-topic`: `요청한 날짜의 주제가 없다는 404(GET /api/v1/topics)가 10분 연속 5분마다 3건 이상 발생했습니다. 오늘(KST) 주제가 등록되지 않았거나 삭제됐을 가능성이 큽니다. 먼저 관리자 페이지에서 오늘(KST) 날짜의 주제가 있는지 확인하세요. 주제가 있어도 BEFORE_OPEN 상태인 경우는 이 알람이 감지하지 못합니다.`
 - `chalkak-shared-image-queue-age`: `이미지 처리 대기열에서 가장 오래된 메시지가 10분 넘게 처리되지 않았습니다. 먼저 이미지 처리 Lambda의 Errors·Throttles 지표와 로그 그룹을 확인하세요.`
 - `chalkak-shared-image-lambda-errors`: `이미지 처리 Lambda 오류가 5분 안에 5건 이상 발생했습니다. 먼저 Lambda 로그 그룹에서 [ERROR] 로그와 실패한 S3 key를 확인하세요.`
 - `chalkak-shared-image-processing-abandoned`: `재시도 한도를 넘어 이미지 처리를 포기한 메시지가 있습니다. 먼저 Lambda 로그 그룹에서 image_processing_abandoned 를 검색해 대상 S3 key를 확인하세요.`
@@ -352,10 +353,11 @@ filter type = "access"
 | --- | --- |
 | `chalkak-{env}-5xx` | 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
 | `chalkak-{env}-ec2-status-check` | EC2 콘솔의 상태 검사, 재부팅·중지 여부 |
-| `chalkak-{env}-disk-used` | 서버 `df -h`, `/opt/chalkak/logs`, Docker 이미지·로그 크기 |
-| `chalkak-prod-memory-used` | 서버 `free -m`, `docker stats`, OOM 재시작 여부 |
+| `chalkak-dev-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage`, `docker system df`(Docker 이미지·볼륨·로그) |
+| `chalkak-prod-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage` |
+| `chalkak-prod-memory-used` | 서버 `free -m`, `ps aux --sort=-%mem \| head`, `systemctl status chalkak-backend`, `journalctl -u chalkak-backend`의 OOM·재시작 여부 |
 | `chalkak-prod-rds-free-storage` | RDS 콘솔의 스토리지 사용량과 자동 확장 설정, 빠르게 커진 테이블 |
-| `chalkak-prod-no-open-topic` | 관리자 페이지에서 오늘 날짜 주제가 OPEN 상태인지 |
+| `chalkak-prod-no-open-topic` | 관리자 페이지에 오늘(KST) 날짜의 주제가 있는지(등록 누락·삭제). BEFORE_OPEN 상태인 주제는 이 알람이 잡지 못한다 |
 | `chalkak-shared-image-queue-age` | Lambda `Errors`·`Throttles` 지표와 Lambda 로그 그룹 |
 | `chalkak-shared-image-lambda-errors` | Lambda 로그의 `[ERROR]`와 실패한 S3 key |
 | `chalkak-shared-image-processing-abandoned` | Lambda 로그에서 `image_processing_abandoned` 검색, 대상 S3 key |

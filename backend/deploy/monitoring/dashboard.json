@@ -217,7 +217,7 @@
       "width": 24,
       "height": 2,
       "properties": {
-        "markdown": "# prod 운영·사용자\nLogs Insights 위젯은 대시보드 기간(기본 24시간)을 따릅니다. DAU 추이와 검수 소요 시간 추이는 대시보드 기간을 8주로 바꿔서 확인하세요. 기간이 길수록 조회 비용이 늘어납니다. 일별 집계는 UTC 자정(한국 시각 오전 9시) 기준입니다. 검수 대기 목록은 조회 기간 안에 접수된 게시물만 보이므로, 정확한 대기 현황은 관리자 페이지에서 확인하세요."
+        "markdown": "# prod 운영·사용자\nLogs Insights 위젯은 대시보드 기간(기본 24시간)을 따릅니다. DAU 추이와 검수 소요 시간 추이는 대시보드 기간을 8주로 바꿔서 확인하세요. 기간이 길수록 조회 비용이 늘어납니다. 일별 집계는 한국 시각(KST) 기준입니다. 검수 대기 목록은 조회 기간 안에 접수된 게시물만 보이므로, 정확한 대기 현황은 관리자 페이지에서 확인하세요."
       }
     },
     {
@@ -256,7 +256,7 @@
         "title": "검수 소요 시간 (일별 평균 / p95, 초)",
         "region": "ap-northeast-2",
         "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"moderation\" and event in [\"approved\",\"rejected\"]\n| stats avg(waitSeconds) as avgWaitSec, pct(waitSeconds, 95) as p95WaitSec, count(*) as n by bin(1d) as day\n| sort day desc"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"moderation\" and event in [\"approved\",\"rejected\"]\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats avg(waitSeconds) as avgWaitSec, pct(waitSeconds, 95) as p95WaitSec, count(*) as n by day\n| sort day desc"
       }
     },
     {
@@ -282,7 +282,7 @@
         "title": "DAU (게시·좋아요 회원, 일별)",
         "region": "ap-northeast-2",
         "view": "bar",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter (method=\"POST\" and route=\"/api/v1/posts\" and status=201) or (method=\"PUT\" and route=\"/api/v1/posts/{postId}/likes\" and status=200)\n| stats countDistinct(userId) as dau by bin(1d)"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter (method=\"POST\" and route=\"/api/v1/posts\" and status=201) or (method=\"PUT\" and route=\"/api/v1/posts/{postId}/likes\" and status=200)\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats countDistinct(userId) as dau by day\n| sort day asc"
       }
     },
     {
