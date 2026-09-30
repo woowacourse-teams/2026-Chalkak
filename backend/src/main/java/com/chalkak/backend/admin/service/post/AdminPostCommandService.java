@@ -6,6 +6,7 @@ import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -14,11 +15,15 @@ import com.chalkak.backend.notification.service.UserNotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminPostCommandService {
 
+    private static final Logger MODERATION_LOG = LoggerFactory.getLogger("chalkak.moderation");
     private static final int MAX_REJECTION_REASON_LENGTH = 500;
     private static final String INVALID_MODERATION_REQUEST_MESSAGE = "게시물 검수 요청이 올바르지 않습니다.";
     private static final String INVALID_STATE_MESSAGE = "대기 중인 게시물만 검수할 수 있습니다.";
@@ -58,6 +64,7 @@ public class AdminPostCommandService {
         AdminAuditSnapshot beforeState = moderationBeforeState(post);
         Instant moderatedAt = Instant.now();
         decide(post, status, moderatedAt);
+        logModerated(post, status, moderatedAt);
         AdminAuditSnapshot afterState = moderationAfterState(post, adminId);
         AdminAuditLog auditLog = adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
@@ -168,6 +175,17 @@ public class AdminPostCommandService {
             return;
         }
         post.reject(moderatedAt);
+    }
+
+    private void logModerated(Post post, ModerationStatus status, Instant moderatedAt) {
+        MODERATION_LOG.atInfo()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_MODERATION)
+                .addKeyValue(LogFields.EVENT, status.name().toLowerCase(Locale.ROOT))
+                .addKeyValue(LogFields.POST_ID, post.getId())
+                .addKeyValue(
+                        LogFields.WAIT_SECONDS,
+                        Duration.between(post.getCreatedAt(), moderatedAt).getSeconds())
+                .log("검수 결정");
     }
 
     private AdminAction actionOf(ModerationStatus status) {

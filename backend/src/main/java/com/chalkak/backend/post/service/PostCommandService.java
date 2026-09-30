@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -27,6 +28,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class PostCommandService {
+
+    private static final Logger MODERATION_LOG = LoggerFactory.getLogger("chalkak.moderation");
 
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
@@ -167,6 +172,11 @@ public class PostCommandService {
     }
 
     private void publishPostModerationPending(UUID postId) {
+        MODERATION_LOG.atInfo()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_MODERATION)
+                .addKeyValue(LogFields.EVENT, "pending")
+                .addKeyValue(LogFields.POST_ID, postId)
+                .log("검수 대기");
         applicationEventPublisher.publishEvent(
                 new PostModerationPendingEvent(postId, Instant.now()));
     }
