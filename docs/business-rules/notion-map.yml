@@ -65,3 +65,4 @@ rule_pages:
       조회와 읽음: [NOTIFICATION-002, NOTIFICATION-003]
       보관과 삭제: [NOTIFICATION-004]
       푸시 기기 등록: [NOTIFICATION-005]
+      푸시 수신 설정: [NOTIFICATION-006]

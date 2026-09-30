@@ -224,6 +224,15 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("탈퇴 회원은 남은 JWT로 푸시 수신 설정을 조회할 수 없다")
+    void getSettings_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(withdrawn());
+    }
+
+    @Test
     @DisplayName("탈퇴 회원은 남아 있는 JWT로 푸시 기기를 등록할 수 없다")
     void registerCurrentDevice_withdrawnUser_returnsUnauthorized() throws Exception {
         // When & Then

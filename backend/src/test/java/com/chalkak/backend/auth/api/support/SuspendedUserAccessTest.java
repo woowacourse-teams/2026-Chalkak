@@ -244,6 +244,17 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("정지 회원도 본인 푸시 수신 설정을 조회할 수 있다")
+    void getSettings_suspendedUser_returnsOk() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicPushEnabled").value(true))
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+    }
+
+    @Test
     @DisplayName("정지 회원도 유효한 로그인에 푸시 기기를 등록할 수 있다")
     void registerCurrentDevice_suspendedUser_returnsNoContent() throws Exception {
         // Given
