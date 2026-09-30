@@ -13,6 +13,8 @@ public interface PushDeviceRepository {
 
     Optional<PushDevice> findBySessionId(UUID sessionId);
 
+    void disableBySessionId(UUID sessionId, Instant disabledAt);
+
     void disableOtherSessionByTokenHash(
             String tokenHash,
             UUID sessionId,

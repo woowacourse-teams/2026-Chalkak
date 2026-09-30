@@ -106,8 +106,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     @Transactional
     public void logout(String presentedToken) {
         lockLineageAndRead(refreshTokenHasher.encode(presentedToken))
-                .filter(refreshToken -> !refreshToken.isRevoked())
-                .ifPresent(refreshToken -> refreshTokenRepository.revokeSession(
+                .ifPresent(refreshToken -> logoutSession(
                         refreshToken.getSessionId(),
                         clock.instant()));
     }
@@ -149,6 +148,10 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
 
     /** 회전과 함께 내려보낼 액세스 토큰을 발급한다. 소유자마다 scope가 다르다. */
     protected abstract IssuedAccessToken issueAccessToken(T consumed);
+
+    protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
+        refreshTokenRepository.revokeSession(sessionId, loggedOutAt);
+    }
 
     /**
      * 회전으로 다음 토큰을 만든다.

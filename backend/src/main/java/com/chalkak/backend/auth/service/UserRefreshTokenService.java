@@ -5,6 +5,7 @@ import com.chalkak.backend.auth.domain.RefreshTokenPolicy;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.LoginSessionRepository;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
+import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
@@ -26,6 +27,7 @@ public class UserRefreshTokenService
 
     private final AccessTokenIssuer accessTokenIssuer;
     private final LoginSessionRepository loginSessionRepository;
+    private final PushDeviceRepository pushDeviceRepository;
 
     public UserRefreshTokenService(
             UserRefreshTokenRepository userRefreshTokenRepository,
@@ -34,6 +36,7 @@ public class UserRefreshTokenService
             RefreshTokenPolicy refreshTokenPolicy,
             AccessTokenIssuer accessTokenIssuer,
             LoginSessionRepository loginSessionRepository,
+            PushDeviceRepository pushDeviceRepository,
             Clock clock
     ) {
         super(
@@ -44,6 +47,7 @@ public class UserRefreshTokenService
                 clock);
         this.accessTokenIssuer = accessTokenIssuer;
         this.loginSessionRepository = loginSessionRepository;
+        this.pushDeviceRepository = pushDeviceRepository;
     }
 
     @Override
@@ -75,5 +79,11 @@ public class UserRefreshTokenService
     @Override
     protected IssuedAccessToken issueAccessToken(UserRefreshToken consumed) {
         return accessTokenIssuer.issue(consumed.getUser().getId(), consumed.getSessionId());
+    }
+
+    @Override
+    protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
+        super.logoutSession(sessionId, loggedOutAt);
+        pushDeviceRepository.disableBySessionId(sessionId, loggedOutAt);
     }
 }
