@@ -73,6 +73,7 @@ const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
 fun HomeRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onOpenNotifications: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -90,6 +91,7 @@ fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
+        onNotificationClick = onOpenNotifications,
     )
 }
 
@@ -98,6 +100,7 @@ fun HomeScreen(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    onNotificationClick: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -123,18 +126,21 @@ fun HomeScreen(
                 HomeContentStatus.Loading -> HomeInitialStatus(
                     status = uiState.contentStatus,
                     onRetryClick = { onAction(HomeUiAction.RetryClicked) },
+                    onNotificationClick = onNotificationClick,
                     modifier = Modifier.fillMaxSize(),
                 )
 
                 is HomeContentStatus.Error -> HomeInitialStatus(
                     status = uiState.contentStatus,
                     onRetryClick = { onAction(HomeUiAction.RetryClicked) },
+                    onNotificationClick = onNotificationClick,
                     modifier = Modifier.fillMaxSize(),
                 )
 
                 HomeContentStatus.Content -> HomeContent(
                     uiState = uiState,
                     onAction = onAction,
+                    onNotificationClick = onNotificationClick,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -146,6 +152,7 @@ fun HomeScreen(
 private fun HomeInitialStatus(
     status: HomeContentStatus,
     onRetryClick: () -> Unit,
+    onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val testTag = when (status) {
@@ -154,7 +161,10 @@ private fun HomeInitialStatus(
         HomeContentStatus.Content -> error("Content is rendered by HomeContent")
     }
     Column(modifier = modifier.statusBarsPadding()) {
-        HomeTopBar(modifier = Modifier.homeBottomDivider())
+        HomeTopBar(
+            onNotificationClick = onNotificationClick,
+            modifier = Modifier.fillMaxWidth().homeBottomDivider(),
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -194,6 +204,7 @@ private fun HomeInitialStatus(
 private fun HomeContent(
     uiState: HomeUiState,
     onAction: (HomeUiAction) -> Unit,
+    onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val photoListState = rememberLazyListState()
@@ -314,7 +325,9 @@ private fun HomeContent(
                     .windowInsetsTopHeight(WindowInsets.statusBars),
             )
             HomeTopBar(
+                onNotificationClick = onNotificationClick,
                 modifier = Modifier
+                    .fillMaxWidth()
                     .then(
                         if (scrollState.isTopAreaVisible) {
                             Modifier.homeBottomDivider()

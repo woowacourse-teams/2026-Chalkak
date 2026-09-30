@@ -321,6 +321,7 @@ class HomeScreenTest {
                 HomeRoute(
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
+                    onOpenNotifications = {},
                     viewModel = viewModel,
                 )
             }
@@ -356,6 +357,7 @@ class HomeScreenTest {
                 HomeRoute(
                     onOpenPhotoUpload = { openPhotoUploadCount++ },
                     onNavigateToBottomBar = { navigateToBottomBarCount++ },
+                    onOpenNotifications = {},
                     viewModel = viewModel,
                 )
             }
