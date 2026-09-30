@@ -140,11 +140,13 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 | `/chalkak/prod/application` | `Server5xx` | `{ $.type = "access" && $.status >= 500 }` | `Chalkak/prod` | `Server5xx` | `1` | `0` | Count |
 | `/chalkak/prod/application` | `LatencyMs` | `{ $.type = "access" }` | `Chalkak/prod` | `LatencyMs` | `$.durationMs` | 없음 | Milliseconds |
 | `/chalkak/prod/application` | `TopicNotFound` | `{ $.type = "access" && $.method = "GET" && $.route = "/api/v1/topics" && $.status = 404 }` | `Chalkak/prod` | `TopicNotFound` | `1` | `0` | Count |
+| `/chalkak/prod/application` | `RuntimeHeartbeat` | `{ $.type = "runtime" }` | `Chalkak/prod` | `RuntimeHeartbeat` | `1` | `0` | Count |
 | `/aws/lambda/chalkak-image-processor` | `ImageProcessingAbandoned` | `"image_processing_abandoned"` | `Chalkak/shared` | `ImageProcessingAbandoned` | `1` | `0` | Count |
 
 - `LatencyMs`에는 기본값을 넣지 않는다. 기본값 0을 두면 요청이 없는 구간에도 0ms 샘플이 가짜로 발행되어 p95·p99가 왜곡된다.
 - 접근 로그 한 줄 예시는 `{"type":"access","method":"GET","route":"/api/v1/topics","status":200,"durationMs":42,...}`다.
 - `TopicNotFound`는 `GET /api/v1/topics`가 오늘 날짜의 주제가 없을 때 404를 반환한다는 점을 이용한다. 이 경로의 404가 반복되면 요청한 날짜(앱은 오늘, KST)의 주제 행이 없다는 뜻이다. 주제의 참여 단계(BEFORE_OPEN, OPEN, CLOSED)는 확인하지 않으므로 주제가 있지만 아직 열리지 않은 경우는 잡지 못한다. 알람은 5분 합계가 3건 이상인 구간이 10분 연속일 때만 울려 일시적인 404를 거른다.
+- `RuntimeHeartbeat`는 앱이 1분마다 남기는 `type=runtime` 로그를 센다. prod는 로드밸런서가 없어 ALB 상태 신호가 없으므로 이 지표로 앱 중단, Agent 중지, 로그 전송 문제를 잡는다. 기본값 0이 있어 다른 로그는 들어오는데 runtime 로그만 끊기면 0이 발행되어 알람이 울린다. 로그가 전혀 들어오지 않으면 지표 자체가 없어지고, 알람의 누락 데이터 처리(`breaching`)가 이를 잡는다. 비용 때문에 dev에는 두지 않는다.
 - `ImageProcessingAbandoned`의 패턴은 따옴표를 포함한 텍스트 검색어다. Lambda가 Python logging으로 `[ERROR]<TAB><시각><TAB><요청 ID><TAB>{json}` 형태의 줄을 남기므로 순수 JSON이 아니어서 JSON 패턴으로 매칭할 수 없다. 따옴표로 묶은 검색어는 정확히 그 문구만 매칭하므로 `image_processing_abandon_failed`는 매칭되지 않는다.
 - 필터는 만든 뒤에 들어오는 로그만 지표로 만든다.
 
@@ -207,6 +209,7 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 | 지표 | 생기는 때 | 조치 |
 | --- | --- | --- |
 | `Chalkak/{env}` `RequestCount`, `Server5xx`, `TopicNotFound` | 기본값 0이 있어 로그가 한 줄이라도 들어오면 발행된다 | Agent가 로그를 보낸 뒤 기다린다 |
+| `Chalkak/prod` `RuntimeHeartbeat` | 기본값 0이 있어 prod 로그가 한 줄이라도 들어오면 발행된다 | prod Agent가 로그를 보낸 뒤 기다린다 |
 | `Chalkak/prod` `LatencyMs` | 기본값이 없어 첫 접근 로그가 들어와야 생긴다 | 접근 로그가 들어온 뒤 기다린다 |
 | `CWAgent` `disk_used_percent`, `mem_used_percent` | Agent가 실행되면 약 5분 뒤 | 5단계와 6단계 이후 확인한다 |
 | `Chalkak/shared` `ImageProcessingAbandoned` | 기본값 0이 있지만 이미지 Lambda가 로그를 한 줄이라도 남겨야 발행된다 | dev 앱에서 사인이나 포스트 이미지를 한 장 업로드해 처리시킨 뒤 확인한다 |
@@ -217,7 +220,7 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 
 ### 8. 알람
 
-알람은 dev 3개, prod 6개, 공유 3개다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
+알람은 dev 3개, prod 7개, 공유 3개다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
 
 1. **지표 선택**에서 표의 네임스페이스, 지표 이름, 디멘션을 고르고 통계와 기간을 입력한다.
 2. 조건에서 정적 임계값과 비교 연산자, 임계값을 입력한다. **추가 구성**을 펼쳐 "경보를 발생시킬 데이터 포인트"(표의 N of M)를 입력하고 **누락된 데이터 처리**를 표의 값으로 바꾼다. 콘솔의 기본값은 `missing`에 해당하는 "누락으로 처리"다.
@@ -252,6 +255,9 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 | `chalkak-prod-memory-used` | `CWAgent` / `mem_used_percent` / `InstanceId=`prod 인스턴스 ID | Average | 300초 | `> 85` | 2 of 2 | `missing` |
 | `chalkak-prod-rds-free-storage` | `AWS/RDS` / `FreeStorageSpace` / `DBInstanceIdentifier=`prod RDS 식별자 | Minimum | 300초 | `< 2147483648` (2 GiB) | 1 of 1 | `missing` |
 | `chalkak-prod-no-open-topic` | `Chalkak/prod` / `TopicNotFound` / 없음 | Sum | 300초 | `>= 3` | 2 of 2 | `notBreaching` |
+| `chalkak-prod-app-heartbeat` | `Chalkak/prod` / `RuntimeHeartbeat` / 없음 | Sum | 300초 | `< 1` | 2 of 2 | `breaching` |
+
+`chalkak-prod-app-heartbeat`는 누락 데이터를 `breaching`으로 처리하므로 prod에 로그가 아직 없으면(prod 릴리스 전) 바로 `ALARM`이 된다. 콘솔에서는 prod 릴리스 뒤 prod 로그가 흐르기 시작한 다음에 만든다. CLI로 미리 만들었다면 prod 로그가 흐를 때까지 prod 채널에 ALARM 메시지가 오는 것이 예상된 동작이다. 이 알람은 로드밸런서가 없는 prod에서 앱 생존 신호를 대신한다.
 
 #### 공유 알람 (토픽 `chalkak-prod-alarms`)
 
@@ -274,6 +280,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 - `chalkak-prod-memory-used`: `메모리 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 free -m, ps aux --sort=-%mem | head, systemctl status chalkak-backend 로 메모리를 많이 쓰는 프로세스와 서비스 상태를 확인하고, journalctl -u chalkak-backend 로 OOM 또는 재시작 여부를 점검하세요.`
 - `chalkak-prod-rds-free-storage`: `RDS 여유 스토리지가 2GiB 미만입니다. 먼저 RDS 콘솔에서 스토리지 사용량과 자동 확장 설정을 확인하고 빠르게 늘어난 테이블이 있는지 점검하세요.`
 - `chalkak-prod-no-open-topic`: `요청한 날짜의 주제가 없다는 404(GET /api/v1/topics)가 10분 연속 5분마다 3건 이상 발생했습니다. 오늘(KST) 주제가 등록되지 않았거나 삭제됐을 가능성이 큽니다. 먼저 관리자 페이지에서 오늘(KST) 날짜의 주제가 있는지 확인하세요. 주제가 있어도 BEFORE_OPEN 상태인 경우는 이 알람이 감지하지 못합니다.`
+- `chalkak-prod-app-heartbeat`: `prod 런타임 로그(1분마다 1줄)가 10분 동안 들어오지 않았습니다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제 중 하나입니다. 먼저 서버에서 systemctl status chalkak-backend, journalctl -u chalkak-backend -n 100 으로 앱 상태를, amazon-cloudwatch-agent-ctl -m ec2 -a status 로 Agent 상태를 확인하세요. 배포 직후 잠깐의 재시작은 10분 조건으로 걸러집니다.`
 - `chalkak-shared-image-queue-age`: `이미지 처리 대기열에서 가장 오래된 메시지가 10분 넘게 처리되지 않았습니다. 먼저 이미지 처리 Lambda의 Errors·Throttles 지표와 로그 그룹을 확인하세요.`
 - `chalkak-shared-image-lambda-errors`: `이미지 처리 Lambda 오류가 5분 안에 5건 이상 발생했습니다. 먼저 Lambda 로그 그룹에서 [ERROR] 로그와 실패한 S3 key를 확인하세요.`
 - `chalkak-shared-image-processing-abandoned`: `재시도 한도를 넘어 이미지 처리를 포기한 메시지가 있습니다. 먼저 Lambda 로그 그룹에서 image_processing_abandoned 를 검색해 대상 S3 key를 확인하세요.`
@@ -310,7 +317,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 - [ ] 로그 그룹 `/chalkak/dev/application`, `/chalkak/prod/application`에 로그 이벤트가 들어오고, Logs Insights에서 JSON 필드(`type`, `route`, `status`, `userId`)가 자동 인식된다.
 - [ ] `type=runtime` 로그가 1분마다 들어온다.
-- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 4, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
+- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 5, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
 - [ ] 알람이 `OK` 또는 예상한 `INSUFFICIENT_DATA` 상태다. `chalkak-*-ec2-status-check`, `chalkak-*-5xx`가 `ALARM`이면 즉시 확인한다.
 - [ ] 대시보드 `DASHBOARD-chalkak`의 위젯에 데이터가 표시된다.
 - [ ] 로그 rotation 후에도 전송이 이어진다. logback은 매일과 50MB마다 `application.log.<날짜>.<n>.gz`로 롤링한다. 배포 다음 날 서버에서 `ls -l /opt/chalkak/logs`로 롤링된 파일을 확인하고, Logs Insights에서 한국 시각 자정 이후 이벤트가 들어오는지 조회한다. 롤링을 강제로 일으킬 필요는 없다.
@@ -358,6 +365,7 @@ filter type = "access"
 | `chalkak-prod-memory-used` | 서버 `free -m`, `ps aux --sort=-%mem \| head`, `systemctl status chalkak-backend`, `journalctl -u chalkak-backend`의 OOM·재시작 여부 |
 | `chalkak-prod-rds-free-storage` | RDS 콘솔의 스토리지 사용량과 자동 확장 설정, 빠르게 커진 테이블 |
 | `chalkak-prod-no-open-topic` | 관리자 페이지에 오늘(KST) 날짜의 주제가 있는지(등록 누락·삭제). BEFORE_OPEN 상태인 주제는 이 알람이 잡지 못한다 |
+| `chalkak-prod-app-heartbeat` | 서버 `systemctl status chalkak-backend`, `journalctl -u chalkak-backend -n 100`, `amazon-cloudwatch-agent-ctl -m ec2 -a status` (앱 중단, Agent 중지, 로그 전송 문제) |
 | `chalkak-shared-image-queue-age` | Lambda `Errors`·`Throttles` 지표와 Lambda 로그 그룹 |
 | `chalkak-shared-image-lambda-errors` | Lambda 로그의 `[ERROR]`와 실패한 S3 key |
 | `chalkak-shared-image-processing-abandoned` | Lambda 로그에서 `image_processing_abandoned` 검색, 대상 S3 key |
@@ -370,14 +378,14 @@ CloudWatch 요금은 [공식 가격표](https://aws.amazon.com/cloudwatch/pricin
 
 | 항목 | 수량 | 비고 |
 | --- | --- | --- |
-| 커스텀 메트릭 | 10개 | dev 2 + prod 4 + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
-| 알람 | 12개 | dev 3 + prod 6 + shared 3. 테스트 알람을 켜 둔 동안 1개씩 추가 |
+| 커스텀 메트릭 | 11개 | dev 2 + prod 5 + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
+| 알람 | 13개 | dev 3 + prod 7 + shared 3. 테스트 알람을 켜 둔 동안 1개씩 추가 |
 | 대시보드 | 1개 | 무료 한도는 가격표에서 확인한다 |
 | 로그 수집·저장 | 트래픽 비례 | 수집량(GB)에 과금, 보존은 prod 60일·dev 7일. 접근 로그 트래픽이 늘면 가장 크게 변한다 |
 | Logs Insights 조회 | 조회한 로그 양(GB) 비례 | 대시보드의 Logs Insights 위젯이 열릴 때마다 조회한다 |
 | Lambda·SNS | 알람 횟수 비례 | 알람 메시지 수가 적어 이 규모에서는 무시할 수 있다. [Lambda 요금](https://aws.amazon.com/lambda/pricing/), [SNS 요금](https://aws.amazon.com/sns/pricing/) |
 
-월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504 계획(메트릭 3개, 알람 1개 추가)까지 포함해 잡은 값이다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
+월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504 계획(메트릭 3개, 알람 1개 추가, 이후 메트릭 14개·알람 14개)까지 포함해 잡은 값이다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
 
 점검 방법은 다음과 같다.
 

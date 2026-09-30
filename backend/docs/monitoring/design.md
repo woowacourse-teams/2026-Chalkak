@@ -82,6 +82,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 메모리 사용률 (prod) | CloudWatch Agent `mem_used_percent` | 알람 `chalkak-prod-memory-used`, 대시보드 | 구현 #503 |
 | RDS CPU·연결 수 | AWS 지표 | prod 대시보드 | 구현 #503 |
 | RDS 여유 스토리지 | AWS 지표 | 알람 `chalkak-prod-rds-free-storage`, 대시보드 | 구현 #503 |
+| prod 앱 생존 (하트비트) | 메트릭 필터 `RuntimeHeartbeat` (`type=runtime` 로그, 1분마다 1줄, prod만, 기본값 0) | 알람 `chalkak-prod-app-heartbeat` | 구현 #503 |
 | RDS 읽기·쓰기 지연 | | | 보류 (7절) |
 | CloudFront 요청·오류율 | | | 보류 (7절) |
 
@@ -144,7 +145,8 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 전체 알람 목록, 임계값, 평가 조건, 결측 데이터 처리는 런북의 8단계 표와 알람 설명이 기준이다. 여기서는 원칙만 적는다.
 
 - **5xx는 1건부터 알린다.** 처음 요구사항 초안은 "오류율 + 최소 요청량" 조건이었다. 이 앱은 처리되지 않은 예외(`INTERNAL_ERROR`)일 때만 5xx를 반환하고 나머지 실패는 4xx로 응답하므로, 5xx는 1건이어도 버그다. 그래서 오류율 계산 없이 5분 안에 1건 이상이면 알린다.
-- **알람은 대응이 필요한 것만 둔다.** dev 3개(5xx, EC2 상태 검사, 디스크), prod 6개(5xx, EC2 상태 검사, 디스크, 메모리, RDS 여유 스토리지, 요청한 날짜 주제 행 없음), 공유 3개(SQS 대기 시간, Lambda 오류, 이미지 처리 포기)다.
+- **알람은 대응이 필요한 것만 둔다.** dev 3개(5xx, EC2 상태 검사, 디스크), prod 7개(5xx, EC2 상태 검사, 디스크, 메모리, RDS 여유 스토리지, 요청한 날짜 주제 행 없음, 런타임 하트비트), 공유 3개(SQS 대기 시간, Lambda 오류, 이미지 처리 포기)다.
+- **하트비트 알람은 prod에만 둔다.** prod EC2는 공개 주소로 직접 받고 로드밸런서가 없어 ALB 상태 검사 같은 앱 생존 신호가 없다. 그래서 앱이 1분마다 남기는 `type=runtime` 로그를 세어 10분 동안 끊기면 알린다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제를 한 알람으로 잡는다. 기본값 0으로 다른 로그만 들어오는 경우를, 누락 데이터 `breaching`으로 로그가 전혀 없는 경우를 잡는다. 지표와 알람이 하나씩 늘어 비용이 들기 때문에 dev에는 두지 않는다. prod 로그가 없는 릴리스 전에는 ALARM이 되므로 prod 릴리스 뒤에 만든다.
 - **검수 대기 적체 알람은 없다.** 새 검수 대기 게시물은 기존 관리자 Slack 알림이 이미 알려 준다. 대기 시간은 대시보드 위젯으로 본다.
 - **공유 자원 알람은 prod 토픽으로 보낸다.** SQS 큐와 이미지 처리 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없다.
 - **알림 경로는 앱과 독립이다.** 알람 Slack 채널과 webhook은 관리자 알림용과 별도로 두어 앱이나 EC2가 죽어도 알람이 나간다.

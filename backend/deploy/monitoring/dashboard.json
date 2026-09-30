@@ -26,7 +26,8 @@
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-disk-used",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-memory-used",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-rds-free-storage",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-no-open-topic"
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-no-open-topic",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-app-heartbeat"
         ]
       }
     },
