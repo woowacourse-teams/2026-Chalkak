@@ -35,6 +35,11 @@ public class PushDeviceRepositoryImpl implements PushDeviceRepository {
     }
 
     @Override
+    public void disableByUserId(UUID userId, Instant disabledAt) {
+        pushDeviceJpaRepository.disableByUserId(userId, disabledAt);
+    }
+
+    @Override
     public void disableOtherSessionByTokenHash(
             String tokenHash,
             UUID sessionId,

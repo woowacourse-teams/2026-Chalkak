@@ -127,7 +127,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     public void revokeAll(UUID ownerId) {
         List<UUID> sessionIds = refreshTokenRepository.findLiveSessionIdsByOwnerId(ownerId);
         sessionIds.forEach(refreshTokenRepository::lockSession);
-        refreshTokenRepository.revokeAllByOwnerId(ownerId, clock.instant());
+        revokeOwner(ownerId, clock.instant());
     }
 
     /** 계보의 첫 토큰을 만든다. 소유자 종류를 아는 것은 하위 클래스뿐이다. */
@@ -151,6 +151,10 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
 
     protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
         refreshTokenRepository.revokeSession(sessionId, loggedOutAt);
+    }
+
+    protected void revokeOwner(UUID ownerId, Instant revokedAt) {
+        refreshTokenRepository.revokeAllByOwnerId(ownerId, revokedAt);
     }
 
     /**

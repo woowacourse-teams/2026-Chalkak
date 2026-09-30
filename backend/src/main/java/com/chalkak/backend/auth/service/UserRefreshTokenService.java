@@ -86,4 +86,10 @@ public class UserRefreshTokenService
         super.logoutSession(sessionId, loggedOutAt);
         pushDeviceRepository.disableBySessionId(sessionId, loggedOutAt);
     }
+
+    @Override
+    protected void revokeOwner(UUID ownerId, Instant revokedAt) {
+        super.revokeOwner(ownerId, revokedAt);
+        pushDeviceRepository.disableByUserId(ownerId, revokedAt);
+    }
 }

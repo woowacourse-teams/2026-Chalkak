@@ -40,6 +40,20 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
             UPDATE PushDevice device
             SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
+            WHERE device.disabledAt IS NULL AND device.session.id IN (
+                SELECT session.id FROM LoginSession session WHERE session.user.id = :userId
+            )
+            """)
+    int disableByUserId(
+            @Param("userId") UUID userId,
+            @Param("disabledAt") Instant disabledAt
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            UPDATE PushDevice device
+            SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
+                device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
             WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
                 AND device.session.id <> :sessionId
             """)

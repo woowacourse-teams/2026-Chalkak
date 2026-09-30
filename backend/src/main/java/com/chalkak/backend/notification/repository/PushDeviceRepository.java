@@ -15,6 +15,8 @@ public interface PushDeviceRepository {
 
     void disableBySessionId(UUID sessionId, Instant disabledAt);
 
+    void disableByUserId(UUID userId, Instant disabledAt);
+
     void disableOtherSessionByTokenHash(
             String tokenHash,
             UUID sessionId,
