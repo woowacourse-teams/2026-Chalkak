@@ -3,6 +3,7 @@ package com.chalkak.backend.common.logging;
 public final class LogFields {
 
     public static final String REQUEST_ID = "requestId";
+    public static final String USER_ID = "userId";
     public static final String TYPE = "type";
     public static final String METHOD = "method";
     public static final String ROUTE = "route";
@@ -20,6 +21,7 @@ public final class LogFields {
     public static final String HIKARI_ACTIVE = "hikariActive";
     public static final String HIKARI_PENDING = "hikariPending";
 
+    public static final String USER_ID_REQUEST_ATTRIBUTE = "chalkak.userId";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     public static final String TYPE_ACCESS = "access";

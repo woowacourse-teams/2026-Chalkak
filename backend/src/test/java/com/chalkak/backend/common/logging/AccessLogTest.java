@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -31,6 +33,9 @@ class AccessLogTest extends IntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
 
     private final Logger accessLogger = (Logger) LoggerFactory.getLogger("chalkak.access");
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -91,6 +96,39 @@ class AccessLogTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("로그인한 회원의 요청은 접근 로그에 userId를 정확히 1개 남긴다")
+    void accessLog_memberRequest_logsUserId() throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        String token = accessTokenProvider.issue(userId).value();
+
+        // When
+        mockMvc.perform(get("/api/v1/topics")
+                .queryParam("date", "2026-01-01")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andReturn();
+
+        // Then
+        assertThat(appender.list).hasSize(1);
+        assertThat(appender.list.getFirst().getKeyValuePairs()
+                .stream().filter(pair -> pair.key.equals("userId")))
+                .singleElement()
+                .satisfies(pair -> assertThat(pair.value).isEqualTo(userId.toString()));
+    }
+
+    @Test
+    @DisplayName("토큰이 없는 요청은 접근 로그에 userId 키가 없다")
+    void accessLog_anonymousRequest_hasNoUserId() throws Exception {
+        // When
+        mockMvc.perform(get("/api/v1/topics").queryParam("date", "2026-01-01")).andReturn();
+
+        // Then
+        assertThat(appender.list).hasSize(1);
+        assertThat(appender.list.getFirst().getKeyValuePairs())
+                .noneMatch(pair -> pair.key.equals("userId"));
+    }
+
+    @Test
     @DisplayName("actuator 경로는 접근 로그를 남기지 않는다")
     void accessLog_actuatorPath_logsNothing() throws Exception {
         // When
@@ -118,7 +156,6 @@ class AccessLogTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }
