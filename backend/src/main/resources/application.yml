@@ -23,6 +23,10 @@ spring:
     validate-migration-naming: true
 
 chalkak:
+  monitoring:
+    runtime-log:
+      # 1분마다 JVM·커넥션 풀 상태를 한 줄 로그로 남긴다. 로컬·테스트에서는 소음이라 끄고 dev·prod에서만 켠다.
+      enabled: false
   admin:
     authentication:
       development-bypass-enabled: false
