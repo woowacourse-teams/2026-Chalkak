@@ -42,7 +42,7 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 
     @Override
     public boolean existsUnreadByUserId(UUID userId) {
-        return notificationJpaRepository.existsByUserIdAndReadAtIsNull(userId);
+        return notificationJpaRepository.existsVisibleUnreadByUserId(userId);
     }
 
     @Override

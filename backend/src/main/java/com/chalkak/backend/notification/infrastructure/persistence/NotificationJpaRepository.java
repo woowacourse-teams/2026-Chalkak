@@ -22,6 +22,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             JOIN Post post ON post.id = notification.postId
             JOIN post.photo photo
             WHERE notification.userId = :userId
+                AND post.deletedAt IS NULL
             ORDER BY notification.createdAt DESC, notification.id DESC
             """)
     Slice<NotificationSummary> findSummariesByUserId(
@@ -36,19 +37,32 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             JOIN Post post ON post.id = notification.postId
             JOIN post.photo photo
             WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND post.deletedAt IS NULL
             """)
     Optional<NotificationDetail> findDetailByIdAndUserId(
             @Param("notificationId") UUID notificationId,
             @Param("userId") UUID userId
     );
 
-    boolean existsByUserIdAndReadAtIsNull(UUID userId);
+    @Query("""
+            SELECT CASE WHEN COUNT(notification) > 0 THEN true ELSE false END
+            FROM Notification notification
+            JOIN Post post ON post.id = notification.postId
+            WHERE notification.userId = :userId AND notification.readAt IS NULL
+                AND post.deletedAt IS NULL
+            """)
+    boolean existsVisibleUnreadByUserId(@Param("userId") UUID userId);
 
     @Modifying
     @Query("""
             UPDATE Notification notification
             SET notification.readAt = coalesce(notification.readAt, :readAt)
             WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.id = notification.postId
+                        AND post.deletedAt IS NULL
+                )
             """)
     int markRead(
             @Param("notificationId") UUID notificationId,
@@ -61,6 +75,11 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             UPDATE Notification notification
             SET notification.readAt = :readAt
             WHERE notification.userId = :userId AND notification.readAt IS NULL
+                AND EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.id = notification.postId
+                        AND post.deletedAt IS NULL
+                )
             """)
     int markAllRead(
             @Param("userId") UUID userId,

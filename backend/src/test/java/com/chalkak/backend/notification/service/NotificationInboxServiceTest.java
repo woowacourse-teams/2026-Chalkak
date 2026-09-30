@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -41,6 +43,12 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationInboxService notificationInboxService;
+
+    @Autowired
+    private PostCommandService postCommandService;
+
+    @Autowired
+    private AdminPostCommandService adminPostCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -114,6 +122,55 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
     void hasUnreadNotification_returnsOwnUnreadStatus() {
         assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isTrue();
         assertThat(notificationInboxService.hasUnreadNotification(OTHER_USER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("작성자가 승인 게시물을 삭제하면 알림함에서 제외하되 알림 기록은 보관한다")
+    void getNotifications_authorDeletedApprovedPost_hidesNotificationButKeepsRecord() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE posts SET moderation_status = CAST('APPROVED' AS moderation_status)
+                WHERE id = ?
+                """, POST_ID);
+        jdbcTemplate.update("""
+                UPDATE notifications
+                SET type = 'POST_APPROVED', title = '게시물이 승인되었습니다.',
+                    body = '내 사진이 피드에 공개되었습니다.', rejection_reason = NULL
+                WHERE id = ?
+                """, NOTIFICATION_ID);
+
+        // When
+        postCommandService.deletePost(USER_ID, POST_ID);
+
+        // Then
+        assertThat(notificationInboxService.getNotifications(USER_ID, 1, 20).notifications())
+                .isEmpty();
+        assertThatThrownBy(() -> notificationInboxService.getNotification(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThatThrownBy(() -> notificationInboxService.markRead(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE id = ?", Integer.class,
+                NOTIFICATION_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("관리자가 반려 게시물을 삭제해도 알림함에서 제외한다")
+    void getNotifications_adminDeletedRejectedPost_hidesNotification() {
+        // When
+        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
+
+        // Then
+        assertThat(notificationInboxService.getNotifications(USER_ID, 1, 20).notifications())
+                .isEmpty();
+        assertThatThrownBy(() -> notificationInboxService.getNotification(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isFalse();
+        notificationInboxService.markAllRead(USER_ID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
+                Integer.class, NOTIFICATION_ID)).isEqualTo(1);
     }
 
     @Test

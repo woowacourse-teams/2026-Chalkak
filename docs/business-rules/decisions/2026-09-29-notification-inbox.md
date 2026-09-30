@@ -8,3 +8,11 @@
 - 영향 범위: 관리자 승인·반려 트랜잭션, 회원 알림함 API, 읽음 표시, 주기적 데이터 정리. 주제 알림·기기 등록·FCM·SQS·Outbox는 후속 이슈 범위이며 이번 결정의 구현 완료 대상으로 보지 않는다.
 - 관련 규칙: NOTIFICATION-001, NOTIFICATION-002, NOTIFICATION-003, NOTIFICATION-004, USER-003, USER-004, POST-006, ADMIN-003, ADMIN-007
 - 관련 이슈·PR: [#490](https://github.com/woowacourse-teams/2026-Chalkak/issues/490)
+
+## 삭제된 게시물의 알림 표시
+
+- 변경 전: 게시물·사진이 논리 삭제돼도 알림 목록·상세에서 사진 URL을 제공하고 미읽음 여부에도 포함했다.
+- 변경 후: 작성자 또는 관리자가 게시물을 삭제하면 해당 검수 알림을 목록·상세·미읽음 상태에서 제외한다. 단건·전체 읽음 처리도 표시되는 알림만 대상으로 한다. 알림 행은 기존 보관 기간에 따라 정리한다.
+- 변경 이유: 삭제된 사진의 저장 파일은 즉시 제거되지 않아 기존 URL을 알림함에서 계속 제공할 수 있었다. 알림을 물리 삭제하면 60일 보관 및 이후 발송 기록과의 연결이 달라지므로 조회 범위를 제한한다.
+- 영향 범위: 본인 알림 조회·읽음 처리와 앱의 삭제된 알림 상세 접근 시 404 처리. 작성자가 삭제할 수 있는 `APPROVED` 게시물뿐 아니라 관리자가 삭제할 수 있는 `REJECTED` 게시물도 포함한다.
+- 관련 규칙·이슈·PR: NOTIFICATION-002, NOTIFICATION-003, [#490](https://github.com/woowacourse-teams/2026-Chalkak/issues/490), [#498](https://github.com/woowacourse-teams/2026-Chalkak/pull/498)
