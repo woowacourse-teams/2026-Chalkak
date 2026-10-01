@@ -125,7 +125,7 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         UUID postId = UUID.randomUUID();
         given(postLikeService.likePost(postId, userId))
                 .willReturn(new PostLikeResult(postId, 1L, true));
-        String token = accessTokenProvider.issue(userId, UUID.randomUUID()).value();
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
         mockMvc.perform(put(LIKE_PATH, postId)
@@ -138,7 +138,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("서명이 변조된 토큰은 401을 반환한다")
     void protectedApi_tamperedToken_returnsUnauthorized() throws Exception {
         // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID(), UUID.randomUUID()).value();
+        String token = accessTokenProvider.issueForSession(UUID.randomUUID(), UUID.randomUUID())
+                .value();
         int signatureStart = token.lastIndexOf('.') + 1;
         char original = token.charAt(signatureStart);
         String tamperedToken = token.substring(0, signatureStart)
@@ -201,7 +202,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         given(userRefreshTokenService.refresh(any()))
                 .willReturn(new TokenRefreshResult(
                         new IssuedAccessToken("chalkak-access-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30))));
+                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
@@ -261,7 +263,7 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         UUID userId = createUser();
         given(postQueryService.getMyPostCalendar(eq(userId), any()))
                 .willReturn(new PostCalendarResult(2026, 8, List.of()));
-        String token = accessTokenProvider.issue(userId, UUID.randomUUID()).value();
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
@@ -372,7 +374,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", UUID.randomUUID())
                 .header(HttpHeaders.AUTHORIZATION,
-                        "Bearer " + accessTokenProvider.issue(userId, UUID.randomUUID()).value()))
+                        "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID())
+                                .value()))
                 .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
     }
 
@@ -501,7 +504,7 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // Given
         UUID userId = createUser();
         given(postQueryService.getMyPostCalendarMonths(userId)).willReturn(List.of());
-        String token = accessTokenProvider.issue(userId, UUID.randomUUID()).value();
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar/months")

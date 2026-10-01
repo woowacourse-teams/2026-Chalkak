@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public interface AccessTokenIssuer {
 
-    IssuedAccessToken issue(UUID userId, UUID sessionId);
+    IssuedAccessToken issueForSession(UUID userId, UUID sessionId);
 
     IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope);
 }

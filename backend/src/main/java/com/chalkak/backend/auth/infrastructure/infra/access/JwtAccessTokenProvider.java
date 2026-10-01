@@ -55,7 +55,7 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
     }
 
     @Override
-    public IssuedAccessToken issue(UUID userId, UUID sessionId) {
+    public IssuedAccessToken issueForSession(UUID userId, UUID sessionId) {
         return issue(userId, AccessTokenScope.USER, sessionId);
     }
 

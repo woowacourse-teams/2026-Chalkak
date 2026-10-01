@@ -51,7 +51,7 @@ class PushDeviceAccessTest extends IntegrationTestSupport {
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
         String authorization = "Bearer " + accessTokenProvider
-                .issue(user.getId(), refreshToken.sessionId()).value();
+                .issueForSession(user.getId(), refreshToken.sessionId()).value();
 
         // When & Then
         register(authorization, "first-token");

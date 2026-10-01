@@ -59,7 +59,7 @@ public class ExistingSocialAccountLoginProcessor {
         IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
         return Optional.of(new SocialLoginSuccess(
                 userId,
-                accessTokenIssuer.issue(userId, refreshToken.sessionId()),
+                accessTokenIssuer.issueForSession(userId, refreshToken.sessionId()),
                 refreshToken));
     }
 

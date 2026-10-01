@@ -77,7 +77,7 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId, UUID.randomUUID()).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test
@@ -280,7 +280,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .decode(token.substring("Bearer ".length())).getSubject());
         User user = userRepository.findById(userId).orElseThrow();
         UUID sessionId = userRefreshTokenService.issue(user).sessionId();
-        String authorization = "Bearer " + accessTokenProvider.issue(userId, sessionId).value();
+        String authorization = "Bearer "
+                + accessTokenProvider.issueForSession(userId, sessionId).value();
 
         // When & Then
         mockMvc.perform(put("/api/v1/push-devices/current")

@@ -37,14 +37,14 @@ class JwtAccessTokenProviderTest {
 
     @Test
     @DisplayName("회원과 로그인 회차 식별자로 액세스 토큰을 발급하고 검증한다")
-    void issue_validUserIdAndSessionId_issuesVerifiableAccessToken() {
+    void issueForSession_validUserIdAndSessionId_issuesVerifiableAccessToken() {
         // Given
         JwtAccessTokenProvider provider = createProvider(NOW);
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
 
         // When
-        IssuedAccessToken issuedToken = provider.issue(userId, sessionId);
+        IssuedAccessToken issuedToken = provider.issueForSession(userId, sessionId);
         Jwt jwt = provider.jwtDecoder().decode(issuedToken.value());
 
         // Then
@@ -156,7 +156,7 @@ class JwtAccessTokenProviderTest {
     void decode_tamperedToken_throwsJwtException() {
         // Given
         JwtAccessTokenProvider provider = createProvider(NOW);
-        String token = provider.issue(UUID.randomUUID(), UUID.randomUUID()).value();
+        String token = provider.issueForSession(UUID.randomUUID(), UUID.randomUUID()).value();
         String tamperedToken = tamperSignature(token);
 
         // When & Then
@@ -169,7 +169,7 @@ class JwtAccessTokenProviderTest {
     void decode_justPastExpiryWithinClockSkew_verifiesAccessToken() {
         // Given
         String token = createProvider(NOW)
-                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
+                .issueForSession(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(29));
 
         // When
@@ -184,7 +184,7 @@ class JwtAccessTokenProviderTest {
     void decode_expiredBeyondClockSkew_throwsJwtException() {
         // Given
         String token = createProvider(NOW)
-                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
+                .issueForSession(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(31));
 
         // When & Then
@@ -215,7 +215,7 @@ class JwtAccessTokenProviderTest {
     void decode_exactlyAtClockSkewBoundary_verifiesAccessToken() {
         // Given
         String token = createProvider(NOW)
-                .issue(UUID.randomUUID(), UUID.randomUUID()).value();
+                .issueForSession(UUID.randomUUID(), UUID.randomUUID()).value();
         JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(30));
 
         // When

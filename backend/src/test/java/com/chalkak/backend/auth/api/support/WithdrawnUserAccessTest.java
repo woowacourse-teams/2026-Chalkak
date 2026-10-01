@@ -68,7 +68,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId, UUID.randomUUID()).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test

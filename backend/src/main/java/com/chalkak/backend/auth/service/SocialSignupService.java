@@ -126,7 +126,7 @@ public class SocialSignupService {
         IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
         return new SocialSignupResult(
                 user.getId(),
-                accessTokenIssuer.issue(user.getId(), refreshToken.sessionId()),
+                accessTokenIssuer.issueForSession(user.getId(), refreshToken.sessionId()),
                 refreshToken);
     }
 

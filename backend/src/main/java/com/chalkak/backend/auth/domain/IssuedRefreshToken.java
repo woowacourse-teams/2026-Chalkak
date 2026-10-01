@@ -7,8 +7,4 @@ public record IssuedRefreshToken(
         String value,
         Duration expiresIn,
         UUID sessionId) {
-
-    public IssuedRefreshToken(String value, Duration expiresIn) {
-        this(value, expiresIn, null);
-    }
 }
