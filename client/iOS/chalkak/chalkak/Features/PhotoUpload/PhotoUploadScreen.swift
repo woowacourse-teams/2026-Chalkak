@@ -77,10 +77,8 @@ struct PhotoUploadScreen: View {
         .background(theme.colors.background)
         .safeAreaInset(edge: .top, spacing: 0) {
             PhotoUploadTopBar(onBackClick: requestBack)
-                .padding(.leading, 8)
-                .padding(.trailing, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
+                .padding(.horizontal, theme.spacing.lg)
+                .padding(.vertical, theme.spacing.md)
                 .background(theme.colors.background)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

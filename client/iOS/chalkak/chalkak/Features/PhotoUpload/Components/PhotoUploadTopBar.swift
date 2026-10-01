@@ -27,9 +27,7 @@ struct PhotoUploadTopBar: View {
 
 #Preview("Photo Upload Top Bar") {
     PhotoUploadTopBar(onBackClick: {})
-        .padding(.leading, 8)
-        .padding(.trailing, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.horizontal, ChalkakSpacing.lg)
+        .padding(.vertical, ChalkakSpacing.md)
         .chalkakTheme(.light)
 }
