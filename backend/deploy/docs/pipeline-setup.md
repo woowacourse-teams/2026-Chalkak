@@ -115,10 +115,10 @@ Target instance가 반드시 개발 EC2 한 대만 표시되는지 확인한다.
 | Deployment type | In-place |
 | EC2 tag | `Name=chalkak-prod-api` |
 | Deployment configuration | `CodeDeployDefault.OneAtATime` |
-| Load balancer | 기존 운영 ALB target group 연결 |
+| Load balancer | 비활성화 |
 | Automatic rollback | 배포 실패 시 활성화 |
 
-In-place deployment에 load balancer를 연결하면 CodeDeploy가 배포 중 instance를 target group에서 제외하고 완료 후 다시 등록한다. 다른 팀 instance가 deployment target에 포함되지 않았는지 생성 직전에 다시 확인한다.
+운영도 로드밸런서 없이 공개 EC2에 직접 연결하므로 load balancer는 연결하지 않는다. 다른 팀 instance가 deployment target에 포함되지 않았는지 생성 직전에 다시 확인한다.
 
 CodeDeploy rollback은 DB를 되돌리는 기능이 아니라 이전 application revision을 새 deployment로 다시 배포하는 기능이다. 이미 성공한 Flyway migration은 자동으로 되돌아가지 않는다.
 
@@ -224,6 +224,5 @@ SNS topic은 회사 정책에 따라 사용할 수 있을 때만 연결한다. �
 - [CodePipeline GitHub Version 1 source](https://docs.aws.amazon.com/codepipeline/latest/userguide/appendix-github-oauth.html)
 - [CodePipeline manual approval](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals.html)
 - [CodeDeploy In-place deployment group](https://docs.aws.amazon.com/codedeploy/latest/userguide/deployment-groups-create-in-place.html)
-- [CodeDeploy load balancer](https://docs.aws.amazon.com/codedeploy/latest/userguide/deployment-groups-create-load-balancer.html)
 - [CodeDeploy rollback](https://docs.aws.amazon.com/codedeploy/latest/userguide/deployments-rollback-and-redeploy.html)
 - [CodeDeploy AppSpec](https://docs.aws.amazon.com/codedeploy/latest/userguide/application-specification-files.html)

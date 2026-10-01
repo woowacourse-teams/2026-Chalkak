@@ -24,6 +24,7 @@ Pull Request
 | [서버 구축](docs/infrastructure-setup.md) | EC2를 처음 준비하거나 서버 설정을 변경할 때 | 공용 AWS 리소스, Java, CodeDeploy Agent, Docker, 환경변수, IAM·S3 |
 | [CI/CD 파이프라인 구축](docs/pipeline-setup.md) | AWS 파이프라인을 처음 만들거나 재구성할 때 | CodeBuild, CodeDeploy application·group, 개발·운영 CodePipeline |
 | [배포 운영 런북](docs/operations.md) | PR 병합, 배포 확인, 장애 대응 시 | GitHub Ruleset, 개발·운영 배포, Flyway 규칙, 장애 확인 |
+| [CloudWatch 모니터링 구축](docs/monitoring.md) | 로그·지표·알람·대시보드를 처음 만들거나 알람에 대응할 때 | CloudWatch Agent, 로그 그룹·메트릭 필터·알람·SNS·알림 Lambda 콘솔 구축, 대시보드, 알람 대응, 비용 점검 |
 | [이미지 처리 Lambda](../lambda/image-processor/README.md) | 이미지 처리 Lambda를 구축·배포할 때 | Lambda, SQS, 빌드와 배포 절차 |
 
 ## 환경별 구성
@@ -37,7 +38,7 @@ Pull Request
 | EC2 tag | `Name=chalkak-dev-api` | `Name=chalkak-prod-api` |
 | Spring profile | `dev` | `prod` |
 | Database | 같은 EC2의 Docker PostgreSQL | RDS PostgreSQL |
-| Load balancer | 사용하지 않음 | 기존 ALB target group 연결 |
+| Load balancer | 사용하지 않음 | 사용하지 않음 (공개 EC2 직접 사용) |
 | 배포 승인 | 자동 | Manual approval |
 
 CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 만들기 때문에 개발·운영 파이프라인에서 `chalkak-backend-build` 하나를 공유한다. 동일한 revision을 서버의 `SPRING_PROFILES_ACTIVE`에 따라 `dev` 또는 `prod`로 실행한다.
@@ -51,6 +52,7 @@ CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 �
 | `backend/deploy/appspec.yml` | CodeDeploy lifecycle hook 정의 |
 | `backend/deploy/scripts/` | 설정 검증, 서비스 시작·중지·검증 |
 | `backend/deploy/systemd/` | 백엔드 systemd unit |
+| `backend/deploy/monitoring/` | CloudWatch Agent 설정과 대시보드 JSON (템플릿 없음, 나머지는 콘솔로 구축) |
 | `backend/deploy/examples/` | 개발·운영 서버 환경변수 계약 예시 |
 | `backend/scripts/check_flyway_migrations.sh` | PR의 Flyway migration 계약 검사 |
 
