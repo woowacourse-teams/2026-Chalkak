@@ -24,10 +24,13 @@ struct SignatureChangeFlow: View {
                         },
                         onConfirm: updateSignature
                     )
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(signatureDismissGesture(onDismiss: dismissIfAllowed))
                 } else {
                     SignatureEditor(
                         strokes: $strokes,
-                        onSubmit: showPreview
+                        onSubmit: showPreview,
+                        onDismiss: dismissIfAllowed
                     )
                 }
             }
@@ -40,6 +43,11 @@ struct SignatureChangeFlow: View {
             }
         }
         .interactiveDismissDisabled(isSubmitting)
+    }
+
+    private func dismissIfAllowed() {
+        guard !isSubmitting else { return }
+        dismiss()
     }
 
     private func showPreview() {
@@ -79,6 +87,7 @@ private struct SignatureEditor: View {
     @Environment(\.chalkakTheme) private var theme
     @Binding var strokes: [SignatureStroke]
     let onSubmit: () -> Void
+    let onDismiss: () -> Void
 
     private var hasSignature: Bool { strokes.contains { !$0.isEmpty } }
 
@@ -88,12 +97,17 @@ private struct SignatureEditor: View {
                 .font(theme.typography.title1)
                 .foregroundStyle(theme.colors.textPrimary)
                 .padding(.top, Metrics.titleTopPadding)
+                .contentShape(Rectangle())
+                .simultaneousGesture(signatureDismissGesture(onDismiss: onDismiss))
 
             Text("모든 사진에 함께할 사인이에요.\n자유롭게 남겨주시고, 실제 서명은 피해 주세요.")
                 .font(theme.typography.subheadline)
                 .foregroundStyle(theme.colors.textSecondary)
                 .padding(.top, Metrics.descriptionTopPadding)
+                .contentShape(Rectangle())
+                .simultaneousGesture(signatureDismissGesture(onDismiss: onDismiss))
 
+            // 레이아웃을 유지하며 패드와 그 부모에는 닫기 제스처를 붙이지 않는다.
             SignaturePad(strokes: $strokes)
                 .aspectRatio(1, contentMode: .fit)
                 .padding(.top, Metrics.padTopPadding)
@@ -113,8 +127,12 @@ private struct SignatureEditor: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, Metrics.controlTopPadding)
+            .contentShape(Rectangle())
+            .simultaneousGesture(signatureDismissGesture(onDismiss: onDismiss))
 
             Spacer(minLength: theme.spacing.lg)
+                .contentShape(Rectangle())
+                .simultaneousGesture(signatureDismissGesture(onDismiss: onDismiss))
 
             ChalkakButton(
                 title: "이 사인으로 할래요",
@@ -124,6 +142,8 @@ private struct SignatureEditor: View {
             )
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, Metrics.bottomPadding)
+                .contentShape(Rectangle())
+                .simultaneousGesture(signatureDismissGesture(onDismiss: onDismiss))
         }
         .padding(.horizontal, theme.spacing.screenHorizontal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -369,7 +389,21 @@ private extension SignatureStroke {
     }
 }
 
+private func signatureDismissGesture(onDismiss: @escaping () -> Void) -> some Gesture {
+    DragGesture(minimumDistance: Metrics.dismissMinimumDragDistance)
+        .onEnded { value in
+            guard value.translation.height > abs(value.translation.width) else { return }
+            if value.translation.height > Metrics.dismissDragDistance
+                || value.predictedEndTranslation.height > Metrics.dismissPredictedDistance {
+                onDismiss()
+            }
+        }
+}
+
 private enum Metrics {
+    static let dismissMinimumDragDistance: CGFloat = 20
+    static let dismissDragDistance: CGFloat = 80
+    static let dismissPredictedDistance: CGFloat = 140
     static let titleTopPadding: CGFloat = 24
     static let descriptionTopPadding: CGFloat = 24
     static let padTopPadding: CGFloat = 28
