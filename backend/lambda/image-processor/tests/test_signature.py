@@ -48,7 +48,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
             self.upload_client,
         )
 
-    def test_process_reencodes_original_creates_thumbnail_and_deletes_staging(
+    def test_process_reencodes_original_creates_thumbnail_and_keeps_staging(
         self,
     ) -> None:
         source = png_image(size=(200, 100), mode="RGBA")
@@ -128,6 +128,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
 
         self.callback_client.failed.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.upload_client.upload.assert_not_called()
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_keeps_rejection_when_failed_callback_is_permanently_refused(
         self,
@@ -191,7 +192,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
         self.callback_client.failed.assert_not_called()
         self.s3_client.get_object.assert_not_called()
 
-    def test_process_does_not_delete_staging_when_thumbnail_upload_fails(self) -> None:
+    def test_process_does_not_complete_when_thumbnail_upload_fails(self) -> None:
         source = png_image()
         self.s3_client.get_object.return_value = {
             "ContentLength": len(source),
@@ -250,7 +251,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
         self.callback_client.complete.assert_not_called()
         self.s3_client.delete_object.assert_not_called()
 
-    def test_process_does_not_delete_staging_when_complete_callback_fails(
+    def test_process_raises_when_complete_callback_fails(
         self,
     ) -> None:
         source = png_image()
