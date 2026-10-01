@@ -5,7 +5,7 @@ import com.chalkak.backend.auth.domain.RefreshTokenPolicy;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.LoginSessionRepository;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
-import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.notification.service.PushDeviceService;
 import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
@@ -27,7 +27,7 @@ public class UserRefreshTokenService
 
     private final AccessTokenIssuer accessTokenIssuer;
     private final LoginSessionRepository loginSessionRepository;
-    private final PushDeviceRepository pushDeviceRepository;
+    private final PushDeviceService pushDeviceService;
 
     public UserRefreshTokenService(
             UserRefreshTokenRepository userRefreshTokenRepository,
@@ -36,7 +36,7 @@ public class UserRefreshTokenService
             RefreshTokenPolicy refreshTokenPolicy,
             AccessTokenIssuer accessTokenIssuer,
             LoginSessionRepository loginSessionRepository,
-            PushDeviceRepository pushDeviceRepository,
+            PushDeviceService pushDeviceService,
             Clock clock
     ) {
         super(
@@ -47,7 +47,7 @@ public class UserRefreshTokenService
                 clock);
         this.accessTokenIssuer = accessTokenIssuer;
         this.loginSessionRepository = loginSessionRepository;
-        this.pushDeviceRepository = pushDeviceRepository;
+        this.pushDeviceService = pushDeviceService;
     }
 
     @Override
@@ -84,12 +84,12 @@ public class UserRefreshTokenService
     @Override
     protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
         super.logoutSession(sessionId, loggedOutAt);
-        pushDeviceRepository.disableBySessionId(sessionId, loggedOutAt);
+        pushDeviceService.disableBySessionId(sessionId, loggedOutAt);
     }
 
     @Override
     protected void revokeOwner(UUID ownerId, Instant revokedAt) {
         super.revokeOwner(ownerId, revokedAt);
-        pushDeviceRepository.disableByUserId(ownerId, revokedAt);
+        pushDeviceService.disableByUserId(ownerId, revokedAt);
     }
 }

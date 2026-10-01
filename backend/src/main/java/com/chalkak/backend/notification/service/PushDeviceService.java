@@ -1,8 +1,7 @@
 package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.auth.domain.LoginSession;
-import com.chalkak.backend.auth.repository.LoginSessionRepository;
-import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
+import com.chalkak.backend.auth.service.LoginSessionService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.FcmToken;
@@ -10,8 +9,8 @@ import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.TreeSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,8 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PushDeviceService {
 
     private final PushDeviceRepository pushDeviceRepository;
-    private final LoginSessionRepository loginSessionRepository;
-    private final UserRefreshTokenRepository userRefreshTokenRepository;
+    private final LoginSessionService loginSessionService;
     private final Clock clock;
 
     @Transactional
@@ -40,12 +38,7 @@ public class PushDeviceService {
         lockSessions(sessionId, token.getHash());
 
         Instant now = clock.instant();
-        LoginSession session = loginSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(PushDeviceService::reauthenticationRequired);
-        session.getUser().validateNotWithdrawn();
-        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(sessionId, userId, now)) {
-            throw reauthenticationRequired();
-        }
+        LoginSession session = loginSessionService.getUsableSession(userId, sessionId, now);
 
         pushDeviceRepository.disableOtherSessionByTokenHash(token.getHash(), sessionId, now);
         PushDevice device = pushDeviceRepository.findBySessionId(sessionId)
@@ -54,12 +47,21 @@ public class PushDeviceService {
         pushDeviceRepository.save(device);
     }
 
+    @Transactional
+    public void disableBySessionId(UUID sessionId, Instant disabledAt) {
+        pushDeviceRepository.disableBySessionId(sessionId, disabledAt);
+    }
+
+    @Transactional
+    public void disableByUserId(UUID userId, Instant disabledAt) {
+        pushDeviceRepository.disableByUserId(userId, disabledAt);
+    }
+
     private void lockSessions(UUID sessionId, String tokenHash) {
-        // PostgreSQL UUID 정렬과 같은 순서로 잠가 토큰 교환 등록·전체 로그아웃의 교착을 막는다.
-        TreeSet<UUID> sessionIds = new TreeSet<>(Comparator.comparing(UUID::toString));
+        List<UUID> sessionIds = new ArrayList<>();
         sessionIds.add(sessionId);
         pushDeviceRepository.findActiveSessionIdByTokenHash(tokenHash).ifPresent(sessionIds::add);
-        sessionIds.forEach(userRefreshTokenRepository::lockSession);
+        loginSessionService.lockSessions(sessionIds);
     }
 
     private static UnauthorizedException reauthenticationRequired() {
