@@ -93,6 +93,12 @@ jobs:
           python -m pip install --requirement requirements.txt
           python -m unittest discover --start-directory tests --verbose
 
+      # 표준 라이브러리만 쓰므로 의존성 설치 없이 실행한다.
+      - name: Test Lambda alarm notifier
+        if: ${{ !cancelled() }}
+        working-directory: backend/lambda/alarm-notifier
+        run: python -m unittest discover --start-directory tests --verbose
+
       # 앞선 검사가 실패해도 이후 검사를 계속 실행해 한 번에 모든 실패를 확인한다.
       - name: Test Flyway migration validation
         if: ${{ !cancelled() }}
