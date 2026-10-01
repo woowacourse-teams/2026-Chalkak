@@ -185,8 +185,7 @@ public class AdminTopicCommandService {
                 topic.getId(),
                 reason,
                 beforeState,
-                afterState,
-                UUID.randomUUID()));
+                afterState));
     }
 
     private AdminAuditSnapshot topicState(Topic topic) {

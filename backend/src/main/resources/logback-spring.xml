@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 콘솔 출력은 Spring Boot 기본 설정과 같게 유지한다. local·test 출력이 바뀌지 않는다. -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- dev·prod만 JSON 파일 로그를 남긴다. CloudWatch Agent가 이 파일을 수집한다. -->
+    <springProfile name="dev | prod">
+        <springProperty scope="context" name="CHALKAK_LOG_FILE" source="chalkak.logging.file"
+                        defaultValue="/opt/chalkak/logs/application.log"/>
+
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <!-- MDC(requestId)와 key-value(errorCode 등)가 최상위 JSON 필드로 나온다. -->
+            <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+                <format>logstash</format>
+            </encoder>
+            <file>${CHALKAK_LOG_FILE}</file>
+            <!-- 하루 단위로 나누고 파일이 50MB를 넘으면 더 쪼갠다. 최대 14일, 합계 1GB까지만 보관한다. -->
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${CHALKAK_LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+    </springProfile>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <!-- 콘솔도 남겨 둔다. 파일 로거가 뜨기 전 기동 실패는 journald에서만 볼 수 있다. -->
+        <springProfile name="dev | prod">
+            <appender-ref ref="JSON_FILE"/>
+        </springProfile>
+    </root>
+</configuration>

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chalkak.backend.common.logging.LogFields;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,12 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
         AdminArgumentResolverWebMvcConfig.class,
         AdminCorsWebMvcConfig.class
 })
-@TestPropertySource(properties =
-        "chalkak.admin.cors.allowed-origins=https://admin-dev.example.com")
+@TestPropertySource(properties = "chalkak.admin.cors.allowed-origins=https://admin-dev.example.com")
 class AdminWebMvcConfigTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
+    private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
 
     @Autowired
     private MockMvc mockMvc;
@@ -60,9 +59,9 @@ class AdminWebMvcConfigTest {
     void preflight_configuredOrigin_allowsAdminRequest() throws Exception {
         // When & Then
         mockMvc.perform(options("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
+                .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
                 .andExpect(status().isOk())
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -73,18 +72,21 @@ class AdminWebMvcConfigTest {
     }
 
     @Test
-    @DisplayName("설정한 관리자 웹 Origin의 실제 요청에 허용 응답 헤더를 제공한다")
+    @DisplayName("설정한 관리자 웹 Origin의 실제 요청에 허용 응답 헤더와 요청 식별자 노출 헤더를 제공한다")
     void request_configuredOrigin_allowsAdminRequest() throws Exception {
         // Given
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com"))
+                .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
-                        "https://admin-dev.example.com"));
+                        "https://admin-dev.example.com"))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                        containsString(LogFields.REQUEST_ID_HEADER)));
     }
 
     @Test
@@ -92,8 +94,8 @@ class AdminWebMvcConfigTest {
     void preflight_unconfiguredOrigin_rejectsAdminRequest() throws Exception {
         // When & Then
         mockMvc.perform(options("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://attacker.example.com")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .header(HttpHeaders.ORIGIN, "https://attacker.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
     }
@@ -103,7 +105,7 @@ class AdminWebMvcConfigTest {
     void request_unconfiguredOrigin_rejectsBeforeResolvingAdmin() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://attacker.example.com"))
+                .header(HttpHeaders.ORIGIN, "https://attacker.example.com"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
 

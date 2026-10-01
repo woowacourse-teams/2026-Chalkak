@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -69,14 +71,16 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
+        MDC.remove(LogFields.REQUEST_ID);
         cleanUp();
     }
 
     @Test
-    @DisplayName("업무 트랜잭션 안에서 변경과 감사 로그를 함께 저장한다")
+    @DisplayName("업무 트랜잭션 안에서 변경과 감사 로그를 함께 저장하고 감사 로그에는 현재 요청의 requestId를 남긴다")
     void createAuditLog_withinBusinessTransaction_persistsChangeAndAuditLog() {
         // Given
         UUID requestId = UUID.randomUUID();
+        MDC.put(LogFields.REQUEST_ID, requestId.toString());
         Instant beforeExecution = Instant.now();
 
         // When
@@ -84,7 +88,7 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
             jdbcTemplate.update(
                     "UPDATE users SET status = 'BANNED' WHERE id = ?",
                     TARGET_USER_ID);
-            adminAuditLogService.createAuditLog(createCommand(ACTOR_ADMIN_ID, requestId));
+            adminAuditLogService.createAuditLog(createCommand(ACTOR_ADMIN_ID));
             entityManager.flush();
         });
         Instant afterExecution = Instant.now();
@@ -116,10 +120,11 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
     void createAuditLog_withoutBusinessTransaction_throwsIllegalTransactionStateException() {
         // Given
         UUID requestId = UUID.randomUUID();
+        MDC.put(LogFields.REQUEST_ID, requestId.toString());
 
         // When & Then
         assertThatThrownBy(() -> adminAuditLogService.createAuditLog(
-                createCommand(ACTOR_ADMIN_ID, requestId)))
+                createCommand(ACTOR_ADMIN_ID)))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(auditLogCount(requestId)).isZero();
     }
@@ -130,13 +135,14 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
     void createAuditLog_businessFailure_rollsBackChangeAndAuditLog() {
         // Given
         UUID requestId = UUID.randomUUID();
+        MDC.put(LogFields.REQUEST_ID, requestId.toString());
 
         // When & Then
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             jdbcTemplate.update(
                     "UPDATE users SET status = 'BANNED' WHERE id = ?",
                     TARGET_USER_ID);
-            adminAuditLogService.createAuditLog(createCommand(ACTOR_ADMIN_ID, requestId));
+            adminAuditLogService.createAuditLog(createCommand(ACTOR_ADMIN_ID));
             entityManager.flush();
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
@@ -153,20 +159,21 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
     void createAuditLog_auditPersistenceFailure_rollsBackBusinessChange() {
         // Given
         UUID requestId = UUID.randomUUID();
+        MDC.put(LogFields.REQUEST_ID, requestId.toString());
 
         // When & Then
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             jdbcTemplate.update(
                     "UPDATE users SET status = 'BANNED' WHERE id = ?",
                     TARGET_USER_ID);
-            adminAuditLogService.createAuditLog(createCommand(UNKNOWN_ADMIN_ID, requestId));
+            adminAuditLogService.createAuditLog(createCommand(UNKNOWN_ADMIN_ID));
             entityManager.flush();
         })).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(userStatus()).isEqualTo("ACTIVE");
         assertThat(auditLogCount(requestId)).isZero();
     }
 
-    private AdminAuditLogCommand createCommand(UUID actorAdminId, UUID requestId) {
+    private AdminAuditLogCommand createCommand(UUID actorAdminId) {
         return new AdminAuditLogCommand(
                 actorAdminId,
                 AdminAction.USER_BANNED,
@@ -174,8 +181,7 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
                 TARGET_USER_ID,
                 "운영 정책 위반",
                 AdminAuditSnapshot.from(Map.of("status", "ACTIVE")),
-                AdminAuditSnapshot.from(Map.of("status", "BANNED")),
-                requestId);
+                AdminAuditSnapshot.from(Map.of("status", "BANNED")));
     }
 
     private String userStatus() {

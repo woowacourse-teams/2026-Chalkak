@@ -19,6 +19,9 @@ management:
       show-details: never
 
 chalkak:
+  monitoring:
+    runtime-log:
+      enabled: true
   admin:
     account:
       username: ${ADMIN_USERNAME}
