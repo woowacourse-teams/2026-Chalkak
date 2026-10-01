@@ -305,7 +305,7 @@ final class chalkakUITests: XCTestCase {
     @MainActor
     func testFeedbackFullScreenClosesWithButtonAndDownwardSwipe() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-test-feedback-entry"]
+        app.launchArguments = ["-test-feedback-entry", "-test-photo-upload-entry"]
         app.launch()
 
         let settingsButton = app.buttons["설정"]
@@ -315,7 +315,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
         feedbackButton.tap()
 
-        let title = app.staticTexts["feedback.title"]
+        let title = app.staticTexts["찰캌을 사용하며\n느낀 점을 알려주세요."]
         XCTAssertTrue(title.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["뒤로 가기"].exists)
         let closeButton = app.buttons["feedback.close"]
@@ -338,6 +338,37 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(title.waitForNonExistence(timeout: 3))
         XCTAssertTrue(feedbackButton.isHittable)
         XCTAssertEqual(settingsButton.value as? String, "선택됨")
+    }
+
+    @MainActor
+    func testFeedbackInputDragPreservesDraft() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-feedback-entry", "-test-photo-upload-entry"]
+        app.launch()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+        let feedbackButton = app.buttons["피드백 보내기"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
+
+        let title = app.staticTexts["찰캌을 사용하며\n느낀 점을 알려주세요."]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        let input = app.textFields["피드백 내용"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("Draft to preserve")
+        let dragStart = input.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        dragStart.press(forDuration: 0.05, thenDragTo: dragStart.withOffset(CGVector(dx: 0, dy: 160)))
+
+        XCTAssertTrue(title.exists)
+        XCTAssertTrue((input.value as? String)?.contains("Draft to preserve") == true)
+
+        let headerDragStart = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        headerDragStart.press(forDuration: 0.05, thenDragTo: headerDragStart.withOffset(CGVector(dx: 0, dy: 300)))
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
     }
 
     @MainActor

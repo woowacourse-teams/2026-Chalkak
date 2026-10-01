@@ -10,6 +10,8 @@ struct FeedbackScreen: View {
 
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+    @State private var inputFrame: CGRect = .zero
+    @State private var submitButtonFrame: CGRect = .zero
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,6 +45,11 @@ struct FeedbackScreen: View {
                     lengthMetric: .unicodeScalars,
                     height: Metrics.inputHeight
                 )
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named("feedback.dismiss"))
+                } action: { frame in
+                    inputFrame = frame
+                }
                 .padding(.top, Metrics.inputTopPadding)
 
                 Text("보내주신 의견은 더 나은 서비스를 만드는 데 활용돼요.")
@@ -59,8 +66,6 @@ struct FeedbackScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(theme.colors.background)
-        .contentShape(Rectangle())
-        .simultaneousGesture(dismissGesture)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakButton(
                 title: viewModel.viewState.isSubmitting ? "보내는 중..." : "보내기",
@@ -68,6 +73,11 @@ struct FeedbackScreen: View {
                 isEnabled: viewModel.viewState.canSubmit,
                 fillsWidth: true
             )
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .named("feedback.dismiss"))
+            } action: { frame in
+                submitButtonFrame = frame
+            }
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.top, theme.spacing.sm)
             .padding(.bottom, theme.spacing.lg)
@@ -86,6 +96,9 @@ struct FeedbackScreen: View {
                     .accessibilityLabel(message)
             }
         }
+        .contentShape(Rectangle())
+        .coordinateSpace(name: "feedback.dismiss")
+        .simultaneousGesture(dismissGesture)
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -124,9 +137,14 @@ struct FeedbackScreen: View {
     }
 
     private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: Metrics.dismissMinimumDragDistance)
+        DragGesture(
+            minimumDistance: Metrics.dismissMinimumDragDistance,
+            coordinateSpace: .named("feedback.dismiss")
+        )
             .onEnded { value in
                 guard !viewModel.viewState.isSubmitting,
+                      !inputFrame.contains(value.startLocation),
+                      !submitButtonFrame.contains(value.startLocation),
                       value.translation.height > abs(value.translation.width) else { return }
                 if value.translation.height > Metrics.dismissDragDistance
                     || value.predictedEndTranslation.height > Metrics.dismissPredictedDistance {
