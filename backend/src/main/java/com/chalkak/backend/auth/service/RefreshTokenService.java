@@ -89,11 +89,11 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
             throw reauthenticationRequired();
         }
         if (consumed.isReused()) {
-            refreshTokenRepository.revokeSession(consumed.getSessionId(), now);
+            revokeSession(consumed.getSessionId(), now);
             throw reauthenticationRequired();
         }
         if (consumed.isExpired(now)) {
-            refreshTokenRepository.revokeSession(consumed.getSessionId(), now);
+            revokeSession(consumed.getSessionId(), now);
             throw reauthenticationRequired();
         }
         return rotate(consumed, now);
@@ -106,7 +106,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     @Transactional
     public void logout(String presentedToken) {
         lockLineageAndRead(refreshTokenHasher.encode(presentedToken))
-                .ifPresent(refreshToken -> logoutSession(
+                .ifPresent(refreshToken -> revokeSession(
                         refreshToken.getSessionId(),
                         clock.instant()));
     }
@@ -149,8 +149,8 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     /** 회전과 함께 내려보낼 액세스 토큰을 발급한다. 소유자마다 scope가 다르다. */
     protected abstract IssuedAccessToken issueAccessToken(T consumed);
 
-    protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
-        refreshTokenRepository.revokeSession(sessionId, loggedOutAt);
+    protected void revokeSession(UUID sessionId, Instant revokedAt) {
+        refreshTokenRepository.revokeSession(sessionId, revokedAt);
     }
 
     protected void revokeOwner(UUID ownerId, Instant revokedAt) {

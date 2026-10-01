@@ -82,9 +82,9 @@ public class UserRefreshTokenService
     }
 
     @Override
-    protected void logoutSession(UUID sessionId, Instant loggedOutAt) {
-        super.logoutSession(sessionId, loggedOutAt);
-        pushDeviceService.disableBySessionId(sessionId, loggedOutAt);
+    protected void revokeSession(UUID sessionId, Instant revokedAt) {
+        super.revokeSession(sessionId, revokedAt);
+        pushDeviceService.disableBySessionId(sessionId, revokedAt);
     }
 
     @Override
