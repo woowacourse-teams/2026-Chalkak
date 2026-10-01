@@ -79,10 +79,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
         self.assertEqual((64, 32), image_size(thumbnail_put["body"]))
         self.s3_client.put_object.assert_not_called()
         self.callback_client.complete.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET,
-            Key=STAGING_KEY,
-        )
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_preserves_transparency(self) -> None:
         source = png_image(size=(10, 10), mode="RGBA")
@@ -119,7 +116,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
         )
         self.callback_client.complete.assert_called_once_with("prod", UPLOAD_ID)
 
-    def test_process_deletes_staging_after_rejection_callback_succeeds(self) -> None:
+    def test_process_keeps_staging_after_rejection_callback_succeeds(self) -> None:
         source = jpeg_image()
         self.s3_client.get_object.return_value = {
             "ContentLength": len(source),
@@ -131,10 +128,6 @@ class SignatureImageProcessorTest(unittest.TestCase):
 
         self.callback_client.failed.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
         self.upload_client.upload.assert_not_called()
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET,
-            Key=STAGING_KEY,
-        )
 
     def test_process_keeps_rejection_when_failed_callback_is_permanently_refused(
         self,
@@ -235,10 +228,7 @@ class SignatureImageProcessorTest(unittest.TestCase):
 
         self.assertEqual(3, self.s3_client.get_object.call_count)
         self.callback_client.complete.assert_called_once_with(ENVIRONMENT, UPLOAD_ID)
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET,
-            Key=STAGING_KEY,
-        )
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_does_not_complete_when_existing_result_differs(self) -> None:
         source = png_image()
