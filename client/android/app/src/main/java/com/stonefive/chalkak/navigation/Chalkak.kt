@@ -27,6 +27,9 @@ data class ReminderTime(val returnToSettings: Boolean = false)
 data object Today
 
 @Serializable
+data object Notifications
+
+@Serializable
 data class Display(val date: String)
 
 @Serializable

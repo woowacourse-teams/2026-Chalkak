@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.navigation
 
 import androidx.activity.compose.setContent
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -20,6 +22,33 @@ import org.junit.Test
 class ChalkakNavHostTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun notificationsOpenFromHomeAndBackReturnsToHome() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    navController = navController,
+                    startDestination = Today,
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("알림").performClick()
+        composeRule.onNodeWithText("9월 22일 오늘의 주제를 확인해보세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("어제 21:10").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Notifications>() == true)
+        }
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Today>() == true)
+        }
+    }
 
     @Test
     fun displayOpenedFromRecordReturnsToRecordAndKeepsTabsNavigable() {
