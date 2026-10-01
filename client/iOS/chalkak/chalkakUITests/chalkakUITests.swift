@@ -152,6 +152,53 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsNotificationFullScreenClosesAndReturnsToSettings() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+
+        let notificationButton = app.buttons["알림 설정"]
+        XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))
+        notificationButton.tap()
+
+        let title = app.staticTexts["notificationSetup.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        let closeButton = app.buttons["notificationSetup.close"]
+        XCTAssertTrue(closeButton.exists)
+        XCTAssertFalse(app.buttons["뒤로 가기"].exists)
+        closeButton.tap()
+
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(notificationButton.isHittable)
+        XCTAssertEqual(settingsButton.value as? String, "선택됨")
+
+        notificationButton.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        title.swipeDown()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(notificationButton.isHittable)
+        XCTAssertEqual(settingsButton.value as? String, "선택됨")
+
+        notificationButton.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        app.buttons["notificationTime.custom"].tap()
+        let pickerDragHandle = app.otherElements["notificationTimePicker.dragHandle"]
+        XCTAssertTrue(pickerDragHandle.waitForExistence(timeout: 3))
+        pickerDragHandle.swipeDown()
+        XCTAssertTrue(pickerDragHandle.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(title.exists)
+
+        app.buttons["notificationSetup.skip"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(notificationButton.isHittable)
+        XCTAssertEqual(settingsButton.value as? String, "선택됨")
+    }
+
+    @MainActor
     func testNotificationSetupSkipContinuesToHome() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-show-notification-setup"]
