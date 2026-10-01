@@ -209,7 +209,10 @@ struct ContentView: View {
                     onSelect: selectBottomBarItem,
                     onAdd: { openPhotoUpload(from: selectedTab) }
                 )
-                .padding(.horizontal, isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg)
+                .padding(
+                    .horizontal,
+                    (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
+                )
                 .padding(.bottom, theme.spacing.sm)
             }
     }

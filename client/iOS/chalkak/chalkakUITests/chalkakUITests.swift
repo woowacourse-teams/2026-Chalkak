@@ -23,6 +23,110 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testBottomBarScrubSelectsReleasePositionAndCanSkipTabs() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["오늘"]
+        let display = app.buttons["전시"]
+        let settings = app.buttons["설정"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+
+        func drag(from startButton: XCUIElement, to endButton: XCUIElement) {
+            startButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: endButton.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ))
+        }
+
+        drag(from: today, to: display)
+        XCTAssertEqual(display.value as? String, "선택됨")
+        drag(from: display, to: settings)
+        XCTAssertEqual(settings.value as? String, "선택됨")
+        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        drag(from: settings, to: today)
+        XCTAssertEqual(today.value as? String, "선택됨")
+
+        display.tap()
+        XCTAssertEqual(display.value as? String, "선택됨")
+        today.tap()
+        XCTAssertEqual(today.value as? String, "선택됨")
+    }
+
+    @MainActor
+    func testBottomBarScrubCanStartOnUnselectedTab() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["오늘"].value as? String, "선택됨")
+
+        app.buttons["설정"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.4, thenDragTo: app.buttons["전시"].coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertEqual(app.buttons["전시"].value as? String, "선택됨")
+        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+    }
+
+    @MainActor
+    func testBottomBarScrubWithinSameTabKeepsSelectionAndAddOpensOnRelease() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["오늘"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+        let start = today.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 14, dy: 0)))
+        XCTAssertEqual(today.value as? String, "선택됨")
+        start.press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ))
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertEqual(today.value as? String, "선택됨")
+        app.buttons["추가"].tap()
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testCompactBottomBarScrubSelectsReleasePositionAndExpands() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["오늘"]
+        let settings = app.buttons["설정"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        let expandedWidth = today.frame.width
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertLessThan(today.frame.width, expandedWidth)
+
+        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: today.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertEqual(today.value as? String, "선택됨")
+        XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
+
+        settings.tap()
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertLessThan(today.frame.width, expandedWidth)
+        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertEqual(settings.value as? String, "선택됨")
+        XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
+    }
+
+    @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
@@ -227,7 +331,8 @@ final class chalkakUITests: XCTestCase {
 
         feedbackButton.tap()
         XCTAssertTrue(title.waitForExistence(timeout: 3))
-        title.press(forDuration: 0.05, thenDragTo: title.coordinate(
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: title.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).withOffset(CGVector(dx: 0, dy: 300)))
         XCTAssertTrue(title.waitForNonExistence(timeout: 3))
