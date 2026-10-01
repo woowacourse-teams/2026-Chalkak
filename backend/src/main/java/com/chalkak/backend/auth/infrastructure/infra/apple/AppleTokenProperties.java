@@ -11,6 +11,5 @@ public record AppleTokenProperties(
         @NotBlank String keyId,
         @NotBlank String privateKeyBase64,
         @NotBlank String tokenUri,
-        @NotBlank String revokeUri
-) {
+        @NotBlank String revokeUri) {
 }

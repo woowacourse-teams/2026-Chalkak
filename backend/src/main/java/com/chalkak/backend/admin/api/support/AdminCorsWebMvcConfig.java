@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.api.support;
 
+import com.chalkak.backend.common.logging.LogFields;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +40,7 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
                         HttpHeaders.AUTHORIZATION,
                         HttpHeaders.CONTENT_TYPE,
                         HttpHeaders.ACCEPT)
+                .exposedHeaders(LogFields.REQUEST_ID_HEADER)
                 .allowCredentials(false)
                 .maxAge(3_600);
     }

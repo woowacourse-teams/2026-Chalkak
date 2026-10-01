@@ -6,8 +6,7 @@ import java.util.UUID;
 
 public record FeedbackSubmissionResponse(
         UUID feedbackId,
-        Instant createdAt
-) {
+        Instant createdAt) {
 
     public static FeedbackSubmissionResponse from(FeedbackSubmissionResult result) {
         return new FeedbackSubmissionResponse(result.feedbackId(), result.createdAt());

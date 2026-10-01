@@ -19,10 +19,8 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
 
     private static final String SUBJECT_HMAC = "a".repeat(64);
     private static final String OTHER_SUBJECT_HMAC = "b".repeat(64);
-    private static final Instant EXPIRES_AT =
-            Instant.parse("2026-09-04T00:05:00Z");
-    private static final Instant BEFORE_EXPIRY =
-            EXPIRES_AT.minus(Duration.ofMinutes(1));
+    private static final Instant EXPIRES_AT = Instant.parse("2026-09-04T00:05:00Z");
+    private static final Instant BEFORE_EXPIRY = EXPIRES_AT.minus(Duration.ofMinutes(1));
 
     @Autowired
     private PendingAppleAuthorizationRepository repository;

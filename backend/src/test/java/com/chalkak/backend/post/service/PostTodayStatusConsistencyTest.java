@@ -23,25 +23,23 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 사전 확인과 게시물 생성이 같은 답을 내는지 검증한다.
  *
- * <p>사전 확인이 통과시킨 요청이 생성에서 거절되거나 그 반대가 되면 클라이언트가 잘못된 안내를 한다. 두
- * 흐름은 조건이 같은 별도의 쿼리를 쓰므로, 한쪽만 바뀌어도 컴파일과 개별 테스트는 통과한다. 그래서 각 규칙을
- * 따로 검증하는 대신 두 흐름의 답이 서로 같은지를 단언한다.
+ * <p>
+ * 사전 확인이 통과시킨 요청이 생성에서 거절되거나 그 반대가 되면 클라이언트가 잘못된 안내를 한다. 두 흐름은 조건이 같은 별도의 쿼리를
+ * 쓰므로, 한쪽만 바뀌어도 컴파일과 개별 테스트는 통과한다. 그래서 각 규칙을 따로 검증하는 대신 두 흐름의 답이 서로 같은지를 단언한다.
  */
 @Transactional
 class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d1");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d2");
-    private static final UUID PHOTO_UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d3");
-    private static final UUID EXISTING_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID EXISTING_PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
-    private static final String ORIGINAL_STORAGE_KEY =
-            "chalkak/posts/test/original/" + PHOTO_UPLOAD_ID + ".webp";
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d1");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d2");
+    private static final UUID PHOTO_UPLOAD_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d3");
+    private static final UUID EXISTING_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID EXISTING_PHOTO_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
+    private static final String ORIGINAL_STORAGE_KEY = "chalkak/posts/test/original/"
+            + PHOTO_UPLOAD_ID + ".webp";
     private static final String DUPLICATE_MESSAGE = "이미 해당 주제에 게시물을 작성했습니다.";
 
     @Autowired
@@ -142,8 +140,7 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
     }
 
     /**
-     * 중복 이외의 이유로 생성이 실패하면 그대로 던진다. 실패를 중복으로 뭉뚱그리면 두 흐름이 어긋나도
-     * 테스트가 통과해 버린다.
+     * 중복 이외의 이유로 생성이 실패하면 그대로 던진다. 실패를 중복으로 뭉뚱그리면 두 흐름이 어긋나도 테스트가 통과해 버린다.
      */
     private boolean isCreateRejectedAsDuplicate() {
         try {
@@ -186,8 +183,7 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
                 EXISTING_PHOTO_ID,
                 moderationStatus.name(),
                 deleted,
-                createdBefore
-        );
+                createdBefore);
         entityManager.flush();
         entityManager.clear();
     }

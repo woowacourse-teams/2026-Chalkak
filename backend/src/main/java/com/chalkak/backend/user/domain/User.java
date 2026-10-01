@@ -235,8 +235,7 @@ public class User {
 
     private void anonymize() {
         this.email = WITHDRAWN_EMAIL_FORMAT.formatted(id);
-        this.signatureOriginalStorageKey =
-                WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
+        this.signatureOriginalStorageKey = WITHDRAWN_SIGNATURE_KEY_FORMAT.formatted(id);
         this.signatureThumbnailStorageKey = null;
         clearSignatureProcessing();
     }

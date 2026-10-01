@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.infrastructure.bootstrap;
 
 import com.chalkak.backend.admin.domain.Admin;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
@@ -15,11 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Profile("!dev & !prod & (local | test)")
-@ConditionalOnProperty(
-        prefix = "chalkak.admin.authentication",
-        name = "development-bypass-enabled",
-        havingValue = "true"
-)
+@ConditionalOnProperty(prefix = "chalkak.admin.authentication", name = "development-bypass-enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DevelopmentAdminBootstrap implements ApplicationRunner {
 

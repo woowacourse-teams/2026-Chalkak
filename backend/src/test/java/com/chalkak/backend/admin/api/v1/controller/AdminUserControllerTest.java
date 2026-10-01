@@ -11,16 +11,17 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminUserSortConverter;
-import com.chalkak.backend.admin.service.AdminUserDetail;
-import com.chalkak.backend.admin.service.AdminUserListResult;
-import com.chalkak.backend.admin.service.AdminUserQueryService;
-import com.chalkak.backend.admin.service.AdminUserSort;
-import com.chalkak.backend.admin.service.AdminUserStatusResult;
-import com.chalkak.backend.admin.service.AdminUserStatusService;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserSort;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.user.AdminUserStatusResult;
+import com.chalkak.backend.admin.service.user.AdminUserStatusService;
+import com.chalkak.backend.admin.service.user.AdminUserDetail;
+import com.chalkak.backend.admin.service.user.AdminUserListResult;
+import com.chalkak.backend.admin.service.user.AdminUserPostCounts;
+import com.chalkak.backend.admin.service.user.AdminUserQueryService;
 import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
 import java.time.Instant;
@@ -35,9 +36,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.http.MediaType;
 
 @WebMvcTest(AdminUserController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -48,10 +49,8 @@ import org.springframework.http.MediaType;
 })
 class AdminUserControllerTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000001");
-    private static final UUID USER_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000002");
+    private static final UUID ADMIN_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
+    private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000002");
     private static final Instant CREATED_AT = Instant.parse("2026-08-20T01:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-20T02:00:00Z");
 
@@ -86,7 +85,7 @@ class AdminUserControllerTest {
                         AdminUserStatus.ACTIVE,
                         "1.2.3",
                         SocialProvider.GOOGLE,
-                        new AdminUserListResult.PostCounts(1, 2, 0),
+                        new AdminUserPostCounts(1, 2, 0),
                         CREATED_AT,
                         UPDATED_AT,
                         null)));
@@ -132,11 +131,11 @@ class AdminUserControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/users")
-                        .queryParam("status", "WITHDRAWN")
-                        .queryParam("email", "withdrawn+")
-                        .queryParam("sort", "createdAtAsc")
-                        .queryParam("page", "2")
-                        .queryParam("pageSize", "50"))
+                .queryParam("status", "WITHDRAWN")
+                .queryParam("email", "withdrawn+")
+                .queryParam("sort", "createdAtAsc")
+                .queryParam("page", "2")
+                .queryParam("pageSize", "50"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users").isEmpty());
 
@@ -162,7 +161,7 @@ class AdminUserControllerTest {
             String parameterValue
     ) throws Exception {
         mockMvc.perform(get("/api/v1/admin/users")
-                        .queryParam(parameterName, parameterValue))
+                .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -180,7 +179,7 @@ class AdminUserControllerTest {
                 null,
                 SocialProvider.KAKAO,
                 new AdminUserDetail.Signature(null, null),
-                new AdminUserListResult.PostCounts(0, 0, 1),
+                new AdminUserPostCounts(0, 0, 1),
                 CREATED_AT,
                 UPDATED_AT,
                 UPDATED_AT);
@@ -217,17 +216,16 @@ class AdminUserControllerTest {
                 USER_ID,
                 ADMIN_ID,
                 com.chalkak.backend.user.domain.UserStatus.BANNED,
-                "운영 정책 위반"
-        )).willReturn(new AdminUserStatusResult(
-                USER_ID,
-                com.chalkak.backend.user.domain.UserStatus.BANNED));
+                "운영 정책 위반")).willReturn(new AdminUserStatusResult(
+                        USER_ID,
+                        com.chalkak.backend.user.domain.UserStatus.BANNED));
 
         // When & Then
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"status":"BANNED","reason":"운영 정책 위반"}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"status":"BANNED","reason":"운영 정책 위반"}
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.status").value("BANNED"));
@@ -237,10 +235,10 @@ class AdminUserControllerTest {
     @DisplayName("상태 변경 사유가 비어 있으면 400을 반환한다")
     void updateStatus_blankReason_returnsBadRequest() throws Exception {
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"status":"BANNED","reason":" "}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"status":"BANNED","reason":" "}
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -251,10 +249,10 @@ class AdminUserControllerTest {
     @DisplayName("탈퇴 상태는 관리자 변경 요청 값으로 사용할 수 없다")
     void updateStatus_withdrawnRequest_returnsBadRequest() throws Exception {
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"status":"WITHDRAWN","reason":"변경 요청"}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"status":"WITHDRAWN","reason":"변경 요청"}
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -269,17 +267,16 @@ class AdminUserControllerTest {
                 USER_ID,
                 ADMIN_ID,
                 com.chalkak.backend.user.domain.UserStatus.ACTIVE,
-                "상태 확인"
-        )).willThrow(new BusinessException(
-                ErrorCode.RESOURCE_STATE_CHANGED,
-                "이미 활성 상태인 회원입니다."));
+                "상태 확인")).willThrow(new BusinessException(
+                        ErrorCode.RESOURCE_STATE_CHANGED,
+                        "이미 활성 상태인 회원입니다."));
 
         // When & Then
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"status":"ACTIVE","reason":"상태 확인"}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"status":"ACTIVE","reason":"상태 확인"}
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("RESOURCE_STATE_CHANGED"));
     }

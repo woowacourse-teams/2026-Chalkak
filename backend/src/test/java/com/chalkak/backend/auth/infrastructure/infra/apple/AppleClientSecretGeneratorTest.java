@@ -31,7 +31,8 @@ class AppleClientSecretGeneratorTest {
     void generate_validPrivateKey_returnsSignedClientSecret() throws Exception {
         // Given
         KeyPair keyPair = generateEcKeyPair();
-        AppleClientSecretGenerator generator = createGenerator(encodePrivateKey(keyPair.getPrivate()));
+        AppleClientSecretGenerator generator = createGenerator(
+                encodePrivateKey(keyPair.getPrivate()));
 
         // When
         String clientSecret = generator.generate();

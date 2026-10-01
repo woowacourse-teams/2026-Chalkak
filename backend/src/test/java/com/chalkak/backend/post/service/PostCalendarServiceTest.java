@@ -9,8 +9,10 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,16 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostCalendarServiceTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("00000000-0000-0000-0000-0000000000b1");
-    private static final UUID APPROVED_POST_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000301");
-    private static final UUID PENDING_POST_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000302");
-    private static final String APPROVED_THUMBNAIL_KEY =
-            "chalkak/dev/posts/thumbnail/approved.webp";
-    private static final String PENDING_THUMBNAIL_KEY =
-            "chalkak/dev/posts/thumbnail/pending.webp";
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+    private static final UUID APPROVED_POST_ID = UUID
+            .fromString("00000000-0000-0000-0000-000000000301");
+    private static final UUID PENDING_POST_ID = UUID
+            .fromString("00000000-0000-0000-0000-000000000302");
+    private static final String APPROVED_THUMBNAIL_KEY = "chalkak/dev/posts/thumbnail/approved.webp";
+    private static final String PENDING_THUMBNAIL_KEY = "chalkak/dev/posts/thumbnail/pending.webp";
 
     @Autowired
     private PostQueryService postQueryService;
@@ -62,14 +61,12 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 APPROVED_POST_ID,
                 LocalDate.of(2026, 8, 1),
                 ModerationStatus.APPROVED,
-                APPROVED_THUMBNAIL_KEY
-        );
+                APPROVED_THUMBNAIL_KEY);
         insertPost(
                 PENDING_POST_ID,
                 LocalDate.of(2026, 8, 31),
                 ModerationStatus.PENDING,
-                PENDING_THUMBNAIL_KEY
-        );
+                PENDING_THUMBNAIL_KEY);
     }
 
     @Test
@@ -84,8 +81,7 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
         // When
         PostCalendarResult result = postQueryService.getMyPostCalendar(
                 USER_ID,
-                YearMonth.of(2026, 8)
-        );
+                YearMonth.of(2026, 8));
 
         // Then
         assertThat(result).isEqualTo(new PostCalendarResult(
@@ -96,16 +92,12 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                                 LocalDate.of(2026, 8, 1),
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
-                                ModerationStatus.APPROVED
-                        ),
+                                ModerationStatus.APPROVED),
                         new PostCalendarResult.PostSummary(
                                 LocalDate.of(2026, 8, 31),
                                 PENDING_POST_ID,
                                 "https://cdn.example.com/posts/pending.webp",
-                                ModerationStatus.PENDING
-                        )
-                )
-        ));
+                                ModerationStatus.PENDING))));
     }
 
     @Test
@@ -114,8 +106,7 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
         // When
         PostCalendarResult result = postQueryService.getMyPostCalendar(
                 USER_ID,
-                YearMonth.of(2026, 7)
-        );
+                YearMonth.of(2026, 7));
 
         // Then
         assertThat(result).isEqualTo(new PostCalendarResult(2026, 7, List.of()));
@@ -132,9 +123,7 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 UnauthorizedException.class,
                 () -> postQueryService.getMyPostCalendar(
                         unknownUserId,
-                        YearMonth.of(2026, 8)
-                )
-        );
+                        YearMonth.of(2026, 8)));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
@@ -149,14 +138,18 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
     ) {
         UUID topicId = UUID.nameUUIDFromBytes(("service-topic-" + topicDate).getBytes());
         UUID photoId = UUID.nameUUIDFromBytes(("service-photo-" + postId).getBytes());
+        ZoneId kst = ZoneId.of("Asia/Seoul");
         jdbcTemplate.update("""
                 INSERT INTO topics (
                     id, title, topic_date, starts_at, ends_at, created_at, updated_at
                 ) VALUES (
-                    ?, '캘린더 서비스 주제', ?, CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    ?, '캘린더 서비스 주제', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
-                """, topicId, topicDate);
+                """,
+                topicId,
+                topicDate,
+                Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()));
         jdbcTemplate.update("""
                 INSERT INTO photos (
                     id, original_storage_key, thumbnail_storage_key, created_at, updated_at
@@ -166,8 +159,7 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 """,
                 photoId,
                 "chalkak/dev/posts/original/" + postId + ".webp",
-                thumbnailStorageKey
-        );
+                thumbnailStorageKey);
         jdbcTemplate.update("""
                 INSERT INTO posts (
                     id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at

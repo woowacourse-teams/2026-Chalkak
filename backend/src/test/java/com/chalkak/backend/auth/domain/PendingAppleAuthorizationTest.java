@@ -16,18 +16,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 class PendingAppleAuthorizationTest {
 
     private static final String SUBJECT_HMAC = "a".repeat(64);
-    private static final Instant EXPIRES_AT =
-            Instant.parse("2026-09-04T00:05:00Z");
+    private static final Instant EXPIRES_AT = Instant.parse("2026-09-04T00:05:00Z");
 
     @Test
     @DisplayName("신원 지문과 암호화된 RT, 만료 시각으로 임시 인증 정보를 만든다")
     void create_validArguments_createsAuthorization() {
         // When
-        PendingAppleAuthorization authorization =
-                PendingAppleAuthorization.create(
-                        SUBJECT_HMAC,
-                        "encrypted-refresh-token",
-                        EXPIRES_AT);
+        PendingAppleAuthorization authorization = PendingAppleAuthorization.create(
+                SUBJECT_HMAC,
+                "encrypted-refresh-token",
+                EXPIRES_AT);
 
         // Then
         assertThat(authorization.getSubjectHmac()).isEqualTo(SUBJECT_HMAC);
@@ -92,11 +90,10 @@ class PendingAppleAuthorizationTest {
     @DisplayName("더 뒤인 만료 시각만 반영하고 앞당기지는 않는다")
     void extendTo_atCurrentExpiry_movesOnlyForward() {
         // Given
-        PendingAppleAuthorization authorization =
-                PendingAppleAuthorization.create(
-                        SUBJECT_HMAC,
-                        "encrypted-refresh-token",
-                        EXPIRES_AT);
+        PendingAppleAuthorization authorization = PendingAppleAuthorization.create(
+                SUBJECT_HMAC,
+                "encrypted-refresh-token",
+                EXPIRES_AT);
 
         // When & Then
         authorization.extendTo(EXPIRES_AT.minusMillis(1));

@@ -64,8 +64,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
     @Override
     public void revokeRefreshToken(String refreshToken) {
         validateRefreshToken(refreshToken);
-        MultiValueMap<String, String> form =
-                createRefreshTokenRevocationForm(refreshToken);
+        MultiValueMap<String, String> form = createRefreshTokenRevocationForm(refreshToken);
 
         try {
             restClient.post()
@@ -151,8 +150,7 @@ public class AppleHttpTokenClient implements AppleTokenClient {
             @JsonProperty("token_type") String tokenType,
             @JsonProperty("expires_in") Long expiresIn,
             @JsonProperty("refresh_token") String refreshToken,
-            @JsonProperty("id_token") String idToken
-    ) {
+            @JsonProperty("id_token") String idToken) {
 
         private boolean isValid() {
             return isNotBlank(accessToken)

@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.converter;
 
-import com.chalkak.backend.admin.service.AdminTopicSort;
+import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 

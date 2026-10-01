@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminUserListResult;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.user.AdminUserListResult;
 import com.chalkak.backend.auth.domain.SocialProvider;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -35,12 +35,11 @@ public record AdminUserListResponse(
             String appVersion,
             @Schema(nullable = true)
             SocialProvider socialProvider,
-            PostCountsResponse postCounts,
+            AdminUserPostCountsResponse postCounts,
             Instant createdAt,
             Instant updatedAt,
             @Schema(nullable = true)
-            Instant deletedAt
-    ) {
+            Instant deletedAt) {
 
         private static UserResponse from(AdminUserListResult.UserSummary user) {
             return new UserResponse(
@@ -49,25 +48,11 @@ public record AdminUserListResponse(
                     user.status(),
                     user.appVersion(),
                     user.socialProvider(),
-                    PostCountsResponse.from(user.postCounts()),
+                    AdminUserPostCountsResponse.from(user.postCounts()),
                     user.createdAt(),
                     user.updatedAt(),
                     user.deletedAt());
         }
     }
 
-    @Schema(name = "AdminUserPostCounts")
-    public record PostCountsResponse(
-            long pending,
-            long approved,
-            long rejected
-    ) {
-
-        public static PostCountsResponse from(AdminUserListResult.PostCounts postCounts) {
-            return new PostCountsResponse(
-                    postCounts.pending(),
-                    postCounts.approved(),
-                    postCounts.rejected());
-        }
-    }
 }

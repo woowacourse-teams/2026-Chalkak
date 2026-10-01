@@ -55,8 +55,8 @@ class AppleAuthorizationServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots =
-                appleAuthorizationService.findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
+                .findAuthorizationSnapshots(user.getId());
 
         // Then
         assertThat(snapshots).containsExactly(new AppleAuthorizationSnapshot(
@@ -73,8 +73,8 @@ class AppleAuthorizationServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots =
-                appleAuthorizationService.findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
+                .findAuthorizationSnapshots(user.getId());
 
         // Then
         assertThat(snapshots).isEmpty();
@@ -88,8 +88,8 @@ class AppleAuthorizationServiceTest extends IntegrationTestSupport {
         flushAndClear();
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots =
-                appleAuthorizationService.findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
+                .findAuthorizationSnapshots(user.getId());
 
         // Then
         assertThat(snapshots).isEmpty();
@@ -102,8 +102,8 @@ class AppleAuthorizationServiceTest extends IntegrationTestSupport {
         UUID notExistingId = UUID.randomUUID();
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots =
-                appleAuthorizationService.findAuthorizationSnapshots(notExistingId);
+        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
+                .findAuthorizationSnapshots(notExistingId);
 
         // Then
         assertThat(snapshots).isEmpty();

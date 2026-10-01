@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminPostListResult;
+import com.chalkak.backend.admin.service.post.AdminPostListResult;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,8 +23,7 @@ public record AdminPostListResponse(
                 result.hasNext(),
                 result.posts().stream()
                         .map(PostResponse::from)
-                        .toList()
-        );
+                        .toList());
     }
 
     @Schema(name = "AdminPostListItem")
@@ -32,7 +31,9 @@ public record AdminPostListResponse(
             UUID postId,
             @Schema(nullable = true)
             String title,
-            @Schema(allowableValues = {"PENDING", "APPROVED", "REJECTED"})
+            @Schema(
+                    allowableValues = {
+                            "PENDING", "APPROVED", "REJECTED"})
             ModerationStatus moderationStatus,
             AuthorResponse author,
             TopicResponse topic,
@@ -56,8 +57,7 @@ public record AdminPostListResponse(
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt()
-            );
+                    post.deletedAt());
         }
     }
 
@@ -79,8 +79,7 @@ public record AdminPostListResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt()
-            );
+                    author.deletedAt());
         }
     }
 
@@ -114,8 +113,7 @@ public record AdminPostListResponse(
             return new PhotoResponse(
                     photo.photoId(),
                     photo.originalImageUrl(),
-                    photo.thumbnailImageUrl()
-            );
+                    photo.thumbnailImageUrl());
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.admin.service.AdminUserSort;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserSort;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -19,7 +19,8 @@ public record AdminUserListRequest(
                 description = "가입 시각 정렬",
                 defaultValue = "createdAtDesc",
                 implementation = String.class,
-                allowableValues = {"createdAtDesc", "createdAtAsc"})
+                allowableValues = {
+                        "createdAtDesc", "createdAtAsc"})
         AdminUserSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1")

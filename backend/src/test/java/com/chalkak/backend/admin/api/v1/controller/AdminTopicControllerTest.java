@@ -1,6 +1,5 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -14,11 +13,11 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminTopicSortConverter;
-import com.chalkak.backend.admin.service.AdminTopicCommandService;
-import com.chalkak.backend.admin.service.AdminTopicDetail;
-import com.chalkak.backend.admin.service.AdminTopicListResult;
-import com.chalkak.backend.admin.service.AdminTopicQueryService;
-import com.chalkak.backend.admin.service.AdminTopicSort;
+import com.chalkak.backend.admin.service.topic.AdminTopicCommandService;
+import com.chalkak.backend.admin.service.topic.AdminTopicDetail;
+import com.chalkak.backend.admin.service.topic.AdminTopicListResult;
+import com.chalkak.backend.admin.service.topic.AdminTopicQueryService;
+import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import java.time.Instant;
@@ -45,10 +44,8 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 class AdminTopicControllerTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198fd21-0000-7000-8000-000000000001");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198fd21-0000-7000-8000-000000000002");
+    private static final UUID ADMIN_ID = UUID.fromString("0198fd21-0000-7000-8000-000000000001");
+    private static final UUID TOPIC_ID = UUID.fromString("0198fd21-0000-7000-8000-000000000002");
     private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 30);
     private static final Instant STARTS_AT = Instant.parse("2026-08-29T15:00:00Z");
     private static final Instant ENDS_AT = Instant.parse("2026-08-30T15:00:00Z");
@@ -79,21 +76,19 @@ class AdminTopicControllerTest {
                 LocalDate.of(2026, 8, 31),
                 AdminTopicSort.TOPIC_DATE_ASC,
                 2,
-                10
-        )).willReturn(new AdminTopicListResult(
-                2,
-                10,
-                false,
-                List.of(detail("공개 전 주제"))
-        ));
+                10)).willReturn(new AdminTopicListResult(
+                        2,
+                        10,
+                        false,
+                        List.of(detail("공개 전 주제"))));
 
         mockMvc.perform(get("/api/v1/admin/topics")
-                        .queryParam("phase", "BEFORE_OPEN")
-                        .queryParam("dateFrom", "2026-08-29")
-                        .queryParam("dateTo", "2026-08-31")
-                        .queryParam("sort", "topicDateAsc")
-                        .queryParam("page", "2")
-                        .queryParam("pageSize", "10"))
+                .queryParam("phase", "BEFORE_OPEN")
+                .queryParam("dateFrom", "2026-08-29")
+                .queryParam("dateTo", "2026-08-31")
+                .queryParam("sort", "topicDateAsc")
+                .queryParam("page", "2")
+                .queryParam("pageSize", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
                 .andExpect(jsonPath("$.topics[0].topicId").value(TOPIC_ID.toString()))
@@ -113,12 +108,11 @@ class AdminTopicControllerTest {
                 "새 주제",
                 TOPIC_DATE,
                 STARTS_AT,
-                ENDS_AT
-        )).willReturn(detail("새 주제"));
+                ENDS_AT)).willReturn(detail("새 주제"));
 
         mockMvc.perform(post("/api/v1/admin/topics")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validBody("새 주제")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validBody("새 주제")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("새 주제"));
     }
@@ -143,12 +137,11 @@ class AdminTopicControllerTest {
                 "수정 주제",
                 TOPIC_DATE,
                 STARTS_AT,
-                ENDS_AT
-        )).willReturn(detail("수정 주제"));
+                ENDS_AT)).willReturn(detail("수정 주제"));
 
         mockMvc.perform(put("/api/v1/admin/topics/{topicId}", TOPIC_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validBody("수정 주제")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validBody("수정 주제")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("수정 주제"));
     }
@@ -157,31 +150,30 @@ class AdminTopicControllerTest {
     @DisplayName("관리자는 사유와 함께 공개 전 주제를 삭제한다")
     void deleteTopic_validReason_returnsNoContent() throws Exception {
         mockMvc.perform(delete("/api/v1/admin/topics/{topicId}", TOPIC_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"reason":"주제 편성 변경"}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"reason":"주제 편성 변경"}
+                        """))
                 .andExpect(status().isNoContent());
 
         then(adminTopicCommandService).should().deleteTopic(
                 TOPIC_ID,
                 ADMIN_ID,
-                "주제 편성 변경"
-        );
+                "주제 편성 변경");
     }
 
     @Test
     @DisplayName("빈 제목 또는 삭제 사유는 400으로 거절한다")
     void mutateTopic_blankRequiredValue_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v1/admin/topics")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validBody(" ")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validBody(" ")))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(delete("/api/v1/admin/topics/{topicId}", TOPIC_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"reason":" "}
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"reason":" "}
+                        """))
                 .andExpect(status().isBadRequest());
 
         then(adminTopicQueryService).shouldHaveNoInteractions();
@@ -198,8 +190,7 @@ class AdminTopicControllerTest {
                 TopicPhase.BEFORE_OPEN,
                 new AdminTopicDetail.PostCounts(1, 2, 0),
                 Instant.parse("2026-08-28T01:00:00Z"),
-                Instant.parse("2026-08-28T01:00:00Z")
-        );
+                Instant.parse("2026-08-28T01:00:00Z"));
     }
 
     private String validBody(String title) {

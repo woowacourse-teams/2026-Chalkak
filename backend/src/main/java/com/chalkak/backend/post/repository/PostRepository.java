@@ -14,8 +14,7 @@ public interface PostRepository {
     Optional<Post> findActiveByAuthorIdAndTopicIdForUpdate(UUID authorId, UUID topicId);
 
     /**
-     * 위 잠금 조회와 조건은 같고 잠금만 걸지 않는다. 작성 가능 여부만 미리 알려 주는 읽기 전용 조회는
-     * 게시물 행을 잠글 이유가 없다.
+     * 위 잠금 조회와 조건은 같고 잠금만 걸지 않는다. 작성 가능 여부만 미리 알려 주는 읽기 전용 조회는 게시물 행을 잠글 이유가 없다.
      */
     Optional<Post> findActiveByAuthorIdAndTopicId(UUID authorId, UUID topicId);
 
@@ -24,8 +23,8 @@ public interface PostRepository {
     Optional<Post> findByIdForUpdate(UUID postId);
 
     /**
-     * 지금까지의 변경을 즉시 반영한다. 활성 게시물을 가리는 부분 유니크 인덱스가 있어, 새 게시물을 저장하기
-     * 전에 기존 게시물의 거절 처리가 먼저 DB에 닿아야 한다.
+     * 지금까지의 변경을 즉시 반영한다. 활성 게시물을 가리는 부분 유니크 인덱스가 있어, 새 게시물을 저장하기 전에 기존 게시물의 거절 처리가
+     * 먼저 DB에 닿아야 한다.
      */
     void flush();
 

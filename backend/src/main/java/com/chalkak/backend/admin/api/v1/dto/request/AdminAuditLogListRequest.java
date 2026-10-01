@@ -2,7 +2,7 @@ package com.chalkak.backend.admin.api.v1.dto.request;
 
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminTargetType;
-import com.chalkak.backend.admin.service.AdminAuditLogSort;
+import com.chalkak.backend.admin.repository.audit.AdminAuditLogSort;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -35,8 +35,8 @@ public record AdminAuditLogListRequest(
                 description = "발생 시각 정렬. 같은 시각에는 로그 ID로 안정 정렬합니다.",
                 defaultValue = "occurredAtDesc",
                 implementation = String.class,
-                allowableValues = {"occurredAtDesc", "occurredAtAsc"}
-        )
+                allowableValues = {
+                        "occurredAtDesc", "occurredAtAsc"})
         AdminAuditLogSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1")

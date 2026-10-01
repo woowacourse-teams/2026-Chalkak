@@ -32,6 +32,7 @@
 | 좋아요 | [like.md](rules/like.md) | 활성 |
 | 피드백 | [feedback.md](rules/feedback.md) | 활성 |
 | 관리자 | [admin.md](rules/admin.md) | 활성 |
+| 알림함 | [notification.md](rules/notification.md) | 활성 |
 
 새 도메인 문서는 [규칙 템플릿](rules/_template.md)을 복사해 만든다. 템플릿은 이후 규칙도 같은 형식으로 기록하기 위해 유지하며 현재 규칙이나 Notion 동기화 대상으로 보지 않는다.
 

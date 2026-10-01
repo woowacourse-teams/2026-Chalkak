@@ -8,6 +8,5 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("chalkak.auth.apple.refresh-token-encryption")
 public record AppleAuthorizationEncryptionProperties(
-        @NotBlank @Pattern(regexp = "[0-9A-Fa-f]{64}") String key
-) {
+        @NotBlank @Pattern(regexp = "[0-9A-Fa-f]{64}") String key) {
 }

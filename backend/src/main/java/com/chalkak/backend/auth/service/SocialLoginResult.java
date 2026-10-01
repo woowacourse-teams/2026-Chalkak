@@ -8,8 +8,7 @@ public record SocialLoginResult(
         SocialLoginStatus status,
         UUID userId,
         IssuedAccessToken accessToken,
-        IssuedRefreshToken refreshToken
-) {
+        IssuedRefreshToken refreshToken) {
 
     public static SocialLoginResult loginSuccess(
             UUID userId,

@@ -56,8 +56,8 @@ public class Post {
     private Photo photo;
 
     /**
-     * 소비한 이미지 업로드. 다른 애그리게이트라 연관관계가 아니라 식별자로 들고 있다. 처리 콜백이 스토리지 키
-     * 규칙을 되짚지 않고 게시물을 찾을 수 있어, 키 규칙이 바뀌어도 조용히 매칭에 실패하지 않는다.
+     * 소비한 이미지 업로드. 다른 애그리게이트라 연관관계가 아니라 식별자로 들고 있다. 처리 콜백이 스토리지 키 규칙을 되짚지 않고 게시물을
+     * 찾을 수 있어, 키 규칙이 바뀌어도 조용히 매칭에 실패하지 않는다.
      */
     @Column(name = "post_image_upload_id")
     private UUID postImageUploadId;
@@ -87,11 +87,11 @@ public class Post {
     private Instant deletedAt;
 
     private Post(
-        User author,
-        Topic topic,
-        Photo photo,
-        UUID postImageUploadId,
-        String title
+            User author,
+            Topic topic,
+            Photo photo,
+            UUID postImageUploadId,
+            String title
     ) {
         this.author = author;
         this.topic = topic;
@@ -102,18 +102,17 @@ public class Post {
     }
 
     public static Post createPost(
-        User author,
-        Topic topic,
-        Photo photo,
-        UUID postImageUploadId,
-        String title
+            User author,
+            Topic topic,
+            Photo photo,
+            UUID postImageUploadId,
+            String title
     ) {
         validateRelations(author, topic, photo);
         if (postImageUploadId == null) {
             throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "게시물 생성 정보가 올바르지 않습니다."
-            );
+                    ErrorCode.BUSINESS_ERROR,
+                    "게시물 생성 정보가 올바르지 않습니다.");
         }
         return new Post(author, topic, photo, postImageUploadId, title);
     }
@@ -152,7 +151,9 @@ public class Post {
         this.title = PostTitle.from(title);
     }
 
-    /** 제목 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostTitle}의 null 여부를 직접 다루지 않게 한다. */
+    /**
+     * 제목 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostTitle}의 null 여부를 직접 다루지 않게 한다.
+     */
     public String getTitle() {
         return title == null ? null : title.value();
     }
@@ -177,21 +178,18 @@ public class Post {
         if (moderationStatus == ModerationStatus.VALIDATING) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "이미지 처리 중인 게시물은 삭제할 수 없습니다."
-            );
+                    "이미지 처리 중인 게시물은 삭제할 수 없습니다.");
         }
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "현재 상태의 게시물은 삭제할 수 없습니다."
-        );
+                "현재 상태의 게시물은 삭제할 수 없습니다.");
     }
 
     private void validateAuthor(UUID authorId) {
         if (!author.getId().equals(authorId)) {
             throw new ForbiddenException(
                     ErrorCode.FORBIDDEN,
-                    "본인의 게시물만 접근할 수 있습니다."
-            );
+                    "본인의 게시물만 접근할 수 있습니다.");
         }
     }
 
@@ -202,8 +200,7 @@ public class Post {
         }
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "현재 상태의 게시물은 수정할 수 없습니다."
-        );
+                "현재 상태의 게시물은 수정할 수 없습니다.");
     }
 
     private void validateTitleUpdatePeriod(Instant now) {
@@ -212,30 +209,27 @@ public class Post {
         }
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "참여 기간이 종료된 게시물은 수정할 수 없습니다."
-        );
+                "참여 기간이 종료된 게시물은 수정할 수 없습니다.");
     }
 
     private void validateAuthorDeletionStatus() {
-        if (moderationStatus == ModerationStatus.PENDING || moderationStatus == ModerationStatus.APPROVED) {
+        if (moderationStatus == ModerationStatus.PENDING
+                || moderationStatus == ModerationStatus.APPROVED) {
             return;
         }
         if (moderationStatus == ModerationStatus.REJECTED) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "검수 거절된 게시물은 삭제할 수 없습니다."
-            );
+                    "검수 거절된 게시물은 삭제할 수 없습니다.");
         }
         if (moderationStatus == ModerationStatus.VALIDATING) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "이미지 처리 중인 게시물은 삭제할 수 없습니다."
-            );
+                    "이미지 처리 중인 게시물은 삭제할 수 없습니다.");
         }
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "현재 상태의 게시물은 삭제할 수 없습니다."
-        );
+                "현재 상태의 게시물은 삭제할 수 없습니다.");
     }
 
     private void deleteIfNotDeleted(Instant deletedAt) {
@@ -245,8 +239,7 @@ public class Post {
         if (deletedAt == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "게시물 삭제 시각이 필요합니다."
-            );
+                    "게시물 삭제 시각이 필요합니다.");
         }
         photo.delete(deletedAt);
         this.deletedAt = deletedAt;
@@ -257,8 +250,7 @@ public class Post {
         if (moderatedAt == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "게시물 검수 시각이 필요합니다."
-            );
+                    "게시물 검수 시각이 필요합니다.");
         }
         this.moderationStatus = moderationStatus;
         this.moderatedAt = moderatedAt;
@@ -268,17 +260,15 @@ public class Post {
         if (moderationStatus != expectedStatus) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "게시물 검수 상태를 변경할 수 없습니다."
-            );
+                    "게시물 검수 상태를 변경할 수 없습니다.");
         }
     }
 
     private static void validateRelations(User author, Topic topic, Photo photo) {
         if (author == null || topic == null || photo == null) {
             throw new BusinessException(
-                ErrorCode.BUSINESS_ERROR,
-                "게시물 생성 정보가 올바르지 않습니다."
-            );
+                    ErrorCode.BUSINESS_ERROR,
+                    "게시물 생성 정보가 올바르지 않습니다.");
         }
     }
 }

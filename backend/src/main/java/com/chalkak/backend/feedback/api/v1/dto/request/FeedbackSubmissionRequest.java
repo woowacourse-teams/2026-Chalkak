@@ -13,8 +13,7 @@ public record FeedbackSubmissionRequest(
                 example = "사진 업로드 후 화면이 멈춰요.",
                 minLength = 1,
                 maxLength = Feedback.MAX_CONTENT_LENGTH,
-                requiredMode = Schema.RequiredMode.REQUIRED
-        )
+                requiredMode = Schema.RequiredMode.REQUIRED)
         String content
 ) {
 

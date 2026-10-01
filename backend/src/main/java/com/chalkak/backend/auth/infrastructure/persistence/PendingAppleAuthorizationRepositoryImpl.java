@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class PendingAppleAuthorizationRepositoryImpl
-        implements PendingAppleAuthorizationRepository {
+        implements
+            PendingAppleAuthorizationRepository {
 
     private final PendingAppleAuthorizationJpaRepository repository;
 

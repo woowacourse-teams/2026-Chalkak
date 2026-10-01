@@ -17,8 +17,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 class TopicRepositoryImplTest {
 
-    private static final String TOPIC_DATE_UNIQUE_INDEX =
-            "ux_topics_topic_date_active";
+    private static final String TOPIC_DATE_UNIQUE_INDEX = "ux_topics_topic_date_active";
+    private static final String TOPIC_PERIOD_EXCLUSION_CONSTRAINT = "ex_topics_active_participation_period";
 
     private final TopicJpaRepository topicJpaRepository = mock(TopicJpaRepository.class);
     private final TopicRepositoryImpl topicRepository = new TopicRepositoryImpl(topicJpaRepository);
@@ -34,8 +34,7 @@ class TopicRepositoryImplTest {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> topicRepository.saveAndFlush(topic)
-        );
+                () -> topicRepository.saveAndFlush(topic));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -43,12 +42,30 @@ class TopicRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("참여 기간 겹침 제약 위반을 관리자 안내 오류로 변환한다")
+    void saveAndFlush_topicPeriodOverlap_throwsBusinessException() {
+        // Given
+        Topic topic = mock(Topic.class);
+        given(topicJpaRepository.saveAndFlush(topic))
+                .willThrow(integrityViolation(TOPIC_PERIOD_EXCLUSION_CONSTRAINT));
+
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> topicRepository.saveAndFlush(topic));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("다른 주제의 참여 기간과 겹칩니다.");
+    }
+
+    @Test
     @DisplayName("알 수 없는 무결성 오류는 날짜 중복 오류로 변환하지 않고 전파한다")
     void saveAndFlush_unknownIntegrityViolation_propagatesOriginalException() {
         // Given
         Topic topic = mock(Topic.class);
-        DataIntegrityViolationException databaseFailure =
-                integrityViolation("topics_unknown_constraint");
+        DataIntegrityViolationException databaseFailure = integrityViolation(
+                "topics_unknown_constraint");
         given(topicJpaRepository.saveAndFlush(topic)).willThrow(databaseFailure);
 
         // When & Then
@@ -60,8 +77,7 @@ class TopicRepositoryImplTest {
         ConstraintViolationException cause = new ConstraintViolationException(
                 "database constraint violation",
                 new SQLException(),
-                constraintName
-        );
+                constraintName);
         return new DataIntegrityViolationException("data integrity violation", cause);
     }
 }

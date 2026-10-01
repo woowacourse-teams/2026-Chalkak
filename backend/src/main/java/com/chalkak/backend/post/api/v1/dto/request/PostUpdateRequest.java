@@ -13,8 +13,7 @@ public record PostUpdateRequest(
                 description = "수정할 제목. 앞뒤 공백을 제거하며 null 또는 공백이면 제목을 삭제합니다.",
                 example = "수정한 제목",
                 nullable = true,
-                requiredMode = Schema.RequiredMode.REQUIRED
-        )
+                requiredMode = Schema.RequiredMode.REQUIRED)
         String title
 ) {
 

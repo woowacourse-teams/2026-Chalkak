@@ -17,13 +17,13 @@ public class AppleSocialConnectionRevoker implements SocialConnectionRevoker {
     private final AppleTokenClient appleTokenClient;
 
     /**
-     * DB 조회 트랜잭션은 별도 빈에 위임하고 Apple HTTP 호출은 트랜잭션 밖에서 실행한다.
-     * Apple은 이미 폐기된 RT의 재폐기도 성공으로 처리하므로 중간 실패 후 재시도할 수 있다.
+     * DB 조회 트랜잭션은 별도 빈에 위임하고 Apple HTTP 호출은 트랜잭션 밖에서 실행한다. Apple은 이미 폐기된 RT의 재폐기도
+     * 성공으로 처리하므로 중간 실패 후 재시도할 수 있다.
      */
     @Override
     public List<SocialConnectionRevocationSnapshot> revokeAll(UUID userId) {
-        List<AppleAuthorizationSnapshot> snapshots =
-                appleAuthorizationService.findAuthorizationSnapshots(userId);
+        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
+                .findAuthorizationSnapshots(userId);
         snapshots.forEach(this::revoke);
         return snapshots.stream()
                 .map(this::toSocialConnectionSnapshot)

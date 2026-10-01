@@ -3,7 +3,7 @@ package com.chalkak.backend.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.chalkak.backend.admin.repository.AdminRefreshTokenRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRefreshTokenRepository;
 import com.chalkak.backend.auth.infrastructure.infra.refresh.RefreshTokenCleanupScheduler;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import java.time.Clock;
@@ -13,8 +13,8 @@ import org.springframework.boot.test.context.ConfigDataApplicationContextInitial
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
- * 스케줄링 전체를 끄는 키와 정리 작업 하나를 끄는 키가 서로 독립인지 확인한다. 둘이 섞이면 주기
- * 작업이 하나 더 늘었을 때 그 작업과 무관한 키가 새 작업까지 조용히 끄고, 증상이 원인에서 멀어진다.
+ * 스케줄링 전체를 끄는 키와 정리 작업 하나를 끄는 키가 서로 독립인지 확인한다. 둘이 섞이면 주기 작업이 하나 더 늘었을 때 그 작업과
+ * 무관한 키가 새 작업까지 조용히 끄고, 증상이 원인에서 멀어진다.
  */
 class SchedulingConfigurationTest {
 
@@ -72,7 +72,6 @@ class SchedulingConfigurationTest {
                         // test 프로필은 application-test.yml이 스케줄링을 꺼 두므로, 운영과 같은
                         // 기본값에서 두 키의 관계를 보려면 다른 프로필로 띄운다.
                         "spring.profiles.active=local",
-                        "spring.config.import="
-                );
+                        "spring.config.import=");
     }
 }

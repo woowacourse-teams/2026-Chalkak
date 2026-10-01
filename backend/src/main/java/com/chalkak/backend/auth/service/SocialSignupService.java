@@ -46,9 +46,8 @@ public class SocialSignupService {
     private final UserRefreshTokenService userRefreshTokenService;
 
     /**
-     * Apple 보관분 확인을 업로드 URL 발급보다 앞에 둔다. 회원가입 토큰을 먼저 발급해야 보관분
-     * 만료를 맞출 수 있고, 거절되는 요청이 저장소에 업로드 URL을 요청하지 않게 된다. 발급만
-     * 하고 버려지는 회원가입 토큰은 상태가 없는 JWT라 남는 것이 없다.
+     * Apple 보관분 확인을 업로드 URL 발급보다 앞에 둔다. 회원가입 토큰을 먼저 발급해야 보관분 만료를 맞출 수 있고, 거절되는 요청이
+     * 저장소에 업로드 URL을 요청하지 않게 된다. 발급만 하고 버려지는 회원가입 토큰은 상태가 없는 JWT라 남는 것이 없다.
      */
     public SocialSignupSignatureUploadResult createSignatureUpload(
             SocialProvider provider,
@@ -75,8 +74,7 @@ public class SocialSignupService {
 
     @Transactional
     public SocialSignupResult signup(String signupToken) {
-        VerifiedSocialSignupToken verifiedToken =
-                socialSignupTokenVerifier.verify(signupToken);
+        VerifiedSocialSignupToken verifiedToken = socialSignupTokenVerifier.verify(signupToken);
         String subjectHmac = fingerprintEncoder.encode(
                 verifiedToken.provider(),
                 verifiedToken.subject());
@@ -120,8 +118,8 @@ public class SocialSignupService {
     }
 
     /**
-     * 리프레시 토큰 계보는 회원 엔티티에 FK로 매달리므로 식별자만으로는 만들 수 없다. 가입 직후
-     * 바로 재발급할 수 있도록 액세스 토큰과 같은 자리에서 함께 발급한다.
+     * 리프레시 토큰 계보는 회원 엔티티에 FK로 매달리므로 식별자만으로는 만들 수 없다. 가입 직후 바로 재발급할 수 있도록 액세스 토큰과 같은
+     * 자리에서 함께 발급한다.
      */
     private SocialSignupResult toSignupResult(User user) {
         return new SocialSignupResult(
@@ -146,15 +144,14 @@ public class SocialSignupService {
     }
 
     /**
-     * signupToken은 발급 후 만료 전까지 몇 번이든 검증에 통과하는 stateless JWT라,
-     * 이미 가입을 완료시킨 토큰이라도 재전송하면 다시 여기까지 온다. 탈퇴로 소셜 계정이
-     * 삭제되면 subject가 다시 "미가입"으로 보여, 같은 토큰으로 새 계정과 Apple 인증
-     * 정보(이미 폐기된 RT 포함)가 재구성될 수 있다. 이 토큰의 jti를 최초 가입 성공
-     * 시점에 소진 처리해, 같은 토큰의 두 번째 가입 완료를 막는다.
+     * signupToken은 발급 후 만료 전까지 몇 번이든 검증에 통과하는 stateless JWT라, 이미 가입을 완료시킨 토큰이라도
+     * 재전송하면 다시 여기까지 온다. 탈퇴로 소셜 계정이 삭제되면 subject가 다시 "미가입"으로 보여, 같은 토큰으로 새 계정과 Apple
+     * 인증 정보(이미 폐기된 RT 포함)가 재구성될 수 있다. 이 토큰의 jti를 최초 가입 성공 시점에 소진 처리해, 같은 토큰의 두 번째
+     * 가입 완료를 막는다.
      *
      * <p>
-     * 검증이 아니라 jti를 기록하는 쓰기 작업이다. 이후 단계가 실패하면 가입 트랜잭션과 함께 기록도
-     * 롤백되어, 같은 토큰으로 다시 시도할 수 있다.
+     * 검증이 아니라 jti를 기록하는 쓰기 작업이다. 이후 단계가 실패하면 가입 트랜잭션과 함께 기록도 롤백되어, 같은 토큰으로 다시 시도할 수
+     * 있다.
      */
     private void consumeSignupToken(VerifiedSocialSignupToken verifiedToken) {
         boolean firstUse = consumedSignupTokenRepository.consumeIfAbsent(
@@ -182,8 +179,8 @@ public class SocialSignupService {
                 identity.provider(),
                 identity.subject());
         socialAccountRepository.findByProviderAndSubjectHmac(
-                        identity.provider(),
-                        subjectHmac)
+                identity.provider(),
+                subjectHmac)
                 .ifPresent(this::validateAvailableForSignup);
     }
 

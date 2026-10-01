@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.admin.service.AdminFeedbackSort;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -10,7 +10,8 @@ public record AdminFeedbackListRequest(
                 description = "접수 시각 정렬",
                 defaultValue = "createdAtDesc",
                 implementation = String.class,
-                allowableValues = {"createdAtDesc", "createdAtAsc"})
+                allowableValues = {
+                        "createdAtDesc", "createdAtAsc"})
         AdminFeedbackSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1")

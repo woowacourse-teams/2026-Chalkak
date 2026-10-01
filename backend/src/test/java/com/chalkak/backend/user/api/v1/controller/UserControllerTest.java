@@ -39,8 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(GlobalExceptionHandler.class)
 class UserControllerTest {
 
-    private static final String USER_ID_VALUE =
-            "0198f6c1-62ba-7d30-8b12-0f733b6570b7";
+    private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570b7";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
 
     @Autowired
@@ -105,7 +104,7 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me")
-                        .param("userId", victimId.toString()))
+                .param("userId", victimId.toString()))
                 .andExpect(status().isUnauthorized());
 
         verify(userWithdrawalService, never()).withdraw(any());
@@ -121,7 +120,7 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/users/me")
-                        .param("userId", victimId.toString()))
+                .param("userId", victimId.toString()))
                 .andExpect(status().isNoContent());
 
         verify(userWithdrawalService).withdraw(userId);
@@ -261,8 +260,8 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.signatureOriginalImageUrl").value(imageUrl));
     }
@@ -282,8 +281,8 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
                         .value("SIGNATURE_REUPLOAD_REQUIRED"))
@@ -300,8 +299,8 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
@@ -314,8 +313,8 @@ class UserControllerTest {
     void updateSignature_missingUploadId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
@@ -330,8 +329,8 @@ class UserControllerTest {
     void updateSignature_invalidUploadId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"not-a-uuid\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"not-a-uuid\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -350,8 +349,8 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("업로드한 사인 이미지를 찾을 수 없습니다."));
@@ -369,8 +368,8 @@ class UserControllerTest {
 
         // When & Then
         mockMvc.perform(put("/api/v1/users/me/signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signatureOriginalUploadId\":\"" + uploadId + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("사용할 수 없는 사인 이미지입니다."));
     }

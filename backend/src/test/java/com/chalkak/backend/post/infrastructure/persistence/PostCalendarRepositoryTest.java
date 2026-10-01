@@ -6,8 +6,10 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -28,14 +30,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(PostRepositoryImpl.class)
 class PostCalendarRepositoryTest {
 
-    private static final UUID USER_ID =
-            UUID.fromString("00000000-0000-0000-0000-0000000000a1");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("00000000-0000-0000-0000-0000000000a2");
-    private static final UUID APPROVED_POST_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000201");
-    private static final UUID PENDING_POST_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000202");
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+    private static final UUID OTHER_USER_ID = UUID
+            .fromString("00000000-0000-0000-0000-0000000000a2");
+    private static final UUID APPROVED_POST_ID = UUID
+            .fromString("00000000-0000-0000-0000-000000000201");
+    private static final UUID PENDING_POST_ID = UUID
+            .fromString("00000000-0000-0000-0000-000000000202");
 
     @Autowired
     private PostRepository postRepository;
@@ -55,57 +56,48 @@ class PostCalendarRepositoryTest {
                 APPROVED_POST_ID,
                 USER_ID,
                 LocalDate.of(2026, 8, 1),
-                ModerationStatus.APPROVED
-        );
+                ModerationStatus.APPROVED);
         insertPost(
                 PENDING_POST_ID,
                 USER_ID,
                 LocalDate.of(2026, 8, 31),
-                ModerationStatus.PENDING
-        );
+                ModerationStatus.PENDING);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000203"),
                 USER_ID,
                 LocalDate.of(2026, 8, 19),
-                ModerationStatus.VALIDATING
-        );
+                ModerationStatus.VALIDATING);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000206"),
                 USER_ID,
                 LocalDate.of(2026, 8, 20),
-                ModerationStatus.REJECTED
-        );
+                ModerationStatus.REJECTED);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000204"),
                 OTHER_USER_ID,
                 LocalDate.of(2026, 8, 31),
-                ModerationStatus.APPROVED
-        );
+                ModerationStatus.APPROVED);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000205"),
                 USER_ID,
                 LocalDate.of(2026, 9, 1),
-                ModerationStatus.APPROVED
-        );
+                ModerationStatus.APPROVED);
 
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000207"),
                 OTHER_USER_ID,
                 LocalDate.of(2026, 8, 12),
-                ModerationStatus.PENDING
-        );
+                ModerationStatus.PENDING);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000208"),
                 USER_ID,
                 LocalDate.of(2026, 7, 31),
-                ModerationStatus.PENDING
-        );
+                ModerationStatus.PENDING);
         insertPost(
                 UUID.fromString("00000000-0000-0000-0000-000000000209"),
                 USER_ID,
                 LocalDate.of(2026, 9, 2),
-                ModerationStatus.PENDING
-        );
+                ModerationStatus.PENDING);
 
         entityManager.flush();
         entityManager.clear();
@@ -118,8 +110,7 @@ class PostCalendarRepositoryTest {
         List<Post> result = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 USER_ID,
                 LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 8, 31)
-        );
+                LocalDate.of(2026, 8, 31));
 
         // Then
         assertThat(result).extracting(Post::getId)
@@ -151,8 +142,7 @@ class PostCalendarRepositoryTest {
         List<Post> result = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 USER_ID,
                 LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 8, 31)
-        );
+                LocalDate.of(2026, 8, 31));
 
         // Then
         assertThat(result).isEmpty();
@@ -176,11 +166,12 @@ class PostCalendarRepositoryTest {
     ) {
         UUID topicId = UUID.nameUUIDFromBytes(("topic-" + topicDate).getBytes());
         UUID photoId = UUID.nameUUIDFromBytes(("photo-" + postId).getBytes());
+        ZoneId kst = ZoneId.of("Asia/Seoul");
         jdbcTemplate.update("""
                 INSERT INTO topics (
                     id, title, topic_date, starts_at, ends_at, created_at, updated_at
                 ) SELECT
-                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 day',
+                    ?, ?, ?, ?, ?,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -188,7 +179,13 @@ class PostCalendarRepositoryTest {
                     WHERE topic_date = ?
                       AND deleted_at IS NULL
                 )
-                """, topicId, "캘린더 주제", topicDate, topicDate);
+                """,
+                topicId,
+                "캘린더 주제",
+                topicDate,
+                Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()),
+                topicDate);
         jdbcTemplate.update("""
                 INSERT INTO photos (
                     id, original_storage_key, thumbnail_storage_key, created_at, updated_at
@@ -198,8 +195,7 @@ class PostCalendarRepositoryTest {
                 """,
                 photoId,
                 "chalkak/dev/posts/original/" + postId + ".webp",
-                "chalkak/dev/posts/thumbnail/" + postId + ".webp"
-        );
+                "chalkak/dev/posts/thumbnail/" + postId + ".webp");
         jdbcTemplate.update("""
                 INSERT INTO posts (
                     id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at

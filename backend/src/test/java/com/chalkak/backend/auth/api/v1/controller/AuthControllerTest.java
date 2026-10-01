@@ -64,14 +64,14 @@ class AuthControllerTest {
             throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "APPLE",
-                                  "idToken": "apple-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "APPLE",
+                          "idToken": "apple-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -86,15 +86,15 @@ class AuthControllerTest {
             throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "rawNonce": "raw-nonce",
-                                  "authorizationCode": "apple-authorization-code"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token",
+                          "rawNonce": "raw-nonce",
+                          "authorizationCode": "apple-authorization-code"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -115,15 +115,15 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "APPLE",
-                                  "idToken": "apple-id-token",
-                                  "rawNonce": "raw-nonce",
-                                  "authorizationCode": "apple-authorization-code"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "APPLE",
+                          "idToken": "apple-id-token",
+                          "rawNonce": "raw-nonce",
+                          "authorizationCode": "apple-authorization-code"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
                 .andExpect(jsonPath("$.accessToken").doesNotExist());
@@ -142,14 +142,14 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LOGIN_SUCCESS"))
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
@@ -168,14 +168,14 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
                 .andExpect(jsonPath("$.userId").doesNotExist())
@@ -192,14 +192,14 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "KAKAO",
-                                  "idToken": "kakao-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "KAKAO",
+                          "idToken": "kakao-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SIGN_UP_REQUIRED"))
                 .andExpect(jsonPath("$.userId").doesNotExist())
@@ -212,14 +212,14 @@ class AuthControllerTest {
     void socialLogin_blankIdToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": " ",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": " ",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -233,14 +233,14 @@ class AuthControllerTest {
             throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  %s
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
-                                }
-                                """.formatted(rawNonceField)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          %s
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token"
+                        }
+                        """.formatted(rawNonceField)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -252,13 +252,13 @@ class AuthControllerTest {
     void socialLogin_missingProvider_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "idToken": "google-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "idToken": "google-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -284,14 +284,14 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
                 .andExpect(jsonPath("$.uploadUrl")
@@ -309,14 +309,14 @@ class AuthControllerTest {
             throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "provider": "GOOGLE",
-                                  "idToken": " ",
-                                  "rawNonce": "raw-nonce"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "provider": "GOOGLE",
+                          "idToken": " ",
+                          "rawNonce": "raw-nonce"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -331,14 +331,14 @@ class AuthControllerTest {
     ) throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup/signature/uploads")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  %s
-                                  "provider": "GOOGLE",
-                                  "idToken": "google-id-token"
-                                }
-                                """.formatted(rawNonceField)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          %s
+                          "provider": "GOOGLE",
+                          "idToken": "google-id-token"
+                        }
+                        """.formatted(rawNonceField)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
@@ -358,12 +358,12 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "signupToken": "social-signup-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "signupToken": "social-signup-token"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
@@ -377,8 +377,8 @@ class AuthControllerTest {
     void socialSignup_missingSignupToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -392,12 +392,12 @@ class AuthControllerTest {
     void socialSignup_blankSignupToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "signupToken": " "
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "signupToken": " "
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -418,12 +418,12 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "signupToken": "social-signup-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "signupToken": "social-signup-token"
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode")
                         .value("SIGNATURE_PROCESSING_PENDING"))
@@ -444,12 +444,12 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "chalkak-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "chalkak-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
                 .andExpect(jsonPath("$.expiresIn").value(900))
@@ -462,8 +462,8 @@ class AuthControllerTest {
     void refresh_missingRefreshToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -477,12 +477,12 @@ class AuthControllerTest {
     void refresh_blankRefreshToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": " "
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": " "
+                        }
+                        """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -492,8 +492,8 @@ class AuthControllerTest {
     }
 
     /**
-     * 클라이언트는 이 에러 코드를 보고 저장한 토큰을 버리고 로그인 화면으로 보낸다.
-     * 액세스 토큰만 만료된 UNAUTHORIZED와 섞이면 재발급을 무한히 반복한다.
+     * 클라이언트는 이 에러 코드를 보고 저장한 토큰을 버리고 로그인 화면으로 보낸다. 액세스 토큰만 만료된 UNAUTHORIZED와 섞이면
+     * 재발급을 무한히 반복한다.
      */
     @Test
     @DisplayName("재발급에 실패하면 재로그인 필요 에러 코드와 함께 401을 반환한다")
@@ -507,12 +507,12 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "chalkak-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "chalkak-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"))
                 .andExpect(jsonPath("$.message").value("다시 로그인해 주세요."));
@@ -523,20 +523,19 @@ class AuthControllerTest {
     void logout_validRefreshToken_returnsNoContent() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "chalkak-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "chalkak-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isNoContent());
 
         verify(userRefreshTokenService).logout(REFRESH_TOKEN);
     }
 
     /**
-     * 로그아웃은 멱등이다. 실패를 알리면 토큰의 존재 여부가 새어 나가고, 재시도한 클라이언트가
-     * 로그아웃하지 못하고 막힌다.
+     * 로그아웃은 멱등이다. 실패를 알리면 토큰의 존재 여부가 새어 나가고, 재시도한 클라이언트가 로그아웃하지 못하고 막힌다.
      */
     @Test
     @DisplayName("알 수 없는 리프레시 토큰으로 로그아웃해도 204를 반환한다")
@@ -546,12 +545,12 @@ class AuthControllerTest {
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "refreshToken": "unknown-refresh-token"
-                                }
-                                """))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "refreshToken": "unknown-refresh-token"
+                        }
+                        """))
                 .andExpect(status().isNoContent());
 
         verify(userRefreshTokenService).logout("unknown-refresh-token");
@@ -562,8 +561,8 @@ class AuthControllerTest {
     void logout_missingRefreshToken_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(

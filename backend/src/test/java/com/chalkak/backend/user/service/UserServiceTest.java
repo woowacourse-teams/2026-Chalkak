@@ -49,8 +49,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class UserServiceTest extends IntegrationTestSupport {
 
-    private static final StoredImageMetadata VALID_IMAGE =
-            new StoredImageMetadata("image/png", 1024L);
+    private static final StoredImageMetadata VALID_IMAGE = new StoredImageMetadata("image/png",
+            1024L);
 
     @Autowired
     private UserService userService;
@@ -391,16 +391,13 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
         SignatureStorageKeys storageKeys = storageKeys(uploadId);
-        String activeImageUrl =
-                "https://cdn.test.chalkak/" + activeOriginalStorageKey;
+        String activeImageUrl = "https://cdn.test.chalkak/" + activeOriginalStorageKey;
 
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys);
@@ -437,10 +434,9 @@ class UserServiceTest extends IntegrationTestSupport {
 
         UUID uploadId = UUID.randomUUID();
         SignatureStorageKeys storageKeys = storageKeys(uploadId);
-        String completedImageUrl =
-                "https://cdn.test.chalkak/signatures/dev/original/"
-                        + uploadId
-                        + ".png";
+        String completedImageUrl = "https://cdn.test.chalkak/signatures/dev/original/"
+                + uploadId
+                + ".png";
 
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys);
@@ -540,10 +536,8 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -580,10 +574,8 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         // When
@@ -605,16 +597,13 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
         SignatureStorageKeys storageKeys = storageKeys(uploadId);
-        String activeImageUrl =
-                "https://cdn.test.chalkak/" + activeOriginalStorageKey;
+        String activeImageUrl = "https://cdn.test.chalkak/" + activeOriginalStorageKey;
 
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(storageKeys);
@@ -724,8 +713,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -764,10 +752,8 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String originalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String thumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String originalStorageKey = saved.getSignatureOriginalStorageKey();
+        String thumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -871,8 +857,7 @@ class UserServiceTest extends IntegrationTestSupport {
                 .willReturn(storageKeys(uploadId));
 
         // When & Then
-        assertThatThrownBy(() ->
-                userService.updateSignature(notExistingId, uploadId))
+        assertThatThrownBy(() -> userService.updateSignature(notExistingId, uploadId))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
     }
@@ -902,16 +887,13 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID pendingUploadId = UUID.randomUUID();
         UUID activeUploadId = UUID.randomUUID();
-        String activeImageUrl =
-                "https://cdn.test.chalkak/" + activeOriginalStorageKey;
+        String activeImageUrl = "https://cdn.test.chalkak/" + activeOriginalStorageKey;
 
         given(signatureImageStorage.toStorageKeys(pendingUploadId))
                 .willReturn(storageKeys(pendingUploadId));
@@ -946,10 +928,8 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
-        String activeThumbnailStorageKey =
-                saved.getSignatureThumbnailStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
+        String activeThumbnailStorageKey = saved.getSignatureThumbnailStorageKey();
         flushAndClear();
 
         UUID pendingUploadId = UUID.randomUUID();
@@ -1066,8 +1046,7 @@ class UserServiceTest extends IntegrationTestSupport {
         // Given
         User saved = userRepository.save(UserFixture.create());
         UUID id = saved.getId();
-        String activeOriginalStorageKey =
-                saved.getSignatureOriginalStorageKey();
+        String activeOriginalStorageKey = saved.getSignatureOriginalStorageKey();
         flushAndClear();
 
         UUID uploadId = UUID.randomUUID();
@@ -1111,8 +1090,8 @@ class UserServiceTest extends IntegrationTestSupport {
 
     private Timestamp findRefreshTokenRevokedAt(String token) {
         return jdbcTemplate.queryForObject("""
-                        SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
-                        """,
+                SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
+                """,
                 Timestamp.class,
                 refreshTokenHasher.encode(token));
     }

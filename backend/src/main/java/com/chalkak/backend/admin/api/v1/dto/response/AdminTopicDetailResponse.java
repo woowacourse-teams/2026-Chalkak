@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminTopicDetail;
+import com.chalkak.backend.admin.service.topic.AdminTopicDetail;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -9,7 +9,8 @@ import java.util.UUID;
 
 @Schema(description = "관리자 주제 상세")
 public record AdminTopicDetailResponse(
-        @Schema(format = "uuid") UUID topicId,
+        @Schema(format = "uuid")
+        UUID topicId,
         String title,
         LocalDate topicDate,
         Instant startsAt,
@@ -17,8 +18,7 @@ public record AdminTopicDetailResponse(
         TopicPhase phase,
         AdminTopicPostCounts postCounts,
         Instant createdAt,
-        Instant updatedAt
-) {
+        Instant updatedAt) {
 
     public static AdminTopicDetailResponse from(AdminTopicDetail detail) {
         return new AdminTopicDetailResponse(
@@ -30,7 +30,6 @@ public record AdminTopicDetailResponse(
                 detail.phase(),
                 AdminTopicPostCounts.from(detail.postCounts()),
                 detail.createdAt(),
-                detail.updatedAt()
-        );
+                detail.updatedAt());
     }
 }

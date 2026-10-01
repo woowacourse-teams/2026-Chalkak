@@ -8,17 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ConsumedSignupTokenJpaRepository
-        extends JpaRepository<ConsumedSignupToken, String> {
+        extends
+            JpaRepository<ConsumedSignupToken, String> {
 
     @Modifying
-    @Query(
-            value = """
-                    INSERT INTO consumed_signup_tokens (jti, expires_at)
-                    VALUES (:jti, :expiresAt)
-                    ON CONFLICT (jti) DO NOTHING
-                    """,
-            nativeQuery = true
-    )
+    @Query(value = """
+            INSERT INTO consumed_signup_tokens (jti, expires_at)
+            VALUES (:jti, :expiresAt)
+            ON CONFLICT (jti) DO NOTHING
+            """, nativeQuery = true)
     int createIfAbsent(
             @Param("jti") String jti,
             @Param("expiresAt") Instant expiresAt

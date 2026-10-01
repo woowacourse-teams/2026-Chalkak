@@ -71,7 +71,8 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         String rotatedTokenHash = createTokenHash();
         String liveTokenHash = createTokenHash();
         String otherTokenHash = createTokenHash();
-        userRefreshTokenRepository.save(createRefreshToken(user, targetSessionId, rotatedTokenHash));
+        userRefreshTokenRepository
+                .save(createRefreshToken(user, targetSessionId, rotatedTokenHash));
         userRefreshTokenRepository.save(createRefreshToken(user, targetSessionId, liveTokenHash));
         userRefreshTokenRepository.save(createRefreshToken(user, otherSessionId, otherTokenHash));
         entityManager.flush();

@@ -51,8 +51,9 @@ public class Feedback {
     /**
      * 보관할 형태로 다듬은 내용이 길이 제한 안에 있는지 본다.
      *
-     * <p>길이를 재는 기준은 앞뒤 공백을 제거한 뒤다. 요청 DTO도 같은 답을 내야 400과 실제 접수
-     * 여부가 갈리지 않으므로, 세는 방법을 각자 구현하지 않고 이 메서드 하나를 함께 쓴다.
+     * <p>
+     * 길이를 재는 기준은 앞뒤 공백을 제거한 뒤다. 요청 DTO도 같은 답을 내야 400과 실제 접수 여부가 갈리지 않으므로, 세는 방법을 각자
+     * 구현하지 않고 이 메서드 하나를 함께 쓴다.
      */
     public static boolean isWithinMaxLength(String content) {
         String normalized = content.strip();

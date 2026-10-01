@@ -7,6 +7,5 @@ import java.util.UUID;
 public record SocialSignupResult(
         UUID userId,
         IssuedAccessToken accessToken,
-        IssuedRefreshToken refreshToken
-) {
+        IssuedRefreshToken refreshToken) {
 }

@@ -59,6 +59,20 @@ class CallbackBodySizeLimitFilterTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("413 응답에도 앞 필터가 넣은 X-Request-Id 헤더가 유지된다")
+    void oversizedBody_keepsRequestIdHeader() throws Exception {
+        // Given
+        String body = "{\"capturedAt\":\"" + "A".repeat(70_000) + "\"}";
+
+        // When
+        HttpResponse<String> response = post(body);
+
+        // Then
+        assertThat(response.statusCode()).isEqualTo(413);
+        assertThat(response.headers().firstValue("X-Request-Id")).isPresent();
+    }
+
+    @Test
     @DisplayName("상한 안의 본문은 필터를 통과해 인증 단계까지 간다")
     void normalBody_reachesAuthentication() throws Exception {
         // Given
