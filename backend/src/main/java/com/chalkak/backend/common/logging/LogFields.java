@@ -13,6 +13,7 @@ public final class LogFields {
     public static final String EXCEPTION = "exception";
     public static final String EVENT = "event";
     public static final String POST_ID = "postId";
+    public static final String TOPIC_DATE = "topicDate";
     public static final String WAIT_SECONDS = "waitSeconds";
     public static final String HEAP_USED_BYTES = "heapUsedBytes";
     public static final String HEAP_MAX_BYTES = "heapMaxBytes";
