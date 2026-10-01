@@ -12,9 +12,10 @@ struct FeedbackScreen: View {
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var inputFrame: CGRect = .zero
     @State private var submitButtonFrame: CGRect = .zero
+    @State private var isKeyboardVisible = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: theme.spacing.md) {
                     Text("찰캌을 사용하며\n느낀 점을 알려주세요.")
@@ -61,9 +62,10 @@ struct FeedbackScreen: View {
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.top, Metrics.contentTopPadding)
             .padding(.bottom, Metrics.contentBottomPadding)
-
-            Spacer(minLength: 0)
         }
+        .scrollDisabled(!isKeyboardVisible)
+        .scrollDismissesKeyboard(.never)
+        .scrollBounceBehavior(.basedOnSize)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(theme.colors.background)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -99,6 +101,12 @@ struct FeedbackScreen: View {
         .contentShape(Rectangle())
         .coordinateSpace(name: "feedback.dismiss")
         .simultaneousGesture(dismissGesture)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            isKeyboardVisible = false
+        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -143,6 +151,7 @@ struct FeedbackScreen: View {
         )
             .onEnded { value in
                 guard !viewModel.viewState.isSubmitting,
+                      !isKeyboardVisible,
                       !inputFrame.contains(value.startLocation),
                       !submitButtonFrame.contains(value.startLocation),
                       value.translation.height > abs(value.translation.width) else { return }
