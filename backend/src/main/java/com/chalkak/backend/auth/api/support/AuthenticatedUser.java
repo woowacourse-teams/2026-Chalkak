@@ -2,5 +2,5 @@ package com.chalkak.backend.auth.api.support;
 
 import java.util.UUID;
 
-public record AuthenticatedUser(UUID userId) {
+public record AuthenticatedUser(UUID userId, UUID sessionId) {
 }

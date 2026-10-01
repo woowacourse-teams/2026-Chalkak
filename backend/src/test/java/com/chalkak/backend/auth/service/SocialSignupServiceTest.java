@@ -592,6 +592,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         Jwt jwt = accessTokenProvider.jwtDecoder()
                 .decode(result.accessToken().value());
         assertThat(jwt.getSubject()).isEqualTo(result.userId().toString());
+        assertThat(jwt.getClaimAsString("session_id"))
+                .isEqualTo(result.refreshToken().sessionId().toString());
         assertThat(result.accessToken().expiresIn()).isPositive();
     }
 

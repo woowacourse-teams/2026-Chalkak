@@ -17,4 +17,7 @@ public @interface WithMockLoginUser {
 
     /** 로그인 사용자의 식별자. 비워 두면 임의의 값을 사용한다. */
     String value() default "";
+
+    /** 로그인 ID가 필요한 API에서만 지정한다. */
+    String sessionId() default "";
 }

@@ -2,6 +2,7 @@ package com.chalkak.backend.auth.api.support;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -67,7 +68,7 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test
@@ -221,6 +222,38 @@ class WithdrawnUserAccessTest extends IntegrationTestSupport {
             status().isUnauthorized().match(result);
             jsonPath("$.errorCode").value("UNAUTHORIZED").match(result);
         };
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원은 남은 JWT로 푸시 수신 설정을 조회할 수 없다")
+    void getSettings_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(withdrawn());
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원은 남은 JWT로 푸시 수신 설정을 수정할 수 없다")
+    void updateSettings_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(patch("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"topicPushEnabled\":false}"))
+                .andExpect(withdrawn());
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원은 남아 있는 JWT로 푸시 기기를 등록할 수 없다")
+    void registerCurrentDevice_withdrawnUser_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/push-devices/current")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fcmToken":"withdrawn-device-token"}
+                        """))
+                .andExpect(withdrawn());
     }
 
     @Test

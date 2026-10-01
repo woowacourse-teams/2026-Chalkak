@@ -21,7 +21,8 @@ import org.springframework.http.ResponseEntity;
 @SecurityRequirement(name = "accessToken")
 public interface UserApiDocs {
 
-    @Operation(summary = "회원 탈퇴")
+    @Operation(summary = "회원 탈퇴", description = "회원 탈퇴와 함께 모든 로그인 RT를 폐기하고 "
+            + "연결된 푸시 기기를 비활성화하며 FCM 토큰을 제거합니다. 별도 기기 해제 요청은 필요하지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "회원 탈퇴 성공"),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))

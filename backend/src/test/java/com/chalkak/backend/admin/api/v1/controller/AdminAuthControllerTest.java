@@ -69,7 +69,8 @@ class AdminAuthControllerTest {
                         ADMIN_ID,
                         USERNAME,
                         new IssuedAccessToken("admin-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30))));
+                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/login")
@@ -130,7 +131,8 @@ class AdminAuthControllerTest {
                         new IssuedAccessToken("rotated-admin-token", Duration.ofMinutes(15)),
                         new IssuedRefreshToken(
                                 "rotated-admin-refresh-token",
-                                Duration.ofDays(30))));
+                                Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")

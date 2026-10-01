@@ -40,8 +40,8 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
 
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
     private final ListAppender<ILoggingEvent> handlerAppender = new ListAppender<>();
-    private final Logger handlerLogger =
-            (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final Logger handlerLogger = (Logger) LoggerFactory
+            .getLogger(GlobalExceptionHandler.class);
     private final List<Logger> loggers = List.of(
             (Logger) LoggerFactory.getLogger(UnauthorizedEntryPoint.class),
             (Logger) LoggerFactory.getLogger(ForbiddenAccessDeniedHandler.class));
@@ -130,7 +130,6 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }

@@ -60,7 +60,7 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test

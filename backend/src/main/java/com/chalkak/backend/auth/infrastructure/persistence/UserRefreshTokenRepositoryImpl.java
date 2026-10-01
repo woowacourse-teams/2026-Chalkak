@@ -16,6 +16,16 @@ public class UserRefreshTokenRepositoryImpl implements UserRefreshTokenRepositor
     private final UserRefreshTokenJpaRepository userRefreshTokenJpaRepository;
 
     @Override
+    public boolean existsUsableBySessionIdAndUserId(
+            UUID sessionId,
+            UUID userId,
+            Instant now
+    ) {
+        return userRefreshTokenJpaRepository.existsUsableBySessionIdAndUserId(sessionId, userId,
+                now);
+    }
+
+    @Override
     public Optional<UUID> findSessionIdByTokenHash(String tokenHash) {
         return userRefreshTokenJpaRepository.findSessionIdByTokenHash(tokenHash);
     }

@@ -16,8 +16,8 @@ public class RequestIdFilterConfig {
 
     @Bean
     public FilterRegistrationBean<RequestIdFilter> requestIdFilter() {
-        FilterRegistrationBean<RequestIdFilter> registration =
-                new FilterRegistrationBean<>(new RequestIdFilter());
+        FilterRegistrationBean<RequestIdFilter> registration = new FilterRegistrationBean<>(
+                new RequestIdFilter());
         registration.addUrlPatterns(ALL_PATH_PATTERN);
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
 

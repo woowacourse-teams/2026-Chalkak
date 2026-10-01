@@ -63,13 +63,14 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         Instant absoluteExpiresAt = refreshTokenPolicy.absoluteExpiresAt(now);
         Instant expiresAt = refreshTokenPolicy.nextExpiresAt(now, absoluteExpiresAt);
         GeneratedRefreshToken generated = refreshTokenGenerator.generateToken();
+        UUID sessionId = UUID.randomUUID();
         refreshTokenRepository.save(createToken(
                 owner,
-                UUID.randomUUID(),
+                sessionId,
                 generated.tokenHash(),
                 expiresAt,
                 absoluteExpiresAt));
-        return toIssuedRefreshToken(generated, now, expiresAt);
+        return toIssuedRefreshToken(generated, now, expiresAt, sessionId);
     }
 
     /**
@@ -88,11 +89,11 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
             throw reauthenticationRequired();
         }
         if (consumed.isReused()) {
-            refreshTokenRepository.revokeSession(consumed.getSessionId(), now);
+            revokeSession(consumed.getSessionId(), now);
             throw reauthenticationRequired();
         }
         if (consumed.isExpired(now)) {
-            refreshTokenRepository.revokeSession(consumed.getSessionId(), now);
+            revokeSession(consumed.getSessionId(), now);
             throw reauthenticationRequired();
         }
         return rotate(consumed, now);
@@ -105,8 +106,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     @Transactional
     public void logout(String presentedToken) {
         lockLineageAndRead(refreshTokenHasher.encode(presentedToken))
-                .filter(refreshToken -> !refreshToken.isRevoked())
-                .ifPresent(refreshToken -> refreshTokenRepository.revokeSession(
+                .ifPresent(refreshToken -> revokeSession(
                         refreshToken.getSessionId(),
                         clock.instant()));
     }
@@ -127,7 +127,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     public void revokeAll(UUID ownerId) {
         List<UUID> sessionIds = refreshTokenRepository.findLiveSessionIdsByOwnerId(ownerId);
         sessionIds.forEach(refreshTokenRepository::lockSession);
-        refreshTokenRepository.revokeAllByOwnerId(ownerId, clock.instant());
+        revokeOwner(ownerId, clock.instant());
     }
 
     /** 계보의 첫 토큰을 만든다. 소유자 종류를 아는 것은 하위 클래스뿐이다. */
@@ -149,6 +149,14 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     /** 회전과 함께 내려보낼 액세스 토큰을 발급한다. 소유자마다 scope가 다르다. */
     protected abstract IssuedAccessToken issueAccessToken(T consumed);
 
+    protected void revokeSession(UUID sessionId, Instant revokedAt) {
+        refreshTokenRepository.revokeSession(sessionId, revokedAt);
+    }
+
+    protected void revokeOwner(UUID ownerId, Instant revokedAt) {
+        refreshTokenRepository.revokeAllByOwnerId(ownerId, revokedAt);
+    }
+
     /**
      * 회전으로 다음 토큰을 만든다.
      *
@@ -168,7 +176,7 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
                 expiresAt));
         return new TokenRefreshResult(
                 issueAccessToken(consumed),
-                toIssuedRefreshToken(generated, now, expiresAt));
+                toIssuedRefreshToken(generated, now, expiresAt, consumed.getSessionId()));
     }
 
     /**
@@ -197,11 +205,13 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
     private IssuedRefreshToken toIssuedRefreshToken(
             GeneratedRefreshToken generated,
             Instant now,
-            Instant expiresAt
+            Instant expiresAt,
+            UUID sessionId
     ) {
         return new IssuedRefreshToken(
                 generated.value(),
-                Duration.between(now, expiresAt));
+                Duration.between(now, expiresAt),
+                sessionId);
     }
 
     /** 실패 원인을 구분해 알리면 토큰 대입 공격에 힌트를 주므로, 모든 거절을 같은 응답으로 묶는다. */
