@@ -37,9 +37,23 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 
 struct ChalkakBottomBar: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let selectedItem: ChalkakBottomBarItem
+    @Binding var isCompact: Bool
     let onSelect: (ChalkakBottomBarItem) -> Void
     let onAdd: () -> Void
+
+    init(
+        selectedItem: ChalkakBottomBarItem,
+        isCompact: Binding<Bool> = .constant(false),
+        onSelect: @escaping (ChalkakBottomBarItem) -> Void,
+        onAdd: @escaping () -> Void
+    ) {
+        self.selectedItem = selectedItem
+        _isCompact = isCompact
+        self.onSelect = onSelect
+        self.onAdd = onAdd
+    }
 
     var body: some View {
         HStack(spacing: theme.spacing.none) {
@@ -49,57 +63,79 @@ struct ChalkakBottomBar: View {
             itemButton(.record)
             itemButton(.settings)
         }
-        .padding(.top, Metrics.topPadding)
-        .padding(.bottom, Metrics.bottomPadding)
-        .background(theme.colors.surfaceElevated)
+        .padding(isCompact ? theme.spacing.xs : theme.spacing.sm)
+        .glassEffect(.regular, in: Capsule())
+        // 축소 중에도 화면의 스크롤 영역 높이를 유지해 오프셋 변화로 다시 확대되지 않게 한다.
+        .frame(height: Metrics.expandedHeight, alignment: .bottom)
     }
 
     private func itemButton(_ item: ChalkakBottomBarItem) -> some View {
         let isSelected = item == selectedItem
-        let color = isSelected ? theme.colors.actionPrimary : theme.colors.bottomBar
-
         return Button {
-            onSelect(item)
+            performAction { onSelect(item) }
         } label: {
-            VStack(spacing: Metrics.itemSpacing) {
-                Image(item.iconName)
-                    .renderingMode(.template)
-                    .frame(width: Metrics.iconSize, height: Metrics.iconSize)
-                    .accessibilityHidden(true)
-
-                Text(item.label)
-                    .font(theme.typography.footnote)
-                    .fontWeight(isSelected ? .bold : .regular)
-            }
-            .foregroundStyle(color)
-            .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchSize)
-            .contentShape(Rectangle())
+            Image(item.iconName)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: Metrics.iconSize, height: Metrics.iconSize)
+                .scaleEffect(isCompact ? Metrics.compactIconSize / Metrics.iconSize : 1)
+                .foregroundStyle(theme.colors.iconPrimary)
+                .frame(maxWidth: .infinity, minHeight: touchSize)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(theme.colors.iconPrimary.opacity(Metrics.selectionOpacity))
+                    }
+                }
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.label)
         .accessibilityValue(isSelected ? "선택됨" : "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var addButton: some View {
-        Button(action: onAdd) {
-            Image("ic_bottom_write")
-                .renderingMode(.original)
-                .frame(width: Metrics.addButtonSize, height: Metrics.addButtonSize)
-                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchSize)
+        Button(action: { performAction(onAdd) }) {
+            Image(systemName: "plus")
+                .font(.system(size: Metrics.addIconSize, weight: .regular))
+                .frame(width: Metrics.addIconSize, height: Metrics.addIconSize)
+                .scaleEffect(isCompact ? Metrics.compactAddIconSize / Metrics.addIconSize : 1)
+                .foregroundStyle(theme.colors.iconPrimary)
+                .frame(maxWidth: .infinity, minHeight: touchSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("추가")
     }
+
+    private func performAction(_ action: @escaping () -> Void) {
+        guard isCompact else {
+            action()
+            return
+        }
+        withAnimation(reduceMotion ? nil : .smooth(duration: Metrics.expansionDuration)) {
+            isCompact = false
+            action()
+        }
+    }
+
+    private var touchSize: CGFloat {
+        isCompact ? Metrics.compactTouchSize : Metrics.minimumTouchSize
+    }
 }
 
 private enum Metrics {
-    static let topPadding: CGFloat = 15
-    static let bottomPadding: CGFloat = 12
-    static let itemSpacing: CGFloat = 7
-    static let iconSize: CGFloat = 23
-    static let addButtonSize: CGFloat = 40
-    static let minimumTouchSize: CGFloat = 48
+    static let iconSize: CGFloat = 26
+    static let compactIconSize: CGFloat = 23
+    static let addIconSize: CGFloat = 28
+    static let compactAddIconSize: CGFloat = 25
+    static let minimumTouchSize: CGFloat = 44
+    static let compactTouchSize: CGFloat = 44
+    static let expandedHeight: CGFloat = 60
+    static let selectionOpacity = 0.06
+    static let expansionDuration = 0.25
 }
 
 private enum PreviewMetrics {
@@ -124,8 +160,10 @@ private enum PreviewMetrics {
                 onAdd: {}
             )
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, ChalkakSpacing.lg)
+            .padding(.bottom, ChalkakSpacing.sm)
 
-            ChalkakTheme.light.colors.surfaceElevated
+            Color.clear
                 .frame(height: PreviewMetrics.bottomSafeArea)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

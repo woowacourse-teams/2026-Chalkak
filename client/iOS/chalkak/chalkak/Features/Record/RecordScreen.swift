@@ -14,6 +14,7 @@ struct RecordScreen: View {
 
     @State private var calendarWidth: CGFloat = 0
     @State private var message: String?
+    var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSavingCalendarImage = false
 
@@ -30,15 +31,9 @@ struct RecordScreen: View {
             }
             .frame(maxWidth: .infinity)
         }
+        .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakBottomBar(
-                selectedItem: .record,
-                onSelect: onSelectBottomBarItem,
-                onAdd: onOpenPhotoUpload
-            )
-        }
         .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)

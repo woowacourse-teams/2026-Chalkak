@@ -14,6 +14,7 @@ struct ContentView: View {
 
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -199,15 +200,30 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var mainTab: some View {
+        tabContent
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ChalkakBottomBar(
+                    selectedItem: selectedTab,
+                    isCompact: $isBottomBarCompact,
+                    onSelect: selectBottomBarItem,
+                    onAdd: { openPhotoUpload(from: selectedTab) }
+                )
+                .padding(.horizontal, isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg)
+                .padding(.bottom, theme.spacing.sm)
+            }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
         switch selectedTab {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .display) },
                 onSelectBottomBarItem: select,
-                onSelectPhoto: { selectedFeed = $0 }
+                onSelectPhoto: { selectedFeed = $0 },
+                bottomBarCompact: $isBottomBarCompact
             )
         case .settings:
             SettingsScreen(
@@ -219,7 +235,8 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onOpenNotificationSetup: openNotificationSetup
+                onOpenNotificationSetup: openNotificationSetup,
+                bottomBarCompact: $isBottomBarCompact
             )
         case .record:
             RecordScreen(
@@ -228,13 +245,15 @@ struct ContentView: View {
                 onSelectBottomBarItem: select,
                 onOpenDisplay: openDisplay,
                 onOpenFeed: { selectedFeed = FeedTarget(postID: $0, isOwnedByCurrentUser: true) },
-                onNavigateToLogin: showLogin
+                onNavigateToLogin: showLogin,
+                bottomBarCompact: $isBottomBarCompact
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                bottomBarCompact: $isBottomBarCompact
             )
             .task {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
@@ -252,6 +271,14 @@ struct ContentView: View {
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
+    }
+
+    private func selectBottomBarItem(_ item: ChalkakBottomBarItem) {
+        if selectedTab == .today, item == .today {
+            Task { await homeViewModel.selectBottomBarItem(item) }
+        } else {
+            select(item)
+        }
     }
 
     private func select(_ item: ChalkakBottomBarItem) {

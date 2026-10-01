@@ -8,6 +8,7 @@ struct DisplayScreen: View {
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     @State private var message: String?
+    var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
 
     private func feedTarget(for photo: DisplayPhoto) -> FeedTarget {
@@ -39,13 +40,6 @@ struct DisplayScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakBottomBar(
-                selectedItem: .display,
-                onSelect: onSelectBottomBarItem,
-                onAdd: onOpenPhotoUpload
-            )
-        }
         .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
@@ -178,6 +172,7 @@ struct DisplayScreen: View {
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.bottom, theme.spacing.xxl)
         }
+        .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .background(theme.colors.background)
     }
 
