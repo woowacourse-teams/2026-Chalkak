@@ -4,6 +4,8 @@ struct NotificationSetupScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: NotificationSetupViewModel
     let onFinish: () -> Void
+    var topPadding: CGFloat = Metrics.topPadding
+    var onDismiss: (() -> Void)?
 
     @State private var isCustomTimePickerPresented = false
     @State private var customDate = Self.defaultCustomDate
@@ -18,10 +20,15 @@ struct NotificationSetupScreen: View {
             footer
         }
         .padding(.horizontal, theme.spacing.screenHorizontal)
-        .padding(.top, Metrics.topPadding)
+        .padding(.top, topPadding)
         .padding(.bottom, Metrics.bottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(theme.colors.background)
+        .simultaneousGesture(
+            dismissGesture,
+            including: onDismiss != nil && !isCustomTimePickerPresented
+                && !viewModel.viewState.isSaving ? .all : .none
+        )
         .overlay(alignment: .bottom) {
             if let message {
                 Text(message)
@@ -206,6 +213,19 @@ struct NotificationSetupScreen: View {
         max(0, pickerDragOffset)
     }
 
+    private var dismissGesture: some Gesture {
+        DragGesture(minimumDistance: Metrics.dismissMinimumDragDistance)
+            .onEnded { value in
+                guard !isCustomTimePickerPresented, !viewModel.viewState.isSaving,
+                      value.translation.height > abs(value.translation.width) else { return }
+                let shouldDismiss = value.translation.height > Metrics.dismissDragDistance
+                    || value.predictedEndTranslation.height > Metrics.dismissPredictedDistance
+                if shouldDismiss {
+                    onDismiss?()
+                }
+            }
+    }
+
     private var pickerDragGesture: some Gesture {
         DragGesture(
             minimumDistance: Metrics.minimumDragDistance,
@@ -256,6 +276,7 @@ private enum Metrics {
     static let minimumTouchHeight: CGFloat = 44
     static let pickerDragAreaHeight: CGFloat = 44
     static let minimumDragDistance: CGFloat = 4
+    static let dismissMinimumDragDistance: CGFloat = 20
     static let dismissDragDistance: CGFloat = 80
     static let dismissPredictedDistance: CGFloat = 140
     static let toastBottomPadding: CGFloat = 104

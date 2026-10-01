@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var settingsViewModel = Self.makeSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
     @State private var notificationSetupViewModel = NotificationSetupViewModel()
+    @State private var isNotificationSetupPresented = false
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -110,6 +111,25 @@ struct ContentView: View {
             }
         }
         .animation(.default, value: route)
+        .fullScreenCover(isPresented: $isNotificationSetupPresented) {
+            NavigationStack {
+                NotificationSetupScreen(
+                    viewModel: notificationSetupViewModel,
+                    onFinish: { isNotificationSetupPresented = false },
+                    topPadding: theme.spacing.xl,
+                    onDismiss: { isNotificationSetupPresented = false }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(role: .close) {
+                            isNotificationSetupPresented = false
+                        }
+                        .accessibilityLabel("닫기")
+                        .accessibilityIdentifier("notificationSetup.close")
+                    }
+                }
+            }
+        }
         .sheet(item: $selectedLegalDocument) { document in
             LegalDocumentSheet(document: document)
                 .presentationDetents([.large])
@@ -277,7 +297,7 @@ struct ContentView: View {
     private func openNotificationSetup() {
         notificationSetupViewModel = NotificationSetupViewModel()
         selectedTab = .settings
-        route = .notificationSetup
+        isNotificationSetupPresented = true
     }
 
     private func showOnboarding() {
@@ -411,6 +431,7 @@ struct ContentView: View {
     private func resetMainState() {
         selectedTab = .today
         selectedFeed = nil
+        isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
         isFeedbackPresented = false
