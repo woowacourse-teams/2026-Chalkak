@@ -11,9 +11,9 @@ import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
-import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -29,22 +29,19 @@ class S3SignatureImageStorageTest {
     private final S3Client s3Client = mock(S3Client.class);
 
     private final S3SignatureImageStorage signatureImageStorage = new S3SignatureImageStorage(
-        s3Client,
-        new ImageProperties(
-            "test-bucket",
-            "ap-northeast-2",
-            BASE_URL,
-            ROOT_PREFIX,
-            ENVIRONMENT,
-            new ImageProperties.Signature(
-                    1048576L,
-                    List.of("image/png"),
-                    "public, max-age=86400"
-            ),
-            null,
-            false
-        )
-    );
+            s3Client,
+            new ImageProperties(
+                    "test-bucket",
+                    "ap-northeast-2",
+                    BASE_URL,
+                    ROOT_PREFIX,
+                    ENVIRONMENT,
+                    new ImageProperties.Signature(
+                            1048576L,
+                            List.of("image/png"),
+                            "public, max-age=86400"),
+                    null,
+                    false));
 
     @Test
     @DisplayName("업로드 ID로 원본과 썸네일의 결정적 스토리지 키를 만든다")
@@ -57,9 +54,9 @@ class S3SignatureImageStorageTest {
 
         // Then
         assertThat(storageKeys.originalStorageKey())
-            .isEqualTo(ROOT_PREFIX + "/signatures/dev/original/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/signatures/dev/original/" + uploadId + ".png");
         assertThat(storageKeys.thumbnailStorageKey())
-            .isEqualTo(ROOT_PREFIX + "/signatures/dev/thumbnail/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/signatures/dev/thumbnail/" + uploadId + ".png");
     }
 
     @Test
@@ -68,33 +65,30 @@ class S3SignatureImageStorageTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         S3SignatureImageStorage prodStorage = new S3SignatureImageStorage(
-            s3Client,
-            new ImageProperties(
-                "test-bucket",
-                "ap-northeast-2",
-                BASE_URL,
-                ROOT_PREFIX,
-                "prod",
-                new ImageProperties.Signature(
-                        1048576L,
-                        List.of("image/png"),
-                        "public, max-age=86400"
-                ),
-                null,
-                false
-            )
-        );
+                s3Client,
+                new ImageProperties(
+                        "test-bucket",
+                        "ap-northeast-2",
+                        BASE_URL,
+                        ROOT_PREFIX,
+                        "prod",
+                        new ImageProperties.Signature(
+                                1048576L,
+                                List.of("image/png"),
+                                "public, max-age=86400"),
+                        null,
+                        false));
 
         // When
         SignatureStorageKeys storageKeys = prodStorage.toStorageKeys(uploadId);
 
         // Then
         assertThat(storageKeys.originalStorageKey())
-            .isEqualTo(ROOT_PREFIX + "/signatures/prod/original/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/signatures/prod/original/" + uploadId + ".png");
         assertThat(storageKeys.thumbnailStorageKey())
-            .isEqualTo(ROOT_PREFIX + "/signatures/prod/thumbnail/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/signatures/prod/thumbnail/" + uploadId + ".png");
         assertThat(prodStorage.toStagingStorageKey(uploadId))
-            .isEqualTo(ROOT_PREFIX + "/staging/prod/signatures/" + uploadId + ".png");
+                .isEqualTo(ROOT_PREFIX + "/staging/prod/signatures/" + uploadId + ".png");
     }
 
     @Test
@@ -109,7 +103,7 @@ class S3SignatureImageStorageTest {
 
         // Then
         assertThat(imageUrl)
-            .isEqualTo(BASE_URL + "/signatures/dev/original/" + uploadId + ".png");
+                .isEqualTo(BASE_URL + "/signatures/dev/original/" + uploadId + ".png");
     }
 
     @Test
@@ -119,11 +113,11 @@ class S3SignatureImageStorageTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         given(s3Client.headObject(anyHeadRequest())).willReturn(HeadObjectResponse.builder()
-            .contentType("image/png")
-            .contentLength(100L)
-            .build());
-        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor =
-            ArgumentCaptor.forClass(Consumer.class);
+                .contentType("image/png")
+                .contentLength(100L)
+                .build());
+        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor = ArgumentCaptor
+                .forClass(Consumer.class);
 
         // When
         boolean completed = signatureImageStorage.isProcessingCompleted(uploadId);
@@ -134,7 +128,7 @@ class S3SignatureImageStorageTest {
         HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder();
         requestCaptor.getValue().accept(requestBuilder);
         assertThat(requestBuilder.build().key())
-            .isEqualTo("chalkak/signatures/dev/thumbnail/" + uploadId + ".png");
+                .isEqualTo("chalkak/signatures/dev/thumbnail/" + uploadId + ".png");
     }
 
     @Test
@@ -145,15 +139,16 @@ class S3SignatureImageStorageTest {
 
         // When & Then
         assertThatThrownBy(() -> signatureImageStorage.toImageUrl(storageKey))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("스토리지 키는 root-prefix로 시작해야 합니다: " + ROOT_PREFIX);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("스토리지 키는 root-prefix로 시작해야 합니다: " + ROOT_PREFIX);
     }
 
     @Test
     @DisplayName("객체가 없으면 빈 값을 반환한다")
     void findUploadedImage_noSuchKey_returnsEmpty() {
         // Given
-        given(s3Client.headObject(anyHeadRequest())).willThrow(NoSuchKeyException.builder().build());
+        given(s3Client.headObject(anyHeadRequest()))
+                .willThrow(NoSuchKeyException.builder().build());
 
         // When & Then
         assertThat(signatureImageStorage.findUploadedImage(UUID.randomUUID())).isEmpty();
@@ -166,11 +161,11 @@ class S3SignatureImageStorageTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         given(s3Client.headObject(anyHeadRequest())).willReturn(HeadObjectResponse.builder()
-            .contentType("image/png")
-            .contentLength(100L)
-            .build());
-        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor =
-            ArgumentCaptor.forClass(Consumer.class);
+                .contentType("image/png")
+                .contentLength(100L)
+                .build());
+        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor = ArgumentCaptor
+                .forClass(Consumer.class);
 
         // When
         signatureImageStorage.findUploadedImage(uploadId);
@@ -180,7 +175,7 @@ class S3SignatureImageStorageTest {
         HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder();
         requestCaptor.getValue().accept(requestBuilder);
         assertThat(requestBuilder.build().key())
-            .isEqualTo("chalkak/staging/dev/signatures/" + uploadId + ".png");
+                .isEqualTo("chalkak/staging/dev/signatures/" + uploadId + ".png");
     }
 
     @Test
@@ -188,7 +183,7 @@ class S3SignatureImageStorageTest {
     void findUploadedImage_accessDenied_returnsEmpty() {
         // Given
         given(s3Client.headObject(anyHeadRequest()))
-            .willThrow(S3Exception.builder().statusCode(403).message("Forbidden").build());
+                .willThrow(S3Exception.builder().statusCode(403).message("Forbidden").build());
 
         // When & Then
         assertThat(signatureImageStorage.findUploadedImage(UUID.randomUUID())).isEmpty();
@@ -199,11 +194,11 @@ class S3SignatureImageStorageTest {
     void findUploadedImage_serverError_propagates() {
         // Given
         given(s3Client.headObject(anyHeadRequest()))
-            .willThrow(S3Exception.builder().statusCode(500).message("Internal Error").build());
+                .willThrow(S3Exception.builder().statusCode(500).message("Internal Error").build());
 
         // When & Then
         assertThatThrownBy(() -> signatureImageStorage.findUploadedImage(UUID.randomUUID()))
-            .isInstanceOf(S3Exception.class);
+                .isInstanceOf(S3Exception.class);
     }
 
     @SuppressWarnings("unchecked")

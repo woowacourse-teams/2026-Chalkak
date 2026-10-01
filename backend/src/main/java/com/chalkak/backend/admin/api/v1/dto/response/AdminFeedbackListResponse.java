@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminFeedbackListResult;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;

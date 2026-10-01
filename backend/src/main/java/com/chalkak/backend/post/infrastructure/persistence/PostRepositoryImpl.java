@@ -27,12 +27,10 @@ public class PostRepositoryImpl implements PostRepository {
     private static final Set<String> DUPLICATE_CONSTRAINT_NAMES = Set.of(
             "ux_posts_user_topic_active",
             "ux_posts_photo_id",
-            "ux_photos_original_storage_key"
-    );
+            "ux_photos_original_storage_key");
     private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
             ModerationStatus.PENDING,
-            ModerationStatus.APPROVED
-    );
+            ModerationStatus.APPROVED);
 
     private final PostJpaRepository postJpaRepository;
 
@@ -46,8 +44,7 @@ public class PostRepositoryImpl implements PostRepository {
             }
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "이미 사용된 게시물 생성 정보입니다."
-            );
+                    "이미 사용된 게시물 생성 정보입니다.");
         }
     }
 
@@ -61,8 +58,7 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByAuthorIdAndTopicIdForUpdate(
                 authorId,
                 topicId,
-                ModerationStatus.REJECTED
-        );
+                ModerationStatus.REJECTED);
     }
 
     @Override
@@ -70,8 +66,7 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByAuthorIdAndTopicId(
                 authorId,
                 topicId,
-                ModerationStatus.REJECTED
-        );
+                ModerationStatus.REJECTED);
     }
 
     @Override
@@ -98,8 +93,7 @@ public class PostRepositoryImpl implements PostRepository {
     public Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId) {
         return postJpaRepository.findByPostImageUploadIdForUpdate(
                 postImageUploadId,
-                ModerationStatus.VALIDATING
-        );
+                ModerationStatus.VALIDATING);
     }
 
     @Override
@@ -112,8 +106,7 @@ public class PostRepositoryImpl implements PostRepository {
                 authorId,
                 startDate,
                 endDate,
-                CALENDAR_MODERATION_STATUSES
-        );
+                CALENDAR_MODERATION_STATUSES);
     }
 
     @Override
@@ -136,20 +129,16 @@ public class PostRepositoryImpl implements PostRepository {
                 pageSize,
                 Sort.by(
                         Sort.Order.desc("createdAt"),
-                        Sort.Order.desc("id")
-                )
-        );
+                        Sort.Order.desc("id")));
 
         Slice<Post> result = postJpaRepository.findVisibleByTopicId(
                 topicId,
                 ModerationStatus.APPROVED,
-                pageRequest
-        );
+                pageRequest);
 
         return new PostSlice(
                 result.getContent(),
-                result.hasNext()
-        );
+                result.hasNext());
     }
 
     @Override
@@ -163,13 +152,11 @@ public class PostRepositoryImpl implements PostRepository {
                 topicId,
                 ModerationStatus.APPROVED,
                 randomSeed,
-                PageRequest.of(page, pageSize)
-        );
+                PageRequest.of(page, pageSize));
 
         return new PostSlice(
                 result.getContent(),
-                result.hasNext()
-        );
+                result.hasNext());
     }
 
     @Override
@@ -181,13 +168,11 @@ public class PostRepositoryImpl implements PostRepository {
         Slice<Post> result = postJpaRepository.findVisiblePopularByTopicId(
                 topicId,
                 ModerationStatus.APPROVED,
-                PageRequest.of(page, pageSize)
-        );
+                PageRequest.of(page, pageSize));
 
         return new PostSlice(
                 result.getContent(),
-                result.hasNext()
-        );
+                result.hasNext());
     }
 
     private boolean isDuplicateConstraint(Throwable exception) {
@@ -195,7 +180,7 @@ public class PostRepositoryImpl implements PostRepository {
         while (cause != null) {
             if (cause instanceof ConstraintViolationException constraintViolationException
                     && DUPLICATE_CONSTRAINT_NAMES.contains(
-                    constraintViolationException.getConstraintName())) {
+                            constraintViolationException.getConstraintName())) {
                 return true;
             }
             cause = cause.getCause();

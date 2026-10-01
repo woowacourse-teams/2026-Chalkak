@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.admin.service.AdminTopicSort;
+import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -29,8 +29,7 @@ public record AdminTopicListRequest(
                         "topicDateAsc",
                         "createdAtDesc",
                         "createdAtAsc"
-                }
-        )
+                })
         AdminTopicSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1")

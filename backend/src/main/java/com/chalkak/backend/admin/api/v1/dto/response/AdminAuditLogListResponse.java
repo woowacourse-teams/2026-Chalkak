@@ -2,7 +2,7 @@ package com.chalkak.backend.admin.api.v1.dto.response;
 
 import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminTargetType;
-import com.chalkak.backend.admin.service.AdminAuditLogListResult;
+import com.chalkak.backend.admin.service.audit.AdminAuditLogListResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
@@ -21,8 +21,7 @@ public record AdminAuditLogListResponse(
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                result.auditLogs().stream().map(AuditLogResponse::from).toList()
-        );
+                result.auditLogs().stream().map(AuditLogResponse::from).toList());
     }
 
     public record AuditLogResponse(
@@ -45,8 +44,8 @@ public record AdminAuditLogListResponse(
             return new AuditLogResponse(
                     result.auditLogId(), result.actorAdminId(), result.actorUsername(),
                     result.action(), result.targetType(), result.targetId(), result.reason(),
-                    result.beforeState(), result.afterState(), result.occurredAt(), result.requestId()
-            );
+                    result.beforeState(), result.afterState(), result.occurredAt(),
+                    result.requestId());
         }
     }
 }

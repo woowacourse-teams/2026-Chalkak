@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.api.support;
 
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -63,7 +64,12 @@ public class CallbackBodySizeLimitFilter extends OncePerRequestFilter {
         if (response.isCommitted()) {
             return;
         }
+        // reset()이 앞 필터가 넣은 요청 추적 헤더까지 지우므로 다시 넣는다.
+        String requestId = response.getHeader(LogFields.REQUEST_ID_HEADER);
         response.reset();
+        if (requestId != null) {
+            response.setHeader(LogFields.REQUEST_ID_HEADER, requestId);
+        }
         response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
         response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

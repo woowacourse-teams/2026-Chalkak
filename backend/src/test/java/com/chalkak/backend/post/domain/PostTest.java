@@ -24,12 +24,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PostTest {
 
-    private static final UUID AUTHOR_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
+    private static final UUID OTHER_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f1");
     private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-20T00:30:00Z");
 
@@ -230,8 +228,7 @@ class PostTest {
         assertThatThrownBy(() -> post.updateTitle(
                 AUTHOR_ID,
                 "  " + "📸".repeat(11) + "  ",
-                UPDATED_AT
-        ))
+                UPDATED_AT))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
         assertThat(post.getTitle()).isEqualTo("기존 제목");
@@ -245,17 +242,15 @@ class PostTest {
 
         // When & Then
         assertThatThrownBy(() -> post.updateTitle(OTHER_USER_ID, "수정 제목", UPDATED_AT))
-                .isInstanceOfSatisfying(ForbiddenException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
+                .isInstanceOfSatisfying(ForbiddenException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN))
                 .hasMessage("본인의 게시물만 접근할 수 있습니다.");
         assertThat(post.getTitle()).isEqualTo("기존 제목");
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = ModerationStatus.class,
-            names = {"VALIDATING", "REJECTED"}
-    )
+    @EnumSource(value = ModerationStatus.class, names = {"VALIDATING", "REJECTED"})
     @DisplayName("수정할 수 없는 검수 상태의 게시물은 제목을 수정할 수 없다")
     void updateTitle_uneditableStatus_throwsBusinessException(ModerationStatus status) {
         // Given
@@ -499,8 +494,9 @@ class PostTest {
 
         // When & Then
         assertThatThrownBy(() -> post.deleteByAuthor(OTHER_USER_ID, DELETED_AT))
-                .isInstanceOfSatisfying(ForbiddenException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
+                .isInstanceOfSatisfying(ForbiddenException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN))
                 .hasMessage("본인의 게시물만 접근할 수 있습니다.");
         assertThat(post.getDeletedAt()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
@@ -516,8 +512,8 @@ class PostTest {
 
         // When & Then
         assertThatThrownBy(() -> post.deleteByAuthor(AUTHOR_ID, DELETED_AT))
-                .isInstanceOfSatisfying(BusinessException.class, exception ->
-                        assertThat(exception.getErrorCode())
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR))
                 .hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
         assertThat(post.getDeletedAt()).isNull();
@@ -533,8 +529,8 @@ class PostTest {
 
         // When & Then
         assertThatThrownBy(() -> post.deleteByAuthor(AUTHOR_ID, DELETED_AT))
-                .isInstanceOfSatisfying(BusinessException.class, exception ->
-                        assertThat(exception.getErrorCode())
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR))
                 .hasMessage("이미지 처리 중인 게시물은 삭제할 수 없습니다.");
         assertThat(post.getDeletedAt()).isNull();
@@ -542,10 +538,7 @@ class PostTest {
     }
 
     @ParameterizedTest
-    @EnumSource(
-            value = ModerationStatus.class,
-            names = {"PENDING", "APPROVED", "REJECTED"}
-    )
+    @EnumSource(value = ModerationStatus.class, names = {"PENDING", "APPROVED", "REJECTED"})
     @DisplayName("관리자가 삭제할 수 있는 상태의 게시물은 사진과 함께 soft delete한다")
     void deleteByAdmin_deletableStatus_softDeletesPostAndPhoto(ModerationStatus status) {
         // Given
@@ -567,8 +560,8 @@ class PostTest {
 
         // When & Then
         assertThatThrownBy(() -> post.deleteByAdmin(DELETED_AT))
-                .isInstanceOfSatisfying(BusinessException.class, exception ->
-                        assertThat(exception.getErrorCode())
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR));
         assertThat(post.getDeletedAt()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();

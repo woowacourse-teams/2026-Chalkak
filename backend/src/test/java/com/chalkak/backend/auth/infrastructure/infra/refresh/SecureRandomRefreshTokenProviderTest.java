@@ -11,8 +11,7 @@ class SecureRandomRefreshTokenProviderTest {
     private static final String BASE64_URL_PATTERN = "^[A-Za-z0-9_-]{43}$";
     private static final String TOKEN_HASH_PATTERN = "^[0-9a-f]{64}$";
 
-    private final SecureRandomRefreshTokenProvider provider =
-            new SecureRandomRefreshTokenProvider();
+    private final SecureRandomRefreshTokenProvider provider = new SecureRandomRefreshTokenProvider();
 
     @Test
     @DisplayName("생성한 토큰은 패딩 없는 43자 Base64URL 문자열이다")

@@ -24,9 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 제출 성공 경로를 실제 스택으로 한 번 통과시킨다.
  *
- * <p>{@code FeedbackService}는 flush 없이 저장 직후 식별자와 접수 시각을 읽어 응답에 싣는다.
- * 컨트롤러 테스트는 서비스를 목으로 대체하고 레포지토리 테스트는 명시적으로 flush하므로, 그
- * 조합이 실제로 값을 채우는지는 어느 쪽에서도 드러나지 않는다. 여기서만 드러난다.
+ * <p>
+ * {@code FeedbackService}는 flush 없이 저장 직후 식별자와 접수 시각을 읽어 응답에 싣는다. 컨트롤러 테스트는
+ * 서비스를 목으로 대체하고 레포지토리 테스트는 명시적으로 flush하므로, 그 조합이 실제로 값을 채우는지는 어느 쪽에서도 드러나지 않는다.
+ * 여기서만 드러난다.
  */
 @Transactional
 @AutoConfigureMockMvc
@@ -67,13 +68,13 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
     void submitFeedback_validRequest_returnsPersistedIdentifierAndCreatedAt() throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .header(HttpHeaders.AUTHORIZATION, token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "content": "  사진 업로드가 느려요.  "
-                                }
-                                """))
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "content": "  사진 업로드가 느려요.  "
+                        }
+                        """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.feedbackId").isNotEmpty())
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
@@ -90,9 +91,9 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
 
         // When & Then
         mockMvc.perform(post("/api/v1/feedbacks")
-                        .header(HttpHeaders.AUTHORIZATION, token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\"}"))
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"" + content + "\"}"))
                 .andExpect(status().isCreated());
 
         Map<String, Object> stored = jdbcTemplate.queryForMap(

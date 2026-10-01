@@ -9,6 +9,11 @@ AI의 판단 규칙은 Skill에, 기계적으로 확인할 규칙은 아래 설�
 | Checkstyle | [문법 검사](checkstyle/checkstyle.xml) | 운영 코드의 if·for·while 중괄호, else·switch 금지, 제어문 빈 블록, 필드·매개변수·지역변수·record 컴포넌트 이름 |
 | ArchUnit | [아키텍처 테스트](../src/test/java/com/chalkak/backend/architecture/ArchitectureConventionTest.java) | 요청 패키지의 `*Request` record, Service의 Spring Data·AWS SDK 직접 의존 금지, 저장소 포트의 JpaRepository 상속 금지, JPA 저장소·Controller 위치 |
 
+API DTO는 기본 포맷에 [DTO 설정](formatter/java-dto.properties)을 더해 어노테이션과 필드 선언을 별도 줄에 둔다.
+`spotlessJavaDtoCheck`가 `src/main/java/**/api/**/dto/**/*.java`를 검사하고, 나머지 Java 파일은 기존 `spotlessJavaCheck`가 검사한다. `spotlessCheck`와 `checkConventions`에는 두 검사가 모두 포함되며 기준 커밋도 동일하다.
+DTO만 수정할 때는 `./gradlew spotlessJavaDtoApply`로 적용 범위를 제한할 수 있다.
+Eclipse 포맷터는 record 전용 어노테이션 줄바꿈을 지원하는 4.41을 사용한다. 일반 메서드 매개변수의 포맷은 기본 설정을 유지한다.
+
 ## 실행
 
 backend 디렉터리에서 실행한다. 도구는 Gradle이 내려받으며 별도 AI 호출은 없다.
@@ -37,7 +42,7 @@ python3 scripts/test_convention_tools.py
 ./gradlew architectureTest
 ```
 
-첫 명령은 Spotless의 자동 수정·재실행 안정성·기존 줄바꿈 보존과 Checkstyle의 금지 문법·이름·예외 범위를 확인한다.
+첫 명령은 Spotless의 자동 수정·재실행 안정성·기존 줄바꿈 보존·중첩 DTO의 어노테이션 줄바꿈과 Checkstyle의 금지 문법·이름·예외 범위를 확인한다.
 가상 코드는 `build/convention-probe`에만 생성한다. 두 번째 명령은 실제 운영 코드와 ArchUnit 오류 주입 사례를 검사한다.
 이 검사는 AI가 도구를 자발적으로 호출하거나 실패를 올바르게 수정하는지 평가하는 AI 행동 검사와는 별개다.
 

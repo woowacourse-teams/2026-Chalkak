@@ -16,7 +16,8 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class AppleSocialConnectionRevocationStore
-        implements SocialConnectionRevocationStore {
+        implements
+            SocialConnectionRevocationStore {
 
     private final AppleAuthorizationRepository appleAuthorizationRepository;
     private final AppleAuthorizationFingerprintEncoder fingerprintEncoder;

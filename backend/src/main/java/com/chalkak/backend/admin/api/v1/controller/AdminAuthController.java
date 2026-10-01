@@ -8,8 +8,8 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminRefreshTokenRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminLoginResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminTokenRefreshResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.CurrentAdminResponse;
-import com.chalkak.backend.admin.service.AdminAuthenticationService;
-import com.chalkak.backend.admin.service.AdminRefreshTokenService;
+import com.chalkak.backend.admin.service.auth.AdminAuthenticationService;
+import com.chalkak.backend.admin.service.auth.AdminRefreshTokenService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -33,8 +33,7 @@ public class AdminAuthController implements AdminAuthApiDocs {
             @Valid @RequestBody AdminLoginRequest request
     ) {
         return ResponseEntity.ok(AdminLoginResponse.from(
-                service.login(request.username(), request.password())
-        ));
+                service.login(request.username(), request.password())));
     }
 
     @Override
@@ -43,8 +42,7 @@ public class AdminAuthController implements AdminAuthApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin
     ) {
         return ResponseEntity.ok(CurrentAdminResponse.from(
-                service.getCurrentAdmin(authenticatedAdmin.adminId())
-        ));
+                service.getCurrentAdmin(authenticatedAdmin.adminId())));
     }
 
     @Override
@@ -53,8 +51,7 @@ public class AdminAuthController implements AdminAuthApiDocs {
             @Valid @RequestBody AdminRefreshTokenRequest request
     ) {
         return ResponseEntity.ok(AdminTokenRefreshResponse.from(
-                adminRefreshTokenService.refresh(request.refreshToken())
-        ));
+                adminRefreshTokenService.refresh(request.refreshToken())));
     }
 
     @Override

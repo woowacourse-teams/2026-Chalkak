@@ -8,7 +8,7 @@ import com.chalkak.backend.admin.infrastructure.bootstrap.AdminAccountProperties
 import com.chalkak.backend.admin.infrastructure.bootstrap.DevelopmentAdminBootstrap;
 import com.chalkak.backend.admin.infrastructure.infra.DevAdminActorResolver;
 import com.chalkak.backend.admin.infrastructure.infra.SecurityContextAdminActorResolver;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,8 +19,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class AdminLocalConfigurationTest {
 
-    private static final String PASSWORD_HASH =
-            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     @Test
     @DisplayName("로컬 환경변수로 인증 우회를 끄면 지정한 계정 생성기와 실제 관리자 Resolver를 사용한다")
@@ -30,8 +29,7 @@ class AdminLocalConfigurationTest {
                 .withPropertyValues(
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=false",
                         "ADMIN_USERNAME=local-operator",
-                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH
-                );
+                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH);
 
         // When & Then
         contextRunner.run(context -> {
@@ -71,13 +69,13 @@ class AdminLocalConfigurationTest {
                 .withPropertyValues(
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=false",
                         "ADMIN_USERNAME=local-operator",
-                        "ADMIN_PASSWORD_HASH=" + passwordHash
-                );
+                        "ADMIN_PASSWORD_HASH=" + passwordHash);
 
         // When & Then
         contextRunner.run(context -> {
             assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(BindValidationException.class);
+            assertThat(context.getStartupFailure())
+                    .hasRootCauseInstanceOf(BindValidationException.class);
         });
     }
 
@@ -91,8 +89,7 @@ class AdminLocalConfigurationTest {
                         "spring.profiles.active=" + profile,
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=true",
                         "ADMIN_USERNAME=deployment-operator",
-                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH
-                );
+                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH);
 
         // When & Then
         contextRunner.run(context -> assertThat(context)
@@ -110,12 +107,10 @@ class AdminLocalConfigurationTest {
                         AdminAccountBootstrap.class,
                         DevelopmentAdminBootstrap.class,
                         DevAdminActorResolver.class,
-                        SecurityContextAdminActorResolver.class
-                )
+                        SecurityContextAdminActorResolver.class)
                 .withBean(AdminRepository.class, () -> mock(AdminRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=local",
-                        "spring.config.import="
-                );
+                        "spring.config.import=");
     }
 }

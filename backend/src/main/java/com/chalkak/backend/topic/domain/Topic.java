@@ -83,8 +83,7 @@ public class Topic {
                 && samePeriod(participationPeriod)) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
-                    "변경된 주제 정보가 없습니다."
-            );
+                    "변경된 주제 정보가 없습니다.");
         }
         this.title = normalizedTitle;
         this.topicDate = topicDate;
@@ -104,12 +103,11 @@ public class Topic {
         return deletedAt != null;
     }
 
-    private void validateEditable(Instant now) {
+    public void validateEditable(Instant now) {
         if (isDeleted() || phaseAt(now) != TopicPhase.BEFORE_OPEN) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
-                    "공개 전 주제만 변경할 수 있습니다."
-            );
+                    "공개 전 주제만 변경할 수 있습니다.");
         }
     }
 
@@ -129,8 +127,7 @@ public class Topic {
         }
         LocalDate participationDate = LocalDate.ofInstant(
                 participationPeriod.getStartsAt(),
-                KST
-        );
+                KST);
         if (!topicDate.equals(participationDate)
                 || participationPeriod.phaseAt(now) != TopicPhase.BEFORE_OPEN) {
             throw invalidTopicException();
@@ -140,17 +137,15 @@ public class Topic {
     private boolean samePeriod(ParticipationPeriod other) {
         return Objects.equals(
                 participationPeriod.getStartsAt(),
-                other.getStartsAt()
-        ) && Objects.equals(
-                participationPeriod.getEndsAt(),
-                other.getEndsAt()
-        );
+                other.getStartsAt())
+                && Objects.equals(
+                        participationPeriod.getEndsAt(),
+                        other.getEndsAt());
     }
 
     private BusinessException invalidTopicException() {
         return new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
-                "주제 정보가 올바르지 않습니다."
-        );
+                "주제 정보가 올바르지 않습니다.");
     }
 }

@@ -1,0 +1,9 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": null,
+  "cwd": "/fixture/project",
+  "hook_event_name": "SessionStart",
+  "model": "fixture-model",
+  "permission_mode": "default",
+  "source": "startup"
+}

@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.infrastructure.bootstrap;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.domain.Admin;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -17,8 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 class AdminAccountBootstrapTest extends IntegrationTestSupport {
 
     private static final String USERNAME = "operator";
-    private static final String PASSWORD_HASH =
-            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     @Autowired
     private AdminRepository adminRepository;
@@ -35,8 +34,7 @@ class AdminAccountBootstrapTest extends IntegrationTestSupport {
         // Given
         AdminAccountBootstrap bootstrap = new AdminAccountBootstrap(
                 adminRepository,
-                new AdminAccountProperties(USERNAME, PASSWORD_HASH)
-        );
+                new AdminAccountProperties(USERNAME, PASSWORD_HASH));
 
         // When
         bootstrap.run(new DefaultApplicationArguments(new String[0]));
@@ -59,8 +57,7 @@ class AdminAccountBootstrapTest extends IntegrationTestSupport {
         entityManager.clear();
         AdminAccountBootstrap bootstrap = new AdminAccountBootstrap(
                 adminRepository,
-                new AdminAccountProperties(USERNAME, PASSWORD_HASH)
-        );
+                new AdminAccountProperties(USERNAME, PASSWORD_HASH));
 
         // When
         bootstrap.run(new DefaultApplicationArguments(new String[0]));

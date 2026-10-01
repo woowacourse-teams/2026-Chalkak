@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.infrastructure.bootstrap;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.domain.Admin;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,8 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-@TestPropertySource(properties =
-        "chalkak.admin.authentication.development-bypass-enabled=true")
+@TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=true")
 class DevelopmentAdminBootstrapTest extends IntegrationTestSupport {
 
     @Autowired

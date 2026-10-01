@@ -5,8 +5,8 @@ import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminAuditLogApiDocs;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminAuditLogListRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminAuditLogListResponse;
-import com.chalkak.backend.admin.service.AdminAuditLogListResult;
-import com.chalkak.backend.admin.service.AdminAuditLogQueryService;
+import com.chalkak.backend.admin.service.audit.AdminAuditLogListResult;
+import com.chalkak.backend.admin.service.audit.AdminAuditLogQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,8 +31,7 @@ public class AdminAuditLogController implements AdminAuditLogApiDocs {
         AdminAuditLogListResult result = service.getAuditLogs(
                 request.adminId(), request.action(), request.targetType(), request.targetId(),
                 request.occurredFrom(), request.occurredTo(), request.sort(),
-                request.page(), request.pageSize()
-        );
+                request.page(), request.pageSize());
         return ResponseEntity.ok(AdminAuditLogListResponse.from(result));
     }
 }

@@ -8,10 +8,10 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicMutationRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminTopicDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminTopicListResponse;
-import com.chalkak.backend.admin.service.AdminTopicCommandService;
-import com.chalkak.backend.admin.service.AdminTopicDetail;
-import com.chalkak.backend.admin.service.AdminTopicListResult;
-import com.chalkak.backend.admin.service.AdminTopicQueryService;
+import com.chalkak.backend.admin.service.topic.AdminTopicCommandService;
+import com.chalkak.backend.admin.service.topic.AdminTopicDetail;
+import com.chalkak.backend.admin.service.topic.AdminTopicListResult;
+import com.chalkak.backend.admin.service.topic.AdminTopicQueryService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,8 +47,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
                 request.dateTo(),
                 request.sort(),
                 request.page(),
-                request.pageSize()
-        );
+                request.pageSize());
         return ResponseEntity.ok(AdminTopicListResponse.from(result));
     }
 
@@ -63,8 +62,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
                 request.title(),
                 request.topicDate(),
                 request.startsAt(),
-                request.endsAt()
-        );
+                request.endsAt());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AdminTopicDetailResponse.from(result));
     }
@@ -76,8 +74,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
             @PathVariable String topicId
     ) {
         AdminTopicDetail result = adminTopicQueryService.getTopic(
-                CanonicalUuidParser.parse(topicId)
-        );
+                CanonicalUuidParser.parse(topicId));
         return ResponseEntity.ok(AdminTopicDetailResponse.from(result));
     }
 
@@ -94,8 +91,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
                 request.title(),
                 request.topicDate(),
                 request.startsAt(),
-                request.endsAt()
-        );
+                request.endsAt());
         return ResponseEntity.ok(AdminTopicDetailResponse.from(result));
     }
 
@@ -109,8 +105,7 @@ public class AdminTopicController implements AdminTopicApiDocs {
         adminTopicCommandService.deleteTopic(
                 CanonicalUuidParser.parse(topicId),
                 authenticatedAdmin.adminId(),
-                request.reason()
-        );
+                request.reason());
         return ResponseEntity.noContent().build();
     }
 }

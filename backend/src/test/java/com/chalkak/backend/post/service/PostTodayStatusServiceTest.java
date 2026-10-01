@@ -26,12 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 class PostTodayStatusServiceTest extends IntegrationTestSupport {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    private static final UUID USER_ID =
-            UUID.fromString("00000000-0000-0000-0000-0000000000c1");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("00000000-0000-0000-0000-0000000000c2");
-    private static final UUID POST_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000401");
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
+    private static final UUID OTHER_USER_ID = UUID
+            .fromString("00000000-0000-0000-0000-0000000000c2");
+    private static final UUID POST_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");
     private static final String NOT_TIMED_OUT = "1 minute";
     private static final String TIMED_OUT = "8 minutes";
 
@@ -77,8 +75,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
                 topicDate,
                 true,
                 POST_ID,
-                moderationStatus
-        ));
+                moderationStatus));
     }
 
     @Test
@@ -120,8 +117,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         insertPost(USER_ID, topicDate, ModerationStatus.APPROVED, NOT_TIMED_OUT);
         jdbcTemplate.update(
                 "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID
-        );
+                POST_ID);
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -185,8 +181,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postQueryService.getMyTodayPostStatus(USER_ID)
-        );
+                () -> postQueryService.getMyTodayPostStatus(USER_ID));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -202,8 +197,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postQueryService.getMyTodayPostStatus(USER_ID)
-        );
+                () -> postQueryService.getMyTodayPostStatus(USER_ID));
 
         // Then
         assertThat(exception).hasMessage("참여할 수 있는 주제가 없습니다.");
@@ -215,8 +209,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postQueryService.getMyTodayPostStatus(USER_ID)
-        );
+                () -> postQueryService.getMyTodayPostStatus(USER_ID));
 
         // Then
         assertThat(exception).hasMessage("참여할 수 있는 주제가 없습니다.");
@@ -230,14 +223,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         insertTopic(topicDate, OPEN);
         jdbcTemplate.update(
                 "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE topic_date = ?",
-                topicDate
-        );
+                topicDate);
 
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postQueryService.getMyTodayPostStatus(USER_ID)
-        );
+                () -> postQueryService.getMyTodayPostStatus(USER_ID));
 
         // Then
         assertThat(exception).hasMessage("참여할 수 있는 주제가 없습니다.");
@@ -253,8 +244,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
-                () -> postQueryService.getMyTodayPostStatus(unknownUserId)
-        );
+                () -> postQueryService.getMyTodayPostStatus(unknownUserId));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
@@ -271,8 +261,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
                 """,
                 userId,
                 slug + "@example.com",
-                "chalkak/dev/signatures/" + slug + ".png"
-        );
+                "chalkak/dev/signatures/" + slug + ".png");
     }
 
     private void insertTopic(LocalDate topicDate, String participationPeriod) {
@@ -316,8 +305,7 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
                 topicId(topicDate),
                 photoId,
                 moderationStatus.name(),
-                createdBefore
-        );
+                createdBefore);
     }
 
     private UUID topicId(LocalDate topicDate) {

@@ -9,6 +9,5 @@ import org.springframework.validation.annotation.Validated;
 public record AppleOidcProperties(
         @NotBlank String issuer,
         @NotBlank String jwkSetUri,
-        @NotBlank String clientId
-) {
+        @NotBlank String clientId) {
 }

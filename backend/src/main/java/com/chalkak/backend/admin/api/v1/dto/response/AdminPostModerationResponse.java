@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminPostModerationResult;
+import com.chalkak.backend.admin.service.post.AdminPostModerationResult;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -8,7 +8,9 @@ import java.util.UUID;
 
 public record AdminPostModerationResponse(
         UUID postId,
-        @Schema(allowableValues = {"APPROVED", "REJECTED"})
+        @Schema(
+                allowableValues = {
+                        "APPROVED", "REJECTED"})
         ModerationStatus moderationStatus,
         UUID moderatedBy,
         Instant moderatedAt,
@@ -22,7 +24,6 @@ public record AdminPostModerationResponse(
                 result.moderationStatus(),
                 result.moderatedBy(),
                 result.moderatedAt(),
-                result.rejectionReason()
-        );
+                result.rejectionReason());
     }
 }

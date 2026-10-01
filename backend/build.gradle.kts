@@ -33,7 +33,7 @@ dependencies {
     implementation("org.springframework.security:spring-security-crypto")
 
     implementation("org.flywaydb:flyway-database-postgresql")
-    runtimeOnly("org.postgresql:postgresql")
+    implementation("org.postgresql:postgresql")
 
     implementation(platform("software.amazon.awssdk:bom:2.54.1"))
     implementation("software.amazon.awssdk:s3")
@@ -56,9 +56,23 @@ dependencies {
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
+        // DTOs remain checked below with annotation line breaks enabled.
+        targetExclude("src/main/java/**/api/**/dto/**/*.java")
         // Shared trunk ancestor survives squash merges; commits cannot reset this baseline.
         ratchetFrom("50e3764ec85d26714710bb86086edcf493768f26")
-        eclipse("4.37").configFile("config/formatter/eclipse-java.xml")
+        eclipse("4.41").configFile("config/formatter/eclipse-java.xml")
+        removeUnusedImports()
+        lineEndings = com.diffplug.spotless.LineEnding.UNIX
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    format("javaDto", com.diffplug.gradle.spotless.JavaExtension::class.java) {
+        target("src/main/java/**/api/**/dto/**/*.java")
+        ratchetFrom("50e3764ec85d26714710bb86086edcf493768f26")
+        eclipse("4.41").configFile(
+            "config/formatter/eclipse-java.xml",
+            "config/formatter/java-dto.properties",
+        )
         removeUnusedImports()
         lineEndings = com.diffplug.spotless.LineEnding.UNIX
         trimTrailingWhitespace()
@@ -109,10 +123,17 @@ val checkEnvContract = tasks.register<Exec>("checkEnvContract") {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     systemProperty("spring.profiles.active", "test")
+    // dev·prod 프로필로 띄우는 테스트가 /opt/chalkak/logs에 파일 로그를 쓰지 않게 한다.
+    systemProperty(
+        "chalkak.logging.file",
+        layout.buildDirectory.file("test-logs/application.log").get().asFile.path,
+    )
 }
 
 tasks.named<Test>("test") {
     dependsOn(checkEnvContract)
+    // Spring integration tests retain multiple application contexts in this worker JVM.
+    maxHeapSize = "1g"
 }
 
 tasks.named("check") {

@@ -14,8 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AppleAuthorizationTest {
 
-    private static final String SUBJECT_HMAC =
-            "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
+    private static final String SUBJECT_HMAC = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
 
     @Test

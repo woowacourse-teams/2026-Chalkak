@@ -25,8 +25,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /**
- * 정지 판정은 저장소를 읽어야 하므로 포트를 Mock으로 대체한다. 이 클래스는 Service가 아니라
- * 인가 판정 지점이고, 검증 대상은 저장소 조회 결과가 아니라 그 결과를 어떻게 해석하느냐다.
+ * 정지 판정은 저장소를 읽어야 하므로 포트를 Mock으로 대체한다. 이 클래스는 Service가 아니라 인가 판정 지점이고, 검증 대상은
+ * 저장소 조회 결과가 아니라 그 결과를 어떻게 해석하느냐다.
  */
 class UsableUserPolicyTest {
 
@@ -62,8 +62,8 @@ class UsableUserPolicyTest {
     }
 
     /**
-     * 없는 회원은 인증 정보가 가리키는 대상이 사라졌다는 뜻이므로 인가가 아니라 인증의 실패다.
-     * 각 서비스가 자기 맥락의 404로 답하면 같은 원인이 화면마다 다른 문구로 흩어진다.
+     * 없는 회원은 인증 정보가 가리키는 대상이 사라졌다는 뜻이므로 인가가 아니라 인증의 실패다. 각 서비스가 자기 맥락의 404로 답하면 같은
+     * 원인이 화면마다 다른 문구로 흩어진다.
      */
     @Test
     @DisplayName("저장소에 없는 회원은 거부한다")
@@ -76,14 +76,14 @@ class UsableUserPolicyTest {
         assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
-                .satisfies(exception ->
-                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                .satisfies(
+                        exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
     /**
-     * 탈퇴 회원은 저장소에 남아 있지만 인증 주체로는 없는 회원과 같다. 남아 있다는 사실이
-     * 응답에 드러나지 않도록 없는 회원과 같은 답을 준다.
+     * 탈퇴 회원은 저장소에 남아 있지만 인증 주체로는 없는 회원과 같다. 남아 있다는 사실이 응답에 드러나지 않도록 없는 회원과 같은 답을
+     * 준다.
      */
     @Test
     @DisplayName("탈퇴한 회원은 거부한다")
@@ -98,14 +98,14 @@ class UsableUserPolicyTest {
         assertThatThrownBy(() -> policy.validateUsable(authenticationOf(userId)))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
-                .satisfies(exception ->
-                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                .satisfies(
+                        exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
     /**
-     * 이 판정은 인증이 끝난 엔드포인트에만 붙인다. 주체를 읽을 수 없다는 것은 표시가 잘못
-     * 붙었다는 뜻이므로, 열리는 쪽이 아니라 막히는 쪽으로 기울어야 한다.
+     * 이 판정은 인증이 끝난 엔드포인트에만 붙인다. 주체를 읽을 수 없다는 것은 표시가 잘못 붙었다는 뜻이므로, 열리는 쪽이 아니라 막히는
+     * 쪽으로 기울어야 한다.
      */
     @Test
     @DisplayName("인증 주체가 없으면 거부한다")
@@ -145,8 +145,8 @@ class UsableUserPolicyTest {
     }
 
     /**
-     * 정지 회원도 탈퇴와 자기 데이터 정리는 할 수 있어야 하므로, 이 판정은 정지를 막지 않는다.
-     * 여기서 막으면 정지된 회원이 서비스를 떠날 방법 자체가 사라진다.
+     * 정지 회원도 탈퇴와 자기 데이터 정리는 할 수 있어야 하므로, 이 판정은 정지를 막지 않는다. 여기서 막으면 정지된 회원이 서비스를 떠날
+     * 방법 자체가 사라진다.
      */
     @Test
     @DisplayName("정지된 회원도 통과시킨다")
@@ -176,8 +176,8 @@ class UsableUserPolicyTest {
         assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
-                .satisfies(exception ->
-                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                .satisfies(
+                        exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
@@ -192,8 +192,8 @@ class UsableUserPolicyTest {
         assertThatThrownBy(() -> policy.validateExisting(authenticationOf(userId)))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
-                .satisfies(exception ->
-                        assertThat(((UnauthorizedException) exception).getErrorCode())
+                .satisfies(
+                        exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 

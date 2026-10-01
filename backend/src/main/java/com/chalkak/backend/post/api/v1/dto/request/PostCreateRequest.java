@@ -8,25 +8,18 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 public record PostCreateRequest(
-        @Schema(
-                description = "주제 ID",
-                example = "0198f6c1-62ba-7d30-8b12-0f733b6570b2"
-        )
+        @Schema(description = "주제 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570b2")
         @NotNull(message = "주제 정보가 올바르지 않습니다.")
         UUID topicId,
 
-        @Schema(
-                description = "사진 업로드 ID",
-                example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
-        )
+        @Schema(description = "사진 업로드 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4")
         @NotNull(message = "사진 업로드 정보가 올바르지 않습니다.")
         UUID photoUploadId,
 
         @Schema(
                 description = "작품 제목. 앞뒤 공백 제거 후 최대 10자입니다. 생략하거나 공백뿐이면 제목 없음으로 저장합니다.",
                 example = "오늘의 기록",
-                nullable = true
-        )
+                nullable = true)
         String title
 ) {
 

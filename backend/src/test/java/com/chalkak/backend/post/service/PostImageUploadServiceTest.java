@@ -30,10 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostImageUploadServiceTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a4");
-    private static final UUID WITHDRAWN_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a5");
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a4");
+    private static final UUID WITHDRAWN_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a5");
     private static final String UPLOAD_URL = "https://test-bucket.s3.amazonaws.com/upload";
 
     @Autowired
@@ -79,8 +78,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 )
                 """, WITHDRAWN_USER_ID);
         given(postImageUploadIssuer.issue(any(UUID.class))).willReturn(
-                new PresignedPostImageUpload(UPLOAD_URL, 300L, "image/webp", 5_242_880L)
-        );
+                new PresignedPostImageUpload(UPLOAD_URL, 300L, "image/webp", 5_242_880L));
     }
 
     @Test
@@ -128,8 +126,7 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 """, Instant.class, result.uploadId());
         assertThat(expiresAt).isCloseTo(
                 issuedAt.plus(PostImageUpload.CLAIM_TTL),
-                within(10, ChronoUnit.SECONDS)
-        );
+                within(10, ChronoUnit.SECONDS));
     }
 
     @Test

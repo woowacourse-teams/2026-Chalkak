@@ -79,7 +79,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 
 ## 운영 배포
 
-운영 EC2, RDS, ALB target group, `/etc/chalkak/application.env`가 준비된 뒤 진행한다.
+운영 EC2, RDS, `/etc/chalkak/application.env`가 준비된 뒤 진행한다.
 
 ### 백엔드 릴리스 branch 준비
 
@@ -128,7 +128,7 @@ PR을 만들기 전에 다음을 확인한다.
 2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 Squash and merge로 병합한다. 병합 화면의 commit 제목이 `release: 백엔드 `로 시작하는지 확인한다. PR의 commit이 하나면 GitHub가 PR 제목 대신 해당 commit 메시지를 제목으로 제안하며, 이 제목이 다음 릴리스의 기준 commit 검색에 사용된다.
 3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
-5. 승인 후 CodeDeploy와 ALB target health를 확인한다. 운영 EC2가 한 대라 배포 중에는 요청이 실패하므로 승인 시점을 조절한다.
+5. 승인 후 CodeDeploy 배포 상태와 `validate_service.sh` 결과를 확인한다. 운영 EC2가 한 대라 배포 중에는 요청이 실패하므로 승인 시점을 조절한다.
 6. 운영 EC2 내부와 외부 endpoint를 모두 확인한다.
 
 ```bash

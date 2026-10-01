@@ -34,9 +34,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 
-public class JwtSocialSignupTokenProvider implements
-        SocialSignupTokenIssuer,
-        SocialSignupTokenVerifier {
+public class JwtSocialSignupTokenProvider
+        implements
+            SocialSignupTokenIssuer,
+            SocialSignupTokenVerifier {
 
     private static final int SUBJECT_MAX_LENGTH = 255;
     private static final int EMAIL_MAX_LENGTH = 320;
@@ -96,8 +97,8 @@ public class JwtSocialSignupTokenProvider implements
                 .type("JWT")
                 .build();
         String value = jwtEncoder.encode(JwtEncoderParameters.from(
-                        header,
-                        claims.build()))
+                header,
+                claims.build()))
                 .getTokenValue();
 
         return new IssuedSocialSignupToken(value, expiresAt);
@@ -127,8 +128,7 @@ public class JwtSocialSignupTokenProvider implements
                 .withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        JwtTimestampValidator timestampValidator =
-                new JwtTimestampValidator(CLOCK_SKEW);
+        JwtTimestampValidator timestampValidator = new JwtTimestampValidator(CLOCK_SKEW);
         timestampValidator.setClock(clock);
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 timestampValidator,

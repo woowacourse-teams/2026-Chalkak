@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.AdminUserStatusResult;
+import com.chalkak.backend.admin.service.user.AdminUserStatusResult;
 import com.chalkak.backend.user.domain.UserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;

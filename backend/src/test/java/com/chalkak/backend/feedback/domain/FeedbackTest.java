@@ -12,8 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class FeedbackTest {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000001");
+    private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
     @Test
     @DisplayName("피드백 내용의 앞뒤 공백을 제거해 보관한다")

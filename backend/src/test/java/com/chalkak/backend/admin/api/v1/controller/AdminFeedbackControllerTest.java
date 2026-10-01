@@ -10,10 +10,10 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.converter.AdminFeedbackSortConverter;
-import com.chalkak.backend.admin.service.AdminFeedbackListResult;
-import com.chalkak.backend.admin.service.AdminFeedbackQueryService;
-import com.chalkak.backend.admin.service.AdminFeedbackSort;
-import com.chalkak.backend.admin.service.AdminUserStatus;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
+import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.util.List;
@@ -37,12 +37,9 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 class AdminFeedbackControllerTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000001");
-    private static final UUID USER_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000002");
-    private static final UUID FEEDBACK_ID =
-            UUID.fromString("0198fd00-0000-7000-8000-000000000003");
+    private static final UUID ADMIN_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
+    private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000002");
+    private static final UUID FEEDBACK_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000003");
     private static final Instant CREATED_AT = Instant.parse("2026-09-16T01:00:00Z");
 
     @Autowired
@@ -95,9 +92,9 @@ class AdminFeedbackControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks")
-                        .param("sort", "createdAtAsc")
-                        .param("page", "2")
-                        .param("pageSize", "50"))
+                .param("sort", "createdAtAsc")
+                .param("page", "2")
+                .param("pageSize", "50"))
                 .andExpect(status().isOk());
 
         then(adminFeedbackQueryService).should()

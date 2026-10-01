@@ -91,8 +91,7 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
                 .withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        JwtTimestampValidator timestampValidator =
-                new JwtTimestampValidator(CLOCK_SKEW);
+        JwtTimestampValidator timestampValidator = new JwtTimestampValidator(CLOCK_SKEW);
         timestampValidator.setClock(clock);
         // 기본값은 exp가 없는 토큰을 통과시킨다. 그대로 두면 만료되지 않는 토큰이 만들어질 수 있어
         // 15분 만료라는 전제가 통째로 무너진다.
@@ -107,8 +106,8 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
     }
 
     /**
-     * 회원가입 토큰과 액세스 토큰은 비밀키·audience·purpose로 각각 분리한다. 비밀키를 같은 값으로
-     * 잘못 설정해도 5분짜리 회원가입 토큰이 15분짜리 액세스 토큰으로 통과하지 않게 하기 위해서다.
+     * 회원가입 토큰과 액세스 토큰은 비밀키·audience·purpose로 각각 분리한다. 비밀키를 같은 값으로 잘못 설정해도 5분짜리 회원가입
+     * 토큰이 15분짜리 액세스 토큰으로 통과하지 않게 하기 위해서다.
      */
     private OAuth2TokenValidatorResult validateAudience(Jwt jwt) {
         if (jwt.getAudience().contains(properties.audience())) {
@@ -125,8 +124,8 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
     }
 
     /**
-     * subject는 회원 식별자다. 여기서 걸러 두면 인증을 통과한 토큰의 subject를 신뢰할 수 있어,
-     * 뒤에서 형식이 어긋난 값을 만나 500으로 끝나는 대신 401로 응답한다.
+     * subject는 회원 식별자다. 여기서 걸러 두면 인증을 통과한 토큰의 subject를 신뢰할 수 있어, 뒤에서 형식이 어긋난 값을 만나
+     * 500으로 끝나는 대신 401로 응답한다.
      */
     private OAuth2TokenValidatorResult validateSubject(Jwt jwt) {
         String subject = jwt.getSubject();

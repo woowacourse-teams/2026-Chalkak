@@ -77,8 +77,7 @@ public class PostController implements PostApiDocs {
                 userId,
                 request.topicId(),
                 request.photoUploadId(),
-                request.title()
-        );
+                request.title());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(PostCreateResponse.from(result));
@@ -96,8 +95,7 @@ public class PostController implements PostApiDocs {
         PostUpdateResult result = postCommandService.updatePost(
                 loginUser.userId(),
                 parsedPostId,
-                request.title()
-        );
+                request.title());
 
         return ResponseEntity.ok(PostUpdateResponse.from(result));
     }
@@ -117,9 +115,9 @@ public class PostController implements PostApiDocs {
     }
 
     /**
-     * 이 경로만 회원 상태 판정을 붙이지 않는다. 비로그인 조회를 허용하는 경로라 인증 주체
-     * 없이도 호출이 들어오는데, @PreAuthorize는 그때도 실행되어 주체를 읽지 못하고 403으로
-     * 막아 버린다. 로그인 상태의 회원 판정은 PostQueryService가 식별자가 있을 때만 한다.
+     * 이 경로만 회원 상태 판정을 붙이지 않는다. 비로그인 조회를 허용하는 경로라 인증 주체 없이도 호출이
+     * 들어오는데, @PreAuthorize는 그때도 실행되어 주체를 읽지 못하고 403으로 막아 버린다. 로그인 상태의 회원 판정은
+     * PostQueryService가 식별자가 있을 때만 한다.
      */
     @Override
     @GetMapping
@@ -135,15 +133,12 @@ public class PostController implements PostApiDocs {
                                 request.randomSeed(),
                                 request.page(),
                                 request.pageSize(),
-                                loginUser.map(AuthenticatedUser::userId)
-                        )
-                )
-        );
+                                loginUser.map(AuthenticatedUser::userId))));
     }
 
     /**
-     * 게시물 생성 흐름과 같은 인가를 건다. 이 조회가 정지 회원에게 작성 가능하다고 답한 뒤 업로드 URL
-     * 발급에서 403이 나면, 사전 확인이 오히려 헛걸음을 만든다.
+     * 게시물 생성 흐름과 같은 인가를 건다. 이 조회가 정지 회원에게 작성 가능하다고 답한 뒤 업로드 URL 발급에서 403이 나면, 사전
+     * 확인이 오히려 헛걸음을 만든다.
      */
     @Override
     @RequiresUsableUser
@@ -166,8 +161,7 @@ public class PostController implements PostApiDocs {
         UUID userId = requireUserId(loginUser);
         PostCalendarResult result = postQueryService.getMyPostCalendar(
                 userId,
-                request.toYearMonth()
-        );
+                request.toYearMonth());
 
         return ResponseEntity.ok(PostCalendarResponse.from(result));
     }
@@ -203,7 +197,6 @@ public class PostController implements PostApiDocs {
                 .map(AuthenticatedUser::userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."
-                ));
+                        "유효하지 않은 인증 정보입니다."));
     }
 }

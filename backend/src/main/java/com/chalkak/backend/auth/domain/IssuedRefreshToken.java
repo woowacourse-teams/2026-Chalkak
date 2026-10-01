@@ -4,6 +4,5 @@ import java.time.Duration;
 
 public record IssuedRefreshToken(
         String value,
-        Duration expiresIn
-) {
+        Duration expiresIn) {
 }

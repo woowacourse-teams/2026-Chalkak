@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.admin.infrastructure.bootstrap.DevelopmentAdminBootstrap;
 import com.chalkak.backend.admin.infrastructure.infra.DevAdminActorResolver;
-import com.chalkak.backend.admin.repository.AdminRepository;
+import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,8 +29,7 @@ class AdminDevelopmentBypassTest {
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withPropertyValues(
                         "spring.profiles.active=" + profiles,
-                        "chalkak.admin.authentication.development-bypass-enabled=true"
-                );
+                        "chalkak.admin.authentication.development-bypass-enabled=true");
 
         // When & Then
         contextRunner.run(context -> {
@@ -51,8 +50,7 @@ class AdminDevelopmentBypassTest {
                 .withBean(AdminRepository.class, () -> mock(AdminRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=" + profiles,
-                        "chalkak.admin.authentication.development-bypass-enabled=true"
-                );
+                        "chalkak.admin.authentication.development-bypass-enabled=true");
 
         // When & Then
         contextRunner.run(context -> assertThat(context)

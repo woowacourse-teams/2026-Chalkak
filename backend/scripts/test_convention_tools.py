@@ -20,6 +20,10 @@ gradle.projectsEvaluated {
         target('build/convention-probe/FormatProbe.java')
         ratchetFrom(null)
     }
+    rootProject.spotless.format('javaDto') {
+        target('build/convention-probe/FormatDtoProbe.java')
+        ratchetFrom(null)
+    }
     rootProject.tasks.named('checkstyleMain') {
         setSource(rootProject.fileTree('build/convention-probe/checkstyle'))
         reports.xml.outputLocation = rootProject.layout.buildDirectory.file('convention-probe/checkstyle.xml')
@@ -95,3 +99,25 @@ run('spotlessCheck', True)
 run('spotlessApply', True)
 assert formatted.read_text() == text
 print('PASS: Spotless detects, fixes and preserves the corrected format')
+
+dto = probe / 'FormatDtoProbe.java'
+dto.write_text('''record FormatDtoProbe(
+        @Schema(description = "Page size") @Min(1) @Max(100) Integer pageSize,
+        @Schema(description = "Name") String name,
+        Long total
+) {
+    record Nested(@Schema(description = "ID") String id) {}
+}
+''')
+run('spotlessJavaDtoCheck', False)
+run('spotlessJavaDtoApply', True)
+dto_text = dto.read_text()
+assert '@Schema(description = "Page size")\n        @Min(1)\n        @Max(100)\n        Integer pageSize,' in dto_text, dto_text
+assert '@Schema(description = "Name")\n        String name,' in dto_text, dto_text
+assert 'Long total\n) {' in dto_text, dto_text
+assert '@Schema(description = "ID")\n' in dto_text, dto_text
+run('spotlessCheck', True)
+run('spotlessApply', True)
+assert dto.read_text() == dto_text
+assert formatted.read_text() == text
+print('PASS: DTO annotation line breaks and nested records remain stable on repeated formatting')

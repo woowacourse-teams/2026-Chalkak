@@ -19,15 +19,16 @@ public record PostCalendarResponse(
                 result.month(),
                 result.posts().stream()
                         .map(CalendarPostResponse::from)
-                        .toList()
-        );
+                        .toList());
     }
 
     public record CalendarPostResponse(
             LocalDate topicDate,
             UUID postId,
             String thumbnailImageUrl,
-            @Schema(allowableValues = {"PENDING", "APPROVED"})
+            @Schema(
+                    allowableValues = {
+                            "PENDING", "APPROVED"})
             ModerationStatus status
     ) {
 
@@ -36,8 +37,7 @@ public record PostCalendarResponse(
                     post.topicDate(),
                     post.postId(),
                     post.thumbnailImageUrl(),
-                    post.status()
-            );
+                    post.status());
         }
     }
 }

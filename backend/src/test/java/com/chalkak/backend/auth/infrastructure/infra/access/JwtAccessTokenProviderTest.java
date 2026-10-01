@@ -30,8 +30,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 class JwtAccessTokenProviderTest {
 
     private static final Instant NOW = Instant.parse("2026-08-27T00:00:00Z");
-    private static final String SECRET =
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    private static final String SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String ISSUER = "chalkak-backend";
     private static final String AUDIENCE = "chalkak-access";
     private static final Duration EXPIRATION = Duration.ofMinutes(15);
@@ -167,8 +166,7 @@ class JwtAccessTokenProviderTest {
     void decode_justPastExpiryWithinClockSkew_verifiesAccessToken() {
         // Given
         String token = createProvider(NOW).issue(UUID.randomUUID()).value();
-        JwtAccessTokenProvider verifier =
-                createProvider(NOW.plus(EXPIRATION).plusSeconds(29));
+        JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(29));
 
         // When
         Jwt jwt = verifier.jwtDecoder().decode(token);
@@ -182,8 +180,7 @@ class JwtAccessTokenProviderTest {
     void decode_expiredBeyondClockSkew_throwsJwtException() {
         // Given
         String token = createProvider(NOW).issue(UUID.randomUUID()).value();
-        JwtAccessTokenProvider verifier =
-                createProvider(NOW.plus(EXPIRATION).plusSeconds(31));
+        JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(31));
 
         // When & Then
         assertThatThrownBy(() -> verifier.jwtDecoder().decode(token))
@@ -213,8 +210,7 @@ class JwtAccessTokenProviderTest {
     void decode_exactlyAtClockSkewBoundary_verifiesAccessToken() {
         // Given
         String token = createProvider(NOW).issue(UUID.randomUUID()).value();
-        JwtAccessTokenProvider verifier =
-                createProvider(NOW.plus(EXPIRATION).plusSeconds(30));
+        JwtAccessTokenProvider verifier = createProvider(NOW.plus(EXPIRATION).plusSeconds(30));
 
         // When
         Jwt jwt = verifier.jwtDecoder().decode(token);
@@ -238,8 +234,8 @@ class JwtAccessTokenProviderTest {
     }
 
     /**
-     * 서명의 첫 글자를 바꾼다. base64url 마지막 글자는 32바이트 서명에서 유효 비트가 4개뿐이라
-     * 글자를 바꿔도 디코딩된 서명 바이트가 그대로일 수 있다. 첫 글자는 6비트가 모두 유효하다.
+     * 서명의 첫 글자를 바꾼다. base64url 마지막 글자는 32바이트 서명에서 유효 비트가 4개뿐이라 글자를 바꿔도 디코딩된 서명 바이트가
+     * 그대로일 수 있다. 첫 글자는 6비트가 모두 유효하다.
      */
     private String tamperSignature(String token) {
         int signatureStart = token.lastIndexOf('.') + 1;

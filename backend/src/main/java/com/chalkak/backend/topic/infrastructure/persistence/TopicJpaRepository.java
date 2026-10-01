@@ -24,6 +24,32 @@ public interface TopicJpaRepository extends JpaRepository<Topic, UUID> {
     boolean existsByTopicDateAndDeletedAtIsNullAndIdNot(LocalDate topicDate, UUID topicId);
 
     @Query("""
+            SELECT COUNT(topic) > 0
+            FROM Topic topic
+            WHERE topic.deletedAt IS NULL
+              AND topic.participationPeriod.startsAt < :endsAt
+              AND topic.participationPeriod.endsAt > :startsAt
+            """)
+    boolean existsActiveOverlappingPeriod(
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt
+    );
+
+    @Query("""
+            SELECT COUNT(topic) > 0
+            FROM Topic topic
+            WHERE topic.deletedAt IS NULL
+              AND topic.participationPeriod.startsAt < :endsAt
+              AND topic.participationPeriod.endsAt > :startsAt
+              AND topic.id <> :topicId
+            """)
+    boolean existsActiveOverlappingPeriodExcludingId(
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt,
+            @Param("topicId") UUID topicId
+    );
+
+    @Query("""
             SELECT topic
             FROM Topic topic
             WHERE topic.topicDate = :topicDate

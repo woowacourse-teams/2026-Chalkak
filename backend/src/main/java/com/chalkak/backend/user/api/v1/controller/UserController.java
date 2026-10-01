@@ -72,8 +72,7 @@ public class UserController implements UserApiDocs {
     ) {
         String imageUrl = userService.updateSignature(
                 loginUser.userId(),
-                request.signatureOriginalUploadId()
-        );
+                request.signatureOriginalUploadId());
 
         return ResponseEntity.ok(new UserSignatureResponse(imageUrl));
     }
