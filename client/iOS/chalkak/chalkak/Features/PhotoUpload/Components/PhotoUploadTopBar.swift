@@ -7,14 +7,7 @@ struct PhotoUploadTopBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button(action: onBackClick) {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(theme.colors.iconPrimary)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("뒤로 가기")
+            ChalkakNavigationButton(kind: .back, action: onBackClick)
 
             Text("전시하기")
                 .font(theme.typography.headline)
@@ -22,7 +15,10 @@ struct PhotoUploadTopBar: View {
                 .frame(maxWidth: .infinity)
 
             Color.clear
-                .frame(width: 44, height: 44)
+                .frame(
+                    width: ChalkakNavigationButton.diameter,
+                    height: ChalkakNavigationButton.diameter
+                )
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)

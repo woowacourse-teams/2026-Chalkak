@@ -199,6 +199,43 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testFeedbackFullScreenClosesWithButtonAndDownwardSwipe() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-feedback-entry"]
+        app.launch()
+
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+        let feedbackButton = app.buttons["피드백 보내기"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
+
+        let title = app.staticTexts["feedback.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["뒤로 가기"].exists)
+        let closeButton = app.buttons["feedback.close"]
+        XCTAssertTrue(closeButton.isHittable)
+        XCTAssertGreaterThan(closeButton.frame.midX, app.frame.midX)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Feedback full screen"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        closeButton.tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
+
+        feedbackButton.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        title.press(forDuration: 0.05, thenDragTo: title.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).withOffset(CGVector(dx: 0, dy: 300)))
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
+        XCTAssertEqual(settingsButton.value as? String, "선택됨")
+    }
+
+    @MainActor
     func testNotificationSetupSkipContinuesToHome() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-show-notification-setup"]

@@ -86,18 +86,6 @@ struct ContentView: View {
                                 .background(InteractivePopGestureEnabler())
                             }
                         }
-                        .navigationDestination(isPresented: $isFeedbackPresented) {
-                            if let feedbackViewModel {
-                                FeedbackScreen(
-                                    viewModel: feedbackViewModel,
-                                    onBack: closeFeedback,
-                                    onSubmitted: handleFeedbackSubmitted,
-                                    onReauthenticationRequired: showLogin
-                                )
-                                .toolbar(.hidden, for: .navigationBar)
-                                .background(InteractivePopGestureEnabler())
-                            }
-                        }
                 }
             case .photoUploadSuccess:
                 if let successSubmission {
@@ -128,6 +116,29 @@ struct ContentView: View {
                         .accessibilityIdentifier("notificationSetup.close")
                     }
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $isFeedbackPresented, onDismiss: {
+            feedbackViewModel = nil
+        }) { [feedbackViewModel] in
+            if let feedbackViewModel {
+                NavigationStack {
+                    FeedbackScreen(
+                        viewModel: feedbackViewModel,
+                        onDismiss: closeFeedback,
+                        onSubmitted: handleFeedbackSubmitted,
+                        onReauthenticationRequired: showLogin
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(role: .close, action: closeFeedback)
+                                .disabled(feedbackViewModel.viewState.isSubmitting)
+                                .accessibilityLabel("닫기")
+                                .accessibilityIdentifier("feedback.close")
+                        }
+                    }
+                }
+                .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
             }
         }
         .sheet(item: $selectedLegalDocument) { document in
@@ -387,7 +398,7 @@ struct ContentView: View {
     }
 
     private func openFeedback() {
-        guard KeychainSessionStore.hasAuthenticatedSession() else {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isFeedbackEntryUITest else {
             showMessage("피드백을 보내려면 로그인이 필요해요")
             return
         }
@@ -398,7 +409,6 @@ struct ContentView: View {
 
     private func closeFeedback() {
         isFeedbackPresented = false
-        feedbackViewModel = nil
     }
 
     private func handleFeedbackSubmitted() {
@@ -521,6 +531,11 @@ struct ContentView: View {
     }
 
     private static func makeFeedbackViewModel() -> FeedbackViewModel {
+#if DEBUG
+        if isFeedbackEntryUITest {
+            return FeedbackViewModel(submitFeedback: { _ in })
+        }
+#endif
         let apiClient = FeedbackAPIClient(
             configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
             accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -599,7 +614,7 @@ struct ContentView: View {
 
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest {
+        if isPhotoUploadEntryUITest || isFeedbackEntryUITest {
             return .home
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
@@ -613,6 +628,14 @@ struct ContentView: View {
         return AppRouteResolver.destinationAfterAuthentication(
             hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
         )
+    }
+
+    private static var isFeedbackEntryUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-feedback-entry")
+#else
+        false
+#endif
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {

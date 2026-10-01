@@ -32,9 +32,8 @@ struct SignatureChangeFlow: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("닫기", systemImage: "xmark", action: dismiss.callAsFunction)
-                        .labelStyle(.iconOnly)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .close, action: dismiss.callAsFunction)
                         .disabled(isSubmitting)
                         .accessibilityLabel("닫기")
                 }
