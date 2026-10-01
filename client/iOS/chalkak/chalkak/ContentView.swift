@@ -191,6 +191,12 @@ struct ContentView: View {
         .onChange(of: currentAnalyticsScreen) { _, _ in
             trackCurrentScreen()
         }
+        .onChange(of: selectedTab) { _, _ in
+            guard isBottomBarCompact else { return }
+            withAnimation(.snappy) {
+                isBottomBarCompact = false
+            }
+        }
         .task {
             await appVersionGate.checkForUpdate()
         }
