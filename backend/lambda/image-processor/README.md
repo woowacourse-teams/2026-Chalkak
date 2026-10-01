@@ -16,8 +16,9 @@ S3 ObjectCreated
   → 백엔드에서 원본·썸네일 presigned PUT URL 발급
   → presigned URL로 원본과 썸네일 저장
   → 백엔드 성공·실패 콜백
-  → staging 객체 삭제
 ```
+
+staging 객체는 Lambda가 지우지 않고 `chalkak/staging/` prefix의 lifecycle 만료 규칙이 정리한다.
 
 Spring 애플리케이션과 공유하는 S3 키 계약은 종류마다 다르다.
 
@@ -104,7 +105,6 @@ Lambda
   → 원본·썸네일 객체 생성
   → HMAC 성공 콜백
   → 백엔드가 pending 일치 시 active 키로 승격
-  → staging 삭제
 ```
 
 성공 콜백은 pending `uploadId`가 현재 작업과 같고 상태가
@@ -124,11 +124,9 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
 
 ## 실패 정책
 
-- 크기 초과, 손상 파일, 종류별 허용 포맷이 아닌 파일은 실패 콜백 2xx 확인 후 staging 객체를 지우고
-  메시지를 정상 종료한다.
+- 크기 초과, 손상 파일, 종류별 허용 포맷이 아닌 파일은 실패 콜백을 보낸 뒤 메시지를 정상 종료한다.
 - 잘못된 버킷·키처럼 신뢰할 업로드 ID를 추출할 수 없는 이벤트는 콜백 없이 반려한다.
 - S3 timeout과 5xx처럼 복구 가능한 실패는 예외를 전파해 SQS가 다시 전달하게 한다.
-- 원본과 썸네일 저장과 성공 콜백이 모두 성공한 뒤에만 staging 객체를 삭제한다.
 - 업로드 URL 발급 실패는 상태 코드와 관계없이 재시도한다. 이 요청을 영구 콜백 실패로 소비하면
   staging과 처리 상태가 닫히지 않은 채 남기 때문이다.
 - 백엔드 콜백 timeout·5xx와 네트워크 오류는 예외를 전파해 SQS가 다시 전달하게 한다.
@@ -141,29 +139,30 @@ Lambda가 영구 실패했을 때 존재하지 않는 URL이 active로 남고 �
   완전히 같은지 확인한 뒤에만 완료 콜백을 이어 간다. 다르면 재시도 오류로 처리하므로 서로 다른
   원본과 썸네일이 정상 완료되지 않는다.
 - 완료 콜백이 영구 거부되면 이미 처리된 이미지가 어디에도 연결되지 않는다. 실패 콜백으로 상태를
-  닫아 사용자가 다시 올릴 수 있게 하고, 원본 staging은 수동 복구를 위해 남긴다.
+  닫아 사용자가 다시 올릴 수 있게 한다. 원본 staging은 lifecycle 만료 전까지 수동 복구에 쓸 수 있다.
 - DLQ 없이 운영한다. 대신 `SQS_MAX_RECEIVE_COUNT`를 애플리케이션에서 확인해, 수신 횟수가 상한에
-  도달한 메시지는 실패 콜백으로 상태를 닫고 staging을 정리한 뒤 정상 종료한다. 이 자리가 없으면
+  도달한 메시지는 실패 콜백으로 상태를 닫은 뒤 정상 종료한다. 이 자리가 없으면
   복구 불가능한 예외 하나가 메시지 보존 기간이 끝날 때까지 같은 이미지를 재처리한다.
 - 포기한 메시지는 `image_processing_abandoned` 이벤트로 남는다. DLQ가 없으므로 이 로그가 유일한
   단서이며, CloudWatch 알람 대상으로 삼아야 한다.
-
-검증에서 반려된 staging 객체는 실패 콜백을 보낸 뒤 삭제한다. EXIF를 제거하기 전 사용자
-원본이라 위치·촬영 시각·기종이 그대로 남아 있어, 아무도 참조하지 않는 개인정보를 버킷에
-방치하지 않기 위함이다.
-
-그래도 `chalkak/staging/` prefix에 1~2일짜리 lifecycle 만료 규칙은 필요하다. 발급만 받고
-업로드하지 않은 claim, 삭제에 실패한 객체, 라우팅 단계에서 반려돼 업로드 ID를 알 수 없는
-객체는 여전히 남는다. 거절된 업로드의 staging 키에 유효한 presigned URL로 다시 PUT하면
-아무도 참조하지 않는 결과 객체가 생기므로 `chalkak/posts/` prefix에도 정리 규칙을 고려한다.
 - 출력 키가 결정적이므로 같은 메시지가 다시 전달돼도 동일한 객체를 덮어쓴다.
 - 현재 DLQ를 사용하지 않으므로 CloudWatch에서 Lambda 오류와 SQS 적체를 확인해야 한다.
 
-검증에서 반려된 staging 객체는 실패 콜백이 2xx로 완료된 뒤 즉시 삭제한다.
-콜백 timeout·5xx·네트워크 오류와 영구 거부에서는 상태 전달을 보장할 수 없으므로
-재시도·조사를 위해 staging을 유지한다. 공유 버킷의 `chalkak/staging/` prefix
-lifecycle 만료 규칙은 사용자가 업로드 후 이탈하거나 오류가 장기간 해결되지 않은
-객체를 1~2일 뒤 정리하는 안전장치로 유지한다.
+### staging 정리
+
+Lambda는 staging 객체를 지우지 않는다. 회사 제공 Lambda 역할에 staging
+`s3:DeleteObject` 권한이 없어, 삭제를 처리 흐름에 두면 완료 콜백까지 성공한 이미지도
+삭제 단계의 `AccessDenied`로 재시도와 포기 처리를 반복했기 때문이다. 성공·반려·포기
+여부와 관계없이 공유 버킷의 `chalkak/staging/` prefix lifecycle 만료 규칙이 1~2일 뒤
+정리한다.
+
+반려된 원본도 만료 전까지 남는다. EXIF를 제거하기 전 사용자 원본이라 위치·촬영 시각·기종이
+그대로 들어 있지만, 비공개 staging 경로이고 보존 기간이 lifecycle로 제한되므로 감수한다.
+남아 있는 동안은 반려·콜백 실패 원인 조사에 쓸 수 있다. S3 lifecycle은 만료일을 UTC
+자정 기준으로 올림하고 비동기로 삭제하므로 실제 보존 기간은 설정값보다 길 수 있다.
+
+거절된 업로드의 staging 키에 유효한 presigned URL로 다시 PUT하면 아무도 참조하지 않는
+결과 객체가 생기므로 `chalkak/posts/` prefix에도 정리 규칙을 고려한다.
 
 ## 환경 변수
 
@@ -359,10 +358,6 @@ S3 read
   arn:aws:s3:::techcourse-project-2026/chalkak/signatures/*
   arn:aws:s3:::techcourse-project-2026/chalkak/posts/*
 
-S3 delete
-  s3:DeleteObject
-  arn:aws:s3:::techcourse-project-2026/chalkak/staging/*
-
 CloudWatch Logs
   logs:CreateLogGroup
   logs:CreateLogStream
@@ -419,4 +414,5 @@ notification은 `ObjectCreated` 이벤트, prefix `chalkak/staging/`, suffix는 
 배포 후 먼저 트리거를 비활성화한 상태에서 테스트 이벤트를 실행하고, 성공한 다음
 트리거를 활성화한다. 실제 검증은 고유 UUID PNG를
 `staging/dev/signatures/` 또는 `staging/prod/signatures/`에
-올려 원본과 썸네일이 생성되고 staging 객체가 삭제되는지 확인한다.
+올려 원본과 썸네일이 생성되고 완료 콜백이 `204`로 끝나는지 확인한다. staging 객체는
+lifecycle이 정리하므로 남아 있어도 정상이다.
