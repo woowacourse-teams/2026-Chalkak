@@ -402,6 +402,22 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testDailyReminderTapOnHomeReloadsHome() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-daily-reminder-tap"]
+        app.launch()
+
+        let emptyHome = app.descendants(matching: .any)["home-empty"]
+        XCTAssertTrue(emptyHome.waitForExistence(timeout: 5))
+
+        // 앱이 실행 1초 뒤 알림 탭 이벤트를 흉내 낸다.
+        Thread.sleep(forTimeInterval: 2)
+
+        XCTAssertTrue(emptyHome.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["home-loading"].exists)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
