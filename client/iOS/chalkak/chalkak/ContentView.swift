@@ -75,18 +75,6 @@ struct ContentView: View {
                                 onDeleted: handleDeletedPost
                             )
                         }
-                        .navigationDestination(isPresented: $isPhotoUploadPresented) {
-                            if let photoUploadViewModel {
-                                PhotoUploadRoute(
-                                    viewModel: photoUploadViewModel,
-                                    onBack: showPhotoUploadOrigin,
-                                    onSubmitted: showPhotoUploadSuccess,
-                                    onReauthenticationRequired: showLogin
-                                )
-                                .toolbar(.hidden, for: .navigationBar)
-                                .background(InteractivePopGestureEnabler())
-                            }
-                        }
                 }
             case .photoUploadSuccess:
                 if let successSubmission {
@@ -100,6 +88,21 @@ struct ContentView: View {
             }
         }
         .animation(.default, value: route)
+        .fullScreenCover(isPresented: $isPhotoUploadPresented, onDismiss: {
+            photoUploadViewModel = nil
+        }) { [photoUploadViewModel] in
+            if let photoUploadViewModel {
+                NavigationStack {
+                    PhotoUploadRoute(
+                        viewModel: photoUploadViewModel,
+                        onBack: showPhotoUploadOrigin,
+                        onSubmitted: showPhotoUploadSuccess,
+                        onReauthenticationRequired: showLogin
+                    )
+                }
+                .interactiveDismissDisabled()
+            }
+        }
         .fullScreenCover(isPresented: $isNotificationSetupPresented) {
             NavigationStack {
                 NotificationSetupScreen(
