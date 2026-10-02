@@ -226,7 +226,7 @@ struct FeedbackScreenLayoutTests {
             viewModel: FeedbackViewModel(
                 initialState: FeedbackViewState(content: "사용하기 편해요.")
             ),
-            onBack: {},
+            onDismiss: {},
             onSubmitted: {},
             onReauthenticationRequired: {}
         )

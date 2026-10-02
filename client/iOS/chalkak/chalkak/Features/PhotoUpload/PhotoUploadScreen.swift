@@ -14,6 +14,9 @@ struct PhotoUploadScreen: View {
     @State private var isBackPending = false
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+    @State private var captionFrame: CGRect = .zero
+    @State private var scrollOffset: CGFloat = 0
+    @State private var canDismissCurrentDrag: Bool?
 
     var body: some View {
         ScrollView {
@@ -50,6 +53,11 @@ struct PhotoUploadScreen: View {
                         maximumCharacterCount: Constants.captionMaxLength,
                         onFocusChange: { isCaptionFocused = $0 }
                     )
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named("photoUpload.dismiss"))
+                    } action: { frame in
+                        captionFrame = frame
+                    }
 
                     if let topicErrorMessage = viewState.topicErrorMessage {
                         Text(topicErrorMessage)
@@ -70,18 +78,27 @@ struct PhotoUploadScreen: View {
                 }
                 .padding(.horizontal, 22)
             }
+            .padding(.top, theme.spacing.xl)
             .padding(.bottom, 104)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+        } action: { _, offset in
+            scrollOffset = offset
+        }
         .background(theme.colors.background)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            PhotoUploadTopBar(onBackClick: requestBack)
-                .padding(.leading, 8)
-                .padding(.trailing, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
-                .background(theme.colors.background)
+        .navigationTitle("전시하기")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ChalkakCloseButton(action: requestBack)
+                    .disabled(viewState.isSubmitting)
+                    .accessibilityLabel("닫기")
+                    .accessibilityIdentifier("photoUpload.close")
+            }
+            .chalkakNavigationBackground()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakButton(
@@ -106,6 +123,9 @@ struct PhotoUploadScreen: View {
                     .accessibilityLabel(message)
             }
         }
+        .contentShape(Rectangle())
+        .coordinateSpace(name: "photoUpload.dismiss")
+        .simultaneousGesture(dismissGesture)
         .onChange(of: viewState.pendingMessage?.id) { _, messageID in
             guard let messageID,
                   let pendingMessage = viewState.pendingMessage
@@ -138,6 +158,27 @@ struct PhotoUploadScreen: View {
         } else {
             onAction(.backClicked)
         }
+    }
+
+    private var dismissGesture: some Gesture {
+        DragGesture(minimumDistance: 20, coordinateSpace: .named("photoUpload.dismiss"))
+            .onChanged { value in
+                guard canDismissCurrentDrag == nil else { return }
+                // 키보드가 드래그 도중 내려가더라도 같은 드래그로 화면을 닫지 않는다.
+                canDismissCurrentDrag = !isCaptionFocused && !isKeyboardVisible
+                    && !viewState.isSubmitting && scrollOffset <= 1
+                    && !captionFrame.contains(value.startLocation)
+            }
+            .onEnded { value in
+                let canDismiss = canDismissCurrentDrag == true
+                canDismissCurrentDrag = nil
+                guard canDismiss, !viewState.isSubmitting,
+                      !isCaptionFocused, !isKeyboardVisible,
+                      value.translation.height > abs(value.translation.width) else { return }
+                if value.translation.height > 80 || value.predictedEndTranslation.height > 140 {
+                    requestBack()
+                }
+            }
     }
 
     private func completePendingBack() {

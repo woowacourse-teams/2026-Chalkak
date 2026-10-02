@@ -14,6 +14,7 @@ struct ContentView: View {
 
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -74,30 +75,6 @@ struct ContentView: View {
                                 onDeleted: handleDeletedPost
                             )
                         }
-                        .navigationDestination(isPresented: $isPhotoUploadPresented) {
-                            if let photoUploadViewModel {
-                                PhotoUploadRoute(
-                                    viewModel: photoUploadViewModel,
-                                    onBack: showPhotoUploadOrigin,
-                                    onSubmitted: showPhotoUploadSuccess,
-                                    onReauthenticationRequired: showLogin
-                                )
-                                .toolbar(.hidden, for: .navigationBar)
-                                .background(InteractivePopGestureEnabler())
-                            }
-                        }
-                        .navigationDestination(isPresented: $isFeedbackPresented) {
-                            if let feedbackViewModel {
-                                FeedbackScreen(
-                                    viewModel: feedbackViewModel,
-                                    onBack: closeFeedback,
-                                    onSubmitted: handleFeedbackSubmitted,
-                                    onReauthenticationRequired: showLogin
-                                )
-                                .toolbar(.hidden, for: .navigationBar)
-                                .background(InteractivePopGestureEnabler())
-                            }
-                        }
                 }
             case .photoUploadSuccess:
                 if let successSubmission {
@@ -111,6 +88,21 @@ struct ContentView: View {
             }
         }
         .animation(.default, value: route)
+        .fullScreenCover(isPresented: $isPhotoUploadPresented, onDismiss: {
+            photoUploadViewModel = nil
+        }) { [photoUploadViewModel] in
+            if let photoUploadViewModel {
+                NavigationStack {
+                    PhotoUploadRoute(
+                        viewModel: photoUploadViewModel,
+                        onBack: showPhotoUploadOrigin,
+                        onSubmitted: showPhotoUploadSuccess,
+                        onReauthenticationRequired: showLogin
+                    )
+                }
+                .interactiveDismissDisabled()
+            }
+        }
         .fullScreenCover(isPresented: $isNotificationSetupPresented) {
             NavigationStack {
                 NotificationSetupScreen(
@@ -121,13 +113,38 @@ struct ContentView: View {
                 )
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(role: .close) {
+                        ChalkakCloseButton {
                             isNotificationSetupPresented = false
                         }
                         .accessibilityLabel("닫기")
                         .accessibilityIdentifier("notificationSetup.close")
                     }
+                    .chalkakNavigationBackground()
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $isFeedbackPresented, onDismiss: {
+            feedbackViewModel = nil
+        }) { [feedbackViewModel] in
+            if let feedbackViewModel {
+                NavigationStack {
+                    FeedbackScreen(
+                        viewModel: feedbackViewModel,
+                        onDismiss: closeFeedback,
+                        onSubmitted: handleFeedbackSubmitted,
+                        onReauthenticationRequired: showLogin
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            ChalkakCloseButton(action: closeFeedback)
+                                .disabled(feedbackViewModel.viewState.isSubmitting)
+                                .accessibilityLabel("닫기")
+                                .accessibilityIdentifier("feedback.close")
+                        }
+                        .chalkakNavigationBackground()
+                    }
+                }
+                .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
             }
         }
         .sheet(item: $selectedLegalDocument) { document in
@@ -179,6 +196,12 @@ struct ContentView: View {
         .onChange(of: currentAnalyticsScreen) { _, _ in
             trackCurrentScreen()
         }
+        .onChange(of: selectedTab) { _, _ in
+            guard isBottomBarCompact else { return }
+            withAnimation(.smooth(duration: 0.75)) {
+                isBottomBarCompact = false
+            }
+        }
         .task {
             await appVersionGate.checkForUpdate()
         }
@@ -196,15 +219,53 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var mainTab: some View {
+        ZStack {
+            tabContent
+        }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ChalkakBottomBar(
+                    selectedItem: selectedTab,
+                    isCompact: $isBottomBarCompact,
+                    onSelect: selectBottomBarItem,
+                    onAdd: { openPhotoUpload(from: selectedTab) }
+                )
+                .padding(
+                    .horizontal,
+                    bottomBarHorizontalPadding
+                )
+                .padding(.bottom, bottomBarBottomPadding)
+                .background(bottomBarBackground)
+                .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
+            }
+    }
+
+    private var bottomBarHorizontalPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass {
+            (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
+        } else {
+            0
+        }
+    }
+
+    private var bottomBarBottomPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass { theme.spacing.sm } else { 0 }
+    }
+
+    private var bottomBarBackground: Color {
+        if ChalkakPlatformAppearance.usesLiquidGlass { .clear } else { theme.colors.surfaceElevated }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
         switch selectedTab {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .display) },
                 onSelectBottomBarItem: select,
-                onSelectPhoto: { selectedFeed = $0 }
+                onSelectPhoto: { selectedFeed = $0 },
+                bottomBarCompact: $isBottomBarCompact
             )
         case .settings:
             SettingsScreen(
@@ -216,7 +277,8 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onOpenNotificationSetup: openNotificationSetup
+                onOpenNotificationSetup: openNotificationSetup,
+                bottomBarCompact: $isBottomBarCompact
             )
         case .record:
             RecordScreen(
@@ -225,13 +287,15 @@ struct ContentView: View {
                 onSelectBottomBarItem: select,
                 onOpenDisplay: openDisplay,
                 onOpenFeed: { selectedFeed = FeedTarget(postID: $0, isOwnedByCurrentUser: true) },
-                onNavigateToLogin: showLogin
+                onNavigateToLogin: showLogin,
+                bottomBarCompact: $isBottomBarCompact
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onNavigateToBottomBar: select
+                onNavigateToBottomBar: select,
+                bottomBarCompact: $isBottomBarCompact
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
@@ -249,6 +313,14 @@ struct ContentView: View {
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
+    }
+
+    private func selectBottomBarItem(_ item: ChalkakBottomBarItem) {
+        if selectedTab == .today, item == .today {
+            Task { await homeViewModel.selectBottomBarItem(item) }
+        } else {
+            select(item)
+        }
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
@@ -395,7 +467,7 @@ struct ContentView: View {
     }
 
     private func openFeedback() {
-        guard KeychainSessionStore.hasAuthenticatedSession() else {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isFeedbackEntryUITest else {
             showMessage("피드백을 보내려면 로그인이 필요해요")
             return
         }
@@ -406,7 +478,6 @@ struct ContentView: View {
 
     private func closeFeedback() {
         isFeedbackPresented = false
-        feedbackViewModel = nil
     }
 
     private func handleFeedbackSubmitted() {
@@ -538,6 +609,11 @@ struct ContentView: View {
     }
 
     private static func makeFeedbackViewModel() -> FeedbackViewModel {
+#if DEBUG
+        if isFeedbackEntryUITest {
+            return FeedbackViewModel(submitFeedback: { _ in })
+        }
+#endif
         let apiClient = FeedbackAPIClient(
             configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
             accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -624,7 +700,7 @@ struct ContentView: View {
 
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest || isDailyReminderTapUITest {
+        if isPhotoUploadEntryUITest || isFeedbackEntryUITest || isDailyReminderTapUITest {
             return .home
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
@@ -638,6 +714,14 @@ struct ContentView: View {
         return AppRouteResolver.destinationAfterAuthentication(
             hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
         )
+    }
+
+    private static var isFeedbackEntryUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-feedback-entry")
+#else
+        false
+#endif
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
