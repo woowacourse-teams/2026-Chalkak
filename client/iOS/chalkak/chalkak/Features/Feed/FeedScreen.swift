@@ -2,8 +2,12 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     @State private var viewModel: FeedViewModel
+    // 줌 전환 진행도(0: 출발 뷰 위치, 1: 열림).
+    @State private var zoomProgress: CGFloat = 0
+    @State private var isZooming = true
+    @State private var isClosing = false
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
@@ -11,15 +15,22 @@ struct FeedScreen: View {
     @State private var messageDismissTask: Task<Void, Never>?
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
     var placeholder: FeedPhotoPlaceholder?
+    var zoomSource: FeedZoomSource?
+    // 닫는 전환이 끝난 뒤 호출된다.
+    var onBack: () -> Void = {}
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
 
     init(
         viewModel: FeedViewModel,
         placeholder: FeedPhotoPlaceholder? = nil,
+        zoomSource: FeedZoomSource? = nil,
+        onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
         self.placeholder = placeholder
+        self.zoomSource = zoomSource
+        self.onBack = onBack
         self.onDeleted = onDeleted
     }
 
@@ -27,10 +38,11 @@ struct FeedScreen: View {
         ZStack(alignment: .top) {
             theme.colors.background
                 .ignoresSafeArea()
+                .opacity(zoomProgress)
 
             VStack(spacing: 0) {
                 FeedTopBar(
-                    onBack: { dismiss() },
+                    onBack: close,
                     onEdit: {
                         titleDraft = viewModel.viewState.content?.post.title ?? ""
                         showsTitleEditDialog = true
@@ -47,13 +59,15 @@ struct FeedScreen: View {
                 )
                     .padding(.horizontal, theme.spacing.lg)
                     .padding(.vertical, theme.spacing.md)
+                    .opacity(zoomProgress)
 
                 content
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .background(InteractivePopGestureEnabler())
+        .simultaneousGesture(backSwipeGesture)
+        .onAppear(perform: open)
         .task {
             await viewModel.load()
         }
@@ -110,8 +124,10 @@ struct FeedScreen: View {
                     .tint(theme.colors.actionPrimary)
                     .accessibilityIdentifier("feed-loading")
             }
+            .opacity(zoomProgress)
         case let .error(reason):
             centered { errorView(reason) }
+                .opacity(zoomProgress)
         case .loading, .loaded:
             // placeholder가 있으면 상세를 받기 전에도 사진을 먼저 보여준다.
             // 로딩과 로드 완료가 같은 분기를 써야 상세 도착 시 사진 뷰가 다시 만들어지지 않는다.
@@ -129,13 +145,18 @@ struct FeedScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, Metrics.topicTop)
                     .padding(.bottom, Metrics.topicBottom)
+                    .opacity(zoomProgress)
 
                 FeedPhoto(
                     post: content?.post,
                     placeholder: placeholder,
                     isLikeEnabled: viewModel.viewState.isLikeEnabled,
+                    zoomProgress: zoomProgress,
+                    zoomSource: zoomSource.flatMap { zoomRegistry?.source(for: $0) },
                     onLike: { viewModel.toggleLike() }
                 )
+                // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
+                .zIndex(1)
 
                 if let content {
                     FeedCaption(title: content.post.title)
@@ -148,10 +169,53 @@ struct FeedScreen: View {
                                 .frame(height: Metrics.dividerHeight)
                                 .accessibilityHidden(true)
                         }
+                        .opacity(zoomProgress)
                 }
             }
             .padding(.bottom, Metrics.contentBottom)
         }
+        // 전환 중에는 사진이 스크롤 영역 밖(출발 뷰 위치)에서도 보여야 한다.
+        .scrollClipDisabled(isZooming)
+    }
+
+    // MARK: - 줌 전환
+
+    private func open() {
+        withAnimation(Metrics.zoomAnimation) {
+            zoomProgress = 1
+        } completion: {
+            isZooming = false
+        }
+    }
+
+    private func close() {
+        guard !isClosing else { return }
+        isClosing = true
+        isZooming = true
+        withAnimation(Metrics.zoomAnimation) {
+            zoomProgress = 0
+        } completion: {
+            onBack()
+        }
+    }
+
+    // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 사진이 출발 뷰 쪽으로 따라간다.
+    private var backSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
+            .onChanged { value in
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                isZooming = true
+                let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
+                zoomProgress = 1 - min(dragged, 1)
+            }
+            .onEnded { value in
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
+                    close()
+                } else {
+                    open()
+                }
+            }
     }
 
     private func errorView(_ reason: FeedError) -> some View {
@@ -235,6 +299,11 @@ private enum Metrics {
     static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
     static let toastBottomPadding: CGFloat = 32
+    static let zoomAnimation: Animation = .snappy(duration: 0.35)
+    static let backSwipeEdgeWidth: CGFloat = 24
+    static let backSwipeMinimumDistance: CGFloat = 12
+    static let backSwipeFullDistance: CGFloat = 300
+    static let backSwipeCloseDistance: CGFloat = 120
 }
 
 #Preview("Feed Loaded") {

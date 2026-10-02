@@ -106,7 +106,7 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
     let isLikeConfirmed: Bool
     // 기록에서 진입한 경우처럼, 상세 응답과 별개로 내 게시물임이 보장된 경로인지 여부.
     let isOwnedByCurrentUser: Bool
-    // 줌 전환의 출발 뷰. 없으면 기본 push 전환으로 연다.
+    // 줌 전환의 출발 뷰. 없으면 사진 이동 없이 페이드로만 연다.
     let zoomSource: FeedZoomSource?
     // 원본 이미지가 로드되기 전까지 보여줄, 출발 화면에 이미 표시된 이미지.
     let placeholder: FeedPhotoPlaceholder?

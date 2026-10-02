@@ -5,18 +5,26 @@ struct FeedPhoto: View {
     let post: FeedPost?
     let placeholder: FeedPhotoPlaceholder?
     let isLikeEnabled: Bool
+    // 줌 전환 진행도(0: 출발 뷰 위치, 1: 제자리)와 출발 뷰. 사진만 이동하고 나머지는 페이드된다.
+    let zoomProgress: CGFloat
+    let zoomSource: FeedZoomRegistry.Source?
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
+    @State private var imageFrame: CGRect?
 
     init(
         post: FeedPost?,
         placeholder: FeedPhotoPlaceholder? = nil,
         isLikeEnabled: Bool = true,
+        zoomProgress: CGFloat = 1,
+        zoomSource: FeedZoomRegistry.Source? = nil,
         onLike: @escaping () -> Void
     ) {
         self.post = post
         self.placeholder = placeholder
         self.isLikeEnabled = isLikeEnabled
+        self.zoomProgress = zoomProgress
+        self.zoomSource = zoomSource
         self.onLike = onLike
         _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
     }
@@ -49,6 +57,17 @@ struct FeedPhoto: View {
                     }
                 }
                 .clipped()
+                .feedZoomEffect(
+                    progress: zoomProgress,
+                    source: zoomSource,
+                    destinationFrame: imageFrame
+                )
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { frame in
+                    imageFrame = frame
+                }
+                .zIndex(1)
                 .task(id: post?.originalImageSource) {
                     if imageRatio == nil, let placeholder {
                         imageRatio = await ImageRatioLoader.ratio(for: placeholder.imageSource)
@@ -66,6 +85,7 @@ struct FeedPhoto: View {
                     isEnabled: isLikeEnabled,
                     onLike: onLike
                 )
+                .opacity(zoomProgress)
             }
         }
     }

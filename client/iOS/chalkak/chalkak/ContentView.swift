@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
-    @Namespace private var feedZoomNamespace
+    @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
@@ -70,16 +70,22 @@ struct ContentView: View {
             case .home:
                 NavigationStack {
                     mainTab
-                        .navigationDestination(item: $selectedFeed) { target in
-                            FeedScreen(
-                                viewModel: makeFeedViewModel(target),
-                                placeholder: target.placeholder,
-                                onDeleted: handleDeletedPost
-                            )
-                            .feedZoomTransition(from: target.zoomSource, in: feedZoomNamespace)
-                        }
                 }
-                .environment(\.feedZoomNamespace, feedZoomNamespace)
+                // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
+                .overlay {
+                    if let target = selectedFeed {
+                        FeedScreen(
+                            viewModel: makeFeedViewModel(target),
+                            placeholder: target.placeholder,
+                            zoomSource: target.zoomSource,
+                            onBack: { selectedFeed = nil },
+                            onDeleted: handleDeletedPost
+                        )
+                        .id(target.id)
+                        .accessibilityAddTraits(.isModal)
+                    }
+                }
+                .environment(\.feedZoomRegistry, feedZoomRegistry)
             case .photoUploadSuccess:
                 if let successSubmission {
                     PhotoUploadSuccessScreen(

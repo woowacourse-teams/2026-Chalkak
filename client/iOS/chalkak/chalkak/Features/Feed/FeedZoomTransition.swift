@@ -8,9 +8,33 @@ enum FeedZoomSource: Hashable, Sendable {
     case record(FeedPost.ID)
 }
 
+/// 줌 전환 출발 뷰들의 현재 화면상 위치를 모아 둔다.
+/// Feed는 열리고 닫힐 때 이 위치와 자신의 사진 위치 사이를 보간해 사진만 확대·축소한다.
+@MainActor
+final class FeedZoomRegistry {
+    struct Source {
+        let frame: CGRect
+        let cornerRadius: CGFloat
+    }
+
+    private var sources: [FeedZoomSource: Source] = [:]
+
+    func source(for id: FeedZoomSource) -> Source? {
+        sources[id]
+    }
+
+    func update(_ source: Source, for id: FeedZoomSource) {
+        sources[id] = source
+    }
+
+    func remove(_ id: FeedZoomSource) {
+        sources[id] = nil
+    }
+}
+
 extension EnvironmentValues {
-    /// Feed 줌 전환의 출발 뷰와 도착 화면을 잇는 네임스페이스. 없으면 줌 전환을 쓰지 않는다.
-    @Entry var feedZoomNamespace: Namespace.ID?
+    /// 없으면 줌 전환 없이 Feed가 페이드로만 열린다.
+    @Entry var feedZoomRegistry: FeedZoomRegistry?
 }
 
 extension View {
@@ -19,29 +43,79 @@ extension View {
         modifier(FeedZoomSourceModifier(source: source, cornerRadius: cornerRadius))
     }
 
-    /// 출발 뷰가 있으면 그 뷰에서 확대되는 줌 전환으로 화면을 연다.
-    @ViewBuilder
-    func feedZoomTransition(from source: FeedZoomSource?, in namespace: Namespace.ID) -> some View {
-        if let source {
-            navigationTransition(.zoom(sourceID: source, in: namespace))
-        } else {
-            self
-        }
+    /// 전환 진행도(0: 출발 뷰 위치, 1: 제자리)에 맞춰 이 뷰를 출발 뷰 위치에서 제자리로 옮긴다.
+    func feedZoomEffect(
+        progress: CGFloat,
+        source: FeedZoomRegistry.Source?,
+        destinationFrame: CGRect?
+    ) -> some View {
+        modifier(
+            FeedZoomEffect(progress: progress, source: source, destinationFrame: destinationFrame)
+        )
     }
 }
 
 private struct FeedZoomSourceModifier: ViewModifier {
-    @Environment(\.feedZoomNamespace) private var namespace
+    @Environment(\.feedZoomRegistry) private var registry
     let source: FeedZoomSource
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
-        if let namespace {
-            content.matchedTransitionSource(id: source, in: namespace) { configuration in
-                configuration.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        content
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                registry?.update(
+                    FeedZoomRegistry.Source(frame: frame, cornerRadius: cornerRadius),
+                    for: source
+                )
             }
-        } else {
-            content
-        }
+            .onDisappear { registry?.remove(source) }
+    }
+}
+
+private struct FeedZoomEffect: ViewModifier, Animatable {
+    var progress: CGFloat
+    let source: FeedZoomRegistry.Source?
+    let destinationFrame: CGRect?
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let remaining = 1 - progress
+        let startScale = startScale
+        let scale = startScale + (1 - startScale) * progress
+        let startOffset = startOffset
+
+        content
+            .clipShape(
+                RoundedRectangle(cornerRadius: (source?.cornerRadius ?? 0) * remaining / scale)
+            )
+            .scaleEffect(scale)
+            .offset(x: startOffset.width * remaining, y: startOffset.height * remaining)
+            // 출발 위치를 아는데 제자리를 아직 모르면 엉뚱한 위치에 그려지므로 숨긴다.
+            .opacity(source != nil && destinationFrame == nil ? 0 : 1)
+    }
+
+    // 출발 뷰 안에 사진이 비율을 유지한 채 들어가는 배율.
+    private var startScale: CGFloat {
+        guard let source, let destinationFrame,
+              destinationFrame.width > 0, destinationFrame.height > 0
+        else { return 1 }
+        return min(
+            source.frame.width / destinationFrame.width,
+            source.frame.height / destinationFrame.height
+        )
+    }
+
+    private var startOffset: CGSize {
+        guard let source, let destinationFrame else { return .zero }
+        return CGSize(
+            width: source.frame.midX - destinationFrame.midX,
+            height: source.frame.midY - destinationFrame.midY
+        )
     }
 }
