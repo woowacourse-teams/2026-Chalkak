@@ -8,6 +8,7 @@ struct HomeScreen: View {
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
 
     @State private var message: String?
+    var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
 
     var body: some View {
@@ -26,19 +27,14 @@ struct HomeScreen: View {
                     onOpenNotifications: onOpenNotifications
                 )
             case .content:
-                HomeContent(viewModel: viewModel, onOpenNotifications: onOpenNotifications)
+                HomeContent(
+                    viewModel: viewModel,
+                    onOpenNotifications: onOpenNotifications,
+                    isBottomBarCompact: bottomBarCompact
+                )
             }
         }
         .background(theme.colors.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakBottomBar(
-                selectedItem: .today,
-                onSelect: { item in
-                    Task { await viewModel.selectBottomBarItem(item) }
-                },
-                onAdd: { viewModel.openPhotoUpload() }
-            )
-        }
         .overlay(alignment: .bottom) {
             if let message {
                 Text(message)
@@ -144,6 +140,7 @@ private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     let onOpenNotifications: () -> Void
+    @Binding var isBottomBarCompact: Bool
     @State private var scrollPosition = ScrollPosition()
 
     private func scrollToTop() {
@@ -199,6 +196,7 @@ private struct HomeContent: View {
             // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
             // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
             .scrollPosition($scrollPosition, anchor: .top)
+            .chalkakBottomBarScrollBehavior(isCompact: $isBottomBarCompact)
             .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
                 scrollToTop()
             }

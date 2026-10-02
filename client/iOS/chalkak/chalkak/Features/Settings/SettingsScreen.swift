@@ -41,6 +41,7 @@ struct SettingsScreen: View {
     var onOpenNotificationSetup: () -> Void = {}
 
     @State private var message: String?
+    var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSignatureChangePresented = false
 
@@ -108,15 +109,9 @@ struct SettingsScreen: View {
             .padding(.bottom, theme.spacing.xxl)
         }
         .scrollIndicators(.hidden)
+        .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakBottomBar(
-                selectedItem: .settings,
-                onSelect: onNavigateToBottomBar,
-                onAdd: onOpenPhotoUpload
-            )
-        }
         .overlay {
             if let accountDialog = viewModel.viewState.accountDialog {
                 ChalkakConfirmDialog(

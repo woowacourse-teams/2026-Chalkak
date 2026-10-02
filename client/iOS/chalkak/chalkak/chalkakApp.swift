@@ -64,6 +64,7 @@ struct chalkakApp: App {
         WindowGroup {
             ContentView()
                 .chalkakTheme(.light)
+                .preferredColorScheme(.light)
                 .onOpenURL { url in
                     if GIDSignIn.sharedInstance.handle(url) {
                         return

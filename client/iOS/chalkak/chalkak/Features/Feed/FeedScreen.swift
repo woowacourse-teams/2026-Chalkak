@@ -41,10 +41,8 @@ struct FeedScreen: View {
                         viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
                     isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
                 )
-                    .padding(.leading, Metrics.topBarLeading)
-                    .padding(.trailing, Metrics.topBarTrailing)
-                    .padding(.top, Metrics.topBarTop)
-                    .padding(.bottom, Metrics.topBarBottom)
+                    .padding(.horizontal, theme.spacing.lg)
+                    .padding(.vertical, theme.spacing.md)
 
                 content
             }
@@ -220,10 +218,6 @@ struct FeedScreen: View {
 }
 
 private enum Metrics {
-    static let topBarLeading: CGFloat = 8
-    static let topBarTrailing: CGFloat = 12
-    static let topBarTop: CGFloat = 10
-    static let topBarBottom: CGFloat = 8
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
     static let captionHorizontal: CGFloat = 20
