@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,7 +107,7 @@ fun DisplayScreen(
     onRetryClick: () -> Unit = {},
 ) {
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
-    val gridState = remember(uiState.selectedDate) {
+    val gridState = rememberSaveable(uiState.selectedDate, saver = LazyStaggeredGridState.Saver) {
         LazyStaggeredGridState()
     }
     val settleScope = rememberCoroutineScope()

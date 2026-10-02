@@ -91,6 +91,7 @@ fun DisplayFeaturedPager(
                 DisplayPhotoCard(
                     photo = photo,
                     variant = DisplayPhotoCardVariant.FEATURED,
+                    transitionSourceId = "display-featured:$page:${photo.id}",
                     modifier = Modifier
                         .aspectRatio(3f / 4f)
                         .graphicsLayer {
