@@ -127,8 +127,9 @@ private struct LiquidGlassBottomBar: View {
                             startPoint: dragVelocity < 0 ? .topTrailing : .topLeading,
                             endPoint: dragVelocity < 0 ? .bottomLeading : .bottomTrailing
                         ), lineWidth: Metrics.dragLensBorderWidth)
+                        .opacity(isDragging ? 1 : 0)
                     }
-                    .shadow(color: .white.opacity(0.6), radius: 2, y: -1)
+                    .shadow(color: .white.opacity(isDragging ? 0.6 : 0), radius: 2, y: -1)
                     .shadow(color: theme.colors.iconPrimary.opacity(0.18), radius: 5, y: 2)
                     .scaleEffect(
                         x: 1 + dragStretch * Metrics.dragStretchWidth,
@@ -153,8 +154,12 @@ private struct LiquidGlassBottomBar: View {
             .allowsHitTesting(false)
         }
         .background {
-            // 바와 움직이는 렌즈를 각각 렌더링해 렌즈의 반사와 굴절이 묻히지 않게 한다.
-            Capsule().fill(.clear).glassEffect(.regular.interactive(), in: Capsule())
+            // 밝은 바탕을 유지하면서 사진이 은은하게 비치도록 한다.
+            ZStack {
+                Capsule().fill(theme.colors.background.opacity(Metrics.glassBackgroundOpacity))
+                Capsule().fill(.clear)
+                    .glassEffect(.regular.tint(theme.colors.background.opacity(Metrics.glassTintOpacity)).interactive(), in: Capsule())
+            }
         }
         .contentShape(Capsule())
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
@@ -332,6 +337,8 @@ private struct LiquidGlassBottomBar: View {
 }
 
 private enum Metrics {
+    static let glassBackgroundOpacity = 0.3
+    static let glassTintOpacity = 0.2
     static let iconSize: CGFloat = 26
     static let compactIconSize: CGFloat = 23
     static let addIconSize: CGFloat = 28
