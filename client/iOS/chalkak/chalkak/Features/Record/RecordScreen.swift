@@ -8,8 +8,8 @@ struct RecordScreen: View {
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
-    // 선택한 사진(postId)의 피드로 이동한다.
-    var onOpenFeed: (String) -> Void = { _ in }
+    // 선택한 사진의 피드로 이동한다.
+    var onOpenFeed: (RecordPost) -> Void = { _ in }
     var onNavigateToLogin: () -> Void = {}
 
     @State private var calendarWidth: CGFloat = 0
@@ -111,10 +111,11 @@ struct RecordScreen: View {
         if let selectedPost = viewModel.viewState.selectedPost {
             RecordSelectedPhoto(post: selectedPost)
                 .frame(maxWidth: .infinity)
+                .feedZoomSource(.record(selectedPost.postId))
 
             if selectedPost.status == .approved {
                 RecordPhotoActions(
-                    onFeedClick: { onOpenFeed(selectedPost.postId) },
+                    onFeedClick: { onOpenFeed(selectedPost) },
                     onDisplayClick: { onOpenDisplay(selectedPost.topicDate) }
                 )
                 .padding(.leading, Metrics.horizontalPadding)

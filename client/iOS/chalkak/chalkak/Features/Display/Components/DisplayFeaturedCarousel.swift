@@ -15,6 +15,10 @@ struct DisplayFeaturedCarousel: View {
                 LazyHStack(spacing: Metrics.pageSpacing) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                         DisplayFeaturedCard(photo: photo, onSelect: { onSelect(photo) })
+                            .feedZoomSource(
+                                .displayFeatured(photo.id),
+                                cornerRadius: theme.shapes.photoCard
+                            )
                             .containerRelativeFrame(.horizontal)
                             .scrollTransition(.interactive, axis: .horizontal) { content, phase in
                                 content

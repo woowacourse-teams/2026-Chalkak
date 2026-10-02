@@ -5,7 +5,8 @@ struct DisplayPhotoGrid: View {
     let photos: [DisplayPhoto]
     let isLoadingNext: Bool
     let onEndThreshold: (Bool) -> Void
-    var onSelect: (DisplayPhoto) -> Void = { _ in }
+    // 선택한 사진과, 이미 측정된 세로/가로 비율(없으면 nil)을 전달한다.
+    var onSelect: (DisplayPhoto, CGFloat?) -> Void = { _, _ in }
 
     // 로드되며 측정된 사진별 세로/가로 비율(height / width). 미측정 사진은 기본 비율로 배치한다.
     @State private var ratioByID: [DisplayPhoto.ID: CGFloat] = [:]
@@ -40,9 +41,10 @@ struct DisplayPhotoGrid: View {
                         ratioByID[item.photo.id] = ratio
                     }
                 )
+                .feedZoomSource(.displayGrid(item.photo.id), cornerRadius: theme.shapes.photoCard)
                 .contentShape(Rectangle())
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                .onTapGesture { onSelect(item.photo) }
+                .onTapGesture { onSelect(item.photo, ratioByID[item.photo.id]) }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("피드 열기")
                 .onAppear {

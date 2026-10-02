@@ -11,7 +11,12 @@ struct DisplayScreen: View {
     var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
 
-    private func feedTarget(for photo: DisplayPhoto) -> FeedTarget {
+    // 전시에는 썸네일이 이미 떠 있으므로 Feed가 원본을 로드할 때까지 썸네일을 대신 보여준다.
+    private func feedTarget(
+        for photo: DisplayPhoto,
+        zoomSource: FeedZoomSource,
+        thumbnailRatio: CGFloat? = nil
+    ) -> FeedTarget {
         let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
         return FeedTarget(
             seed: FeedContent(
@@ -29,7 +34,12 @@ struct DisplayScreen: View {
                     isOwnedByCurrentUser: photo.isOwnedByCurrentUser
                 )
             ),
-            isLikeConfirmed: true
+            isLikeConfirmed: true,
+            zoomSource: zoomSource,
+            placeholder: FeedPhotoPlaceholder(
+                imageSource: photo.thumbnailImageSource,
+                heightToWidthRatio: thumbnailRatio
+            )
         )
     }
 
@@ -135,7 +145,11 @@ struct DisplayScreen: View {
                         photos: viewModel.viewState.featuredPhotos,
                         currentPage: viewModel.viewState.featuredPage,
                         onPageChange: { viewModel.updateFeaturedPage($0) },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        onSelect: { photo in
+                            onSelectPhoto(
+                                feedTarget(for: photo, zoomSource: .displayFeatured(photo.id))
+                            )
+                        }
                     )
                     // 페이저가 이웃 카드를 화면 폭까지 peek 하도록 화면 좌우 여백을 상쇄한다.
                     .padding(.horizontal, -theme.spacing.screenHorizontal)
@@ -164,7 +178,15 @@ struct DisplayScreen: View {
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
                         },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        onSelect: { photo, ratio in
+                            onSelectPhoto(
+                                feedTarget(
+                                    for: photo,
+                                    zoomSource: .displayGrid(photo.id),
+                                    thumbnailRatio: ratio
+                                )
+                            )
+                        }
                     )
                     .padding(.top, gridTopSpacing)
                 }

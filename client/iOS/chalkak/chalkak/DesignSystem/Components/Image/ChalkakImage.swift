@@ -43,6 +43,8 @@ struct ChalkakImage: View {
     let source: ChalkakImageSource
     var contentDescription: String?
     var contentMode: ContentMode = .fill
+    // 호출부가 로딩 중 자리를 다른 이미지로 채울 때 스켈레톤을 끈다.
+    var showsLoadingSkeleton = true
 
     var body: some View {
         image
@@ -64,7 +66,11 @@ struct ChalkakImage: View {
                 .aspectRatio(contentMode: contentMode)
                 .foregroundStyle(theme.colors.iconSecondary)
         case let .remote(url):
-            RemoteImage(url: url, contentMode: contentMode)
+            RemoteImage(
+                url: url,
+                contentMode: contentMode,
+                showsLoadingSkeleton: showsLoadingSkeleton
+            )
         }
     }
 }
@@ -74,6 +80,7 @@ private struct RemoteImage: View {
     @Environment(\.chalkakTheme) private var theme
     let url: URL?
     let contentMode: ContentMode
+    let showsLoadingSkeleton: Bool
     @State private var isLoading = true
 
     var body: some View {
@@ -81,7 +88,7 @@ private struct RemoteImage: View {
             AsyncImage(url: url) { phase in
                 phaseContent(phase)
             }
-            .loadingSkeleton(isLoading: isLoading)
+            .loadingSkeleton(isLoading: isLoading && showsLoadingSkeleton)
         } else {
             // URL이 없으면 로드가 끝나지 않으므로 스켈레톤 대신 고정 플레이스홀더를 표시한다.
             imagePlaceholder(systemName: "photo")

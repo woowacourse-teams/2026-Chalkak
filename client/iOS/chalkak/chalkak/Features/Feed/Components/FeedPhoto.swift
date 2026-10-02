@@ -1,10 +1,25 @@
 import SwiftUI
 
 struct FeedPhoto: View {
-    let post: FeedPost
-    var isLikeEnabled: Bool = true
+    // 상세를 받기 전에는 nil이며, 이때는 placeholder만 보여준다.
+    let post: FeedPost?
+    let placeholder: FeedPhotoPlaceholder?
+    let isLikeEnabled: Bool
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
+
+    init(
+        post: FeedPost?,
+        placeholder: FeedPhotoPlaceholder? = nil,
+        isLikeEnabled: Bool = true,
+        onLike: @escaping () -> Void
+    ) {
+        self.post = post
+        self.placeholder = placeholder
+        self.isLikeEnabled = isLikeEnabled
+        self.onLike = onLike
+        _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,26 +27,46 @@ struct FeedPhoto: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
-                    ChalkakSignedImage(
-                        imageSource: post.originalImageSource,
-                        signatureSource: post.signatureImageSource,
-                        contentDescription: post.contentDescription,
-                        contentMode: .fill,
-                        signatureSize: Metrics.signatureSize
-                    )
+                    if let placeholder {
+                        ChalkakImage(
+                            source: placeholder.imageSource,
+                            contentDescription: nil,
+                            contentMode: .fill
+                        )
+                    }
+                }
+                .overlay {
+                    if let post {
+                        // placeholder가 있으면 원본이 로드될 때 그 위를 덮어 교체하므로 스켈레톤은 띄우지 않는다.
+                        ChalkakSignedImage(
+                            imageSource: post.originalImageSource,
+                            signatureSource: post.signatureImageSource,
+                            contentDescription: post.contentDescription,
+                            contentMode: .fill,
+                            signatureSize: Metrics.signatureSize,
+                            showsLoadingSkeleton: placeholder == nil
+                        )
+                    }
                 }
                 .clipped()
-                .task(id: post.originalImageSource) {
-                    imageRatio = nil
-                    imageRatio = await ImageRatioLoader.ratio(for: post.originalImageSource)
+                .task(id: post?.originalImageSource) {
+                    if imageRatio == nil, let placeholder {
+                        imageRatio = await ImageRatioLoader.ratio(for: placeholder.imageSource)
+                    }
+                    guard let post,
+                          let ratio = await ImageRatioLoader.ratio(for: post.originalImageSource)
+                    else { return }
+                    imageRatio = ratio
                 }
 
-            FeedLikeRow(
-                likeCount: post.likeCount,
-                isLiked: post.isLiked,
-                isEnabled: isLikeEnabled,
-                onLike: onLike
-            )
+            if let post {
+                FeedLikeRow(
+                    likeCount: post.likeCount,
+                    isLiked: post.isLiked,
+                    isEnabled: isLikeEnabled,
+                    onLike: onLike
+                )
+            }
         }
     }
 }

@@ -88,6 +88,13 @@ struct FeedViewState: Equatable, Sendable {
     var titleUpdateVersion = 0
 }
 
+/// 원본 이미지가 로드되기 전까지 Feed 사진 자리에 보여줄 이미지.
+struct FeedPhotoPlaceholder: Equatable, Sendable {
+    let imageSource: ChalkakImageSource
+    // 이미 측정된 세로/가로 비율(height / width). 모르면 Feed가 이미지에서 다시 구한다.
+    var heightToWidthRatio: CGFloat?
+}
+
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.
 /// 상세를 다시 부르기 전 즉시 보여줄 시드 콘텐츠를 함께 담는다.
 /// 동일성/해시는 게시물 id만으로 판단해 시드에 이미지 소스가 있어도 Hashable을 만족한다.
@@ -99,20 +106,38 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
     let isLikeConfirmed: Bool
     // 기록에서 진입한 경우처럼, 상세 응답과 별개로 내 게시물임이 보장된 경로인지 여부.
     let isOwnedByCurrentUser: Bool
+    // 줌 전환의 출발 뷰. 없으면 기본 push 전환으로 연다.
+    let zoomSource: FeedZoomSource?
+    // 원본 이미지가 로드되기 전까지 보여줄, 출발 화면에 이미 표시된 이미지.
+    let placeholder: FeedPhotoPlaceholder?
 
-    init(seed: FeedContent, isLikeConfirmed: Bool) {
+    init(
+        seed: FeedContent,
+        isLikeConfirmed: Bool,
+        zoomSource: FeedZoomSource? = nil,
+        placeholder: FeedPhotoPlaceholder? = nil
+    ) {
         self.id = seed.post.id
         self.seed = seed
         self.isLikeConfirmed = isLikeConfirmed
         self.isOwnedByCurrentUser = seed.post.isOwnedByCurrentUser
+        self.zoomSource = zoomSource
+        self.placeholder = placeholder
     }
 
     /// 게시물 id만으로 진입한다(기록 화면). 시드가 없어 Feed가 상세를 로드한다.
-    init(postID: String, isOwnedByCurrentUser: Bool = false) {
+    init(
+        postID: String,
+        isOwnedByCurrentUser: Bool = false,
+        zoomSource: FeedZoomSource? = nil,
+        placeholder: FeedPhotoPlaceholder? = nil
+    ) {
         self.id = postID
         self.seed = nil
         self.isLikeConfirmed = false
         self.isOwnedByCurrentUser = isOwnedByCurrentUser
+        self.zoomSource = zoomSource
+        self.placeholder = placeholder
     }
 
     static func == (lhs: FeedTarget, rhs: FeedTarget) -> Bool {

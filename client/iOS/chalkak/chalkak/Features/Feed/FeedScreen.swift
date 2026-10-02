@@ -9,13 +9,17 @@ struct FeedScreen: View {
     @State private var titleDraft = ""
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+    // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
+    var placeholder: FeedPhotoPlaceholder?
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
 
     init(
         viewModel: FeedViewModel,
+        placeholder: FeedPhotoPlaceholder? = nil,
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
+        self.placeholder = placeholder
         self.onDeleted = onDeleted
     }
 
@@ -100,7 +104,7 @@ struct FeedScreen: View {
     @ViewBuilder
     private var content: some View {
         switch viewModel.viewState.contentStatus {
-        case .loading:
+        case .loading where placeholder == nil:
             centered {
                 ProgressView()
                     .tint(theme.colors.actionPrimary)
@@ -108,37 +112,43 @@ struct FeedScreen: View {
             }
         case let .error(reason):
             centered { errorView(reason) }
-        case .loaded:
-            if let content = viewModel.viewState.content {
-                loadedContent(content)
+        case .loading, .loaded:
+            // placeholder가 있으면 상세를 받기 전에도 사진을 먼저 보여준다.
+            // 로딩과 로드 완료가 같은 분기를 써야 상세 도착 시 사진 뷰가 다시 만들어지지 않는다.
+            if viewModel.viewState.content != nil || placeholder != nil {
+                feedContent(viewModel.viewState.content)
             }
         }
     }
 
-    private func loadedContent(_ content: FeedContent) -> some View {
+    private func feedContent(_ content: FeedContent?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                FeedTopic(dateLabel: content.dateLabel, topic: content.topic)
+                // 상세를 받기 전에도 사진 위치가 달라지지 않도록 주제 영역의 높이를 유지한다.
+                FeedTopic(dateLabel: content?.dateLabel ?? " ", topic: content?.topic ?? " ")
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, Metrics.topicTop)
                     .padding(.bottom, Metrics.topicBottom)
 
                 FeedPhoto(
-                    post: content.post,
+                    post: content?.post,
+                    placeholder: placeholder,
                     isLikeEnabled: viewModel.viewState.isLikeEnabled,
                     onLike: { viewModel.toggleLike() }
                 )
 
-                FeedCaption(title: content.post.title)
-                    .padding(.horizontal, Metrics.captionHorizontal)
-                    .padding(.vertical, Metrics.captionVertical)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(theme.colors.border)
-                            .frame(height: Metrics.dividerHeight)
-                            .accessibilityHidden(true)
-                    }
+                if let content {
+                    FeedCaption(title: content.post.title)
+                        .padding(.horizontal, Metrics.captionHorizontal)
+                        .padding(.vertical, Metrics.captionVertical)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(alignment: .top) {
+                            Rectangle()
+                                .fill(theme.colors.border)
+                                .frame(height: Metrics.dividerHeight)
+                                .accessibilityHidden(true)
+                        }
+                }
             }
             .padding(.bottom, Metrics.contentBottom)
         }

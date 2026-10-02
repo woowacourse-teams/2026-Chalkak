@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
+    @Namespace private var feedZoomNamespace
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
@@ -72,10 +73,13 @@ struct ContentView: View {
                         .navigationDestination(item: $selectedFeed) { target in
                             FeedScreen(
                                 viewModel: makeFeedViewModel(target),
+                                placeholder: target.placeholder,
                                 onDeleted: handleDeletedPost
                             )
+                            .feedZoomTransition(from: target.zoomSource, in: feedZoomNamespace)
                         }
                 }
+                .environment(\.feedZoomNamespace, feedZoomNamespace)
             case .photoUploadSuccess:
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
@@ -286,7 +290,14 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
                 onOpenDisplay: openDisplay,
-                onOpenFeed: { selectedFeed = FeedTarget(postID: $0, isOwnedByCurrentUser: true) },
+                onOpenFeed: { post in
+                    selectedFeed = FeedTarget(
+                        postID: post.postId,
+                        isOwnedByCurrentUser: true,
+                        zoomSource: .record(post.postId),
+                        placeholder: FeedPhotoPlaceholder(imageSource: post.thumbnailImageSource)
+                    )
+                },
                 onNavigateToLogin: showLogin,
                 bottomBarCompact: $isBottomBarCompact
             )
