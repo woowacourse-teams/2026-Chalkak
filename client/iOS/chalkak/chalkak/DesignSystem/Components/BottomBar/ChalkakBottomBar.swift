@@ -40,6 +40,10 @@ struct ChalkakBottomBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @GestureState private var dragValue: DragGesture.Value?
     @State private var barWidth: CGFloat = 0
+    @State private var lensSlot: CGFloat
+    @State private var isSelectionMoving = false
+    @State private var selectionVelocity: CGFloat = 0
+    @State private var selectionMotionTask: Task<Void, Never>?
     let selectedItem: ChalkakBottomBarItem
     @Binding var isCompact: Bool
     let onSelect: (ChalkakBottomBarItem) -> Void
@@ -52,6 +56,7 @@ struct ChalkakBottomBar: View {
         onAdd: @escaping () -> Void
     ) {
         self.selectedItem = selectedItem
+        _lensSlot = State(initialValue: Self.lensSlot(for: selectedItem))
         _isCompact = isCompact
         self.onSelect = onSelect
         self.onAdd = onAdd
@@ -68,10 +73,10 @@ struct ChalkakBottomBar: View {
         .padding(barPadding)
         .background {
             GeometryReader { proxy in
-                let width = slotWidth(in: proxy.size.width) * Metrics.dragLensWidthScale
+                let width = slotWidth(in: proxy.size.width) * (isDragging ? Metrics.dragLensWidthScale : 1)
                 Capsule()
                     .fill(.clear)
-                    .frame(width: width, height: Metrics.dragLensHeight)
+                    .frame(width: width, height: isDragging ? Metrics.dragLensHeight : touchSize)
                     .glassEffect(
                         .clear.interactive(),
                         in: Capsule()
@@ -96,6 +101,7 @@ struct ChalkakBottomBar: View {
                         x: 1 + dragStretch * Metrics.dragStretchWidth,
                         y: 1 - dragStretch * Metrics.dragStretchHeight
                     )
+                    .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: isDragging)
                     .position(
                         x: min(max(dragLocation?.x ?? selectedLensX(in: proxy.size.width), barPadding + width / 2), proxy.size.width - barPadding - width / 2),
                         y: proxy.size.height / 2
@@ -109,8 +115,8 @@ struct ChalkakBottomBar: View {
                         ),
                         value: dragLocation?.x
                     )
+                    .animation(reduceMotion ? nil : .smooth(duration: Metrics.selectionDuration), value: lensSlot)
             }
-            .opacity(isDragging ? 1 : 0)
             .allowsHitTesting(false)
         }
         .background {
@@ -122,13 +128,38 @@ struct ChalkakBottomBar: View {
         .coordinateSpace(name: Metrics.dragCoordinateSpace)
         .scaleEffect(isDragging ? Metrics.dragScale : 1, anchor: .bottom)
         .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: isDragging)
+        .animation(reduceMotion ? nil : .smooth(duration: Metrics.expansionDuration), value: isCompact)
         .highPriorityGesture(tabScrubGesture)
         .onChange(of: isDragging) { _, dragging in
+            if dragging {
+                selectionMotionTask?.cancel()
+                isSelectionMoving = false
+            }
             guard dragging, isCompact else { return }
             // 외부 폭과 내부 패딩·아이콘 크기를 함께 펼쳐 모든 드래그에 같은 크기를 사용한다.
             withAnimation(reduceMotion ? nil : .smooth(duration: Metrics.expansionDuration)) {
                 isCompact = false
             }
+        }
+        .onChange(of: selectedItem) { previous, current in
+            selectionMotionTask?.cancel()
+            lensSlot = Self.lensSlot(for: current)
+            guard !reduceMotion, !isDragging else {
+                isSelectionMoving = false
+                return
+            }
+            selectionVelocity = (lensX(for: current, in: barWidth) - lensX(for: previous, in: barWidth))
+                / Metrics.selectionDuration
+            isSelectionMoving = true
+            selectionMotionTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(Metrics.selectionDuration))
+                guard !Task.isCancelled else { return }
+                isSelectionMoving = false
+            }
+        }
+        .onDisappear {
+            selectionMotionTask?.cancel()
+            isSelectionMoving = false
         }
         // 축소 중에도 화면의 스크롤 영역 높이를 유지해 오프셋 변화로 다시 확대되지 않게 한다.
         .frame(height: Metrics.expandedHeight, alignment: .bottom)
@@ -149,12 +180,6 @@ struct ChalkakBottomBar: View {
                 .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: draggedItem)
                 .foregroundStyle(theme.colors.iconPrimary)
                 .frame(maxWidth: .infinity, minHeight: touchSize)
-                .background {
-                    if isSelected && !isDragging {
-                        Capsule()
-                            .fill(theme.colors.iconPrimary.opacity(Metrics.selectionOpacity))
-                    }
-                }
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -180,11 +205,8 @@ struct ChalkakBottomBar: View {
     }
 
     private func performAction(_ action: @escaping () -> Void) {
-        guard isCompact else {
-            action()
-            return
-        }
-        withAnimation(reduceMotion ? nil : .smooth(duration: Metrics.expansionDuration)) {
+        let duration = isCompact ? Metrics.expansionDuration : Metrics.selectionDuration
+        withAnimation(reduceMotion ? nil : .smooth(duration: duration)) {
             isCompact = false
             action()
         }
@@ -192,10 +214,12 @@ struct ChalkakBottomBar: View {
 
     private var dragLocation: CGPoint? { dragValue?.location }
 
-    private var dragVelocity: CGFloat { dragValue?.velocity.width ?? 0 }
+    private var dragVelocity: CGFloat {
+        dragValue?.velocity.width ?? (isSelectionMoving ? selectionVelocity : 0)
+    }
 
     private var dragStretch: CGFloat {
-        reduceMotion ? 0 : min(abs(dragVelocity) / Metrics.dragStretchVelocity, 1)
+        reduceMotion || !isDragging ? 0 : min(abs(dragVelocity) / Metrics.dragStretchVelocity, 1)
     }
 
     private var isDragging: Bool { dragValue != nil }
@@ -207,14 +231,20 @@ struct ChalkakBottomBar: View {
     }
 
     private func selectedLensX(in width: CGFloat) -> CGFloat {
-        let slot: CGFloat
-        switch selectedItem {
-        case .today: slot = 0
-        case .display: slot = 1
-        case .record: slot = 3
-        case .settings: slot = 4
+        barPadding + slotWidth(in: width) * (lensSlot + 0.5)
+    }
+
+    private func lensX(for item: ChalkakBottomBarItem, in width: CGFloat) -> CGFloat {
+        barPadding + slotWidth(in: width) * (Self.lensSlot(for: item) + 0.5)
+    }
+
+    private static func lensSlot(for item: ChalkakBottomBarItem) -> CGFloat {
+        switch item {
+        case .today: 0
+        case .display: 1
+        case .record: 3
+        case .settings: 4
         }
-        return barPadding + slotWidth(in: width) * (slot + 0.5)
     }
 
     private func slotWidth(in width: CGFloat) -> CGFloat {
@@ -254,6 +284,10 @@ struct ChalkakBottomBar: View {
                 if slot(at: value.location.x) == 2 {
                     performAction(onAdd)
                 } else if let item = item(at: value.location.x), item != selectedItem {
+                    // 이미 손가락을 따라 도착한 렌즈는 탭 이동 애니메이션을 다시 시작하지 않는다.
+                    withAnimation(nil) {
+                        lensSlot = Self.lensSlot(for: item)
+                    }
                     performAction { onSelect(item) }
                 }
             }
@@ -272,8 +306,8 @@ private enum Metrics {
     static let minimumTouchSize: CGFloat = 44
     static let compactTouchSize: CGFloat = 44
     static let expandedHeight: CGFloat = 60
-    static let selectionOpacity = 0.06
-    static let expansionDuration = 0.25
+    static let selectionDuration = 0.5
+    static let expansionDuration = 0.75
     static let slotCount: CGFloat = 5
     static let dragCoordinateSpace = "chalkakBottomBarDrag"
     static let dragMinimumDistance: CGFloat = 8

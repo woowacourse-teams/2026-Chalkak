@@ -193,7 +193,7 @@ struct ContentView: View {
         }
         .onChange(of: selectedTab) { _, _ in
             guard isBottomBarCompact else { return }
-            withAnimation(.snappy) {
+            withAnimation(.smooth(duration: 0.75)) {
                 isBottomBarCompact = false
             }
         }
@@ -207,7 +207,9 @@ struct ContentView: View {
     }
 
     private var mainTab: some View {
-        tabContent
+        ZStack {
+            tabContent
+        }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 ChalkakBottomBar(
                     selectedItem: selectedTab,
@@ -220,6 +222,7 @@ struct ContentView: View {
                     (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
                 )
                 .padding(.bottom, theme.spacing.sm)
+                .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
             }
     }
 
