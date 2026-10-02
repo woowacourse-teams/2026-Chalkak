@@ -182,6 +182,14 @@ struct ContentView: View {
         .task {
             await appVersionGate.checkForUpdate()
         }
+#if DEBUG
+        .task {
+            guard Self.isDailyReminderTapUITest else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            NotificationCenter.default.post(name: .dailyReminderNotificationTapped, object: nil)
+        }
+#endif
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await appVersionGate.checkForUpdate() }
@@ -442,6 +450,15 @@ struct ContentView: View {
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
+#if DEBUG
+        if isDailyReminderTapUITest {
+            return HomeViewModel(
+                initialState: HomeViewState(),
+                refreshHandler: { _ in .success(HomeViewState()) }
+            )
+        }
+#endif
+
         let baseURL = resolvedAPIBaseURL
         let apiClient = HomeAPIClient(
             configuration: HomeAPIConfiguration(baseURL: baseURL),
@@ -597,9 +614,17 @@ struct ContentView: View {
 #endif
     }
 
+    private static var isDailyReminderTapUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-daily-reminder-tap")
+#else
+        false
+#endif
+    }
+
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest {
+        if isPhotoUploadEntryUITest || isDailyReminderTapUITest {
             return .home
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
