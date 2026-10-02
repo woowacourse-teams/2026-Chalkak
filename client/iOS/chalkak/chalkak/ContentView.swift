@@ -225,7 +225,7 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
                 onNavigateToBottomBar: select
             )
-            .task {
+            .task(id: ObjectIdentifier(homeViewModel)) {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
                 await homeViewModel.retry()
             }
