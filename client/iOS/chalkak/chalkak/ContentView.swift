@@ -113,12 +113,13 @@ struct ContentView: View {
                 )
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(role: .close) {
+                        ChalkakCloseButton {
                             isNotificationSetupPresented = false
                         }
                         .accessibilityLabel("닫기")
                         .accessibilityIdentifier("notificationSetup.close")
                     }
+                    .chalkakNavigationBackground()
                 }
             }
         }
@@ -135,11 +136,12 @@ struct ContentView: View {
                     )
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button(role: .close, action: closeFeedback)
+                            ChalkakCloseButton(action: closeFeedback)
                                 .disabled(feedbackViewModel.viewState.isSubmitting)
                                 .accessibilityLabel("닫기")
                                 .accessibilityIdentifier("feedback.close")
                         }
+                        .chalkakNavigationBackground()
                     }
                 }
                 .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
@@ -222,11 +224,28 @@ struct ContentView: View {
                 )
                 .padding(
                     .horizontal,
-                    (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
+                    bottomBarHorizontalPadding
                 )
-                .padding(.bottom, theme.spacing.sm)
+                .padding(.bottom, bottomBarBottomPadding)
+                .background(bottomBarBackground)
                 .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
             }
+    }
+
+    private var bottomBarHorizontalPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass {
+            (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
+        } else {
+            0
+        }
+    }
+
+    private var bottomBarBottomPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass { theme.spacing.sm } else { 0 }
+    }
+
+    private var bottomBarBackground: Color {
+        if ChalkakPlatformAppearance.usesLiquidGlass { .clear } else { theme.colors.surfaceElevated }
     }
 
     @ViewBuilder

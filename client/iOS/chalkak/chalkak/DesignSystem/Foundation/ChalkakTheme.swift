@@ -1,5 +1,18 @@
 import SwiftUI
 
+enum ChalkakPlatformAppearance {
+    static var usesLiquidGlass: Bool {
+        #if DEBUG
+        // Preview the pre-iOS 26 components on an existing simulator.
+        if ProcessInfo.processInfo.arguments.contains("-use-flat-ios-design") {
+            return false
+        }
+        #endif
+        if #available(iOS 26.0, *) { return true }
+        return false
+    }
+}
+
 struct ChalkakTheme {
     let colors: ChalkakColors
     let typography: ChalkakTypography

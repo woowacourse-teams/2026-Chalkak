@@ -21,7 +21,7 @@ struct FeedTopBar: View {
                     if isEditVisible {
                         actionButton(
                             title: "수정",
-                            systemImage: "pencil",
+                            imageName: "ic_edit",
                             color: theme.colors.actionPrimary,
                             isEnabled: isEditEnabled,
                             action: onEdit
@@ -30,7 +30,7 @@ struct FeedTopBar: View {
                     if isDeleteVisible {
                         actionButton(
                             title: "삭제",
-                            systemImage: "trash",
+                            imageName: "ic_delete",
                             color: theme.colors.error,
                             isEnabled: isDeleteEnabled,
                             action: onDelete
@@ -43,16 +43,22 @@ struct FeedTopBar: View {
 
     private func actionButton(
         title: String,
-        systemImage: String,
+        imageName: String,
         color: Color,
         isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(title, systemImage: systemImage, action: action)
-            .labelStyle(.iconOnly)
+        Button(action: action) {
+            Image(imageName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: Metrics.actionIconSize, height: Metrics.actionIconSize)
+        }
+            .foregroundStyle(color)
             .tint(color)
             .controlSize(.large)
-            .buttonStyle(.glass)
+            .modifier(ChalkakNavigationButtonStyle())
             .buttonBorderShape(.circle)
             .frame(
                 width: ChalkakNavigationButton.diameter,
@@ -61,6 +67,10 @@ struct FeedTopBar: View {
             .disabled(!isEnabled)
             .accessibilityLabel(title)
     }
+}
+
+private enum Metrics {
+    static let actionIconSize: CGFloat = 24
 }
 
 #Preview("Feed Top Bar", traits: .sizeThatFitsLayout) {

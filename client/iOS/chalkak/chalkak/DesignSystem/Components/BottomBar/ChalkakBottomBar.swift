@@ -36,6 +36,39 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 }
 
 struct ChalkakBottomBar: View {
+    let selectedItem: ChalkakBottomBarItem
+    @Binding var isCompact: Bool
+    let onSelect: (ChalkakBottomBarItem) -> Void
+    let onAdd: () -> Void
+
+    init(
+        selectedItem: ChalkakBottomBarItem,
+        isCompact: Binding<Bool> = .constant(false),
+        onSelect: @escaping (ChalkakBottomBarItem) -> Void,
+        onAdd: @escaping () -> Void
+    ) {
+        self.selectedItem = selectedItem
+        _isCompact = isCompact
+        self.onSelect = onSelect
+        self.onAdd = onAdd
+    }
+
+    var body: some View {
+        if #available(iOS 26.0, *), ChalkakPlatformAppearance.usesLiquidGlass {
+            LiquidGlassBottomBar(
+                selectedItem: selectedItem,
+                isCompact: $isCompact,
+                onSelect: onSelect,
+                onAdd: onAdd
+            )
+        } else {
+            FlatBottomBar(selectedItem: selectedItem, onSelect: onSelect, onAdd: onAdd)
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct LiquidGlassBottomBar: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @GestureState private var dragValue: DragGesture.Value?
@@ -324,6 +357,74 @@ private enum Metrics {
     static let dragLensDamping = 0.9
     static let dragLensBlendDuration = 0.12
 }
+
+private struct FlatBottomBar: View {
+    @Environment(\.chalkakTheme) private var theme
+    let selectedItem: ChalkakBottomBarItem
+    let onSelect: (ChalkakBottomBarItem) -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: theme.spacing.none) {
+            itemButton(.today)
+            itemButton(.display)
+            addButton
+            itemButton(.record)
+            itemButton(.settings)
+        }
+        .padding(.top, FlatBottomBarMetrics.topPadding)
+        .padding(.bottom, FlatBottomBarMetrics.bottomPadding)
+        .background(theme.colors.surfaceElevated)
+    }
+
+    private func itemButton(_ item: ChalkakBottomBarItem) -> some View {
+        let isSelected = item == selectedItem
+        let color = isSelected ? theme.colors.actionPrimary : theme.colors.bottomBar
+
+        return Button {
+            onSelect(item)
+        } label: {
+            VStack(spacing: FlatBottomBarMetrics.itemSpacing) {
+                Image(item.iconName)
+                    .renderingMode(.template)
+                    .frame(width: FlatBottomBarMetrics.iconSize, height: FlatBottomBarMetrics.iconSize)
+                    .accessibilityHidden(true)
+
+                Text(item.label)
+                    .font(theme.typography.footnote)
+                    .fontWeight(isSelected ? .bold : .regular)
+            }
+            .foregroundStyle(color)
+            .frame(maxWidth: .infinity, minHeight: FlatBottomBarMetrics.minimumTouchSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.label)
+        .accessibilityValue(isSelected ? "선택됨" : "")
+    }
+
+    private var addButton: some View {
+        Button(action: onAdd) {
+            Image("ic_bottom_write")
+                .renderingMode(.original)
+                .frame(width: FlatBottomBarMetrics.addButtonSize, height: FlatBottomBarMetrics.addButtonSize)
+                .frame(maxWidth: .infinity, minHeight: FlatBottomBarMetrics.minimumTouchSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("추가")
+    }
+}
+
+private enum FlatBottomBarMetrics {
+    static let topPadding: CGFloat = 15
+    static let bottomPadding: CGFloat = 12
+    static let itemSpacing: CGFloat = 7
+    static let iconSize: CGFloat = 23
+    static let addButtonSize: CGFloat = 40
+    static let minimumTouchSize: CGFloat = 48
+}
+
 
 private enum PreviewMetrics {
     static let screenWidth: CGFloat = 402

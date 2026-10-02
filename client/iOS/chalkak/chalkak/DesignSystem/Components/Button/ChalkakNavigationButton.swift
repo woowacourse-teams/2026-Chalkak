@@ -31,9 +31,10 @@ struct ChalkakNavigationButton: View {
     var body: some View {
         Button(kind.title, systemImage: kind.systemImage, action: action)
             .labelStyle(.iconOnly)
+            .foregroundStyle(theme.colors.iconPrimary)
             .tint(theme.colors.iconPrimary)
             .controlSize(controlSize)
-            .buttonStyle(.glass)
+            .modifier(ChalkakNavigationButtonStyle())
             .buttonBorderShape(.circle)
             .frame(width: Self.diameter, height: Self.diameter)
             .accessibilityLabel(kind.title)
@@ -47,4 +48,40 @@ struct ChalkakNavigationButton: View {
     }
     .padding()
     .chalkakTheme(.light)
+}
+
+struct ChalkakNavigationButtonStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), ChalkakPlatformAppearance.usesLiquidGlass {
+            content.buttonStyle(.glass)
+        } else {
+            content.buttonStyle(.plain)
+        }
+    }
+}
+
+struct ChalkakCloseButton: View {
+    @Environment(\.chalkakTheme) private var theme
+    let action: () -> Void
+
+    var body: some View {
+        if #available(iOS 26.0, *), ChalkakPlatformAppearance.usesLiquidGlass {
+            Button(role: .close, action: action)
+                .tint(theme.colors.iconPrimary)
+                .accessibilityLabel("닫기")
+        } else {
+            ChalkakNavigationButton(kind: .close, controlSize: .regular, action: action)
+        }
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    func chalkakNavigationBackground() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(ChalkakPlatformAppearance.usesLiquidGlass ? .automatic : .hidden)
+        } else {
+            self
+        }
+    }
 }

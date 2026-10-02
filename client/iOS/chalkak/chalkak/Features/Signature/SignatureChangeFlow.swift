@@ -36,10 +36,11 @@ struct SignatureChangeFlow: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .close, action: dismiss.callAsFunction)
+                    ChalkakCloseButton(action: dismiss.callAsFunction)
                         .disabled(isSubmitting)
                         .accessibilityLabel("닫기")
                 }
+                .chalkakNavigationBackground()
             }
         }
         .interactiveDismissDisabled(isSubmitting)

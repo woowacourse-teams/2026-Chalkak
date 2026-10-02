@@ -93,11 +93,12 @@ struct PhotoUploadScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .close, action: requestBack)
+                ChalkakCloseButton(action: requestBack)
                     .disabled(viewState.isSubmitting)
                     .accessibilityLabel("닫기")
                     .accessibilityIdentifier("photoUpload.close")
             }
+            .chalkakNavigationBackground()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakButton(
