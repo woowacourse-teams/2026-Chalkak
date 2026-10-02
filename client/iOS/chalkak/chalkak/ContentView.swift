@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var route: AppRoute = Self.initialRoute
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var selectedFeed: FeedTarget?
+    @State private var isNotificationInboxPresented = false
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
@@ -73,6 +74,11 @@ struct ContentView: View {
                                 viewModel: makeFeedViewModel(target),
                                 onDeleted: handleDeletedPost
                             )
+                        }
+                        .navigationDestination(isPresented: $isNotificationInboxPresented) {
+                            NotificationScreen(onBackClick: { isNotificationInboxPresented = false })
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
                         }
                         .navigationDestination(isPresented: $isPhotoUploadPresented) {
                             if let photoUploadViewModel {
@@ -223,6 +229,7 @@ struct ContentView: View {
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
+                onOpenNotifications: { isNotificationInboxPresented = true },
                 onNavigateToBottomBar: select
             )
             .task {
@@ -431,6 +438,7 @@ struct ContentView: View {
     private func resetMainState() {
         selectedTab = .today
         selectedFeed = nil
+        isNotificationInboxPresented = false
         isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil

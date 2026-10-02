@@ -11,7 +11,8 @@ struct FeedbackTopBar: View {
                 Image(systemName: "arrow.left")
                     .font(.system(size: 24, weight: .regular))
                     .foregroundStyle(theme.colors.iconPrimary)
-                    .frame(width: 44, height: 44)
+                    .padding(.leading, 12)
+                    .frame(width: 44, height: 44, alignment: .leading)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("뒤로 가기")
