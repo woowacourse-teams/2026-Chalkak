@@ -5,11 +5,12 @@ import UIKit
 struct PhotoUploadRepository: Sendable {
     typealias TopicHandler = @Sendable (Date) async -> Result<PhotoUploadTopic, PhotoUploadFailure>
     typealias ImagePreparationHandler = @Sendable (Data) async -> Result<PhotoUploadPreparation, PhotoUploadFailure>
-    typealias PostCreationHandler = @Sendable (
-        PhotoUploadPreparation,
-        String?,
-        PhotoUploadTopic
-    ) async -> Result<PhotoUploadCreation, PhotoUploadFailure>
+    typealias PostCreationHandler =
+        @Sendable (
+            PhotoUploadPreparation,
+            String?,
+            PhotoUploadTopic
+        ) async -> Result<PhotoUploadCreation, PhotoUploadFailure>
 
     let getCreationTopic: TopicHandler
     let prepareImage: ImagePreparationHandler
@@ -32,6 +33,9 @@ final class PhotoUploadViewModel {
     private(set) var viewState: PhotoUploadViewState
     private(set) var event: PhotoUploadEvent?
 
+    typealias CameraImageSaver = @MainActor (UIImage) async -> PhotoLibrarySaveResult
+
+    private let saveCameraImage: CameraImageSaver
     private let topicDate: Date
     private let repository: PhotoUploadRepository
 
@@ -47,8 +51,10 @@ final class PhotoUploadViewModel {
     init(
         topicDate: Date,
         initialState: PhotoUploadViewState? = nil,
-        repository: PhotoUploadRepository? = nil
+        repository: PhotoUploadRepository? = nil,
+        saveCameraImage: @escaping CameraImageSaver = { await PhotoLibraryImageSaver.save($0) }
     ) {
+        self.saveCameraImage = saveCameraImage
         self.topicDate = PhotoUploadDate.startOfDay(topicDate)
         self.viewState = initialState ?? PhotoUploadViewState()
         self.repository = repository ?? PhotoUploadRepository()
@@ -97,6 +103,28 @@ final class PhotoUploadViewModel {
         viewState.selectedImageData = data
         viewState.imagePreparationStatus = .preparing
         startImagePreparation(data: data, generation: generation)
+    }
+
+    func selectCapturedImage(data: Data, preview: UIImage) async {
+        guard !viewState.isSubmitting, !data.isEmpty else {
+            showImageSelectionFailure()
+            return
+        }
+
+        selectImage(data: data, preview: preview)
+        let generation = imageGeneration
+        // 화면을 나가거나 업로드에 실패해도 확정한 촬영 사진은 저장을 마친다.
+        let result = await saveCameraImage(preview)
+        guard generation == imageGeneration else { return }
+
+        switch result {
+        case .saved:
+            break
+        case .permissionDenied:
+            publishMessage("사진 앱에 저장하려면 설정에서 사진 추가 권한을 허용해 주세요. 업로드는 계속할 수 있어요.")
+        case .failed:
+            publishMessage("촬영한 사진을 사진 앱에 저장하지 못했어요. 업로드는 계속할 수 있어요.")
+        }
     }
 
     func showImageSelectionFailure() {
@@ -176,8 +204,8 @@ final class PhotoUploadViewModel {
         topic: PhotoUploadTopic
     ) {
         guard preparedImage?.id == preparation.id,
-              submissionTask == nil,
-              let image = viewState.selectedImage
+            submissionTask == nil,
+            let image = viewState.selectedImage
         else { return }
 
         preparedImage = nil
