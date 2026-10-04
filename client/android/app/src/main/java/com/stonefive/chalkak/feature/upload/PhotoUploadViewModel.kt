@@ -85,20 +85,20 @@ class PhotoUploadViewModel(
         captureFilePath: String?,
         saveToGallery: Boolean,
     ) {
+        onImageSelected(captureUri)
+        if (!saveToGallery || captureFilePath == null) return
+
         viewModelScope.launch {
-            if (saveToGallery && captureFilePath != null) {
-                val saved = try {
-                    withContext(Dispatchers.IO) {
-                        saveCaptureToGallery(File(captureFilePath))
-                    }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
-                    false
+            val saved = try {
+                withContext(Dispatchers.IO) {
+                    saveCaptureToGallery(File(captureFilePath))
                 }
-                if (!saved) onCapturedImageSaveFailed()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                false
             }
-            onImageSelected(captureUri)
+            if (!saved) onCapturedImageSaveFailed()
         }
     }
 
