@@ -33,7 +33,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -62,10 +61,7 @@ import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
 import java.io.File
 import java.time.LocalDate
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun PhotoUploadRoute(
@@ -83,7 +79,7 @@ fun PhotoUploadRoute(
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val photoPickerState = rememberPhotoPickerState(
         onImageSelected = viewModel::onImageSelected,
-        onCapturedImageSaveFailed = viewModel::onCapturedImageSaveFailed,
+        onCapturedImageCompleted = viewModel::onCapturedImageCompleted,
     )
 
     LaunchedEffect(viewModel, photoPickerState) {
@@ -290,12 +286,11 @@ fun PhotoUploadScreen(
 @Composable
 private fun rememberPhotoPickerState(
     onImageSelected: (String) -> Unit,
-    onCapturedImageSaveFailed: () -> Unit,
+    onCapturedImageCompleted: (String, String?, Boolean) -> Unit,
 ): PhotoPickerState {
     val context = LocalContext.current
     val currentOnImageSelected by rememberUpdatedState(onImageSelected)
-    val currentOnCapturedImageSaveFailed by rememberUpdatedState(onCapturedImageSaveFailed)
-    val coroutineScope = rememberCoroutineScope()
+    val currentOnCapturedImageCompleted by rememberUpdatedState(onCapturedImageCompleted)
     val isCameraAvailable = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
     }
@@ -307,18 +302,7 @@ private fun rememberPhotoPickerState(
         captureFilePath: String?,
         saveToGallery: Boolean,
     ) {
-        coroutineScope.launch {
-            if (saveToGallery && captureFilePath != null) {
-                val saved = withContext(Dispatchers.IO) {
-                    saveCameraCaptureToGallery(
-                        context = context,
-                        file = File(captureFilePath),
-                    )
-                }
-                if (!saved) currentOnCapturedImageSaveFailed()
-            }
-            currentOnImageSelected(captureUri)
-        }
+        currentOnCapturedImageCompleted(captureUri, captureFilePath, saveToGallery)
     }
 
     fun clearPendingCapture() {

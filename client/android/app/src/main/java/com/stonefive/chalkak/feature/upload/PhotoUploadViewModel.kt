@@ -14,8 +14,10 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
+import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,10 +26,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PhotoUploadViewModel(
     private val postCreationRepository: PostCreationRepository,
     private val topicDate: LocalDate,
+    private val saveCaptureToGallery: (File) -> Boolean = { false },
 ) : ViewModel() {
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
@@ -74,6 +78,28 @@ class PhotoUploadViewModel(
 
     fun onCapturedImageSaveFailed() {
         _uiState.update { it.copy(pendingMessage = nextToast(CAMERA_CAPTURE_SAVE_FAILED_MESSAGE)) }
+    }
+
+    fun onCapturedImageCompleted(
+        captureUri: String,
+        captureFilePath: String?,
+        saveToGallery: Boolean,
+    ) {
+        viewModelScope.launch {
+            if (saveToGallery && captureFilePath != null) {
+                val saved = try {
+                    withContext(Dispatchers.IO) {
+                        saveCaptureToGallery(File(captureFilePath))
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    false
+                }
+                if (!saved) onCapturedImageSaveFailed()
+            }
+            onImageSelected(captureUri)
+        }
     }
 
     fun retryTopicLoad() {
@@ -356,6 +382,7 @@ class PhotoUploadViewModel(
                 PhotoUploadViewModel(
                     postCreationRepository = application.appContainer.postCreationRepository,
                     topicDate = topicDate,
+                    saveCaptureToGallery = { file -> saveCameraCaptureToGallery(application, file) },
                 )
             }
         }
