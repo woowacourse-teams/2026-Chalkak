@@ -29,20 +29,8 @@ struct NotificationScreen: View {
 
     private var topBar: some View {
         HStack(spacing: 0) {
-            Button(action: onBackClick) {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: Metrics.backIconSize))
-                    .foregroundStyle(theme.colors.iconPrimary)
-                    .padding(.leading, Metrics.backIconLeadingPadding)
-                    .frame(
-                        width: Metrics.actionSize,
-                        height: Metrics.actionSize,
-                        alignment: .leading
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("뒤로 가기")
-            .accessibilityIdentifier("notification.back")
+            ChalkakNavigationButton(kind: .back, action: onBackClick)
+                .accessibilityIdentifier("notification.back")
 
             Text("알림")
                 .font(theme.typography.headline)
@@ -51,9 +39,13 @@ struct NotificationScreen: View {
                 .accessibilityIdentifier("notification.title")
 
             Color.clear
-                .frame(width: Metrics.actionSize, height: Metrics.actionSize)
+                .frame(
+                    width: ChalkakNavigationButton.diameter,
+                    height: ChalkakNavigationButton.diameter
+                )
                 .accessibilityHidden(true)
         }
+        .padding(.horizontal, Metrics.topBarHorizontalPadding)
         .frame(height: Metrics.topBarHeight)
     }
 }
@@ -128,9 +120,7 @@ private struct NotificationListItem: View {
 
 private enum Metrics {
     static let topBarHeight: CGFloat = 72
-    static let actionSize: CGFloat = 56
-    static let backIconSize: CGFloat = 24
-    static let backIconLeadingPadding: CGFloat = 20
+    static let topBarHorizontalPadding: CGFloat = 20
     static let thumbnailSize: CGFloat = 44
     static let dividerHeight: CGFloat = 1
 }
