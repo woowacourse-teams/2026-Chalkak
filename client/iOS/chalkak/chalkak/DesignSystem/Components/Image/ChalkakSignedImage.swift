@@ -8,6 +8,7 @@ struct ChalkakSignedImage: View {
     var contentMode: ContentMode = .fill
     var signatureSize = Metrics.defaultSignatureSize
     var showsLoadingSkeleton = true
+    var onImageLoad: () -> Void = {}
 
     var body: some View {
         GeometryReader { proxy in
@@ -16,7 +17,8 @@ struct ChalkakSignedImage: View {
                     source: imageSource,
                     contentDescription: contentDescription,
                     contentMode: contentMode,
-                    showsLoadingSkeleton: showsLoadingSkeleton
+                    showsLoadingSkeleton: showsLoadingSkeleton,
+                    onLoad: onImageLoad
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()

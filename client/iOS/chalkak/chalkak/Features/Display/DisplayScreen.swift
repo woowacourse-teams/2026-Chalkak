@@ -11,11 +11,11 @@ struct DisplayScreen: View {
     var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
 
-    // 전시에는 썸네일이 이미 떠 있으므로 Feed가 원본을 로드할 때까지 썸네일을 대신 보여준다.
+    // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
     private func feedTarget(
         for photo: DisplayPhoto,
         zoomSource: FeedZoomSource,
-        thumbnailRatio: CGFloat? = nil
+        placeholder: FeedPhotoPlaceholder
     ) -> FeedTarget {
         let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
         return FeedTarget(
@@ -36,10 +36,7 @@ struct DisplayScreen: View {
             ),
             isLikeConfirmed: true,
             zoomSource: zoomSource,
-            placeholder: FeedPhotoPlaceholder(
-                imageSource: photo.thumbnailImageSource,
-                heightToWidthRatio: thumbnailRatio
-            )
+            placeholder: placeholder
         )
     }
 
@@ -147,7 +144,14 @@ struct DisplayScreen: View {
                         onPageChange: { viewModel.updateFeaturedPage($0) },
                         onSelect: { photo in
                             onSelectPhoto(
-                                feedTarget(for: photo, zoomSource: .displayFeatured(photo.id))
+                                feedTarget(
+                                    for: photo,
+                                    zoomSource: .displayFeatured(photo.id),
+                                    placeholder: FeedPhotoPlaceholder(
+                                        imageSource: photo.originalImageSource,
+                                        signatureImageSource: photo.signatureOriginalImageSource
+                                    )
+                                )
                             )
                         }
                     )
@@ -183,7 +187,11 @@ struct DisplayScreen: View {
                                 feedTarget(
                                     for: photo,
                                     zoomSource: .displayGrid(photo.id),
-                                    thumbnailRatio: ratio
+                                    placeholder: FeedPhotoPlaceholder(
+                                        imageSource: photo.thumbnailImageSource,
+                                        signatureImageSource: photo.signatureThumbnailImageSource,
+                                        heightToWidthRatio: ratio
+                                    )
                                 )
                             )
                         }

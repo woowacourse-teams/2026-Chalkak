@@ -8,6 +8,22 @@ enum ChalkakImageSource: Hashable, Sendable {
     case remote(URL?)
 }
 
+extension ChalkakImageSource {
+    /// 이미 받아 둔 이미지를 동기로 꺼낸다. 원격 이미지는 URL 캐시에 있을 때만 반환한다.
+    func cachedImage() -> UIImage? {
+        switch self {
+        case let .asset(name):
+            UIImage(named: name)
+        case .system:
+            nil
+        case let .remote(url?):
+            URLCache.shared.cachedResponse(for: URLRequest(url: url)).flatMap { UIImage(data: $0.data) }
+        case .remote(nil):
+            nil
+        }
+    }
+}
+
 /// 이미지의 EXIF 방향을 반영한 세로/가로 비율(height / width)을 구한다.
 enum ImageRatioLoader {
     static func ratio(for source: ChalkakImageSource) async -> CGFloat? {
@@ -45,6 +61,8 @@ struct ChalkakImage: View {
     var contentMode: ContentMode = .fill
     // 호출부가 로딩 중 자리를 다른 이미지로 채울 때 스켈레톤을 끈다.
     var showsLoadingSkeleton = true
+    // 이미지가 화면에 그려질 준비가 됐을 때 호출된다.
+    var onLoad: () -> Void = {}
 
     var body: some View {
         image
@@ -60,6 +78,7 @@ struct ChalkakImage: View {
             Image(name)
                 .resizable()
                 .aspectRatio(contentMode: contentMode)
+                .onAppear(perform: onLoad)
         case let .system(name):
             Image(systemName: name)
                 .resizable()
@@ -69,7 +88,8 @@ struct ChalkakImage: View {
             RemoteImage(
                 url: url,
                 contentMode: contentMode,
-                showsLoadingSkeleton: showsLoadingSkeleton
+                showsLoadingSkeleton: showsLoadingSkeleton,
+                onLoad: onLoad
             )
         }
     }
@@ -81,6 +101,7 @@ private struct RemoteImage: View {
     let url: URL?
     let contentMode: ContentMode
     let showsLoadingSkeleton: Bool
+    let onLoad: () -> Void
     @State private var isLoading = true
 
     var body: some View {
@@ -102,7 +123,10 @@ private struct RemoteImage: View {
             image
                 .resizable()
                 .aspectRatio(contentMode: contentMode)
-                .onAppear { isLoading = false }
+                .onAppear {
+                    isLoading = false
+                    onLoad()
+                }
         case .failure:
             imagePlaceholder(systemName: "photo.badge.exclamationmark")
                 .onAppear { isLoading = false }

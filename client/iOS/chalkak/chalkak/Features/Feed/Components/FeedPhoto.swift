@@ -5,26 +5,23 @@ struct FeedPhoto: View {
     let post: FeedPost?
     let placeholder: FeedPhotoPlaceholder?
     let isLikeEnabled: Bool
-    // 줌 전환 진행도(0: 출발 뷰 위치, 1: 제자리)와 출발 뷰. 사진만 이동하고 나머지는 페이드된다.
-    let zoomProgress: CGFloat
-    let zoomSource: FeedZoomRegistry.Source?
+    let zoom: FeedPhotoZoom
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
     @State private var imageFrame: CGRect?
+    @State private var isOriginalLoaded = false
 
     init(
         post: FeedPost?,
         placeholder: FeedPhotoPlaceholder? = nil,
         isLikeEnabled: Bool = true,
-        zoomProgress: CGFloat = 1,
-        zoomSource: FeedZoomRegistry.Source? = nil,
+        zoom: FeedPhotoZoom = FeedPhotoZoom(),
         onLike: @escaping () -> Void
     ) {
         self.post = post
         self.placeholder = placeholder
         self.isLikeEnabled = isLikeEnabled
-        self.zoomProgress = zoomProgress
-        self.zoomSource = zoomSource
+        self.zoom = zoom
         self.onLike = onLike
         _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
     }
@@ -36,32 +33,32 @@ struct FeedPhoto: View {
                 .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
                     if let placeholder {
-                        ChalkakImage(
-                            source: placeholder.imageSource,
-                            contentDescription: nil,
-                            contentMode: .fill
-                        )
+                        FeedPlaceholderPhoto(placeholder: placeholder, signatureSize: Metrics.signatureSize)
                     }
                 }
                 .overlay {
                     if let post {
-                        // placeholder가 있으면 원본이 로드될 때 그 위를 덮어 교체하므로 스켈레톤은 띄우지 않는다.
+                        // placeholder가 있으면 원본은 로드된 뒤 그 위로 페이드되므로 스켈레톤은 띄우지 않는다.
                         ChalkakSignedImage(
                             imageSource: post.originalImageSource,
                             signatureSource: post.signatureImageSource,
                             contentDescription: post.contentDescription,
                             contentMode: .fill,
                             signatureSize: Metrics.signatureSize,
-                            showsLoadingSkeleton: placeholder == nil
+                            showsLoadingSkeleton: placeholder == nil,
+                            onImageLoad: { isOriginalLoaded = true }
                         )
+                        .opacity(isOriginalRevealed ? 1 : 0)
+                        .animation(Metrics.originalRevealAnimation, value: isOriginalRevealed)
                     }
                 }
                 .clipped()
                 .feedZoomEffect(
-                    progress: zoomProgress,
-                    source: zoomSource,
+                    progress: zoom.photoProgress,
+                    source: zoom.source,
                     destinationFrame: imageFrame
                 )
+                .opacity(photoOpacity)
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: .global)
                 } action: { frame in
@@ -85,8 +82,58 @@ struct FeedPhoto: View {
                     isEnabled: isLikeEnabled,
                     onLike: onLike
                 )
-                .opacity(zoomProgress)
+                .opacity(zoom.contentProgress)
             }
+        }
+    }
+
+    // Android SharedFeedImage와 같이, 출발 이미지가 있으면 원본은 로드됐고 열림 전환이 끝난 뒤에만 드러낸다.
+    private var isOriginalRevealed: Bool {
+        placeholder == nil || (isOriginalLoaded && zoom.isSettled)
+    }
+
+    private var photoOpacity: CGFloat {
+        if zoom.isPhotoHidden { return 0 }
+        return zoom.source == nil ? zoom.contentProgress : 1
+    }
+}
+
+/// 출발 화면에 떠 있던 사진과 서명. 미리 받아 둔 이미지가 있으면 로딩 없이 바로 그린다.
+private struct FeedPlaceholderPhoto: View {
+    @Environment(\.chalkakTheme) private var theme
+    let placeholder: FeedPhotoPlaceholder
+    let signatureSize: CGSize
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                image(placeholder.preloadedImage, source: placeholder.imageSource, contentMode: .fill)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+
+                if let signatureSource = placeholder.signatureImageSource {
+                    image(placeholder.preloadedSignatureImage, source: signatureSource, contentMode: .fit)
+                        .frame(width: signatureSize.width, height: signatureSize.height)
+                        .padding(theme.spacing.sm)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func image(
+        _ preloaded: UIImage?,
+        source: ChalkakImageSource,
+        contentMode: ContentMode
+    ) -> some View {
+        if let preloaded {
+            Image(uiImage: preloaded)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+        } else {
+            ChalkakImage(source: source, contentDescription: nil, contentMode: contentMode)
         }
     }
 }
@@ -134,6 +181,8 @@ private struct FeedLikeRow: View {
 
 private enum Metrics {
     static let defaultImageRatio: CGFloat = 1
+    // Android PHOTO_CROSSFADE_DURATION_MILLIS(180) + tween 기본 FastOutSlowInEasing.
+    static let originalRevealAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.18)
     static let signatureSize = CGSize(width: 70, height: 52)
     static let rowHeight: CGFloat = 60
     static let spacing: CGFloat = 9

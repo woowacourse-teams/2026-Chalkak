@@ -11,13 +11,16 @@ enum FeedZoomSource: Hashable, Sendable {
 /// 줌 전환 출발 뷰들의 현재 화면상 위치를 모아 둔다.
 /// Feed는 열리고 닫힐 때 이 위치와 자신의 사진 위치 사이를 보간해 사진만 확대·축소한다.
 @MainActor
+@Observable
 final class FeedZoomRegistry {
     struct Source {
         let frame: CGRect
         let cornerRadius: CGFloat
     }
 
-    private var sources: [FeedZoomSource: Source] = [:]
+    // 사진이 이동하는 동안 숨길 출발 뷰. 이동 중인 사진과 겹쳐 두 장으로 보이지 않게 한다.
+    var activeSource: FeedZoomSource?
+    @ObservationIgnored private var sources: [FeedZoomSource: Source] = [:]
 
     func source(for id: FeedZoomSource) -> Source? {
         sources[id]
@@ -30,6 +33,20 @@ final class FeedZoomRegistry {
     func remove(_ id: FeedZoomSource) {
         sources[id] = nil
     }
+}
+
+/// Feed 사진의 줌 전환 상태.
+struct FeedPhotoZoom {
+    // 사진 이동 진행도(0: 출발 뷰 위치, 1: 제자리).
+    var photoProgress: CGFloat = 1
+    // 사진 외 콘텐츠의 페이드 진행도(0: 투명, 1: 불투명).
+    var contentProgress: CGFloat = 1
+    // 사진이 출발할 위치. 없으면 사진도 다른 콘텐츠와 함께 페이드된다.
+    var source: FeedZoomRegistry.Source?
+    // 열림 전환이 끝나 멈춘 상태. 이때만 원본 이미지를 드러낸다.
+    var isSettled = true
+    // 닫힘 전환에서 사진이 출발 뷰에 도착해 출발 뷰가 대신 보이는 상태.
+    var isPhotoHidden = false
 }
 
 extension EnvironmentValues {
@@ -70,6 +87,7 @@ private struct FeedZoomSourceModifier: ViewModifier {
                     for: source
                 )
             }
+            .opacity(registry?.activeSource == source ? 0 : 1)
             .onDisappear { registry?.remove(source) }
     }
 }

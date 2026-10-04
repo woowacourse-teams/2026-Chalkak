@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum FeedContentStatus: Equatable, Sendable {
     case loading
@@ -88,11 +89,30 @@ struct FeedViewState: Equatable, Sendable {
     var titleUpdateVersion = 0
 }
 
-/// 원본 이미지가 로드되기 전까지 Feed 사진 자리에 보여줄 이미지.
+/// 원본 이미지가 로드되기 전까지 Feed 사진 자리에 보여줄, 출발 화면에 떠 있던 이미지.
 struct FeedPhotoPlaceholder: Equatable, Sendable {
     let imageSource: ChalkakImageSource
-    // 이미 측정된 세로/가로 비율(height / width). 모르면 Feed가 이미지에서 다시 구한다.
-    var heightToWidthRatio: CGFloat?
+    let signatureImageSource: ChalkakImageSource?
+    // 세로/가로 비율(height / width). 모르면 Feed가 이미지에서 다시 구한다.
+    let heightToWidthRatio: CGFloat?
+    // 출발 화면이 이미 받아 둔 이미지. 있으면 전환 첫 프레임부터 바로 그린다.
+    let preloadedImage: UIImage?
+    let preloadedSignatureImage: UIImage?
+
+    init(
+        imageSource: ChalkakImageSource,
+        signatureImageSource: ChalkakImageSource? = nil,
+        heightToWidthRatio: CGFloat? = nil
+    ) {
+        let preloadedImage = imageSource.cachedImage()
+        self.imageSource = imageSource
+        self.signatureImageSource = signatureImageSource
+        self.preloadedImage = preloadedImage
+        self.preloadedSignatureImage = signatureImageSource?.cachedImage()
+        self.heightToWidthRatio = heightToWidthRatio ?? preloadedImage.flatMap { image in
+            image.size.width > 0 ? image.size.height / image.size.width : nil
+        }
+    }
 }
 
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.
