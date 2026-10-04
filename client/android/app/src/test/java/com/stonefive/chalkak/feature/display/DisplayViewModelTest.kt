@@ -258,6 +258,66 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `피드에서 복귀해 전시를 갱신해도 랭킹 페이지를 유지한다`() = runTest {
+        viewModel.moveToPreviousDate()
+        viewModel.updateFeaturedPage(1)
+
+        viewModel.onResume()
+        viewModel.onResume()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Archive
+        assertEquals(1, content.featuredPage)
+    }
+
+    @Test
+    fun `갱신 중 변경한 랭킹 페이지도 응답 후 유지한다`() = runTest {
+        viewModel.moveToPreviousDate()
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.revalidate()
+        viewModel.updateFeaturedPage(1)
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = ARCHIVE_DATE,
+                    topic = "다리",
+                    photos = listOf(post, post.copy(id = "archive-photo")),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Archive
+        assertEquals(1, content.featuredPage)
+    }
+
+    @Test
+    fun `갱신 후 사진 수가 줄면 랭킹 페이지를 마지막 사진까지 조정한다`() = runTest {
+        viewModel.moveToPreviousDate()
+        viewModel.updateFeaturedPage(1)
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.revalidate()
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = ARCHIVE_DATE,
+                    topic = "다리",
+                    photos = listOf(post),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Archive
+        assertEquals(0, content.featuredPage)
+    }
+
+    @Test
     fun `최신 전시에서는 과거 전시 페이지 변경을 무시한다`() = runTest {
         val content = viewModel.uiState.value.content
 

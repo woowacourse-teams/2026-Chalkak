@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.core.designsystem.component.image
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,15 +36,22 @@ fun ChalkakSignedImage(
     onThumbnailImageSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
     onSignatureSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
     onThumbnailSignatureSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
+    imageAspectRatio: Float? = null,
 ) {
-    Box(modifier = modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         ChalkakImage(
             model = imageModel,
             contentDescription = contentDescription,
             thumbnailModel = thumbnailImageModel,
             modifier = Modifier
                 .then(imageModifier)
-                .fillMaxSize(),
+                .then(
+                    if (imageAspectRatio != null) {
+                        Modifier.aspectRatio(imageAspectRatio)
+                    } else {
+                        Modifier.fillMaxSize()
+                    },
+                ),
             contentScale = contentScale,
             loadedPainter = loadedImagePainter,
             onSuccess = onImageSuccess,
