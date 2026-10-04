@@ -42,6 +42,7 @@ fun DisplayPhotoCard(
     modifier: Modifier = Modifier,
     variant: DisplayPhotoCardVariant = DisplayPhotoCardVariant.GRID,
     onClick: (() -> Unit)? = null,
+    onLikeClick: (() -> Unit)? = null,
     imageAspectRatio: Float? = null,
     onImageAspectRatioAvailable: (Float) -> Unit = {},
 ) {
@@ -106,6 +107,7 @@ fun DisplayPhotoCard(
         DisplayLikeCount(
             likeCount = photo.likeCount,
             isLiked = photo.isLiked,
+            onClick = onLikeClick,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(10.dp),
@@ -145,12 +147,24 @@ fun DisplayLikeCount(
     likeCount: Int,
     isLiked: Boolean = false,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
+    val clickModifier = if (onClick == null) {
+        Modifier
+    } else {
+        Modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            role = Role.Button,
+            onClick = onClick,
+        )
+    }
     Row(
-        modifier = modifier.semantics {
-            contentDescription = "좋아요 $likeCount"
-            stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
-        },
+        modifier = modifier
+            .semantics {
+                contentDescription = "좋아요 $likeCount"
+                stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
+            }.then(clickModifier),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
