@@ -87,6 +87,21 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `카메라 사진 갤러리 저장 실패는 업로드 선택 상태를 유지하고 토스트로 알린다`() {
+        val image = "content://media/photo/1"
+        viewModel.onImageSelected(image)
+
+        viewModel.onCapturedImageSaveFailed()
+
+        assertSame(image, viewModel.uiState.value.selectedImage)
+        assertTrue(viewModel.uiState.value.canSubmit)
+        assertEquals(
+            "사진을 갤러리에 저장하지 못했어요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
     fun `사진 준비 중 제출하면 완료를 기다린 뒤 자동 제출한다`() = runTest {
         val gate = CompletableDeferred<Unit>()
         postCreationRepository.prepareAwait = gate

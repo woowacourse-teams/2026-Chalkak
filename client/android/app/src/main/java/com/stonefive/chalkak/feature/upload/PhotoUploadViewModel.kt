@@ -72,6 +72,10 @@ class PhotoUploadViewModel(
         replaceSelectedImage(image)
     }
 
+    fun onCapturedImageSaveFailed() {
+        _uiState.update { it.copy(pendingMessage = nextToast(CAMERA_CAPTURE_SAVE_FAILED_MESSAGE)) }
+    }
+
     fun retryTopicLoad() {
         loadCreationTopic()
     }
@@ -357,6 +361,7 @@ class PhotoUploadViewModel(
         }
 
         private const val GENERIC_ERROR_MESSAGE = "전시를 완료하지 못했어요. 다시 시도해 주세요."
+        private const val CAMERA_CAPTURE_SAVE_FAILED_MESSAGE = "사진을 갤러리에 저장하지 못했어요."
     }
 
     private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
