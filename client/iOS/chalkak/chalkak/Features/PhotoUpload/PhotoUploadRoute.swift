@@ -15,6 +15,7 @@ struct PhotoUploadRoute: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isCameraPresented = false
     @State private var capturedImage: UIImage?
+    @State private var shouldSaveCapturedImage = false
     @State private var isPhotoPermissionAlertPresented = false
     @State private var isRequestingPhotoPermission = false
     @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
@@ -45,7 +46,7 @@ struct PhotoUploadRoute: View {
             selection: $selectedPhotoItem,
             matching: .images
         )
-        .sheet(isPresented: $isCameraPresented, onDismiss: saveCapturedImage) {
+        .sheet(isPresented: $isCameraPresented, onDismiss: completeCameraCapture) {
             PhotoUploadCameraPicker(
                 onImagePicked: { image in
                     capturedImage = image
@@ -64,6 +65,7 @@ struct PhotoUploadRoute: View {
                 openURL(url)
             }
             Button("저장 없이 촬영") {
+                shouldSaveCapturedImage = false
                 isCameraPresented = true
             }
             Button("취소", role: .cancel) {}
@@ -80,6 +82,7 @@ struct PhotoUploadRoute: View {
             let status = await PhotoLibraryImageSaver.requestAddOnlyAuthorization()
             isRequestingPhotoPermission = false
             if status == .authorized || status == .limited {
+                shouldSaveCapturedImage = true
                 isCameraPresented = true
             } else {
                 isPhotoPermissionAlertPresented = true
@@ -87,7 +90,9 @@ struct PhotoUploadRoute: View {
         }
     }
 
-    private func saveCapturedImage() {
+    private func completeCameraCapture() {
+        let shouldSave = shouldSaveCapturedImage
+        shouldSaveCapturedImage = false
         guard let image = capturedImage else { return }
         capturedImage = nil
         guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
@@ -95,7 +100,11 @@ struct PhotoUploadRoute: View {
             return
         }
         Task { @MainActor in
-            await viewModel.selectCapturedImage(data: data, preview: image)
+            if shouldSave {
+                await viewModel.selectCapturedImage(data: data, preview: image)
+            } else {
+                viewModel.selectImage(data: data, preview: image)
+            }
         }
     }
 
