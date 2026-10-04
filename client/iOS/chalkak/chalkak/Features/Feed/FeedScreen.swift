@@ -10,7 +10,6 @@ struct FeedScreen: View {
     @State private var photoProgress: CGFloat = 0
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
-    @State private var isPhotoHidden = false
     @State private var isClosing = false
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
@@ -164,8 +163,7 @@ struct FeedScreen: View {
                         photoProgress: photoProgress,
                         contentProgress: contentProgress,
                         source: movingSource,
-                        isSettled: !isPhotoMoving,
-                        isPhotoHidden: isPhotoHidden
+                        isSettled: !isPhotoMoving
                     ),
                     onLike: { viewModel.toggleLike() }
                 )
@@ -225,14 +223,13 @@ struct FeedScreen: View {
         hideSourceWhilePhotoMoves()
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 0
-        } completion: {
-            // 사진이 출발 뷰에 도착하면 같은 프레임에 출발 뷰와 교대한다.
-            isPhotoHidden = true
-            zoomRegistry?.activeSource = nil
         }
         withAnimation(Metrics.contentAnimation) {
             contentProgress = 0
         } completion: {
+            // 사진이 먼저 도착해도 피드 배경이 반투명한 동안은 출발 뷰가 배경 아래에 깔려 흐려 보인다.
+            // 피드 사진을 출발 뷰 위에 유지했다가, 피드가 사라지는 순간 출발 뷰와 교대한다.
+            zoomRegistry?.activeSource = nil
             onBack()
         }
     }

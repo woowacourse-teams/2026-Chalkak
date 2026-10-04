@@ -93,8 +93,7 @@ struct FeedPhoto: View {
     }
 
     private var photoOpacity: CGFloat {
-        if zoom.isPhotoHidden { return 0 }
-        return zoom.source == nil ? zoom.contentProgress : 1
+        zoom.source == nil ? zoom.contentProgress : 1
     }
 }
 

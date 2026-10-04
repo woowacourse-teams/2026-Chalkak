@@ -45,8 +45,6 @@ struct FeedPhotoZoom {
     var source: FeedZoomRegistry.Source?
     // 열림 전환이 끝나 멈춘 상태. 이때만 원본 이미지를 드러낸다.
     var isSettled = true
-    // 닫힘 전환에서 사진이 출발 뷰에 도착해 출발 뷰가 대신 보이는 상태.
-    var isPhotoHidden = false
 }
 
 extension EnvironmentValues {
