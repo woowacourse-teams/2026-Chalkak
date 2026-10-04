@@ -78,7 +78,11 @@ class PhotoTransitionCoordinator {
     private val registeredSnapshots = mutableStateMapOf<PhotoTransitionKey, SharedPhotoSnapshot>()
     private val selectedSnapshots = mutableStateMapOf<String, SharedPhotoSnapshot>()
 
-    fun registerSignature(key: PhotoTransitionKey, model: Any?, painter: Painter) {
+    fun registerSignature(
+        key: PhotoTransitionKey,
+        model: Any?,
+        painter: Painter,
+    ) {
         val snapshot = registeredSnapshots[key] ?: return
         registeredSnapshots[key] = snapshot.copy(signatureModel = model, signaturePainter = painter)
     }
@@ -166,7 +170,10 @@ fun rememberSharedPhotoSource(
             SharedPhotoSnapshot(
                 key = key,
                 imageModel = imageModel,
-                signatureModel = loadedSignature?.result?.request?.data ?: signatureModel,
+                signatureModel = loadedSignature
+                    ?.result
+                    ?.request
+                    ?.data ?: signatureModel,
                 signaturePainter = loadedSignature?.painter,
                 painter = null,
                 image = null,
@@ -190,7 +197,10 @@ fun rememberSharedPhotoSource(
                     SharedPhotoSnapshot(
                         key = key,
                         imageModel = state.result.request.data,
-                        signatureModel = loadedSignature?.result?.request?.data ?: signatureModel,
+                        signatureModel = loadedSignature
+                            ?.result
+                            ?.request
+                            ?.data ?: signatureModel,
                         signaturePainter = loadedSignature?.painter,
                         painter = state.painter,
                         image = state.result.image,
@@ -224,7 +234,9 @@ fun Modifier.sharedPhotoElement(
     val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
 
-    val selectedShape = LocalPhotoTransitionCoordinator.current.selectedSnapshot(key.postId)?.sourceShape
+    val selectedShape = LocalPhotoTransitionCoordinator.current
+        .selectedSnapshot(key.postId)
+        ?.sourceShape
     val roundedShape = if (animateCorners) sourceShape ?: selectedShape else null
     val cornerFraction = animatedVisibilityScope.transition.animateFloat(
         transitionSpec = { tween(PHOTO_TRANSITION_DURATION_MILLIS, easing = FastOutSlowInEasing) },
