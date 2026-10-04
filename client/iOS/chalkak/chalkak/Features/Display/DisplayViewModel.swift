@@ -13,6 +13,13 @@ final class DisplayViewModel {
         DisplayPageRequest
     ) async -> Result<DisplayPage, DisplayError>
 
+    typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
+
+    private(set) var likingPhotoIDs: Set<String> = []
+    private var likeVersion = 0
+    private var likeUpdates: [String: (version: Int, update: FeedLikeUpdate)] = [:]
+    private let likeHandler: LikeHandler
+
     private(set) var viewState: DisplayViewState
     private(set) var event: DisplayEvent?
 
@@ -32,7 +39,8 @@ final class DisplayViewModel {
         initialDate: Date? = nil,
         dateProvider: @escaping DateProvider = { Date() },
         firstPageHandler: @escaping FirstPageHandler = { _, _ in .failure(.generic) },
-        nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) }
+        nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
+        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
     ) {
         let initialState = initialState ?? DisplayViewState()
         self.viewState = initialState
@@ -40,6 +48,7 @@ final class DisplayViewModel {
         self.dateProvider = dateProvider
         self.firstPageHandler = firstPageHandler
         self.nextPageHandler = nextPageHandler
+        self.likeHandler = likeHandler
         self.selectedLatestSort = initialState.selectedSort
         if initialState.hasLoadedContent, let selectedDate = initialState.selectedDate {
             let sort: DisplaySort = initialState.contentStatus == .archive ? .popular : initialState.selectedSort
@@ -76,6 +85,13 @@ final class DisplayViewModel {
                     return .failure(.generic)
                 } catch let error as DisplayAPIError {
                     return .failure(error.displayError)
+                } catch {
+                    return .failure(.generic)
+                }
+            },
+            likeHandler: { postID, isLiked in
+                do {
+                    return .success(try await apiClient.updateLike(postID: postID, isLiked: isLiked))
                 } catch {
                     return .failure(.generic)
                 }
@@ -201,6 +217,46 @@ final class DisplayViewModel {
         await loadNextPage()
     }
 
+    func toggleLike(photoID: String) async {
+        guard viewState.hasLoadedContent,
+              !likingPhotoIDs.contains(photoID),
+              let photo = viewState.photos.first(where: { $0.id == photoID })
+        else { return }
+        likingPhotoIDs.insert(photoID)
+        defer { likingPhotoIDs.remove(photoID) }
+        switch await likeHandler(photoID, !photo.isLiked) {
+        case let .success(update):
+            guard update.postID == photoID, update.likeCount >= 0 else {
+                event = .likeFailed
+                return
+            }
+            likeVersion += 1
+            likeUpdates[photoID] = (likeVersion, update)
+            applyLikeUpdates(to: &viewState, after: likeVersion - 1)
+            for key in Array(displayCache.keys) {
+                guard var entry = displayCache[key] else { continue }
+                applyLikeUpdates(to: &entry.state, after: likeVersion - 1)
+                displayCache[key] = entry
+            }
+        case .failure:
+            event = .likeFailed
+        }
+    }
+
+    private func applyLikeUpdates(to state: inout DisplayViewState, after version: Int) {
+        func updated(_ photos: [DisplayPhoto]) -> [DisplayPhoto] {
+            photos.map { photo in
+                guard let record = likeUpdates[photo.id], record.version > version else { return photo }
+                var photo = photo
+                photo.isLiked = record.update.isLiked
+                photo.likeCount = record.update.likeCount
+                return photo
+            }
+        }
+        state.photos = updated(state.photos)
+        state.featuredPhotos = updated(state.featuredPhotos)
+    }
+
     func consumeEvent() {
         event = nil
     }
@@ -238,12 +294,15 @@ final class DisplayViewModel {
             viewState.transientError = nil
         }
 
+        let requestLikeVersion = likeVersion
         let result = await firstPageHandler(requestedDate, requestSort)
         guard requestGeneration == generation else { return }
 
         switch result {
         case let .success(content):
             apply(content, latestDate: latestDate)
+            applyLikeUpdates(to: &viewState, after: requestLikeVersion)
+            cacheCurrentState()
         case let .failure(error):
             loadedTopicDate = previousState.flatMap { _ in loadedTopicDate }
             if var restored = previousState {
@@ -256,6 +315,7 @@ final class DisplayViewModel {
                 restored.latestDate = latestDate
                 restored.isLoadingNext = false
                 restored.transientError = error
+                applyLikeUpdates(to: &restored, after: requestLikeVersion)
                 viewState = restored
                 event = .showFailure(error)
             } else {
@@ -341,12 +401,15 @@ final class DisplayViewModel {
             randomSeed: randomSeed
         )
         viewState.isLoadingNext = true
+        let requestLikeVersion = likeVersion
         let result = await nextPageHandler(request)
         guard requestGeneration == generation else { return }
 
         switch result {
         case let .success(page):
             append(page, sort: sort)
+            applyLikeUpdates(to: &viewState, after: requestLikeVersion)
+            cacheCurrentState()
         case let .failure(error):
             viewState.isLoadingNext = false
             viewState.transientError = error
@@ -396,7 +459,7 @@ private struct DisplayCacheKey: Hashable {
 }
 
 private struct DisplayCacheEntry {
-    let state: DisplayViewState
+    var state: DisplayViewState
     let firstPagePhotoIDs: Set<DisplayPhoto.ID>
 }
 

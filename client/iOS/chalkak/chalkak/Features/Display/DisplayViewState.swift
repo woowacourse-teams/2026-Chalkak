@@ -41,8 +41,8 @@ struct DisplayPhoto: Identifiable, Equatable, Sendable {
     let signatureThumbnailImageSource: ChalkakImageSource
     let contentDescription: String
     let title: String?
-    let likeCount: Int
-    let isLiked: Bool
+    var likeCount: Int
+    var isLiked: Bool
     let isOwnedByCurrentUser: Bool
 }
 
@@ -98,4 +98,5 @@ struct DisplayViewState: Equatable, Sendable {
 
 enum DisplayEvent: Equatable, Sendable {
     case showFailure(DisplayError)
+    case likeFailed
 }
