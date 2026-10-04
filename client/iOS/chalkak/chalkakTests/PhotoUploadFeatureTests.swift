@@ -191,15 +191,19 @@ struct PhotoUploadViewModelTests {
         }
     }
 
-    @Test("화면 종료 후에도 진행 중인 저장을 마치고 이전 화면 안내는 표시하지 않는다")
-    func finishesSavingAfterReset() async {
+    @Test("업로드 화면 종료 뒤 늦게 끝난 저장 실패를 앱에 알린다")
+    func reportsSaveFailureAfterReset() async {
         var continuation: CheckedContinuation<PhotoLibrarySaveResult, Never>?
         var saveCount = 0
+        var reportedFailures: [String] = []
         let viewModel = PhotoUploadViewModel(
             topicDate: Self.topic().date,
             saveCameraImage: { _ in
                 saveCount += 1
                 return await withCheckedContinuation { continuation = $0 }
+            },
+            onCameraImageSaveFailure: { message in
+                reportedFailures.append(message)
             }
         )
         let task = Task {
@@ -212,6 +216,7 @@ struct PhotoUploadViewModelTests {
         await task.value
 
         #expect(saveCount == 1)
+        #expect(reportedFailures.last?.contains("설정에서 사진 추가 권한") == true)
         #expect(viewModel.viewState.pendingMessage == nil)
         #expect(viewModel.viewState.selectedImage == nil)
     }

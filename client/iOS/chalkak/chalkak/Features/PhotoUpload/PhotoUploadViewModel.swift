@@ -34,8 +34,10 @@ final class PhotoUploadViewModel {
     private(set) var event: PhotoUploadEvent?
 
     typealias CameraImageSaver = @MainActor (UIImage) async -> PhotoLibrarySaveResult
+    typealias CameraImageSaveFailureHandler = @MainActor (String) -> Void
 
     private let saveCameraImage: CameraImageSaver
+    private let onCameraImageSaveFailure: CameraImageSaveFailureHandler?
     private let topicDate: Date
     private let repository: PhotoUploadRepository
 
@@ -52,9 +54,11 @@ final class PhotoUploadViewModel {
         topicDate: Date,
         initialState: PhotoUploadViewState? = nil,
         repository: PhotoUploadRepository? = nil,
-        saveCameraImage: @escaping CameraImageSaver = { await PhotoLibraryImageSaver.save($0) }
+        saveCameraImage: @escaping CameraImageSaver = { await PhotoLibraryImageSaver.save($0) },
+        onCameraImageSaveFailure: CameraImageSaveFailureHandler? = nil
     ) {
         self.saveCameraImage = saveCameraImage
+        self.onCameraImageSaveFailure = onCameraImageSaveFailure
         self.topicDate = PhotoUploadDate.startOfDay(topicDate)
         self.viewState = initialState ?? PhotoUploadViewState()
         self.repository = repository ?? PhotoUploadRepository()
@@ -112,18 +116,18 @@ final class PhotoUploadViewModel {
         }
 
         selectImage(data: data, preview: preview)
-        let generation = imageGeneration
         // 화면을 나가거나 업로드에 실패해도 확정한 촬영 사진은 저장을 마친다.
         let result = await saveCameraImage(preview)
-        guard generation == imageGeneration else { return }
 
         switch result {
         case .saved:
             break
         case .permissionDenied:
-            publishMessage("사진 앱에 저장하려면 설정에서 사진 추가 권한을 허용해 주세요. 업로드는 계속할 수 있어요.")
+            reportCameraImageSaveFailure(
+                "사진 앱에 저장하려면 설정에서 사진 추가 권한을 허용해 주세요. 업로드는 계속할 수 있어요."
+            )
         case .failed:
-            publishMessage("촬영한 사진을 사진 앱에 저장하지 못했어요. 업로드는 계속할 수 있어요.")
+            reportCameraImageSaveFailure("촬영한 사진을 사진 앱에 저장하지 못했어요. 업로드는 계속할 수 있어요.")
         }
     }
 
@@ -298,6 +302,14 @@ final class PhotoUploadViewModel {
         let message = PhotoUploadMessage(id: nextMessageID, text: text)
         nextMessageID += 1
         viewState.pendingMessage = message
+    }
+
+    private func reportCameraImageSaveFailure(_ text: String) {
+        if let onCameraImageSaveFailure {
+            onCameraImageSaveFailure(text)
+        } else {
+            publishMessage(text)
+        }
     }
 
     private func clearWork() {
