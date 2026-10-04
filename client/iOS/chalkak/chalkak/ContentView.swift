@@ -421,7 +421,9 @@ struct ContentView: View {
         switch outcome {
         case let .allowed(topicDate):
             photoUploadReturnTab = tab
-            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate)
+            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate) { message in
+                showMessage(message)
+            }
             isPhotoUploadPresented = true
         case .reauthenticationRequired:
             showLogin()
@@ -633,7 +635,10 @@ struct ContentView: View {
         )
     }
 
-    private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+    private static func makePhotoUploadViewModel(
+        topicDate: Date,
+        onCameraImageSaveFailure: @escaping PhotoUploadViewModel.CameraImageSaveFailureHandler
+    ) -> PhotoUploadViewModel {
 #if DEBUG
         if isPhotoUploadEntryUITest {
             return PhotoUploadViewModel(
@@ -642,7 +647,8 @@ struct ContentView: View {
                     getCreationTopic: { date in
                         .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
                     }
-                )
+                ),
+                onCameraImageSaveFailure: onCameraImageSaveFailure
             )
         }
 #endif
@@ -657,7 +663,8 @@ struct ContentView: View {
         )
         return PhotoUploadViewModel(
             topicDate: topicDate,
-            repository: .api(client: apiClient)
+            repository: .api(client: apiClient),
+            onCameraImageSaveFailure: onCameraImageSaveFailure
         )
     }
 

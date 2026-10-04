@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Testing
 import UIKit
+
 @testable import chalkak
 
 struct PhotoUploadSuccessContentTests {
@@ -117,6 +118,124 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.isSubmitting == false)
         #expect(viewModel.viewState.completedSubmission?.content.topic == topic.title)
         #expect(viewModel.viewState.completedSubmission?.content.moderationStatus == .validating)
+    }
+
+    @Test("촬영 사진은 업로드 전에 한 번 저장하고 전시할 때 중복 저장하지 않는다")
+    func savesCapturedPhotoBeforeUpload() async {
+        var savedImages: [UIImage] = []
+        let topic = Self.topic()
+        let preparation = Self.preparation()
+        let viewModel = PhotoUploadViewModel(
+            topicDate: topic.date,
+            repository: PhotoUploadRepository(
+                getCreationTopic: { _ in .success(topic) },
+                prepareImage: { _ in .success(preparation) },
+                createPost: { _, _, _ in
+                    .success(PhotoUploadCreation(postID: "post", topic: topic, moderationStatus: .validating))
+                }
+            ),
+            saveCameraImage: { image in
+                savedImages.append(image)
+                return .saved
+            }
+        )
+        let image = Self.image()
+
+        await viewModel.selectCapturedImage(data: Data([0x01]), preview: image)
+        #expect(savedImages.count == 1)
+        #expect(savedImages.first === image)
+        #expect(viewModel.viewState.completedSubmission == nil)
+        await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
+        viewModel.handle(.submitClicked)
+        await waitUntil { viewModel.viewState.completedSubmission != nil }
+        #expect(savedImages.count == 1)
+    }
+
+    @Test("갤러리에서 선택한 사진은 다시 저장하지 않는다")
+    func doesNotSaveGallerySelection() async {
+        var saveCount = 0
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return .saved
+            }
+        )
+
+        viewModel.selectImage(data: Data([0x01]), preview: Self.image())
+        await Task.yield()
+        #expect(saveCount == 0)
+    }
+
+    @Test("사진 저장 권한 거부나 실패를 안내하고 업로드할 사진은 유지한다")
+    func keepsPhotoAfterGallerySaveFailure() async {
+        for result in [PhotoLibrarySaveResult.permissionDenied, .failed] {
+            let data = Data([0x01])
+            let topic = Self.topic()
+            let preparation = Self.preparation()
+            let viewModel = PhotoUploadViewModel(
+                topicDate: topic.date,
+                repository: PhotoUploadRepository(
+                    getCreationTopic: { _ in .success(topic) },
+                    prepareImage: { _ in .success(preparation) }
+                ),
+                saveCameraImage: { _ in result }
+            )
+
+            await viewModel.selectCapturedImage(data: data, preview: Self.image())
+            await waitUntil { !viewModel.viewState.isTopicLoading }
+
+            #expect(viewModel.viewState.selectedImageData == data)
+            #expect(viewModel.viewState.canSubmit)
+            #expect(viewModel.viewState.pendingMessage?.text.contains("업로드는 계속할 수 있어요") == true)
+        }
+    }
+
+    @Test("업로드 화면 종료 뒤 늦게 끝난 저장 실패를 앱에 알린다")
+    func reportsSaveFailureAfterReset() async {
+        var continuation: CheckedContinuation<PhotoLibrarySaveResult, Never>?
+        var saveCount = 0
+        var reportedFailures: [String] = []
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return await withCheckedContinuation { continuation = $0 }
+            },
+            onCameraImageSaveFailure: { message in
+                reportedFailures.append(message)
+            }
+        )
+        let task = Task {
+            await viewModel.selectCapturedImage(data: Data([0x01]), preview: Self.image())
+        }
+        await waitUntil { continuation != nil }
+
+        viewModel.reset()
+        continuation?.resume(returning: .permissionDenied)
+        await task.value
+
+        #expect(saveCount == 1)
+        #expect(reportedFailures.last?.contains("설정에서 사진 추가 권한") == true)
+        #expect(viewModel.viewState.pendingMessage == nil)
+        #expect(viewModel.viewState.selectedImage == nil)
+    }
+
+    @Test("빈 촬영 데이터는 사진 앱에 저장하지 않는다")
+    func doesNotSaveInvalidCapture() async {
+        var saveCount = 0
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return .saved
+            }
+        )
+
+        await viewModel.selectCapturedImage(data: Data(), preview: Self.image())
+
+        #expect(saveCount == 0)
+        #expect(viewModel.viewState.selectedImage == nil)
     }
 
     @Test("주제 API 인증 만료는 재인증 이벤트로 변환한다")
@@ -308,7 +427,8 @@ struct PhotoUploadAPIClientTests {
             case ("POST", "/api/v1/posts/uploads"):
                 return Self.response(
                     for: request,
-                    body: #"{"uploadId":"upload-id","uploadUrl":"https://upload.example.com/file","expiresInSeconds":60,"contentType":"image/webp","maxBytes":1024}"#
+                    body:
+                        #"{"uploadId":"upload-id","uploadUrl":"https://upload.example.com/file","expiresInSeconds":60,"contentType":"image/webp","maxBytes":1024}"#
                 )
             case ("PUT", "/file"):
                 return Self.response(for: request, body: "")
