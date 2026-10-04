@@ -9,7 +9,7 @@ enum ChalkakImageSource: Hashable, Sendable {
 }
 
 extension ChalkakImageSource {
-    /// 이미 받아 둔 이미지를 동기로 꺼낸다. 원격 이미지는 URL 캐시에 있을 때만 반환한다.
+    /// 이미 받아 둔 이미지를 동기로 꺼낸다. 원격 이미지는 앱이 한 번 그린 적이 있을 때만 반환한다.
     func cachedImage() -> UIImage? {
         switch self {
         case let .asset(name):
@@ -17,10 +17,61 @@ extension ChalkakImageSource {
         case .system:
             nil
         case let .remote(url?):
-            URLCache.shared.cachedResponse(for: URLRequest(url: url)).flatMap { UIImage(data: $0.data) }
+            RemoteImageCache.shared.image(for: url)
         case .remote(nil):
             nil
         }
+    }
+}
+
+/// 받아 둔 원격 이미지를 메모리에 보관한다.
+/// 같은 이미지를 다른 화면에서 다시 그릴 때 네트워크·디코딩을 기다리지 않고 첫 프레임부터 보여준다.
+final class RemoteImageCache {
+    static let shared = RemoteImageCache()
+
+    private let cache = NSCache<NSURL, UIImage>()
+    private var inFlight: [URL: Task<UIImage, Error>] = [:]
+
+    init(totalCostLimit: Int = 64 * 1_024 * 1_024) {
+        cache.totalCostLimit = totalCostLimit
+    }
+
+    func image(for url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func load(_ url: URL) async throws -> UIImage {
+        if let cached = image(for: url) {
+            return cached
+        }
+        if let task = inFlight[url] {
+            return try await task.value
+        }
+
+        let task = Task {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if let response = response as? HTTPURLResponse,
+               !(200..<300).contains(response.statusCode) {
+                throw URLError(.badServerResponse)
+            }
+            guard let image = UIImage(data: data) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+            // 화면에 붙이는 순간 메인 스레드에서 디코딩하지 않도록 미리 풀어 둔다.
+            return await image.byPreparingForDisplay() ?? image
+        }
+        inFlight[url] = task
+        defer { inFlight[url] = nil }
+
+        let image = try await task.value
+        cache.setObject(image, forKey: url as NSURL, cost: image.memoryCost)
+        return image
+    }
+}
+
+private extension UIImage {
+    var memoryCost: Int {
+        Int(size.width * scale * size.height * scale * 4)
     }
 }
 
@@ -34,6 +85,9 @@ enum ImageRatioLoader {
         case .system:
             return nil
         case let .remote(url?):
+            if let image = RemoteImageCache.shared.image(for: url), image.size.width > 0 {
+                return image.size.height / image.size.width
+            }
             guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
             guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
                   let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
@@ -96,20 +150,36 @@ struct ChalkakImage: View {
 }
 
 /// 원격 이미지를 로드하며, 로딩 지연·최소 표시 규칙에 따라 스켈레톤을 노출한다.
+/// 이미 받아 둔 이미지는 첫 프레임부터 바로 그린다.
 private struct RemoteImage: View {
     @Environment(\.chalkakTheme) private var theme
     let url: URL?
     let contentMode: ContentMode
     let showsLoadingSkeleton: Bool
     let onLoad: () -> Void
-    @State private var isLoading = true
+    @State private var phase: RemoteImagePhase
+
+    init(
+        url: URL?,
+        contentMode: ContentMode,
+        showsLoadingSkeleton: Bool,
+        onLoad: @escaping () -> Void
+    ) {
+        self.url = url
+        self.contentMode = contentMode
+        self.showsLoadingSkeleton = showsLoadingSkeleton
+        self.onLoad = onLoad
+        _phase = State(
+            initialValue: url.flatMap(RemoteImageCache.shared.image(for:)).map(RemoteImagePhase.success)
+                ?? .loading
+        )
+    }
 
     var body: some View {
         if let url {
-            AsyncImage(url: url) { phase in
-                phaseContent(phase)
-            }
-            .loadingSkeleton(isLoading: isLoading && showsLoadingSkeleton)
+            phaseContent
+                .loadingSkeleton(isLoading: phase.isLoading && showsLoadingSkeleton)
+                .task(id: url) { await load(url) }
         } else {
             // URL이 없으면 로드가 끝나지 않으므로 스켈레톤 대신 고정 플레이스홀더를 표시한다.
             imagePlaceholder(systemName: "photo")
@@ -117,25 +187,36 @@ private struct RemoteImage: View {
     }
 
     @ViewBuilder
-    private func phaseContent(_ phase: AsyncImagePhase) -> some View {
+    private var phaseContent: some View {
         switch phase {
         case let .success(image):
-            image
+            Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: contentMode)
-                .onAppear {
-                    isLoading = false
-                    onLoad()
-                }
         case .failure:
             imagePlaceholder(systemName: "photo.badge.exclamationmark")
-                .onAppear { isLoading = false }
-        case .empty:
+        case .loading:
             Color.clear
-                .onAppear { isLoading = true }
-        @unknown default:
-            Color.clear
-                .onAppear { isLoading = true }
+        }
+    }
+
+    private func load(_ url: URL) async {
+        if let cached = RemoteImageCache.shared.image(for: url) {
+            phase = .success(cached)
+            onLoad()
+            return
+        }
+
+        phase = .loading
+        do {
+            let image = try await RemoteImageCache.shared.load(url)
+            phase = .success(image)
+            onLoad()
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            phase = .failure
         }
     }
 
@@ -146,6 +227,17 @@ private struct RemoteImage: View {
                 .font(.system(size: Metrics.placeholderIconSize))
                 .foregroundStyle(theme.colors.iconSecondary)
         }
+    }
+}
+
+private enum RemoteImagePhase {
+    case loading
+    case success(UIImage)
+    case failure
+
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
     }
 }
 

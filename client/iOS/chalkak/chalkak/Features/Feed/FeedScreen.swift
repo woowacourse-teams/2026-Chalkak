@@ -208,10 +208,13 @@ struct FeedScreen: View {
         } completion: {
             guard !isClosing else { return }
             isPhotoMoving = false
-            zoomRegistry?.activeSource = nil
         }
         withAnimation(Metrics.contentAnimation) {
             contentProgress = 1
+        } completion: {
+            // 피드 배경이 아직 반투명할 때 출발 뷰가 다시 보이면 피드 너머로 비쳐 깜빡여 보인다.
+            guard !isClosing else { return }
+            zoomRegistry?.activeSource = nil
         }
     }
 
