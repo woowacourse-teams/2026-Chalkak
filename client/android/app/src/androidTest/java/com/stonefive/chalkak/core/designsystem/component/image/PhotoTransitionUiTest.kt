@@ -62,7 +62,7 @@ class PhotoTransitionUiTest {
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalPhotoTransitionCoordinator provides coordinator,
             ) {
-                SharedFeedImage(
+                SharedPhotoImage(
                     key = key,
                     originalImageModel = request,
                     thumbnailImageModel = null,
@@ -97,7 +97,7 @@ class PhotoTransitionUiTest {
                 AnimatedContent(targetState = showFeed, label = "test-photo") { isFeed ->
                     PhotoTransitionProvider(sharedScope, this, coordinator) {
                         if (isFeed) {
-                            SharedFeedImage(
+                            SharedPhotoImage(
                                 key = key,
                                 originalImageModel = null,
                                 thumbnailImageModel = imageModel,

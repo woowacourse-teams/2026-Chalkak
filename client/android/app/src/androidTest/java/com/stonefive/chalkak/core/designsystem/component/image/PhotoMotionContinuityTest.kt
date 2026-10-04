@@ -104,7 +104,7 @@ class PhotoMotionContinuityTest {
                                         .offset(x = DESTINATION_X_DP.dp, y = DESTINATION_Y_DP.dp)
                                         .width(DESTINATION_SIZE_DP.dp),
                                 ) {
-                                    SharedFeedImage(
+                                    SharedPhotoImage(
                                         key = key,
                                         originalImageModel = null,
                                         thumbnailImageModel = null,

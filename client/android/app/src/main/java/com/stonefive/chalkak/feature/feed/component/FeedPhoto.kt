@@ -26,7 +26,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
-import com.stonefive.chalkak.core.designsystem.component.image.SharedFeedImage
+import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
@@ -43,7 +43,7 @@ fun FeedPhoto(
     val entrySnapshot = LocalPhotoTransitionCoordinator.current.selectedSnapshot(postId)
     Column(modifier = modifier) {
         if (entrySnapshot != null || entryThumbnailImageUrl != null) {
-            SharedFeedImage(
+            SharedPhotoImage(
                 key = entrySnapshot?.key ?: PhotoTransitionKey(postId, "record:$postId"),
                 originalImageModel = post?.originalImageUrl,
                 thumbnailImageModel = post?.thumbnailImageUrl ?: entryThumbnailImageUrl,
