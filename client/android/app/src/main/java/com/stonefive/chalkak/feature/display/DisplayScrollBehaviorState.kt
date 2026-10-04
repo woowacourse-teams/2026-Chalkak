@@ -48,6 +48,7 @@ class DisplayScrollBehaviorState(
                     it.isFilterTargetHidden,
                     it.bottomBarState.offset,
                     it.bottomBarState.height,
+                    it.bottomBarState.isTargetHidden,
                 )
             },
             restore = { saved ->
@@ -64,8 +65,11 @@ class DisplayScrollBehaviorState(
                     filterHeight = saved[3] as Int
                     isHeaderTargetHidden = saved[4] as Boolean
                     isFilterTargetHidden = saved[5] as Boolean
-                    bottomBarState.offset = saved[6] as Float
-                    bottomBarState.height = saved[7] as Int
+                    bottomBarState.restoreState(
+                        offset = saved[6] as Float,
+                        height = saved[7] as Int,
+                        isTargetHidden = saved[8] as Boolean,
+                    )
                 }
             },
         )
