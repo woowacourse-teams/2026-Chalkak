@@ -8,7 +8,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -29,6 +30,51 @@ class DisplayScrollBehaviorState(
     hasFilter: Boolean,
     val bottomBarState: BottomBarScrollState,
 ) {
+    companion object {
+        fun saver(
+            gridState: LazyStaggeredGridState,
+            settleScope: CoroutineScope,
+            scrollToTopToggleThresholdPx: Float,
+            hasFilter: Boolean,
+            bottomBarState: BottomBarScrollState,
+        ) = listSaver<DisplayScrollBehaviorState, Any>(
+            save = {
+                listOf(
+                    it.headerOffset,
+                    it.headerHeight,
+                    it.filterOffset,
+                    it.filterHeight,
+                    it.isHeaderTargetHidden,
+                    it.isFilterTargetHidden,
+                    it.bottomBarState.offset,
+                    it.bottomBarState.height,
+                    it.bottomBarState.isTargetHidden,
+                )
+            },
+            restore = { saved ->
+                DisplayScrollBehaviorState(
+                    gridState,
+                    settleScope,
+                    scrollToTopToggleThresholdPx,
+                    hasFilter,
+                    bottomBarState,
+                ).apply {
+                    headerOffset = saved[0] as Float
+                    headerHeight = saved[1] as Int
+                    filterOffset = saved[2] as Float
+                    filterHeight = saved[3] as Int
+                    isHeaderTargetHidden = saved[4] as Boolean
+                    isFilterTargetHidden = saved[5] as Boolean
+                    bottomBarState.restoreState(
+                        offset = saved[6] as Float,
+                        height = saved[7] as Int,
+                        isTargetHidden = saved[8] as Boolean,
+                    )
+                }
+            },
+        )
+    }
+
     private var gridState = gridState
     private var hasFilter = hasFilter
     var headerOffset by mutableFloatStateOf(0f)
@@ -191,10 +237,15 @@ fun rememberDisplayScrollBehaviorState(
     hasFilter: Boolean,
 ): DisplayScrollBehaviorState {
     val bottomBarState = rememberBottomBarScrollState()
-    val state = remember(
-        settleScope,
+    val state = rememberSaveable(
         scrollToTopToggleThresholdPx,
-        bottomBarState,
+        saver = DisplayScrollBehaviorState.saver(
+            gridState = gridState,
+            settleScope = settleScope,
+            scrollToTopToggleThresholdPx = scrollToTopToggleThresholdPx,
+            hasFilter = hasFilter,
+            bottomBarState = bottomBarState,
+        ),
     ) {
         DisplayScrollBehaviorState(
             gridState = gridState,

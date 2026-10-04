@@ -31,9 +31,20 @@ class ChalkakRouteTest {
         val route = FeedById(
             postId = "post-42",
             isOwnedByCurrentUser = true,
+            thumbnailImageUrl = "https://example.com/calendar-thumbnail.jpg",
         )
 
         assertEquals(route, roundTrip(route))
+    }
+
+    @Test
+    fun `older feed by id routes remain readable without entry thumbnail`() {
+        val restored = Json.decodeFromString<FeedById>(
+            """{"postId":"post-42","isOwnedByCurrentUser":true}""",
+        )
+
+        assertEquals(null, restored.thumbnailImageUrl)
+        assertEquals("post-42", restored.postId)
     }
 
     @Test

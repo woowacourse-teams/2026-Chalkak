@@ -289,9 +289,17 @@ class DisplayViewModel(
                 .orEmpty()
                 .intersect(cachedTailIds)
         val content = if (postContent.topicDate < latestDate) {
+            val featuredPhotos = mergedPhotos.take(FEATURED_PHOTO_COUNT)
+            val previousArchive = _uiState.value
+                .takeIf { it.selectedDate == postContent.topicDate }
+                ?.content as? DisplayContentState.Archive
             DisplayContentState.Archive(
                 photos = mergedPhotos,
-                featuredPhotos = mergedPhotos.take(FEATURED_PHOTO_COUNT),
+                featuredPhotos = featuredPhotos,
+                featuredPage = previousArchive
+                    ?.featuredPage
+                    ?.coerceIn(0, featuredPhotos.lastIndex.coerceAtLeast(0))
+                    ?: 0,
             )
         } else {
             DisplayContentState.Latest(

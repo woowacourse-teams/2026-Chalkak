@@ -45,6 +45,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -69,7 +71,7 @@ fun RecordRoute(
     onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory),
-    onOpenFeed: (String) -> Unit = {},
+    onOpenFeed: (String, String) -> Unit = { _, _ -> },
     deletedPostId: String? = null,
     onDeletedPostConsumed: () -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
@@ -125,11 +127,12 @@ fun RecordScreen(
     onStoragePermissionDenied: () -> Unit = {},
     modifier: Modifier = Modifier,
     onRetryClick: () -> Unit = {},
-    onOpenFeed: (String) -> Unit = {},
+    onOpenFeed: (String, String) -> Unit = { _, _ -> },
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
 ) {
+    val photoTransitionCoordinator = LocalPhotoTransitionCoordinator.current
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -263,7 +266,10 @@ fun RecordScreen(
                 if (selectedPost?.status == PostStatus.APPROVED) {
                     RecordPhotoActions(
                         onFeedClick = {
-                            onOpenFeed(selectedPost.postId)
+                            photoTransitionCoordinator.select(
+                                PhotoTransitionKey(selectedPost.postId, "record:${selectedPost.postId}"),
+                            )
+                            onOpenFeed(selectedPost.postId, selectedPost.thumbnailImageUrl)
                         },
                         onDisplayClick = {
                             onOpenDisplay(selectedPost.topicDate)

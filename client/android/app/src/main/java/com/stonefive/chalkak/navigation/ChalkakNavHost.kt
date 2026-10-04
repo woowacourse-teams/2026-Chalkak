@@ -1,6 +1,9 @@
 package com.stonefive.chalkak.navigation
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -24,6 +27,8 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
+import com.stonefive.chalkak.core.designsystem.component.image.rememberPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.legal.LegalDocument
 import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
@@ -54,6 +59,7 @@ import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
 import java.time.LocalDate
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ChalkakNavHost(
     analyticsTracker: AnalyticsTracker,
@@ -62,6 +68,7 @@ fun ChalkakNavHost(
     startDestination: Any = Login,
     signUpViewModel: SignUpViewModel? = null,
 ) {
+    val photoTransitionCoordinator = rememberPhotoTransitionCoordinator()
     val application = LocalContext.current.applicationContext as ChalkakApplication
     val sessionState by application.appContainer.authRepository.sessionState
         .collectAsStateWithLifecycle()
@@ -153,340 +160,375 @@ fun ChalkakNavHost(
         )
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-        modifier = modifier,
-    ) {
-        composable<Login> {
-            LoginRoute(
-                onGuestAccessGranted = {
-                    navController.navigate(Today) {
-                        popUpTo<Login> { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
-                onSignUpRequired = {
-                    navController.navigate(Terms)
-                },
-            )
-        }
-
-        composable<Terms> {
-            TermsRoute(
-                onNextClick = {
-                    navController.navigate(OnboardingSignature)
-                },
-                onServiceTermsViewClick = {
-                    legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
-                },
-                onPrivacyPolicyViewClick = {
-                    legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
-                },
-            )
-        }
-
-        composable<OnboardingSignature> {
-            OnboardingSignatureRoute(
-                onPreviewRequested = { signaturePng ->
-                    signaturePreviewPng = signaturePng
-                    navController.navigate(OnboardingSignaturePreview)
-                },
-            )
-        }
-
-        composable<ChangeSignature> {
-            ChangeSignatureRoute(
-                onPreviewRequested = { signaturePng ->
-                    signaturePreviewPng = signaturePng
-                    navController.navigate(ChangeSignaturePreview)
-                },
-            )
-        }
-
-        composable<OnboardingSignaturePreview> {
-            signaturePreviewPng?.let { signaturePng ->
-                val previewSignUpViewModel = signUpViewModel
-                    ?: viewModel(factory = SignUpViewModel.Factory)
-
-                OnboardingSignaturePreviewRoute(
-                    imageModel = R.drawable.preview_photo,
-                    signaturePng = signaturePng,
-                    onRedrawClick = {
-                        navController.popBackStack()
-                        signaturePreviewPng = null
-                    },
-                    onSignUpSuccess = {
-                        navController.navigate(ReminderTime()) {
-                            popUpTo<Terms> { inclusive = true }
+    SharedTransitionLayout {
+        val sharedTransitionScope = this
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = modifier,
+        ) {
+            composable<Login> {
+                LoginRoute(
+                    onGuestAccessGranted = {
+                        navController.navigate(Today) {
+                            popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
                         }
-                        signaturePreviewPng = null
                     },
+                    onSignUpRequired = {
+                        navController.navigate(Terms)
+                    },
+                )
+            }
+
+            composable<Terms> {
+                TermsRoute(
+                    onNextClick = {
+                        navController.navigate(OnboardingSignature)
+                    },
+                    onServiceTermsViewClick = {
+                        legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
+                    },
+                    onPrivacyPolicyViewClick = {
+                        legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
+                    },
+                )
+            }
+
+            composable<OnboardingSignature> {
+                OnboardingSignatureRoute(
+                    onPreviewRequested = { signaturePng ->
+                        signaturePreviewPng = signaturePng
+                        navController.navigate(OnboardingSignaturePreview)
+                    },
+                )
+            }
+
+            composable<ChangeSignature> {
+                ChangeSignatureRoute(
+                    onPreviewRequested = { signaturePng ->
+                        signaturePreviewPng = signaturePng
+                        navController.navigate(ChangeSignaturePreview)
+                    },
+                )
+            }
+
+            composable<OnboardingSignaturePreview> {
+                signaturePreviewPng?.let { signaturePng ->
+                    val previewSignUpViewModel = signUpViewModel
+                        ?: viewModel(factory = SignUpViewModel.Factory)
+
+                    OnboardingSignaturePreviewRoute(
+                        imageModel = R.drawable.preview_photo,
+                        signaturePng = signaturePng,
+                        onRedrawClick = {
+                            navController.popBackStack()
+                            signaturePreviewPng = null
+                        },
+                        onSignUpSuccess = {
+                            navController.navigate(ReminderTime()) {
+                                popUpTo<Terms> { inclusive = true }
+                                launchSingleTop = true
+                            }
+                            signaturePreviewPng = null
+                        },
+                        onReauthenticationRequired = {
+                            navController.navigate(Login) {
+                                popUpTo<Login> { inclusive = true }
+                            }
+                            signaturePreviewPng = null
+                        },
+                        viewModel = previewSignUpViewModel,
+                    )
+                }
+            }
+
+            composable<ReminderTime> { backStackEntry ->
+                val reminderTime = backStackEntry.toRoute<ReminderTime>()
+
+                ReminderTimeRoute(
+                    onConfigured = {
+                        if (reminderTime.returnToSettings) {
+                            navController.popBackStack()
+                        } else {
+                            navController.navigate(Today) {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                )
+            }
+
+            composable<ChangeSignaturePreview> {
+                signaturePreviewPng?.let { signaturePng ->
+                    ChangeSignaturePreviewRoute(
+                        signaturePng = signaturePng,
+                        onRedrawClick = {
+                            navController.popBackStack()
+                            signaturePreviewPng = null
+                        },
+                        onSignatureChanged = { profile ->
+                            navController.getBackStackEntry<Settings>().savedStateHandle[
+                                SETTINGS_SIGNATURE_UPDATED_KEY,
+                            ] = profile.signatureUrl
+                            signaturePreviewPng = null
+                            navController.popBackStack(Settings, inclusive = false)
+                        },
+                    )
+                }
+            }
+
+            composable<Today> {
+                HomeRoute(
+                    onOpenPhotoUpload = openPhotoUpload,
+                    onNavigateToBottomBar = navigateToBottomBar,
+                    onOpenNotifications = {
+                        navController.navigate(Notifications) { launchSingleTop = true }
+                    },
+                )
+            }
+
+            composable<Notifications> {
+                NotificationRoute(onBackClick = { navController.popBackStack() })
+            }
+
+            composable<Display> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val display = backStackEntry.toRoute<Display>()
+
+                    DisplayRoute(
+                        onOpenPhotoUpload = openPhotoUpload,
+                        onNavigateToBottomBar = navigateToBottomBar,
+                        initialDate = display.date.toLocalDateOrNull(),
+                        onOpenFeed = { post, dateLabel, topic, topicDate ->
+                            if (sessionState is UserSessionState.Authenticated) {
+                                navController.navigate(
+                                    Feed(
+                                        postId = post.id,
+                                        originalImageUrl = post.originalImageUrl,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                        signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                                        signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
+                                        contentDescription = post.contentDescription,
+                                        title = post.title,
+                                        likeCount = post.likeCount,
+                                        isLiked = post.isLiked,
+                                        dateLabel = dateLabel,
+                                        topic = topic,
+                                        topicDate = topicDate?.toString(),
+                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                    ),
+                                )
+                            } else {
+                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                            }
+                        },
+                    )
+                }
+            }
+
+            composable<Feed> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val feed = backStackEntry.toRoute<Feed>()
+                    DisposableEffect(backStackEntry) {
+                        onDispose { photoTransitionCoordinator.clear(feed.postId) }
+                    }
+
+                    FeedRoute(
+                        postId = feed.postId.takeIf { feed.fetchDetail },
+                        initialContent = FeedContentState.Success(
+                            dateLabel = feed.dateLabel,
+                            topic = feed.topic,
+                            post = Post(
+                                id = feed.postId,
+                                originalImageUrl = feed.originalImageUrl,
+                                thumbnailImageUrl = feed.thumbnailImageUrl,
+                                signatureOriginalImageUrl = feed.signatureOriginalImageUrl,
+                                signatureThumbnailImageUrl = feed.signatureThumbnailImageUrl,
+                                contentDescription = feed.contentDescription,
+                                title = feed.title,
+                                likeCount = feed.likeCount,
+                                isLiked = feed.isLiked,
+                                isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                            ),
+                            isLiked = false,
+                            topicDate = feed.topicDate?.toLocalDateOrNull(),
+                        ),
+                        onNavigateBack = { navController.popBackStack() },
+                        onPostDeleted = { postId ->
+                            showToast(POST_DELETED_MESSAGE)
+                            navController.previousBackStackEntry?.savedStateHandle?.set(
+                                POST_DELETED_KEY,
+                                postId,
+                            )
+                            navController.popBackStack()
+                        },
+                    )
+                }
+            }
+
+            composable<FeedById> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val feed = backStackEntry.toRoute<FeedById>()
+                    DisposableEffect(backStackEntry) {
+                        onDispose { photoTransitionCoordinator.clear(feed.postId) }
+                    }
+
+                    FeedRoute(
+                        postId = feed.postId,
+                        entryThumbnailImageUrl = feed.thumbnailImageUrl,
+                        isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                        onNavigateBack = { navController.popBackStack() },
+                        onPostDeleted = { postId ->
+                            showToast(POST_DELETED_MESSAGE)
+                            navController.previousBackStackEntry?.savedStateHandle?.set(
+                                POST_DELETED_KEY,
+                                postId,
+                            )
+                            navController.popBackStack()
+                        },
+                    )
+                }
+            }
+
+            composable<Record> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val deletedPostId by backStackEntry.savedStateHandle
+                        .getStateFlow<String?>(POST_DELETED_KEY, null)
+                        .collectAsStateWithLifecycle()
+
+                    RecordRoute(
+                        onOpenPhotoUpload = openPhotoUpload,
+                        onNavigateToBottomBar = navigateToBottomBar,
+                        onOpenFeed = { postId, thumbnailImageUrl ->
+                            navController.navigate(
+                                FeedById(
+                                    postId = postId,
+                                    isOwnedByCurrentUser = true,
+                                    thumbnailImageUrl = thumbnailImageUrl,
+                                ),
+                            )
+                        },
+                        onOpenDisplay = { date ->
+                            navController.navigateToDisplay(date)
+                        },
+                        onNavigateToLogin = navigateToLogin,
+                        deletedPostId = deletedPostId,
+                        onDeletedPostConsumed = {
+                            backStackEntry.savedStateHandle[POST_DELETED_KEY] = null
+                        },
+                    )
+                }
+            }
+
+            composable<Settings> { backStackEntry ->
+                val updatedSignatureUrl by backStackEntry.savedStateHandle
+                    .getStateFlow<String?>(SETTINGS_SIGNATURE_UPDATED_KEY, null)
+                    .collectAsStateWithLifecycle()
+
+                SettingsRoute(
+                    signatureUpdateUrl = updatedSignatureUrl,
+                    onNavigateToSignature = {
+                        navController.navigate(ChangeSignature)
+                    },
+                    onOpenPrivacyPolicy = {
+                        legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
+                    },
+                    onOpenTerms = {
+                        legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
+                    },
+                    onOpenFeedback = {
+                        if (sessionState is UserSessionState.Authenticated) {
+                            navController.navigate(Feedback)
+                        } else {
+                            showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
+                        }
+                    },
+                    onOpenReminder = {
+                        navController.navigate(ReminderTime(returnToSettings = true))
+                    },
+                    onNavigateToBottomBar = navigateToBottomBar,
+                    onOpenPhotoUpload = openPhotoUpload,
+                )
+            }
+
+            composable<Feedback> {
+                FeedbackRoute(
+                    onBack = { navController.popBackStack() },
+                    onSubmitted = {
+                        showToast(FEEDBACK_SUBMITTED_MESSAGE)
+                        navController.popBackStack()
+                    },
+                    onReauthenticationRequired = navigateToLogin,
+                )
+            }
+
+            composable<PhotoUpload> { backStackEntry ->
+                val upload = backStackEntry.toRoute<PhotoUpload>()
+                PhotoUploadRoute(
+                    topicDate = LocalDate.parse(upload.topicDate),
+                    onBack = { navController.popBackStack() },
                     onReauthenticationRequired = {
                         navController.navigate(Login) {
-                            popUpTo<Login> { inclusive = true }
-                        }
-                        signaturePreviewPng = null
-                    },
-                    viewModel = previewSignUpViewModel,
-                )
-            }
-        }
-
-        composable<ReminderTime> { backStackEntry ->
-            val reminderTime = backStackEntry.toRoute<ReminderTime>()
-
-            ReminderTimeRoute(
-                onConfigured = {
-                    if (reminderTime.returnToSettings) {
-                        navController.popBackStack()
-                    } else {
-                        navController.navigate(Today) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true
-                            }
+                            popUpTo<Today> { inclusive = true }
                             launchSingleTop = true
                         }
-                    }
-                },
-            )
-        }
-
-        composable<ChangeSignaturePreview> {
-            signaturePreviewPng?.let { signaturePng ->
-                ChangeSignaturePreviewRoute(
-                    signaturePng = signaturePng,
-                    onRedrawClick = {
-                        navController.popBackStack()
-                        signaturePreviewPng = null
                     },
-                    onSignatureChanged = { profile ->
-                        navController.getBackStackEntry<Settings>().savedStateHandle[
-                            SETTINGS_SIGNATURE_UPDATED_KEY,
-                        ] = profile.signatureUrl
-                        signaturePreviewPng = null
-                        navController.popBackStack(Settings, inclusive = false)
+                    onSubmitted = { submission ->
+                        navController.navigate(
+                            PhotoUploadSuccess(
+                                imageModel = submission.imageModel,
+                                caption = submission.caption,
+                                date = submission.content.date
+                                    .toString(),
+                                topic = submission.content.topic,
+                                moderationStatus = submission.content.moderationStatus,
+                            ),
+                        ) {
+                            popUpTo<PhotoUpload> { inclusive = true }
+                        }
                     },
                 )
             }
-        }
 
-        composable<Today> {
-            HomeRoute(
-                onOpenPhotoUpload = openPhotoUpload,
-                onNavigateToBottomBar = navigateToBottomBar,
-                onOpenNotifications = {
-                    navController.navigate(Notifications) { launchSingleTop = true }
-                },
-            )
-        }
+            composable<PhotoUploadSuccess> { backStackEntry ->
+                val success = backStackEntry.toRoute<PhotoUploadSuccess>()
 
-        composable<Notifications> {
-            NotificationRoute(onBackClick = { navController.popBackStack() })
-        }
-
-        composable<Display> { backStackEntry ->
-            val display = backStackEntry.toRoute<Display>()
-
-            DisplayRoute(
-                onOpenPhotoUpload = openPhotoUpload,
-                onNavigateToBottomBar = navigateToBottomBar,
-                initialDate = display.date.toLocalDateOrNull(),
-                onOpenFeed = { post, dateLabel, topic, topicDate ->
-                    if (sessionState is UserSessionState.Authenticated) {
-                        navController.navigate(
-                            Feed(
-                                postId = post.id,
-                                originalImageUrl = post.originalImageUrl,
-                                thumbnailImageUrl = post.thumbnailImageUrl,
-                                signatureOriginalImageUrl = post.signatureOriginalImageUrl,
-                                signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
-                                contentDescription = post.contentDescription,
-                                title = post.title,
-                                likeCount = post.likeCount,
-                                isLiked = post.isLiked,
-                                dateLabel = dateLabel,
-                                topic = topic,
-                                topicDate = topicDate?.toString(),
-                                isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                            ),
-                        )
-                    } else {
-                        showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
-                    }
-                },
-            )
-        }
-
-        composable<Feed> { backStackEntry ->
-            val feed = backStackEntry.toRoute<Feed>()
-
-            FeedRoute(
-                postId = feed.postId.takeIf { feed.fetchDetail },
-                initialContent = FeedContentState.Success(
-                    dateLabel = feed.dateLabel,
-                    topic = feed.topic,
-                    post = Post(
-                        id = feed.postId,
-                        originalImageUrl = feed.originalImageUrl,
-                        thumbnailImageUrl = feed.thumbnailImageUrl,
-                        signatureOriginalImageUrl = feed.signatureOriginalImageUrl,
-                        signatureThumbnailImageUrl = feed.signatureThumbnailImageUrl,
-                        contentDescription = feed.contentDescription,
-                        title = feed.title,
-                        likeCount = feed.likeCount,
-                        isLiked = feed.isLiked,
-                        isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                PhotoUploadSuccessScreen(
+                    imageModel = success.imageModel,
+                    caption = success.caption,
+                    content = PhotoUploadSuccessContent(
+                        date = LocalDate.parse(success.date),
+                        topic = success.topic,
+                        moderationStatus = success.moderationStatus,
                     ),
-                    isLiked = false,
-                    topicDate = feed.topicDate?.toLocalDateOrNull(),
-                ),
-                onNavigateBack = { navController.popBackStack() },
-                onPostDeleted = { postId ->
-                    showToast(POST_DELETED_MESSAGE)
-                    navController.previousBackStackEntry?.savedStateHandle?.set(
-                        POST_DELETED_KEY,
-                        postId,
-                    )
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable<FeedById> { backStackEntry ->
-            val feed = backStackEntry.toRoute<FeedById>()
-
-            FeedRoute(
-                postId = feed.postId,
-                isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
-                onNavigateBack = { navController.popBackStack() },
-                onPostDeleted = { postId ->
-                    showToast(POST_DELETED_MESSAGE)
-                    navController.previousBackStackEntry?.savedStateHandle?.set(
-                        POST_DELETED_KEY,
-                        postId,
-                    )
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable<Record> { backStackEntry ->
-            val deletedPostId by backStackEntry.savedStateHandle
-                .getStateFlow<String?>(POST_DELETED_KEY, null)
-                .collectAsStateWithLifecycle()
-
-            RecordRoute(
-                onOpenPhotoUpload = openPhotoUpload,
-                onNavigateToBottomBar = navigateToBottomBar,
-                onOpenFeed = { postId ->
-                    navController.navigate(
-                        FeedById(
-                            postId = postId,
-                            isOwnedByCurrentUser = true,
-                        ),
-                    )
-                },
-                onOpenDisplay = { date ->
-                    navController.navigateToDisplay(date)
-                },
-                onNavigateToLogin = navigateToLogin,
-                deletedPostId = deletedPostId,
-                onDeletedPostConsumed = {
-                    backStackEntry.savedStateHandle[POST_DELETED_KEY] = null
-                },
-            )
-        }
-
-        composable<Settings> { backStackEntry ->
-            val updatedSignatureUrl by backStackEntry.savedStateHandle
-                .getStateFlow<String?>(SETTINGS_SIGNATURE_UPDATED_KEY, null)
-                .collectAsStateWithLifecycle()
-
-            SettingsRoute(
-                signatureUpdateUrl = updatedSignatureUrl,
-                onNavigateToSignature = {
-                    navController.navigate(ChangeSignature)
-                },
-                onOpenPrivacyPolicy = {
-                    legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
-                },
-                onOpenTerms = {
-                    legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
-                },
-                onOpenFeedback = {
-                    if (sessionState is UserSessionState.Authenticated) {
-                        navController.navigate(Feedback)
-                    } else {
-                        showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
-                    }
-                },
-                onOpenReminder = {
-                    navController.navigate(ReminderTime(returnToSettings = true))
-                },
-                onNavigateToBottomBar = navigateToBottomBar,
-                onOpenPhotoUpload = openPhotoUpload,
-            )
-        }
-
-        composable<Feedback> {
-            FeedbackRoute(
-                onBack = { navController.popBackStack() },
-                onSubmitted = {
-                    showToast(FEEDBACK_SUBMITTED_MESSAGE)
-                    navController.popBackStack()
-                },
-                onReauthenticationRequired = navigateToLogin,
-            )
-        }
-
-        composable<PhotoUpload> { backStackEntry ->
-            val upload = backStackEntry.toRoute<PhotoUpload>()
-            PhotoUploadRoute(
-                topicDate = LocalDate.parse(upload.topicDate),
-                onBack = { navController.popBackStack() },
-                onReauthenticationRequired = {
-                    navController.navigate(Login) {
-                        popUpTo<Today> { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
-                onSubmitted = { submission ->
-                    navController.navigate(
-                        PhotoUploadSuccess(
-                            imageModel = submission.imageModel,
-                            caption = submission.caption,
-                            date = submission.content.date
-                                .toString(),
-                            topic = submission.content.topic,
-                            moderationStatus = submission.content.moderationStatus,
-                        ),
-                    ) {
-                        popUpTo<PhotoUpload> { inclusive = true }
-                    }
-                },
-            )
-        }
-
-        composable<PhotoUploadSuccess> { backStackEntry ->
-            val success = backStackEntry.toRoute<PhotoUploadSuccess>()
-
-            PhotoUploadSuccessScreen(
-                imageModel = success.imageModel,
-                caption = success.caption,
-                content = PhotoUploadSuccessContent(
-                    date = LocalDate.parse(success.date),
-                    topic = success.topic,
-                    moderationStatus = success.moderationStatus,
-                ),
-                onConfirmClick = {
-                    navController.navigate(Display(date = success.date)) {
-                        popUpTo<Today> { inclusive = false }
-                        launchSingleTop = true
-                    }
-                },
-            )
+                    onConfirmClick = {
+                        navController.navigate(Display(date = success.date)) {
+                            popUpTo<Today> { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
         }
     }
 }

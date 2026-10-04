@@ -24,36 +24,57 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
+import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
 @Composable
 fun FeedPhoto(
-    post: Post,
+    post: Post?,
     isLiked: Boolean,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    entryPostId: String? = null,
+    entryThumbnailImageUrl: String? = null,
 ) {
+    val postId = post?.id ?: entryPostId ?: return
+    val entrySnapshot = LocalPhotoTransitionCoordinator.current.selectedSnapshot(postId)
     Column(modifier = modifier) {
-        ChalkakSignedImage(
-            imageModel = post.originalImageUrl,
-            signatureModel = post.signatureOriginalImageUrl,
-            contentDescription = post.contentDescription,
-            thumbnailImageModel = post.thumbnailImageUrl,
-            thumbnailSignatureModel = post.signatureThumbnailImageUrl,
-            contentScale = ContentScale.FillWidth,
-            signatureModifier = Modifier.size(
-                width = 70.dp,
-                height = 52.dp,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        FeedLikeRow(
-            likeCount = post.likeCount,
-            isLiked = isLiked,
-            onLikeClick = onLikeClick,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (entrySnapshot != null || entryThumbnailImageUrl != null) {
+            SharedPhotoImage(
+                key = entrySnapshot?.key ?: PhotoTransitionKey(postId, "record:$postId"),
+                originalImageModel = post?.originalImageUrl,
+                thumbnailImageModel = post?.thumbnailImageUrl ?: entryThumbnailImageUrl,
+                signatureModel = post?.signatureOriginalImageUrl,
+                thumbnailSignatureModel = post?.signatureThumbnailImageUrl,
+                contentDescription = post?.contentDescription ?: "기록 사진",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (post != null) {
+            ChalkakSignedImage(
+                imageModel = post.originalImageUrl,
+                signatureModel = post.signatureOriginalImageUrl,
+                contentDescription = post.contentDescription,
+                thumbnailImageModel = post.thumbnailImageUrl,
+                thumbnailSignatureModel = post.signatureThumbnailImageUrl,
+                contentScale = ContentScale.FillWidth,
+                signatureModifier = Modifier.size(
+                    width = 70.dp,
+                    height = 52.dp,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (post != null) {
+            FeedLikeRow(
+                likeCount = post.likeCount,
+                isLiked = isLiked,
+                onLikeClick = onLikeClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

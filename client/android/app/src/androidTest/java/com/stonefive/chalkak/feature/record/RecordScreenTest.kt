@@ -147,6 +147,7 @@ class RecordScreenTest {
     fun selectedPhotoOpensInFeed() {
         val photo = recordPhoto(day = 2)
         var openedPostId: String? = null
+        var openedThumbnail: String? = null
 
         composeRule.setContent {
             ChalkakTheme {
@@ -162,7 +163,10 @@ class RecordScreenTest {
                     onDateClick = {},
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
-                    onOpenFeed = { openedPostId = it },
+                    onOpenFeed = { postId, thumbnail ->
+                        openedPostId = postId
+                        openedThumbnail = thumbnail
+                    },
                 )
             }
         }
@@ -170,6 +174,7 @@ class RecordScreenTest {
         composeRule.onNodeWithText("피드에서 보기").performClick()
 
         assertEquals(photo.postId, openedPostId)
+        assertEquals(photo.thumbnailImageUrl, openedThumbnail)
     }
 
     @Test
