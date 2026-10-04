@@ -79,6 +79,7 @@ fun PhotoUploadRoute(
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     val photoPickerState = rememberPhotoPickerState(
         onImageSelected = viewModel::onImageSelected,
+        onCapturedImageSaveFailed = viewModel::onCapturedImageSaveFailed,
         onCapturedImageCompleted = viewModel::onCapturedImageCompleted,
     )
 
@@ -286,10 +287,12 @@ fun PhotoUploadScreen(
 @Composable
 private fun rememberPhotoPickerState(
     onImageSelected: (String) -> Unit,
+    onCapturedImageSaveFailed: () -> Unit,
     onCapturedImageCompleted: (String, String?, Boolean) -> Unit,
 ): PhotoPickerState {
     val context = LocalContext.current
     val currentOnImageSelected by rememberUpdatedState(onImageSelected)
+    val currentOnCapturedImageSaveFailed by rememberUpdatedState(onCapturedImageSaveFailed)
     val currentOnCapturedImageCompleted by rememberUpdatedState(onCapturedImageCompleted)
     val isCameraAvailable = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
