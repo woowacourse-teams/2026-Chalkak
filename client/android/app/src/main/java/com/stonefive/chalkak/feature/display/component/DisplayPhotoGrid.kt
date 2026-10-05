@@ -35,6 +35,7 @@ fun DisplayPhotoGrid(
     modifier: Modifier = Modifier,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     onPhotoClick: (Post) -> Unit = {},
+    onLikeClick: (Post) -> Unit = {},
     onEndThresholdChanged: (Boolean) -> Unit = {},
     isLoadingNext: Boolean = false,
     topContentPadding: Dp = 0.dp,
@@ -78,6 +79,7 @@ fun DisplayPhotoGrid(
             DisplayPhotoCard(
                 photo = photo,
                 onClick = { onPhotoClick(photo) },
+                onLikeClick = { onLikeClick(photo) },
                 imageAspectRatio = imageAspectRatios[photo.thumbnailImageUrl],
                 onImageAspectRatioAvailable = { aspectRatio ->
                     if (imageAspectRatios[photo.thumbnailImageUrl] != aspectRatio) {

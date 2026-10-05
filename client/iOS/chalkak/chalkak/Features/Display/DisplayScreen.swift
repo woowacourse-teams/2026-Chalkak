@@ -135,6 +135,8 @@ struct DisplayScreen: View {
                         photos: viewModel.viewState.featuredPhotos,
                         currentPage: viewModel.viewState.featuredPage,
                         onPageChange: { viewModel.updateFeaturedPage($0) },
+                        likingPhotoIDs: viewModel.likingPhotoIDs,
+                        onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
                         onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                     // 페이저가 이웃 카드를 화면 폭까지 peek 하도록 화면 좌우 여백을 상쇄한다.
@@ -164,6 +166,8 @@ struct DisplayScreen: View {
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
                         },
+                        likingPhotoIDs: viewModel.likingPhotoIDs,
+                        onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
                         onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
                     )
                     .padding(.top, gridTopSpacing)
@@ -236,6 +240,8 @@ struct DisplayScreen: View {
     private func handle(_ event: DisplayEvent?) {
         guard let event else { return }
         switch event {
+        case .likeFailed:
+            showMessage("좋아요를 변경하지 못했어요")
         case let .showFailure(reason):
             showMessage(reason.message)
         }
