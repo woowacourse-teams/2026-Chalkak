@@ -65,7 +65,10 @@ private struct DisplayFeaturedCard: View {
                 signatureSource: photo.signatureOriginalImageSource,
                 contentDescription: photo.contentDescription,
                 contentMode: .fit,
-                signatureSize: Metrics.signatureSize
+                signatureSize: Metrics.signatureSize,
+                // Android 랭킹 카드처럼 원본을 받는 동안 썸네일을 먼저 보여준다.
+                thumbnailImageSource: photo.thumbnailImageSource,
+                thumbnailSignatureSource: photo.signatureThumbnailImageSource
             )
             // 사진만 숨겨 검은 카드·좋아요 수·제목은 남긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
             // Android(sourceShape = null)처럼 둥근 모서리 없이 출발한다.

@@ -157,16 +157,40 @@ struct ChalkakImage: View {
     var showsLoadingSkeleton = true
     // 이미지가 화면에 그려질 준비가 됐을 때 호출된다.
     var onLoad: () -> Void = {}
+    // 이미지를 받는 동안 대신 보여줄 썸네일. Android ChalkakImage의 thumbnailModel과 같다.
+    var thumbnailSource: ChalkakImageSource?
+    @State private var isPrimaryLoaded = false
 
     var body: some View {
-        image
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(contentDescription ?? "")
-            .accessibilityHidden(contentDescription == nil)
+        ZStack {
+            if let thumbnailSource, !isPrimaryShown {
+                image(for: thumbnailSource, showsLoadingSkeleton: true, onLoad: {})
+            }
+            image(
+                for: source,
+                showsLoadingSkeleton: showsLoadingSkeleton && thumbnailSource == nil,
+                onLoad: {
+                    isPrimaryLoaded = true
+                    onLoad()
+                }
+            )
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(contentDescription ?? "")
+        .accessibilityHidden(contentDescription == nil)
+    }
+
+    // 이미 받아 둔 이미지는 첫 프레임부터 그려지므로 썸네일을 겹쳐 그리지 않는다.
+    private var isPrimaryShown: Bool {
+        isPrimaryLoaded || source.cachedImage() != nil
     }
 
     @ViewBuilder
-    private var image: some View {
+    private func image(
+        for source: ChalkakImageSource,
+        showsLoadingSkeleton: Bool,
+        onLoad: @escaping () -> Void
+    ) -> some View {
         switch source {
         case let .asset(name):
             Image(name)

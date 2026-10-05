@@ -9,6 +9,9 @@ struct ChalkakSignedImage: View {
     var signatureSize = Metrics.defaultSignatureSize
     var showsLoadingSkeleton = true
     var onImageLoad: () -> Void = {}
+    // 사진·서명을 받는 동안 대신 보여줄 썸네일. Android ChalkakSignedImage와 같다.
+    var thumbnailImageSource: ChalkakImageSource?
+    var thumbnailSignatureSource: ChalkakImageSource?
 
     var body: some View {
         GeometryReader { proxy in
@@ -18,7 +21,8 @@ struct ChalkakSignedImage: View {
                     contentDescription: contentDescription,
                     contentMode: contentMode,
                     showsLoadingSkeleton: showsLoadingSkeleton,
-                    onLoad: onImageLoad
+                    onLoad: onImageLoad,
+                    thumbnailSource: thumbnailImageSource
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()
@@ -26,7 +30,8 @@ struct ChalkakSignedImage: View {
                 ChalkakImage(
                     source: signatureSource,
                     contentDescription: nil,
-                    contentMode: .fit
+                    contentMode: .fit,
+                    thumbnailSource: thumbnailSignatureSource
                 )
                 .frame(width: signatureSize.width, height: signatureSize.height)
                 .padding(theme.spacing.sm)
