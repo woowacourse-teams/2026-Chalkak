@@ -142,6 +142,8 @@ struct DisplayScreen: View {
                         photos: viewModel.viewState.featuredPhotos,
                         currentPage: viewModel.viewState.featuredPage,
                         onPageChange: { viewModel.updateFeaturedPage($0) },
+                        likingPhotoIDs: viewModel.likingPhotoIDs,
+                        onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
                         onSelect: { photo in
                             onSelectPhoto(
                                 feedTarget(
@@ -184,6 +186,8 @@ struct DisplayScreen: View {
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
                         },
+                        likingPhotoIDs: viewModel.likingPhotoIDs,
+                        onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
                         onSelect: { photo, ratio in
                             onSelectPhoto(
                                 feedTarget(
@@ -268,6 +272,8 @@ struct DisplayScreen: View {
     private func handle(_ event: DisplayEvent?) {
         guard let event else { return }
         switch event {
+        case .likeFailed:
+            showMessage("좋아요를 변경하지 못했어요")
         case let .showFailure(reason):
             showMessage(reason.message)
         }

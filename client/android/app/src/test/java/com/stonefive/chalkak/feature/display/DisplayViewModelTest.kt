@@ -233,6 +233,51 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `재검증 실패 복원은 요청 이후 성공한 좋아요 상태를 유지한다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+
+        viewModel.onResume()
+        repository.pendingContentResult = pendingResult
+        viewModel.onResume()
+        viewModel.updateLike(post.id)
+        advanceUntilIdle()
+
+        pendingResult.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val content = state.content as DisplayContentState.Latest
+        val likedPhoto = content.photos.single()
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals(18, likedPhoto.likeCount)
+        assertTrue(likedPhoto.isLiked)
+    }
+
+    @Test
+    fun `재검증 실패 복원은 요청 이후 실패한 좋아요 복원 상태를 유지한다`() = runTest {
+        val pendingLikeResult = CompletableDeferred<HomeResult<HomeLike>>()
+        val pendingContentResult = CompletableDeferred<HomeResult<PostContent>>()
+
+        viewModel.onResume()
+        repository.pendingLikeResult = pendingLikeResult
+        viewModel.updateLike(post.id)
+        repository.pendingContentResult = pendingContentResult
+        viewModel.onResume()
+
+        pendingLikeResult.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+        pendingContentResult.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val content = state.content as DisplayContentState.Latest
+        val restoredPhoto = content.photos.single()
+        assertFalse(post.id in state.likedPhotoIds)
+        assertEquals(17, restoredPhoto.likeCount)
+        assertFalse(restoredPhoto.isLiked)
+    }
+
+    @Test
     fun `과거 날짜는 인기순으로 불러오고 최신 날짜로 돌아오면 기존 정렬을 복원한다`() = runTest {
         viewModel.selectSort(PostSort.RANDOM)
 
@@ -526,6 +571,103 @@ class DisplayViewModelTest {
         assertEquals(LATEST_DATE, state.selectedDate)
         assertEquals(previousContent, state.content)
     }
+
+    @Test
+    fun `좋아요 액션은 게시물 상태와 저장소를 함께 갱신한다`() = runTest {
+        viewModel.updateLike(post.id)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val content = state.content as DisplayContentState.Latest
+        val updatedPhoto = content.photos.single()
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals(18, updatedPhoto.likeCount)
+        assertTrue(updatedPhoto.isLiked)
+        assertEquals(listOf(post.id to true), repository.likeRequests)
+    }
+
+    @Test
+    fun `좋아요 실패 시 이전 게시물 상태를 복원한다`() = runTest {
+        repository.likeResult = HomeResult.Failure(HomeFailure.Network)
+
+        viewModel.updateLike(post.id)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val content = state.content as DisplayContentState.Latest
+        val restoredPhoto = content.photos.single()
+        assertFalse(post.id in state.likedPhotoIds)
+        assertEquals(17, restoredPhoto.likeCount)
+        assertFalse(restoredPhoto.isLiked)
+        assertEquals(
+            "좋아요를 반영하지 못했어요",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `같은 사진 좋아요 요청이 진행 중이면 중복 요청하지 않는다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.pendingLikeResult = pendingResult
+
+        viewModel.updateLike(post.id)
+        viewModel.updateLike(post.id)
+
+        assertEquals(listOf(post.id to true), repository.likeRequests)
+
+        pendingResult.complete(HomeResult.Success(HomeLike(likeCount = 18, isLiked = true)))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Latest
+        val updatedPhoto = content.photos.single()
+        assertEquals(18, updatedPhoto.likeCount)
+        assertTrue(updatedPhoto.isLiked)
+    }
+
+    @Test
+    fun `재검증 응답이 늦게 와도 완료된 좋아요 상태를 덮지 않는다`() = runTest {
+        val pendingContent = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingContent
+        viewModel.onResume()
+        viewModel.onResume()
+
+        viewModel.updateLike(post.id)
+        advanceUntilIdle()
+
+        pendingContent.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = LATEST_DATE,
+                    topic = "갱신된 전시",
+                    photos = listOf(post),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Latest
+        val updatedPhoto = content.photos.single()
+        assertTrue(post.id in viewModel.uiState.value.likedPhotoIds)
+        assertEquals(18, updatedPhoto.likeCount)
+        assertTrue(updatedPhoto.isLiked)
+    }
+
+    @Test
+    fun `좋아요 실패 복원은 캐시에도 반영한다`() = runTest {
+        repository.likeResult = HomeResult.Failure(HomeFailure.Network)
+
+        viewModel.updateLike(post.id)
+        advanceUntilIdle()
+        viewModel.selectSort(PostSort.POPULAR)
+        viewModel.selectSort(PostSort.LATEST)
+
+        val content = viewModel.uiState.value.content as DisplayContentState.Latest
+        val restoredPhoto = content.photos.single()
+        assertFalse(post.id in viewModel.uiState.value.likedPhotoIds)
+        assertEquals(17, restoredPhoto.likeCount)
+        assertFalse(restoredPhoto.isLiked)
+    }
 }
 
 private val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
@@ -540,7 +682,15 @@ private class FakePostRepository : PostRepository {
     var topicNotFoundDates: Set<LocalDate> = emptySet()
     var firstPageFailure: HomeFailure? = null
     var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
+    var pendingLikeResult: CompletableDeferred<HomeResult<HomeLike>>? = null
+    var likeResult: HomeResult<HomeLike> = HomeResult.Success(
+        HomeLike(
+            likeCount = 18,
+            isLiked = true,
+        ),
+    )
     val firstPagePhotoIdsBySort = mutableMapOf<PostSort, String>()
+    val likeRequests = mutableListOf<Pair<String, Boolean>>()
     var nextPageResult: HomeResult<PostPage> = HomeResult.Success(
         PostPage(
             photos = emptyList(),
@@ -594,7 +744,11 @@ private class FakePostRepository : PostRepository {
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): HomeResult<HomeLike> = error("unused")
+    ): HomeResult<HomeLike> {
+        likeRequests += photoId to isLiked
+        pendingLikeResult?.let { return it.await() }
+        return likeResult
+    }
 }
 
 private fun displayViewModel(

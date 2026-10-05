@@ -88,6 +88,7 @@ fun DisplayRoute(
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = onOpenFeed,
+        onLikeClick = viewModel::updateLike,
         modifier = modifier,
     )
 }
@@ -104,6 +105,7 @@ fun DisplayScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
+    onLikeClick: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
 ) {
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
@@ -179,6 +181,7 @@ fun DisplayScreen(
                     uiState.selectedDate,
                 )
             },
+            onLikeClick = { photo -> onLikeClick(photo.id) },
             topContentPadding = bodyTopContentPadding,
             modifier = Modifier.fillMaxSize(),
         )

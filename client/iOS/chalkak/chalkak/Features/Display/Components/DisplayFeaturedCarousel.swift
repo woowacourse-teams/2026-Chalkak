@@ -5,6 +5,8 @@ struct DisplayFeaturedCarousel: View {
     let photos: [DisplayPhoto]
     let currentPage: Int
     let onPageChange: (Int) -> Void
+    var likingPhotoIDs: Set<String> = []
+    var onLike: (DisplayPhoto) -> Void = { _ in }
     var onSelect: (DisplayPhoto) -> Void = { _ in }
 
     @State private var scrollID: Int?
@@ -14,14 +16,19 @@ struct DisplayFeaturedCarousel: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: Metrics.pageSpacing) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                        DisplayFeaturedCard(photo: photo, onSelect: { onSelect(photo) })
-                            .containerRelativeFrame(.horizontal)
-                            .scrollTransition(.interactive, axis: .horizontal) { content, phase in
-                                content
-                                    .scaleEffect(1 - CGFloat(min(abs(phase.value), 1)) * Metrics.scaleFalloff)
-                                    .opacity(1 - min(abs(phase.value), 1) * Double(Metrics.opacityFalloff))
-                            }
-                            .id(index)
+                        DisplayFeaturedCard(
+                            photo: photo,
+                            isLiking: likingPhotoIDs.contains(photo.id),
+                            onLike: { onLike(photo) },
+                            onSelect: { onSelect(photo) }
+                        )
+                        .containerRelativeFrame(.horizontal)
+                        .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                            content
+                                .scaleEffect(1 - CGFloat(min(abs(phase.value), 1)) * Metrics.scaleFalloff)
+                                .opacity(1 - min(abs(phase.value), 1) * Double(Metrics.opacityFalloff))
+                        }
+                        .id(index)
                     }
                 }
                 .scrollTargetLayout()
@@ -53,6 +60,8 @@ struct DisplayFeaturedCarousel: View {
 private struct DisplayFeaturedCard: View {
     @Environment(\.chalkakTheme) private var theme
     let photo: DisplayPhoto
+    let isLiking: Bool
+    let onLike: () -> Void
     let onSelect: () -> Void
 
     var body: some View {
@@ -76,10 +85,6 @@ private struct DisplayFeaturedCard: View {
         }
         .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
-        .overlay(alignment: .bottomLeading) {
-            DisplayLikeBadge(likeCount: photo.likeCount, isLiked: photo.isLiked)
-                .padding(Metrics.badgeInset)
-        }
         .overlay(alignment: .bottom) {
             if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
                !title.isEmpty {
@@ -97,6 +102,15 @@ private struct DisplayFeaturedCard: View {
         .onTapGesture(perform: onSelect)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("피드 열기")
+        .overlay(alignment: .bottomLeading) {
+            DisplayLikeBadge(
+                likeCount: photo.likeCount,
+                isLiked: photo.isLiked,
+                isEnabled: !isLiking,
+                onLike: onLike
+            )
+            .padding(Metrics.badgeInset)
+        }
     }
 }
 

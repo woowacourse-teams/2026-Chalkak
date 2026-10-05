@@ -37,6 +37,7 @@ fun DisplayFeaturedPager(
     onPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onPhotoClick: (Post) -> Unit = {},
+    onLikeClick: (Post) -> Unit = {},
 ) {
     if (photos.isEmpty()) return
 
@@ -101,6 +102,7 @@ fun DisplayFeaturedPager(
                             alpha = 1f - pageOffset * 0.12f
                         },
                     onClick = { onPhotoClick(photo) },
+                    onLikeClick = { onLikeClick(photo) },
                 )
             }
 

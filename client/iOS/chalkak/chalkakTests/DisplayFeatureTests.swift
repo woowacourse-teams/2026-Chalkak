@@ -554,6 +554,134 @@ struct DisplayViewModelTests {
         #expect(viewModel.viewState.topic == "새 전시")
     }
 
+    @Test("좋아요 성공은 서버 응답 count를 목록과 featured에 반영한다")
+    func appliesLikeSuccessToPhotosAndFeatured() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let photo = Self.photo(id: "photo-1", likeCount: 7, isLiked: false)
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .archive,
+                selectedDate: latestDate.addingTimeInterval(-86_400),
+                latestDate: latestDate,
+                topic: "지난 전시",
+                selectedSort: .popular,
+                photos: [photo],
+                featuredPhotos: [photo],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            likeHandler: { postID, isLiked in
+                .success(FeedLikeUpdate(postID: postID, isLiked: isLiked, likeCount: 12))
+            }
+        )
+
+        await viewModel.toggleLike(photoID: "photo-1")
+
+        #expect(viewModel.viewState.photos.first?.isLiked == true)
+        #expect(viewModel.viewState.photos.first?.likeCount == 12)
+        #expect(viewModel.viewState.featuredPhotos.first?.isLiked == true)
+        #expect(viewModel.viewState.featuredPhotos.first?.likeCount == 12)
+        #expect(viewModel.event == nil)
+    }
+
+    @Test("좋아요 실패는 현재 상태를 보존하고 실패 이벤트를 낸다")
+    func likeFailureKeepsState() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let photo = Self.photo(id: "photo-1", likeCount: 7, isLiked: false)
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "전시",
+                photos: [photo],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            likeHandler: { _, _ in .failure(.network) }
+        )
+
+        await viewModel.toggleLike(photoID: "photo-1")
+
+        #expect(viewModel.viewState.photos == [photo])
+        #expect(viewModel.event == .likeFailed)
+    }
+
+    @Test("진행 중인 같은 사진 좋아요는 중복 요청하지 않는다")
+    func blocksDuplicateLikeWhilePending() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let gate = DisplayLikeGate()
+        let photo = Self.photo(id: "photo-1", likeCount: 7, isLiked: false)
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "전시",
+                photos: [photo],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            likeHandler: { postID, isLiked in await gate.request(postID: postID, isLiked: isLiked) }
+        )
+
+        let firstLike = Task { await viewModel.toggleLike(photoID: "photo-1") }
+        await gate.waitForRequestCount(1)
+        await viewModel.toggleLike(photoID: "photo-1")
+
+        #expect(gate.requestCount == 1)
+
+        gate.completeRequest(
+            at: 0,
+            with: .success(FeedLikeUpdate(postID: "photo-1", isLiked: true, likeCount: 8))
+        )
+        await firstLike.value
+    }
+
+    @Test("재검증 응답이 늦게 와도 완료된 좋아요 상태를 덮지 않는다")
+    func revalidationDoesNotOverwriteCompletedLike() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let stalePhoto = Self.photo(id: "photo-1", likeCount: 7, isLiked: false)
+        let gate = DisplayFirstPageGate()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: latestDate,
+                latestDate: latestDate,
+                topic: "전시",
+                photos: [stalePhoto],
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in await gate.request(date: date) },
+            likeHandler: { postID, isLiked in
+                .success(FeedLikeUpdate(postID: postID, isLiked: isLiked, likeCount: 12))
+            }
+        )
+
+        let revalidation = Task { await viewModel.revalidate() }
+        await gate.waitForRequestCount(1)
+        await viewModel.toggleLike(photoID: "photo-1")
+        gate.completeRequest(
+            at: 0,
+            with: .success(
+                Self.content(
+                    date: latestDate,
+                    page: DisplayPage(
+                        photos: [stalePhoto],
+                        currentPage: 1,
+                        hasNext: false,
+                        randomSeed: nil
+                    )
+                )
+            )
+        )
+        await revalidation.value
+
+        #expect(viewModel.viewState.photos.first?.isLiked == true)
+        #expect(viewModel.viewState.photos.first?.likeCount == 12)
+    }
+
     private static func content(
         date: Date,
         topic: String = "주제",
@@ -571,7 +699,11 @@ struct DisplayViewModelTests {
         )
     }
 
-    private static func photo(id: String) -> DisplayPhoto {
+    private static func photo(
+        id: String,
+        likeCount: Int = 7,
+        isLiked: Bool = false
+    ) -> DisplayPhoto {
         DisplayPhoto(
             id: id,
             originalImageSource: .remote(URL(string: "https://example.com/\(id).webp")),
@@ -580,8 +712,8 @@ struct DisplayViewModelTests {
             signatureThumbnailImageSource: .remote(URL(string: "https://example.com/signature-thumb.png")),
             contentDescription: "작품 이미지",
             title: "작품",
-            likeCount: 7,
-            isLiked: false,
+            likeCount: likeCount,
+            isLiked: isLiked,
             isOwnedByCurrentUser: false
         )
     }
@@ -679,6 +811,46 @@ struct DisplayAPIClientTests {
         )
 
         let request = try #require(await recorder.requests.first)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+    }
+
+    @Test("좋아요 등록은 PUT과 Authorization으로 Feed 좋아요 API를 호출한다")
+    func sendsPutWhenLikingPost() async throws {
+        let recorder = DisplayURLRequestRecorder()
+        let client = Self.makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"postId":"post-1","likeCount":10,"isLiked":true}"#
+            )
+        }
+
+        let update = try await client.updateLike(postID: "post-1", isLiked: true)
+
+        #expect(update == FeedLikeUpdate(postID: "post-1", isLiked: true, likeCount: 10))
+        let request = try #require(await recorder.requests.first)
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/api/v1/posts/post-1/likes")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+    }
+
+    @Test("좋아요 취소는 DELETE로 Feed 좋아요 API를 호출한다")
+    func sendsDeleteWhenUnlikingPost() async throws {
+        let recorder = DisplayURLRequestRecorder()
+        let client = Self.makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: #"{"postId":"post-1","likeCount":9,"isLiked":false}"#
+            )
+        }
+
+        let update = try await client.updateLike(postID: "post-1", isLiked: false)
+
+        #expect(update == FeedLikeUpdate(postID: "post-1", isLiked: false, likeCount: 9))
+        let request = try #require(await recorder.requests.first)
+        #expect(request.httpMethod == "DELETE")
+        #expect(request.url?.path == "/api/v1/posts/post-1/likes")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
     }
 
@@ -795,6 +967,43 @@ private final class DisplayFirstPageGate {
     func completeRequest(
         at index: Int,
         with result: Result<DisplayContent, DisplayError>
+    ) {
+        continuations[index].resume(returning: result)
+    }
+
+    private func resumeSatisfiedWaiters() {
+        let satisfied = waiters.filter { requests.count >= $0.0 }
+        waiters.removeAll { requests.count >= $0.0 }
+        satisfied.forEach { $0.1.resume() }
+    }
+}
+
+@MainActor
+private final class DisplayLikeGate {
+    private var requests: [(String, Bool)] = []
+    private var continuations: [CheckedContinuation<Result<FeedLikeUpdate, FeedError>, Never>] = []
+    private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    var requestCount: Int { requests.count }
+
+    func request(postID: String, isLiked: Bool) async -> Result<FeedLikeUpdate, FeedError> {
+        requests.append((postID, isLiked))
+        resumeSatisfiedWaiters()
+        return await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func waitForRequestCount(_ count: Int) async {
+        guard requests.count < count else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append((count, continuation))
+        }
+    }
+
+    func completeRequest(
+        at index: Int,
+        with result: Result<FeedLikeUpdate, FeedError>
     ) {
         continuations[index].resume(returning: result)
     }
