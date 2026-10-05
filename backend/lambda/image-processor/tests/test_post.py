@@ -209,9 +209,6 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.assertEqual(3, self.s3_client.get_object.call_count)
         self.callback_client.complete.assert_called_once()
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key=STAGING_KEY
-        )
 
     def test_process_does_not_complete_when_existing_destination_differs(self) -> None:
         self.upload_client.upload.return_value = False
@@ -255,15 +252,13 @@ class PostImageProcessorTest(unittest.TestCase):
         self.callback_client.complete.assert_not_called()
         self.s3_client.delete_object.assert_not_called()
 
-    def test_abandon_closes_upload_and_removes_staging(self) -> None:
+    def test_abandon_closes_upload_without_deleting_staging(self) -> None:
         self.processor.abandon(self.event())
 
         self.callback_client.failed.assert_called_once_with(
             "dev", UPLOAD_ID, {"reason": "PROCESSING_ERROR"}
         )
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key=STAGING_KEY
-        )
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_routes_prod_key_to_prod_destination(self) -> None:
         self.given_object(webp_bytes())
@@ -276,15 +271,13 @@ class PostImageProcessorTest(unittest.TestCase):
         self.callback_client.complete.assert_called_once()
         self.assertEqual("prod", self.callback_client.complete.call_args.args[0])
 
-    def test_process_deletes_staging_object_after_callback(self) -> None:
+    def test_process_keeps_staging_object_after_callback(self) -> None:
         self.given_object(webp_bytes())
 
         self.processor.process(self.event())
 
         self.callback_client.complete.assert_called_once()
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key=STAGING_KEY
-        )
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_shrinks_thumbnail_to_max_size_keeping_aspect_ratio(self) -> None:
         self.given_object(webp_bytes(size=(2160, 1080)))
@@ -324,9 +317,6 @@ class PostImageProcessorTest(unittest.TestCase):
 
         self.callback_client.failed.assert_called_once_with(
             "dev", UPLOAD_ID, {"reason": "TOO_LARGE"}
-        )
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key=STAGING_KEY
         )
 
     def test_process_accepts_event_size_at_limit(self) -> None:
@@ -407,30 +397,13 @@ class PostImageProcessorTest(unittest.TestCase):
             "dev", UPLOAD_ID, {"reason": "MISSING_OBJECT"}
         )
 
-    def test_process_deletes_staging_object_when_image_is_rejected(self) -> None:
+    def test_process_keeps_staging_object_when_image_is_rejected(self) -> None:
         self.given_object(b"not an image at all")
 
         with self.assertRaises(RejectedImageError):
             self.processor.process(self.event())
 
-        self.s3_client.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key=STAGING_KEY
-        )
-
-    def test_process_keeps_staging_object_when_delete_fails(self) -> None:
-        from botocore.exceptions import ClientError
-
-        self.s3_client.delete_object.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied"}}, "DeleteObject"
-        )
-        self.given_object(b"not an image at all")
-
-        with self.assertRaises(RejectedImageError):
-            self.processor.process(self.event())
-
-        self.callback_client.failed.assert_called_once_with(
-            "dev", UPLOAD_ID, {"reason": "CORRUPTED_IMAGE"}
-        )
+        self.s3_client.delete_object.assert_not_called()
 
     def test_process_closes_upload_when_complete_callback_is_refused(self) -> None:
         from image_processor.errors import PermanentCallbackError
