@@ -420,6 +420,38 @@ class WatcherTests(unittest.TestCase):
                     watcher.process_pull_request(config, github, "reviewer", self.pull_request, path, state)
                 self.assertEqual(expected, generate.call_count)
 
+    def test_document_changes_are_excluded_from_size_limits(self):
+        code = {"path": "backend/src/main/java/Fixture.java", "additions": 1000, "deletions": 0}
+        documents = [{"path": "docs/business-rules/rules/post.md", "additions": 500, "deletions": 0},
+                     {"path": "backend/docs/interviews/fixture.md", "additions": 100, "deletions": 0}]
+        lookalike = {"path": "backend/src/main/java/docs/Fixture.java", "additions": 300, "deletions": 0}
+        for files, expected in (([code, *documents], 1),
+                                ([code, *documents, lookalike], 0)):
+            with self.subTest(paths=[item["path"] for item in files]):
+                path = Path(self.config["state_file"])
+                state = {"version": watcher.STATE_VERSION, "runs": {}}
+                github = FakeGitHub()
+                original = github.details
+                github.details = lambda number: dict(
+                    original(number), files=files, changedFiles=len(files),
+                    additions=sum(item["additions"] for item in files), deletions=0)
+                with mock.patch.object(watcher, "generate_review", return_value=NO_FINDINGS) as generate:
+                    watcher.process_pull_request(self.config, github, "reviewer", self.pull_request, path, state)
+                self.assertEqual(expected, generate.call_count)
+
+    def test_document_files_still_count_against_file_limit_when_list_is_truncated(self):
+        listed = [{"path": f"docs/business-rules/rules/{index}.md", "additions": 1, "deletions": 0}
+                  for index in range(10)]
+        details = {"files": listed, "changedFiles": 45, "additions": 100, "deletions": 0}
+        self.assertEqual((35, 90), watcher.counted_changes(details))
+
+    def test_deferred_body_reports_counts_without_documents(self):
+        details = dict(FakeGitHub().details(7), changedFiles=40, additions=1500, deletions=0,
+                       files=[{"path": "docs/business-rules/README.md", "additions": 100, "deletions": 0}])
+        body = watcher.deferred_body(self.config, details)
+        self.assertIn("파일 39개, 변경 줄 1400줄", body)
+        self.assertIn("`docs/`, `backend/docs/`", body)
+
     def test_legacy_failure_and_body_cache_do_not_trigger_ai_or_bulk_post(self):
         for status in ("failed", "generated", "post_failed"):
             with self.subTest(status=status):

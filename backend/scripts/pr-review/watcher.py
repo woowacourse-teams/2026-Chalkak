@@ -31,6 +31,8 @@ CONFIG_VERSION = 2
 MAX_POST_ATTEMPTS = 3
 ACTIVE_PROCESS = None
 RELATED_ISSUE = re.compile(r"^\s*-\s*#(\d+)\s*$", re.MULTILINE)
+# Documents stay in the reviewed diff but do not count toward the size limits.
+LIMIT_EXCLUDED_PREFIXES = ("docs/", "backend/docs/")
 
 
 class CommandError(RuntimeError):
@@ -121,6 +123,16 @@ def review_limits(config: dict, details: dict) -> tuple[int, int]:
     if review_kind(details) == "refactor":
         return config.get("refactor_max_changed_files", 40), config.get("refactor_max_changed_lines", 1800)
     return config["max_changed_files"], config["max_changed_lines"]
+
+
+def counted_changes(details: dict) -> tuple[int, int]:
+    # gh returns at most 100 files; unseen files are counted, never assumed to be documents.
+    excluded = [item for item in details.get("files", [])
+                if (item.get("path") or "").startswith(LIMIT_EXCLUDED_PREFIXES)]
+    files = details.get("changedFiles", 0) - len(excluded)
+    lines = (details.get("additions", 0) + details.get("deletions", 0)
+             - sum(item.get("additions", 0) + item.get("deletions", 0) for item in excluded))
+    return max(files, 0), max(lines, 0)
 
 
 def review_focus(details: dict) -> str:
@@ -364,12 +376,12 @@ def current_target(config, details, viewer, head_sha, kind=None):
 def deferred_body(config: dict, details: dict) -> str:
     files_limit, lines_limit = review_limits(config, details)
     kind = "리팩터링" if review_kind(details) == "refactor" else "일반 변경"
+    files, lines = counted_changes(details)
     return (
         "자동 리뷰 보류\n\n"
         f"변경량이 {kind} 자동 리뷰 한도(파일 {files_limit}개, 변경 {lines_limit}줄, "
         f"diff {config['max_diff_characters']:,}자)를 초과했습니다. "
-        f"파일 {details.get('changedFiles', 0)}개, "
-        f"변경 줄 {details.get('additions', 0) + details.get('deletions', 0)}줄입니다. "
+        f"문서(`docs/`, `backend/docs/`)를 제외하면 파일 {files}개, 변경 줄 {lines}줄입니다. "
         "팀원이 직접 검토해 주세요.\n\n"
         + marker(config["provider"], details["headRefOid"])
     )
@@ -401,9 +413,8 @@ def process_pull_request(config: dict, github: GitHub, viewer: str, pull_request
             return False
         kind = review_kind(details)
         files_limit, lines_limit = review_limits(config, details)
-        changed_lines = details.get("additions", 0) + details.get("deletions", 0)
-        too_large = (details.get("changedFiles", 0) > files_limit
-                     or changed_lines > lines_limit)
+        changed_files, changed_lines = counted_changes(details)
+        too_large = changed_files > files_limit or changed_lines > lines_limit
         diff = "" if too_large else github.diff(number)
         too_large = too_large or len(diff) > config["max_diff_characters"]
         checks = [] if too_large else github.checks(number)
@@ -580,6 +591,7 @@ def show_status(config_path: Path) -> None:
     print(f"리팩터링 한도: {config.get('refactor_max_changed_files', 40)}개 파일 / "
           f"{config.get('refactor_max_changed_lines', 1800)}줄 (refactor, feat·fix·chore 제외)")
     print(f"공통 diff 한도: {config['max_diff_characters']:,}자")
+    print("파일·줄 한도 계산 제외: " + ", ".join(LIMIT_EXCLUDED_PREFIXES) + " (diff에는 포함)")
     last_check = state.get("last_check")
     if last_check:
         checked_at = last_check.get("finished_at") or last_check.get("started_at")
