@@ -372,6 +372,68 @@ struct DisplayViewModelTests {
         #expect(viewModel.event == .showFailure(.network))
     }
 
+    @Test("같은 날짜의 지난 전시를 다시 불러오면 보던 추천 카드 페이지를 유지한다")
+    func revalidationKeepsFeaturedPage() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let archiveDate = Self.date(2026, 9, 1)
+        let photos = (1...5).map { Self.photo(id: "photo-\($0)") }
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .archive,
+                selectedDate: archiveDate,
+                latestDate: latestDate,
+                topic: "지난 전시",
+                photos: photos,
+                featuredPhotos: photos,
+                featuredPage: 3,
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in
+                .success(Self.content(
+                    date: date,
+                    page: DisplayPage(photos: photos, currentPage: 1, hasNext: false, randomSeed: nil)
+                ))
+            }
+        )
+
+        await viewModel.revalidate()
+
+        #expect(viewModel.viewState.contentStatus == .archive)
+        #expect(viewModel.viewState.featuredPage == 3)
+    }
+
+    @Test("다른 날짜로 이동하면 추천 카드 페이지를 처음으로 되돌린다")
+    func movingDateResetsFeaturedPage() async {
+        let latestDate = Self.date(2026, 9, 3)
+        let archiveDate = Self.date(2026, 9, 2)
+        let photos = (1...5).map { Self.photo(id: "photo-\($0)") }
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .archive,
+                selectedDate: archiveDate,
+                latestDate: latestDate,
+                topic: "지난 전시",
+                photos: photos,
+                featuredPhotos: photos,
+                featuredPage: 3,
+                currentPage: 1
+            ),
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _ in
+                .success(Self.content(
+                    date: date,
+                    page: DisplayPage(photos: photos, currentPage: 1, hasNext: false, randomSeed: nil)
+                ))
+            }
+        )
+
+        await viewModel.moveToPreviousDate()
+
+        #expect(viewModel.viewState.selectedDate == Self.date(2026, 9, 1))
+        #expect(viewModel.viewState.featuredPage == 0)
+    }
+
     @Test("탭 재검증 중에는 다음 페이지를 요청하지 않는다")
     func blocksNextPageWhileRevalidating() async {
         let latestDate = Self.date(2026, 9, 2)

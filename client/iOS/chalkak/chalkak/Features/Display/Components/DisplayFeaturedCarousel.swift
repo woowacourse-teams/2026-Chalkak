@@ -65,35 +65,42 @@ private struct DisplayFeaturedCard: View {
     let onSelect: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            ZStack {
-                Color.black
+        // Android(indication = null)처럼 눌림 효과 없이 탭만 받는다. 그리드 셀과 같은 방식이다.
+        ZStack {
+            Color.black
 
-                ChalkakSignedImage(
-                    imageSource: photo.originalImageSource,
-                    signatureSource: photo.signatureOriginalImageSource,
-                    contentDescription: photo.contentDescription,
-                    contentMode: .fit,
-                    signatureSize: Metrics.signatureSize
-                )
-            }
-            .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
-            .overlay(alignment: .bottom) {
-                if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !title.isEmpty {
-                    Text(title)
-                        .font(theme.typography.handwriting)
-                        .foregroundStyle(theme.colors.textOnImage)
-                        .lineLimit(1)
-                        .padding(.bottom, Metrics.titleBottomPadding)
-                        .accessibilityHidden(true)
-                }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
+            ChalkakSignedImage(
+                imageSource: photo.originalImageSource,
+                signatureSource: photo.signatureOriginalImageSource,
+                contentDescription: photo.contentDescription,
+                contentMode: .fit,
+                signatureSize: Metrics.signatureSize,
+                // Android 랭킹 카드처럼 원본을 받는 동안 썸네일을 먼저 보여준다.
+                thumbnailImageSource: photo.thumbnailImageSource,
+                thumbnailSignatureSource: photo.signatureThumbnailImageSource
+            )
+            // 사진만 숨겨 검은 카드·좋아요 수·제목은 남긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
+            // Android(sourceShape = null)처럼 둥근 모서리 없이 출발한다.
+            .feedZoomSource(.displayFeatured(photo.id), signatureSize: Metrics.signatureSize)
         }
-        .buttonStyle(.plain)
+        .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
+        .overlay(alignment: .bottom) {
+            if let title = photo.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !title.isEmpty {
+                Text(title)
+                    .font(theme.typography.handwriting)
+                    .foregroundStyle(theme.colors.textOnImage)
+                    .lineLimit(1)
+                    .padding(.bottom, Metrics.titleBottomPadding)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .accessibilityAddTraits(.isButton)
         .accessibilityHint("피드 열기")
         .overlay(alignment: .bottomLeading) {
             DisplayLikeBadge(

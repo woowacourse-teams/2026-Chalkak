@@ -14,6 +14,8 @@ struct RecordSelectedPhoto: View {
             contentDescription: "\(Self.dateFormatter.string(from: post.topicDate)) 기록 사진",
             contentMode: .fit
         )
+        // 사진만 숨겨 날짜·상태 표시는 남긴다.
+        .feedZoomSource(.record(post.postId))
         .frame(maxWidth: .infinity)
         .overlay(alignment: .topLeading) {
             Text(Self.dateFormatter.string(from: post.topicDate))

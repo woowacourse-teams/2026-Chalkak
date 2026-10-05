@@ -11,7 +11,12 @@ struct DisplayScreen: View {
     var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
 
-    private func feedTarget(for photo: DisplayPhoto) -> FeedTarget {
+    // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
+    private func feedTarget(
+        for photo: DisplayPhoto,
+        zoomSource: FeedZoomSource,
+        placeholder: FeedPhotoPlaceholder
+    ) -> FeedTarget {
         let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
         return FeedTarget(
             seed: FeedContent(
@@ -29,7 +34,9 @@ struct DisplayScreen: View {
                     isOwnedByCurrentUser: photo.isOwnedByCurrentUser
                 )
             ),
-            isLikeConfirmed: true
+            isLikeConfirmed: true,
+            zoomSource: zoomSource,
+            placeholder: placeholder
         )
     }
 
@@ -137,7 +144,20 @@ struct DisplayScreen: View {
                         onPageChange: { viewModel.updateFeaturedPage($0) },
                         likingPhotoIDs: viewModel.likingPhotoIDs,
                         onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        onSelect: { photo in
+                            onSelectPhoto(
+                                feedTarget(
+                                    for: photo,
+                                    zoomSource: .displayFeatured(photo.id),
+                                    placeholder: .preferringOriginal(
+                                        original: photo.originalImageSource,
+                                        thumbnail: photo.thumbnailImageSource,
+                                        signatureOriginal: photo.signatureOriginalImageSource,
+                                        signatureThumbnail: photo.signatureThumbnailImageSource
+                                    )
+                                )
+                            )
+                        }
                     )
                     // 페이저가 이웃 카드를 화면 폭까지 peek 하도록 화면 좌우 여백을 상쇄한다.
                     .padding(.horizontal, -theme.spacing.screenHorizontal)
@@ -168,7 +188,19 @@ struct DisplayScreen: View {
                         },
                         likingPhotoIDs: viewModel.likingPhotoIDs,
                         onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
-                        onSelect: { photo in onSelectPhoto(feedTarget(for: photo)) }
+                        onSelect: { photo, ratio in
+                            onSelectPhoto(
+                                feedTarget(
+                                    for: photo,
+                                    zoomSource: .displayGrid(photo.id),
+                                    placeholder: FeedPhotoPlaceholder(
+                                        imageSource: photo.thumbnailImageSource,
+                                        signatureImageSource: photo.signatureThumbnailImageSource,
+                                        heightToWidthRatio: ratio
+                                    )
+                                )
+                            )
+                        }
                     )
                     .padding(.top, gridTopSpacing)
                 }

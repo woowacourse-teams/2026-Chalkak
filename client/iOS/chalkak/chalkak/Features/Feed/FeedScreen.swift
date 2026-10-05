@@ -2,20 +2,38 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: FeedViewModel
+    // 사진 이동 진행도와 나머지 콘텐츠 페이드 진행도(0: 출발 화면, 1: 열림).
+    // Android처럼 둘의 시간이 달라 따로 애니메이션한다.
+    @State private var photoProgress: CGFloat = 0
+    @State private var contentProgress: CGFloat = 0
+    @State private var isPhotoMoving = true
+    @State private var isClosing = false
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
+    // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
+    var placeholder: FeedPhotoPlaceholder?
+    var zoomSource: FeedZoomSource?
+    // 닫는 전환이 끝난 뒤 호출된다.
+    var onBack: () -> Void = {}
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
 
     init(
         viewModel: FeedViewModel,
+        placeholder: FeedPhotoPlaceholder? = nil,
+        zoomSource: FeedZoomSource? = nil,
+        onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
+        self.placeholder = placeholder
+        self.zoomSource = zoomSource
+        self.onBack = onBack
         self.onDeleted = onDeleted
     }
 
@@ -23,10 +41,11 @@ struct FeedScreen: View {
         ZStack(alignment: .top) {
             theme.colors.background
                 .ignoresSafeArea()
+                .opacity(contentProgress)
 
             VStack(spacing: 0) {
                 FeedTopBar(
-                    onBack: { dismiss() },
+                    onBack: close,
                     onEdit: {
                         titleDraft = viewModel.viewState.content?.post.title ?? ""
                         showsTitleEditDialog = true
@@ -43,13 +62,20 @@ struct FeedScreen: View {
                 )
                     .padding(.horizontal, theme.spacing.lg)
                     .padding(.vertical, theme.spacing.md)
+                    .opacity(contentProgress)
 
                 content
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .background(InteractivePopGestureEnabler())
+        .simultaneousGesture(backSwipeGesture)
+        .onAppear(perform: open)
+        .onDisappear {
+            if zoomRegistry?.activeSource == zoomSource {
+                zoomRegistry?.activeSource = nil
+            }
+        }
         .task {
             await viewModel.load()
         }
@@ -100,48 +126,138 @@ struct FeedScreen: View {
     @ViewBuilder
     private var content: some View {
         switch viewModel.viewState.contentStatus {
-        case .loading:
+        case .loading where placeholder == nil:
             centered {
                 ProgressView()
                     .tint(theme.colors.actionPrimary)
                     .accessibilityIdentifier("feed-loading")
             }
+            .opacity(contentProgress)
         case let .error(reason):
             centered { errorView(reason) }
-        case .loaded:
-            if let content = viewModel.viewState.content {
-                loadedContent(content)
+                .opacity(contentProgress)
+        case .loading, .loaded:
+            // placeholder가 있으면 상세를 받기 전에도 사진을 먼저 보여준다.
+            // 로딩과 로드 완료가 같은 분기를 써야 상세 도착 시 사진 뷰가 다시 만들어지지 않는다.
+            if viewModel.viewState.content != nil || placeholder != nil {
+                feedContent(viewModel.viewState.content)
             }
         }
     }
 
-    private func loadedContent(_ content: FeedContent) -> some View {
+    private func feedContent(_ content: FeedContent?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                FeedTopic(dateLabel: content.dateLabel, topic: content.topic)
+                // 상세를 받기 전에도 사진 위치가 달라지지 않도록 주제 영역의 높이를 유지한다.
+                FeedTopic(dateLabel: content?.dateLabel ?? " ", topic: content?.topic ?? " ")
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, Metrics.topicTop)
                     .padding(.bottom, Metrics.topicBottom)
+                    .opacity(contentProgress)
 
                 FeedPhoto(
-                    post: content.post,
+                    post: content?.post,
+                    placeholder: placeholder,
                     isLikeEnabled: viewModel.viewState.isLikeEnabled,
+                    zoom: FeedPhotoZoom(
+                        photoProgress: photoProgress,
+                        contentProgress: contentProgress,
+                        source: movingSource,
+                        isSettled: !isPhotoMoving
+                    ),
                     onLike: { viewModel.toggleLike() }
                 )
+                // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
+                .zIndex(1)
 
-                FeedCaption(title: content.post.title)
-                    .padding(.horizontal, Metrics.captionHorizontal)
-                    .padding(.vertical, Metrics.captionVertical)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(theme.colors.border)
-                            .frame(height: Metrics.dividerHeight)
-                            .accessibilityHidden(true)
-                    }
+                if let content {
+                    FeedCaption(title: content.post.title)
+                        .padding(.horizontal, Metrics.captionHorizontal)
+                        .padding(.vertical, Metrics.captionVertical)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(alignment: .top) {
+                            Rectangle()
+                                .fill(theme.colors.border)
+                                .frame(height: Metrics.dividerHeight)
+                                .accessibilityHidden(true)
+                        }
+                        .opacity(contentProgress)
+                }
             }
             .padding(.bottom, Metrics.contentBottom)
         }
+        // 전환 중에는 사진이 스크롤 영역 밖(출발 뷰 위치)에서도 보여야 한다.
+        .scrollClipDisabled(isPhotoMoving)
+    }
+
+    // MARK: - 줌 전환
+
+    // 사진이 날아갈 출발 뷰. 동작 줄이기 설정이면 사진도 이동 없이 페이드된다.
+    private var movingSource: FeedZoomRegistry.Source? {
+        guard !reduceMotion, let zoomSource else { return nil }
+        return zoomRegistry?.source(for: zoomSource)
+    }
+
+    private func open() {
+        isPhotoMoving = true
+        hideSourceWhilePhotoMoves()
+        withAnimation(Metrics.photoAnimation) {
+            photoProgress = 1
+        } completion: {
+            guard !isClosing else { return }
+            isPhotoMoving = false
+        }
+        withAnimation(Metrics.contentAnimation) {
+            contentProgress = 1
+        } completion: {
+            // 피드 배경이 아직 반투명할 때 출발 뷰가 다시 보이면 피드 너머로 비쳐 깜빡여 보인다.
+            guard !isClosing else { return }
+            zoomRegistry?.activeSource = nil
+        }
+    }
+
+    private func close() {
+        guard !isClosing else { return }
+        isClosing = true
+        isPhotoMoving = true
+        hideSourceWhilePhotoMoves()
+        withAnimation(Metrics.photoAnimation) {
+            photoProgress = 0
+        }
+        withAnimation(Metrics.contentAnimation) {
+            contentProgress = 0
+        } completion: {
+            // 사진이 먼저 도착해도 피드 배경이 반투명한 동안은 출발 뷰가 배경 아래에 깔려 흐려 보인다.
+            // 피드 사진을 출발 뷰 위에 유지했다가, 피드가 사라지는 순간 출발 뷰와 교대한다.
+            zoomRegistry?.activeSource = nil
+            onBack()
+        }
+    }
+
+    private func hideSourceWhilePhotoMoves() {
+        guard movingSource != nil else { return }
+        zoomRegistry?.activeSource = zoomSource
+    }
+
+    // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 사진이 출발 뷰 쪽으로 따라간다.
+    private var backSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
+            .onChanged { value in
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                isPhotoMoving = true
+                hideSourceWhilePhotoMoves()
+                let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
+                photoProgress = 1 - min(dragged, 1)
+                contentProgress = photoProgress
+            }
+            .onEnded { value in
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
+                    close()
+                } else {
+                    open()
+                }
+            }
     }
 
     private func errorView(_ reason: FeedError) -> some View {
@@ -225,6 +341,15 @@ private enum Metrics {
     static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
     static let toastBottomPadding: CGFloat = 32
+    // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
+    // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.
+    static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+    // Android NavHost 기본 화면 전환: fadeIn/fadeOut(tween(700)), 기본 easing FastOutSlowInEasing.
+    static let contentAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.7)
+    static let backSwipeEdgeWidth: CGFloat = 24
+    static let backSwipeMinimumDistance: CGFloat = 12
+    static let backSwipeFullDistance: CGFloat = 300
+    static let backSwipeCloseDistance: CGFloat = 120
 }
 
 #Preview("Feed Loaded") {
