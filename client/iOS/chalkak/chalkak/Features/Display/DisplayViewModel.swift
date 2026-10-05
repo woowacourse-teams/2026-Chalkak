@@ -288,6 +288,11 @@ final class DisplayViewModel {
             } ?? [])
             : []
         let mergedPhotos = content.page.photos + cachedTail
+        let featuredPhotos = isArchive ? Array(mergedPhotos.prefix(5)) : []
+        // Android DisplayViewModel과 같이, 같은 날짜의 지난 전시를 다시 불러오면 보던 추천 카드 페이지를 유지한다.
+        let featuredPage = viewState.contentStatus == .archive && viewState.selectedDate == canonicalDate
+            ? min(viewState.featuredPage, max(featuredPhotos.count - 1, 0))
+            : 0
         loadedTopicDate = canonicalDate
         viewState = DisplayViewState(
             contentStatus: isArchive ? .archive : .latest,
@@ -297,8 +302,8 @@ final class DisplayViewModel {
             topic: content.topic,
             selectedSort: isArchive ? .popular : selectedLatestSort,
             photos: mergedPhotos,
-            featuredPhotos: isArchive ? Array(mergedPhotos.prefix(5)) : [],
-            featuredPage: 0,
+            featuredPhotos: featuredPhotos,
+            featuredPage: featuredPage,
             currentPage: cachedTail.isEmpty
                 ? content.page.currentPage
                 : cachedEntry?.state.currentPage ?? content.page.currentPage,
