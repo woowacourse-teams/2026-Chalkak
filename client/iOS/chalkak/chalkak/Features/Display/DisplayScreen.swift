@@ -147,9 +147,11 @@ struct DisplayScreen: View {
                                 feedTarget(
                                     for: photo,
                                     zoomSource: .displayFeatured(photo.id),
-                                    placeholder: FeedPhotoPlaceholder(
-                                        imageSource: photo.originalImageSource,
-                                        signatureImageSource: photo.signatureOriginalImageSource
+                                    placeholder: .preferringOriginal(
+                                        original: photo.originalImageSource,
+                                        thumbnail: photo.thumbnailImageSource,
+                                        signatureOriginal: photo.signatureOriginalImageSource,
+                                        signatureThumbnail: photo.signatureThumbnailImageSource
                                     )
                                 )
                             )

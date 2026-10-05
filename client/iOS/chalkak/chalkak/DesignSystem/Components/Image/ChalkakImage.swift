@@ -31,9 +31,14 @@ final class RemoteImageCache {
 
     private let cache = NSCache<NSURL, UIImage>()
     private var inFlight: [URL: Task<UIImage, Error>] = [:]
+    private let maxPixelWidth: CGFloat
 
-    init(totalCostLimit: Int = 64 * 1_024 * 1_024) {
+    /// - Parameter maxPixelWidth: 이보다 넓은 이미지는 이 폭에 맞춰 줄여서 푼다.
+    ///   앱은 사진을 화면 폭보다 크게 보여주지 않으므로 가장 넓은 iPhone 화면 폭을 기본으로 한다.
+    ///   3024×4032 원본을 그대로 풀면 한 장이 약 46MB라 캐시가 원본 한두 장으로 가득 차 다른 이미지가 밀려난다.
+    init(totalCostLimit: Int = 64 * 1_024 * 1_024, maxPixelWidth: CGFloat = 1_320) {
         cache.totalCostLimit = totalCostLimit
+        self.maxPixelWidth = maxPixelWidth
     }
 
     func image(for url: URL) -> UIImage? {
@@ -48,17 +53,21 @@ final class RemoteImageCache {
             return try await task.value
         }
 
+        let maxPixelWidth = maxPixelWidth
         let task = Task {
             let (data, response) = try await URLSession.shared.data(from: url)
             if let response = response as? HTTPURLResponse,
                !(200..<300).contains(response.statusCode) {
                 throw URLError(.badServerResponse)
             }
-            guard let image = UIImage(data: data) else {
+            // 화면에 붙이는 순간 메인 스레드에서 디코딩하지 않도록 백그라운드에서 미리 풀어 둔다.
+            let image = await Task.detached(priority: .userInitiated) {
+                Self.decodedImage(from: data, maxPixelWidth: maxPixelWidth)
+            }.value
+            guard let image else {
                 throw URLError(.cannotDecodeContentData)
             }
-            // 화면에 붙이는 순간 메인 스레드에서 디코딩하지 않도록 미리 풀어 둔다.
-            return await image.byPreparingForDisplay() ?? image
+            return image
         }
         inFlight[url] = task
         defer { inFlight[url] = nil }
@@ -66,6 +75,37 @@ final class RemoteImageCache {
         let image = try await task.value
         cache.setObject(image, forKey: url as NSURL, cost: image.memoryCost)
         return image
+    }
+}
+
+extension RemoteImageCache {
+    /// EXIF 방향을 반영해, 폭이 `maxPixelWidth`를 넘으면 그 폭에 맞춰 줄인 비트맵으로 디코딩한다.
+    nonisolated static func decodedImage(from data: Data, maxPixelWidth: CGFloat) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let pixelWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
+              let pixelHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
+              pixelWidth > 0, pixelHeight > 0
+        else {
+            return UIImage(data: data)
+        }
+
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        let isRotated = (5...8).contains(orientation)
+        let displayWidth = isRotated ? pixelHeight : pixelWidth
+        let scale = min(1, Double(maxPixelWidth) / displayWidth)
+        let maxPixelSize = (max(pixelWidth, pixelHeight) * scale).rounded(.up)
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cgImage)
     }
 }
 

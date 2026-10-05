@@ -113,6 +113,20 @@ struct FeedPhotoPlaceholder: Equatable, Sendable {
             image.size.width > 0 ? image.size.height / image.size.width : nil
         }
     }
+
+    /// 원본을 띄우는 화면에서 출발할 때 쓴다. Android 랭킹 카드처럼 원본이 이미 받아져 있으면 원본,
+    /// 아직 없으면(또는 캐시에서 밀려났으면) 썸네일로 출발해 피드가 이미지를 다시 받는 동안 비지 않게 한다.
+    static func preferringOriginal(
+        original: ChalkakImageSource,
+        thumbnail: ChalkakImageSource,
+        signatureOriginal: ChalkakImageSource,
+        signatureThumbnail: ChalkakImageSource
+    ) -> FeedPhotoPlaceholder {
+        FeedPhotoPlaceholder(
+            imageSource: original.cachedImage() != nil ? original : thumbnail,
+            signatureImageSource: signatureOriginal.cachedImage() != nil ? signatureOriginal : signatureThumbnail
+        )
+    }
 }
 
 /// Home·Display에서 사진을 탭할 때 Feed로 전달하는 네비게이션 payload.
