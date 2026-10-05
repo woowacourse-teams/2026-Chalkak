@@ -121,7 +121,7 @@ struct PhotoUploadViewModelTests {
     }
 
     @Test("촬영 사진은 업로드 전에 한 번 저장하고 전시할 때 중복 저장하지 않는다")
-    func savesCapturedPhotoBeforeUpload() async {
+    func savesCapturedPhotoBeforeUpload() async throws {
         var savedImages: [UIImage] = []
         let topic = Self.topic()
         let preparation = Self.preparation()
@@ -145,9 +145,9 @@ struct PhotoUploadViewModelTests {
         #expect(savedImages.count == 1)
         #expect(savedImages.first === image)
         #expect(viewModel.viewState.completedSubmission == nil)
-        await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
+        try await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
         viewModel.handle(.submitClicked)
-        await waitUntil { viewModel.viewState.completedSubmission != nil }
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
         #expect(savedImages.count == 1)
     }
 
@@ -168,7 +168,7 @@ struct PhotoUploadViewModelTests {
     }
 
     @Test("사진 저장 권한 거부나 실패를 안내하고 업로드할 사진은 유지한다")
-    func keepsPhotoAfterGallerySaveFailure() async {
+    func keepsPhotoAfterGallerySaveFailure() async throws {
         for result in [PhotoLibrarySaveResult.permissionDenied, .failed] {
             let data = Data([0x01])
             let topic = Self.topic()
@@ -183,7 +183,7 @@ struct PhotoUploadViewModelTests {
             )
 
             await viewModel.selectCapturedImage(data: data, preview: Self.image())
-            await waitUntil { !viewModel.viewState.isTopicLoading }
+            try await waitUntil { !viewModel.viewState.isTopicLoading }
 
             #expect(viewModel.viewState.selectedImageData == data)
             #expect(viewModel.viewState.canSubmit)
@@ -192,7 +192,7 @@ struct PhotoUploadViewModelTests {
     }
 
     @Test("업로드 화면 종료 뒤 늦게 끝난 저장 실패를 앱에 알린다")
-    func reportsSaveFailureAfterReset() async {
+    func reportsSaveFailureAfterReset() async throws {
         var continuation: CheckedContinuation<PhotoLibrarySaveResult, Never>?
         var saveCount = 0
         var reportedFailures: [String] = []
@@ -209,7 +209,7 @@ struct PhotoUploadViewModelTests {
         let task = Task {
             await viewModel.selectCapturedImage(data: Data([0x01]), preview: Self.image())
         }
-        await waitUntil { continuation != nil }
+        try await waitUntil { continuation != nil }
 
         viewModel.reset()
         continuation?.resume(returning: .permissionDenied)
