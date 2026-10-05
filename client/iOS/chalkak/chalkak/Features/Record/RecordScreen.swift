@@ -203,7 +203,7 @@ struct RecordScreen: View {
                 return
             }
 
-            let result = await RecordCalendarImageSaver.save(image)
+            let result = await PhotoLibraryImageSaver.save(image)
             switch result {
             case .saved:
                 viewModel.onCalendarImageSaved(true)

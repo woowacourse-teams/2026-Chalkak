@@ -44,6 +44,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
+import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
@@ -75,12 +77,18 @@ fun RecordSelectedPhoto(
 ) {
     if (post == null) return
 
+    val photoSource = rememberSharedPhotoSource(
+        key = PhotoTransitionKey(post.postId, "record:${post.postId}"),
+        imageModel = post.thumbnailImageUrl,
+        signatureModel = null,
+    )
     Box(modifier = modifier) {
         ChalkakImage(
             model = post.thumbnailImageUrl,
+            onSuccess = photoSource.onSuccess,
             contentDescription = "${post.topicDate.format(SelectedPhotoDateFormatter)} 기록 사진",
             contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = photoSource.modifier.fillMaxWidth(),
         )
         Text(
             text = post.topicDate.format(SelectedPhotoDateFormatter),

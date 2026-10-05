@@ -21,9 +21,20 @@ class BottomBarScrollState {
     var isScrollToTopButtonVisible by mutableStateOf(false)
         private set
 
-    private var isTargetHidden by mutableStateOf(false)
+    var isTargetHidden by mutableStateOf(false)
+        private set
     private var accumulated by mutableFloatStateOf(0f)
     private var restoreJob: Job? = null
+
+    fun restoreState(
+        offset: Float,
+        height: Int,
+        isTargetHidden: Boolean,
+    ) {
+        this.offset = offset
+        this.height = height
+        this.isTargetHidden = isTargetHidden
+    }
 
     fun onScroll(
         scrollDeltaY: Float,

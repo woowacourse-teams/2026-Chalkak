@@ -1,8 +1,10 @@
+import Photos
 import PhotosUI
 import SwiftUI
 import UIKit
 
 struct PhotoUploadRoute: View {
+    @Environment(\.openURL) private var openURL
     @Bindable var viewModel: PhotoUploadViewModel
 
     let onBack: () -> Void
@@ -12,6 +14,10 @@ struct PhotoUploadRoute: View {
     @State private var isGalleryPresented = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isCameraPresented = false
+    @State private var capturedImage: UIImage?
+    @State private var shouldSaveCapturedImage = false
+    @State private var isPhotoPermissionAlertPresented = false
+    @State private var isRequestingPhotoPermission = false
     @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
 
     var body: some View {
@@ -40,21 +46,65 @@ struct PhotoUploadRoute: View {
             selection: $selectedPhotoItem,
             matching: .images
         )
-        .sheet(isPresented: $isCameraPresented) {
+        .sheet(isPresented: $isCameraPresented, onDismiss: completeCameraCapture) {
             PhotoUploadCameraPicker(
                 onImagePicked: { image in
+                    capturedImage = image
                     isCameraPresented = false
-                    guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
-                        viewModel.showImageSelectionFailure()
-                        return
-                    }
-                    viewModel.selectImage(data: data, preview: image)
                 },
                 onCancel: {
+                    capturedImage = nil
                     isCameraPresented = false
                 }
             )
             .ignoresSafeArea()
+        }
+        .alert("촬영 사진 저장 권한", isPresented: $isPhotoPermissionAlertPresented) {
+            Button("설정 열기") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                openURL(url)
+            }
+            Button("저장 없이 촬영") {
+                shouldSaveCapturedImage = false
+                isCameraPresented = true
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("촬영한 사진을 자동으로 저장하려면 설정에서 사진 추가 권한을 허용해 주세요.")
+        }
+    }
+
+    private func openCamera() {
+        guard !isRequestingPhotoPermission else { return }
+        isRequestingPhotoPermission = true
+        capturedImage = nil
+        Task { @MainActor in
+            let status = await PhotoLibraryImageSaver.requestAddOnlyAuthorization()
+            isRequestingPhotoPermission = false
+            if status == .authorized || status == .limited {
+                shouldSaveCapturedImage = true
+                isCameraPresented = true
+            } else {
+                isPhotoPermissionAlertPresented = true
+            }
+        }
+    }
+
+    private func completeCameraCapture() {
+        let shouldSave = shouldSaveCapturedImage
+        shouldSaveCapturedImage = false
+        guard let image = capturedImage else { return }
+        capturedImage = nil
+        guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
+            viewModel.showImageSelectionFailure()
+            return
+        }
+        Task { @MainActor in
+            if shouldSave {
+                await viewModel.selectCapturedImage(data: data, preview: image)
+            } else {
+                viewModel.selectImage(data: data, preview: image)
+            }
         }
     }
 
@@ -70,7 +120,7 @@ struct PhotoUploadRoute: View {
             selectedPhotoItem = nil
             isGalleryPresented = true
         case .openCamera:
-            isCameraPresented = true
+            openCamera()
         case .reauthenticationRequired:
             viewModel.reset()
             onReauthenticationRequired()
@@ -128,16 +178,16 @@ final class PhotoUploadSelectionLoader {
                     return
                 }
                 guard let self,
-                      self.generation == currentGeneration,
-                      !Task.isCancelled
+                    self.generation == currentGeneration,
+                    !Task.isCancelled
                 else { return }
                 onLoaded(data)
             } catch is CancellationError {
                 return
             } catch {
                 guard let self,
-                      self.generation == currentGeneration,
-                      !Task.isCancelled
+                    self.generation == currentGeneration,
+                    !Task.isCancelled
                 else { return }
                 onFailure()
             }
@@ -181,18 +231,17 @@ struct PhotoUploadCameraPicker: UIViewControllerRepresentable {
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            picker.dismiss(animated: true, completion: onCancel)
+            onCancel()
         }
 
         func imagePickerController(
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
-            let image = info[.originalImage] as? UIImage
-            picker.dismiss(animated: true) { [onImagePicked] in
-                if let image {
-                    onImagePicked(image)
-                }
+            if let image = info[.originalImage] as? UIImage {
+                onImagePicked(image)
+            } else {
+                onCancel()
             }
         }
     }

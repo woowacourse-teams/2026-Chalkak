@@ -402,6 +402,27 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testHomeNotificationOpensSampleListAndReturnsToHome() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let notificationButton = app.buttons["home.notifications"]
+        XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))
+        notificationButton.tap()
+
+        XCTAssertTrue(app.staticTexts["notification.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["9월 22일 오늘의 주제를 확인해보세요."].exists)
+        XCTAssertTrue(app.staticTexts["9월 21일 오늘의 주제를 확인해보세요."].exists)
+        XCTAssertTrue(app.staticTexts["어제 21:10"].exists)
+        XCTAssertFalse(app.buttons["오늘"].exists)
+
+        app.buttons["notification.back"].tap()
+        XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["notification.title"].exists)
+    }
+
+    @MainActor
     func testDailyReminderTapOnHomeReloadsHome() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-daily-reminder-tap"]

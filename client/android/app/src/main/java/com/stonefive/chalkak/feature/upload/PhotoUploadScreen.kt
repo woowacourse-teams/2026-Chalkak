@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.upload
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -76,7 +77,11 @@ fun PhotoUploadRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
-    val photoPickerState = rememberPhotoPickerState(viewModel::onImageSelected)
+    val photoPickerState = rememberPhotoPickerState(
+        onImageSelected = viewModel::onImageSelected,
+        onCapturedImageSaveFailed = viewModel::onCapturedImageSaveFailed,
+        onCapturedImageCompleted = viewModel::onCapturedImageCompleted,
+    )
 
     LaunchedEffect(viewModel, photoPickerState) {
         viewModel.uiEvent.collect { event ->
@@ -280,14 +285,28 @@ fun PhotoUploadScreen(
 }
 
 @Composable
-private fun rememberPhotoPickerState(onImageSelected: (String) -> Unit): PhotoPickerState {
+private fun rememberPhotoPickerState(
+    onImageSelected: (String) -> Unit,
+    onCapturedImageSaveFailed: () -> Unit,
+    onCapturedImageCompleted: (String, String?, Boolean) -> Unit,
+): PhotoPickerState {
     val context = LocalContext.current
     val currentOnImageSelected by rememberUpdatedState(onImageSelected)
+    val currentOnCapturedImageSaveFailed by rememberUpdatedState(onCapturedImageSaveFailed)
+    val currentOnCapturedImageCompleted by rememberUpdatedState(onCapturedImageCompleted)
     val isCameraAvailable = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
     }
     var pendingCaptureUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingCaptureFilePath by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun completeCapturedImageSelection(
+        captureUri: String,
+        captureFilePath: String?,
+        saveToGallery: Boolean,
+    ) {
+        currentOnCapturedImageCompleted(captureUri, captureFilePath, saveToGallery)
+    }
 
     fun clearPendingCapture() {
         pendingCaptureUri = null
@@ -299,21 +318,48 @@ private fun rememberPhotoPickerState(onImageSelected: (String) -> Unit): PhotoPi
     ) { uri ->
         uri?.toString()?.let(currentOnImageSelected)
     }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        val captureUri = pendingCaptureUri
+        val captureFilePath = pendingCaptureFilePath
+        clearPendingCapture()
+
+        if (captureUri != null) {
+            if (!isGranted) currentOnCapturedImageSaveFailed()
+            completeCapturedImageSelection(
+                captureUri = captureUri,
+                captureFilePath = captureFilePath,
+                saveToGallery = isGranted,
+            )
+        } else {
+            captureFilePath?.let(::File)?.delete()
+        }
+    }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture(),
     ) { success ->
         val captureUri = pendingCaptureUri
         val captureFilePath = pendingCaptureFilePath
-        clearPendingCapture()
 
         if (success && captureUri != null) {
-            currentOnImageSelected(captureUri)
+            if (shouldRequestLegacyGalleryPermission(context)) {
+                storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            } else {
+                clearPendingCapture()
+                completeCapturedImageSelection(
+                    captureUri = captureUri,
+                    captureFilePath = captureFilePath,
+                    saveToGallery = true,
+                )
+            }
         } else {
+            clearPendingCapture()
             captureFilePath?.let(::File)?.delete()
         }
     }
 
-    return remember(context, galleryLauncher, cameraLauncher, isCameraAvailable) {
+    return remember(context, galleryLauncher, cameraLauncher, isCameraAvailable, storagePermissionLauncher) {
         PhotoPickerState(
             isCameraAvailable = isCameraAvailable,
             launchGallery = { galleryLauncher.launch("image/*") },
@@ -324,6 +370,9 @@ private fun rememberPhotoPickerState(onImageSelected: (String) -> Unit): PhotoPi
                 try {
                     cameraLauncher.launch(capture.uri)
                 } catch (_: ActivityNotFoundException) {
+                    clearPendingCapture()
+                    capture.file.delete()
+                } catch (_: SecurityException) {
                     clearPendingCapture()
                     capture.file.delete()
                 }

@@ -51,7 +51,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>사진을 촬영해 전시하려면 카메라 접근이 필요해요.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>달력을 이미지로 저장하려면 사진 접근 권한이 필요해요.</string>
+	<string>촬영한 사진과 달력 이미지를 사진 앱에 저장하려면 사진 추가 권한이 필요해요.</string>
 	<key>GOOGLE_IOS_CLIENT_ID</key>
 	<string>$(GOOGLE_IOS_CLIENT_ID)</string>
 	<key>GOOGLE_SERVER_CLIENT_ID</key>

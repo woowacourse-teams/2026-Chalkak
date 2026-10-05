@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -13,8 +14,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +37,8 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
+import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
@@ -44,8 +50,20 @@ fun DisplayPhotoCard(
     onClick: (() -> Unit)? = null,
     imageAspectRatio: Float? = null,
     onImageAspectRatioAvailable: (Float) -> Unit = {},
+    transitionSourceId: String = "display-${variant.name}:${photo.id}",
 ) {
     val isFeatured = variant == DisplayPhotoCardVariant.FEATURED
+    var loadedImageAspectRatio by rememberSaveable(photo.originalImageUrl, photo.thumbnailImageUrl) {
+        mutableStateOf<Float?>(null)
+    }
+    val photoSource = rememberSharedPhotoSource(
+        key = PhotoTransitionKey(photo.id, transitionSourceId),
+        imageModel = if (isFeatured) photo.originalImageUrl else photo.thumbnailImageUrl,
+        signatureModel = if (isFeatured) photo.signatureOriginalImageUrl else photo.signatureThumbnailImageUrl,
+        aspectRatio = imageAspectRatio,
+        contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
+        sourceShape = if (isFeatured) null else ChalkakTheme.shapes.photoCard,
+    )
     val context = LocalPlatformContext.current
     val currentOnImageAspectRatioAvailable by rememberUpdatedState(onImageAspectRatioAvailable)
     val thumbnailImageRequest = remember(context, photo.thumbnailImageUrl) {
@@ -69,7 +87,10 @@ fun DisplayPhotoCard(
                 interactionSource = null,
                 indication = null,
                 role = Role.Button,
-                onClick = onClick,
+                onClick = {
+                    photoSource.select()
+                    onClick()
+                },
             )
     }
 
@@ -80,6 +101,17 @@ fun DisplayPhotoCard(
             .then(photoClickModifier),
     ) {
         ChalkakSignedImage(
+            onImageSuccess = { state ->
+                photoSource.onSuccess(state)
+                loadedImageAspectRatio = aspectRatioForSize(state.result.image.width, state.result.image.height)
+            },
+            onThumbnailImageSuccess = { state ->
+                photoSource.onSuccess(state)
+                loadedImageAspectRatio = aspectRatioForSize(state.result.image.width, state.result.image.height)
+            },
+            onSignatureSuccess = photoSource.onSignatureSuccess,
+            onThumbnailSignatureSuccess = photoSource.onSignatureSuccess,
+            imageModifier = photoSource.modifier,
             imageModel = if (isFeatured) photo.originalImageUrl else thumbnailImageRequest,
             signatureModel = if (isFeatured) {
                 photo.signatureOriginalImageUrl
@@ -90,14 +122,15 @@ fun DisplayPhotoCard(
             thumbnailImageModel = photo.thumbnailImageUrl.takeIf { isFeatured },
             thumbnailSignatureModel = photo.signatureThumbnailImageUrl.takeIf { isFeatured },
             contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
+            imageAspectRatio = if (isFeatured) loadedImageAspectRatio ?: imageAspectRatio else null,
             modifier = if (isFeatured) {
-                Modifier
+                Modifier.fillMaxSize()
             } else {
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(imageAspectRatio ?: DEFAULT_GRID_IMAGE_ASPECT_RATIO)
             },
-            signatureModifier = Modifier.size(
+            signatureModifier = photoSource.signatureModifier.size(
                 width = if (isFeatured) 48.dp else 40.dp,
                 height = if (isFeatured) 36.dp else 30.dp,
             ),

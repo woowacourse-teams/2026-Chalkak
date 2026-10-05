@@ -45,6 +45,7 @@ fun FeedRoute(
     onPostDeleted: (String) -> Unit,
     modifier: Modifier = Modifier,
     postId: String? = null,
+    entryThumbnailImageUrl: String? = null,
     initialContent: FeedContentState.Success? = null,
     isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     viewModel: FeedViewModel = viewModel(
@@ -66,6 +67,8 @@ fun FeedRoute(
 
     FeedScreen(
         uiState = uiState,
+        entryPostId = postId,
+        entryThumbnailImageUrl = entryThumbnailImageUrl,
         onNavigateBack = onNavigateBack,
         onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
@@ -86,7 +89,10 @@ fun FeedScreen(
     modifier: Modifier = Modifier,
     onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    entryPostId: String? = null,
+    entryThumbnailImageUrl: String? = null,
 ) {
+    val hasEntryPhoto = entryPostId != null && entryThumbnailImageUrl != null
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showTitleEditDialog by rememberSaveable { mutableStateOf(false) }
     var titleDraft by rememberSaveable { mutableStateOf("") }
@@ -170,10 +176,12 @@ fun FeedScreen(
             contentAlignment = Alignment.Center,
         ) {
             when {
-                uiState.content != null -> FeedContent(
-                    content = checkNotNull(uiState.content),
+                uiState.content != null || (hasEntryPhoto && uiState.isLoading) -> FeedContent(
+                    content = uiState.content,
                     onLikeClick = onLikeClick,
                     modifier = Modifier.fillMaxSize(),
+                    entryPostId = entryPostId,
+                    entryThumbnailImageUrl = entryThumbnailImageUrl,
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(

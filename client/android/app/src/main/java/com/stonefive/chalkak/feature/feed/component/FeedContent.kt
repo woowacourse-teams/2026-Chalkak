@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.feature.feed.component
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,19 +22,24 @@ import com.stonefive.chalkak.feature.feed.FeedContentState
 import java.time.LocalDate
 
 private val FeedCaptionHorizontalPadding = 20.dp
+private const val FEED_TOPIC_RESIZE_DURATION_MILLIS = 180
 
 @Composable
 fun FeedContent(
     content: FeedContentState.Success?,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    entryPostId: String? = null,
+    entryThumbnailImageUrl: String? = null,
 ) {
-    if (content == null) return
+    if (content == null && (entryPostId == null || entryThumbnailImageUrl == null)) return
 
     FeedPostContent(
         content = content,
         onLikeClick = onLikeClick,
         modifier = modifier,
+        entryPostId = entryPostId,
+        entryThumbnailImageUrl = entryThumbnailImageUrl,
     )
 }
 
@@ -68,9 +75,11 @@ private fun FeedContentPreview() {
 
 @Composable
 private fun FeedPostContent(
-    content: FeedContentState.Success,
+    content: FeedContentState.Success?,
     onLikeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    entryPostId: String? = null,
+    entryThumbnailImageUrl: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -78,23 +87,29 @@ private fun FeedPostContent(
             .padding(bottom = 40.dp),
     ) {
         FeedTopic(
-            dateLabel = content.dateLabel,
-            topic = content.topic,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        FeedPhoto(
-            post = content.post,
-            isLiked = content.isLiked,
-            onLikeClick = onLikeClick,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        FeedCaption(
-            title = content.post.title,
+            dateLabel = content?.dateLabel.orEmpty(),
+            topic = content?.topic.orEmpty(),
             modifier = Modifier
                 .fillMaxWidth()
-                .feedCaptionDivider(ChalkakTheme.colors.divider)
-                .padding(horizontal = FeedCaptionHorizontalPadding, vertical = 5.dp),
+                .animateContentSize(tween(FEED_TOPIC_RESIZE_DURATION_MILLIS)),
         )
+        FeedPhoto(
+            post = content?.post,
+            isLiked = content?.isLiked == true,
+            onLikeClick = onLikeClick,
+            modifier = Modifier.fillMaxWidth(),
+            entryPostId = entryPostId,
+            entryThumbnailImageUrl = entryThumbnailImageUrl,
+        )
+        if (content != null) {
+            FeedCaption(
+                title = content.post.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .feedCaptionDivider(ChalkakTheme.colors.divider)
+                    .padding(horizontal = FeedCaptionHorizontalPadding, vertical = 5.dp),
+            )
+        }
     }
 }
 

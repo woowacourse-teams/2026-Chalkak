@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
+    @State private var isNotificationInboxPresented = false
     @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -70,6 +71,11 @@ struct ContentView: View {
             case .home:
                 NavigationStack {
                     mainTab
+                        .navigationDestination(isPresented: $isNotificationInboxPresented) {
+                            NotificationScreen(onBackClick: { isNotificationInboxPresented = false })
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                        }
                 }
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
                 .overlay {
@@ -311,6 +317,7 @@ struct ContentView: View {
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
+                onOpenNotifications: { isNotificationInboxPresented = true },
                 onNavigateToBottomBar: select,
                 bottomBarCompact: $isBottomBarCompact
             )
@@ -431,7 +438,9 @@ struct ContentView: View {
         switch outcome {
         case let .allowed(topicDate):
             photoUploadReturnTab = tab
-            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate)
+            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate) { message in
+                showMessage(message)
+            }
             isPhotoUploadPresented = true
         case .reauthenticationRequired:
             showLogin()
@@ -527,6 +536,7 @@ struct ContentView: View {
     private func resetMainState() {
         selectedTab = .today
         selectedFeed = nil
+        isNotificationInboxPresented = false
         isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
@@ -642,7 +652,10 @@ struct ContentView: View {
         )
     }
 
-    private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+    private static func makePhotoUploadViewModel(
+        topicDate: Date,
+        onCameraImageSaveFailure: @escaping PhotoUploadViewModel.CameraImageSaveFailureHandler
+    ) -> PhotoUploadViewModel {
 #if DEBUG
         if isPhotoUploadEntryUITest {
             return PhotoUploadViewModel(
@@ -651,7 +664,8 @@ struct ContentView: View {
                     getCreationTopic: { date in
                         .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
                     }
-                )
+                ),
+                onCameraImageSaveFailure: onCameraImageSaveFailure
             )
         }
 #endif
@@ -666,7 +680,8 @@ struct ContentView: View {
         )
         return PhotoUploadViewModel(
             topicDate: topicDate,
-            repository: .api(client: apiClient)
+            repository: .api(client: apiClient),
+            onCameraImageSaveFailure: onCameraImageSaveFailure
         )
     }
 

@@ -18,8 +18,9 @@ struct FeedViewStateTests {
 @Suite(.serialized)
 struct FeedViewModelTests {
     @Test("상세 조회 중 완료된 좋아요의 성공 응답을 상세 응답이 덮어쓰지 않는다")
-    func detailDoesNotOverwriteInFlightLike() async {
+    func detailDoesNotOverwriteInFlightLike() async throws {
         let gate = AsyncGate()
+        defer { gate.release() }
         // 낙관적 값(11)·좋아요 성공 응답 값(42)·상세 응답 값(10)을 모두 다르게 둬서
         // '좋아요 성공 응답이 반영된 뒤 상세가 덮어쓰지 않는지'를 명확히 검증한다.
         let viewModel = FeedViewModel(
@@ -45,7 +46,7 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.likeCount == 11)
 
         // 좋아요 성공 응답(선택됨/42)이 반영될 때까지 기다린 뒤에야 상세 응답을 푼다.
-        await Self.waitUntil { viewModel.viewState.content?.post.likeCount == 42 }
+        try await waitUntil { viewModel.viewState.content?.post.likeCount == 42 }
         #expect(viewModel.viewState.content?.post.isLiked == true)
         #expect(viewModel.viewState.content?.post.likeCount == 42)
 
@@ -83,7 +84,7 @@ struct FeedViewModelTests {
     }
 
     @Test("내 게시물만 삭제 요청을 보내고 완료 상태를 기록한다")
-    func deletesOnlyOwnedPost() async {
+    func deletesOnlyOwnedPost() async throws {
         var requestedPostID: String?
         let ownedViewModel = FeedViewModel(
             postID: "post-1",
@@ -96,7 +97,7 @@ struct FeedViewModelTests {
         )
 
         ownedViewModel.deletePost()
-        await Self.waitUntil { ownedViewModel.viewState.deletedPostID == "post-1" }
+        try await waitUntil { ownedViewModel.viewState.deletedPostID == "post-1" }
 
         #expect(requestedPostID == "post-1")
         #expect(ownedViewModel.viewState.deletedPostID == "post-1")
@@ -119,7 +120,7 @@ struct FeedViewModelTests {
     }
 
     @Test("삭제 실패를 사용자에게 알리고 다시 시도할 수 있다")
-    func deleteFailurePublishesMessageAndAllowsRetry() async {
+    func deleteFailurePublishesMessageAndAllowsRetry() async throws {
         var attemptCount = 0
         let viewModel = FeedViewModel(
             postID: "post-1",
@@ -132,7 +133,7 @@ struct FeedViewModelTests {
         )
 
         viewModel.deletePost()
-        await Self.waitUntil { viewModel.event == .showDeleteFailure(.network) }
+        try await waitUntil { viewModel.event == .showDeleteFailure(.network) }
 
         #expect(!viewModel.viewState.isDeleting)
         #expect(viewModel.viewState.deletedPostID == nil)
@@ -142,7 +143,7 @@ struct FeedViewModelTests {
         #expect(viewModel.event == nil)
 
         viewModel.deletePost()
-        await Self.waitUntil { viewModel.viewState.deletedPostID == "post-1" }
+        try await waitUntil { viewModel.viewState.deletedPostID == "post-1" }
 
         #expect(attemptCount == 2)
         #expect(!viewModel.viewState.isDeleting)
@@ -150,7 +151,7 @@ struct FeedViewModelTests {
     }
 
     @Test("내 게시물 제목 수정은 공백을 제거하고 완료 상태를 반영한다")
-    func updatesOnlyOwnedPostTitle() async {
+    func updatesOnlyOwnedPostTitle() async throws {
         var requestedTitle: String?
         let viewModel = FeedViewModel(
             postID: "post-1",
@@ -164,7 +165,7 @@ struct FeedViewModelTests {
         )
 
         viewModel.updatePostTitle("  수정한 제목  ")
-        await Self.waitUntil { viewModel.event == .showTitleUpdateSuccess }
+        try await waitUntil { viewModel.event == .showTitleUpdateSuccess }
 
         #expect(requestedTitle == "수정한 제목")
         #expect(viewModel.viewState.content?.post.title == "수정한 제목")
@@ -212,8 +213,9 @@ struct FeedViewModelTests {
     }
 
     @Test("상세 응답이 늦게 도착해도 조회 중 수정한 제목을 유지한다")
-    func detailLoadPreservesTitleUpdatedWhileRefreshing() async {
+    func detailLoadPreservesTitleUpdatedWhileRefreshing() async throws {
         let gate = AsyncGate()
+        defer { gate.release() }
         let viewModel = FeedViewModel(
             postID: "post-1",
             seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
@@ -233,7 +235,7 @@ struct FeedViewModelTests {
         await gate.waitUntilEntered()
 
         viewModel.updatePostTitle("수정한 제목")
-        await Self.waitUntil { viewModel.viewState.titleUpdateVersion == 1 }
+        try await waitUntil { viewModel.viewState.titleUpdateVersion == 1 }
 
         #expect(viewModel.viewState.content?.post.title == "수정한 제목")
 
@@ -257,17 +259,6 @@ struct FeedViewModelTests {
         await viewModel.load()
 
         #expect(viewModel.viewState.content?.post.isOwnedByCurrentUser == true)
-    }
-
-    /// 별도 Task에서 갱신되는 상태가 조건을 만족할 때까지 협조적으로 양보하며 대기한다.
-    private static func waitUntil(
-        _ condition: () -> Bool,
-        maxYields: Int = 1000
-    ) async {
-        for _ in 0..<maxYields {
-            if condition() { return }
-            await Task.yield()
-        }
     }
 
     private static func content(

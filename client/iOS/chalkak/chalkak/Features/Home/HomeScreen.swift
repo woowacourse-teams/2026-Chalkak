@@ -4,6 +4,7 @@ struct HomeScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
+    var onOpenNotifications: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
 
     @State private var message: String?
@@ -16,15 +17,21 @@ struct HomeScreen: View {
             case .loading:
                 HomeInitialStatus(
                     status: viewModel.viewState.contentStatus,
-                    onRetry: { Task { await viewModel.retry() } }
+                    onRetry: { Task { await viewModel.retry() } },
+                    onOpenNotifications: onOpenNotifications
                 )
             case .error:
                 HomeInitialStatus(
                     status: viewModel.viewState.contentStatus,
-                    onRetry: { Task { await viewModel.retry() } }
+                    onRetry: { Task { await viewModel.retry() } },
+                    onOpenNotifications: onOpenNotifications
                 )
             case .content:
-                HomeContent(viewModel: viewModel, isBottomBarCompact: bottomBarCompact)
+                HomeContent(
+                    viewModel: viewModel,
+                    onOpenNotifications: onOpenNotifications,
+                    isBottomBarCompact: bottomBarCompact
+                )
             }
         }
         .background(theme.colors.background)
@@ -84,10 +91,11 @@ private struct HomeInitialStatus: View {
     @Environment(\.chalkakTheme) private var theme
     let status: HomeContentStatus
     let onRetry: () -> Void
+    let onOpenNotifications: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            HomeTopBar()
+            HomeTopBar(onOpenNotifications: onOpenNotifications)
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .homeBottomDivider()
 
@@ -131,6 +139,7 @@ private struct HomeInitialStatus: View {
 private struct HomeContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
+    let onOpenNotifications: () -> Void
     @Binding var isBottomBarCompact: Bool
     @State private var scrollPosition = ScrollPosition()
 
@@ -147,11 +156,10 @@ private struct HomeContent: View {
     var body: some View {
         VStack(spacing: 0) {
             // 고정된 상단 바를 스크롤 뷰 밖에 배치해, 배경이 당겨서 새로고침 인디케이터를 가리지 않게 한다.
-            HomeTopBar()
+            HomeTopBar(onOpenNotifications: onOpenNotifications)
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
                 .homeBottomDivider()
-                .allowsHitTesting(false)
 
             ScrollView {
                 VStack(spacing: 0) {
