@@ -85,30 +85,43 @@ private struct FeedZoomSourceModifier: ViewModifier {
     let source: FeedZoomSource
     let cornerRadius: CGFloat
     let signatureSize: CGSize?
+    @State private var frame: CGRect?
 
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
-            } action: { frame in
-                registry?.update(
-                    FeedZoomRegistry.Source(
-                        frame: frame,
-                        cornerRadius: cornerRadius,
-                        signatureFrame: signatureSize.map { size in
-                            CGRect(
-                                x: frame.maxX - theme.spacing.sm - size.width,
-                                y: frame.maxY - theme.spacing.sm - size.height,
-                                width: size.width,
-                                height: size.height
-                            )
-                        }
-                    ),
-                    for: source
-                )
+            } action: { newFrame in
+                frame = newFrame
+                register(newFrame)
+            }
+            // 기록처럼 같은 뷰에서 게시물만 바뀌면 위치가 그대로라 위치 변경으로는 다시 등록되지 않는다.
+            .onChange(of: source) { oldSource, _ in
+                registry?.remove(oldSource)
+                if let frame {
+                    register(frame)
+                }
             }
             .opacity(registry?.activeSource == source ? 0 : 1)
             .onDisappear { registry?.remove(source) }
+    }
+
+    private func register(_ frame: CGRect) {
+        registry?.update(
+            FeedZoomRegistry.Source(
+                frame: frame,
+                cornerRadius: cornerRadius,
+                signatureFrame: signatureSize.map { size in
+                    CGRect(
+                        x: frame.maxX - theme.spacing.sm - size.width,
+                        y: frame.maxY - theme.spacing.sm - size.height,
+                        width: size.width,
+                        height: size.height
+                    )
+                }
+            ),
+            for: source
+        )
     }
 }
 
