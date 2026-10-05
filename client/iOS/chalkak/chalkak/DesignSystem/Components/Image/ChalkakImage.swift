@@ -125,23 +125,12 @@ enum ImageRatioLoader {
         case .system:
             return nil
         case let .remote(url?):
-            if let image = RemoteImageCache.shared.image(for: url), image.size.width > 0 {
-                return image.size.height / image.size.width
-            }
-            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-            guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-                  let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
-                      as? [CFString: Any],
-                  let pixelWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
-                  let pixelHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
-                  pixelWidth > 0, pixelHeight > 0
+            // 화면에 그리는 요청과 같은 캐시·진행 중 요청을 써서 같은 이미지를 두 번 받지 않는다.
+            // 캐시는 EXIF 방향을 반영해 비율을 유지한 채 줄이므로 비율이 그대로다.
+            guard let image = try? await RemoteImageCache.shared.load(url),
+                  image.size.width > 0
             else { return nil }
-
-            let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
-            let isRotated = (5...8).contains(orientation)
-            let width = isRotated ? pixelHeight : pixelWidth
-            let height = isRotated ? pixelWidth : pixelHeight
-            return CGFloat(height / width)
+            return image.size.height / image.size.width
         case .remote(nil):
             return nil
         }
