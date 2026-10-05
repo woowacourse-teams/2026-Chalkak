@@ -41,7 +41,6 @@ struct DisplayPhotoGrid: View {
                         ratioByID[item.photo.id] = ratio
                     }
                 )
-                .feedZoomSource(.displayGrid(item.photo.id), cornerRadius: theme.shapes.photoCard)
                 .contentShape(Rectangle())
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 .onTapGesture { onSelect(item.photo, ratioByID[item.photo.id]) }
@@ -104,6 +103,12 @@ private struct DisplayMasonryCell: View {
                     signatureSource: photo.signatureThumbnailImageSource,
                     contentDescription: photo.contentDescription,
                     contentMode: .fill,
+                    signatureSize: Metrics.signatureSize
+                )
+                // Android처럼 사진만 숨겨 검은 바탕·좋아요 수는 남긴다.
+                .feedZoomSource(
+                    .displayGrid(photo.id),
+                    cornerRadius: theme.shapes.photoCard,
                     signatureSize: Metrics.signatureSize
                 )
             }

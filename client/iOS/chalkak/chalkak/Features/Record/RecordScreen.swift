@@ -111,7 +111,6 @@ struct RecordScreen: View {
         if let selectedPost = viewModel.viewState.selectedPost {
             RecordSelectedPhoto(post: selectedPost)
                 .frame(maxWidth: .infinity)
-                .feedZoomSource(.record(selectedPost.postId))
 
             if selectedPost.status == .approved {
                 RecordPhotoActions(

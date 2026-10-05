@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FeedPhoto: View {
+    @Environment(\.chalkakTheme) private var theme
     // 상세를 받기 전에는 nil이며, 이때는 placeholder만 보여준다.
     let post: FeedPost?
     let placeholder: FeedPhotoPlaceholder?
@@ -9,6 +10,7 @@ struct FeedPhoto: View {
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
     @State private var imageFrame: CGRect?
+    @State private var signatureFrame: CGRect?
     @State private var isOriginalLoaded = false
 
     init(
@@ -33,7 +35,11 @@ struct FeedPhoto: View {
                 .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
                     if let placeholder {
-                        FeedPlaceholderPhoto(placeholder: placeholder, signatureSize: Metrics.signatureSize)
+                        FeedPlaceholderImage(
+                            preloaded: placeholder.preloadedImage,
+                            source: placeholder.imageSource,
+                            contentMode: .fill
+                        )
                     }
                 }
                 .overlay {
@@ -58,6 +64,29 @@ struct FeedPhoto: View {
                     source: zoom.source,
                     destinationFrame: imageFrame
                 )
+                // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
+                .overlay(alignment: .bottomTrailing) {
+                    if let placeholder, let signatureSource = placeholder.signatureImageSource {
+                        FeedPlaceholderImage(
+                            preloaded: placeholder.preloadedSignatureImage,
+                            source: signatureSource,
+                            contentMode: .fit
+                        )
+                        .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
+                        .feedZoomEffect(
+                            progress: zoom.photoProgress,
+                            source: signatureZoomSource,
+                            destinationFrame: signatureFrame
+                        )
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .global)
+                        } action: { frame in
+                            signatureFrame = frame
+                        }
+                        .opacity(signatureOpacity)
+                        .padding(theme.spacing.sm)
+                    }
+                }
                 .opacity(photoOpacity)
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: .global)
@@ -95,45 +124,34 @@ struct FeedPhoto: View {
     private var photoOpacity: CGFloat {
         zoom.source == nil ? zoom.contentProgress : 1
     }
-}
 
-/// 출발 화면에 떠 있던 사진과 서명. 미리 받아 둔 이미지가 있으면 로딩 없이 바로 그린다.
-private struct FeedPlaceholderPhoto: View {
-    @Environment(\.chalkakTheme) private var theme
-    let placeholder: FeedPhotoPlaceholder
-    let signatureSize: CGSize
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottomTrailing) {
-                image(placeholder.preloadedImage, source: placeholder.imageSource, contentMode: .fill)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .clipped()
-
-                if let signatureSource = placeholder.signatureImageSource {
-                    image(placeholder.preloadedSignatureImage, source: signatureSource, contentMode: .fit)
-                        .frame(width: signatureSize.width, height: signatureSize.height)
-                        .padding(theme.spacing.sm)
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .accessibilityHidden(true)
+    private var signatureZoomSource: FeedZoomRegistry.Source? {
+        zoom.source?.signatureFrame.map { FeedZoomRegistry.Source(frame: $0, cornerRadius: 0) }
     }
 
-    @ViewBuilder
-    private func image(
-        _ preloaded: UIImage?,
-        source: ChalkakImageSource,
-        contentMode: ContentMode
-    ) -> some View {
-        if let preloaded {
-            Image(uiImage: preloaded)
-                .resizable()
-                .aspectRatio(contentMode: contentMode)
-        } else {
-            ChalkakImage(source: source, contentDescription: nil, contentMode: contentMode)
+    // 사진은 날아가는데 출발 서명 위치를 모르면, 서명은 제자리에서 다른 콘텐츠와 함께 페이드된다.
+    private var signatureOpacity: CGFloat {
+        zoom.source != nil && signatureZoomSource == nil ? zoom.contentProgress : 1
+    }
+}
+
+/// 출발 화면에 떠 있던 이미지. 미리 받아 둔 이미지가 있으면 로딩 없이 바로 그린다.
+private struct FeedPlaceholderImage: View {
+    let preloaded: UIImage?
+    let source: ChalkakImageSource
+    let contentMode: ContentMode
+
+    var body: some View {
+        Group {
+            if let preloaded {
+                Image(uiImage: preloaded)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+            } else {
+                ChalkakImage(source: source, contentDescription: nil, contentMode: contentMode)
+            }
         }
+        .accessibilityHidden(true)
     }
 }
 
