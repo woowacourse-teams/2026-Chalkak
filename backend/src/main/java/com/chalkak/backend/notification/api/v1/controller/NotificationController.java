@@ -9,7 +9,7 @@ import com.chalkak.backend.notification.api.v1.dto.request.NotificationListReque
 import com.chalkak.backend.notification.api.v1.dto.response.NotificationListResponse;
 import com.chalkak.backend.notification.api.v1.dto.response.NotificationDetailResponse;
 import com.chalkak.backend.notification.api.v1.dto.response.NotificationUnreadStatusResponse;
-import com.chalkak.backend.notification.service.NotificationInboxService;
+import com.chalkak.backend.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/notifications")
 public class NotificationController implements NotificationApiDocs {
 
-    private final NotificationInboxService notificationInboxService;
+    private final NotificationService notificationService;
 
     @Override
     @RequiresExistingUser
@@ -35,7 +35,7 @@ public class NotificationController implements NotificationApiDocs {
             @LoginUser AuthenticatedUser loginUser
     ) {
         return ResponseEntity.ok(NotificationListResponse.from(
-                notificationInboxService.getNotifications(
+                notificationService.getNotifications(
                         loginUser.userId(), request.page(), request.pageSize())));
     }
 
@@ -47,7 +47,7 @@ public class NotificationController implements NotificationApiDocs {
             @LoginUser AuthenticatedUser loginUser
     ) {
         return ResponseEntity.ok(NotificationDetailResponse.from(
-                notificationInboxService.getNotification(
+                notificationService.getNotification(
                         loginUser.userId(), CanonicalUuidParser.parse(notificationId))));
     }
 
@@ -58,7 +58,7 @@ public class NotificationController implements NotificationApiDocs {
             @LoginUser AuthenticatedUser loginUser
     ) {
         return ResponseEntity.ok(new NotificationUnreadStatusResponse(
-                notificationInboxService.hasUnreadNotification(loginUser.userId())));
+                notificationService.hasUnreadNotification(loginUser.userId())));
     }
 
     @Override
@@ -68,7 +68,7 @@ public class NotificationController implements NotificationApiDocs {
             @PathVariable String notificationId,
             @LoginUser AuthenticatedUser loginUser
     ) {
-        notificationInboxService.markRead(
+        notificationService.markRead(
                 loginUser.userId(), CanonicalUuidParser.parse(notificationId));
         return ResponseEntity.noContent().build();
     }
@@ -77,7 +77,7 @@ public class NotificationController implements NotificationApiDocs {
     @RequiresExistingUser
     @PatchMapping("/read-all")
     public ResponseEntity<Void> markAllRead(@LoginUser AuthenticatedUser loginUser) {
-        notificationInboxService.markAllRead(loginUser.userId());
+        notificationService.markAllRead(loginUser.userId());
         return ResponseEntity.noContent().build();
     }
 }

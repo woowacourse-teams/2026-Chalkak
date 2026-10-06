@@ -8,21 +8,47 @@ import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.NotificationSlice;
 import com.chalkak.backend.notification.repository.NotificationSummary;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.Post;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class NotificationInboxService {
+public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final ImageUrlProvider imageUrlProvider;
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForModeration(
+            Post post,
+            UUID eventKey,
+            ModerationStatus status,
+            String rejectionReason,
+            Instant occurredAt
+    ) {
+        UUID userId = post.getAuthor().getId();
+        UUID postId = post.getId();
+        if (status == ModerationStatus.APPROVED) {
+            notificationRepository
+                    .save(Notification.approved(userId, postId, eventKey, occurredAt));
+            return;
+        }
+        notificationRepository.save(Notification.rejected(
+                userId,
+                postId,
+                eventKey,
+                rejectionReason,
+                occurredAt));
+    }
 
     public NotificationListResult getNotifications(UUID userId, int page, int pageSize) {
         NotificationSlice slice = notificationRepository.findByUserId(userId, page, pageSize);

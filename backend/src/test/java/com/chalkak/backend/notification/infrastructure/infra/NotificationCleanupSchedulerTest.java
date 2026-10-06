@@ -118,8 +118,8 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
                 """, eventId, adminId, postId, Timestamp.from(createdAt), UUID.randomUUID());
         jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, post_id, event_key, type, title, body, created_at
-                ) VALUES (?, ?, ?, ?, 'POST_APPROVED', '승인', '피드에 공개', ?)
+                    id, user_id, source_type, source_id, event_key, type, title, body, created_at
+                ) VALUES (?, ?, 'POST', ?, ?, 'POST_APPROVED', '승인', '피드에 공개', ?)
                 """, notificationId, userId, postId, eventId, Timestamp.from(createdAt));
         return notificationId;
     }

@@ -98,13 +98,15 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        Map<String, Object> notification = jdbcTemplate.queryForMap("""
-                SELECT user_id, post_id, event_key, type, title, body, rejection_reason, read_at
-                FROM notifications
-                WHERE post_id = ?
-                """, POST_ID);
+        Map<String, Object> notification = jdbcTemplate.queryForMap(
+                """
+                        SELECT user_id, source_id, event_key, type, title, body, payload ->> 'rejectionReason' AS rejection_reason, read_at
+                        FROM notifications
+                        WHERE source_id = ?
+                        """,
+                POST_ID);
         assertThat(notification.get("user_id")).isEqualTo(USER_ID);
-        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("source_id")).isEqualTo(POST_ID);
         assertThat(notification.get("type")).isEqualTo("POST_APPROVED");
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
@@ -167,13 +169,15 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        Map<String, Object> notification = jdbcTemplate.queryForMap("""
-                SELECT user_id, post_id, type, title, body, rejection_reason, read_at
-                FROM notifications
-                WHERE post_id = ?
-                """, POST_ID);
+        Map<String, Object> notification = jdbcTemplate.queryForMap(
+                """
+                        SELECT user_id, source_id, type, title, body, payload ->> 'rejectionReason' AS rejection_reason, read_at
+                        FROM notifications
+                        WHERE source_id = ?
+                        """,
+                POST_ID);
         assertThat(notification.get("user_id")).isEqualTo(USER_ID);
-        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("source_id")).isEqualTo(POST_ID);
         assertThat(notification.get("type")).isEqualTo("POST_REJECTED");
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
@@ -189,16 +193,16 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
         entityManager.flush();
         UUID eventKey = jdbcTemplate.queryForObject(
-                "SELECT event_key FROM notifications WHERE post_id = ?",
+                "SELECT event_key FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 UUID.class,
                 POST_ID);
 
         // When & Then
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, post_id, event_key, type, title, body, created_at
+                    id, user_id, source_type, source_id, event_key, type, title, body, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP
+                    ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP
                 )
                 """, UUID.randomUUID(), USER_ID, POST_ID, eventKey))
                 .hasMessageContaining("ux_notifications_user_event");

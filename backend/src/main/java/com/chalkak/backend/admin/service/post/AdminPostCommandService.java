@@ -11,7 +11,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
-import com.chalkak.backend.notification.service.UserNotificationService;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -41,7 +41,7 @@ public class AdminPostCommandService {
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
     private final AdminAuditLogService adminAuditLogService;
-    private final UserNotificationService userNotificationService;
+    private final NotificationService notificationService;
 
     @Transactional
     public AdminPostModerationResult moderate(
@@ -74,7 +74,7 @@ public class AdminPostCommandService {
                 normalizedReason,
                 beforeState,
                 afterState));
-        userNotificationService.createForModeration(
+        notificationService.createForModeration(
                 post,
                 auditLog.getId(),
                 status,

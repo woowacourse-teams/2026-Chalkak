@@ -21,7 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-class NotificationInboxServiceTest extends IntegrationTestSupport {
+class NotificationServiceTest extends IntegrationTestSupport {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6572f1");
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6572a1");
@@ -42,7 +42,7 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
     private static final String THUMBNAIL_KEY = "chalkak/posts/inbox/thumbnail.webp";
 
     @Autowired
-    private NotificationInboxService notificationInboxService;
+    private NotificationService notificationService;
 
     @Autowired
     private PostCommandService postCommandService;
@@ -69,7 +69,7 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(THUMBNAIL_KEY)).willReturn("https://cdn.test/thumbnail.webp");
 
         // When
-        NotificationListResult result = notificationInboxService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
 
         // Then
         assertThat(result.notifications()).hasSize(1);
@@ -87,8 +87,8 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         insertSecondNotification(USER_ID);
 
         // When
-        NotificationListResult first = notificationInboxService.getNotifications(USER_ID, 1, 1);
-        NotificationListResult second = notificationInboxService.getNotifications(USER_ID, 2, 1);
+        NotificationListResult first = notificationService.getNotifications(USER_ID, 1, 1);
+        NotificationListResult second = notificationService.getNotifications(USER_ID, 2, 1);
 
         // Then
         assertThat(first.notifications()).extracting(NotificationListResult.Summary::id)
@@ -106,22 +106,22 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(ORIGINAL_KEY)).willReturn("https://cdn.test/original.webp");
 
         // When
-        NotificationDetailResult detail = notificationInboxService.getNotification(USER_ID,
+        NotificationDetailResult detail = notificationService.getNotification(USER_ID,
                 NOTIFICATION_ID);
 
         // Then
         assertThat(detail.originalImageUrl()).isEqualTo("https://cdn.test/original.webp");
         assertThat(detail.rejectionReason()).isEqualTo("사진 품질");
         assertThatThrownBy(
-                () -> notificationInboxService.getNotification(OTHER_USER_ID, NOTIFICATION_ID))
+                () -> notificationService.getNotification(OTHER_USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
     }
 
     @Test
     @DisplayName("미읽음 여부는 로그인한 회원의 알림만 기준으로 판단한다")
     void hasUnreadNotification_returnsOwnUnreadStatus() {
-        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isTrue();
-        assertThat(notificationInboxService.hasUnreadNotification(OTHER_USER_ID)).isFalse();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isTrue();
+        assertThat(notificationService.hasUnreadNotification(OTHER_USER_ID)).isFalse();
     }
 
     @Test
@@ -135,7 +135,7 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update("""
                 UPDATE notifications
                 SET type = 'POST_APPROVED', title = '게시물이 승인되었습니다.',
-                    body = '내 사진이 피드에 공개되었습니다.', rejection_reason = NULL
+                    body = '내 사진이 피드에 공개되었습니다.', payload = NULL
                 WHERE id = ?
                 """, NOTIFICATION_ID);
 
@@ -143,12 +143,12 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         postCommandService.deletePost(USER_ID, POST_ID);
 
         // Then
-        assertThat(notificationInboxService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
                 .isEmpty();
-        assertThatThrownBy(() -> notificationInboxService.getNotification(USER_ID, NOTIFICATION_ID))
+        assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
-        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isFalse();
-        assertThatThrownBy(() -> notificationInboxService.markRead(USER_ID, NOTIFICATION_ID))
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThatThrownBy(() -> notificationService.markRead(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ?", Integer.class,
@@ -162,12 +162,33 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
 
         // Then
-        assertThat(notificationInboxService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
                 .isEmpty();
-        assertThatThrownBy(() -> notificationInboxService.getNotification(USER_ID, NOTIFICATION_ID))
+        assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
-        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isFalse();
-        notificationInboxService.markAllRead(USER_ID);
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        notificationService.markAllRead(USER_ID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
+                Integer.class, NOTIFICATION_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("관련 게시물이 없는 알림은 조회·미읽음·읽음 처리에서 제외한다")
+    void getNotifications_missingPost_hidesNotificationFromEveryInboxOperation() {
+        // Given
+        jdbcTemplate.update("UPDATE notifications SET source_id = ? WHERE id = ?",
+                UUID.randomUUID(), NOTIFICATION_ID);
+
+        // When & Then
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+                .isEmpty();
+        assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThatThrownBy(() -> notificationService.markRead(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        notificationService.markAllRead(USER_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
                 Integer.class, NOTIFICATION_ID)).isEqualTo(1);
@@ -176,15 +197,15 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("알림 읽음은 본인만 처리하며 반복 호출해도 처음 읽은 시각을 유지한다")
     void markRead_isOwnerOnlyAndIdempotent() {
-        assertThatThrownBy(() -> notificationInboxService.markRead(OTHER_USER_ID, NOTIFICATION_ID))
+        assertThatThrownBy(() -> notificationService.markRead(OTHER_USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
 
-        notificationInboxService.markRead(USER_ID, NOTIFICATION_ID);
+        notificationService.markRead(USER_ID, NOTIFICATION_ID);
         Instant firstReadAt = jdbcTemplate.queryForObject(
                 "SELECT read_at FROM notifications WHERE id = ?",
                 (resultSet, rowNum) -> resultSet.getTimestamp(1).toInstant(),
                 NOTIFICATION_ID);
-        notificationInboxService.markRead(USER_ID, NOTIFICATION_ID);
+        notificationService.markRead(USER_ID, NOTIFICATION_ID);
         Instant secondReadAt = jdbcTemplate.queryForObject(
                 "SELECT read_at FROM notifications WHERE id = ?",
                 (resultSet, rowNum) -> resultSet.getTimestamp(1).toInstant(),
@@ -192,7 +213,7 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
 
         assertThat(firstReadAt).isNotNull();
         assertThat(secondReadAt).isEqualTo(firstReadAt);
-        assertThat(notificationInboxService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
     }
 
     @Test
@@ -202,7 +223,7 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
         insertSecondNotification(USER_ID);
 
         // When
-        notificationInboxService.markAllRead(USER_ID);
+        notificationService.markAllRead(USER_ID);
 
         // Then
         assertThat(jdbcTemplate.queryForObject("""
@@ -226,11 +247,11 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
                 Timestamp.from(CREATED_AT.plusSeconds(1)), UUID.randomUUID());
         jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, post_id, event_key, type, title, body,
-                    rejection_reason, created_at
+                    id, user_id, source_type, source_id, event_key, type, title, body,
+                    payload, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', '사진 품질', ?
+                    ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
+                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?
                 )
                 """, SECOND_NOTIFICATION_ID, recipientId, POST_ID, SECOND_EVENT_ID,
                 Timestamp.from(CREATED_AT.plusSeconds(1)));
@@ -283,11 +304,11 @@ class NotificationInboxServiceTest extends IntegrationTestSupport {
                 """, EVENT_ID, ADMIN_ID, POST_ID, Timestamp.from(CREATED_AT), UUID.randomUUID());
         jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, post_id, event_key, type, title, body,
-                    rejection_reason, created_at
+                    id, user_id, source_type, source_id, event_key, type, title, body,
+                    payload, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', '사진 품질', ?
+                    ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
+                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?
                 )
                 """, NOTIFICATION_ID, USER_ID, POST_ID, EVENT_ID, Timestamp.from(CREATED_AT));
     }

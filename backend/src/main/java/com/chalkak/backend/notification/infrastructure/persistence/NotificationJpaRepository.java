@@ -19,10 +19,15 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             SELECT new com.chalkak.backend.notification.repository.NotificationSummary(
                 notification, photo.thumbnailStorageKey)
             FROM Notification notification
-            JOIN Post post ON post.id = notification.postId
-            JOIN post.photo photo
+            LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                AND post.id = notification.sourceId
+            LEFT JOIN post.photo photo
             WHERE notification.userId = :userId
-                AND post.deletedAt IS NULL
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
+                )
             ORDER BY notification.createdAt DESC, notification.id DESC
             """)
     Slice<NotificationSummary> findSummariesByUserId(
@@ -34,10 +39,15 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             SELECT new com.chalkak.backend.notification.repository.NotificationDetail(
                 notification, photo.originalStorageKey)
             FROM Notification notification
-            JOIN Post post ON post.id = notification.postId
-            JOIN post.photo photo
+            LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                AND post.id = notification.sourceId
+            LEFT JOIN post.photo photo
             WHERE notification.id = :notificationId AND notification.userId = :userId
-                AND post.deletedAt IS NULL
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
+                )
             """)
     Optional<NotificationDetail> findDetailByIdAndUserId(
             @Param("notificationId") UUID notificationId,
@@ -47,9 +57,14 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
     @Query("""
             SELECT CASE WHEN COUNT(notification) > 0 THEN true ELSE false END
             FROM Notification notification
-            JOIN Post post ON post.id = notification.postId
+            LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                AND post.id = notification.sourceId
             WHERE notification.userId = :userId AND notification.readAt IS NULL
-                AND post.deletedAt IS NULL
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
+                )
             """)
     boolean existsVisibleUnreadByUserId(@Param("userId") UUID userId);
 
@@ -58,10 +73,14 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             UPDATE Notification notification
             SET notification.readAt = coalesce(notification.readAt, :readAt)
             WHERE notification.id = :notificationId AND notification.userId = :userId
-                AND EXISTS (
-                    SELECT post.id FROM Post post
-                    WHERE post.id = notification.postId
-                        AND post.deletedAt IS NULL
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR EXISTS (
+                        SELECT post.id FROM Post post
+                        WHERE post.id = notification.sourceId
+                            AND post.deletedAt IS NULL
+                    )
                 )
             """)
     int markRead(
@@ -75,10 +94,14 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             UPDATE Notification notification
             SET notification.readAt = :readAt
             WHERE notification.userId = :userId AND notification.readAt IS NULL
-                AND EXISTS (
-                    SELECT post.id FROM Post post
-                    WHERE post.id = notification.postId
-                        AND post.deletedAt IS NULL
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR EXISTS (
+                        SELECT post.id FROM Post post
+                        WHERE post.id = notification.sourceId
+                            AND post.deletedAt IS NULL
+                    )
                 )
             """)
     int markAllRead(
