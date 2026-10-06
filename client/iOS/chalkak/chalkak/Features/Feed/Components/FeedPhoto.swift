@@ -163,13 +163,12 @@ private struct FeedLikeRow: View {
     let onLike: () -> Void
 
     var body: some View {
-        Button(action: onLike) {
-            // Android FeedLikeRow: height 60 고정 박스 안에서 start 18 / top 22 인셋으로 배치.
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: Metrics.rowHeight)
-                .overlay(alignment: .topLeading) {
-                    HStack(spacing: Metrics.spacing) {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: Metrics.rowHeight)
+            .overlay(alignment: .topLeading) {
+                HStack(spacing: Metrics.spacing - Metrics.heartTouchInset) {
+                    Button(action: onLike) {
                         Image(isLiked ? "ic_heart_filled" : "ic_heart")
                             .renderingMode(.template)
                             .resizable()
@@ -177,22 +176,24 @@ private struct FeedLikeRow: View {
                             .foregroundStyle(
                                 isLiked ? theme.colors.actionPrimary : theme.colors.iconSecondary
                             )
+                            .padding(Metrics.heartTouchInset)
+                            .contentShape(Rectangle())
                             .accessibilityHidden(true)
-
-                        Text("\(likeCount)")
-                            .font(theme.typography.body)
-                            .fontWeight(.regular)
-                            .foregroundStyle(theme.colors.textSecondary)
                     }
-                    .padding(.top, Metrics.topInset)
-                    .padding(.leading, Metrics.horizontalInset)
+                    .buttonStyle(.plain)
+                    .disabled(!isEnabled)
+                    .accessibilityLabel("좋아요 \(likeCount)")
+                    .accessibilityValue(isLiked ? "선택됨" : "")
+
+                    Text("\(likeCount)")
+                        .font(theme.typography.body)
+                        .fontWeight(.regular)
+                        .foregroundStyle(theme.colors.textSecondary)
                 }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel("좋아요 \(likeCount)")
-        .accessibilityValue(isLiked ? "선택됨" : "")
+                // 하트와 숫자 위치는 유지하고 하트 주변만 터치할 수 있게 한다.
+                .padding(.top, Metrics.topInset - Metrics.heartTouchInset)
+                .padding(.leading, Metrics.horizontalInset - Metrics.heartTouchInset)
+            }
     }
 }
 
@@ -204,6 +205,8 @@ private enum Metrics {
     static let rowHeight: CGFloat = 60
     static let spacing: CGFloat = 9
     static let heartSize: CGFloat = 28
+    static let minimumTouchSize: CGFloat = 44
+    static let heartTouchInset = (minimumTouchSize - heartSize) / 2
     static let topInset: CGFloat = 22
     static let horizontalInset: CGFloat = 18
 }
