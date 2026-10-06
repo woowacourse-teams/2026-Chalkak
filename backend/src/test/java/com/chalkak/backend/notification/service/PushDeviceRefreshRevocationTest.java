@@ -13,6 +13,7 @@ import com.chalkak.backend.auth.service.UserRefreshTokenService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.notification.infrastructure.persistence.PushDeviceJpaRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -23,6 +24,8 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,11 +50,16 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
 
+    private final Map<UUID, UUID> registeredDeviceIds = new HashMap<>();
+
     @Autowired
     private PushDeviceService pushDeviceService;
 
     @Autowired
     private PushDeviceRepository pushDeviceRepository;
+
+    @Autowired
+    private PushDeviceJpaRepository pushDeviceJpaRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -176,9 +184,13 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
         // When & Then
         assertReauthenticationRequired(first);
         assertRevoked(first.sessionId());
-        PushDevice old = pushDeviceRepository.findBySessionId(first.sessionId()).orElseThrow();
+        PushDevice old = pushDeviceJpaRepository
+                .findById(registeredDeviceIds.get(first.sessionId()))
+                .orElseThrow();
         assertThat(old.getDisabledAt()).isEqualTo(NOW);
         assertThat(old.getUpdatedAt()).isEqualTo(NOW);
+        assertThat(old.getUser()).isNull();
+        assertThat(old.getSessionId()).isNull();
         assertThat(old.getFcmToken()).isNull();
         assertThat(old.getFcmTokenHash()).isNull();
         assertActive(second, "shared-device");
@@ -203,6 +215,8 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        registeredDeviceIds.put(issued.sessionId(),
+                pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;
     }
 
@@ -244,10 +258,14 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
     }
 
     private void assertDisabled(IssuedRefreshToken issued) {
-        PushDevice device = pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow();
+        PushDevice device = pushDeviceJpaRepository
+                .findById(registeredDeviceIds.get(issued.sessionId()))
+                .orElseThrow();
         assertThat(device.getDisabledAt()).isEqualTo(REVOKED_AT);
         assertThat(device.getUpdatedAt()).isEqualTo(REVOKED_AT);
         assertThat(device.getRegisteredAt()).isEqualTo(NOW);
+        assertThat(device.getUser()).isNull();
+        assertThat(device.getSessionId()).isNull();
         assertThat(device.getFcmToken()).isNull();
         assertThat(device.getFcmTokenHash()).isNull();
     }

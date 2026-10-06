@@ -16,6 +16,8 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +37,8 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
 
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
+
+    private final Map<UUID, UUID> registeredDeviceIds = new HashMap<>();
 
     @Autowired
     private PushDeviceService pushDeviceService;
@@ -178,13 +182,18 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        registeredDeviceIds.put(issued.sessionId(),
+                pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;
     }
 
     private void assertDisabled(UUID sessionId, Instant disabledAt) {
-        PushDevice device = pushDeviceRepository.findBySessionId(sessionId).orElseThrow();
+        PushDevice device = entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(sessionId));
         assertThat(device.getDisabledAt()).isEqualTo(disabledAt);
         assertThat(device.getUpdatedAt()).isEqualTo(disabledAt);
+        assertThat(device.getUser()).isNull();
+        assertThat(device.getSessionId()).isNull();
         assertThat(device.getFcmToken()).isNull();
         assertThat(device.getFcmTokenHash()).isNull();
         assertThat(device.getRegisteredAt()).isEqualTo(NOW);

@@ -16,6 +16,7 @@ import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -105,6 +106,8 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), "initial-token");
+        UUID deviceId = pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+                .getId();
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         CountDownLatch firstCompleted = new CountDownLatch(1);
         CountDownLatch firstCanCommit = new CountDownLatch(1);
@@ -156,9 +159,10 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
                     Integer.class, issued.sessionId())).isZero();
             assertThat(jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM push_devices
-                    WHERE session_id = ? AND disabled_at IS NOT NULL
+                    WHERE id = ? AND disabled_at IS NOT NULL
+                        AND user_id IS NULL AND session_id IS NULL
                         AND fcm_token IS NULL AND fcm_token_hash IS NULL
-                    """, Integer.class, issued.sessionId())).isEqualTo(1);
+                    """, Integer.class, deviceId)).isEqualTo(1);
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();

@@ -75,7 +75,8 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
                 """, Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM push_devices
-                WHERE disabled_at IS NOT NULL AND fcm_token IS NULL AND fcm_token_hash IS NULL
+                WHERE disabled_at IS NOT NULL AND user_id IS NULL AND session_id IS NULL
+                    AND fcm_token IS NULL AND fcm_token_hash IS NULL
                 """, Integer.class)).isEqualTo(1);
     }
 
@@ -108,7 +109,15 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
         // then
         assertThat(findActiveToken(first.sessionId())).isEqualTo("second-token");
         assertThat(findActiveToken(second.sessionId())).isEqualTo("first-token");
-        assertThat(countDevices()).isEqualTo(2);
+        assertThat(countDevices()).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM push_devices WHERE disabled_at IS NULL
+                """, Integer.class)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM push_devices
+                WHERE disabled_at IS NOT NULL AND user_id IS NULL AND session_id IS NULL
+                    AND fcm_token IS NULL AND fcm_token_hash IS NULL
+                """, Integer.class)).isEqualTo(1);
     }
 
     private Login login() {

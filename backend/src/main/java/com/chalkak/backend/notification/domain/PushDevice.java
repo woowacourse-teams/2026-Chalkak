@@ -28,11 +28,11 @@ public class PushDevice {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "session_id", nullable = false, updatable = false)
+    @Column(name = "session_id")
     private UUID sessionId;
 
     @Column(name = "fcm_token", columnDefinition = "text")

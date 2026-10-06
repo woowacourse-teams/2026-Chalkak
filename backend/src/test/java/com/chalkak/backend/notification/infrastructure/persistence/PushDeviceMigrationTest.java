@@ -83,6 +83,30 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             SELECT COUNT(*) FROM information_schema.tables
                             WHERE table_schema = ? AND table_name = 'login_sessions'
                             """, Integer.class, schema)).isZero();
+                    // 비활성 연결만 익명화하고 활성 연결·RT·설정은 유지한다.
+                    migrate(schema, "202610061500");
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM push_devices
+                            WHERE user_id = ? AND session_id = ? AND fcm_token = 'active-token'
+                                AND disabled_at IS NULL
+                            """, Integer.class, userId, sessionId)).isEqualTo(1);
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM push_devices
+                            WHERE disabled_at = ? AND user_id IS NULL AND session_id IS NULL
+                                AND fcm_token IS NULL AND fcm_token_hash IS NULL
+                            """, Integer.class, Timestamp.from(DISABLED_AT))).isEqualTo(1);
+                    assertThat(jdbc.queryForList("SELECT * FROM user_refresh_tokens ORDER BY id"))
+                            .isEqualTo(tokensBefore);
+                    assertThat(jdbc.queryForList("""
+                            SELECT id, topic_push_enabled, moderation_push_enabled
+                            FROM users ORDER BY id
+                            """))
+                            .isEqualTo(settingsBefore);
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM information_schema.columns
+                            WHERE table_schema = ? AND table_name = 'push_devices'
+                                AND column_name IN ('installation_id', 'platform')
+                            """, Integer.class, schema)).isZero();
                 } finally {
                     connection.setSchema(previousSchema);
                 }

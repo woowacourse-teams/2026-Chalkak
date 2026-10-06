@@ -26,7 +26,8 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE PushDevice device
-            SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
+            SET device.user = NULL, device.sessionId = NULL,
+                device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
             WHERE device.sessionId = :sessionId AND device.disabledAt IS NULL
             """)
@@ -38,7 +39,8 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE PushDevice device
-            SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
+            SET device.user = NULL, device.sessionId = NULL,
+                device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
             WHERE device.disabledAt IS NULL AND device.user.id = :userId
             """)
@@ -50,7 +52,8 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE PushDevice device
-            SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
+            SET device.user = NULL, device.sessionId = NULL,
+                device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
             WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
                 AND device.sessionId <> :sessionId

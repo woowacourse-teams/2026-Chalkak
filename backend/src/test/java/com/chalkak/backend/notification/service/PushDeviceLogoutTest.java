@@ -23,6 +23,9 @@ import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,8 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
 
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
+
+    private final Map<UUID, UUID> registeredDeviceIds = new HashMap<>();
 
     @Autowired
     private PushDeviceService pushDeviceService;
@@ -91,7 +96,10 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        PushDevice disabled = pushDeviceRepository.findBySessionId(first.sessionId()).orElseThrow();
+        PushDevice disabled = entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(first.sessionId()));
+        assertThat(disabled.getUser()).isNull();
+        assertThat(disabled.getSessionId()).isNull();
         assertThat(disabled.getFcmToken()).isNull();
         assertThat(disabled.getFcmTokenHash()).isNull();
         assertThat(disabled.getDisabledAt()).isEqualTo(LOGGED_OUT_AT);
@@ -129,7 +137,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
                 .getFcmToken()).isNull();
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
                 issued.sessionId(), user.getId(), REGISTERED_AT)).isFalse();
@@ -149,7 +157,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
                 .getFcmToken()).isNull();
     }
 
@@ -172,9 +180,12 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        PushDevice disabled = pushDeviceRepository.findBySessionId(first.sessionId()).orElseThrow();
+        PushDevice disabled = entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(first.sessionId()));
         assertThat(disabled.getDisabledAt()).isEqualTo(LOGGED_OUT_AT);
         assertThat(disabled.getUpdatedAt()).isEqualTo(LOGGED_OUT_AT);
+        assertThat(disabled.getUser()).isNull();
+        assertThat(disabled.getSessionId()).isNull();
         assertThat(disabled.getFcmToken()).isNull();
         assertThat(pushDeviceRepository.findBySessionId(second.sessionId()).orElseThrow()
                 .getFcmToken())
@@ -235,7 +246,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
                 .getFcmToken()).isNull();
     }
 
@@ -256,13 +267,15 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
                 .getFcmToken()).isNull();
     }
 
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        registeredDeviceIds.put(issued.sessionId(),
+                pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;
     }
 
