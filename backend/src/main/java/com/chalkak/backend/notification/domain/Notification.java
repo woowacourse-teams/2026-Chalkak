@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +26,7 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification {
 
+    private static final Duration RETENTION = Duration.ofDays(30);
     private static final String APPROVED_TITLE = "게시물이 승인되었습니다.";
     private static final String APPROVED_BODY = "내 사진이 피드에 공개되었습니다.";
     private static final String REJECTED_TITLE = "게시물이 반려되었습니다.";
@@ -69,6 +71,10 @@ public class Notification {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    public static Instant getRetentionThreshold(Instant now) {
+        return now.minus(RETENTION);
+    }
 
     public static Notification approved(
             UUID userId,

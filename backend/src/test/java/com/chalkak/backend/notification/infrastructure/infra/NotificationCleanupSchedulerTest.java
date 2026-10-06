@@ -3,6 +3,8 @@ package com.chalkak.backend.notification.infrastructure.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.notification.service.NotificationListResult;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
@@ -38,6 +40,9 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     private NotificationCleanupScheduler notificationCleanupScheduler;
 
     @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
@@ -62,8 +67,8 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({"ACTIVE,false", "ACTIVE,true", "BANNED,false", "BANNED,true"})
-    @DisplayName("일반·정지 회원의 알림은 읽음 여부와 무관하게 사건 발생 후 30일이 지나면 삭제한다")
-    void deleteExpiredNotifications_activeOrBannedUser_deletesOnlyOlderThanThirtyDays(
+    @DisplayName("일반·정지 회원의 알림은 읽음 여부와 무관하게 조회와 삭제에 같은 30일 경계를 적용한다")
+    void deleteExpiredNotifications_activeOrBannedUser_matchesInboxRetentionBoundary(
             String status,
             boolean read
     ) {
@@ -82,9 +87,12 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
         }
 
         // When
+        NotificationListResult inbox = notificationService.getNotifications(activeUserId, 1, 20);
         notificationCleanupScheduler.deleteExpiredNotifications();
 
         // Then
+        assertThat(inbox.notifications()).extracting(NotificationListResult.Summary::id)
+                .containsExactlyInAnyOrder(onBoundary, recent);
         assertThat(exists(expired)).isFalse();
         assertThat(exists(onBoundary)).isTrue();
         assertThat(exists(recent)).isTrue();
