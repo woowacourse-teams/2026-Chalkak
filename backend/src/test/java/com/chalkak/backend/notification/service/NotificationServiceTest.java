@@ -6,6 +6,8 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.NotificationSourceType;
+import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.service.PostCommandService;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -88,10 +90,36 @@ class NotificationServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.notifications()).hasSize(1);
         assertThat(result.notifications().getFirst().id()).isEqualTo(NOTIFICATION_ID);
+        assertThat(result.notifications().getFirst().sourceType())
+                .isEqualTo(NotificationSourceType.POST);
+        assertThat(result.notifications().getFirst().sourceId()).isEqualTo(POST_ID);
         assertThat(result.notifications().getFirst().thumbnailImageUrl())
                 .isEqualTo("https://cdn.test/thumbnail.webp");
         assertThat(result.notifications().getFirst().readAt()).isNull();
         assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("승인 알림 목록은 게시물 화면 이동에 사용할 관련 게시물 ID를 제공한다")
+    void getNotifications_approvedNotification_returnsPostTarget() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE notifications
+                SET type = 'POST_APPROVED', payload = NULL
+                WHERE id = ?
+                """, NOTIFICATION_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+
+        // Then
+        NotificationListResult.Summary summary = result.notifications().getFirst();
+        assertThat(summary.type()).isEqualTo(NotificationType.POST_APPROVED);
+        assertThat(summary.sourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(summary.sourceId()).isEqualTo(POST_ID);
+        assertThat(summary.id()).isEqualTo(NOTIFICATION_ID);
     }
 
     @Test

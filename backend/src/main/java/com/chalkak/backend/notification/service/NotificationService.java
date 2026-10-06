@@ -114,6 +114,8 @@ public class NotificationService {
         return new NotificationListResult.Summary(
                 notification.getId(),
                 notification.getType(),
+                notification.getSourceType(),
+                notification.getSourceId(),
                 notification.getTitle(),
                 notification.getBody(),
                 imageUrlProvider.getUrl(summary.thumbnailStorageKey()),

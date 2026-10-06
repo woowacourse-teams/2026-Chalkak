@@ -13,6 +13,7 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.notification.service.NotificationDetailResult;
 import com.chalkak.backend.notification.service.NotificationListResult;
@@ -22,6 +23,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -45,10 +48,20 @@ class NotificationControllerTest {
     @MockitoBean
     private NotificationService notificationService;
 
-    @Test
+    @ParameterizedTest
+    @EnumSource(NotificationType.class)
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("알림 목록은 페이지 정보와 썸네일을 반환한다")
-    void getNotifications_returnsPaginatedNotifications() throws Exception {
+    @DisplayName("승인·반려 알림 목록은 관련 게시물 정보와 기존 목록 필드를 함께 반환한다")
+    void getNotifications_returnsPaginatedNotificationsWithPostTarget(NotificationType type)
+            throws Exception {
+        // Given
+        UUID postId = UUID.randomUUID();
+        String title = type == NotificationType.POST_APPROVED
+                ? "게시물이 승인되었습니다."
+                : "게시물이 반려되었습니다.";
+        String body = type == NotificationType.POST_APPROVED
+                ? "피드에서 사진을 확인해 보세요."
+                : "반려 사유를 확인해 주세요.";
         given(notificationService.getNotifications(USER_ID, 2, 10))
                 .willReturn(new NotificationListResult(
                         2,
@@ -56,18 +69,31 @@ class NotificationControllerTest {
                         false,
                         List.of(new NotificationListResult.Summary(
                                 NOTIFICATION_ID,
-                                NotificationType.POST_REJECTED,
-                                "게시물이 반려되었습니다.",
-                                "반려 사유를 확인해 주세요.",
+                                type,
+                                NotificationSourceType.POST,
+                                postId,
+                                title,
+                                body,
                                 "https://cdn.test/thumbnail.webp",
                                 null,
                                 Instant.parse("2026-09-29T09:00:00Z")))));
 
+        // When & Then
         mockMvc.perform(get("/api/v1/notifications")
                 .param("page", "2")
                 .param("pageSize", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
+                .andExpect(jsonPath("$.pageSize").value(10))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.notifications[0].type").value(type.name()))
+                .andExpect(jsonPath("$.notifications[0].sourceType").value("POST"))
+                .andExpect(jsonPath("$.notifications[0].sourceId").value(postId.toString()))
+                .andExpect(jsonPath("$.notifications[0].title").value(title))
+                .andExpect(jsonPath("$.notifications[0].body").value(body))
+                .andExpect(jsonPath("$.notifications[0].readAt").isEmpty())
+                .andExpect(jsonPath("$.notifications[0].createdAt")
+                        .value("2026-09-29T09:00:00Z"))
                 .andExpect(jsonPath("$.notifications[0].id")
                         .value(NOTIFICATION_ID.toString()))
                 .andExpect(jsonPath("$.notifications[0].thumbnailImageUrl")
