@@ -82,7 +82,7 @@ description: 백엔드 Java 코드의 구현·리팩터링·버그 수정을 시
 - 실제 값은 커밋 전에 아래 명령으로 계산한다. 아직 추적하지 않는 새 파일도 포함된다.
 
 ```bash
-(cd "$(git rev-parse --show-toplevel)" && EXCLUDE=(':(exclude)backend/src/test/**' ':(exclude)docs/**' ':(exclude)backend/docs/**' ':(glob,exclude)**/*.md') && { git diff --numstat HEAD -- "${EXCLUDE[@]}"; git ls-files --others --exclude-standard -z -- "${EXCLUDE[@]}" | xargs -0 -n1 git diff --no-index --numstat /dev/null; } | awk '{sum += $1 + $2} END {print sum + 0}')
+(cd "$(git rev-parse --show-toplevel)" && EXCLUDE=(':(exclude)backend/src/test/**' ':(exclude)docs/**' ':(exclude)backend/docs/**' ':(glob,exclude)**/*.md') && { git diff --numstat HEAD -- "${EXCLUDE[@]}"; git ls-files --others --exclude-standard -z -- "${EXCLUDE[@]}" | xargs -0 -r -n1 git diff --no-index --numstat /dev/null; } | awk '{sum += $1 + $2} END {print sum + 0}')
 ```
 
 ## 승인과 커밋
