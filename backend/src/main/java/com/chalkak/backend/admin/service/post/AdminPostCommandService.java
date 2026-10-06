@@ -15,6 +15,7 @@ import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -42,6 +43,7 @@ public class AdminPostCommandService {
     private final PostLikeRepository postLikeRepository;
     private final AdminAuditLogService adminAuditLogService;
     private final NotificationService notificationService;
+    private final Clock clock;
 
     @Transactional
     public AdminPostModerationResult moderate(
@@ -62,7 +64,7 @@ public class AdminPostCommandService {
         validatePending(post);
 
         AdminAuditSnapshot beforeState = moderationBeforeState(post);
-        Instant moderatedAt = Instant.now();
+        Instant moderatedAt = clock.instant();
         decide(post, status, moderatedAt);
         logModerated(post, status, moderatedAt);
         AdminAuditSnapshot afterState = moderationAfterState(post, adminId);
