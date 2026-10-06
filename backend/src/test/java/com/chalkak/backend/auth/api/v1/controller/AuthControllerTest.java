@@ -138,7 +138,8 @@ class AuthControllerTest {
                 .willReturn(SocialLoginResult.loginSuccess(
                         userId,
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
-                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
+                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-login")
@@ -354,7 +355,8 @@ class AuthControllerTest {
                 .willReturn(new SocialSignupResult(
                         userId,
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
-                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30))));
+                        new IssuedRefreshToken(REFRESH_TOKEN, Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
@@ -440,7 +442,8 @@ class AuthControllerTest {
                         new IssuedAccessToken(ACCESS_TOKEN, Duration.ofMinutes(15)),
                         new IssuedRefreshToken(
                                 ROTATED_REFRESH_TOKEN,
-                                Duration.ofDays(30))));
+                                Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")

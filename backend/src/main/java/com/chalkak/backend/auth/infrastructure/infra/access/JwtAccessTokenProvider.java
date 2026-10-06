@@ -55,15 +55,19 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
     }
 
     @Override
-    public IssuedAccessToken issue(UUID userId) {
-        return issue(userId, AccessTokenScope.USER);
+    public IssuedAccessToken issueForSession(UUID userId, UUID sessionId) {
+        return issue(userId, AccessTokenScope.USER, sessionId);
     }
 
     @Override
     public IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope) {
+        return issue(subjectId, scope, null);
+    }
+
+    private IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope, UUID sessionId) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.expiration());
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .audience(List.of(properties.audience()))
                 .subject(subjectId.toString())
@@ -71,8 +75,11 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
                 .expiresAt(expiresAt)
                 .id(UUID.randomUUID().toString())
                 .claim(PURPOSE_CLAIM, PURPOSE)
-                .claim("scope", scope.name())
-                .build();
+                .claim("scope", scope.name());
+        if (sessionId != null) {
+            claimsBuilder.claim("session_id", sessionId.toString());
+        }
+        JwtClaimsSet claims = claimsBuilder.build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
                 .type("JWT")
                 .build();

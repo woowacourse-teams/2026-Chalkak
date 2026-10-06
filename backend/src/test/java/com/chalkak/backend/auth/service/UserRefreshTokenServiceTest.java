@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.auth.domain.IssuedRefreshToken;
+import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -36,6 +37,9 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private JwtAccessTokenProvider accessTokenProvider;
 
     @Autowired
     private UserRepository userRepository;
@@ -76,6 +80,10 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
         assertThat(storedTokenHash).isNotEqualTo(issued.value());
         assertThat(storedTokenHash).matches(TOKEN_HASH_PATTERN);
         assertThat(issued.expiresIn()).isEqualTo(Duration.ofDays(30));
+        assertThat(issued.sessionId()).isNotNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT session_id FROM user_refresh_tokens WHERE user_id = ?
+                """, UUID.class, user.getId())).isEqualTo(issued.sessionId());
     }
 
     @Test
@@ -99,6 +107,11 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
         assertThat(consumed.revokedAt()).isNull();
         assertThat(successor.rotatedAt()).isNull();
         assertThat(successor.sessionId()).isEqualTo(consumed.sessionId());
+        assertThat(result.refreshToken().sessionId()).isEqualTo(consumed.sessionId());
+        assertThat(accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value())
+                .getClaimAsString("session_id"))
+                .isEqualTo(consumed.sessionId().toString());
         assertThat(successor.absoluteExpiresAt()).isEqualTo(consumed.absoluteExpiresAt());
     }
 

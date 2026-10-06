@@ -154,9 +154,10 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
             Instant revokedAt
     ) {
         String tokenHash = createTokenHash();
+        UUID sessionId = UUID.randomUUID();
         UserRefreshToken refreshToken = UserRefreshToken.create(
                 user,
-                UUID.randomUUID(),
+                sessionId,
                 tokenHash,
                 expiresAt(absoluteExpiresAt, rotatedAt),
                 absoluteExpiresAt);

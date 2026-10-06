@@ -31,12 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
         AdminArgumentResolverWebMvcConfig.class,
         AdminCorsWebMvcConfig.class
 })
-@TestPropertySource(properties =
-        "chalkak.admin.cors.allowed-origins=https://admin-dev.example.com")
+@TestPropertySource(properties = "chalkak.admin.cors.allowed-origins=https://admin-dev.example.com")
 class AdminWebMvcConfigTest {
 
-    private static final UUID ADMIN_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
+    private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,9 +59,9 @@ class AdminWebMvcConfigTest {
     void preflight_configuredOrigin_allowsAdminRequest() throws Exception {
         // When & Then
         mockMvc.perform(options("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
+                .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
                 .andExpect(status().isOk())
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -81,7 +79,7 @@ class AdminWebMvcConfigTest {
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com"))
+                .header(HttpHeaders.ORIGIN, "https://admin-dev.example.com"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -96,8 +94,8 @@ class AdminWebMvcConfigTest {
     void preflight_unconfiguredOrigin_rejectsAdminRequest() throws Exception {
         // When & Then
         mockMvc.perform(options("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://attacker.example.com")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .header(HttpHeaders.ORIGIN, "https://attacker.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
     }
@@ -107,7 +105,7 @@ class AdminWebMvcConfigTest {
     void request_unconfiguredOrigin_rejectsBeforeResolvingAdmin() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/test")
-                        .header(HttpHeaders.ORIGIN, "https://attacker.example.com"))
+                .header(HttpHeaders.ORIGIN, "https://attacker.example.com"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
 

@@ -34,7 +34,8 @@ public class UnauthorizedEntryPoint implements AuthenticationEntryPoint {
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_ERROR)
                 .addKeyValue(LogFields.ERROR_CODE, ErrorCode.UNAUTHORIZED.name())
                 .addKeyValue(LogFields.STATUS, HttpStatus.UNAUTHORIZED.value())
-                .addKeyValue(LogFields.EXCEPTION, authenticationException.getClass().getSimpleName())
+                .addKeyValue(LogFields.EXCEPTION,
+                        authenticationException.getClass().getSimpleName())
                 .log("인증 실패");
         responder.respond(
                 response,

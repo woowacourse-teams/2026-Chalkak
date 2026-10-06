@@ -100,7 +100,8 @@ class AccessLogTest extends IntegrationTestSupport {
     void accessLog_memberRequest_logsUserId() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        String token = accessTokenProvider.issue(userId).value();
+        UUID sessionId = UUID.randomUUID();
+        String token = accessTokenProvider.issueForSession(userId, sessionId).value();
 
         // When
         mockMvc.perform(get("/api/v1/topics")

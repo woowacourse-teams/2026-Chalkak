@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.domain.IssuedAccessToken;
 import com.chalkak.backend.auth.domain.RefreshTokenPolicy;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
+import com.chalkak.backend.notification.service.PushDeviceService;
 import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
@@ -24,6 +25,7 @@ public class UserRefreshTokenService
             RefreshTokenService<User, UserRefreshToken> {
 
     private final AccessTokenIssuer accessTokenIssuer;
+    private final PushDeviceService pushDeviceService;
 
     public UserRefreshTokenService(
             UserRefreshTokenRepository userRefreshTokenRepository,
@@ -31,6 +33,7 @@ public class UserRefreshTokenService
             RefreshTokenHasher refreshTokenHasher,
             RefreshTokenPolicy refreshTokenPolicy,
             AccessTokenIssuer accessTokenIssuer,
+            PushDeviceService pushDeviceService,
             Clock clock
     ) {
         super(
@@ -40,6 +43,7 @@ public class UserRefreshTokenService
                 refreshTokenPolicy,
                 clock);
         this.accessTokenIssuer = accessTokenIssuer;
+        this.pushDeviceService = pushDeviceService;
     }
 
     @Override
@@ -69,6 +73,19 @@ public class UserRefreshTokenService
 
     @Override
     protected IssuedAccessToken issueAccessToken(UserRefreshToken consumed) {
-        return accessTokenIssuer.issue(consumed.getUser().getId());
+        return accessTokenIssuer.issueForSession(consumed.getUser().getId(),
+                consumed.getSessionId());
+    }
+
+    @Override
+    protected void revokeSession(UUID sessionId, Instant revokedAt) {
+        super.revokeSession(sessionId, revokedAt);
+        pushDeviceService.deleteBySessionId(sessionId);
+    }
+
+    @Override
+    protected void revokeOwner(UUID ownerId, Instant revokedAt) {
+        super.revokeOwner(ownerId, revokedAt);
+        pushDeviceService.deleteByUserId(ownerId);
     }
 }

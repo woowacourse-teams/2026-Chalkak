@@ -3,12 +3,16 @@ package com.chalkak.backend.auth.api.support;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.repository.UserRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +52,12 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
 
     private String token;
 
+    @Autowired
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private UserRepository userRepository;
+
     /**
      * 사인 조회가 스토리지 키를 URL로 바꾸므로 root-prefix에 맞는 키를 넣는다. 픽스처의 기본 키를 쓰면 인가와 무관한 이유로
      * 요청이 실패해 이 테스트가 무엇을 검증하는지 흐려진다.
@@ -67,7 +77,7 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test
@@ -232,6 +242,55 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
             jsonPath("$.errorCode").value("FORBIDDEN").match(result);
             jsonPath("$.message").value("차단된 회원입니다.").match(result);
         };
+    }
+
+    @Test
+    @DisplayName("정지 회원도 본인 푸시 수신 설정을 조회할 수 있다")
+    void getSettings_suspendedUser_returnsOk() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicPushEnabled").value(true))
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+    }
+
+    @Test
+    @DisplayName("정지 회원도 본인 푸시 수신 설정을 수정할 수 있다")
+    void updateSettings_suspendedUser_returnsNoContent() throws Exception {
+        // When
+        mockMvc.perform(patch("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"topicPushEnabled\":false}"))
+                .andExpect(status().isNoContent());
+
+        // Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicPushEnabled").value(false))
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+    }
+
+    @Test
+    @DisplayName("정지 회원도 유효한 로그인에 푸시 기기를 등록할 수 있다")
+    void registerCurrentDevice_suspendedUser_returnsNoContent() throws Exception {
+        // Given
+        UUID userId = UUID.fromString(accessTokenProvider.jwtDecoder()
+                .decode(token.substring("Bearer ".length())).getSubject());
+        User user = userRepository.findById(userId).orElseThrow();
+        UUID sessionId = userRefreshTokenService.issue(user).sessionId();
+        String authorization = "Bearer "
+                + accessTokenProvider.issueForSession(userId, sessionId).value();
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/push-devices/current")
+                .header(HttpHeaders.AUTHORIZATION, authorization)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fcmToken":"suspended-device-token"}
+                        """))
+                .andExpect(status().isNoContent());
     }
 
     /**

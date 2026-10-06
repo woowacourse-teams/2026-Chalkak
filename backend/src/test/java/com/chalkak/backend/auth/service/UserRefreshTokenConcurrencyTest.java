@@ -64,6 +64,7 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
                     'signatures/concurrent-refresh', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, USER_ID);
+
     }
 
     @AfterEach

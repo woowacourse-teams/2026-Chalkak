@@ -62,6 +62,30 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("별도 로그인 행 없이 리프레시 토큰의 로그인 식별자를 저장한다")
+    void save_withoutLoginSession_preservesSessionId() {
+        // given
+        User user = userRepository.save(createUser());
+        UUID sessionId = UUID.randomUUID();
+        String tokenHash = createTokenHash();
+        UserRefreshToken token = UserRefreshToken.create(
+                user,
+                sessionId,
+                tokenHash,
+                NOW.plusSeconds(3600),
+                NOW.plusSeconds(7200));
+
+        // when
+        userRefreshTokenRepository.save(token);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(userRefreshTokenRepository.findByTokenHash(tokenHash).orElseThrow()
+                .getSessionId()).isEqualTo(sessionId);
+    }
+
+    @Test
     @DisplayName("한 회전 계보만 폐기하고 다른 계보는 그대로 둔다")
     void revokeSession_liveSession_revokesOnlyThatSession() {
         // given
@@ -180,9 +204,10 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
             Instant absoluteExpiresAt,
             Instant revokedAt
     ) {
+        UUID sessionId = UUID.randomUUID();
         UserRefreshToken refreshToken = UserRefreshToken.create(
                 user,
-                UUID.randomUUID(),
+                sessionId,
                 tokenHash,
                 absoluteExpiresAt,
                 absoluteExpiresAt);
