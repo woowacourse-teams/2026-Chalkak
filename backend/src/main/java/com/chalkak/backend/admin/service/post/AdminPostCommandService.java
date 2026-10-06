@@ -11,10 +11,11 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
-import com.chalkak.backend.notification.service.UserNotificationService;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -41,7 +42,8 @@ public class AdminPostCommandService {
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
     private final AdminAuditLogService adminAuditLogService;
-    private final UserNotificationService userNotificationService;
+    private final NotificationService notificationService;
+    private final Clock clock;
 
     @Transactional
     public AdminPostModerationResult moderate(
@@ -62,7 +64,7 @@ public class AdminPostCommandService {
         validatePending(post);
 
         AdminAuditSnapshot beforeState = moderationBeforeState(post);
-        Instant moderatedAt = Instant.now();
+        Instant moderatedAt = clock.instant();
         decide(post, status, moderatedAt);
         logModerated(post, status, moderatedAt);
         AdminAuditSnapshot afterState = moderationAfterState(post, adminId);
@@ -74,7 +76,7 @@ public class AdminPostCommandService {
                 normalizedReason,
                 beforeState,
                 afterState));
-        userNotificationService.createForModeration(
+        notificationService.createForModeration(
                 post,
                 auditLog.getId(),
                 status,

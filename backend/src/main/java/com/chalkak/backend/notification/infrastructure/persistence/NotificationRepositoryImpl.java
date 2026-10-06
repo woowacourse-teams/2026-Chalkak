@@ -25,9 +25,15 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
-    public NotificationSlice findByUserId(UUID userId, int page, int pageSize) {
+    public NotificationSlice findByUserId(
+            UUID userId,
+            int page,
+            int pageSize,
+            Instant createdFrom
+    ) {
         Slice<NotificationSummary> slice = notificationJpaRepository.findSummariesByUserId(
                 userId,
+                createdFrom,
                 PageRequest.of(page - 1, pageSize));
         return new NotificationSlice(slice.getContent(), slice.hasNext());
     }
@@ -35,24 +41,35 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     @Override
     public Optional<NotificationDetail> findDetailByIdAndUserId(
             UUID notificationId,
-            UUID userId
+            UUID userId,
+            Instant createdFrom
     ) {
-        return notificationJpaRepository.findDetailByIdAndUserId(notificationId, userId);
+        return notificationJpaRepository.findDetailByIdAndUserId(notificationId, userId,
+                createdFrom);
     }
 
     @Override
-    public boolean existsUnreadByUserId(UUID userId) {
-        return notificationJpaRepository.existsVisibleUnreadByUserId(userId);
+    public boolean existsUnreadByUserId(UUID userId, Instant createdFrom) {
+        return notificationJpaRepository.existsVisibleUnreadByUserId(userId, createdFrom);
     }
 
     @Override
-    public int markRead(UUID notificationId, UUID userId, Instant readAt) {
-        return notificationJpaRepository.markRead(notificationId, userId, readAt);
+    public int markRead(
+            UUID notificationId,
+            UUID userId,
+            Instant readAt,
+            Instant createdFrom
+    ) {
+        return notificationJpaRepository.markRead(notificationId, userId, readAt, createdFrom);
     }
 
     @Override
-    public void markAllRead(UUID userId, Instant readAt) {
-        notificationJpaRepository.markAllRead(userId, readAt);
+    public void markAllRead(
+            UUID userId,
+            Instant readAt,
+            Instant createdFrom
+    ) {
+        notificationJpaRepository.markAllRead(userId, readAt, createdFrom);
     }
 
     @Override

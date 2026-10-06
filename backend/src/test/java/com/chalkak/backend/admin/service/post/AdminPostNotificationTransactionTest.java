@@ -3,9 +3,13 @@ package com.chalkak.backend.admin.service.post;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
@@ -26,6 +31,12 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
 
     @Autowired
     private AdminPostCommandService adminPostCommandService;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -111,9 +122,24 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
                 Integer.class,
                 POST_ID)).isZero();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM notifications WHERE post_id = ?",
+                "SELECT COUNT(*) FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 Integer.class,
                 POST_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("알림 생성은 호출자의 업무 트랜잭션이 없으면 실행되지 않는다")
+    void createForModeration_withoutBusinessTransaction_throwsIllegalTransactionStateException() {
+        // Given
+        Post post = entityManager.find(Post.class, POST_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> notificationService.createForModeration(
+                post, UUID.randomUUID(), ModerationStatus.APPROVED, null, Instant.now()))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE source_type = 'POST' AND source_id = ?",
+                Integer.class, POST_ID)).isZero();
     }
 
     private void clean() {

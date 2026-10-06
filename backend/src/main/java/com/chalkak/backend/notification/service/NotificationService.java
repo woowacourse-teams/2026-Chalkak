@@ -8,24 +8,53 @@ import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.NotificationSlice;
 import com.chalkak.backend.notification.repository.NotificationSummary;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.Post;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class NotificationInboxService {
+public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final ImageUrlProvider imageUrlProvider;
+    private final Clock clock;
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForModeration(
+            Post post,
+            UUID eventKey,
+            ModerationStatus status,
+            String rejectionReason,
+            Instant occurredAt
+    ) {
+        UUID userId = post.getAuthor().getId();
+        UUID postId = post.getId();
+        if (status == ModerationStatus.APPROVED) {
+            notificationRepository
+                    .save(Notification.approved(userId, postId, eventKey, occurredAt));
+            return;
+        }
+        notificationRepository.save(Notification.rejected(
+                userId,
+                postId,
+                eventKey,
+                rejectionReason,
+                occurredAt));
+    }
 
     public NotificationListResult getNotifications(UUID userId, int page, int pageSize) {
-        NotificationSlice slice = notificationRepository.findByUserId(userId, page, pageSize);
+        NotificationSlice slice = notificationRepository.findByUserId(
+                userId, page, pageSize, Notification.getRetentionThreshold(clock.instant()));
         List<NotificationListResult.Summary> summaries = new ArrayList<>(
                 slice.notifications().size());
         for (NotificationSummary summary : slice.notifications()) {
@@ -40,7 +69,8 @@ public class NotificationInboxService {
 
     public NotificationDetailResult getNotification(UUID userId, UUID notificationId) {
         NotificationDetail detail = notificationRepository
-                .findDetailByIdAndUserId(notificationId, userId)
+                .findDetailByIdAndUserId(notificationId, userId,
+                        Notification.getRetentionThreshold(clock.instant()))
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "알림을 찾을 수 없습니다."));
@@ -57,12 +87,15 @@ public class NotificationInboxService {
     }
 
     public boolean hasUnreadNotification(UUID userId) {
-        return notificationRepository.existsUnreadByUserId(userId);
+        return notificationRepository.existsUnreadByUserId(userId,
+                Notification.getRetentionThreshold(clock.instant()));
     }
 
     @Transactional
     public void markRead(UUID userId, UUID notificationId) {
-        int updated = notificationRepository.markRead(notificationId, userId, Instant.now());
+        Instant now = clock.instant();
+        int updated = notificationRepository.markRead(
+                notificationId, userId, now, Notification.getRetentionThreshold(now));
         if (updated == 0) {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "알림을 찾을 수 없습니다.");
         }
@@ -70,7 +103,8 @@ public class NotificationInboxService {
 
     @Transactional
     public void markAllRead(UUID userId) {
-        notificationRepository.markAllRead(userId, Instant.now());
+        Instant now = clock.instant();
+        notificationRepository.markAllRead(userId, now, Notification.getRetentionThreshold(now));
     }
 
     private NotificationListResult.Summary toSummary(NotificationSummary summary) {
@@ -78,6 +112,8 @@ public class NotificationInboxService {
         return new NotificationListResult.Summary(
                 notification.getId(),
                 notification.getType(),
+                notification.getSourceType(),
+                notification.getSourceId(),
                 notification.getTitle(),
                 notification.getBody(),
                 imageUrlProvider.getUrl(summary.thumbnailStorageKey()),

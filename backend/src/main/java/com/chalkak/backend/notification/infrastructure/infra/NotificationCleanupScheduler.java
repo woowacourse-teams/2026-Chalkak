@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Duration;
@@ -15,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(prefix = "chalkak.notification.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class NotificationCleanupScheduler {
 
-    private static final Duration NORMAL_RETENTION = Duration.ofDays(60);
     private static final Duration WITHDRAWN_RETENTION = Duration.ofDays(30);
 
     private final NotificationRepository notificationRepository;
@@ -25,7 +25,7 @@ public class NotificationCleanupScheduler {
     @Transactional
     public void deleteExpiredNotifications() {
         Instant now = clock.instant();
-        notificationRepository.deleteExpiredForActiveUsers(now.minus(NORMAL_RETENTION));
+        notificationRepository.deleteExpiredForActiveUsers(Notification.getRetentionThreshold(now));
         notificationRepository.deleteExpiredForWithdrawnUsers(now.minus(WITHDRAWN_RETENTION));
     }
 }

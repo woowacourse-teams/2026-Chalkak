@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 @SecurityRequirement(name = "accessToken")
 public interface NotificationApiDocs {
 
-    @Operation(summary = "내 알림 목록 조회", description = "게시물이 삭제된 알림은 제외합니다.")
+    @Operation(summary = "내 알림 목록 조회", description = "사건 발생 시각부터 30일이 지난 알림과 게시물이 삭제된 알림은 제외합니다. 정확한 30일 경계 시각에는 표시합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "400", description = "잘못된 조회 조건", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -33,7 +33,7 @@ public interface NotificationApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(summary = "내 알림 상세 조회", description = "반려 알림에는 원본 사진과 반려 사유를 포함합니다. 삭제된 게시물의 알림은 조회할 수 없습니다. 조회만으로 읽음 처리하지 않습니다.")
+    @Operation(summary = "내 알림 상세 조회", description = "반려 알림에는 원본 사진과 반려 사유를 포함합니다. 30일이 지난 알림과 삭제된 게시물의 알림은 조회할 수 없습니다. 조회만으로 읽음 처리하지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "400", description = "잘못된 알림 ID", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -45,7 +45,7 @@ public interface NotificationApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(summary = "내 미읽음 알림 여부 조회", description = "알림함에 표시되는 알림을 기준으로 판단합니다.")
+    @Operation(summary = "내 미읽음 알림 여부 조회", description = "30일이 지나지 않았고 알림함에 표시되는 알림을 기준으로 판단합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
@@ -54,7 +54,7 @@ public interface NotificationApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(summary = "내 알림 읽음 처리", description = "삭제된 게시물의 알림은 처리할 수 없습니다. 반복 호출해도 처음 읽은 시각을 유지합니다.")
+    @Operation(summary = "내 알림 읽음 처리", description = "30일이 지난 알림과 삭제된 게시물의 알림은 처리할 수 없습니다. 반복 호출해도 처음 읽은 시각을 유지합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "읽음 처리 성공"),
             @ApiResponse(responseCode = "400", description = "잘못된 알림 ID", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -66,7 +66,7 @@ public interface NotificationApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(summary = "내 알림 모두 읽음 처리", description = "알림함에 표시되는 미읽음 알림만 처리합니다.")
+    @Operation(summary = "내 알림 모두 읽음 처리", description = "30일이 지나지 않았고 알림함에 표시되는 미읽음 알림만 처리합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "읽음 처리 성공"),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
