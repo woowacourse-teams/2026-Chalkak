@@ -194,9 +194,11 @@ Lambda를 먼저 배포하면 아직 없는 `upload-urls` 엔드포인트가 404
 SQS 재시도로 들어간다. 백엔드 배포 후 URL 발급 200, S3 PUT 200 또는 검증된 412, 완료 콜백
 204를 순서대로 확인한다.
 
-Lambda role에는 staging 객체의 `s3:GetObject`, `s3:DeleteObject`와 사인·포스트 최종 경로의
-`s3:GetObject`가 필요하다. 최종 경로 읽기는 조건부 PUT이 412를 반환했을 때 기존 객체가 현재
-변환 결과와 같은지 검증하는 용도다. 최종 경로의 `s3:PutObject`는 제거한다.
+Lambda role에는 staging 객체와 사인·포스트 최종 경로의 `s3:GetObject`가 필요하다. 최종 경로
+읽기는 조건부 PUT이 412를 반환했을 때 기존 객체가 현재 변환 결과와 같은지 검증하는 용도다.
+최종 경로의 `s3:PutObject`는 제거한다. staging 객체는 Lambda가 지우지 않으므로
+`s3:DeleteObject`는 필요 없고, 공유 버킷의 `chalkak/staging/` prefix lifecycle 만료 규칙이
+정리한다.
 
 EC2에서 identity를 확인한다.
 

@@ -69,8 +69,6 @@ class SignatureImageProcessor:
                 upload_urls.cache_control,
             )
         except RejectedImageError:
-            # 실패 콜백이 전달된 반려 이미지는 재처리하지 않으므로 staging을 삭제한다.
-            # 콜백이 실패하면 재시도에 필요하므로 staging을 유지한다.
             try:
                 self._callback_client.failed(environment, upload_id)
             except PermanentCallbackError as exception:
@@ -82,15 +80,9 @@ class SignatureImageProcessor:
                     event.key,
                     exception,
                 )
-            else:
-                self._s3_client.delete_object(
-                    Bucket=event.bucket,
-                    Key=event.key,
-                )
             raise
 
         self._callback_client.complete(environment, upload_id)
-        self._s3_client.delete_object(Bucket=event.bucket, Key=event.key)
 
         return ProcessedSignature(
             original_key=original_key,
