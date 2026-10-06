@@ -70,19 +70,18 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate.execute("ALTER TABLE push_devices DROP CONSTRAINT IF EXISTS ck_logout_test");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS push_device_logout_guard");
         new DatabaseCleaner(jdbcTemplate).clean();
     }
 
     @Test
-    @DisplayName("기기 비활성화 저장에 실패하면 RT 폐기도 함께 롤백한다")
-    void logout_deviceUpdateFails_rollsBackRefreshTokenRevocation() {
+    @DisplayName("기기 행 삭제에 실패하면 RT 폐기도 함께 롤백한다")
+    void logout_deviceDeletionFails_rollsBackRefreshTokenRevocation() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), "rollback-token");
-        jdbcTemplate.execute(
-                "ALTER TABLE push_devices ADD CONSTRAINT ck_logout_test CHECK (disabled_at IS NULL)");
+        blockDeviceDeletion(issued.sessionId());
 
         // When & Then
         assertThatThrownBy(() -> userRefreshTokenService.logout(issued.value()))
@@ -93,8 +92,6 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("rollback-token");
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
-                .getDisabledAt()).isNull();
     }
 
     @ParameterizedTest
@@ -157,17 +154,26 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM user_refresh_tokens WHERE session_id = ? AND revoked_at IS NULL",
                     Integer.class, issued.sessionId())).isZero();
-            assertThat(jdbcTemplate.queryForObject("""
-                    SELECT COUNT(*) FROM push_devices
-                    WHERE id = ? AND disabled_at IS NOT NULL
-                        AND user_id IS NULL AND session_id IS NULL
-                        AND fcm_token IS NULL AND fcm_token_hash IS NULL
-                    """, Integer.class, deviceId)).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM push_devices WHERE id = ?",
+                    Integer.class, deviceId)).isZero();
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    private void blockDeviceDeletion(UUID sessionId) {
+        jdbcTemplate.execute("""
+                CREATE TABLE push_device_logout_guard (
+                    device_id UUID NOT NULL REFERENCES push_devices(id) ON DELETE RESTRICT
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO push_device_logout_guard (device_id)
+                SELECT id FROM push_devices WHERE session_id = ?
+                """, sessionId);
     }
 
     private void awaitCommit(CountDownLatch latch) {

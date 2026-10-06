@@ -28,17 +28,17 @@ public class PushDevice {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false, updatable = false)
     private User user;
 
-    @Column(name = "session_id")
+    @Column(name = "session_id", nullable = false, updatable = false)
     private UUID sessionId;
 
-    @Column(name = "fcm_token", columnDefinition = "text")
+    @Column(name = "fcm_token", nullable = false, columnDefinition = "text")
     private String fcmToken;
 
-    @Column(name = "fcm_token_hash", length = 64)
+    @Column(name = "fcm_token_hash", nullable = false, length = 64)
     private String fcmTokenHash;
 
     @Column(name = "registered_at", nullable = false, updatable = false)
@@ -46,9 +46,6 @@ public class PushDevice {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    @Column(name = "disabled_at")
-    private Instant disabledAt;
 
     public PushDevice(
             User user,
@@ -66,6 +63,5 @@ public class PushDevice {
         this.fcmToken = token.getValue();
         this.fcmTokenHash = token.getHash();
         this.updatedAt = updatedAt;
-        this.disabledAt = null;
     }
 }

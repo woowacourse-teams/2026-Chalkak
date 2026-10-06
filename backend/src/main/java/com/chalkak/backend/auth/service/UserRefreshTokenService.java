@@ -80,12 +80,12 @@ public class UserRefreshTokenService
     @Override
     protected void revokeSession(UUID sessionId, Instant revokedAt) {
         super.revokeSession(sessionId, revokedAt);
-        pushDeviceService.disableBySessionId(sessionId, revokedAt);
+        pushDeviceService.deleteBySessionId(sessionId);
     }
 
     @Override
     protected void revokeOwner(UUID ownerId, Instant revokedAt) {
         super.revokeOwner(ownerId, revokedAt);
-        pushDeviceService.disableByUserId(ownerId, revokedAt);
+        pushDeviceService.deleteByUserId(ownerId);
     }
 }

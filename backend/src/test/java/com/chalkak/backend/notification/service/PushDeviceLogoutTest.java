@@ -81,7 +81,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("로그아웃한 로그인 기기의 토큰만 제거하고 다른 로그인·회원의 기기는 유지한다")
-    void logout_registeredSession_disablesOnlyItsDevice() {
+    void logout_registeredSession_deletesOnlyItsDevice() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken first = register(user, "first-device");
@@ -96,15 +96,8 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        PushDevice disabled = entityManager.find(PushDevice.class,
-                registeredDeviceIds.get(first.sessionId()));
-        assertThat(disabled.getUser()).isNull();
-        assertThat(disabled.getSessionId()).isNull();
-        assertThat(disabled.getFcmToken()).isNull();
-        assertThat(disabled.getFcmTokenHash()).isNull();
-        assertThat(disabled.getDisabledAt()).isEqualTo(LOGGED_OUT_AT);
-        assertThat(disabled.getUpdatedAt()).isEqualTo(LOGGED_OUT_AT);
-        assertThat(disabled.getRegisteredAt()).isEqualTo(REGISTERED_AT);
+        assertThat(entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(first.sessionId()))).isNull();
         assertThat(pushDeviceRepository.findBySessionId(second.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("second-device");
@@ -124,7 +117,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("회전된 이전 RT로 로그아웃해도 같은 로그인 기기와 후속 RT를 폐기한다")
-    void logout_rotatedToken_disablesDeviceAndSuccessor() {
+    void logout_rotatedToken_deletesDeviceAndRevokesSuccessor() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = register(user, "rotated-device");
@@ -137,15 +130,16 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
-                .getFcmToken()).isNull();
+        assertThat(
+                entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId())))
+                .isNull();
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
                 issued.sessionId(), user.getId(), REGISTERED_AT)).isFalse();
     }
 
     @Test
     @DisplayName("이미 폐기된 RT라도 남아 있는 해당 로그인 기기 토큰을 제거한다")
-    void logout_revokedToken_clearsRemainingDeviceToken() {
+    void logout_revokedToken_deletesRemainingDevice() {
         // Given
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "revoked-device");
@@ -157,12 +151,13 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
-                .getFcmToken()).isNull();
+        assertThat(
+                entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId())))
+                .isNull();
     }
 
     @Test
-    @DisplayName("반복 로그아웃은 최초 비활성화 시각을 유지하고 모르는 RT는 다른 기기에 영향을 주지 않는다")
+    @DisplayName("반복 로그아웃과 모르는 RT는 삭제된 기기를 복구하거나 다른 기기에 영향을 주지 않는다")
     void logout_repeatedOrUnknownToken_keepsExistingState() {
         // Given
         User user = userRepository.save(UserFixture.create());
@@ -180,13 +175,8 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        PushDevice disabled = entityManager.find(PushDevice.class,
-                registeredDeviceIds.get(first.sessionId()));
-        assertThat(disabled.getDisabledAt()).isEqualTo(LOGGED_OUT_AT);
-        assertThat(disabled.getUpdatedAt()).isEqualTo(LOGGED_OUT_AT);
-        assertThat(disabled.getUser()).isNull();
-        assertThat(disabled.getSessionId()).isNull();
-        assertThat(disabled.getFcmToken()).isNull();
+        assertThat(entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(first.sessionId()))).isNull();
         assertThat(pushDeviceRepository.findBySessionId(second.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("second-device");
@@ -233,7 +223,7 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("만료된 RT로 로그아웃해도 연결 기기 토큰은 제거한다")
-    void logout_expiredToken_clearsDeviceToken() {
+    void logout_expiredToken_deletesDevice() {
         // Given
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "expired-device");
@@ -246,13 +236,14 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
-                .getFcmToken()).isNull();
+        assertThat(
+                entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId())))
+                .isNull();
     }
 
     @Test
     @DisplayName("기존 로그아웃 API는 액세스 토큰 없이 RT로 기기를 해제하고 빈 204를 반환한다")
-    void logoutApi_withoutAccessToken_disablesDeviceAndReturnsNoContent() throws Exception {
+    void logoutApi_withoutAccessToken_deletesDeviceAndReturnsNoContent() throws Exception {
         // Given
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "api-device");
@@ -267,8 +258,9 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertThat(entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId()))
-                .getFcmToken()).isNull();
+        assertThat(
+                entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId())))
+                .isNull();
     }
 
     private IssuedRefreshToken register(User user, String token) {

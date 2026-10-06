@@ -1,7 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
 import com.chalkak.backend.notification.domain.PushDevice;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,50 +16,34 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
 
     @Query("""
             SELECT device.sessionId FROM PushDevice device
-            WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
+            WHERE device.fcmTokenHash = :tokenHash
             """)
-    Optional<UUID> findActiveSessionIdByTokenHash(@Param("tokenHash") String tokenHash);
+    Optional<UUID> findSessionIdByTokenHash(@Param("tokenHash") String tokenHash);
 
     Optional<PushDevice> findBySessionId(UUID sessionId);
 
     @Modifying(flushAutomatically = true)
     @Query("""
-            UPDATE PushDevice device
-            SET device.user = NULL, device.sessionId = NULL,
-                device.fcmToken = NULL, device.fcmTokenHash = NULL,
-                device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
-            WHERE device.sessionId = :sessionId AND device.disabledAt IS NULL
+            DELETE FROM PushDevice device
+            WHERE device.sessionId = :sessionId
             """)
-    int disableBySessionId(
-            @Param("sessionId") UUID sessionId,
-            @Param("disabledAt") Instant disabledAt
-    );
+    int deleteBySessionId(@Param("sessionId") UUID sessionId);
 
     @Modifying(flushAutomatically = true)
     @Query("""
-            UPDATE PushDevice device
-            SET device.user = NULL, device.sessionId = NULL,
-                device.fcmToken = NULL, device.fcmTokenHash = NULL,
-                device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
-            WHERE device.disabledAt IS NULL AND device.user.id = :userId
+            DELETE FROM PushDevice device
+            WHERE device.user.id = :userId
             """)
-    int disableByUserId(
-            @Param("userId") UUID userId,
-            @Param("disabledAt") Instant disabledAt
-    );
+    int deleteByUserId(@Param("userId") UUID userId);
 
     @Modifying(flushAutomatically = true)
     @Query("""
-            UPDATE PushDevice device
-            SET device.user = NULL, device.sessionId = NULL,
-                device.fcmToken = NULL, device.fcmTokenHash = NULL,
-                device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
-            WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
+            DELETE FROM PushDevice device
+            WHERE device.fcmTokenHash = :tokenHash
                 AND device.sessionId <> :sessionId
             """)
-    int disableOtherSessionByTokenHash(
+    int deleteOtherSessionByTokenHash(
             @Param("tokenHash") String tokenHash,
-            @Param("sessionId") UUID sessionId,
-            @Param("disabledAt") Instant disabledAt
+            @Param("sessionId") UUID sessionId
     );
 }

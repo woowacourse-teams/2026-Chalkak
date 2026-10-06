@@ -66,7 +66,7 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("탈퇴하면 모든 로그인 기기의 토큰을 제거하고 다른 회원의 기기는 유지한다")
-    void withdraw_multipleDevices_disablesAllOwnedDevicesOnly() {
+    void withdraw_multipleDevices_deletesAllOwnedDevicesOnly() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken first = register(user, "first-token");
@@ -80,8 +80,8 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertDisabled(first.sessionId(), NOW);
-        assertDisabled(second.sessionId(), NOW);
+        assertDeleted(first.sessionId());
+        assertDeleted(second.sessionId());
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM user_refresh_tokens
                 WHERE user_id = ? AND revoked_at IS NULL
@@ -89,7 +89,6 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
         PushDevice otherDevice = pushDeviceRepository.findBySessionId(other.sessionId())
                 .orElseThrow();
-        assertThat(otherDevice.getDisabledAt()).isNull();
         assertThat(otherDevice.getFcmToken()).isEqualTo("other-token");
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM user_refresh_tokens
@@ -120,7 +119,7 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("이미 폐기된 RT의 로그인에 남은 활성 기기도 탈퇴 시 해제한다")
-    void withdraw_revokedRefreshToken_disablesRemainingDevice() {
+    void withdraw_revokedRefreshToken_deletesRemainingDevice() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = register(user, "remaining-token");
@@ -133,13 +132,13 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertDisabled(issued.sessionId(), NOW);
+        assertDeleted(issued.sessionId());
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
     }
 
     @Test
-    @DisplayName("다른 회원에게 옮겨진 토큰은 유지하고 기존 비활성화 시각은 바꾸지 않는다")
-    void withdraw_transferredToken_preservesNewOwnerAndPreviousDisabledAt() {
+    @DisplayName("탈퇴해도 다른 회원에게 옮겨진 토큰은 유지하고 이전 기기는 삭제된 채로 남는다")
+    void withdraw_transferredToken_preservesNewOwnerAndDeletedPreviousDevice() {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken original = register(user, "shared-token");
@@ -155,16 +154,15 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertDisabled(original.sessionId(), transferredAt);
+        assertDeleted(original.sessionId());
         PushDevice current = pushDeviceRepository.findBySessionId(transferred.sessionId())
                 .orElseThrow();
-        assertThat(current.getDisabledAt()).isNull();
         assertThat(current.getFcmToken()).isEqualTo("shared-token");
     }
 
     @Test
     @DisplayName("정지 회원이 탈퇴해도 연결된 모든 푸시 기기의 토큰을 제거한다")
-    void withdraw_bannedUser_disablesDevice() {
+    void withdraw_bannedUser_deletesDevice() {
         // Given
         User user = userRepository.save(UserFixture.createBanned(null));
         IssuedRefreshToken issued = register(user, "banned-token");
@@ -175,7 +173,7 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         flushAndClear();
 
         // Then
-        assertDisabled(issued.sessionId(), NOW);
+        assertDeleted(issued.sessionId());
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
     }
 
@@ -187,16 +185,10 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         return issued;
     }
 
-    private void assertDisabled(UUID sessionId, Instant disabledAt) {
-        PushDevice device = entityManager.find(PushDevice.class,
-                registeredDeviceIds.get(sessionId));
-        assertThat(device.getDisabledAt()).isEqualTo(disabledAt);
-        assertThat(device.getUpdatedAt()).isEqualTo(disabledAt);
-        assertThat(device.getUser()).isNull();
-        assertThat(device.getSessionId()).isNull();
-        assertThat(device.getFcmToken()).isNull();
-        assertThat(device.getFcmTokenHash()).isNull();
-        assertThat(device.getRegisteredAt()).isEqualTo(NOW);
+    private void assertDeleted(UUID sessionId) {
+        assertThat(entityManager.find(PushDevice.class,
+                registeredDeviceIds.get(sessionId))).isNull();
+        assertThat(pushDeviceRepository.findBySessionId(sessionId)).isEmpty();
     }
 
     private void flushAndClear() {

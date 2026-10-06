@@ -1,7 +1,6 @@
 package com.chalkak.backend.notification.repository;
 
 import com.chalkak.backend.notification.domain.PushDevice;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -9,18 +8,17 @@ public interface PushDeviceRepository {
 
     void lockToken(String tokenHash);
 
-    Optional<UUID> findActiveSessionIdByTokenHash(String tokenHash);
+    Optional<UUID> findSessionIdByTokenHash(String tokenHash);
 
     Optional<PushDevice> findBySessionId(UUID sessionId);
 
-    void disableBySessionId(UUID sessionId, Instant disabledAt);
+    void deleteBySessionId(UUID sessionId);
 
-    void disableByUserId(UUID userId, Instant disabledAt);
+    void deleteByUserId(UUID userId);
 
-    void disableOtherSessionByTokenHash(
+    void deleteOtherSessionByTokenHash(
             String tokenHash,
-            UUID sessionId,
-            Instant disabledAt
+            UUID sessionId
     );
 
     void save(PushDevice device);

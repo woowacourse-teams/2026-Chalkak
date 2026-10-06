@@ -78,7 +78,6 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         assertThat(row.hash()).isEqualTo(new FcmToken("fcm-token").getHash());
         assertThat(row.registeredAt()).isEqualTo(NOW);
         assertThat(row.updatedAt()).isEqualTo(NOW);
-        assertThat(row.disabledAt()).isNull();
     }
 
     @ParameterizedTest
@@ -117,13 +116,13 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         register(second, "second-device");
 
         // then
-        assertThat(findDevice(first.sessionId()).disabledAt()).isNull();
-        assertThat(findDevice(second.sessionId()).disabledAt()).isNull();
+        assertThat(findDevice(first.sessionId()).token()).isEqualTo("first-device");
+        assertThat(findDevice(second.sessionId()).token()).isEqualTo("second-device");
         assertThat(countDevices()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("다른 로그인이 같은 FCM 토큰을 등록하면 이전 연결을 끊고 원문을 제거한다")
+    @DisplayName("다른 로그인이 같은 FCM 토큰을 등록하면 이전 기기 행을 삭제한다")
     void register_sameTokenOnAnotherUser_transfersActiveBinding() {
         // given
         Login first = login();
@@ -136,18 +135,13 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         register(second, "shared-token");
 
         // then
-        DeviceRow old = findDeviceById(oldId);
-        assertThat(old.disabledAt()).isEqualTo(NOW.plusSeconds(60));
-        assertThat(old.updatedAt()).isEqualTo(NOW.plusSeconds(60));
-        assertThat(old.token()).isNull();
-        assertThat(old.hash()).isNull();
+        assertThat(existsDeviceById(oldId)).isFalse();
         assertThat(findDevice(second.sessionId()).token()).isEqualTo("shared-token");
-        assertThat(findDevice(second.sessionId()).disabledAt()).isNull();
     }
 
     @Test
     @DisplayName("연결이 해제된 로그인으로 다시 등록하면 새 기기 행을 생성한다")
-    void register_disabledSession_createsNewRow() {
+    void register_previouslyDetachedSession_createsNewRow() {
         // given
         Login first = login();
         Login second = login();
@@ -164,10 +158,9 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         DeviceRow row = findDevice(first.sessionId());
         assertThat(row.id()).isNotEqualTo(originalId);
         assertThat(row.registeredAt()).isEqualTo(NOW.plusSeconds(120));
-        assertThat(row.disabledAt()).isNull();
-        assertThat(findDeviceById(originalId).token()).isNull();
-        assertThat(findDeviceById(secondId).token()).isNull();
-        assertThat(countDevices()).isEqualTo(3);
+        assertThat(existsDeviceById(originalId)).isFalse();
+        assertThat(existsDeviceById(secondId)).isFalse();
+        assertThat(countDevices()).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -192,13 +185,8 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         assertThat(current.id()).isNotEqualTo(originalId);
         assertThat(current.token()).isEqualTo(token);
         assertThat(current.registeredAt()).isEqualTo(NOW.plusSeconds(60));
-        assertThat(findDeviceById(originalId).token()).isNull();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices WHERE id = ?
-                    AND user_id IS NULL AND session_id IS NULL AND fcm_token IS NULL
-                    AND fcm_token_hash IS NULL AND disabled_at IS NOT NULL
-                """, Integer.class, originalId)).isEqualTo(1);
-        assertThat(countDevices()).isEqualTo(2);
+        assertThat(existsDeviceById(originalId)).isFalse();
+        assertThat(countDevices()).isEqualTo(1);
     }
 
     @Test
@@ -231,7 +219,6 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         // when & then
         assertReauthenticationRequired(invalid.userId(), invalid.sessionId());
         assertThat(findDevice(existing.sessionId()).token()).isEqualTo("shared-token");
-        assertThat(findDevice(existing.sessionId()).disabledAt()).isNull();
         assertThat(countDevices()).isEqualTo(1);
     }
 
@@ -336,22 +323,20 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         return findDevice("session_id", sessionId);
     }
 
-    private DeviceRow findDeviceById(UUID deviceId) {
-        return findDevice("id", deviceId);
+    private boolean existsDeviceById(UUID deviceId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM push_devices WHERE id = ?", Integer.class, deviceId) > 0;
     }
 
     private DeviceRow findDevice(String column, UUID value) {
         return jdbcTemplate.queryForObject("""
-                SELECT id, fcm_token, fcm_token_hash, registered_at, updated_at, disabled_at
+                SELECT id, fcm_token, fcm_token_hash, registered_at, updated_at
                 FROM push_devices WHERE %s = ?
                 """.formatted(column), (rs, rowNumber) -> new DeviceRow(
                 rs.getObject("id", UUID.class), rs.getString("fcm_token"),
                 rs.getString("fcm_token_hash"),
                 rs.getTimestamp("registered_at").toInstant(),
-                rs.getTimestamp("updated_at").toInstant(),
-                rs.getTimestamp("disabled_at") == null
-                        ? null
-                        : rs.getTimestamp("disabled_at").toInstant()),
+                rs.getTimestamp("updated_at").toInstant()),
                 value);
     }
 
@@ -366,6 +351,6 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
     }
 
     private record DeviceRow(UUID id, String token, String hash, Instant registeredAt,
-            Instant updatedAt, Instant disabledAt) {
+            Instant updatedAt) {
     }
 }

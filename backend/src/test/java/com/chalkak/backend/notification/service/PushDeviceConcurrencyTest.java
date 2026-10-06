@@ -68,15 +68,10 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
         runConcurrently(registering(first, "shared-token"), registering(second, "shared-token"));
 
         // then
-        assertThat(countDevices()).isEqualTo(2);
+        assertThat(countDevices()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM push_devices
-                WHERE disabled_at IS NULL AND fcm_token = 'shared-token'
-                """, Integer.class)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices
-                WHERE disabled_at IS NOT NULL AND user_id IS NULL AND session_id IS NULL
-                    AND fcm_token IS NULL AND fcm_token_hash IS NULL
+                WHERE fcm_token = 'shared-token'
                 """, Integer.class)).isEqualTo(1);
     }
 
@@ -109,15 +104,7 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
         // then
         assertThat(findActiveToken(first.sessionId())).isEqualTo("second-token");
         assertThat(findActiveToken(second.sessionId())).isEqualTo("first-token");
-        assertThat(countDevices()).isEqualTo(3);
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices WHERE disabled_at IS NULL
-                """, Integer.class)).isEqualTo(2);
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices
-                WHERE disabled_at IS NOT NULL AND user_id IS NULL AND session_id IS NULL
-                    AND fcm_token IS NULL AND fcm_token_hash IS NULL
-                """, Integer.class)).isEqualTo(1);
+        assertThat(countDevices()).isEqualTo(2);
     }
 
     private Login login() {
@@ -150,7 +137,7 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
 
     private String findActiveToken(UUID sessionId) {
         return jdbcTemplate.queryForObject("""
-                SELECT fcm_token FROM push_devices WHERE session_id = ? AND disabled_at IS NULL
+                SELECT fcm_token FROM push_devices WHERE session_id = ?
                 """, String.class, sessionId);
     }
 

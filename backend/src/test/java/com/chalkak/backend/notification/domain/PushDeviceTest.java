@@ -28,6 +28,5 @@ class PushDeviceTest {
         assertThat(device.getUpdatedAt()).isEqualTo(updatedAt);
         assertThat(device.getFcmToken()).isEqualTo(replacement.getValue());
         assertThat(device.getFcmTokenHash()).isEqualTo(replacement.getHash());
-        assertThat(device.getDisabledAt()).isNull();
     }
 }

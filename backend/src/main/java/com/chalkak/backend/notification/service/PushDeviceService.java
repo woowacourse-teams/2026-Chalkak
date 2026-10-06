@@ -40,7 +40,7 @@ public class PushDeviceService {
         Instant now = clock.instant();
         User user = loginSessionService.getUsableUser(userId, sessionId, now);
 
-        pushDeviceRepository.disableOtherSessionByTokenHash(token.getHash(), sessionId, now);
+        pushDeviceRepository.deleteOtherSessionByTokenHash(token.getHash(), sessionId);
         PushDevice device = pushDeviceRepository.findBySessionId(sessionId)
                 .orElseGet(() -> new PushDevice(user, sessionId, token, now));
         device.updateToken(token, now);
@@ -48,19 +48,19 @@ public class PushDeviceService {
     }
 
     @Transactional
-    public void disableBySessionId(UUID sessionId, Instant disabledAt) {
-        pushDeviceRepository.disableBySessionId(sessionId, disabledAt);
+    public void deleteBySessionId(UUID sessionId) {
+        pushDeviceRepository.deleteBySessionId(sessionId);
     }
 
     @Transactional
-    public void disableByUserId(UUID userId, Instant disabledAt) {
-        pushDeviceRepository.disableByUserId(userId, disabledAt);
+    public void deleteByUserId(UUID userId) {
+        pushDeviceRepository.deleteByUserId(userId);
     }
 
     private void lockSessions(UUID sessionId, String tokenHash) {
         List<UUID> sessionIds = new ArrayList<>();
         sessionIds.add(sessionId);
-        pushDeviceRepository.findActiveSessionIdByTokenHash(tokenHash).ifPresent(sessionIds::add);
+        pushDeviceRepository.findSessionIdByTokenHash(tokenHash).ifPresent(sessionIds::add);
         loginSessionService.lockSessions(sessionIds);
     }
 

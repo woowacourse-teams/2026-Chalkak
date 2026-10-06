@@ -82,8 +82,7 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate.execute(
-                "ALTER TABLE push_devices DROP CONSTRAINT IF EXISTS ck_refresh_revocation_test");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS push_device_refresh_guard");
         new DatabaseCleaner(jdbcTemplate).clean();
     }
 
@@ -110,7 +109,7 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
 
         // Then
         assertRevoked(first.sessionId());
-        assertDisabled(first);
+        assertDeleted(first);
         assertActive(second, "second-device");
         assertActive(other, "other-device");
         assertThat(countLiveTokens(second.sessionId())).isEqualTo(1);
@@ -119,17 +118,14 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @EnumSource(RevocationCause.class)
-    @DisplayName("재사용·만료 처리에서 기기 해제 저장에 실패하면 RT 폐기도 롤백한다")
+    @DisplayName("재사용·만료 처리에서 기기 행 삭제에 실패하면 RT 폐기도 롤백한다")
     void refresh_deviceCleanupFails_rollsBackTokenRevocation(RevocationCause cause) {
         // Given
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "rollback-device");
         prepareRevocation(issued, cause);
         int liveTokens = countLiveTokens(issued.sessionId());
-        jdbcTemplate.execute("""
-                ALTER TABLE push_devices ADD CONSTRAINT ck_refresh_revocation_test
-                CHECK (disabled_at IS NULL)
-                """);
+        blockDeviceDeletion(issued.sessionId());
 
         // When & Then
         assertThatThrownBy(() -> userRefreshTokenService.refresh(issued.value()))
@@ -184,21 +180,13 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
         // When & Then
         assertReauthenticationRequired(first);
         assertRevoked(first.sessionId());
-        PushDevice old = pushDeviceJpaRepository
-                .findById(registeredDeviceIds.get(first.sessionId()))
-                .orElseThrow();
-        assertThat(old.getDisabledAt()).isEqualTo(NOW);
-        assertThat(old.getUpdatedAt()).isEqualTo(NOW);
-        assertThat(old.getUser()).isNull();
-        assertThat(old.getSessionId()).isNull();
-        assertThat(old.getFcmToken()).isNull();
-        assertThat(old.getFcmTokenHash()).isNull();
+        assertDeleted(first);
         assertActive(second, "shared-device");
     }
 
     @Test
-    @DisplayName("이미 폐기된 RT로 갱신을 반복해도 최초 기기 비활성화 시각을 유지한다")
-    void refresh_alreadyRevokedToken_keepsOriginalDisableTime() {
+    @DisplayName("이미 폐기된 RT로 갱신을 반복해도 기기는 삭제된 상태를 유지한다")
+    void refresh_alreadyRevokedToken_keepsDeviceDeleted() {
         // Given
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "repeated-device");
@@ -209,7 +197,7 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
         // When & Then
         assertReauthenticationRequired(issued);
         assertRevoked(issued.sessionId());
-        assertDisabled(issued);
+        assertDeleted(issued);
     }
 
     private IssuedRefreshToken register(User user, String token) {
@@ -218,6 +206,18 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
         registeredDeviceIds.put(issued.sessionId(),
                 pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;
+    }
+
+    private void blockDeviceDeletion(UUID sessionId) {
+        jdbcTemplate.execute("""
+                CREATE TABLE push_device_refresh_guard (
+                    device_id UUID NOT NULL REFERENCES push_devices(id) ON DELETE RESTRICT
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO push_device_refresh_guard (device_id)
+                SELECT id FROM push_devices WHERE session_id = ?
+                """, sessionId);
     }
 
     private void prepareRevocation(IssuedRefreshToken issued, RevocationCause cause) {
@@ -257,22 +257,14 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
                 """, Integer.class, sessionId);
     }
 
-    private void assertDisabled(IssuedRefreshToken issued) {
-        PushDevice device = pushDeviceJpaRepository
-                .findById(registeredDeviceIds.get(issued.sessionId()))
-                .orElseThrow();
-        assertThat(device.getDisabledAt()).isEqualTo(REVOKED_AT);
-        assertThat(device.getUpdatedAt()).isEqualTo(REVOKED_AT);
-        assertThat(device.getRegisteredAt()).isEqualTo(NOW);
-        assertThat(device.getUser()).isNull();
-        assertThat(device.getSessionId()).isNull();
-        assertThat(device.getFcmToken()).isNull();
-        assertThat(device.getFcmTokenHash()).isNull();
+    private void assertDeleted(IssuedRefreshToken issued) {
+        assertThat(pushDeviceJpaRepository.findById(
+                registeredDeviceIds.get(issued.sessionId()))).isEmpty();
+        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId())).isEmpty();
     }
 
     private void assertActive(IssuedRefreshToken issued, String token) {
         PushDevice device = pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow();
-        assertThat(device.getDisabledAt()).isNull();
         assertThat(device.getRegisteredAt()).isEqualTo(NOW);
         assertThat(device.getFcmToken()).isEqualTo(token);
         assertThat(device.getFcmTokenHash()).isNotNull();

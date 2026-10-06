@@ -21,7 +21,6 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 class PushDeviceMigrationTest extends IntegrationTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-30T00:00:00Z");
-    private static final Instant DISABLED_AT = REGISTERED_AT.plusSeconds(60);
 
     @Autowired
     private DataSource dataSource;
@@ -74,23 +73,16 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             SELECT COUNT(*) FROM flyway_schema_history
                             WHERE version IN ('202609301130', '202610061400', '202610061500')
                             """, Integer.class)).isZero();
-                    // 생성된 최종 구조는 활성 기기와 연결이 제거된 비활성 행을 저장할 수 있다.
-                    insertDevice(jdbc, userId, sessionId, "active-token", null);
-                    insertDevice(jdbc, null, null, null, DISABLED_AT);
+                    // 기기는 회원과 로그인에 직접 연결하고 해제된 행은 보관하지 않는다.
+                    insertDevice(jdbc, userId, sessionId, "active-token");
                     assertThat(jdbc.queryForObject("""
                             SELECT COUNT(*) FROM push_devices
                             WHERE user_id = ? AND session_id = ? AND fcm_token = 'active-token'
-                                AND disabled_at IS NULL
                             """, Integer.class, userId, sessionId)).isEqualTo(1);
-                    assertThat(jdbc.queryForObject("""
-                            SELECT COUNT(*) FROM push_devices
-                            WHERE disabled_at = ? AND user_id IS NULL AND session_id IS NULL
-                                AND fcm_token IS NULL AND fcm_token_hash IS NULL
-                            """, Integer.class, Timestamp.from(DISABLED_AT))).isEqualTo(1);
                     assertThat(jdbc.queryForObject("""
                             SELECT COUNT(*) FROM information_schema.columns
                             WHERE table_schema = ? AND table_name = 'push_devices'
-                                AND column_name IN ('installation_id', 'platform')
+                                AND column_name IN ('installation_id', 'platform', 'disabled_at')
                             """, Integer.class, schema)).isZero();
                 } finally {
                     connection.setSchema(previousSchema);
@@ -126,16 +118,14 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
             JdbcTemplate jdbc,
             UUID userId,
             UUID sessionId,
-            String token,
-            Instant disabledAt
+            String token
     ) {
         jdbc.update("""
                 INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
-                    registered_at, updated_at, disabled_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, userId, sessionId, token, token == null ? null : new FcmToken(token).getHash(),
-                Timestamp.from(REGISTERED_AT), Timestamp.from(DISABLED_AT),
-                disabledAt == null ? null : Timestamp.from(disabledAt));
+                    registered_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, userId, sessionId, token, new FcmToken(token).getHash(),
+                Timestamp.from(REGISTERED_AT), Timestamp.from(REGISTERED_AT));
     }
 
     private void insertToken(

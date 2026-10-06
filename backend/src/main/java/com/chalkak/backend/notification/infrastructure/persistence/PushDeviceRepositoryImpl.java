@@ -2,7 +2,6 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +19,8 @@ public class PushDeviceRepositoryImpl implements PushDeviceRepository {
     }
 
     @Override
-    public Optional<UUID> findActiveSessionIdByTokenHash(String tokenHash) {
-        return pushDeviceJpaRepository.findActiveSessionIdByTokenHash(tokenHash);
+    public Optional<UUID> findSessionIdByTokenHash(String tokenHash) {
+        return pushDeviceJpaRepository.findSessionIdByTokenHash(tokenHash);
     }
 
     @Override
@@ -30,22 +29,21 @@ public class PushDeviceRepositoryImpl implements PushDeviceRepository {
     }
 
     @Override
-    public void disableBySessionId(UUID sessionId, Instant disabledAt) {
-        pushDeviceJpaRepository.disableBySessionId(sessionId, disabledAt);
+    public void deleteBySessionId(UUID sessionId) {
+        pushDeviceJpaRepository.deleteBySessionId(sessionId);
     }
 
     @Override
-    public void disableByUserId(UUID userId, Instant disabledAt) {
-        pushDeviceJpaRepository.disableByUserId(userId, disabledAt);
+    public void deleteByUserId(UUID userId) {
+        pushDeviceJpaRepository.deleteByUserId(userId);
     }
 
     @Override
-    public void disableOtherSessionByTokenHash(
+    public void deleteOtherSessionByTokenHash(
             String tokenHash,
-            UUID sessionId,
-            Instant disabledAt
+            UUID sessionId
     ) {
-        pushDeviceJpaRepository.disableOtherSessionByTokenHash(tokenHash, sessionId, disabledAt);
+        pushDeviceJpaRepository.deleteOtherSessionByTokenHash(tokenHash, sessionId);
     }
 
     @Override

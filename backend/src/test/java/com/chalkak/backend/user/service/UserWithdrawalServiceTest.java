@@ -172,8 +172,6 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
                 .hasSize(1);
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getFcmToken()).isEqualTo("apple-device-token");
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
-                .getDisabledAt()).isNull();
         assertThat(userRefreshTokenService.refresh(issued.value()).refreshToken()).isNotNull();
     }
 

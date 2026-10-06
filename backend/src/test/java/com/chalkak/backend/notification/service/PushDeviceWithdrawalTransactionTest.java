@@ -21,6 +21,7 @@ import com.chalkak.backend.user.service.UserWithdrawalService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -83,14 +84,13 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
-        jdbcTemplate
-                .execute("ALTER TABLE push_devices DROP CONSTRAINT IF EXISTS ck_withdrawal_test");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS push_device_withdrawal_guard");
         new DatabaseCleaner(jdbcTemplate).clean();
     }
 
     @Test
-    @DisplayName("기기 비활성화 저장에 실패하면 회원·소셜 연결·RT 폐기도 함께 롤백한다")
-    void withdraw_deviceUpdateFails_rollsBackUserSocialAccountAndRefreshToken() {
+    @DisplayName("기기 행 삭제에 실패하면 회원·소셜 연결·RT 폐기도 함께 롤백한다")
+    void withdraw_deviceDeletionFails_rollsBackUserSocialAccountAndRefreshToken() {
         // Given
         User user = userRepository.save(UserFixture.create());
         SocialAccount account = socialAccountRepository.save(SocialAccount.create(
@@ -98,8 +98,7 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
                 fingerprintEncoder.encode(SocialProvider.GOOGLE, "rollback-subject")));
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
         pushDeviceService.register(user.getId(), issued.sessionId(), "rollback-token");
-        jdbcTemplate.execute(
-                "ALTER TABLE push_devices ADD CONSTRAINT ck_withdrawal_test CHECK (disabled_at IS NULL)");
+        blockDeviceDeletion(issued.sessionId());
 
         // When & Then
         assertThatThrownBy(() -> userWithdrawalService.withdraw(user.getId()))
@@ -113,8 +112,6 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("rollback-token");
-        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
-                .getDisabledAt()).isNull();
     }
 
     @ParameterizedTest
@@ -178,22 +175,26 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
                     "SELECT COUNT(*) FROM user_refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
                     Integer.class, user.getId())).isZero();
             assertThat(userRepository.findActiveById(user.getId())).isEmpty();
-            assertThat(jdbcTemplate.queryForObject("""
-                    SELECT COUNT(*) FROM push_devices device
-                    WHERE device.user_id = ? AND (device.disabled_at IS NULL
-                        OR device.fcm_token IS NOT NULL OR device.fcm_token_hash IS NOT NULL)
-                    """, Integer.class, user.getId())).isZero();
-            assertThat(jdbcTemplate.queryForObject("""
-                    SELECT COUNT(*) FROM push_devices device
-                    WHERE device.user_id IS NULL AND device.session_id IS NULL
-                        AND device.disabled_at IS NOT NULL
-                        AND device.fcm_token IS NULL AND device.fcm_token_hash IS NULL
-                    """, Integer.class)).isEqualTo(withdrawalFirst ? 1 : 2);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM push_devices WHERE user_id = ?",
+                    Integer.class, user.getId())).isZero();
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    private void blockDeviceDeletion(UUID sessionId) {
+        jdbcTemplate.execute("""
+                CREATE TABLE push_device_withdrawal_guard (
+                    device_id UUID NOT NULL REFERENCES push_devices(id) ON DELETE RESTRICT
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO push_device_withdrawal_guard (device_id)
+                SELECT id FROM push_devices WHERE session_id = ?
+                """, sessionId);
     }
 
     private void awaitCommit(CountDownLatch latch) {

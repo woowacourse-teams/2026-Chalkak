@@ -11,13 +11,12 @@ import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +34,9 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private PushDeviceJpaRepository pushDeviceJpaRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -43,45 +45,48 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
     void insert_duplicateSession_rejectsSecondRow() {
         // given
         UUID sessionId = newSession();
-        insert(sessionId, "first-token", new FcmToken("first-token").getHash(), null);
+        insert(sessionId, "first-token", new FcmToken("first-token").getHash());
 
         // when & then
         assertThatThrownBy(() -> insert(sessionId, "second-token",
-                new FcmToken("second-token").getHash(), null))
+                new FcmToken("second-token").getHash()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ux_push_devices_session");
     }
 
     @Test
-    @DisplayName("같은 FCM 토큰을 두 활성 기기에 저장할 수 없다")
-    void insert_duplicateActiveToken_rejectsSecondBinding() {
+    @DisplayName("같은 FCM 토큰을 두 기기에 저장할 수 없다")
+    void insert_duplicateToken_rejectsSecondBinding() {
         // given
         UUID first = newSession();
         UUID second = newSession();
         String hash = new FcmToken("shared-token").getHash();
-        insert(first, "shared-token", hash, null);
+        insert(first, "shared-token", hash);
 
         // when & then
-        assertThatThrownBy(() -> insert(second, "shared-token", hash, null))
+        assertThatThrownBy(() -> insert(second, "shared-token", hash))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("ux_push_devices_active_fcm_token");
+                .hasMessageContaining("ux_push_devices_fcm_token");
     }
 
     @Test
-    @DisplayName("이전 연결이 비활성화되면 같은 토큰을 다른 로그인에 저장할 수 있다")
-    void insert_disabledDuplicateToken_allowsActiveBinding() {
+    @DisplayName("이전 기기 행을 삭제하면 같은 토큰을 다른 로그인에 저장할 수 있다")
+    void insert_deletedDuplicateToken_allowsNewBinding() {
         // given
         UUID first = newSession();
         UUID second = newSession();
         String hash = new FcmToken("shared-token").getHash();
-        insert(first, null, null, Instant.now());
+        insert(first, "shared-token", hash);
+        pushDeviceJpaRepository.deleteBySessionId(first);
+        entityManager.flush();
+        entityManager.clear();
 
         // when
-        insert(second, "shared-token", hash, null);
+        insert(second, "shared-token", hash);
 
         // then
         assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices WHERE fcm_token_hash = ? AND disabled_at IS NULL
+                SELECT COUNT(*) FROM push_devices WHERE fcm_token_hash = ?
                 """, Integer.class, hash)).isEqualTo(1);
     }
 
@@ -93,50 +98,31 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         UUID sessionId = newSession();
 
         // when & then
-        assertThatThrownBy(() -> insert(sessionId, token, hash, null))
+        assertThatThrownBy(() -> insert(sessionId, token, hash))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    @Test
-    @DisplayName("활성 기기에는 FCM 토큰이 있어야 한다")
-    void insert_activeDeviceWithoutToken_rejectsRow() {
+    @ParameterizedTest
+    @ValueSource(strings = {"user_id", "session_id"})
+    @DisplayName("기기에는 회원과 로그인 연결이 모두 있어야 한다")
+    void insert_deviceWithoutIdentity_rejectsRow(String column) {
         // given
         UUID sessionId = newSession();
-
-        // when & then
-        assertThatThrownBy(() -> insert(sessionId, null, null, null))
-                .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("ck_push_devices_active_token");
-    }
-
-    @Test
-    @DisplayName("활성 기기에는 회원과 로그인 연결이 있어야 한다")
-    void insert_activeDeviceWithoutIdentity_rejectsRow() {
-        // given
-        String token = "active-token";
+        UUID userId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM user_refresh_tokens WHERE session_id = ?", UUID.class,
+                sessionId);
+        String token = "device-token";
 
         // when & then
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO push_devices (fcm_token, fcm_token_hash, registered_at, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, token, new FcmToken(token).getHash()))
+                INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
+                    registered_at, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, column.equals("user_id") ? null : userId,
+                column.equals("session_id") ? null : sessionId, token,
+                new FcmToken(token).getHash()))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("ck_push_devices_active_connection");
-    }
-
-    @Test
-    @DisplayName("비활성 기기에는 회원·로그인·토큰 연결을 남길 수 없다")
-    void update_disabledDeviceWithIdentity_rejectsRow() {
-        // given
-        UUID sessionId = newSession();
-        insert(sessionId, "active-token", new FcmToken("active-token").getHash(), null);
-
-        // when & then
-        assertThatThrownBy(() -> jdbcTemplate.update("""
-                UPDATE push_devices SET disabled_at = CURRENT_TIMESTAMP WHERE session_id = ?
-                """, sessionId))
-                .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("ck_push_devices_disabled_connection");
+                .hasMessageContaining(column);
     }
 
     private UUID newSession() {
@@ -147,14 +133,12 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         return sessionId;
     }
 
-    private void insert(UUID sessionId, String token, String hash, Instant disabledAt) {
+    private void insert(UUID sessionId, String token, String hash) {
         jdbcTemplate.update("""
                 INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
-                    registered_at, updated_at, disabled_at)
+                    registered_at, updated_at)
                 VALUES ((SELECT user_id FROM user_refresh_tokens WHERE session_id = ? LIMIT 1),
-                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-                """, disabledAt == null ? sessionId : null,
-                disabledAt == null ? sessionId : null, token, hash,
-                disabledAt == null ? null : Timestamp.from(disabledAt));
+                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, sessionId, sessionId, token, hash);
     }
 }
