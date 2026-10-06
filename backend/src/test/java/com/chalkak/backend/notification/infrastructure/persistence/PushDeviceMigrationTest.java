@@ -27,15 +27,15 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
     private DataSource dataSource;
 
     @Test
-    @DisplayName("로그인 테이블을 제거해도 활성·비활성 기기와 RT 회전 기록을 보존한다")
-    void migrate_existingDevicesAndRotatedTokens_preservesDataWithoutLoginTable()
+    @DisplayName("로그인 테이블 없이 기기 테이블을 생성하고 기존 RT 회전 기록과 수신 설정을 보존한다")
+    void migrate_existingRotatedTokens_preservesDataAndCreatesDevicesWithoutLoginTable()
             throws Exception {
-        // given: 테스트 DB의 별도 스키마에서 기존 버전과 데이터로 시작한다.
+        // given: 기기 테이블 생성 전 버전에 기존 RT와 수신 설정을 준비한다.
         String schema = "push_device_migration_" + UUID.randomUUID().toString().replace("-", "");
         JdbcTemplate admin = new JdbcTemplate(dataSource);
         admin.execute("CREATE SCHEMA " + schema);
         try {
-            migrate(schema, "202609301400");
+            migrate(schema, "202609301100");
             try (Connection connection = dataSource.getConnection()) {
                 String previousSchema = connection.getSchema();
                 connection.setSchema(schema);
@@ -44,21 +44,8 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             new SingleConnectionDataSource(connection, true));
                     UUID userId = insertUser(jdbc, "active");
                     UUID sessionId = UUID.randomUUID();
-                    insertSession(jdbc, userId, sessionId);
-                    insertDevice(jdbc, sessionId, "active-token", null);
                     insertToken(jdbc, userId, sessionId, "1".repeat(64), REGISTERED_AT);
                     insertToken(jdbc, userId, sessionId, "2".repeat(64), null);
-
-                    UUID disabledUserId = insertUser(jdbc, "disabled");
-                    UUID disabledSessionId = UUID.randomUUID();
-                    insertSession(jdbc, disabledUserId, disabledSessionId);
-                    // RT 정리로 토큰이 없어도 기기의 회원 정보는 이관해야 한다.
-                    insertDevice(jdbc, disabledSessionId, null, DISABLED_AT);
-                    List<Map<String, Object>> devicesBefore = jdbc.queryForList("""
-                            SELECT device.*, session.user_id FROM push_devices device
-                            JOIN login_sessions session ON session.id = device.session_id
-                            ORDER BY device.id
-                            """);
                     List<Map<String, Object>> tokensBefore = jdbc.queryForList(
                             "SELECT * FROM user_refresh_tokens ORDER BY id");
                     List<Map<String, Object>> settingsBefore = jdbc.queryForList("""
@@ -67,11 +54,11 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             """);
 
                     // when
-                    migrate(schema, "202610061400");
+                    migrate(schema, "202609301400");
 
                     // then
                     assertThat(jdbc.queryForList("SELECT * FROM push_devices ORDER BY id"))
-                            .isEqualTo(devicesBefore);
+                            .isEmpty();
                     assertThat(jdbc.queryForList("SELECT * FROM user_refresh_tokens ORDER BY id"))
                             .isEqualTo(tokensBefore);
                     assertThat(jdbc.queryForList("""
@@ -83,8 +70,13 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             SELECT COUNT(*) FROM information_schema.tables
                             WHERE table_schema = ? AND table_name = 'login_sessions'
                             """, Integer.class, schema)).isZero();
-                    // 비활성 연결만 익명화하고 활성 연결·RT·설정은 유지한다.
-                    migrate(schema, "202610061500");
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM flyway_schema_history
+                            WHERE version IN ('202609301130', '202610061400', '202610061500')
+                            """, Integer.class)).isZero();
+                    // 생성된 최종 구조는 활성 기기와 연결이 제거된 비활성 행을 저장할 수 있다.
+                    insertDevice(jdbc, userId, sessionId, "active-token", null);
+                    insertDevice(jdbc, null, null, null, DISABLED_AT);
                     assertThat(jdbc.queryForObject("""
                             SELECT COUNT(*) FROM push_devices
                             WHERE user_id = ? AND session_id = ? AND fcm_token = 'active-token'
@@ -95,13 +87,6 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
                             WHERE disabled_at = ? AND user_id IS NULL AND session_id IS NULL
                                 AND fcm_token IS NULL AND fcm_token_hash IS NULL
                             """, Integer.class, Timestamp.from(DISABLED_AT))).isEqualTo(1);
-                    assertThat(jdbc.queryForList("SELECT * FROM user_refresh_tokens ORDER BY id"))
-                            .isEqualTo(tokensBefore);
-                    assertThat(jdbc.queryForList("""
-                            SELECT id, topic_push_enabled, moderation_push_enabled
-                            FROM users ORDER BY id
-                            """))
-                            .isEqualTo(settingsBefore);
                     assertThat(jdbc.queryForObject("""
                             SELECT COUNT(*) FROM information_schema.columns
                             WHERE table_schema = ? AND table_name = 'push_devices'
@@ -137,21 +122,18 @@ class PushDeviceMigrationTest extends IntegrationTestSupport {
         return userId;
     }
 
-    private void insertSession(JdbcTemplate jdbc, UUID userId, UUID sessionId) {
-        jdbc.update("INSERT INTO login_sessions (id, user_id) VALUES (?, ?)", sessionId, userId);
-    }
-
     private void insertDevice(
             JdbcTemplate jdbc,
+            UUID userId,
             UUID sessionId,
             String token,
             Instant disabledAt
     ) {
         jdbc.update("""
-                INSERT INTO push_devices (session_id, fcm_token, fcm_token_hash,
+                INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
                     registered_at, updated_at, disabled_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, sessionId, token, token == null ? null : new FcmToken(token).getHash(),
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, userId, sessionId, token, token == null ? null : new FcmToken(token).getHash(),
                 Timestamp.from(REGISTERED_AT), Timestamp.from(DISABLED_AT),
                 disabledAt == null ? null : Timestamp.from(disabledAt));
     }

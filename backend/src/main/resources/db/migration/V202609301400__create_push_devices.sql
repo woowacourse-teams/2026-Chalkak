@@ -1,13 +1,14 @@
 CREATE TABLE push_devices (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    session_id UUID NOT NULL,
+    user_id UUID,
+    session_id UUID,
     fcm_token TEXT,
     fcm_token_hash VARCHAR(64),
     registered_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     disabled_at TIMESTAMPTZ,
-    CONSTRAINT fk_push_devices_session
-        FOREIGN KEY (session_id) REFERENCES login_sessions (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_push_devices_user
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT ux_push_devices_session UNIQUE (session_id),
     CONSTRAINT ck_push_devices_token_pair CHECK (
         (fcm_token IS NULL AND fcm_token_hash IS NULL)
@@ -15,7 +16,14 @@ CREATE TABLE push_devices (
             AND fcm_token_hash ~ '^[0-9a-f]{64}$')
     ),
     CONSTRAINT ck_push_devices_active_token
-        CHECK (disabled_at IS NOT NULL OR fcm_token IS NOT NULL)
+        CHECK (disabled_at IS NOT NULL OR fcm_token IS NOT NULL),
+    CONSTRAINT ck_push_devices_active_connection CHECK (
+        disabled_at IS NOT NULL OR (user_id IS NOT NULL AND session_id IS NOT NULL)
+    ),
+    CONSTRAINT ck_push_devices_disabled_connection CHECK (
+        disabled_at IS NULL OR (user_id IS NULL AND session_id IS NULL
+            AND fcm_token IS NULL AND fcm_token_hash IS NULL)
+    )
 );
 
 -- 가변 길이 토큰 원문 대신 고정 길이 해시로 활성 연결의 중복을 방지한다.
