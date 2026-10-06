@@ -16,7 +16,7 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
     void lockToken(@Param("tokenHash") String tokenHash);
 
     @Query("""
-            SELECT device.session.id FROM PushDevice device
+            SELECT device.sessionId FROM PushDevice device
             WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
             """)
     Optional<UUID> findActiveSessionIdByTokenHash(@Param("tokenHash") String tokenHash);
@@ -28,7 +28,7 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
             UPDATE PushDevice device
             SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
-            WHERE device.session.id = :sessionId AND device.disabledAt IS NULL
+            WHERE device.sessionId = :sessionId AND device.disabledAt IS NULL
             """)
     int disableBySessionId(
             @Param("sessionId") UUID sessionId,
@@ -40,9 +40,7 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
             UPDATE PushDevice device
             SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
-            WHERE device.disabledAt IS NULL AND device.session.id IN (
-                SELECT session.id FROM LoginSession session WHERE session.user.id = :userId
-            )
+            WHERE device.disabledAt IS NULL AND device.user.id = :userId
             """)
     int disableByUserId(
             @Param("userId") UUID userId,
@@ -55,7 +53,7 @@ public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID>
             SET device.fcmToken = NULL, device.fcmTokenHash = NULL,
                 device.disabledAt = :disabledAt, device.updatedAt = :disabledAt
             WHERE device.fcmTokenHash = :tokenHash AND device.disabledAt IS NULL
-                AND device.session.id <> :sessionId
+                AND device.sessionId <> :sessionId
             """)
     int disableOtherSessionByTokenHash(
             @Param("tokenHash") String tokenHash,

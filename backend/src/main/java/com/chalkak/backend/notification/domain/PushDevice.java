@@ -1,6 +1,6 @@
 package com.chalkak.backend.notification.domain;
 
-import com.chalkak.backend.auth.domain.LoginSession;
+import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -29,8 +29,11 @@ public class PushDevice {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "session_id", nullable = false, updatable = false)
-    private LoginSession session;
+    @JoinColumn(name = "user_id", nullable = false, updatable = false)
+    private User user;
+
+    @Column(name = "session_id", nullable = false, updatable = false)
+    private UUID sessionId;
 
     @Column(name = "fcm_token", columnDefinition = "text")
     private String fcmToken;
@@ -48,11 +51,13 @@ public class PushDevice {
     private Instant disabledAt;
 
     public PushDevice(
-            LoginSession session,
+            User user,
+            UUID sessionId,
             FcmToken token,
             Instant registeredAt
     ) {
-        this.session = session;
+        this.user = user;
+        this.sessionId = sessionId;
         this.registeredAt = registeredAt;
         updateToken(token, registeredAt);
     }

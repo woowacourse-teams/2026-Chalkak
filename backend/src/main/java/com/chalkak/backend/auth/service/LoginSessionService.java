@@ -1,10 +1,10 @@
 package com.chalkak.backend.auth.service;
 
-import com.chalkak.backend.auth.domain.LoginSession;
-import com.chalkak.backend.auth.repository.LoginSessionRepository;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(propagation = Propagation.MANDATORY)
 public class LoginSessionService {
 
-    private final LoginSessionRepository loginSessionRepository;
+    private final UserRepository userRepository;
     private final UserRefreshTokenRepository userRefreshTokenRepository;
 
     public void lockSessions(Collection<UUID> sessionIds) {
@@ -30,18 +30,18 @@ public class LoginSessionService {
         sortedSessionIds.forEach(userRefreshTokenRepository::lockSession);
     }
 
-    public LoginSession getUsableSession(
+    public User getUsableUser(
             UUID userId,
             UUID sessionId,
             Instant now
     ) {
-        LoginSession session = loginSessionRepository.findByIdAndUserId(sessionId, userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(LoginSessionService::reauthenticationRequired);
-        session.getUser().validateNotWithdrawn();
+        user.validateNotWithdrawn();
         if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(sessionId, userId, now)) {
             throw reauthenticationRequired();
         }
-        return session;
+        return user;
     }
 
     private static UnauthorizedException reauthenticationRequired() {

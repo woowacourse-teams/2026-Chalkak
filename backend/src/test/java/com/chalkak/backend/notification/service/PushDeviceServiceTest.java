@@ -71,6 +71,9 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         // then
         DeviceRow row = findDevice(login.sessionId());
         assertThat(row.id()).isNotNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT user_id FROM push_devices WHERE id = ?", UUID.class, row.id()))
+                .isEqualTo(login.userId());
         assertThat(row.token()).isEqualTo("fcm-token");
         assertThat(row.hash()).isEqualTo(new FcmToken("fcm-token").getHash());
         assertThat(row.registeredAt()).isEqualTo(NOW);
@@ -236,13 +239,14 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         // when & then
         assertReauthenticationRequired(other.userId(), owner.sessionId());
         assertReauthenticationRequired(owner.userId(), UUID.randomUUID());
+        assertReauthenticationRequired(UUID.randomUUID(), owner.sessionId());
         assertReauthenticationRequired(owner.userId(), null);
         assertReauthenticationRequired(null, owner.sessionId());
         assertThat(countDevices()).isZero();
     }
 
     @Test
-    @DisplayName("로그인 행만 있고 사용 가능한 리프레시 토큰이 없으면 등록할 수 없다")
+    @DisplayName("사용 가능한 리프레시 토큰이 없으면 기기를 등록할 수 없다")
     void register_sessionWithoutToken_requiresReauthentication() {
         // given
         Login login = login();

@@ -120,10 +120,11 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
 
     private void insert(UUID sessionId, String token, String hash, Instant disabledAt) {
         jdbcTemplate.update("""
-                INSERT INTO push_devices (session_id, fcm_token, fcm_token_hash,
+                INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
                     registered_at, updated_at, disabled_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-                """, sessionId, token, hash,
+                VALUES ((SELECT user_id FROM user_refresh_tokens WHERE session_id = ? LIMIT 1),
+                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                """, sessionId, sessionId, token, hash,
                 disabledAt == null ? null : Timestamp.from(disabledAt));
     }
 }

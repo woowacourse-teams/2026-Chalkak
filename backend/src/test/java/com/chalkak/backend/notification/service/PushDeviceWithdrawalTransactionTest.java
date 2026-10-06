@@ -180,14 +180,12 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
             assertThat(userRepository.findActiveById(user.getId())).isEmpty();
             assertThat(jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM push_devices device
-                    JOIN login_sessions session ON session.id = device.session_id
-                    WHERE session.user_id = ? AND (device.disabled_at IS NULL
+                    WHERE device.user_id = ? AND (device.disabled_at IS NULL
                         OR device.fcm_token IS NOT NULL OR device.fcm_token_hash IS NOT NULL)
                     """, Integer.class, user.getId())).isZero();
             assertThat(jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM push_devices device
-                    JOIN login_sessions session ON session.id = device.session_id
-                    WHERE session.user_id = ?
+                    WHERE device.user_id = ?
                     """, Integer.class, user.getId())).isEqualTo(withdrawalFirst ? 1 : 2);
         } finally {
             firstCanCommit.countDown();

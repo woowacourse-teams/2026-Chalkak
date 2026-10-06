@@ -82,10 +82,8 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
         assertThat(issued.expiresIn()).isEqualTo(Duration.ofDays(30));
         assertThat(issued.sessionId()).isNotNull();
         assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM login_sessions
-                WHERE id = (SELECT session_id FROM user_refresh_tokens WHERE user_id = ?)
-                  AND user_id = ?
-                """, Integer.class, user.getId(), user.getId())).isEqualTo(1);
+                SELECT session_id FROM user_refresh_tokens WHERE user_id = ?
+                """, UUID.class, user.getId())).isEqualTo(issued.sessionId());
     }
 
     @Test
@@ -115,9 +113,6 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
                 .getClaimAsString("session_id"))
                 .isEqualTo(consumed.sessionId().toString());
         assertThat(successor.absoluteExpiresAt()).isEqualTo(consumed.absoluteExpiresAt());
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM login_sessions WHERE id = ?
-                """, Integer.class, consumed.sessionId())).isEqualTo(1);
     }
 
     @Test

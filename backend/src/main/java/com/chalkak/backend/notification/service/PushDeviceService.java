@@ -1,12 +1,12 @@
 package com.chalkak.backend.notification.service;
 
-import com.chalkak.backend.auth.domain.LoginSession;
 import com.chalkak.backend.auth.service.LoginSessionService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -38,11 +38,11 @@ public class PushDeviceService {
         lockSessions(sessionId, token.getHash());
 
         Instant now = clock.instant();
-        LoginSession session = loginSessionService.getUsableSession(userId, sessionId, now);
+        User user = loginSessionService.getUsableUser(userId, sessionId, now);
 
         pushDeviceRepository.disableOtherSessionByTokenHash(token.getHash(), sessionId, now);
         PushDevice device = pushDeviceRepository.findBySessionId(sessionId)
-                .orElseGet(() -> new PushDevice(session, token, now));
+                .orElseGet(() -> new PushDevice(user, sessionId, token, now));
         device.updateToken(token, now);
         pushDeviceRepository.save(device);
     }

@@ -2,7 +2,6 @@ package com.chalkak.backend.notification.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.LoginSession;
 import com.chalkak.backend.user.domain.UserFixture;
 import java.time.Instant;
 import java.util.UUID;
@@ -16,8 +15,8 @@ class PushDeviceTest {
     void updateToken_newToken_preservesFirstRegistrationTime() {
         // given
         Instant registeredAt = Instant.parse("2026-09-30T00:00:00Z");
-        LoginSession session = new LoginSession(UserFixture.create(), UUID.randomUUID());
-        PushDevice device = new PushDevice(session, new FcmToken("first-token"), registeredAt);
+        PushDevice device = new PushDevice(UserFixture.create(), UUID.randomUUID(),
+                new FcmToken("first-token"), registeredAt);
         Instant updatedAt = registeredAt.plusSeconds(60);
         FcmToken replacement = new FcmToken("replacement-token");
 

@@ -7,7 +7,6 @@ import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.domain.AdminRefreshToken;
 import com.chalkak.backend.admin.repository.auth.AdminRefreshTokenRepository;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
-import com.chalkak.backend.auth.domain.LoginSession;
 import com.chalkak.backend.auth.domain.RefreshToken;
 import com.chalkak.backend.auth.domain.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
@@ -156,8 +155,6 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     ) {
         String tokenHash = createTokenHash();
         UUID sessionId = UUID.randomUUID();
-        entityManager.persist(new LoginSession(user, sessionId));
-        entityManager.flush();
         UserRefreshToken refreshToken = UserRefreshToken.create(
                 user,
                 sessionId,
