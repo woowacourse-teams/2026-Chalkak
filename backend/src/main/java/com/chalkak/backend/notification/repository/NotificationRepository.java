@@ -9,15 +9,33 @@ public interface NotificationRepository {
 
     Notification save(Notification notification);
 
-    NotificationSlice findByUserId(UUID userId, int page, int pageSize);
+    NotificationSlice findByUserId(
+            UUID userId,
+            int page,
+            int pageSize,
+            Instant createdFrom
+    );
 
-    Optional<NotificationDetail> findDetailByIdAndUserId(UUID notificationId, UUID userId);
+    Optional<NotificationDetail> findDetailByIdAndUserId(
+            UUID notificationId,
+            UUID userId,
+            Instant createdFrom
+    );
 
-    boolean existsUnreadByUserId(UUID userId);
+    boolean existsUnreadByUserId(UUID userId, Instant createdFrom);
 
-    int markRead(UUID notificationId, UUID userId, Instant readAt);
+    int markRead(
+            UUID notificationId,
+            UUID userId,
+            Instant readAt,
+            Instant createdFrom
+    );
 
-    void markAllRead(UUID userId, Instant readAt);
+    void markAllRead(
+            UUID userId,
+            Instant readAt,
+            Instant createdFrom
+    );
 
     void deleteExpiredForActiveUsers(Instant createdBefore);
 

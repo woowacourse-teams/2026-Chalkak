@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.api.v1.docs;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +23,19 @@ class NotificationOpenApiTest extends IntegrationTestSupport {
     void userApiDocs_exposesNotificationInboxContract() throws Exception {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/notifications'].get.description")
+                        .value(containsString("30일")))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notifications/{notificationId}'].get.description")
+                        .value(containsString("30일")))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/notifications/{notificationId}/read'].patch.description")
+                        .value(containsString("30일")))
+                .andExpect(jsonPath("$.paths['/api/v1/notifications/read-all'].patch.description")
+                        .value(containsString("30일")))
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/notifications/unread-status'].get.description")
+                                .value(containsString("30일")))
                 .andExpect(jsonPath("$.paths['/api/v1/notifications'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/notifications/{notificationId}'].get"

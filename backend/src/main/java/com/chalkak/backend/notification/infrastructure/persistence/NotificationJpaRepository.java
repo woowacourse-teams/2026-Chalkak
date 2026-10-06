@@ -23,6 +23,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
                 AND post.id = notification.sourceId
             LEFT JOIN post.photo photo
             WHERE notification.userId = :userId
+                AND notification.createdAt >= :createdFrom
                 AND (
                     notification.sourceType IS NULL
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
@@ -32,6 +33,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             """)
     Slice<NotificationSummary> findSummariesByUserId(
             @Param("userId") UUID userId,
+            @Param("createdFrom") Instant createdFrom,
             Pageable pageable
     );
 
@@ -43,6 +45,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
                 AND post.id = notification.sourceId
             LEFT JOIN post.photo photo
             WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND notification.createdAt >= :createdFrom
                 AND (
                     notification.sourceType IS NULL
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
@@ -51,7 +54,8 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             """)
     Optional<NotificationDetail> findDetailByIdAndUserId(
             @Param("notificationId") UUID notificationId,
-            @Param("userId") UUID userId
+            @Param("userId") UUID userId,
+            @Param("createdFrom") Instant createdFrom
     );
 
     @Query("""
@@ -60,19 +64,24 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
                 AND post.id = notification.sourceId
             WHERE notification.userId = :userId AND notification.readAt IS NULL
+                AND notification.createdAt >= :createdFrom
                 AND (
                     notification.sourceType IS NULL
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
                     OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
                 )
             """)
-    boolean existsVisibleUnreadByUserId(@Param("userId") UUID userId);
+    boolean existsVisibleUnreadByUserId(
+            @Param("userId") UUID userId,
+            @Param("createdFrom") Instant createdFrom
+    );
 
     @Modifying
     @Query("""
             UPDATE Notification notification
             SET notification.readAt = coalesce(notification.readAt, :readAt)
             WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND notification.createdAt >= :createdFrom
                 AND (
                     notification.sourceType IS NULL
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
@@ -86,7 +95,8 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
     int markRead(
             @Param("notificationId") UUID notificationId,
             @Param("userId") UUID userId,
-            @Param("readAt") Instant readAt
+            @Param("readAt") Instant readAt,
+            @Param("createdFrom") Instant createdFrom
     );
 
     @Modifying
@@ -94,6 +104,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             UPDATE Notification notification
             SET notification.readAt = :readAt
             WHERE notification.userId = :userId AND notification.readAt IS NULL
+                AND notification.createdAt >= :createdFrom
                 AND (
                     notification.sourceType IS NULL
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
@@ -106,7 +117,8 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             """)
     int markAllRead(
             @Param("userId") UUID userId,
-            @Param("readAt") Instant readAt
+            @Param("readAt") Instant readAt,
+            @Param("createdFrom") Instant createdFrom
     );
 
     @Modifying

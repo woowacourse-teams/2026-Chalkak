@@ -14,6 +14,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -21,7 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-09-29T00:00:00Z");
-    private static final Instant NORMAL_THRESHOLD = NOW.minus(Duration.ofDays(60));
+    private static final Instant NORMAL_THRESHOLD = NOW.minus(Duration.ofDays(30));
     private static final Instant WITHDRAWN_THRESHOLD = NOW.minus(Duration.ofDays(30));
 
     private final UUID adminId = UUID.randomUUID();
@@ -57,17 +60,31 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
         databaseCleaner.clean();
     }
 
-    @Test
-    @DisplayName("일반 회원의 알림은 생성 후 60일이 지나면 삭제한다")
-    void deleteExpiredNotifications_activeUser_deletesOnlyOlderThanSixtyDays() {
+    @ParameterizedTest
+    @CsvSource({"ACTIVE,false", "ACTIVE,true", "BANNED,false", "BANNED,true"})
+    @DisplayName("일반·정지 회원의 알림은 읽음 여부와 무관하게 사건 발생 후 30일이 지나면 삭제한다")
+    void deleteExpiredNotifications_activeOrBannedUser_deletesOnlyOlderThanThirtyDays(
+            String status,
+            boolean read
+    ) {
+        // Given
+        jdbcTemplate.update("UPDATE users SET status = CAST(? AS user_status) WHERE id = ?",
+                status, activeUserId);
         UUID expired = insertNotification(activeUserId, activePostId,
                 NORMAL_THRESHOLD.minusSeconds(1));
         UUID onBoundary = insertNotification(activeUserId, activePostId, NORMAL_THRESHOLD);
         UUID recent = insertNotification(activeUserId, activePostId,
                 NORMAL_THRESHOLD.plusSeconds(1));
 
+        if (read) {
+            jdbcTemplate.update("UPDATE notifications SET read_at = ? WHERE user_id = ?",
+                    Timestamp.from(NOW), activeUserId);
+        }
+
+        // When
         notificationCleanupScheduler.deleteExpiredNotifications();
 
+        // Then
         assertThat(exists(expired)).isFalse();
         assertThat(exists(onBoundary)).isTrue();
         assertThat(exists(recent)).isTrue();
@@ -76,24 +93,35 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     @Test
     @DisplayName("탈퇴한 지 30일이 지나면 최근에 생성된 알림도 삭제한다")
     void deleteExpiredNotifications_oldWithdrawal_deletesRecentNotification() {
+        // Given
         withdrawAt(WITHDRAWN_THRESHOLD.minusSeconds(1));
         UUID notificationId = insertNotification(withdrawnUserId, withdrawnPostId,
                 NOW.minus(Duration.ofDays(1)));
+        UUID olderNotificationId = insertNotification(withdrawnUserId, withdrawnPostId,
+                NORMAL_THRESHOLD.minus(Duration.ofDays(1)));
 
+        // When
         notificationCleanupScheduler.deleteExpiredNotifications();
 
+        // Then
         assertThat(exists(notificationId)).isFalse();
+        assertThat(exists(olderNotificationId)).isFalse();
     }
 
-    @Test
-    @DisplayName("탈퇴 30일 경계에 있는 회원의 알림은 생성 후 60일이 지나도 보관한다")
-    void deleteExpiredNotifications_recentWithdrawal_keepsOlderNotification() {
-        withdrawAt(WITHDRAWN_THRESHOLD);
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1})
+    @DisplayName("탈퇴 후 30일이 지나지 않으면 사건 발생 후 30일이 지난 알림도 보관한다")
+    void deleteExpiredNotifications_recentWithdrawal_keepsOlderNotification(
+            long secondsFromBoundary) {
+        // Given
+        withdrawAt(WITHDRAWN_THRESHOLD.plusSeconds(secondsFromBoundary));
         UUID notificationId = insertNotification(withdrawnUserId, withdrawnPostId,
                 NORMAL_THRESHOLD.minusSeconds(1));
 
+        // When
         notificationCleanupScheduler.deleteExpiredNotifications();
 
+        // Then
         assertThat(exists(notificationId)).isTrue();
     }
 

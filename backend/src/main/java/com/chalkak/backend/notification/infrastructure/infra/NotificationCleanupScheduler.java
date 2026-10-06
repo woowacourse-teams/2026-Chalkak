@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(prefix = "chalkak.notification.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class NotificationCleanupScheduler {
 
-    private static final Duration NORMAL_RETENTION = Duration.ofDays(60);
+    private static final Duration NORMAL_RETENTION = Duration.ofDays(30);
     private static final Duration WITHDRAWN_RETENTION = Duration.ofDays(30);
 
     private final NotificationRepository notificationRepository;
