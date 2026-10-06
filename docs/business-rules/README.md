@@ -12,6 +12,7 @@
 
 - `rules/`: 도메인별 현재 규칙
 - `decisions/`: 정책이 바뀐 이유와 영향
+- `guides/`: 앱의 API 호출 순서와 오류 처리 안내
 - `notion-map.yml`: 수동 반영 위치와 규칙 ID
 - `NOTION_SYNC.md`: PR 등록 뒤 수동 반영 안내
 
@@ -35,6 +36,14 @@
 | 알림함 | [notification.md](rules/notification.md) | 활성 |
 
 새 도메인 문서는 [규칙 템플릿](rules/_template.md)을 복사해 만든다. 템플릿은 이후 규칙도 같은 형식으로 기록하기 위해 유지하며 현재 규칙이나 Notion 동기화 대상으로 보지 않는다.
+
+## 앱 연동 안내
+
+알림 기기 등록을 구현할 때는 현재 규칙과 함께 다음 연동 문서를 읽는다.
+
+| 작업 | 문서 |
+| --- | --- |
+| 푸시 기기 등록·갱신, 이전 JWT의 자동 토큰 갱신 | [푸시 기기 등록 연동 안내](guides/push-device-registration.md) |
 
 ## 변경 이유
 

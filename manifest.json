@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "source_commit": "b39da139a3ab9834ee694614b6ce8625f4236c2f",
-  "version": "b5b39777253844a33e2a01a48cc01864c88e210a313eb840c9153c356813183a",
+  "source_commit": "11a192bebe2d8dc900e84015096802badb221c9d",
+  "version": "97c4106dba55b001099c5ed9b16850f34dec1898e7f10b38549a3db5c30f68f4",
   "files": {
     ".agents/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
     ".claude/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
@@ -9,23 +9,28 @@
     "CLAUDE.md": "0956768ccb5d497860e59cd4d002be9e33ccbadc139dddc69b9ed317fd111cf4",
     "backend/docs/interviews/캘린더-기록-연월-조회-방식.md": "16690099121aff0171cca8be003a831afb87b42d65ce980b520befb2c6618d79",
     "docs/business-rules/NOTION_SYNC.md": "ef448b2ac23a4ecfc409af3992bb64228414b1c11df2ba5971378f44580db7c7",
-    "docs/business-rules/README.md": "00b87a6040fee2067b7b51ac6e61253fe79a64bcfaffe00bcf75c5fbbfd3bb74",
+    "docs/business-rules/README.md": "34743149c33f7f386bfadd3f1068c266bbd49ee1f9cf824a1b63b88999fe63e7",
     "docs/business-rules/decisions/2026-09-03-banned-user-login.md": "603dd3c7f65d320aae7280d6f3d9307fdd917f3af6f99cb32cc39faeec321b0d",
     "docs/business-rules/decisions/2026-09-16-feedback-collection.md": "a611045650c65f32b474466114cc664822816eb623496d594ee8576ca31ca4ec",
     "docs/business-rules/decisions/2026-09-18-calendar-pending-posts.md": "7511e745ac5b8fa0c736e785832043885e96136de366ad889c4109ce31ac1749",
     "docs/business-rules/decisions/2026-09-19-calendar-recorded-months.md": "457866e7a8e0b3173b067c8d24ce4f5b1bb029ba64aecefa47668dbad5877aaf",
     "docs/business-rules/decisions/2026-09-29-notification-inbox.md": "83eafe623ec6ae18bda86929f01b66097be6b5e13f20b7653de1086482eb8af8",
     "docs/business-rules/decisions/2026-09-29-topic-period-overlap.md": "98cd7c045bcb4adf85ec8f67bfba0d09d5978b71b2f9505572203af2c99073bd",
+    "docs/business-rules/decisions/2026-09-30-notification-settings.md": "d786e19ef566ff95805c5b88a7dab487fbe4890363e83976bf01749b3e10eadf",
+    "docs/business-rules/decisions/2026-09-30-push-device-registration.md": "4060f3ea9775dc45be931b56309d256a35863a6be6613c5a06381cb1ccb49a47",
+    "docs/business-rules/decisions/2026-10-01-session-revocation-push-cleanup.md": "8ced35cad253e574be3ff438b68df31267fba8ecf58321e9a8b693d4172eedad",
+    "docs/business-rules/decisions/2026-10-06-push-device-connection-cleanup.md": "7452b92788b35c393cae6a26cf9a918f7a8ee0e81d7d5876c8385b836432e23d",
     "docs/business-rules/decisions/_template.md": "514528ba4220affec03596503a1efff931d270762c4e9d5790c15f62e23bf467",
-    "docs/business-rules/notion-map.yml": "3006cbe3fe027a357fefa1c5ff5f7e9c6a202901bb50039c7a771f38377ae278",
+    "docs/business-rules/guides/push-device-registration.md": "20244bce9e0e7360d5c2df88337d7a0d6f61d00f4cff4bc4c3316f63ae6aafbf",
+    "docs/business-rules/notion-map.yml": "7e3bb3be23436dcb8620a2af8be0c69b35e3f9029e98f43f737ae90fbab2be42",
     "docs/business-rules/rules/_template.md": "65ecaad08b51b2e783f7a18ddb37a1687fb2adbf6888ee917720e4e6f53a2257",
     "docs/business-rules/rules/admin.md": "a589a600bcfa8d9f44bd41323d30ab8b0d08bf2eb6ab733ef1435da1176841e2",
     "docs/business-rules/rules/feedback.md": "479406578cf9d26e51e9d742eea9aaeaa83eef8131a68417806f5d186373e3db",
     "docs/business-rules/rules/like.md": "77652aad4d639aace231049612ecb5bf574eba703f855d171e19badbe644e093",
-    "docs/business-rules/rules/notification.md": "e433f8ef09e77d875050e93ff7155361d44d8e35e9c5ccd821f8cd873ea86482",
+    "docs/business-rules/rules/notification.md": "90076beb973fa990067854c5e3981493b620fe176584b93de3737345d093b2d1",
     "docs/business-rules/rules/post.md": "0af011f2ad564f3bfc0e95e02113861d6ce63cbbdd55b09bf368c6d5e864f7b1",
     "docs/business-rules/rules/sign.md": "81906a74caeb5f7a4b15e30d6916fdb5fb9a1455c6c7941ca60de2d3e0146280",
     "docs/business-rules/rules/topic.md": "ec62808811531e9fb9efba2eae969c80651d22c798f0d1cf6ea9ebcbd9767a90",
-    "docs/business-rules/rules/user.md": "65c458f3295347198ed183034f7cda4f8e38c5f304c81a9a50ab3a630c8951f3"
+    "docs/business-rules/rules/user.md": "50ac53fd321d362029683aa99f65be456e158e443d0d42796ae09f7c4f579da1"
   }
 }
