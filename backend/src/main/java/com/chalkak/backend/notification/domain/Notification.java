@@ -10,7 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -64,7 +63,7 @@ public class Notification {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", updatable = false, columnDefinition = "jsonb")
-    private Map<String, Object> payload;
+    private NotificationPayload payload;
 
     @Column(name = "read_at")
     private Instant readAt;
@@ -122,7 +121,7 @@ public class Notification {
         notification.type = NotificationType.POST_REJECTED;
         notification.title = REJECTED_TITLE;
         notification.body = REJECTED_BODY;
-        notification.payload = Map.of("rejectionReason", rejectionReason);
+        notification.payload = new NotificationPayload(rejectionReason);
         notification.createdAt = createdAt;
         return notification;
     }
@@ -144,6 +143,6 @@ public class Notification {
         if (type != NotificationType.POST_REJECTED) {
             return null;
         }
-        return (String) payload.get("rejectionReason");
+        return payload.rejectionReason();
     }
 }

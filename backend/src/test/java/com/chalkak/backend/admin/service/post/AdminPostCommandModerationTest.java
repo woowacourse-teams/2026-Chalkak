@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
@@ -100,7 +101,9 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         // Then
         Map<String, Object> notification = jdbcTemplate.queryForMap(
                 """
-                        SELECT user_id, source_id, event_key, type, title, body, payload ->> 'rejectionReason' AS rejection_reason, read_at
+                        SELECT id, user_id, source_id, event_key, type, title, body,
+                            payload ->> 'rejectionReason' AS rejection_reason,
+                            payload IS NULL AS payload_is_null, read_at
                         FROM notifications
                         WHERE source_id = ?
                         """,
@@ -111,6 +114,9 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
         assertThat(notification.get("rejection_reason")).isNull();
+        assertThat(notification.get("payload_is_null")).isEqualTo(true);
+        Notification loaded = entityManager.find(Notification.class, notification.get("id"));
+        assertThat(loaded.getRejectionReason()).isNull();
         assertThat(notification.get("read_at")).isNull();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE id = ?",
@@ -171,7 +177,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         // Then
         Map<String, Object> notification = jdbcTemplate.queryForMap(
                 """
-                        SELECT user_id, source_id, type, title, body, payload ->> 'rejectionReason' AS rejection_reason, read_at
+                        SELECT id, user_id, source_id, type, title, body,
+                            payload ->> 'rejectionReason' AS rejection_reason, read_at
                         FROM notifications
                         WHERE source_id = ?
                         """,
@@ -182,6 +189,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
         assertThat(notification.get("rejection_reason")).isEqualTo("운영 정책 위반");
+        Notification loaded = entityManager.find(Notification.class, notification.get("id"));
+        assertThat(loaded.getRejectionReason()).isEqualTo("운영 정책 위반");
         assertThat(notification.get("read_at")).isNull();
     }
 

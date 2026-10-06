@@ -33,14 +33,13 @@ class NotificationTest {
         assertThat(notification.getSourceId()).isEqualTo(POST_ID);
         assertThat(notification.getType()).isEqualTo(NotificationType.POST_APPROVED);
         assertThat(notification.getCreatedAt()).isEqualTo(OCCURRED_AT);
-        assertThat(notification.getPayload()).isNull();
         assertThat(notification.getRejectionReason()).isNull();
     }
 
     @ParameterizedTest
     @ValueSource(ints = {499, 500})
-    @DisplayName("반려 사유는 최대 500자까지 JSON에 원문으로 저장한다")
-    void rejected_reasonWithinLimit_preservesReasonInPayload(int length) {
+    @DisplayName("반려 사유는 최대 500자까지 원문을 유지한다")
+    void rejected_reasonWithinLimit_preservesReason(int length) {
         // Given
         String reason = "가".repeat(length);
 
@@ -51,7 +50,6 @@ class NotificationTest {
         // Then
         assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
         assertThat(notification.getSourceId()).isEqualTo(POST_ID);
-        assertThat(notification.getPayload()).containsEntry("rejectionReason", reason);
         assertThat(notification.getRejectionReason()).isEqualTo(reason);
     }
 
