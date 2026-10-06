@@ -74,6 +74,16 @@ class NotificationMigrationTest extends IntegrationTestSupport {
                                     """,
                             Integer.class, schema)).isZero();
 
+                    // 기존 알림은 새 발행 상태 추가 후에도 소급 발송하지 않는다.
+                    migrate(schema, "202610062030");
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM notifications
+                            WHERE sqs_publish_status = 'NOT_REQUIRED'
+                                AND next_attempt_at IS NULL AND sqs_published_at IS NULL
+                            """, Integer.class)).isEqualTo(2);
+                    assertSqsPublishStateConstraints(jdbc, (UUID) before.getFirst().get("id"));
+                    assertMissingPublishStatusRejected(jdbc, (UUID) before.getFirst().get("id"));
+
                     assertSourceAndPayloadConstraints(jdbc, userId);
                     assertDuplicateEventRejected(jdbc, before.getFirst());
                 } finally {
@@ -83,6 +93,58 @@ class NotificationMigrationTest extends IntegrationTestSupport {
         } finally {
             admin.execute("DROP SCHEMA " + schema + " CASCADE");
         }
+    }
+
+    private void assertSqsPublishStateConstraints(JdbcTemplate jdbc, UUID notificationId) {
+        // 정상적인 상태·시각 조합은 저장하고, 불완전한 발행 상태는 DB에서 거부한다.
+        updateSqsState(jdbc, notificationId, "PENDING", OCCURRED_AT, null);
+        updateSqsState(jdbc, notificationId, "PUBLISHED", null, OCCURRED_AT);
+        for (String status : List.of("NOT_REQUIRED", "EXPIRED", "FAILED")) {
+            updateSqsState(jdbc, notificationId, status, null, null);
+            assertThatThrownBy(
+                    () -> updateSqsState(jdbc, notificationId, status, OCCURRED_AT, null))
+                    .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+            assertThatThrownBy(
+                    () -> updateSqsState(jdbc, notificationId, status, null, OCCURRED_AT))
+                    .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+        }
+        assertThatThrownBy(() -> updateSqsState(jdbc, notificationId, "PENDING", null, null))
+                .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+        assertThatThrownBy(
+                () -> updateSqsState(jdbc, notificationId, "PENDING", OCCURRED_AT, OCCURRED_AT))
+                .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+        assertThatThrownBy(() -> updateSqsState(jdbc, notificationId, "PUBLISHED", null, null))
+                .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+        assertThatThrownBy(
+                () -> updateSqsState(jdbc, notificationId, "PUBLISHED", OCCURRED_AT, OCCURRED_AT))
+                .hasMessageContaining("ck_notifications_sqs_publish_timestamps");
+        assertThatThrownBy(() -> updateSqsState(jdbc, notificationId, "UNKNOWN", null, null))
+                .hasMessageContaining("ck_notifications_sqs_publish_status");
+        assertThatThrownBy(() -> updateSqsState(jdbc, notificationId, null, null, null))
+                .hasMessageContaining("sqs_publish_status");
+    }
+
+    private void updateSqsState(JdbcTemplate jdbc, UUID notificationId, String status,
+            Instant nextAttemptAt, Instant publishedAt) {
+        jdbc.update("""
+                UPDATE notifications
+                SET sqs_publish_status = ?, next_attempt_at = ?, sqs_published_at = ?
+                WHERE id = ?
+                """, status,
+                nextAttemptAt == null ? null : Timestamp.from(nextAttemptAt),
+                publishedAt == null ? null : Timestamp.from(publishedAt), notificationId);
+    }
+
+    private void assertMissingPublishStatusRejected(JdbcTemplate jdbc, UUID notificationId) {
+        // 기존 행 이관과 달리 새 저장은 발행 상태를 반드시 명시한다.
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO notifications (user_id, event_key, type, title, body,
+                    source_type, source_id, payload, created_at)
+                SELECT user_id, ?, type, title, body,
+                    source_type, source_id, payload, created_at
+                FROM notifications WHERE id = ?
+                """, UUID.randomUUID(), notificationId))
+                .hasMessageContaining("null value in column \"sqs_publish_status\"");
     }
 
     private void assertSourceAndPayloadConstraints(JdbcTemplate jdbc, UUID userId) {
@@ -118,9 +180,9 @@ class NotificationMigrationTest extends IntegrationTestSupport {
     private void assertDuplicateEventRejected(JdbcTemplate jdbc, Map<String, Object> original) {
         assertThatThrownBy(() -> jdbc.update("""
                 INSERT INTO notifications (user_id, event_key, type, title, body,
-                    source_type, source_id, payload, created_at)
+                    source_type, source_id, payload, created_at, sqs_publish_status)
                 SELECT user_id, event_key, type, title, body,
-                    source_type, source_id, payload, created_at
+                    source_type, source_id, payload, created_at, sqs_publish_status
                 FROM notifications WHERE id = ?
                 """, original.get("id")))
                 .hasMessageContaining("ux_notifications_user_event");
@@ -130,8 +192,8 @@ class NotificationMigrationTest extends IntegrationTestSupport {
             String sourceType, UUID sourceId, String payload) {
         jdbc.update("""
                 INSERT INTO notifications (user_id, event_key, type, title, body,
-                    source_type, source_id, payload, created_at)
-                VALUES (?, ?, ?, '테스트', '테스트', ?, ?, CAST(? AS jsonb), ?)
+                    source_type, source_id, payload, created_at, sqs_publish_status)
+                VALUES (?, ?, ?, '테스트', '테스트', ?, ?, CAST(? AS jsonb), ?, 'NOT_REQUIRED')
                 """, userId, UUID.randomUUID(), type, sourceType, sourceId, payload,
                 Timestamp.from(OCCURRED_AT));
     }

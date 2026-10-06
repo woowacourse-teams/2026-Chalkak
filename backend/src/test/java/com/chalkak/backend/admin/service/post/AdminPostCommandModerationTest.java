@@ -10,6 +10,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.domain.SqsPublishStatus;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -240,6 +242,58 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         assertThat(notification.get("read_at")).isNull();
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "APPROVED, true, ACTIVE, false, PENDING",
+            "REJECTED, true, ACTIVE, false, PENDING",
+            "APPROVED, false, ACTIVE, false, NOT_REQUIRED",
+            "REJECTED, false, ACTIVE, false, NOT_REQUIRED",
+            "APPROVED, true, BANNED, false, PENDING",
+            "REJECTED, true, BANNED, false, PENDING",
+            "APPROVED, true, ACTIVE, true, NOT_REQUIRED",
+            "REJECTED, true, ACTIVE, true, NOT_REQUIRED"
+    })
+    @DisplayName("검수 알림함은 항상 저장하되 심사 푸시 설정·탈퇴 여부에 따라 발행 상태를 저장한다")
+    void moderate_userPreferenceAndStatus_persistsInitialPublicationState(
+            ModerationStatus status,
+            boolean pushEnabled,
+            String userStatus,
+            boolean withdrawn,
+            SqsPublishStatus expectedStatus
+    ) {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+        jdbcTemplate.update("""
+                UPDATE users SET moderation_push_enabled = ?, topic_push_enabled = false,
+                    status = CAST(? AS user_status), deleted_at = ? WHERE id = ?
+                """, pushEnabled, userStatus, withdrawn ? Timestamp.from(NOW) : null, USER_ID);
+
+        // When
+        adminPostCommandService.moderate(POST_ID, ADMIN_ID, status,
+                status == ModerationStatus.REJECTED ? "운영 정책 위반" : null);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        UUID notificationId = jdbcTemplate.queryForObject(
+                "SELECT id FROM notifications WHERE source_id = ?", UUID.class, POST_ID);
+        Notification loaded = entityManager.find(Notification.class, notificationId);
+        assertThat(loaded.getSqsPublishStatus()).isEqualTo(expectedStatus);
+        assertThat(loaded.getNextAttemptAt()).isEqualTo(
+                expectedStatus == SqsPublishStatus.PENDING ? NOW : null);
+        assertThat(loaded.getSqsPublishedAt()).isNull();
+        assertThat(loaded.getType().name()).isEqualTo("POST_" + status.name());
+        assertThat(countAuditLogs()).isEqualTo(1);
+        assertThat(findPost().moderationStatus()).isEqualTo(status.name());
+        if (!pushEnabled && !withdrawn) {
+            jdbcTemplate.update("UPDATE users SET moderation_push_enabled = true WHERE id = ?",
+                    USER_ID);
+            entityManager.clear();
+            assertThat(entityManager.find(Notification.class, notificationId).getSqsPublishStatus())
+                    .isEqualTo(SqsPublishStatus.NOT_REQUIRED);
+        }
+    }
+
     @Test
     @DisplayName("같은 검수 사건의 알림함 항목은 DB 제약으로 중복 저장할 수 없다")
     void moderate_duplicateEventKey_rejectsDuplicateNotification() {
@@ -255,9 +309,11 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, source_type, source_id, event_key, type, title, body, created_at
+                    id, user_id, source_type, source_id, event_key, type, title, body, created_at,
+                    sqs_publish_status
                 ) VALUES (
-                    ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP
+                    ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP,
+                    'NOT_REQUIRED'
                 )
                 """, UUID.randomUUID(), USER_ID, POST_ID, eventKey))
                 .hasMessageContaining("ux_notifications_user_event");

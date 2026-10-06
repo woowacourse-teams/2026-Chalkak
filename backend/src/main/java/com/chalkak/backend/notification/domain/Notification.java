@@ -71,6 +71,16 @@ public class Notification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sqs_publish_status", nullable = false, length = 20)
+    private SqsPublishStatus sqsPublishStatus;
+
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "sqs_published_at")
+    private Instant sqsPublishedAt;
+
     public static Instant getRetentionThreshold(Instant now) {
         return now.minus(RETENTION);
     }
@@ -79,7 +89,8 @@ public class Notification {
             UUID userId,
             UUID postId,
             UUID eventKey,
-            Instant createdAt
+            Instant createdAt,
+            boolean pushEnabled
     ) {
         validateRequired(userId, postId, eventKey, createdAt);
         Notification notification = new Notification();
@@ -91,6 +102,7 @@ public class Notification {
         notification.title = APPROVED_TITLE;
         notification.body = APPROVED_BODY;
         notification.createdAt = createdAt;
+        notification.initializeSqsPublication(pushEnabled);
         return notification;
     }
 
@@ -99,7 +111,8 @@ public class Notification {
             UUID postId,
             UUID eventKey,
             String rejectionReason,
-            Instant createdAt
+            Instant createdAt,
+            boolean pushEnabled
     ) {
         validateRequired(userId, postId, eventKey, createdAt);
         if (rejectionReason == null || rejectionReason.isBlank()) {
@@ -123,7 +136,18 @@ public class Notification {
         notification.body = REJECTED_BODY;
         notification.payload = new NotificationPayload(rejectionReason);
         notification.createdAt = createdAt;
+        notification.initializeSqsPublication(pushEnabled);
         return notification;
+    }
+
+    private void initializeSqsPublication(boolean pushEnabled) {
+        if (pushEnabled) {
+            sqsPublishStatus = SqsPublishStatus.PENDING;
+            nextAttemptAt = createdAt;
+        }
+        if (!pushEnabled) {
+            sqsPublishStatus = SqsPublishStatus.NOT_REQUIRED;
+        }
     }
 
     private static void validateRequired(

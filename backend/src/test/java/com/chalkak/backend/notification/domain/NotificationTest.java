@@ -26,7 +26,8 @@ class NotificationTest {
     @DisplayName("승인 알림은 게시물 대상을 기록하고 반려 사유는 갖지 않는다")
     void approved_validInput_setsPostSourceWithoutRejectionReason() {
         // When
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT);
+        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
+                true);
 
         // Then
         assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
@@ -45,7 +46,7 @@ class NotificationTest {
 
         // When
         Notification notification = Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT);
+                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT, true);
 
         // Then
         assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
@@ -60,7 +61,7 @@ class NotificationTest {
     void rejected_missingReason_throwsBusinessException(String reason) {
         // When & Then
         assertThatThrownBy(() -> Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT))
+                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT, true))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -69,7 +70,7 @@ class NotificationTest {
     void rejected_reasonOverLimit_throwsBusinessException() {
         // When & Then
         assertThatThrownBy(() -> Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, "가".repeat(501), OCCURRED_AT))
+                USER_ID, POST_ID, EVENT_KEY, "가".repeat(501), OCCURRED_AT, true))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -83,11 +84,31 @@ class NotificationTest {
             Instant occurredAt
     ) {
         // When & Then
-        assertThatThrownBy(() -> Notification.approved(userId, postId, eventKey, occurredAt))
+        assertThatThrownBy(() -> Notification.approved(userId, postId, eventKey, occurredAt, true))
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> Notification.rejected(
-                userId, postId, eventKey, "사진 품질", occurredAt))
+                userId, postId, eventKey, "사진 품질", occurredAt, true))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("승인·반려는 푸시 필요 여부에 따라 즉시 발행 대기 또는 발행 불필요로 생성한다")
+    void create_pushPreference_setsInitialPublicationState(boolean pushEnabled) {
+        // When
+        Notification approved = Notification.approved(
+                USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT, pushEnabled);
+        Notification rejected = Notification.rejected(
+                USER_ID, POST_ID, EVENT_KEY, "사진 품질", OCCURRED_AT, pushEnabled);
+
+        // Then
+        for (Notification notification : new Notification[]{approved, rejected}) {
+            assertThat(notification.getSqsPublishStatus()).isEqualTo(pushEnabled
+                    ? SqsPublishStatus.PENDING
+                    : SqsPublishStatus.NOT_REQUIRED);
+            assertThat(notification.getNextAttemptAt()).isEqualTo(pushEnabled ? OCCURRED_AT : null);
+            assertThat(notification.getSqsPublishedAt()).isNull();
+        }
     }
 
     private static Stream<Arguments> missingRequiredValues() {

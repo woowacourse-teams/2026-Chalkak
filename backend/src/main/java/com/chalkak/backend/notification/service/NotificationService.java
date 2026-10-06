@@ -39,9 +39,11 @@ public class NotificationService {
     ) {
         UUID userId = post.getAuthor().getId();
         UUID postId = post.getId();
+        boolean pushEnabled = !post.getAuthor().isDeleted()
+                && post.getAuthor().isModerationPushEnabled();
         if (status == ModerationStatus.APPROVED) {
             notificationRepository
-                    .save(Notification.approved(userId, postId, eventKey, occurredAt));
+                    .save(Notification.approved(userId, postId, eventKey, occurredAt, pushEnabled));
             return;
         }
         notificationRepository.save(Notification.rejected(
@@ -49,7 +51,8 @@ public class NotificationService {
                 postId,
                 eventKey,
                 rejectionReason,
-                occurredAt));
+                occurredAt,
+                pushEnabled));
     }
 
     public NotificationListResult getNotifications(UUID userId, int page, int pageSize) {

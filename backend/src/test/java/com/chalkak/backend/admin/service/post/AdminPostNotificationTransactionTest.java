@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.service.post;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.notification.service.NotificationService;
@@ -10,6 +11,7 @@ import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -109,6 +111,10 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
                     ADMIN_ID,
                     ModerationStatus.APPROVED,
                     null);
+            entityManager.flush();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT sqs_publish_status FROM notifications WHERE source_id = ?",
+                    String.class, POST_ID)).isEqualTo("PENDING");
             throw new IllegalStateException("검수 트랜잭션 롤백");
         })).isInstanceOf(IllegalStateException.class);
 
@@ -125,6 +131,31 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
                 "SELECT COUNT(*) FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 Integer.class,
                 POST_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("검수가 커밋되면 게시물·감사 기록·알림의 발행 대기 상태가 함께 남는다")
+    void moderate_committedTransaction_persistsPublicationWithPostAndAudit() {
+        // When
+        AdminPostModerationResult result = adminPostCommandService.moderate(
+                POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT CAST(moderation_status AS TEXT) FROM posts WHERE id = ?",
+                String.class, POST_ID)).isEqualTo("APPROVED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
+                Integer.class, POST_ID)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM notifications WHERE source_id = ?
+                    AND sqs_publish_status = 'PENDING' AND next_attempt_at = created_at
+                    AND sqs_published_at IS NULL
+                """, Integer.class, POST_ID)).isEqualTo(1);
+        Instant createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM notifications WHERE source_id = ?",
+                (row, rowNum) -> row.getTimestamp(1).toInstant(), POST_ID);
+        assertThat(createdAt).isCloseTo(result.moderatedAt(), within(1, ChronoUnit.MICROS));
     }
 
     @Test
