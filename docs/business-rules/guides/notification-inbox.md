@@ -31,4 +31,4 @@
 
 탈퇴 회원의 인증된 알림 접근은 즉시 차단한다. 남은 기록은 탈퇴 후 30일 보관하는 서버 정리 예외이며 앱 조회 허용 기간을 뜻하지 않는다. 비로그인 공개 피드 정책은 별개다.
 
-기존 요청·응답 필드와 API URI는 유지하고 목록 응답에 관련 대상 두 필드를 추가한다. 관련 구현은 [#541](https://github.com/woowacourse-teams/2026-Chalkak/issues/541)이며 PR·공통 배포본은 아직 미등록·미배포 상태다. 운영 서버 적용 여부는 별도로 확인한다.
+기존 요청·응답 필드와 API URI는 유지하고 목록 응답에 관련 대상 두 필드를 추가한다. 관련 구현은 [이슈 #541](https://github.com/woowacourse-teams/2026-Chalkak/issues/541), [PR #548](https://github.com/woowacourse-teams/2026-Chalkak/pull/548)에서 확인한다. 운영 서버 적용 여부는 별도로 확인한다.

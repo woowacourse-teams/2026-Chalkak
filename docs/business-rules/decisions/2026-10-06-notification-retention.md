@@ -7,7 +7,7 @@
 - 변경 이유: 별도 Outbox를 유지하지 않는 변경 설계에서 일반 알림의 보관 기간을 30일로 합의했다. 기존 60일은 당시 Outbox 보관 기간과 맞추기 위한 기준이었다. 주기적 정리 시각 때문에 실제 조회 가능 기간이 달라지지 않도록 조회·읽음에도 같은 경계를 적용한다.
 - 영향 범위: 기존 알림함 조회·읽음 API의 제공 기간, 주기적 알림 정리, 앱에서 보관 기간이 지난 알림 ID로 접근할 때의 404 처리. 요청·응답 필드, URI, 상태 코드, 정지·탈퇴 회원의 접근 정책은 유지한다. 이전에 저장된 알림도 새 기준을 적용한다.
 - 관련 규칙: NOTIFICATION-002, NOTIFICATION-003, NOTIFICATION-004
-- 관련 이슈·PR: [#541](https://github.com/woowacourse-teams/2026-Chalkak/issues/541). PR은 아직 미등록이며 운영 서버 반영도 확인되지 않았다.
+- 관련 이슈·PR: [#541](https://github.com/woowacourse-teams/2026-Chalkak/issues/541), [PR #548](https://github.com/woowacourse-teams/2026-Chalkak/pull/548). 운영 서버 반영 여부는 별도로 확인한다.
 
 ## 승인 알림의 게시물 화면 이동을 위한 대상 정보
 
