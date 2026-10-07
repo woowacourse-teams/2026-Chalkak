@@ -30,7 +30,7 @@ struct SocialLoginButton: View {
 
                 Text(provider.buttonTitle)
                     .font(theme.typography.callout)
-                    .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
+                    .foregroundStyle(theme.colors.textPrimary)
             }
             .frame(maxWidth: .infinity)
             .frame(height: Metrics.buttonHeight)
@@ -45,9 +45,17 @@ struct SocialLoginButton: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.button))
         .contentShape(RoundedRectangle(cornerRadius: theme.shapes.button))
-        .buttonStyle(.plain)
+        .buttonStyle(SocialLoginButtonStyle())
         .disabled(!isEnabled)
         .accessibilityLabel(provider.buttonTitle)
+    }
+}
+
+private struct SocialLoginButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        // Login disables every provider; only the pressed button should change appearance.
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
