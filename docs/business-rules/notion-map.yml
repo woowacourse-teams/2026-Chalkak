@@ -66,3 +66,4 @@ rule_pages:
       보관과 삭제: [NOTIFICATION-004]
       푸시 기기 등록: [NOTIFICATION-005]
       푸시 수신 설정: [NOTIFICATION-006]
+      검수 알림 SQS 발행: [NOTIFICATION-007]

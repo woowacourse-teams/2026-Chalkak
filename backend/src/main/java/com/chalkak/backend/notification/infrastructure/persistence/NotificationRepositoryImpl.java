@@ -7,6 +7,7 @@ import com.chalkak.backend.notification.repository.NotificationSlice;
 import com.chalkak.backend.notification.repository.NotificationSummary;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +19,17 @@ import org.springframework.stereotype.Repository;
 public class NotificationRepositoryImpl implements NotificationRepository {
 
     private final NotificationJpaRepository notificationJpaRepository;
+
+    @Override
+    public List<UUID> findDuePublicationIds(Instant now, int limit) {
+        return notificationJpaRepository.findDuePublicationIds(now, limit);
+    }
+
+    @Override
+    public Optional<Notification> findPendingPublicationForUpdate(UUID notificationId,
+            Instant now) {
+        return notificationJpaRepository.findPendingPublicationForUpdate(notificationId, now);
+    }
 
     @Override
     public Notification save(Notification notification) {
