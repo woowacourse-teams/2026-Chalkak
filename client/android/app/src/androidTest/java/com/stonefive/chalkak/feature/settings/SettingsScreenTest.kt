@@ -1,12 +1,16 @@
 package com.stonefive.chalkak.feature.settings
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -50,6 +54,27 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("변경하기").performClick()
 
         assertTrue(changeClicked)
+    }
+
+    @Test
+    fun signatureLabelDoesNotInvokeChangeCallback() {
+        var changeClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(isLoggedIn = true, versionName = "1.0"),
+            onChangeSignatureClick = { changeClickCount++ },
+        )
+
+        composeRule
+            .onNodeWithText("사인 재설정")
+            .assertHasNoClickAction()
+            .performTouchInput { click() }
+
+        assertEquals(0, changeClickCount)
+        composeRule
+            .onNodeWithText("변경하기")
+            .assertHasClickAction()
+            .performTouchInput { click() }
+        assertEquals(1, changeClickCount)
     }
 
     @Test
