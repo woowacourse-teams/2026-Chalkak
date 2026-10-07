@@ -206,6 +206,7 @@ fun ChalkakNavHost(
 
             composable<ChangeSignature> {
                 ChangeSignatureRoute(
+                    onBackClick = { navController.popBackStack() },
                     onPreviewRequested = { signaturePng ->
                         signaturePreviewPng = signaturePng
                         navController.navigate(ChangeSignaturePreview)
@@ -247,6 +248,7 @@ fun ChalkakNavHost(
                 val reminderTime = backStackEntry.toRoute<ReminderTime>()
 
                 ReminderTimeRoute(
+                    onBackClick = { navController.popBackStack() },
                     onConfigured = {
                         if (reminderTime.returnToSettings) {
                             navController.popBackStack()

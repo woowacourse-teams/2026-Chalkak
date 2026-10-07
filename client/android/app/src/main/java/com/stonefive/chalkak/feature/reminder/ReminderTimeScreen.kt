@@ -11,12 +11,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +45,7 @@ import com.stonefive.chalkak.feature.reminder.component.ReminderTimeOptionRow
 @Composable
 fun ReminderTimeRoute(
     onConfigured: () -> Unit,
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ReminderTimeViewModel = viewModel(factory = ReminderTimeViewModel.Factory),
 ) {
@@ -93,6 +99,7 @@ fun ReminderTimeRoute(
             }
         },
         onSkipClick = viewModel::disable,
+        onBackClick = onBackClick,
         modifier = modifier,
         enabled = uiState.saveStatus != ReminderSaveStatus.SAVING,
     )
@@ -105,6 +112,7 @@ fun ReminderTimeScreen(
     onCustomTimeClick: () -> Unit,
     onConfirmClick: () -> Unit,
     onSkipClick: () -> Unit,
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
@@ -112,79 +120,108 @@ fun ReminderTimeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(ChalkakTheme.colors.background)
-            .systemBarsPadding()
-            .padding(
-                start = ChalkakTheme.spacing.screenHorizontal,
-                top = 50.dp,
-                end = ChalkakTheme.spacing.screenHorizontal,
-                bottom = ChalkakTheme.spacing.lg,
-            ),
+            .systemBarsPadding(),
     ) {
-        Text(
-            text = "언제 알려드릴까요?",
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.title1,
-        )
-
-        Text(
-            text = "주제는 밤 12시에 변경돼요.\n날마다 주제를 알림으로 알려드릴게요.",
-            modifier = Modifier.padding(top = ChalkakTheme.spacing.lg),
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body,
-        )
+        Box(
+            modifier = Modifier
+                .padding(
+                    start = ChalkakTheme.spacing.sm,
+                    top = BackButtonTopPadding,
+                    bottom = ChalkakTheme.spacing.sm,
+                ).size(BackButtonSize)
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onBackClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "뒤로 가기",
+                tint = ChalkakTheme.colors.iconPrimary,
+                modifier = Modifier.size(BackIconSize),
+            )
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = ChalkakTheme.spacing.xxl + ChalkakTheme.spacing.md),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            ReminderTimeOption.entries.forEach { option ->
-                val isCustom = option == ReminderTimeOption.CUSTOM
-                ReminderTimeOptionRow(
-                    label = option.label,
-                    description = if (isCustom) uiState.customTimeLabel else option.description,
-                    selected = uiState.selectedOption == option,
-                    onClick = {
-                        if (isCustom) {
-                            onCustomTimeClick()
-                        } else {
-                            onOptionClick(option)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Text(
-            text = "알림 따로 필요 없어요!",
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clickable(
-                    role = Role.Button,
-                    onClick = onSkipClick,
-                ).padding(ChalkakTheme.spacing.sm),
-            color = ChalkakTheme.colors.textInactive,
-            style = ChalkakTheme.typography.subheadline.copy(
-                textDecoration = TextDecoration.Underline,
-            ),
-        )
-
-        ChalkakButton(
-            text = "이 시간으로 정할게요",
-            onClick = onConfirmClick,
-            modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .padding(
-                    start = ChalkakTheme.spacing.md,
-                    top = ChalkakTheme.spacing.md,
-                    end = ChalkakTheme.spacing.md,
+                    start = ChalkakTheme.spacing.screenHorizontal,
+                    top = ChalkakTheme.spacing.xl,
+                    end = ChalkakTheme.spacing.screenHorizontal,
+                    bottom = ChalkakTheme.spacing.lg,
                 ),
-            enabled = enabled,
-        )
+        ) {
+            Text(
+                text = "언제 알려드릴까요?",
+                color = ChalkakTheme.colors.textPrimary,
+                style = ChalkakTheme.typography.title1,
+            )
+
+            Text(
+                text = "주제는 밤 12시에 변경돼요.\n날마다 주제를 알림으로 알려드릴게요.",
+                modifier = Modifier.padding(top = ChalkakTheme.spacing.lg),
+                color = ChalkakTheme.colors.textSecondary,
+                style = ChalkakTheme.typography.body,
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = ChalkakTheme.spacing.xxl + ChalkakTheme.spacing.md),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ReminderTimeOption.entries.forEach { option ->
+                    val isCustom = option == ReminderTimeOption.CUSTOM
+                    ReminderTimeOptionRow(
+                        label = option.label,
+                        description = if (isCustom) uiState.customTimeLabel else option.description,
+                        selected = uiState.selectedOption == option,
+                        onClick = {
+                            if (isCustom) {
+                                onCustomTimeClick()
+                            } else {
+                                onOptionClick(option)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                text = "알림 따로 필요 없어요!",
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable(
+                        role = Role.Button,
+                        onClick = onSkipClick,
+                    ).padding(ChalkakTheme.spacing.sm),
+                color = ChalkakTheme.colors.textInactive,
+                style = ChalkakTheme.typography.subheadline.copy(
+                    textDecoration = TextDecoration.Underline,
+                ),
+            )
+
+            ChalkakButton(
+                text = "이 시간으로 정할게요",
+                onClick = onConfirmClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = ChalkakTheme.spacing.md,
+                        top = ChalkakTheme.spacing.md,
+                        end = ChalkakTheme.spacing.md,
+                    ),
+                enabled = enabled,
+            )
+        }
     }
 }
 
@@ -202,9 +239,14 @@ private fun ReminderTimeScreenPreview() {
             onCustomTimeClick = {},
             onConfirmClick = {},
             onSkipClick = {},
+            onBackClick = {},
         )
     }
 }
 
 private const val DEFAULT_CUSTOM_HOUR = 18
 private const val DEFAULT_CUSTOM_MINUTE = 0
+
+private val BackButtonSize = 44.dp
+private val BackIconSize = 24.dp
+private val BackButtonTopPadding = 10.dp

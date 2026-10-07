@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.signature
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -32,6 +39,7 @@ import com.stonefive.chalkak.feature.signature.component.SignaturePad
 fun SignatureEditorRoute(
     onSignatureSaved: (ByteArray) -> Unit,
     modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null,
     viewModel: SignatureViewModel = viewModel(factory = SignatureViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -47,6 +55,7 @@ fun SignatureEditorRoute(
     SignatureScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
+        onBackClick = onBackClick,
         modifier = modifier,
     )
 }
@@ -56,86 +65,120 @@ fun SignatureScreen(
     uiState: SignatureUiState,
     onAction: (SignatureUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(ChalkakTheme.colors.background)
-            .systemBarsPadding()
-            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+            .systemBarsPadding(),
     ) {
-        Spacer(modifier = Modifier.height(50.dp))
-
-        Text(
-            text = "작가님의\n사인을 그려주세요",
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.title1,
-        )
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        Text(
-            text = "모든 사진에 함께할 사인이에요.\n자유롭게 남겨주시고, 실제 서명은 피해 주세요.",
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.subheadline,
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        SignaturePad(
-            strokes = uiState.strokes,
-            enabled = !uiState.isSubmitting,
-            onStrokeStarted = { onAction(SignatureUiAction.StrokeStarted(it)) },
-            onStrokeMoved = { onAction(SignatureUiAction.StrokeMoved(it)) },
-            onStrokeFinished = { onAction(SignatureUiAction.StrokeFinished) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-        ) {
-            SignatureControlButton(
-                text = "되돌리기",
-                enabled = uiState.hasSignature && !uiState.isSubmitting,
-                onClick = { onAction(SignatureUiAction.UndoClicked) },
-            )
-
-            SignatureControlButton(
-                text = "전체 지우기",
-                enabled = uiState.hasSignature && !uiState.isSubmitting,
-                onClick = { onAction(SignatureUiAction.ClearClicked) },
-            )
+        onBackClick?.let { onBack ->
+            Box(
+                modifier = Modifier
+                    .padding(
+                        start = ChalkakTheme.spacing.sm,
+                        top = BackButtonTopPadding,
+                        bottom = ChalkakTheme.spacing.sm,
+                    ).size(BackButtonSize)
+                    .clickable(
+                        interactionSource = null,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onBack,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로 가기",
+                    tint = ChalkakTheme.colors.iconPrimary,
+                    modifier = Modifier.size(BackIconSize),
+                )
+            }
         }
 
-        uiState.error?.let {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(
+                    horizontal = ChalkakTheme.spacing.screenHorizontal,
+                ).padding(
+                    top = if (onBackClick != null) ChalkakTheme.spacing.xl else OnboardingTopPadding,
+                ),
+        ) {
             Text(
-                text = "사인을 저장하지 못했어요. 다시 시도해 주세요.",
+                text = "작가님의\n사인을 그려주세요",
+                color = ChalkakTheme.colors.textPrimary,
+                style = ChalkakTheme.typography.title1,
+            )
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            Text(
+                text = "모든 사진에 함께할 사인이에요.\n자유롭게 남겨주시고, 실제 서명은 피해 주세요.",
+                color = ChalkakTheme.colors.textSecondary,
+                style = ChalkakTheme.typography.subheadline,
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            SignaturePad(
+                strokes = uiState.strokes,
+                enabled = !uiState.isSubmitting,
+                onStrokeStarted = { onAction(SignatureUiAction.StrokeStarted(it)) },
+                onStrokeMoved = { onAction(SignatureUiAction.StrokeMoved(it)) },
+                onStrokeFinished = { onAction(SignatureUiAction.StrokeFinished) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = ChalkakTheme.spacing.md),
-                color = ChalkakTheme.colors.error,
-                style = ChalkakTheme.typography.footnote,
-                textAlign = TextAlign.Center,
+                    .aspectRatio(1f),
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+            ) {
+                SignatureControlButton(
+                    text = "되돌리기",
+                    enabled = uiState.hasSignature && !uiState.isSubmitting,
+                    onClick = { onAction(SignatureUiAction.UndoClicked) },
+                )
+
+                SignatureControlButton(
+                    text = "전체 지우기",
+                    enabled = uiState.hasSignature && !uiState.isSubmitting,
+                    onClick = { onAction(SignatureUiAction.ClearClicked) },
+                )
+            }
+
+            uiState.error?.let {
+                Text(
+                    text = "사인을 저장하지 못했어요. 다시 시도해 주세요.",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = ChalkakTheme.spacing.md),
+                    color = ChalkakTheme.colors.error,
+                    style = ChalkakTheme.typography.footnote,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            ChalkakButton(
+                text = "이 사인으로 할래요",
+                onClick = { onAction(SignatureUiAction.SubmitClicked) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(SUBMIT_BUTTON_TAG),
+                enabled = uiState.canSubmit,
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        ChalkakButton(
-            text = "이 사인으로 할래요",
-            onClick = { onAction(SignatureUiAction.SubmitClicked) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(SUBMIT_BUTTON_TAG),
-            enabled = uiState.canSubmit,
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
     }
 }
 
@@ -152,6 +195,12 @@ private fun SignatureScreenPreview() {
         SignatureScreen(
             uiState = SignatureUiState(),
             onAction = {},
+            onBackClick = {},
         )
     }
 }
+
+private val BackButtonSize = 44.dp
+private val BackIconSize = 24.dp
+private val BackButtonTopPadding = 10.dp
+private val OnboardingTopPadding = 50.dp

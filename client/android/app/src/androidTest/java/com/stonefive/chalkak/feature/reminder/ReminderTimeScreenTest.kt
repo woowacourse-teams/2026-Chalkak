@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.reminder
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.MainActivity
@@ -27,6 +28,7 @@ class ReminderTimeScreenTest {
                     onCustomTimeClick = {},
                     onConfirmClick = {},
                     onSkipClick = {},
+                    onBackClick = {},
                 )
             }
         }
@@ -38,9 +40,10 @@ class ReminderTimeScreenTest {
     }
 
     @Test
-    fun confirmAndSkipActionsAreForwarded() {
+    fun confirmSkipAndBackActionsAreForwarded() {
         var confirmCount = 0
         var skipCount = 0
+        var backCount = 0
 
         composeRule.activity.setContent {
             ChalkakTheme {
@@ -50,13 +53,16 @@ class ReminderTimeScreenTest {
                     onCustomTimeClick = {},
                     onConfirmClick = { confirmCount++ },
                     onSkipClick = { skipCount++ },
+                    onBackClick = { backCount++ },
                 )
             }
         }
 
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.onNodeWithText("이 시간으로 정할게요").performClick()
         composeRule.onNodeWithText("알림 따로 필요 없어요!").performClick()
 
+        assertEquals(1, backCount)
         assertEquals(1, confirmCount)
         assertEquals(1, skipCount)
     }
