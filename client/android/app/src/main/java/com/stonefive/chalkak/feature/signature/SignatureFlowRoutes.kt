@@ -22,6 +22,7 @@ fun OnboardingSignatureRoute(
 @Composable
 fun ChangeSignatureRoute(
     onPreviewRequested: (ByteArray) -> Unit,
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignatureViewModel = viewModel(
         factory = SignatureViewModel.Factory,
@@ -29,6 +30,7 @@ fun ChangeSignatureRoute(
 ) {
     SignatureEditorRoute(
         onSignatureSaved = onPreviewRequested,
+        onBackClick = onBackClick,
         modifier = modifier,
         viewModel = viewModel,
     )
