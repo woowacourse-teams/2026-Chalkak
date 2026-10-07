@@ -21,6 +21,11 @@ CloudWatch 알람
 Slack 메시지에는 상태(🚨 ALARM / ✅ OK / ⚠️ INSUFFICIENT_DATA), 환경, 알람 이름, 알람 설명(먼저
 확인할 것), 사유, KST 변경 시각, CloudWatch 콘솔 링크가 담긴다.
 
+지표가 `Server5xx`(네임스페이스 `Chalkak/dev`·`Chalkak/prod`)인 5xx 알람에는 콘솔 링크 뒤에 Logs Insights
+링크("API별 5xx 집계 보기")가 한 줄 더 붙는다. `/chalkak/{환경}/application` 로그 그룹에서 최근 1시간의
+5xx를 `method`, `route`별로 집계하는 쿼리가 채워진 콘솔 링크일 뿐이라 Lambda 실행 역할에 추가 IAM 권한은
+필요 없다. 링크를 누르는 사람에게 Logs Insights 조회 권한이 있으면 된다.
+
 ## 왜 이 구성인가
 
 - **AWS Chatbot과 CloudFormation을 쓰지 않는다.** 공용 AWS 계정에서 허용되지 않는다. IAM 역할도 새로

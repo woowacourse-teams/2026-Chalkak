@@ -8,6 +8,7 @@ Lambda 콘솔 편집기에 그대로 붙여넣어 배포하므로 파일 하나�
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +23,14 @@ REQUEST_TIMEOUT_SECONDS = 5
 PLAIN_MESSAGE_MAX_LENGTH = 2000
 # Slack section 블록 텍스트 상한이 3000자다. 초과하면 400이 돌아와 알람이 유실되므로 링크 앞까지를 자른다.
 SECTION_BODY_MAX_LENGTH = 2800
+
+# 5xx 알람이면 API별 집계 쿼리를 미리 채운 Logs Insights 링크를 덧붙인다. 앱 접근 로그(type=access)를 쓴다.
+SERVER_5XX_METRIC_NAME = "Server5xx"
+INSIGHTS_5XX_QUERY = (
+    'filter type = "access" and status >= 500\n'
+    "| stats count(*) as n by method, route\n"
+    "| sort n desc"
+)
 
 # 토픽 이름(ARN의 마지막 조각) → (환경, webhook 환경변수 이름)
 TOPICS = {
@@ -129,8 +138,15 @@ def _alarm_payload(
     if metric:
         lines.append(f"*지표*: {_escape(metric)}")
     lines.append(f"*시각*: {changed_at}")
-    body = _truncate("\n".join(lines), SECTION_BODY_MAX_LENGTH)
-    section_text = f"{body}\n<{link}|CloudWatch 콘솔에서 보기>"
+    links = f"\n<{link}|CloudWatch 콘솔에서 보기>"
+    body_limit = SECTION_BODY_MAX_LENGTH
+    if _is_server_5xx(alarm.get("Trigger")):
+        insights_url = _insights_5xx_link(_region_code(alarm, topic_arn), environment)
+        insights_line = f"\n<{insights_url}|API별 5xx 집계 보기 (Logs Insights)>"
+        links += insights_line
+        # 덧붙인 링크 길이만큼 본문을 더 줄여 전체가 3000자를 넘지 않게 한다.
+        body_limit -= len(insights_line)
+    section_text = _truncate("\n".join(lines), body_limit) + links
 
     return {
         "text": f"{prefix} [{environment}] {_escape(alarm_name)}",
@@ -162,6 +178,27 @@ def _console_link(region: str, alarm_name: str) -> str:
         f"https://{region}.console.aws.amazon.com/cloudwatch/home"
         f"?region={region}#alarmsV2:alarm/{encoded}"
     )
+
+
+def _is_server_5xx(trigger: Any) -> bool:
+    return isinstance(trigger, dict) and trigger.get("MetricName") == SERVER_5XX_METRIC_NAME
+
+
+def _insights_5xx_link(region: str, environment: str) -> str:
+    log_group = f"/chalkak/{environment}/application"
+    return (
+        f"https://{region}.console.aws.amazon.com/cloudwatch/home?region={region}"
+        "#logsV2:logs-insights$3FqueryDetail$3D~(end~0~start~-3600~timeType~'RELATIVE"
+        f"~unit~'seconds~editorString~'{_insights_encode(INSIGHTS_5XX_QUERY)}"
+        f"~source~(~'{_insights_encode(log_group)}))"
+    )
+
+
+def _insights_encode(value: str) -> str:
+    # 콘솔 딥링크는 URL 인코딩의 %XX를 *xx(소문자)로 바꾼 값을 쓴다. 콘솔이 만드는 링크와 같은 형식이고,
+    # 공백·개행·<>|&가 남지 않아 Slack 링크 문법이 깨지지 않는다.
+    quoted = urllib.parse.quote(value, safe="")
+    return re.sub(r"%([0-9A-F]{2})", lambda match: "*" + match.group(1).lower(), quoted)
 
 
 def _to_kst(timestamp: str | None) -> str:
