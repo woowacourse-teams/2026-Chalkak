@@ -62,6 +62,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | API 요청 수 | 메트릭 필터 `RequestCount` (`type=access`) | 대시보드 요청 수 위젯 | 구현 #503 |
 | 5xx 건수 | 메트릭 필터 `Server5xx` | 알람 `chalkak-{env}-5xx`, 대시보드 | 구현 #503 |
 | 5xx 원인 (`errorCode`, `requestId`, `stack_trace`) | Logs Insights 위젯 | 대시보드 원인 분석 섹션 | 구현 #503 |
+| API별 5xx 건수 (`method`, `route`) | Logs Insights 위젯 (`type=access`, `status >= 500`) | 대시보드 원인 분석 섹션, 5xx 알람 Slack 메시지의 조회 링크 | 구현 #504 |
 | 401·403 건수와 라우트 | Logs Insights 위젯 (`type=access`, `status in [401,403]`) | 대시보드 원인 분석 섹션 | 구현 #503 |
 
 ### 4.2 성능

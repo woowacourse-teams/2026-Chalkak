@@ -324,6 +324,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 - [ ] `image_processing_abandoned` 로그가 실제로 발생했을 때 `Chalkak/shared`의 `ImageProcessingAbandoned`가 1 이상이 된다. 평소에는 발생하지 않으므로 처음 발생할 때 확인한다.
 - [ ] 에이전트 시작 후에도 로그 그룹 보존 기간이 유지된다(prod 60일, dev 7일).
 - [ ] Slack 메시지의 CloudWatch 콘솔 링크를 한 번 눌러 알람 화면이 열린다(링크 형식이 공식 문서에 명시돼 있지 않다).
+- [ ] 5xx 알람 메시지의 "API별 5xx 집계 보기" 링크를 눌러 쿼리와 로그 그룹이 채워진 Logs Insights 화면이 열린다.
 
 Logs Insights(`CloudWatch > 로그 > Logs Insights`) 확인용 쿼리 예시다. 로그 그룹을 선택하고 조회 기간을 짧게(예: 1시간) 잡는다.
 
@@ -336,6 +337,12 @@ fields type, route, status, userId
 ```text
 filter type = "runtime"
 | stats count(*) by bin(1m)
+```
+
+```text
+filter type = "access" and status >= 500
+| stats count(*) as n by method, route
+| sort n desc
 ```
 
 ```text
@@ -352,13 +359,15 @@ filter type = "access"
 - 콘솔에서 알람이나 메트릭 필터를 바꾸면 같은 PR에서 이 문서의 표와 설명을 함께 수정한다.
 - 콘솔에서 대시보드를 수정하면 **작업 > 소스 보기/편집**의 JSON을 복사해 `dashboard.json`에 반영한다. 이때 실제 인스턴스 ID와 RDS 식별자는 다시 플레이스홀더로 바꿔 커밋한다.
 - 알람 상태 위젯은 알람을 직접 지정하므로 알람을 추가하면 위젯에도 수동으로 추가한다. Logs Insights 위젯은 대시보드 기간(기본 24시간)을 따른다.
+- 저장소에서 `dashboard.json`을 바꾸면 병합 후 콘솔의 **작업 > 소스 보기/편집**에 붙여 넣어 반영한다. 플레이스홀더는 실제 인스턴스 ID와 RDS 식별자로 바꿔 넣는다.
+- 알람 전달 Lambda(`backend/lambda/alarm-notifier/`)는 파이프라인에 연결하지 않았다. 코드를 바꾸면 병합 후 Lambda 콘솔에 `handler.py`를 다시 붙여 넣고 README의 테스트 이벤트로 Slack 도착을 확인한다. 이 함수는 dev·prod 알람을 모두 전달하므로, `be/develop` 병합만으로 prod 알람 경로가 바뀌지 않도록 dev 파이프라인에 연결하지 않았다.
 - 콘솔 변경과 문서가 어긋나면 문서가 아니라 콘솔이 실제 상태다. 어긋난 것을 발견하면 문서를 콘솔에 맞춘다.
 
 ## 알람 대응
 
 | 알람 | 먼저 확인할 것 |
 | --- | --- |
-| `chalkak-{env}-5xx` | 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
+| `chalkak-{env}-5xx` | Slack 메시지의 "API별 5xx 집계 보기" 링크(또는 대시보드 "API별 5xx 건수")로 실패한 API를 확인한 뒤, 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
 | `chalkak-{env}-ec2-status-check` | EC2 콘솔의 상태 검사, 재부팅·중지 여부 |
 | `chalkak-dev-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage`, `docker system df`(Docker 이미지·볼륨·로그) |
 | `chalkak-prod-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage` |

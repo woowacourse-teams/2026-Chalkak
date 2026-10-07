@@ -555,6 +555,19 @@
       "width": 12,
       "height": 6,
       "properties": {
+        "title": "API별 5xx 건수 (method·route)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status >= 500\n| stats count(*) as n by method, route\n| sort n desc\n| limit 20"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 72,
+      "width": 12,
+      "height": 6,
+      "properties": {
         "title": "라우트별 p95 지연 시간 상위 10 (ms)",
         "region": "ap-northeast-2",
         "view": "table",
@@ -576,9 +589,9 @@
     },
     {
       "type": "log",
-      "x": 0,
+      "x": 12,
       "y": 72,
-      "width": 24,
+      "width": 12,
       "height": 6,
       "properties": {
         "title": "401/403 시간별 라우트 집계",
