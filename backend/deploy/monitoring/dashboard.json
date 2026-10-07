@@ -277,13 +277,26 @@
       "type": "log",
       "x": 0,
       "y": 33,
-      "width": 24,
+      "width": 12,
       "height": 6,
       "properties": {
-        "title": "DAU (게시·좋아요 회원, 일별)",
+        "title": "DAU (게시물 업로드 회원, 일별)",
         "region": "ap-northeast-2",
         "view": "bar",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter (method=\"POST\" and route=\"/api/v1/posts\" and status=201) or (method=\"PUT\" and route=\"/api/v1/posts/{postId}/likes\" and status=200)\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats countDistinct(userId) as dau by day\n| sort day asc"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter method=\"POST\" and route=\"/api/v1/posts\" and status=201\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats countDistinct(userId) as dau by day\n| sort day asc"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 33,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "당일 접속 사용자 (로그인 회원, 일별)",
+        "region": "ap-northeast-2",
+        "view": "bar",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats countDistinct(userId) as visitors by day\n| sort day asc"
       }
     },
     {
