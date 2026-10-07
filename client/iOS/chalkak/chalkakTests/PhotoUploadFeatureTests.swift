@@ -804,6 +804,59 @@ struct PhotoUploadImageEncoderTests {
             Issue.record("예상하지 못한 오류: \(error)")
         }
     }
+
+    @Test("압축 도중 취소하면 결과와 관계없이 후속 압축을 중단한다", arguments: [
+        "oversized", "fits", "failed",
+    ])
+    func cancellationStopsFurtherCompression(result: String) async throws {
+        let sourceData = try #require(Self.sourceImage(width: 120, height: 80).pngData())
+        let gate = PhotoUploadCompressionGate()
+        defer { gate.release.signal() }
+        let task = Task {
+            try await PhotoUploadImageEncoder.encode(sourceData: sourceData, maxBytes: 12) { _, _ in
+                gate.recordAttempt()
+                gate.started.signal()
+                _ = gate.release.wait(timeout: .now() + 10)
+                switch result {
+                case "failed": return nil
+                case "fits": return Data("RIFF0000WEBP".utf8)
+                default: return Data("RIFF0000WEBPoversized".utf8)
+                }
+            }
+        }
+        defer { task.cancel() }
+        let started = await Task.detached {
+            gate.waitUntilStarted()
+        }.value
+        try #require(started, "첫 압축 시도가 시작되지 않았습니다")
+
+        task.cancel()
+        gate.release.signal()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(gate.attemptCount == 1)
+    }
+}
+
+private final class PhotoUploadCompressionGate: @unchecked Sendable {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var attempts = 0
+
+    var attemptCount: Int {
+        lock.withLock { attempts }
+    }
+
+    func recordAttempt() {
+        lock.withLock { attempts += 1 }
+    }
+
+    func waitUntilStarted() -> Bool {
+        started.wait(timeout: .now() + 5) == .success
+    }
 }
 
 private actor PhotoUploadRequestRecorder {
