@@ -161,7 +161,12 @@ struct DisplayLikeBadge: View {
                 Text("\(likeCount)")
                     .font(theme.typography.subheadline)
             }
-            .frame(minWidth: Metrics.minimumTouchSize, minHeight: Metrics.minimumTouchSize)
+            // 터치 영역은 위·오른쪽으로 넓히고, 하트는 Android처럼 카드 좌하단 여백에 맞춘다.
+            .frame(
+                minWidth: Metrics.minimumTouchSize,
+                minHeight: Metrics.minimumTouchSize,
+                alignment: .bottomLeading
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -174,8 +179,8 @@ struct DisplayLikeBadge: View {
     }
 
     private enum Metrics {
-        static let minimumTouchSize: CGFloat = 44
-        static let spacing: CGFloat = 5
+        static let minimumTouchSize: CGFloat = 36
+        static let spacing: CGFloat = 4
         static let heartSize: CGFloat = 18
         static let shadowOpacity: CGFloat = 0.25
         static let shadowRadius: CGFloat = 2
