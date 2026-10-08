@@ -21,12 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +46,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
@@ -204,6 +209,46 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
     }
 
+    @Test
+    @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 생성할 수 있다")
+    void createTopicPushSchedule_adminToken_returnsCreated() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"14:35:01\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sendTime").value("14:35:01"))
+                .andExpect(jsonPath("$.enabled").doesNotExist());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 생성할 수 없다")
+    void createTopicPushSchedule_memberState_returnsForbidden(String state) throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (id, email, status, signature_original_storage_key,
+                    created_at, updated_at, deleted_at)
+                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
+                """, userId, userId + "@schedule.test",
+                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
     private IssuedTokens login(UUID adminId, String username) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -239,6 +284,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PATCH", "/api/v1/admin/users/" + id + "/status"),
                 Arguments.of("GET", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topics"),
+                Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topics/" + id),
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
