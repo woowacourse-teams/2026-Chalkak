@@ -45,6 +45,8 @@
 
 ## Android·iOS 푸시 연동 준비
 
+실제 메시지 예시·필드 의미·플랫폼별 수신과 클릭 처리는 [푸시 메시지 연동 계약](notification-push-contract.md)을 참고한다.
+
 1. 앱의 Firebase 프로젝트와 서버 발송 프로젝트가 일치하는지 확인한다. 서버용 서비스 계정 인증은 앱의 `google-services.json` 또는 `GoogleService-Info.plist`와 다르다. 비밀 서버 키는 앱·Git·채팅에 넣지 않는다.
 2. 로그인 후 FCM 토큰을 [기기 등록 안내](push-device-registration.md)에 따라 등록한다. 토큰 변경·앱 재시작 시에도 갱신한다. OS 알림 권한과 포그라운드 표시 처리는 각 앱이 구현한다.
 3. iOS는 Firebase 프로젝트의 APNs 인증 키 또는 인증서, Push Notifications capability·앱 권한·APNs/FCM 토큰 연결을 확인한다.
