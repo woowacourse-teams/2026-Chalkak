@@ -36,6 +36,22 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
     );
 
     @Query("""
+            SELECT notification FROM Notification notification
+            LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                AND post.id = notification.sourceId
+            WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
+                )
+            """)
+    Optional<Notification> findForPushByIdAndUserId(
+            @Param("notificationId") UUID notificationId,
+            @Param("userId") UUID userId
+    );
+
+    @Query("""
             SELECT new com.chalkak.backend.notification.repository.NotificationSummary(
                 notification, photo.thumbnailStorageKey)
             FROM Notification notification

@@ -32,6 +32,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public Optional<Notification> findForPushByIdAndUserId(UUID notificationId, UUID userId) {
+        return notificationJpaRepository.findForPushByIdAndUserId(notificationId, userId);
+    }
+
+    @Override
     public Notification save(Notification notification) {
         return notificationJpaRepository.save(notification);
     }

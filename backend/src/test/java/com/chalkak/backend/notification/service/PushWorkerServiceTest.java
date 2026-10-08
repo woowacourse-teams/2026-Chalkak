@@ -116,7 +116,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {"read", "postDeleted", "withdrawn", "disabled", "revoked", "expired",
-            "missingDevice", "missingNotification"})
+            "missingDevice", "missingNotification", "missingPost"})
     @DisplayName("발송 직전 읽음·삭제·탈퇴·설정·로그인·기기 상태를 확인하여 발송을 생략한다")
     void process_ineligibleLatestState_completesWithoutSending(String state) {
         // Given
@@ -136,6 +136,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             jdbc.update("DELETE FROM push_devices");
         if (state.equals("missingNotification"))
             jdbc.update("DELETE FROM notifications");
+        if (state.equals("missingPost"))
+            jdbc.update("DELETE FROM posts");
         // When & Then
         assertThat(worker(NOW).process(message, sender).retryable()).isFalse();
         verifyNoInteractions(sender);
@@ -314,6 +316,21 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 message.type(), message.sourceType(), POST_ID, NOW, NOW.plusSeconds(3600));
         // When & Then
         assertThat(worker(NOW).process(invalid, sender).retryable()).isFalse();
+        verifyNoInteractions(sender);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 1})
+    @DisplayName("발송 전용 조회에서도 원래 사건 시각보다 앞서거나 뒤선 메시지는 발송하지 않는다")
+    void process_mismatchedOccurrenceTime_doesNotSend(long seconds) {
+        // Given
+        PushMessage invalid = new PushMessage(message.eventId(), message.notificationId(), USER_ID,
+                message.type(), message.sourceType(), POST_ID, NOW.plusSeconds(seconds),
+                message.expiresAt());
+        // When
+        PushProcessingResult result = worker(NOW).process(invalid, sender);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
         verifyNoInteractions(sender);
     }
 

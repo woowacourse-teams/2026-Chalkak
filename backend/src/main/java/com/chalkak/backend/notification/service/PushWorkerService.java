@@ -1,7 +1,6 @@
 package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.auth.service.LoginSessionService;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.PushDevice;
@@ -122,17 +121,12 @@ public class PushWorkerService {
     }
 
     private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
-        try {
-            return transactionTemplate.execute(status -> findRequest(message, deviceId));
-        } catch (UnauthorizedException exception) {
-            return null;
-        }
+        return transactionTemplate.execute(status -> findRequest(message, deviceId));
     }
 
     private DevicePushRequest findRequest(PushMessage message, UUID deviceId) {
-        Notification notification = notificationRepository.findDetailByIdAndUserId(
-                message.notificationId(), message.userId(), message.occurredAt())
-                .map(detail -> detail.notification()).orElse(null);
+        Notification notification = notificationRepository
+                .findForPushByIdAndUserId(message.notificationId(), message.userId()).orElse(null);
         if (!isSendableNotification(notification, message)) {
             return null;
         }
@@ -141,9 +135,10 @@ public class PushWorkerService {
         if (device == null) {
             return null;
         }
-        User user = loginSessionService.getUsableUser(message.userId(), device.getSessionId(),
-                clock.instant());
-        if (!user.isModerationPushEnabled()) {
+        User user = loginSessionService
+                .findUsableUser(message.userId(), device.getSessionId(), clock.instant())
+                .orElse(null);
+        if (user == null || !user.isModerationPushEnabled()) {
             return null;
         }
         return new DevicePushRequest(message, device.getFcmToken(), notification.getTitle(),

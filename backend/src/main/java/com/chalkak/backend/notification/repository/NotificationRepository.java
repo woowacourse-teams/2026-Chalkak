@@ -12,6 +12,8 @@ public interface NotificationRepository {
 
     Optional<Notification> findPendingPublicationForUpdate(UUID notificationId, Instant now);
 
+    Optional<Notification> findForPushByIdAndUserId(UUID notificationId, UUID userId);
+
     Notification save(Notification notification);
 
     NotificationSlice findByUserId(

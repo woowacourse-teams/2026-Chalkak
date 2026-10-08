@@ -8,6 +8,7 @@ import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Optional;
 import java.util.TreeSet;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,21 @@ public class LoginSessionService {
             throw reauthenticationRequired();
         }
         return user;
+    }
+
+    public Optional<User> findUsableUser(
+            UUID userId,
+            UUID sessionId,
+            Instant now
+    ) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null || user.isDeleted()) {
+            return Optional.empty();
+        }
+        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(sessionId, userId, now)) {
+            return Optional.empty();
+        }
+        return Optional.of(user);
     }
 
     private static UnauthorizedException reauthenticationRequired() {
