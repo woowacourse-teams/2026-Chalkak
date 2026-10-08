@@ -80,6 +80,20 @@ public class PushWorkerService {
             UUID deviceId,
             DevicePushSender sender
     ) {
+        try {
+            return sendToCurrentDevice(message, deviceId, sender);
+        } catch (RuntimeException exception) {
+            logDeviceFailure(message, deviceId, "worker_device_failed", exception);
+            return new DevicePushResult(DevicePushResult.Status.RETRYABLE,
+                    exception.getClass().getSimpleName(), Duration.ZERO);
+        }
+    }
+
+    private DevicePushResult sendToCurrentDevice(
+            PushMessage message,
+            UUID deviceId,
+            DevicePushSender sender
+    ) {
         DevicePushRequest request = findCurrentRequest(message, deviceId);
         if (request == null || !request.isSendableAt(clock.instant())) {
             logSkipped(message, deviceId, "LATEST_CONDITIONS");
@@ -88,15 +102,23 @@ public class PushWorkerService {
         DevicePushResult result = sender.send(request);
         logResult(message, deviceId, result);
         if (result.isInvalidToken()) {
-            deleteInvalidToken(deviceId, request);
+            deleteInvalidToken(message, deviceId, request);
         }
         return result;
     }
 
-    private void deleteInvalidToken(UUID deviceId, DevicePushRequest request) {
-        FcmToken token = new FcmToken(request.token());
-        transactionTemplate.executeWithoutResult(status -> deviceRepository
-                .deleteByIdAndTokenHash(deviceId, token.getHash()));
+    private void deleteInvalidToken(
+            PushMessage message,
+            UUID deviceId,
+            DevicePushRequest request
+    ) {
+        try {
+            FcmToken token = new FcmToken(request.token());
+            transactionTemplate.executeWithoutResult(status -> deviceRepository
+                    .deleteByIdAndTokenHash(deviceId, token.getHash()));
+        } catch (RuntimeException exception) {
+            logDeviceFailure(message, deviceId, "worker_invalid_token_cleanup_failed", exception);
+        }
     }
 
     private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
@@ -184,5 +206,19 @@ public class PushWorkerService {
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId).addKeyValue("result", result.status())
                 .addKeyValue("errorCode", result.errorCode()).log("FCM 발송 요청 결과");
+    }
+
+    private void logDeviceFailure(
+            PushMessage message,
+            UUID deviceId,
+            String stage,
+            RuntimeException exception
+    ) {
+        log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
+                .addKeyValue("eventId", message.eventId())
+                .addKeyValue("notificationId", message.notificationId())
+                .addKeyValue("deviceId", deviceId)
+                .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                .log("푸시 기기 처리 오류");
     }
 }

@@ -85,6 +85,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
+        jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
+        jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
         new DatabaseCleaner(jdbc).clean();
     }
 
@@ -182,6 +184,82 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("첫 기기 수락 후 다음 기기의 예외가 발생해도 사용자 작업을 완료한다")
+    void process_acceptedThenDeviceException_completesUserMessage() {
+        // Given
+        addDevice("second-token");
+        given(sender.send(any()))
+                .willReturn(new DevicePushResult(DevicePushResult.Status.ACCEPTED, null,
+                        Duration.ZERO))
+                .willThrow(new IllegalStateException("device processing failure"));
+        // When
+        PushProcessingResult result = worker(NOW).process(message, sender);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender, times(2)).send(any());
+    }
+
+    @Test
+    @DisplayName("첫 기기의 예외가 발생해도 다음 기기를 발송하고 수락되면 완료한다")
+    void process_deviceExceptionThenAccepted_completesUserMessage() {
+        // Given
+        addDevice("second-token");
+        given(sender.send(any()))
+                .willThrow(new IllegalStateException("device processing failure"))
+                .willReturn(new DevicePushResult(DevicePushResult.Status.ACCEPTED, null,
+                        Duration.ZERO));
+        // When
+        PushProcessingResult result = worker(NOW).process(message, sender);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender, times(2)).send(any());
+    }
+
+    @Test
+    @DisplayName("수락한 기기 없이 예상하지 못한 예외가 발생하면 재전달을 요청한다")
+    void process_deviceExceptionWithoutAcceptance_retriesUserMessage() {
+        // Given
+        given(sender.send(any())).willThrow(new IllegalStateException("device processing failure"));
+        // When
+        PushProcessingResult result = worker(NOW).process(message, sender);
+        // Then
+        assertThat(result.retryable()).isTrue();
+        assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
+    }
+
+    @Test
+    @DisplayName("첫 기기 수락 후 다음 기기의 무효 토큰 삭제가 실패해도 완료한다")
+    void process_acceptedThenInvalidTokenCleanupFailure_completesUserMessage() {
+        // Given
+        UUID other = addDevice("second-token");
+        rejectDeviceDeletion();
+        given(sender.send(any())).willReturn(
+                new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO),
+                new DevicePushResult(DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED",
+                        Duration.ZERO));
+        // When
+        PushProcessingResult result = worker(NOW).process(message, sender);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(devices.findIdsByUserId(USER_ID)).containsExactlyInAnyOrder(deviceId, other);
+        verify(sender, times(2)).send(any());
+    }
+
+    @Test
+    @DisplayName("무효 토큰 삭제 실패는 재발송 사유가 아니며 기기 행은 롤백되어 남는다")
+    void process_invalidTokenCleanupFailure_preservesDeviceAndCompletes() {
+        // Given
+        rejectDeviceDeletion();
+        given(sender.send(any())).willReturn(new DevicePushResult(
+                DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED", Duration.ZERO));
+        // When
+        PushProcessingResult result = worker(NOW).process(message, sender);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
+    }
+
+    @Test
     @DisplayName("등록 해제 토큰의 해당 기기만 제거한다")
     void process_unregisteredToken_deletesAffectedDevice() {
         // Given
@@ -242,6 +320,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PushWorkerService worker(Instant now) {
         return new PushWorkerService(notifications, devices, sessions,
                 Clock.fixed(now, ZoneOffset.UTC), manager);
+    }
+
+    private void rejectDeviceDeletion() {
+        jdbc.execute("""
+                CREATE FUNCTION worker_reject_device_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'device cleanup failure';
+                END $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER worker_reject_device_delete BEFORE DELETE ON push_devices
+                FOR EACH ROW EXECUTE FUNCTION worker_reject_device_delete()
+                """);
     }
 
     private UUID addDevice(String token) {
