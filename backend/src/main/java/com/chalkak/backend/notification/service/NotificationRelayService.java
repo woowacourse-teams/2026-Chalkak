@@ -40,11 +40,13 @@ public class NotificationRelayService {
         for (UUID notificationId : notificationRepository.findDuePublicationIds(clock.instant(),
                 BATCH_SIZE)) {
             try {
-                transactionTemplate.executeWithoutResult(status -> publish(notificationId));
-                log.atInfo().addKeyValue("type", "notification")
-                        .addKeyValue("stage", "relay_transaction_committed")
-                        .addKeyValue("notificationId", notificationId)
-                        .log("알림 발행 처리 트랜잭션 완료");
+                Boolean processed = transactionTemplate.execute(status -> publish(notificationId));
+                if (Boolean.TRUE.equals(processed)) {
+                    log.atInfo().addKeyValue("type", "notification")
+                            .addKeyValue("stage", "relay_transaction_committed")
+                            .addKeyValue("notificationId", notificationId)
+                            .log("알림 발행 처리 트랜잭션 완료");
+                }
             } catch (RuntimeException exception) {
                 // SQS 수락 뒤 DB 반영 실패도 여기에 포함된다. 원문/스택에 메시지·자격증명을 남기지 않는다.
                 log.atError().addKeyValue("type", "notification")
@@ -56,23 +58,24 @@ public class NotificationRelayService {
         }
     }
 
-    private void publish(UUID notificationId) {
+    private boolean publish(UUID notificationId) {
         Instant now = clock.instant();
         Notification notification = notificationRepository
                 .findPendingPublicationForUpdate(notificationId, now)
                 .orElse(null);
         if (notification == null) {
-            return;
+            return false;
         }
         if (notification.isPushExpired(now)) {
             notification.expireSqsPublication();
             logResult(notification, "EXPIRED", null, null);
-            return;
+            return true;
         }
         PushMessage message = createPushMessage(notification);
         logResult(notification, "REQUESTED", null, null);
         PushPublicationResult result = pushMessagePublisher.publish(message);
         applyPublicationResult(notification, result);
+        return true;
     }
 
     private PushMessage createPushMessage(Notification notification) {

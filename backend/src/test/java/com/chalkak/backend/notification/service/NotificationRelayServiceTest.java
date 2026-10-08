@@ -6,6 +6,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -14,6 +17,7 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -45,9 +50,13 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     private PushMessagePublisher publisher;
+    private final Logger logger = (Logger) LoggerFactory.getLogger(NotificationRelayService.class);
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
     @BeforeEach
     void setUp() {
+        appender.start();
+        logger.addAppender(appender);
         new DatabaseCleaner(jdbcTemplate).clean();
         jdbcTemplate.update(
                 """
@@ -62,6 +71,8 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
         jdbcTemplate.execute("DROP TRIGGER IF EXISTS relay_reject_update ON notifications");
         jdbcTemplate.execute("DROP FUNCTION IF EXISTS relay_reject_update()");
         new DatabaseCleaner(jdbcTemplate).clean();
@@ -86,6 +97,7 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         assertThat(message.getValue().userId()).isEqualTo(USER_ID);
         assertThat(message.getValue().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
         assertThat(message.getValue().occurredAt()).isEqualTo(NOW);
+        assertThat(committedNotificationIds()).containsExactly(id);
     }
 
     @Test
@@ -222,6 +234,7 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         assertThat(getStatus(failedId)).isEqualTo("PENDING");
         assertThat(getTime(failedId, "sqs_published_at")).isNull();
         assertThat(getStatus(successId)).isEqualTo("PUBLISHED");
+        assertThat(committedNotificationIds()).containsExactly(successId);
         jdbcTemplate.execute("DROP TRIGGER relay_reject_update ON notifications");
         relay(NOW.plusSeconds(2)).publishPendingNotifications();
         ArgumentCaptor<PushMessage> messages = ArgumentCaptor.forClass(PushMessage.class);
@@ -254,6 +267,7 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
                 assertThat(publishing.await(5, TimeUnit.SECONDS)).isTrue();
                 executor.submit(() -> relay(NOW).publishPendingNotifications()).get(3,
                         TimeUnit.SECONDS);
+                assertThat(committedNotificationIds()).isEmpty();
             } finally {
                 release.countDown();
             }
@@ -263,6 +277,18 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(getStatus(id)).isEqualTo("PUBLISHED");
         org.mockito.Mockito.verify(publisher).publish(any());
+        assertThat(committedNotificationIds()).containsExactly(id);
+    }
+
+    private List<UUID> committedNotificationIds() {
+        return appender.list.stream()
+                .filter(event -> event.getKeyValuePairs().stream()
+                        .anyMatch(pair -> pair.key.equals("stage")
+                                && "relay_transaction_committed".equals(pair.value)))
+                .flatMap(event -> event.getKeyValuePairs().stream())
+                .filter(pair -> pair.key.equals("notificationId"))
+                .map(pair -> (UUID) pair.value)
+                .toList();
     }
 
     @Test
