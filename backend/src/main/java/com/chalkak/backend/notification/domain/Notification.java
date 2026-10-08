@@ -189,13 +189,12 @@ public class Notification {
     }
 
     private void initializeSqsPublication(boolean pushEnabled) {
-        if (pushEnabled) {
-            sqsPublishStatus = SqsPublishStatus.PENDING;
-            nextAttemptAt = createdAt;
-        }
         if (!pushEnabled) {
             sqsPublishStatus = SqsPublishStatus.NOT_REQUIRED;
+            return;
         }
+        sqsPublishStatus = SqsPublishStatus.PENDING;
+        nextAttemptAt = createdAt;
     }
 
     private static void validateRequired(
