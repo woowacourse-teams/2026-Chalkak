@@ -67,3 +67,4 @@ rule_pages:
       푸시 기기 등록: [NOTIFICATION-005]
       푸시 수신 설정: [NOTIFICATION-006]
       검수 알림 SQS 발행: [NOTIFICATION-007]
+      검수 푸시 발송과 재처리: [NOTIFICATION-008]

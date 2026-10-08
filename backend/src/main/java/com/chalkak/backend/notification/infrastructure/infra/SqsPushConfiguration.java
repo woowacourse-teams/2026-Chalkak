@@ -4,6 +4,7 @@ import com.chalkak.backend.notification.service.PushMessagePublisher;
 import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -29,7 +30,7 @@ public class SqsPushConfiguration {
 
     @Bean
     public PushMessagePublisher pushMessagePublisher(
-            SqsClient notificationSqsClient,
+            @Qualifier("notificationSqsClient") SqsClient notificationSqsClient,
             SqsPushProperties properties,
             ObjectMapper objectMapper
     ) {

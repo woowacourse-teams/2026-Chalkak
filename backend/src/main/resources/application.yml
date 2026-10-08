@@ -29,6 +29,10 @@ spring:
 
 chalkak:
   notification:
+    fcm:
+      worker-enabled: ${NOTIFICATION_WORKER_ENABLED:false}
+      project-id: ${NOTIFICATION_FCM_PROJECT_ID:}
+      credentials-path: ${NOTIFICATION_FCM_CREDENTIALS_PATH:}
     sqs:
       relay-enabled: ${NOTIFICATION_RELAY_ENABLED:false}
       queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}
