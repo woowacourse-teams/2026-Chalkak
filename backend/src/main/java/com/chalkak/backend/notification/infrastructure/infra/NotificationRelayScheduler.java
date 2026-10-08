@@ -14,7 +14,7 @@ public class NotificationRelayScheduler {
     private final NotificationRelayService notificationRelayService;
 
     // 정상 발행은 1초마다 확인한다. 실패 작업의 1분 대기는 DB next_attempt_at으로 관리한다.
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 1000, scheduler = "notificationRelayTaskScheduler")
     public void publishPendingNotifications() {
         notificationRelayService.publishPendingNotifications();
     }
