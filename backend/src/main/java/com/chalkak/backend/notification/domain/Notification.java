@@ -75,13 +75,13 @@ public class Notification {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "sqs_publish_status", nullable = false, length = 20)
-    private SqsPublishStatus sqsPublishStatus;
+    private PublishStatus publishStatus;
 
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
     @Column(name = "sqs_published_at")
-    private Instant sqsPublishedAt;
+    private Instant publishedAt;
 
     public static Instant getRetentionThreshold(Instant now) {
         return now.minus(RETENTION);
@@ -104,7 +104,7 @@ public class Notification {
         notification.title = APPROVED_TITLE;
         notification.body = APPROVED_BODY;
         notification.createdAt = createdAt;
-        notification.initializeSqsPublication(pushEnabled);
+        notification.initializePublication(pushEnabled);
         return notification;
     }
 
@@ -138,24 +138,24 @@ public class Notification {
         notification.body = REJECTED_BODY;
         notification.payload = new NotificationPayload(rejectionReason);
         notification.createdAt = createdAt;
-        notification.initializeSqsPublication(pushEnabled);
+        notification.initializePublication(pushEnabled);
         return notification;
     }
 
-    public void markSqsPublished(Instant acceptedAt) {
+    public void markPublished(Instant acceptedAt) {
         validatePendingPublication();
         if (acceptedAt == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "SQS 수락 시각이 필요합니다.");
         }
-        sqsPublishStatus = SqsPublishStatus.PUBLISHED;
-        sqsPublishedAt = acceptedAt;
+        publishStatus = PublishStatus.PUBLISHED;
+        publishedAt = acceptedAt;
         nextAttemptAt = null;
     }
 
-    public void retrySqsPublication(Instant attemptedAt) {
+    public void retryPublication(Instant attemptedAt) {
         validatePendingPublication();
         if (isPushExpired(attemptedAt)) {
-            expireSqsPublication();
+            expirePublication();
             return;
         }
         Instant retryAt = attemptedAt.plus(PUBLISH_RETRY_DELAY);
@@ -166,15 +166,15 @@ public class Notification {
         nextAttemptAt = getPushExpiresAt();
     }
 
-    public void expireSqsPublication() {
+    public void expirePublication() {
         validatePendingPublication();
-        sqsPublishStatus = SqsPublishStatus.EXPIRED;
+        publishStatus = PublishStatus.EXPIRED;
         nextAttemptAt = null;
     }
 
-    public void failSqsPublication() {
+    public void failPublication() {
         validatePendingPublication();
-        sqsPublishStatus = SqsPublishStatus.FAILED;
+        publishStatus = PublishStatus.FAILED;
         nextAttemptAt = null;
     }
 
@@ -183,17 +183,17 @@ public class Notification {
     }
 
     private void validatePendingPublication() {
-        if (sqsPublishStatus != SqsPublishStatus.PENDING) {
+        if (publishStatus != PublishStatus.PENDING) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "발행 대기 중인 알림만 처리할 수 있습니다.");
         }
     }
 
-    private void initializeSqsPublication(boolean pushEnabled) {
+    private void initializePublication(boolean pushEnabled) {
         if (!pushEnabled) {
-            sqsPublishStatus = SqsPublishStatus.NOT_REQUIRED;
+            publishStatus = PublishStatus.NOT_REQUIRED;
             return;
         }
-        sqsPublishStatus = SqsPublishStatus.PENDING;
+        publishStatus = PublishStatus.PENDING;
         nextAttemptAt = createdAt;
     }
 

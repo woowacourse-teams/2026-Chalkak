@@ -10,7 +10,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.notification.domain.SqsPublishStatus;
+import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -259,7 +259,7 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
             boolean pushEnabled,
             String userStatus,
             boolean withdrawn,
-            SqsPublishStatus expectedStatus
+            PublishStatus expectedStatus
     ) {
         // Given
         insertPost(ModerationStatus.PENDING, null);
@@ -278,10 +278,10 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         UUID notificationId = jdbcTemplate.queryForObject(
                 "SELECT id FROM notifications WHERE source_id = ?", UUID.class, POST_ID);
         Notification loaded = entityManager.find(Notification.class, notificationId);
-        assertThat(loaded.getSqsPublishStatus()).isEqualTo(expectedStatus);
+        assertThat(loaded.getPublishStatus()).isEqualTo(expectedStatus);
         assertThat(loaded.getNextAttemptAt()).isEqualTo(
-                expectedStatus == SqsPublishStatus.PENDING ? NOW : null);
-        assertThat(loaded.getSqsPublishedAt()).isNull();
+                expectedStatus == PublishStatus.PENDING ? NOW : null);
+        assertThat(loaded.getPublishedAt()).isNull();
         assertThat(loaded.getType().name()).isEqualTo("POST_" + status.name());
         assertThat(countAuditLogs()).isEqualTo(1);
         assertThat(findPost().moderationStatus()).isEqualTo(status.name());
@@ -289,8 +289,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
             jdbcTemplate.update("UPDATE users SET moderation_push_enabled = true WHERE id = ?",
                     USER_ID);
             entityManager.clear();
-            assertThat(entityManager.find(Notification.class, notificationId).getSqsPublishStatus())
-                    .isEqualTo(SqsPublishStatus.NOT_REQUIRED);
+            assertThat(entityManager.find(Notification.class, notificationId).getPublishStatus())
+                    .isEqualTo(PublishStatus.NOT_REQUIRED);
         }
     }
 

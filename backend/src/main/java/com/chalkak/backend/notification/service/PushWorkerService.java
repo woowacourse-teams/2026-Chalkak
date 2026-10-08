@@ -4,7 +4,7 @@ import com.chalkak.backend.auth.service.LoginSessionService;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.PushDevice;
-import com.chalkak.backend.notification.domain.SqsPublishStatus;
+import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.user.domain.User;
@@ -150,8 +150,8 @@ public class PushWorkerService {
         if (notification.isPushExpired(clock.instant()) || !matches(message, notification)) {
             return false;
         }
-        SqsPublishStatus status = notification.getSqsPublishStatus();
-        return status == SqsPublishStatus.PENDING || status == SqsPublishStatus.PUBLISHED;
+        PublishStatus status = notification.getPublishStatus();
+        return status == PublishStatus.PENDING || status == PublishStatus.PUBLISHED;
     }
 
     private boolean isValidMessage(PushMessage message) {

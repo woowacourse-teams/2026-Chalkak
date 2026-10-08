@@ -67,7 +67,7 @@ public class NotificationRelayService {
             return false;
         }
         if (notification.isPushExpired(now)) {
-            notification.expireSqsPublication();
+            notification.expirePublication();
             logResult(notification, "EXPIRED", null, null);
             return true;
         }
@@ -91,17 +91,17 @@ public class NotificationRelayService {
     ) {
         Instant attemptedAt = clock.instant();
         if (result.isAccepted()) {
-            notification.markSqsPublished(attemptedAt);
+            notification.markPublished(attemptedAt);
             logResult(notification, "SQS_ACCEPTED", result.messageId(), null);
             return;
         }
         if (result.retryable()) {
-            notification.retrySqsPublication(attemptedAt);
-            logResult(notification, notification.getSqsPublishStatus().name(), null,
+            notification.retryPublication(attemptedAt);
+            logResult(notification, notification.getPublishStatus().name(), null,
                     result.errorCode());
             return;
         }
-        notification.failSqsPublication();
+        notification.failPublication();
         logResult(notification, "FAILED", null, result.errorCode());
     }
 
