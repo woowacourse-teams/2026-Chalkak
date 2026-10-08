@@ -1,4 +1,5 @@
 import Foundation
+import SDWebImageWebPCoder
 import SwiftUI
 import Testing
 import UIKit
@@ -705,6 +706,62 @@ struct PhotoUploadScreenTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadImageEncoderTests {
+    @Test("큰 사진은 Android와 같은 2의 거듭제곱 배수로 샘플링한다", arguments: [
+        [4032, 4032], [6000, 3000], [12000, 3000],
+    ])
+    func samplesLargePhotos(dimensions: [Int]) async throws {
+        let image = Self.sourceImage(width: dimensions[0], height: 80)
+        let data = try #require(image.pngData())
+        let encoded = try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: 1_024 * 1_024)
+        let decoded = try #require(SDImageWebPCoder.shared.decodedImage(with: encoded, options: nil))
+
+        #expect(decoded.cgImage?.width == dimensions[1])
+    }
+
+    @Test("용량 제한을 넘으면 실제 이미지 크기를 줄인다")
+    func rescalesToFitSizeLimit() async throws {
+        let image = Self.sourceImage(width: 256, height: 128)
+        let data = try #require(image.pngData())
+        let sizes = try [0.9, 0.8, 0.6, 0.4].map { quality in
+            try #require(SDImageWebPCoder.shared.encodedData(
+                with: image,
+                format: .webP,
+                options: [.encodeCompressionQuality: quality, .encodeWebPMethod: 0]
+            )).count
+        }
+        let maxBytes = Int64(try #require(sizes.min()) - 1)
+
+        let encoded = try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: maxBytes)
+        let decoded = try #require(SDImageWebPCoder.shared.decodedImage(with: encoded, options: nil))
+        let width = try #require(decoded.cgImage?.width)
+        let height = try #require(decoded.cgImage?.height)
+
+        #expect(Int64(encoded.count) <= maxBytes)
+        #expect(width <= 218)
+        #expect(height <= 109)
+    }
+
+    @Test("반복 압축 후에도 용량 제한을 충족하지 못하면 실패한다")
+    func rejectsImpossibleSizeLimit() async throws {
+        let data = try #require(Self.sourceImage(width: 120, height: 80).pngData())
+        await #expect(throws: PhotoUploadImageEncodingError.sizeLimitExceeded) {
+            try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: 1)
+        }
+    }
+
+    private static func sourceImage(width: Int, height: Int) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height), format: format
+        ).image { context in
+            for x in stride(from: 0, to: width, by: 4) {
+                UIColor(hue: CGFloat(x % 100) / 100, saturation: 1, brightness: 1, alpha: 1).setFill()
+                context.fill(CGRect(x: x, y: 0, width: 4, height: height))
+            }
+        }
+    }
+
     @Test("사진을 Android 업로드 계약과 같은 WebP 데이터로 인코딩한다")
     func encodesWebP() async throws {
         let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 80)).image { context in
@@ -746,6 +803,59 @@ struct PhotoUploadImageEncoderTests {
         } catch {
             Issue.record("예상하지 못한 오류: \(error)")
         }
+    }
+
+    @Test("압축 도중 취소하면 결과와 관계없이 후속 압축을 중단한다", arguments: [
+        "oversized", "fits", "failed",
+    ])
+    func cancellationStopsFurtherCompression(result: String) async throws {
+        let sourceData = try #require(Self.sourceImage(width: 120, height: 80).pngData())
+        let gate = PhotoUploadCompressionGate()
+        defer { gate.release.signal() }
+        let task = Task {
+            try await PhotoUploadImageEncoder.encode(sourceData: sourceData, maxBytes: 12) { _, _ in
+                gate.recordAttempt()
+                gate.started.signal()
+                _ = gate.release.wait(timeout: .now() + 10)
+                switch result {
+                case "failed": return nil
+                case "fits": return Data("RIFF0000WEBP".utf8)
+                default: return Data("RIFF0000WEBPoversized".utf8)
+                }
+            }
+        }
+        defer { task.cancel() }
+        let started = await Task.detached {
+            gate.waitUntilStarted()
+        }.value
+        try #require(started, "첫 압축 시도가 시작되지 않았습니다")
+
+        task.cancel()
+        gate.release.signal()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(gate.attemptCount == 1)
+    }
+}
+
+private final class PhotoUploadCompressionGate: @unchecked Sendable {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var attempts = 0
+
+    var attemptCount: Int {
+        lock.withLock { attempts }
+    }
+
+    func recordAttempt() {
+        lock.withLock { attempts += 1 }
+    }
+
+    func waitUntilStarted() -> Bool {
+        started.wait(timeout: .now() + 5) == .success
     }
 }
 
