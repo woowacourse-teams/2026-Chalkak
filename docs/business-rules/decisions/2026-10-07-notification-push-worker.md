@@ -9,6 +9,8 @@
 - 관련 규칙: NOTIFICATION-001, NOTIFICATION-005, NOTIFICATION-006, NOTIFICATION-007, NOTIFICATION-008
 - 관련 이슈·PR: [#492](https://github.com/woowacourse-teams/2026-Chalkak/issues/492), PR 미등록
 
-FCM 수락은 기기 도착을 뜻하지 않는다. 원래 기한까지 FCM/APNs가 오프라인 기기 전달을 처리하며 Worker는 SQS 메시지를 완료한다. 최대 수신 횟수는 FCM HTTP 요청 횟수가 아니다. 기한이 먼저 끝난 작업은 삭제되므로 DLQ에 모든 실패가 남는 것도 아니다. CloudWatch 로그로 조사하고 DLQ 재처리는 하지 않는 합의를 유지한다.
+FCM 수락은 기기 도착을 뜻하지 않는다. 당시 설계는 원래 기한까지 FCM/APNs가 오프라인 기기 전달을 처리하는 기준이었으며 Worker는 SQS 메시지를 완료한다. 최대 수신 횟수는 FCM HTTP 요청 횟수가 아니다. 기한이 먼저 끝난 작업은 삭제되므로 DLQ에 모든 실패가 남는 것도 아니다. CloudWatch 로그로 조사하고 DLQ 재처리는 하지 않는 합의를 유지한다.
 
 로컬 검증과 실제 AWS·Firebase·Android·iOS 연동 검증은 구분한다. 이번 PR 구현 후 개발 서버에서 전체 흐름을 확인하며, 해당 확인 전에는 운영 발송 완료로 표시하지 않는다.
+
+2026-10-08에는 SDK 내부 재시도 중 기한 초과와 Android TTL의 만료 지연을 허용하고 기본 전송으로 복귀했다. 현재 시간 경계는 [후속 결정](2026-10-08-fcm-sdk-transport.md)과 NOTIFICATION-008을 따른다.

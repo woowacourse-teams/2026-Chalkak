@@ -8,14 +8,16 @@ import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushResult.Status;
 import com.chalkak.backend.notification.service.PushMessage;
-import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.sun.net.httpserver.HttpServer;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -44,13 +46,13 @@ class FcmDevicePushSenderTest {
     private HttpServer server;
     private FirebaseApp app;
     private FcmDevicePushSender sender;
-    private Instant now;
+    private volatile Instant now;
     private int responseStatus;
     private String errorStatus;
     private String detailCode;
     private String retryAfter;
     private boolean acceptSecond;
-    private boolean expireAfterFirst;
+    private Instant nowAfterFirst;
     private DevicePushRequest request;
 
     @BeforeEach
@@ -77,10 +79,8 @@ class FcmDevicePushSenderTest {
             exchange.sendResponseHeaders(status, bytes.length);
             exchange.getResponseBody().write(bytes);
             exchange.close();
-            if (expireAfterFirst)
-                now = NOW.plusSeconds(1800);
-            if (acceptSecond && attempt == 1)
-                now = NOW.plusSeconds(10);
+            if (nowAfterFirst != null && attempt == 1)
+                now = nowAfterFirst;
         });
         server.start();
         Clock clock = new Clock() {
@@ -97,13 +97,13 @@ class FcmDevicePushSenderTest {
                 return now;
             }
         };
-        FcmHttpTransport transport = new FcmHttpTransport(clock, mapper) {
-            @Override
-            protected LowLevelHttpRequest buildRequest(String method, String url) {
-                return super.buildRequest(method, url.replace("https://fcm.googleapis.com",
-                        "http://127.0.0.1:" + server.getAddress().getPort()));
-            }
-        };
+        // 실제 Firebase 대신 로컬 HTTP 서버로 연결하며 전송은 Google 기본 구현을 사용한다.
+        NetHttpTransport transport = new NetHttpTransport.Builder()
+                .setConnectionFactory(url -> (HttpURLConnection) URI.create(url.toString().replace(
+                        "https://fcm.googleapis.com",
+                        "http://127.0.0.1:" + server.getAddress().getPort())).toURL()
+                        .openConnection())
+                .build();
         app = FirebaseApp.initializeApp(FirebaseOptions.builder().setProjectId("test")
                 .setCredentials(new GoogleCredentials(new AccessToken("test-access-token",
                         new Date(System.currentTimeMillis() + 3600000))) {
@@ -114,7 +114,7 @@ class FcmDevicePushSenderTest {
                     }
                 })
                 .setHttpTransport(transport).build(), UUID.randomUUID().toString());
-        sender = new FcmDevicePushSender(FirebaseMessaging.getInstance(app), transport, clock);
+        sender = new FcmDevicePushSender(FirebaseMessaging.getInstance(app), clock);
         PushMessage message = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), NotificationType.POST_APPROVED, NotificationSourceType.POST,
                 UUID.randomUUID(), NOW, NOW.plusSeconds(1800));
@@ -161,18 +161,22 @@ class FcmDevicePushSenderTest {
     }
 
     @Test
-    @DisplayName("503 SDK 재시도는 남은 TTL을 다시 계산하여 수락되면 종료한다")
-    void send_unavailableThenAccepted_updatesTtlOnSdkRetry() {
+    @DisplayName("SDK 재시도에도 최초 계산한 Android TTL과 iOS 절대 만료를 유지한다")
+    void send_unavailableThenAccepted_preservesInitialExpiration() {
         // Given
         responseStatus = 503;
         errorStatus = "UNAVAILABLE";
         detailCode = "UNAVAILABLE";
         acceptSecond = true;
+        nowAfterFirst = NOW.plusSeconds(10);
         // When & Then
         assertThat(sender.send(request).status()).isEqualTo(Status.ACCEPTED);
         assertThat(calls.get()).isEqualTo(2);
         assertThat(bodies.getLast().get("message").get("android").get("ttl").asText())
-                .isEqualTo("1790s");
+                .isEqualTo("1800s");
+        assertThat(bodies.getLast().get("message").get("apns").get("headers")
+                .get("apns-expiration").asText())
+                .isEqualTo(Long.toString(NOW.plusSeconds(1800).getEpochSecond()));
     }
 
     @Test
@@ -221,15 +225,19 @@ class FcmDevicePushSenderTest {
     }
 
     @Test
-    @DisplayName("SDK 재시도 대기 중 기한이 지나면 추가 HTTP 요청을 하지 않는다")
-    void send_deadlineDuringSdkRetry_stopsExternalCalls() {
+    @DisplayName("기한 직전 시작한 SDK 재시도는 기한이 지나도 수락 결과로 완료한다")
+    void send_deadlineDuringSdkRetry_finishesStartedSend() {
         // Given
         responseStatus = 503;
         errorStatus = "UNAVAILABLE";
         detailCode = "UNAVAILABLE";
-        expireAfterFirst = true;
+        now = NOW.plusSeconds(1799);
+        nowAfterFirst = NOW.plusSeconds(1800);
+        acceptSecond = true;
         // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(Status.RETRYABLE);
-        assertThat(calls.get()).isEqualTo(1);
+        assertThat(sender.send(request).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(bodies.getLast().get("message").get("android").get("ttl").asText())
+                .isEqualTo("1s");
     }
 }

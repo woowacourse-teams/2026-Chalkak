@@ -174,20 +174,13 @@ class PushWorkerConfigurationTest {
 
         @Bean
         @Override
-        public FcmHttpTransport fcmHttpTransport(Clock clock, ObjectMapper mapper) {
-            return mock(FcmHttpTransport.class);
-        }
-
-        @Bean
-        @Override
-        public FirebaseApp notificationFirebaseApp(FcmHttpTransport transport) {
+        public FirebaseApp notificationFirebaseApp() {
             return mock(FirebaseApp.class);
         }
 
         @Bean
         @Override
-        public DevicePushSender devicePushSender(FirebaseApp app, FcmHttpTransport transport,
-                Clock clock) {
+        public DevicePushSender devicePushSender(FirebaseApp app, Clock clock) {
             return mock(DevicePushSender.class);
         }
 

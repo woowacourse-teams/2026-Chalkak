@@ -47,19 +47,13 @@ public class PushWorkerConfiguration {
         this.credentialsPath = credentialsPath;
     }
 
-    @Bean(destroyMethod = "shutdown")
-    public FcmHttpTransport fcmHttpTransport(Clock clock, ObjectMapper mapper) {
-        return new FcmHttpTransport(clock, mapper);
-    }
-
     @Bean(destroyMethod = "delete")
-    public FirebaseApp notificationFirebaseApp(FcmHttpTransport transport)
-            throws IOException {
+    public FirebaseApp notificationFirebaseApp() throws IOException {
         try (var input = Files.newInputStream(Path.of(credentialsPath))) {
             return FirebaseApp.initializeApp(FirebaseOptions.builder()
                     .setCredentials(ServiceAccountCredentials.fromStream(input))
                     .setProjectId(projectId)
-                    .setHttpTransport(transport).setConnectTimeout(10000).setReadTimeout(10000)
+                    .setConnectTimeout(10000).setReadTimeout(10000)
                     .setWriteTimeout(10000).build(), "chalkak-notification");
         }
     }
@@ -67,11 +61,10 @@ public class PushWorkerConfiguration {
     @Bean
     public DevicePushSender devicePushSender(
             FirebaseApp notificationFirebaseApp,
-            FcmHttpTransport transport,
             Clock clock
     ) {
         return new FcmDevicePushSender(FirebaseMessaging.getInstance(notificationFirebaseApp),
-                transport, clock);
+                clock);
     }
 
     @Bean

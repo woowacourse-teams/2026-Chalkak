@@ -24,16 +24,10 @@ public class FcmDevicePushSender implements DevicePushSender {
     private static final Duration MINIMUM_RETRY_DELAY = Duration.ofSeconds(60);
 
     private final FirebaseMessaging messaging;
-    private final FcmHttpTransport transport;
     private final Clock clock;
 
-    public FcmDevicePushSender(
-            FirebaseMessaging messaging,
-            FcmHttpTransport transport,
-            Clock clock
-    ) {
+    public FcmDevicePushSender(FirebaseMessaging messaging, Clock clock) {
         this.messaging = messaging;
-        this.transport = transport;
         this.clock = clock;
     }
 
@@ -42,14 +36,11 @@ public class FcmDevicePushSender implements DevicePushSender {
         if (!request.isSendableAt(clock.instant())) {
             return DevicePushResult.skipped("EXPIRED");
         }
-        transport.setDeadline(request.expiresAt());
         try {
             messaging.send(createMessage(request));
             return DevicePushResult.accepted();
         } catch (FirebaseMessagingException exception) {
             return toResult(exception);
-        } finally {
-            transport.clearDeadline();
         }
     }
 
