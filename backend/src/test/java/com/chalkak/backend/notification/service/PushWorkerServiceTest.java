@@ -80,7 +80,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         deviceId = addDevice("worker-token");
         sender = mock(DevicePushSender.class);
         given(sender.send(any())).willReturn(
-                new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO));
+                DevicePushResult.accepted());
     }
 
     @AfterEach
@@ -160,9 +160,9 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         addDevice("second-token");
         given(sender.send(any())).willReturn(
-                new DevicePushResult(DevicePushResult.Status.RETRYABLE, "UNAVAILABLE",
+                DevicePushResult.retryable("UNAVAILABLE",
                         Duration.ofSeconds(60)),
-                new DevicePushResult(DevicePushResult.Status.RETRYABLE, "QUOTA",
+                DevicePushResult.retryable("QUOTA",
                         Duration.ofSeconds(120)));
         // When
         PushProcessingResult result = worker(NOW).process(message);
@@ -177,9 +177,9 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         addDevice("second-token");
         given(sender.send(any())).willReturn(
-                new DevicePushResult(DevicePushResult.Status.RETRYABLE, "UNAVAILABLE",
+                DevicePushResult.retryable("UNAVAILABLE",
                         Duration.ofSeconds(60)),
-                new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO));
+                DevicePushResult.accepted());
         // When & Then
         assertThat(worker(NOW).process(message).retryable()).isFalse();
         verify(sender, times(2)).send(any());
@@ -191,8 +191,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         addDevice("second-token");
         given(sender.send(any()))
-                .willReturn(new DevicePushResult(DevicePushResult.Status.ACCEPTED, null,
-                        Duration.ZERO))
+                .willReturn(DevicePushResult.accepted())
                 .willThrow(new IllegalStateException("device processing failure"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
@@ -208,8 +207,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         addDevice("second-token");
         given(sender.send(any()))
                 .willThrow(new IllegalStateException("device processing failure"))
-                .willReturn(new DevicePushResult(DevicePushResult.Status.ACCEPTED, null,
-                        Duration.ZERO));
+                .willReturn(DevicePushResult.accepted());
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -236,9 +234,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         UUID other = addDevice("second-token");
         rejectDeviceDeletion();
         given(sender.send(any())).willReturn(
-                new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO),
-                new DevicePushResult(DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED",
-                        Duration.ZERO));
+                DevicePushResult.accepted(),
+                DevicePushResult.invalidToken("UNREGISTERED"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -252,8 +249,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_invalidTokenCleanupFailure_preservesDeviceAndCompletes() {
         // Given
         rejectDeviceDeletion();
-        given(sender.send(any())).willReturn(new DevicePushResult(
-                DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED", Duration.ZERO));
+        given(sender.send(any())).willReturn(DevicePushResult.invalidToken("UNREGISTERED"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -269,9 +265,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         given(sender.send(any())).willAnswer(call -> {
             DevicePushRequest request = call.getArgument(0);
             if (request.token().equals("worker-token"))
-                return new DevicePushResult(DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED",
-                        Duration.ZERO);
-            return new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO);
+                return DevicePushResult.invalidToken("UNREGISTERED");
+            return DevicePushResult.accepted();
         });
         // When
         worker(NOW).process(message);
@@ -287,8 +282,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             jdbc.update(
                     "UPDATE push_devices SET fcm_token='updated-token',fcm_token_hash=? WHERE id=?",
                     new FcmToken("updated-token").getHash(), deviceId);
-            return new DevicePushResult(DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED",
-                    Duration.ZERO);
+            return DevicePushResult.invalidToken("UNREGISTERED");
         });
         // When
         worker(NOW).process(message);
@@ -301,8 +295,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("내용·프로젝트 영구 오류는 기기를 지우지 않고 완료한다")
     void process_permanentFailure_preservesDeviceAndCompletes() {
         // Given
-        given(sender.send(any())).willReturn(new DevicePushResult(
-                DevicePushResult.Status.PERMANENT_FAILURE, "INVALID_ARGUMENT", Duration.ZERO));
+        given(sender.send(any())).willReturn(DevicePushResult.permanentFailure("INVALID_ARGUMENT"));
         // When & Then
         assertThat(worker(NOW).process(message).retryable()).isFalse();
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);

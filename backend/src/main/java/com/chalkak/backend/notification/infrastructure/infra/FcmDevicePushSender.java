@@ -2,7 +2,6 @@ package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
-import com.chalkak.backend.notification.service.DevicePushResult.Status;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
@@ -46,7 +45,7 @@ public class FcmDevicePushSender implements DevicePushSender {
         transport.setDeadline(request.expiresAt());
         try {
             messaging.send(createMessage(request));
-            return new DevicePushResult(Status.ACCEPTED, null, Duration.ZERO);
+            return DevicePushResult.accepted();
         } catch (FirebaseMessagingException exception) {
             return toResult(exception);
         } finally {
@@ -93,13 +92,13 @@ public class FcmDevicePushSender implements DevicePushSender {
         MessagingErrorCode code = exception.getMessagingErrorCode();
         String errorCode = findErrorCode(exception);
         if (code == MessagingErrorCode.UNREGISTERED) {
-            return new DevicePushResult(Status.INVALID_TOKEN, errorCode, Duration.ZERO);
+            return DevicePushResult.invalidToken(errorCode);
         }
         if (isRetryable(exception)) {
-            return new DevicePushResult(Status.RETRYABLE, errorCode, findRetryAfter(exception));
+            return DevicePushResult.retryable(errorCode, findRetryAfter(exception));
         }
         // INVALID_ARGUMENT은 메시지 형식 오류도 포함하므로 기기 토큰을 삭제하지 않는다.
-        return new DevicePushResult(Status.PERMANENT_FAILURE, errorCode, Duration.ZERO);
+        return DevicePushResult.permanentFailure(errorCode);
     }
 
     private String findErrorCode(FirebaseMessagingException exception) {

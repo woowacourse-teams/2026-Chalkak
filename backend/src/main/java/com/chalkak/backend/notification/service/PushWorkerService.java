@@ -83,8 +83,7 @@ public class PushWorkerService {
             return sendToCurrentDevice(message, deviceId);
         } catch (RuntimeException exception) {
             logDeviceFailure(message, deviceId, "worker_device_failed", exception);
-            return new DevicePushResult(DevicePushResult.Status.RETRYABLE,
-                    exception.getClass().getSimpleName(), Duration.ZERO);
+            return DevicePushResult.retryable(exception.getClass().getSimpleName());
         }
     }
 
