@@ -13,7 +13,9 @@ import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import com.google.firebase.FirebaseApp;
 import java.time.Clock;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +30,7 @@ import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfigurati
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -46,7 +49,8 @@ class PushWorkerConfigurationTest {
                 .run(context -> assertThat(context).hasNotFailed()
                         .doesNotHaveBean(SqsPushService.class)
                         .doesNotHaveBean(PushWorkerService.class)
-                        .doesNotHaveBean(DevicePushSender.class));
+                        .doesNotHaveBean(DevicePushSender.class)
+                        .doesNotHaveBean("notificationPollingScheduler"));
     }
 
     @ParameterizedTest
@@ -89,9 +93,14 @@ class PushWorkerConfigurationTest {
     }
 
     @Test
-    @DisplayName("자동 연장 실행기는 공용 4개 스레드 스케줄러와 분리되고 컨텍스트 종료 시 종료된다")
-    void configuration_visibilityExtensionEnabled_keepsSchedulerSeparateAndClosesExecutor() {
+    @DisplayName("폴링 대기 중에도 공용 작업이 실행되며 전용 실행기는 컨텍스트 종료 시 종료된다")
+    void configuration_pollingBlocked_keepsCommonSchedulerFreeAndClosesExecutors() {
+        // Given
+        FakePollingProbe probe = new FakePollingProbe();
         AtomicReference<ScheduledExecutorService> visibilityExtensionExecutor = new AtomicReference<>();
+        AtomicReference<ScheduledExecutorService> pollingExecutor = new AtomicReference<>();
+        AtomicReference<ScheduledExecutorService> commonExecutor = new AtomicReference<>();
+        // When
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
                 .withUserConfiguration(SchedulingTestConfiguration.class, SchedulingConfig.class)
@@ -100,6 +109,7 @@ class PushWorkerConfigurationTest {
                         "chalkak.notification.fcm.project-id=test",
                         "chalkak.notification.fcm.credentials-path=test.json")
                 .withBean(Clock.class, Clock::systemUTC)
+                .withBean(FakePollingProbe.class, () -> probe)
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
                 .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false,
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
@@ -110,30 +120,56 @@ class PushWorkerConfigurationTest {
                 .withBean(PlatformTransactionManager.class,
                         () -> mock(PlatformTransactionManager.class))
                 .run(context -> {
-                    assertThat(context).hasNotFailed().hasSingleBean(ThreadPoolTaskScheduler.class)
+                    assertThat(context).hasNotFailed()
+                            .hasBean("taskScheduler").hasBean("notificationPollingScheduler")
                             .hasSingleBean(PushWorkerService.class)
                             .hasSingleBean(SqsPushService.class)
                             .hasSingleBean(DevicePushSender.class);
                     ScheduledExecutorService executor = context.getBean(
                             "notificationVisibilityExtensionExecutor",
                             ScheduledExecutorService.class);
-                    ThreadPoolTaskScheduler scheduler = context
-                            .getBean(ThreadPoolTaskScheduler.class);
+                    ThreadPoolTaskScheduler scheduler = context.getBean("taskScheduler",
+                            ThreadPoolTaskScheduler.class);
+                    ThreadPoolTaskScheduler polling = context.getBean(
+                            "notificationPollingScheduler",
+                            ThreadPoolTaskScheduler.class);
                     visibilityExtensionExecutor.set(executor);
+                    pollingExecutor.set(polling.getScheduledExecutor());
+                    commonExecutor.set(scheduler.getScheduledExecutor());
+                    // Then
                     assertThat(scheduler.getScheduledExecutor()).isNotSameAs(executor);
+                    assertThat(polling.getScheduledExecutor()).isNotSameAs(executor)
+                            .isNotSameAs(scheduler.getScheduledExecutor());
                     assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
                             .isEqualTo(4);
+                    assertThat(polling.getScheduledThreadPoolExecutor().getCorePoolSize())
+                            .isEqualTo(1);
                     assertThat(executor.isShutdown()).isFalse();
+                    try {
+                        assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                        assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
+                        assertThat(probe.pollThread.get()).startsWith("notification-poll-");
+                        assertThat(probe.commonThread.get()).isNotEqualTo(probe.pollThread.get())
+                                .doesNotStartWith("notification-poll-");
+                    } finally {
+                        probe.releasePoll.countDown();
+                    }
                 });
         assertThat(visibilityExtensionExecutor.get().isShutdown()).isTrue();
+        assertThat(pollingExecutor.get().isShutdown()).isTrue();
+        assertThat(commonExecutor.get().isShutdown()).isTrue();
     }
 
     @Configuration(proxyBeanMethods = false)
     static class SchedulingTestConfiguration extends PushWorkerConfiguration {
+        private final FakePollingProbe probe;
+
         SchedulingTestConfiguration(
                 @Value("${chalkak.notification.fcm.project-id:}") String projectId,
-                @Value("${chalkak.notification.fcm.credentials-path:}") String credentialsPath) {
+                @Value("${chalkak.notification.fcm.credentials-path:}") String credentialsPath,
+                FakePollingProbe probe) {
             super(projectId, credentialsPath);
+            this.probe = probe;
         }
 
         @Bean
@@ -161,8 +197,29 @@ class PushWorkerConfigurationTest {
             SqsClient client = mock(SqsClient.class);
             given(client.receiveMessage(
                     org.mockito.ArgumentMatchers.<Consumer<ReceiveMessageRequest.Builder>>any()))
-                    .willReturn(ReceiveMessageResponse.builder().build());
+                    .willAnswer(call -> {
+                        probe.pollThread.set(Thread.currentThread().getName());
+                        probe.pollStarted.countDown();
+                        probe.releasePoll.await(10, TimeUnit.SECONDS);
+                        return ReceiveMessageResponse.builder().build();
+                    });
             return client;
+        }
+    }
+
+    static class FakePollingProbe {
+        private final CountDownLatch pollStarted = new CountDownLatch(1);
+        private final CountDownLatch releasePoll = new CountDownLatch(1);
+        private final CountDownLatch commonTaskRan = new CountDownLatch(1);
+        private final AtomicReference<String> pollThread = new AtomicReference<>();
+        private final AtomicReference<String> commonThread = new AtomicReference<>();
+
+        @Scheduled(fixedDelay = 10)
+        public void runCommonTask() {
+            if (pollStarted.getCount() == 0 && releasePoll.getCount() > 0) {
+                commonThread.set(Thread.currentThread().getName());
+                commonTaskRan.countDown();
+            }
         }
     }
 }

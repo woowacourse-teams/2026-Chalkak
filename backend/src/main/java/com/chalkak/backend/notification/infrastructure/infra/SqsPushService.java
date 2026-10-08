@@ -44,7 +44,7 @@ public class SqsPushService {
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 1000, scheduler = "notificationPollingScheduler")
     public void poll() {
         try {
             Optional<Message> message = findMessage();

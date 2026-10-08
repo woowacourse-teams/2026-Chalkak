@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -96,6 +97,15 @@ public class PushWorkerConfiguration {
     ) {
         return new PushWorkerService(notificationRepository, deviceRepository, loginSessionService,
                 sender, clock, transactionManager);
+    }
+
+    // SQS 대기·발송은 전용 스레드에서 실행하고 애플리케이션 공용 스케줄러는 유지한다.
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskScheduler notificationPollingScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("notification-poll-");
+        return scheduler;
     }
 
     // 자동 연장 전용 실행기가 애플리케이션 공용 스케줄러를 대체하지 않게 한다.
