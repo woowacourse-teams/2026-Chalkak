@@ -1,10 +1,10 @@
-package com.stonefive.chalkak.feature.home.component
+package com.stonefive.chalkak.feature.today.component
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class HomePhotoCardTest {
+class TodayPhotoCardTest {
     @Test
     fun imageAspectRatioUsesImagePixelDimensions() {
         assertEquals(

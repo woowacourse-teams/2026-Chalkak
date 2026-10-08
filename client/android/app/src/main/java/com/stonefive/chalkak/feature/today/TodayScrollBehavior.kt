@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -27,7 +27,7 @@ private const val COLLAPSED_TOP_BAR_BACKGROUND_ALPHA = 0.86f
 private const val TOP_BAR_FADE_START_PROGRESS = 0.8f
 
 @Stable
-class HomeScrollBehaviorState(
+class TodayScrollBehaviorState(
     private val photoListState: LazyListState,
     private val interactionScope: CoroutineScope,
     private val scrollToTopToggleThresholdPx: Float,
@@ -159,14 +159,14 @@ class HomeScrollBehaviorState(
 }
 
 @Composable
-fun rememberHomeScrollBehaviorState(
+fun rememberTodayScrollBehaviorState(
     photoListState: LazyListState,
     interactionScope: CoroutineScope,
     scrollToTopToggleThresholdPx: Float,
-): HomeScrollBehaviorState {
+): TodayScrollBehaviorState {
     val bottomBarState = rememberBottomBarScrollState()
     return remember(photoListState, interactionScope, scrollToTopToggleThresholdPx, bottomBarState) {
-        HomeScrollBehaviorState(
+        TodayScrollBehaviorState(
             photoListState = photoListState,
             interactionScope = interactionScope,
             scrollToTopToggleThresholdPx = scrollToTopToggleThresholdPx,

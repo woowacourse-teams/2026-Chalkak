@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home.component
+package com.stonefive.chalkak.feature.today.component
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,18 +19,18 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val HomeDivider = Color(0xFFE8E6E1)
-private val HomeDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
+private val TodayDivider = Color(0xFFE8E6E1)
+private val TodayDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
 
 @Composable
-fun HomeTopic(
+fun TodayTopic(
     topicDate: LocalDate?,
     topic: String,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
-            .homeBottomDivider()
+            .todayBottomDivider()
             .padding(
                 start = ChalkakTheme.spacing.screenHorizontal,
                 end = ChalkakTheme.spacing.screenHorizontal,
@@ -39,7 +39,7 @@ fun HomeTopic(
             ),
     ) {
         Text(
-            text = topicDate?.let { "${it.format(HomeDateFormatter)} · 오늘의 주제" }.orEmpty(),
+            text = topicDate?.let { "${it.format(TodayDateFormatter)} · 오늘의 주제" }.orEmpty(),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.subheadline,
         )
@@ -55,10 +55,10 @@ fun HomeTopic(
     }
 }
 
-fun Modifier.homeBottomDivider(): Modifier = drawBehind {
+fun Modifier.todayBottomDivider(): Modifier = drawBehind {
     val strokeWidth = 0.5.dp.toPx()
     drawLine(
-        color = HomeDivider,
+        color = TodayDivider,
         start = Offset(0f, size.height - strokeWidth / 2),
         end = Offset(size.width, size.height - strokeWidth / 2),
         strokeWidth = strokeWidth,
@@ -67,9 +67,9 @@ fun Modifier.homeBottomDivider(): Modifier = drawBehind {
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
-private fun HomeTopicPreview() {
+private fun TodayTopicPreview() {
     ChalkakTheme {
-        HomeTopic(
+        TodayTopic(
             topicDate = LocalDate.of(2026, 8, 3),
             topic = "하늘하늘하늘",
             modifier = Modifier.fillMaxWidth(),

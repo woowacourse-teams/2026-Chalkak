@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home.component
+package com.stonefive.chalkak.feature.today.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,10 +39,10 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.domain.model.Post
 
-private val HomeText = Color(0xFF7D7D7D)
+private val TodayText = Color(0xFF7D7D7D)
 
 @Composable
-fun HomePhotoCard(
+fun TodayPhotoCard(
     photo: Post,
     isLiked: Boolean,
     isLikeEnabled: Boolean,
@@ -127,19 +127,19 @@ private fun PhotoActionRow(
                     if (isLiked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
                 ),
                 contentDescription = null,
-                tint = if (isLiked) ChalkakTheme.colors.actionPrimary else HomeText,
+                tint = if (isLiked) ChalkakTheme.colors.actionPrimary else TodayText,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 text = photo.likeCount.toString(),
-                color = HomeText,
+                color = TodayText,
                 style = ChalkakTheme.typography.body
                     .copy(fontWeight = FontWeight.Normal),
             )
         }
         Text(
             text = photo.title?.takeIf { it.isNotBlank() } ?: "무제",
-            color = HomeText,
+            color = TodayText,
             style = ChalkakTheme.typography.body
                 .copy(fontWeight = FontWeight.Normal),
             maxLines = 1,
@@ -152,9 +152,9 @@ private fun PhotoActionRow(
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
-private fun HomePhotoCardPreview() {
+private fun TodayPhotoCardPreview() {
     ChalkakTheme {
-        HomePhotoCard(
+        TodayPhotoCard(
             photo = Post(
                 id = "preview",
                 originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),

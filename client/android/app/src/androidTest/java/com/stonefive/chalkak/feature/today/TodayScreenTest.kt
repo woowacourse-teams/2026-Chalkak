@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,35 +41,35 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-class HomeScreenTest {
+class TodayScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
     @Test
     fun rendersAllInitialAndContentStates() {
-        var uiState by mutableStateOf(HomeUiState(contentStatus = HomeContentStatus.Loading))
+        var uiState by mutableStateOf(TodayUiState(contentStatus = TodayContentStatus.Loading))
         composeRule.setContent {
             ChalkakTheme {
-                HomeScreen(
+                TodayScreen(
                     uiState = uiState,
                     onAction = {},
                 )
             }
         }
-        composeRule.onNodeWithTag(HOME_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_LOADING_TEST_TAG).assertIsDisplayed()
 
         composeRule.runOnIdle {
-            uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Error(HomeInitialError.TopicNotFound),
+            uiState = TodayUiState(
+                contentStatus = TodayContentStatus.Error(TodayInitialError.TopicNotFound),
             )
         }
-        composeRule.onNodeWithTag(HOME_INITIAL_ERROR_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_INITIAL_ERROR_TEST_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("오늘의 주제가 아직 준비되지 않았어요").assertIsDisplayed()
 
         composeRule.runOnIdle {
             uiState = contentUiState(photos = emptyList())
         }
-        composeRule.onNodeWithTag(HOME_EMPTY_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_EMPTY_TEST_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("아직 올라온 사진이 없어요").assertIsDisplayed()
         composeRule.onNodeWithText("첫 번째 사진을 올려보세요").assertIsDisplayed()
 
@@ -82,12 +82,12 @@ class HomeScreenTest {
         composeRule.runOnIdle {
             uiState = contentUiState(isLoadingNext = true)
         }
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
     }
 
     @Test
     fun homePhotoDoesNotExposeFeedNavigationClickAction() {
-        setHomeContent(uiState = contentUiState())
+        setTodayContent(uiState = contentUiState())
         composeRule
             .onNodeWithContentDescription("작품 이미지: 사진 0")
             .assertHasNoClickAction()
@@ -100,7 +100,7 @@ class HomeScreenTest {
             originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
             contentDescription = "작품 이미지: 사진 1",
         )
-        setHomeContent(
+        setTodayContent(
             uiState = contentUiState(
                 photos = photos(1) + differentlyProportionedPhoto,
             ),
@@ -129,40 +129,40 @@ class HomeScreenTest {
 
     @Test
     fun genericErrorRefreshButtonIsAccessibleAndDispatchesRetry() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
-            uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Error(HomeInitialError.Generic),
+        val actions = mutableListOf<TodayUiAction>()
+        setTodayContent(
+            uiState = TodayUiState(
+                contentStatus = TodayContentStatus.Error(TodayInitialError.Generic),
             ),
             onAction = actions::add,
         )
 
         composeRule
-            .onNodeWithContentDescription(HOME_REFRESH_CONTENT_DESCRIPTION)
+            .onNodeWithContentDescription(TODAY_REFRESH_CONTENT_DESCRIPTION)
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText("홈을 불러오지 못했어요").assertIsDisplayed()
 
-        assertEquals(listOf(HomeUiAction.RetryClicked), actions)
+        assertEquals(listOf(TodayUiAction.RetryClicked), actions)
     }
 
     @Test
     fun eachInitialErrorDisplaysItsApprovedMessage() {
         val cases = listOf(
-            HomeInitialError.TopicNotFound to "오늘의 주제가 아직 준비되지 않았어요",
-            HomeInitialError.Unauthorized to "로그인 정보를 확인할 수 없어요",
-            HomeInitialError.Network to "네트워크 연결을 확인해 주세요",
-            HomeInitialError.InvalidResponse to "홈 정보를 불러오지 못했어요",
-            HomeInitialError.Client to "요청을 처리하지 못했어요",
-            HomeInitialError.Server to "서버에 잠시 문제가 생겼어요",
-            HomeInitialError.Generic to "홈을 불러오지 못했어요",
+            TodayInitialError.TopicNotFound to "오늘의 주제가 아직 준비되지 않았어요",
+            TodayInitialError.Unauthorized to "로그인 정보를 확인할 수 없어요",
+            TodayInitialError.Network to "네트워크 연결을 확인해 주세요",
+            TodayInitialError.InvalidResponse to "홈 정보를 불러오지 못했어요",
+            TodayInitialError.Client to "요청을 처리하지 못했어요",
+            TodayInitialError.Server to "서버에 잠시 문제가 생겼어요",
+            TodayInitialError.Generic to "홈을 불러오지 못했어요",
         )
         var uiState by mutableStateOf(
-            HomeUiState(contentStatus = HomeContentStatus.Error(cases.first().first)),
+            TodayUiState(contentStatus = TodayContentStatus.Error(cases.first().first)),
         )
         composeRule.setContent {
             ChalkakTheme {
-                HomeScreen(
+                TodayScreen(
                     uiState = uiState,
                     onAction = {},
                 )
@@ -171,7 +171,7 @@ class HomeScreenTest {
 
         cases.forEach { (error, message) ->
             composeRule.runOnIdle {
-                uiState = HomeUiState(contentStatus = HomeContentStatus.Error(error))
+                uiState = TodayUiState(contentStatus = TodayContentStatus.Error(error))
             }
             composeRule.onNodeWithText(message).assertIsDisplayed()
         }
@@ -179,8 +179,8 @@ class HomeScreenTest {
 
     @Test
     fun pullToRefreshDispatchesRefreshAndBottomItemsDispatchSelection() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
+        val actions = mutableListOf<TodayUiAction>()
+        setTodayContent(
             uiState = contentUiState(photos = photos(12)),
             onAction = actions::add,
         )
@@ -192,30 +192,30 @@ class HomeScreenTest {
                 durationMillis = 600,
             )
         }
-        composeRule.waitUntil { HomeUiAction.RefreshRequested in actions }
+        composeRule.waitUntil { TodayUiAction.RefreshRequested in actions }
 
         composeRule.onNodeWithText("오늘").performClick()
         composeRule.onNodeWithText("전시").performClick()
 
-        assertEquals(1, actions.count { it == HomeUiAction.RefreshRequested })
+        assertEquals(1, actions.count { it == TodayUiAction.RefreshRequested })
         assertEquals(
             1,
             actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
+                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
             },
         )
         assertEquals(
             1,
             actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY)
+                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY)
             },
         )
     }
 
     @Test
     fun homeReselectionScrollsToTopAndDispatchesSelection() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
+        val actions = mutableListOf<TodayUiAction>()
+        setTodayContent(
             uiState = contentUiState(photos = photos(20)),
             onAction = actions::add,
         )
@@ -229,21 +229,21 @@ class HomeScreenTest {
         assertEquals(
             1,
             actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
+                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
             },
         )
     }
 
     @Test
-    fun returningToHomePreservesSavedListPosition() {
-        var isHomeVisible by mutableStateOf(true)
+    fun returningToTodayPreservesSavedListPosition() {
+        var isTodayVisible by mutableStateOf(true)
         val uiState = contentUiState(photos = photos(20))
         composeRule.setContent {
             val stateHolder = rememberSaveableStateHolder()
             ChalkakTheme {
-                if (isHomeVisible) {
-                    stateHolder.SaveableStateProvider(HOME_STATE_KEY) {
-                        HomeScreen(
+                if (isTodayVisible) {
+                    stateHolder.SaveableStateProvider(TODAY_STATE_KEY) {
+                        TodayScreen(
                             uiState = uiState,
                             onAction = {},
                         )
@@ -255,16 +255,16 @@ class HomeScreenTest {
         composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
 
-        composeRule.runOnIdle { isHomeVisible = false }
-        composeRule.runOnIdle { isHomeVisible = true }
+        composeRule.runOnIdle { isTodayVisible = false }
+        composeRule.runOnIdle { isTodayVisible = true }
 
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
     }
 
     @Test
     fun emptyFeedBlocksChromeCollapseAndStillAllowsPullToRefresh() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
+        val actions = mutableListOf<TodayUiAction>()
+        setTodayContent(
             uiState = contentUiState(photos = emptyList()),
             onAction = actions::add,
         )
@@ -303,22 +303,22 @@ class HomeScreenTest {
                 durationMillis = 600,
             )
         }
-        composeRule.waitUntil { HomeUiAction.RefreshRequested in actions }
+        composeRule.waitUntil { TodayUiAction.RefreshRequested in actions }
 
-        assertEquals(1, actions.count { it == HomeUiAction.RefreshRequested })
+        assertEquals(1, actions.count { it == TodayUiAction.RefreshRequested })
     }
 
     @Test
     fun pageFailureHasNoRetryRowOrSnackbar() {
         val repository = PageFailurePostRepository()
-        val viewModel = HomeViewModel(
+        val viewModel = TodayViewModel(
             repository = repository,
             sessionState = MutableStateFlow(UserSessionState.Authenticated("user-id")),
             dateProvider = { LocalDate.of(2026, 8, 28) },
         )
         composeRule.setContent {
             ChalkakTheme {
-                HomeRoute(
+                TodayRoute(
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
                     onOpenNotifications = {},
@@ -329,17 +329,17 @@ class HomeScreenTest {
 
         composeRule.onNode(hasScrollAction()).performScrollToIndex(19)
         composeRule.waitUntil { repository.pageRequestCount == 1 }
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
 
         repository.pageResult.complete(HomeResult.Failure(HomeFailure.Network))
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(TODAY_NEXT_LOADING_TEST_TAG).assertDoesNotExist()
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 19").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription(HOME_REFRESH_CONTENT_DESCRIPTION).assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(TODAY_REFRESH_CONTENT_DESCRIPTION).assertCountEquals(0)
         composeRule.onAllNodesWithText(GUEST_LIKE_MESSAGE).assertCountEquals(0)
         composeRule.onAllNodesWithText("네트워크 연결을 확인해 주세요").assertCountEquals(0)
-        composeRule.onAllNodesWithText(HOME_ERROR_MESSAGE).assertCountEquals(0)
+        composeRule.onAllNodesWithText(TODAY_ERROR_MESSAGE).assertCountEquals(0)
     }
 
     @Test
@@ -347,14 +347,14 @@ class HomeScreenTest {
         val repository = GuestPostRepository()
         var openPhotoUploadCount = 0
         var navigateToBottomBarCount = 0
-        val viewModel = HomeViewModel(
+        val viewModel = TodayViewModel(
             repository = repository,
             sessionState = MutableStateFlow(UserSessionState.Guest),
             dateProvider = { LocalDate.of(2026, 8, 28) },
         )
         composeRule.setContent {
             ChalkakTheme {
-                HomeRoute(
+                TodayRoute(
                     onOpenPhotoUpload = { openPhotoUploadCount++ },
                     onNavigateToBottomBar = { navigateToBottomBarCount++ },
                     onOpenNotifications = {},
@@ -380,10 +380,10 @@ class HomeScreenTest {
     @Test
     fun endThresholdEmitsOnceUntilListLeavesAndReenters() {
         val thresholdEvents = mutableListOf<Boolean>()
-        setHomeContent(
+        setTodayContent(
             uiState = contentUiState(photos = photos(20)),
             onAction = { action ->
-                if (action is HomeUiAction.EndThresholdChanged) {
+                if (action is TodayUiAction.EndThresholdChanged) {
                     thresholdEvents += action.isReached
                 }
             },
@@ -400,13 +400,13 @@ class HomeScreenTest {
         composeRule.waitUntil { thresholdEvents.count { it } == 2 }
     }
 
-    private fun setHomeContent(
-        uiState: HomeUiState,
-        onAction: (HomeUiAction) -> Unit = {},
+    private fun setTodayContent(
+        uiState: TodayUiState,
+        onAction: (TodayUiAction) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
-                HomeScreen(
+                TodayScreen(
                     uiState = uiState,
                     onAction = onAction,
                 )
@@ -415,13 +415,13 @@ class HomeScreenTest {
     }
 }
 
-private const val HOME_STATE_KEY = "home"
+private const val TODAY_STATE_KEY = "home"
 
 private fun contentUiState(
     photos: List<Post> = photos(1),
     isLoadingNext: Boolean = false,
-) = HomeUiState(
-    contentStatus = HomeContentStatus.Content,
+) = TodayUiState(
+    contentStatus = TodayContentStatus.Content,
     topicDate = LocalDate.of(2026, 8, 28),
     topic = "바다",
     photos = photos,

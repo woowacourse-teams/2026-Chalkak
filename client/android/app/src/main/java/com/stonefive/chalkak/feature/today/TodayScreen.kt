@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -54,27 +54,27 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.feature.home.component.HomePhotoList
-import com.stonefive.chalkak.feature.home.component.HomeTopBar
-import com.stonefive.chalkak.feature.home.component.HomeTopic
-import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import com.stonefive.chalkak.feature.today.component.TodayPhotoList
+import com.stonefive.chalkak.feature.today.component.TodayTopBar
+import com.stonefive.chalkak.feature.today.component.TodayTopic
+import com.stonefive.chalkak.feature.today.component.todayBottomDivider
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
-const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
-const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
-const val HOME_LOADING_TEST_TAG = "home-loading"
-const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
-const val HOME_EMPTY_TEST_TAG = "home-empty"
-const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
+const val TODAY_ERROR_MESSAGE = "홈을 불러오지 못했어요"
+const val TODAY_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
+const val TODAY_LOADING_TEST_TAG = "home-loading"
+const val TODAY_INITIAL_ERROR_TEST_TAG = "home-initial-error"
+const val TODAY_EMPTY_TEST_TAG = "home-empty"
+const val TODAY_NEXT_LOADING_TEST_TAG = "home-next-loading"
 
 @Composable
-fun HomeRoute(
+fun TodayRoute(
     onOpenPhotoUpload: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenNotifications: () -> Unit,
-    viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
+    viewModel: TodayViewModel = viewModel(factory = TodayViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
@@ -82,13 +82,13 @@ fun HomeRoute(
     LaunchedEffect(viewModel) {
         viewModel.uiEvent.collect { event ->
             when (event) {
-                HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
-                is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
+                TodayUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
+                is TodayUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
             }
         }
     }
 
-    HomeScreen(
+    TodayScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
         onNotificationClick = onOpenNotifications,
@@ -96,9 +96,9 @@ fun HomeRoute(
 }
 
 @Composable
-fun HomeScreen(
-    uiState: HomeUiState,
-    onAction: (HomeUiAction) -> Unit,
+fun TodayScreen(
+    uiState: TodayUiState,
+    onAction: (TodayUiAction) -> Unit,
     modifier: Modifier = Modifier,
     onNotificationClick: () -> Unit = {},
 ) {
@@ -107,11 +107,11 @@ fun HomeScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            if (uiState.contentStatus != HomeContentStatus.Content) {
+            if (uiState.contentStatus != TodayContentStatus.Content) {
                 ChalkakBottomBar(
                     selectedItem = ChalkakBottomBarItem.TODAY,
-                    onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                    onAddClick = { onAction(HomeUiAction.AddClicked) },
+                    onItemSelected = { onAction(TodayUiAction.BottomBarSelected(it)) },
+                    onAddClick = { onAction(TodayUiAction.AddClicked) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -123,21 +123,21 @@ fun HomeScreen(
                 .padding(innerPadding),
         ) {
             when (uiState.contentStatus) {
-                HomeContentStatus.Loading -> HomeInitialStatus(
+                TodayContentStatus.Loading -> TodayInitialStatus(
                     status = uiState.contentStatus,
-                    onRetryClick = { onAction(HomeUiAction.RetryClicked) },
+                    onRetryClick = { onAction(TodayUiAction.RetryClicked) },
                     onNotificationClick = onNotificationClick,
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                is HomeContentStatus.Error -> HomeInitialStatus(
+                is TodayContentStatus.Error -> TodayInitialStatus(
                     status = uiState.contentStatus,
-                    onRetryClick = { onAction(HomeUiAction.RetryClicked) },
+                    onRetryClick = { onAction(TodayUiAction.RetryClicked) },
                     onNotificationClick = onNotificationClick,
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                HomeContentStatus.Content -> HomeContent(
+                TodayContentStatus.Content -> TodayContent(
                     uiState = uiState,
                     onAction = onAction,
                     onNotificationClick = onNotificationClick,
@@ -149,21 +149,21 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeInitialStatus(
-    status: HomeContentStatus,
+private fun TodayInitialStatus(
+    status: TodayContentStatus,
     onRetryClick: () -> Unit,
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val testTag = when (status) {
-        HomeContentStatus.Loading -> HOME_LOADING_TEST_TAG
-        is HomeContentStatus.Error -> HOME_INITIAL_ERROR_TEST_TAG
-        HomeContentStatus.Content -> error("Content is rendered by HomeContent")
+        TodayContentStatus.Loading -> TODAY_LOADING_TEST_TAG
+        is TodayContentStatus.Error -> TODAY_INITIAL_ERROR_TEST_TAG
+        TodayContentStatus.Content -> error("Content is rendered by TodayContent")
     }
     Column(modifier = modifier.statusBarsPadding()) {
-        HomeTopBar(
+        TodayTopBar(
             onNotificationClick = onNotificationClick,
-            modifier = Modifier.fillMaxWidth().homeBottomDivider(),
+            modifier = Modifier.fillMaxWidth().todayBottomDivider(),
         )
         Box(
             modifier = Modifier
@@ -173,11 +173,11 @@ private fun HomeInitialStatus(
             contentAlignment = Alignment.Center,
         ) {
             when (status) {
-                HomeContentStatus.Loading -> {
+                TodayContentStatus.Loading -> {
                     CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
                 }
 
-                is HomeContentStatus.Error -> {
+                is TodayContentStatus.Error -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = status.reason.message,
@@ -188,22 +188,22 @@ private fun HomeInitialStatus(
                         ChalkakFilledIconButton(onClick = onRetryClick) {
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
-                                contentDescription = HOME_REFRESH_CONTENT_DESCRIPTION,
+                                contentDescription = TODAY_REFRESH_CONTENT_DESCRIPTION,
                             )
                         }
                     }
                 }
 
-                HomeContentStatus.Content -> Unit
+                TodayContentStatus.Content -> Unit
             }
         }
     }
 }
 
 @Composable
-private fun HomeContent(
-    uiState: HomeUiState,
-    onAction: (HomeUiAction) -> Unit,
+private fun TodayContent(
+    uiState: TodayUiState,
+    onAction: (TodayUiAction) -> Unit,
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -214,9 +214,9 @@ private fun HomeContent(
     val density = LocalDensity.current
     val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
     val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
-        HomeTopBarHeight.toPx()
+        TodayTopBarHeight.toPx()
     }
-    val scrollState = rememberHomeScrollBehaviorState(
+    val scrollState = rememberTodayScrollBehaviorState(
         photoListState = photoListState,
         interactionScope = interactionScope,
         scrollToTopToggleThresholdPx = with(density) {
@@ -258,7 +258,7 @@ private fun HomeContent(
     ) {
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
-            onRefresh = { onAction(HomeUiAction.RefreshRequested) },
+            onRefresh = { onAction(TodayUiAction.RefreshRequested) },
             modifier = Modifier.fillMaxSize(),
             state = pullToRefreshState,
             indicator = {
@@ -271,14 +271,14 @@ private fun HomeContent(
                 )
             },
         ) {
-            HomePhotoList(
+            TodayPhotoList(
                 photos = uiState.photos,
                 contentRevision = uiState.contentRevision,
                 likedPhotoIds = uiState.likedPhotoIds,
                 isLoadingNext = uiState.isLoadingNext,
                 areLikesEnabled = uiState.areLikesEnabled,
-                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-                onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
+                onLikeClick = { onAction(TodayUiAction.LikeClicked(it)) },
+                onEndThresholdChanged = { onAction(TodayUiAction.EndThresholdChanged(it)) },
                 modifier = Modifier.fillMaxSize(),
                 state = photoListState,
                 topContentPadding = photoListTopPadding,
@@ -286,13 +286,13 @@ private fun HomeContent(
             if (uiState.photos.isEmpty()) {
                 ChalkakEmptyPostContent(
                     modifier = Modifier.align(Alignment.Center),
-                    testTag = HOME_EMPTY_TEST_TAG,
+                    testTag = TODAY_EMPTY_TEST_TAG,
                 )
             }
         }
         Column(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(HomeTopBarHeight))
+            Spacer(modifier = Modifier.height(TodayTopBarHeight))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -305,7 +305,7 @@ private fun HomeContent(
                         .background(ChalkakBackground)
                         .onSizeChanged { scrollState.topAreaHeight = it.height },
                 ) {
-                    HomeTopic(
+                    TodayTopic(
                         topicDate = uiState.topicDate,
                         topic = uiState.topic,
                         modifier = Modifier.fillMaxWidth(),
@@ -324,13 +324,13 @@ private fun HomeContent(
                     .fillMaxWidth()
                     .windowInsetsTopHeight(WindowInsets.statusBars),
             )
-            HomeTopBar(
+            TodayTopBar(
                 onNotificationClick = onNotificationClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(
                         if (scrollState.isTopAreaVisible) {
-                            Modifier.homeBottomDivider()
+                            Modifier.todayBottomDivider()
                         } else {
                             Modifier
                         },
@@ -359,9 +359,9 @@ private fun HomeContent(
                 if (item == ChalkakBottomBarItem.TODAY) {
                     localResetSignal++
                 }
-                onAction(HomeUiAction.BottomBarSelected(item))
+                onAction(TodayUiAction.BottomBarSelected(item))
             },
-            onAddClick = { onAction(HomeUiAction.AddClicked) },
+            onAddClick = { onAction(TodayUiAction.AddClicked) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -371,7 +371,7 @@ private fun HomeContent(
     }
 }
 
-private val HomeTopBarHeight = 55.dp
+private val TodayTopBarHeight = 55.dp
 
 @Preview(
     showBackground = true,
@@ -379,11 +379,11 @@ private val HomeTopBarHeight = 55.dp
     heightDp = 874,
 )
 @Composable
-private fun HomeScreenPreview() {
+private fun TodayScreenPreview() {
     ChalkakTheme {
-        HomeScreen(
-            uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Content,
+        TodayScreen(
+            uiState = TodayUiState(
+                contentStatus = TodayContentStatus.Content,
                 topicDate = LocalDate.of(2026, 8, 3),
                 topic = "하늘하늘하늘",
                 photos = listOf(
@@ -416,13 +416,13 @@ private fun HomeScreenPreview() {
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
-val HomeInitialError.message: String
+val TodayInitialError.message: String
     get() = when (this) {
-        HomeInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
-        HomeInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
-        HomeInitialError.Network -> "네트워크 연결을 확인해 주세요"
-        HomeInitialError.InvalidResponse -> "홈 정보를 불러오지 못했어요"
-        HomeInitialError.Client -> "요청을 처리하지 못했어요"
-        HomeInitialError.Server -> "서버에 잠시 문제가 생겼어요"
-        HomeInitialError.Generic -> HOME_ERROR_MESSAGE
+        TodayInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
+        TodayInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
+        TodayInitialError.Network -> "네트워크 연결을 확인해 주세요"
+        TodayInitialError.InvalidResponse -> "홈 정보를 불러오지 못했어요"
+        TodayInitialError.Client -> "요청을 처리하지 못했어요"
+        TodayInitialError.Server -> "서버에 잠시 문제가 생겼어요"
+        TodayInitialError.Generic -> TODAY_ERROR_MESSAGE
     }

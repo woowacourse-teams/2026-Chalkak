@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
@@ -29,7 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-class HomeViewModelTest {
+class TodayViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
@@ -46,19 +46,19 @@ class HomeViewModelTest {
             ),
             repository.homeQueries.single(),
         )
-        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
+        assertEquals(TodayContentStatus.Content, viewModel.uiState.value.contentStatus)
     }
 
     @Test
     fun `최초 실패 원인을 구분된 오류 상태로 표현한다`() = runTest {
         val cases = listOf(
-            HomeFailure.TopicNotFound to HomeInitialError.TopicNotFound,
-            HomeFailure.Unauthorized to HomeInitialError.Unauthorized,
-            HomeFailure.Network to HomeInitialError.Network,
-            HomeFailure.InvalidResponse to HomeInitialError.InvalidResponse,
-            HomeFailure.Http(400) to HomeInitialError.Client,
-            HomeFailure.Http(503) to HomeInitialError.Server,
-            HomeFailure.Http(302) to HomeInitialError.Generic,
+            HomeFailure.TopicNotFound to TodayInitialError.TopicNotFound,
+            HomeFailure.Unauthorized to TodayInitialError.Unauthorized,
+            HomeFailure.Network to TodayInitialError.Network,
+            HomeFailure.InvalidResponse to TodayInitialError.InvalidResponse,
+            HomeFailure.Http(400) to TodayInitialError.Client,
+            HomeFailure.Http(503) to TodayInitialError.Server,
+            HomeFailure.Http(302) to TodayInitialError.Generic,
         )
 
         cases.forEach { (failure, expected) ->
@@ -67,7 +67,7 @@ class HomeViewModelTest {
             )
 
             assertEquals(
-                HomeContentStatus.Error(expected),
+                TodayContentStatus.Error(expected),
                 homeViewModel(repository)
                     .uiState.value.contentStatus,
             )
@@ -82,7 +82,7 @@ class HomeViewModelTest {
 
         val state = homeViewModel(repository).uiState.value
 
-        assertEquals(HomeContentStatus.Content, state.contentStatus)
+        assertEquals(TodayContentStatus.Content, state.contentStatus)
         assertTrue(state.photos.isEmpty())
     }
 
@@ -120,7 +120,7 @@ class HomeViewModelTest {
         assertEquals(canonicalDate, viewModel.uiState.value.topicDate)
 
         currentDate = LocalDate.of(2026, 8, 30)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
         assertEquals(
             canonicalDate,
             repository.pageQueries
@@ -128,7 +128,7 @@ class HomeViewModelTest {
                 .date,
         )
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
         assertEquals(
             LocalDate.of(2026, 8, 30),
             repository.homeQueries
@@ -158,7 +158,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
 
         assertEquals("새 주제", viewModel.uiState.value.topic)
         assertEquals(LocalDate.of(2026, 8, 29), viewModel.uiState.value.topicDate)
@@ -182,7 +182,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RetryClicked)
+        viewModel.onAction(TodayUiAction.RetryClicked)
 
         assertEquals(2, repository.homeQueries.size)
         assertTrue(
@@ -190,7 +190,7 @@ class HomeViewModelTest {
                 it.sort == PostSort.LATEST && it.page == 1 && it.randomSeed == null
             },
         )
-        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
+        assertEquals(TodayContentStatus.Content, viewModel.uiState.value.contentStatus)
     }
 
     @Test
@@ -206,8 +206,8 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
 
         assertEquals(
             listOf(PostSort.LATEST, PostSort.RANDOM, PostSort.RANDOM),
@@ -227,7 +227,7 @@ class HomeViewModelTest {
         val viewModel = homeViewModel(repository)
         val before = viewModel.uiState.value
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
 
         assertEquals("기존 주제", viewModel.uiState.value.topic)
         assertEquals(before.photos, viewModel.uiState.value.photos)
@@ -245,12 +245,12 @@ class HomeViewModelTest {
                 .randomSeed,
         )
 
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+        repository.completeToday(0, HomeResult.Failure(HomeFailure.Network))
 
         val state = viewModel.uiState.value
         assertEquals(before.copy(isRefreshing = false), state.copy(pendingMessage = null))
         assertEquals(
-            HomeInitialError.Network.message,
+            TodayInitialError.Network.message,
             (state.pendingMessage as UiMessage.Toast).text,
         )
     }
@@ -268,8 +268,8 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
 
         val randomQueries = repository.homeQueries.filter { it.sort == PostSort.RANDOM }
         assertEquals(2, randomQueries.size)
@@ -281,8 +281,8 @@ class HomeViewModelTest {
         val repository = RecordingPostRepository()
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertEquals(1, repository.pageQueries.size)
         assertEquals(
@@ -322,8 +322,8 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertEquals(
             listOf(PHOTO_ID, "photo-2"),
@@ -346,7 +346,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertTrue(repository.pageQueries.isEmpty())
     }
@@ -363,8 +363,8 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertTrue(repository.pageQueries.isEmpty())
         assertFalse(viewModel.uiState.value.hasNext)
@@ -394,10 +394,10 @@ class HomeViewModelTest {
             ),
         )
         val viewModel = homeViewModel(repository)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertEquals(1, repository.pageQueries.size)
         assertEquals(
@@ -409,8 +409,8 @@ class HomeViewModelTest {
         assertEquals("seed-1", viewModel.uiState.value.randomSeed)
         assertFalse(viewModel.uiState.value.isLoadingNext)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(false))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
 
         assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
         assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
@@ -421,16 +421,16 @@ class HomeViewModelTest {
         val repository = ControlledPostRepository(autoInitial = homeContent(topic = "이전 주제"))
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
         assertTrue(viewModel.uiState.value.isLoadingNext)
 
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.RefreshRequested)
         assertFalse(viewModel.uiState.value.isLoadingNext)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(false))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
         assertEquals(1, repository.pageQueries.size)
 
-        repository.completeHome(
+        repository.completeToday(
             0,
             HomeResult.Success(
                 homeContent(
@@ -457,20 +457,20 @@ class HomeViewModelTest {
         val viewModel = homeViewModel(repository)
         val before = viewModel.uiState.value
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        repository.completeToday(0, HomeResult.Failure(HomeFailure.Network))
 
         val state = viewModel.uiState.value
         assertEquals(before, state.copy(pendingMessage = null))
         assertEquals(
-            HomeInitialError.Network.message,
+            TodayInitialError.Network.message,
             (state.pendingMessage as UiMessage.Toast).text,
         )
         assertFalse(state.isLoadingNext)
 
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(false))
+        viewModel.onAction(TodayUiAction.EndThresholdChanged(true))
         assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
 
         repository.completePage(1, HomeResult.Success(postPage(photos = listOf(post("retried-photo")))))
@@ -491,7 +491,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
 
         assertEquals(PHOTO_ID to true, repository.likeRequests.single())
         assertEquals(
@@ -517,7 +517,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
 
         assertEquals(
             listOf(24, 10),
@@ -535,8 +535,8 @@ class HomeViewModelTest {
         val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
         repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
         repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
 
@@ -551,11 +551,11 @@ class HomeViewModelTest {
                 .isEmpty(),
         )
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
         assertEquals(1, repository.homeQueries.size)
         repository.completeLike(2, HomeResult.Failure(HomeFailure.Network))
-        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 40, liked = true)))
+        repository.completeToday(0, HomeResult.Success(homeContent(likeCount = 40, liked = true)))
 
         assertEquals(
             40,
@@ -571,9 +571,9 @@ class HomeViewModelTest {
         val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
 
         assertTrue(viewModel.uiState.value.isRefreshing)
         assertFalse(viewModel.uiState.value.areLikesEnabled)
@@ -591,7 +591,7 @@ class HomeViewModelTest {
         )
         assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
 
-        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 31, liked = true)))
+        repository.completeToday(0, HomeResult.Success(homeContent(likeCount = 31, liked = true)))
         assertEquals(
             31,
             viewModel.uiState.value.photos
@@ -606,8 +606,8 @@ class HomeViewModelTest {
         val repository = ControlledPostRepository(autoInitial = homeContent())
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.RefreshRequested)
         assertEquals(
             25,
             viewModel.uiState.value.photos
@@ -629,7 +629,7 @@ class HomeViewModelTest {
         )
         assertEquals(2, repository.homeQueries.size)
 
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
+        repository.completeToday(0, HomeResult.Failure(HomeFailure.Network))
         assertEquals(
             24,
             viewModel.uiState.value.photos
@@ -674,7 +674,7 @@ class HomeViewModelTest {
         )
 
         assertTrue(uncaught.single() is IllegalStateException)
-        assertEquals(HomeContentStatus.Loading, viewModel.uiState.value.contentStatus)
+        assertEquals(TodayContentStatus.Loading, viewModel.uiState.value.contentStatus)
     }
 
     @Test
@@ -686,7 +686,7 @@ class HomeViewModelTest {
         )
         val before = viewModel.uiState.value
 
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
+        viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
 
         assertEquals(before.photos, viewModel.uiState.value.photos)
         assertEquals(before.likedPhotoIds, viewModel.uiState.value.likedPhotoIds)
@@ -709,7 +709,7 @@ class HomeViewModelTest {
         )
         val viewModel = homeViewModel(repository)
 
-        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
+        viewModel.onAction(TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
         assertEquals(
             PostSort.RANDOM,
             repository.homeQueries
@@ -718,14 +718,14 @@ class HomeViewModelTest {
         )
         assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
 
-        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
+        viewModel.onAction(TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
         assertEquals(
-            HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
+            TodayUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
             viewModel.uiEvent.first(),
         )
 
-        viewModel.onAction(HomeUiAction.AddClicked)
-        assertEquals(HomeUiEvent.OpenPhotoUpload, viewModel.uiEvent.first())
+        viewModel.onAction(TodayUiAction.AddClicked)
+        assertEquals(TodayUiEvent.OpenPhotoUpload, viewModel.uiEvent.first())
     }
 }
 
@@ -737,7 +737,7 @@ private fun homeViewModel(
     sessionState: UserSessionState = UserSessionState.Authenticated("user-id"),
     dateProvider: () -> LocalDate = { TEST_DATE },
     launchContext: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
-) = HomeViewModel(
+) = TodayViewModel(
     repository = repository,
     sessionState = MutableStateFlow(sessionState),
     dateProvider = dateProvider,
@@ -878,7 +878,7 @@ private class ControlledPostRepository(autoInitial: PostContent? = null) : PostR
             .await()
     }
 
-    fun completeHome(
+    fun completeToday(
         index: Int,
         result: HomeResult<PostContent>,
     ) {

@@ -40,7 +40,6 @@ import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
-import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
@@ -52,6 +51,7 @@ import com.stonefive.chalkak.feature.signature.OnboardingSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.OnboardingSignatureRoute
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.feature.terms.TermsRoute
+import com.stonefive.chalkak.feature.today.TodayRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateUiEvent
 import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateViewModel
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
@@ -284,7 +284,7 @@ fun ChalkakNavHost(
             }
 
             composable<Today> {
-                HomeRoute(
+                TodayRoute(
                     onOpenPhotoUpload = openPhotoUpload,
                     onNavigateToBottomBar = navigateToBottomBar,
                     onOpenNotifications = {

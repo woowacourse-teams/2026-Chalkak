@@ -1,12 +1,12 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import java.time.LocalDate
 
-data class HomeUiState(
-    val contentStatus: HomeContentStatus = HomeContentStatus.Loading,
+data class TodayUiState(
+    val contentStatus: TodayContentStatus = TodayContentStatus.Loading,
     val topicDate: LocalDate? = null,
     val topic: String = "",
     val photos: List<Post> = emptyList(),
@@ -22,15 +22,15 @@ data class HomeUiState(
     val pendingMessage: UiMessage? = null,
 )
 
-sealed interface HomeContentStatus {
-    data object Loading : HomeContentStatus
+sealed interface TodayContentStatus {
+    data object Loading : TodayContentStatus
 
-    data class Error(val reason: HomeInitialError) : HomeContentStatus
+    data class Error(val reason: TodayInitialError) : TodayContentStatus
 
-    data object Content : HomeContentStatus
+    data object Content : TodayContentStatus
 }
 
-enum class HomeInitialError {
+enum class TodayInitialError {
     TopicNotFound,
     Unauthorized,
     Network,

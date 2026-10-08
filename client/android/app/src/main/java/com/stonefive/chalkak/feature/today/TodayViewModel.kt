@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -34,16 +34,16 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
-class HomeViewModel(
+class TodayViewModel(
     private val repository: PostRepository,
     private val sessionState: StateFlow<UserSessionState>,
     private val dateProvider: () -> LocalDate,
     private val launchContext: CoroutineContext = EmptyCoroutineContext,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(TodayUiState())
+    val uiState: StateFlow<TodayUiState> = _uiState.asStateFlow()
 
-    private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
+    private val _uiEvent = Channel<TodayUiEvent>(Channel.BUFFERED)
     val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLoadGeneration = 0
@@ -58,28 +58,28 @@ class HomeViewModel(
     private var nextMessageId = 0L
 
     init {
-        loadHome()
+        loadToday()
     }
 
-    fun onAction(action: HomeUiAction) {
+    fun onAction(action: TodayUiAction) {
         when (action) {
-            HomeUiAction.AddClicked -> sendUiEvent(HomeUiEvent.OpenPhotoUpload)
+            TodayUiAction.AddClicked -> sendUiEvent(TodayUiEvent.OpenPhotoUpload)
 
-            HomeUiAction.RetryClicked -> loadHome()
+            TodayUiAction.RetryClicked -> loadToday()
 
-            HomeUiAction.RefreshRequested -> refreshHome()
+            TodayUiAction.RefreshRequested -> refreshToday()
 
-            is HomeUiAction.BottomBarSelected -> {
+            is TodayUiAction.BottomBarSelected -> {
                 if (action.item == ChalkakBottomBarItem.TODAY) {
-                    refreshHome()
+                    refreshToday()
                 } else {
-                    sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
+                    sendUiEvent(TodayUiEvent.NavigateToBottomBar(action.item))
                 }
             }
 
-            is HomeUiAction.EndThresholdChanged -> updateEndThreshold(action.isReached)
+            is TodayUiAction.EndThresholdChanged -> updateEndThreshold(action.isReached)
 
-            is HomeUiAction.LikeClicked -> updateLike(action.photoId)
+            is TodayUiAction.LikeClicked -> updateLike(action.photoId)
         }
     }
 
@@ -93,16 +93,16 @@ class HomeViewModel(
         }
     }
 
-    private fun loadHome() {
+    private fun loadToday() {
         requestFirstPage(
             requestedSort = _uiState.value.selectedSort,
             mode = FirstPageMode.Load,
         )
     }
 
-    private fun refreshHome() {
+    private fun refreshToday() {
         val previousState = _uiState.value
-        if (previousState.contentStatus == HomeContentStatus.Loading || previousState.isRefreshing) return
+        if (previousState.contentStatus == TodayContentStatus.Loading || previousState.isRefreshing) return
 
         requestFirstPage(
             requestedSort = PostSort.RANDOM,
@@ -117,7 +117,7 @@ class HomeViewModel(
         val requestedDate = dateProvider()
         val generation = ++latestLoadGeneration
         val preservesContent = mode == FirstPageMode.Refresh &&
-            _uiState.value.contentStatus == HomeContentStatus.Content
+            _uiState.value.contentStatus == TodayContentStatus.Content
 
         firstPageJob?.cancel()
         nextPageJob?.cancel()
@@ -134,8 +134,8 @@ class HomeViewModel(
                 )
             }
         } else {
-            _uiState.value = HomeUiState(
-                contentStatus = HomeContentStatus.Loading,
+            _uiState.value = TodayUiState(
+                contentStatus = TodayContentStatus.Loading,
                 selectedSort = requestedSort,
                 areLikesEnabled = false,
             )
@@ -175,8 +175,8 @@ class HomeViewModel(
                             )
                         }
                     } else {
-                        _uiState.value = HomeUiState(
-                            contentStatus = HomeContentStatus.Error(reason),
+                        _uiState.value = TodayUiState(
+                            contentStatus = TodayContentStatus.Error(reason),
                             selectedSort = requestedSort,
                         )
                     }
@@ -191,8 +191,8 @@ class HomeViewModel(
     ) {
         loadedDate = content.topicDate
         homeContentRevision++
-        _uiState.value = HomeUiState(
-            contentStatus = HomeContentStatus.Content,
+        _uiState.value = TodayUiState(
+            contentStatus = TodayContentStatus.Content,
             topicDate = content.topicDate,
             topic = content.topic,
             photos = content.photos,
@@ -229,7 +229,7 @@ class HomeViewModel(
         val state = _uiState.value
         val date = loadedDate ?: return
         if (
-            state.contentStatus != HomeContentStatus.Content ||
+            state.contentStatus != TodayContentStatus.Content ||
             isFirstPageRequestPending ||
             !state.hasNext ||
             state.isLoadingNext
@@ -393,23 +393,23 @@ class HomeViewModel(
         }
     }
 
-    private fun sendUiEvent(event: HomeUiEvent) {
+    private fun sendUiEvent(event: TodayUiEvent) {
         viewModelScope.launch { _uiEvent.send(event) }
     }
 
-    private fun HomeFailure.toInitialError(): HomeInitialError = when (this) {
-        HomeFailure.TopicNotFound -> HomeInitialError.TopicNotFound
+    private fun HomeFailure.toInitialError(): TodayInitialError = when (this) {
+        HomeFailure.TopicNotFound -> TodayInitialError.TopicNotFound
 
-        HomeFailure.Unauthorized -> HomeInitialError.Unauthorized
+        HomeFailure.Unauthorized -> TodayInitialError.Unauthorized
 
-        HomeFailure.Network -> HomeInitialError.Network
+        HomeFailure.Network -> TodayInitialError.Network
 
-        HomeFailure.InvalidResponse -> HomeInitialError.InvalidResponse
+        HomeFailure.InvalidResponse -> TodayInitialError.InvalidResponse
 
         is HomeFailure.Http -> when (statusCode) {
-            in 400..499 -> HomeInitialError.Client
-            in 500..599 -> HomeInitialError.Server
-            else -> HomeInitialError.Generic
+            in 400..499 -> TodayInitialError.Client
+            in 500..599 -> TodayInitialError.Server
+            else -> TodayInitialError.Generic
         }
     }
 
@@ -419,7 +419,7 @@ class HomeViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
-                HomeViewModel(
+                TodayViewModel(
                     repository = application.appContainer.postRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     dateProvider = { LocalDate.now(KST) },

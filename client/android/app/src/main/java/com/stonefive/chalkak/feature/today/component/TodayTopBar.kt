@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home.component
+package com.stonefive.chalkak.feature.today.component
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,13 +19,13 @@ import com.stonefive.chalkak.core.designsystem.component.logo.ChalkakLogo
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
-fun HomeTopBar(
+fun TodayTopBar(
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
-            .height(HomeTopBarHeight)
+            .height(TodayTopBarHeight)
             .padding(
                 start = ChalkakTheme.spacing.screenHorizontal,
                 end = ChalkakTheme.spacing.screenHorizontal,
@@ -50,12 +50,12 @@ fun HomeTopBar(
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
-private fun HomeTopBarPreview() {
+private fun TodayTopBarPreview() {
     ChalkakTheme {
-        HomeTopBar(onNotificationClick = {}, modifier = Modifier.fillMaxWidth())
+        TodayTopBar(onNotificationClick = {}, modifier = Modifier.fillMaxWidth())
     }
 }
 
-private val HomeTopBarHeight = 55.dp
+private val TodayTopBarHeight = 55.dp
 private val NotificationTouchTarget = 48.dp
 private val NotificationIconSize = 24.dp
