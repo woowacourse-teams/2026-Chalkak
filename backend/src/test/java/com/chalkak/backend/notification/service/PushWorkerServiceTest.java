@@ -291,14 +291,21 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 String.class, deviceId)).isEqualTo("updated-token");
     }
 
-    @Test
-    @DisplayName("내용·프로젝트 영구 오류는 기기를 지우지 않고 완료한다")
-    void process_permanentFailure_preservesDeviceAndCompletes() {
+    @ParameterizedTest
+    @ValueSource(strings = {"INVALID_ARGUMENT", "SENDER_ID_MISMATCH", "THIRD_PARTY_AUTH_ERROR"})
+    @DisplayName("메시지·프로젝트·인증 영구 오류는 기기와 토큰을 보존하고 작업을 완료한다")
+    void process_permanentFailure_preservesDeviceAndCompletes(String errorCode) {
         // Given
-        given(sender.send(any())).willReturn(DevicePushResult.permanentFailure("INVALID_ARGUMENT"));
-        // When & Then
-        assertThat(worker(NOW).process(message).retryable()).isFalse();
+        given(sender.send(any())).willReturn(DevicePushResult.permanentFailure(errorCode));
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
+        assertThat(jdbc.queryForObject("SELECT fcm_token FROM push_devices WHERE id=?",
+                String.class, deviceId)).isEqualTo("worker-token");
+        assertThat(jdbc.queryForObject("SELECT fcm_token_hash FROM push_devices WHERE id=?",
+                String.class, deviceId)).isEqualTo(new FcmToken("worker-token").getHash());
     }
 
     @Test

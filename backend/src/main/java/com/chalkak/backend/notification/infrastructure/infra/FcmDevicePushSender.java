@@ -97,7 +97,8 @@ public class FcmDevicePushSender implements DevicePushSender {
         if (isRetryable(exception)) {
             return DevicePushResult.retryable(errorCode, findRetryAfter(exception));
         }
-        // INVALID_ARGUMENT은 메시지 형식 오류도 포함하므로 기기 토큰을 삭제하지 않는다.
+        // INVALID_ARGUMENT은 메시지 형식 오류도 포함하며, 프로젝트·APNs 인증 오류도 토큰 무효를 뜻하지 않는다.
+        // 정상 기기를 잘못 삭제하지 않도록 UNREGISTERED만 삭제 대상으로 분류한다.
         return DevicePushResult.permanentFailure(errorCode);
     }
 
