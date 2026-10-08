@@ -134,7 +134,7 @@ public class SqsPushService {
         long seconds = Math.max(0, Math.min(remaining, result.retryAfter().toSeconds() + 1));
         sqsClient.changeMessageVisibility(request -> request.queueUrl(queueUrl)
                 .receiptHandle(message.receiptHandle())
-                .visibilityTimeout((int) Math.min(43200, seconds))
+                .visibilityTimeout((int) seconds)
                 .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                         .apiCallAttemptTimeout(Duration.ofSeconds(5))));
     }
