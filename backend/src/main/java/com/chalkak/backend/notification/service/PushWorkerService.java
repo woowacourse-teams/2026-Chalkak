@@ -14,16 +14,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@Service
 @Slf4j
 public class PushWorkerService {
     private final NotificationRepository notificationRepository;
     private final PushDeviceRepository deviceRepository;
     private final LoginSessionService loginSessionService;
+    private final DevicePushSender sender;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
 
@@ -31,17 +30,19 @@ public class PushWorkerService {
             NotificationRepository notificationRepository,
             PushDeviceRepository deviceRepository,
             LoginSessionService loginSessionService,
+            DevicePushSender sender,
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
         this.notificationRepository = notificationRepository;
         this.deviceRepository = deviceRepository;
         this.loginSessionService = loginSessionService;
+        this.sender = sender;
         this.clock = clock;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    public PushProcessingResult process(PushMessage message, DevicePushSender sender) {
+    public PushProcessingResult process(PushMessage message) {
         if (!isValidMessage(message) || !clock.instant().isBefore(message.expiresAt())) {
             logSkipped(message, null, "INVALID_OR_EXPIRED");
             return PushProcessingResult.completed();
@@ -52,7 +53,7 @@ public class PushWorkerService {
         boolean retryable = false;
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
-            DevicePushResult result = sendToDevice(message, deviceId, sender);
+            DevicePushResult result = sendToDevice(message, deviceId);
             accepted = accepted || result.isAccepted();
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
@@ -76,11 +77,10 @@ public class PushWorkerService {
 
     private DevicePushResult sendToDevice(
             PushMessage message,
-            UUID deviceId,
-            DevicePushSender sender
+            UUID deviceId
     ) {
         try {
-            return sendToCurrentDevice(message, deviceId, sender);
+            return sendToCurrentDevice(message, deviceId);
         } catch (RuntimeException exception) {
             logDeviceFailure(message, deviceId, "worker_device_failed", exception);
             return new DevicePushResult(DevicePushResult.Status.RETRYABLE,
@@ -90,8 +90,7 @@ public class PushWorkerService {
 
     private DevicePushResult sendToCurrentDevice(
             PushMessage message,
-            UUID deviceId,
-            DevicePushSender sender
+            UUID deviceId
     ) {
         DevicePushRequest request = findCurrentRequest(message, deviceId);
         if (request == null || !request.isSendableAt(clock.instant())) {

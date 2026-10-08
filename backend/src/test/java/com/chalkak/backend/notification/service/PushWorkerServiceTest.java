@@ -94,7 +94,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("현재 등록 기기로 보내며 최초 SQS 상태 반영이 실패한 대기 알림도 처리한다")
     void process_pendingNotification_sendsToCurrentDevice() {
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isFalse();
         verify(sender).send(any());
@@ -105,7 +105,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("발생 후 30분 직전만 발송하고 정각·이후에는 완료한다")
     void process_deadlineBoundary_stopsAtDeadline(long seconds) {
         // When
-        assertThat(worker(NOW.plusSeconds(seconds)).process(message, sender).retryable()).isFalse();
+        assertThat(worker(NOW.plusSeconds(seconds)).process(message).retryable()).isFalse();
         // Then
         if (seconds < 1800) {
             verify(sender).send(any());
@@ -139,7 +139,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         if (state.equals("missingPost"))
             jdbc.update("DELETE FROM posts");
         // When & Then
-        assertThat(worker(NOW).process(message, sender).retryable()).isFalse();
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
         verifyNoInteractions(sender);
     }
 
@@ -149,7 +149,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         jdbc.update("UPDATE users SET status='BANNED'");
         // When
-        worker(NOW).process(message, sender);
+        worker(NOW).process(message);
         // Then
         verify(sender).send(any());
     }
@@ -165,7 +165,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 new DevicePushResult(DevicePushResult.Status.RETRYABLE, "QUOTA",
                         Duration.ofSeconds(120)));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isTrue();
         assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
@@ -181,7 +181,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                         Duration.ofSeconds(60)),
                 new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO));
         // When & Then
-        assertThat(worker(NOW).process(message, sender).retryable()).isFalse();
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
         verify(sender, times(2)).send(any());
     }
 
@@ -195,7 +195,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                         Duration.ZERO))
                 .willThrow(new IllegalStateException("device processing failure"));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         verify(sender, times(2)).send(any());
@@ -211,7 +211,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 .willReturn(new DevicePushResult(DevicePushResult.Status.ACCEPTED, null,
                         Duration.ZERO));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         verify(sender, times(2)).send(any());
@@ -223,7 +223,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         given(sender.send(any())).willThrow(new IllegalStateException("device processing failure"));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isTrue();
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
@@ -240,7 +240,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 new DevicePushResult(DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED",
                         Duration.ZERO));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactlyInAnyOrder(deviceId, other);
@@ -255,7 +255,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         given(sender.send(any())).willReturn(new DevicePushResult(
                 DevicePushResult.Status.INVALID_TOKEN, "UNREGISTERED", Duration.ZERO));
         // When
-        PushProcessingResult result = worker(NOW).process(message, sender);
+        PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
@@ -274,7 +274,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             return new DevicePushResult(DevicePushResult.Status.ACCEPTED, null, Duration.ZERO);
         });
         // When
-        worker(NOW).process(message, sender);
+        worker(NOW).process(message);
         // Then
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(other);
     }
@@ -291,7 +291,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                     Duration.ZERO);
         });
         // When
-        worker(NOW).process(message, sender);
+        worker(NOW).process(message);
         // Then
         assertThat(jdbc.queryForObject("SELECT fcm_token FROM push_devices WHERE id=?",
                 String.class, deviceId)).isEqualTo("updated-token");
@@ -304,7 +304,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         given(sender.send(any())).willReturn(new DevicePushResult(
                 DevicePushResult.Status.PERMANENT_FAILURE, "INVALID_ARGUMENT", Duration.ZERO));
         // When & Then
-        assertThat(worker(NOW).process(message, sender).retryable()).isFalse();
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
     }
 
@@ -315,7 +315,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         PushMessage invalid = new PushMessage(UUID.randomUUID(), message.notificationId(), USER_ID,
                 message.type(), message.sourceType(), POST_ID, NOW, NOW.plusSeconds(3600));
         // When & Then
-        assertThat(worker(NOW).process(invalid, sender).retryable()).isFalse();
+        assertThat(worker(NOW).process(invalid).retryable()).isFalse();
         verifyNoInteractions(sender);
     }
 
@@ -328,14 +328,14 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 message.type(), message.sourceType(), POST_ID, NOW.plusSeconds(seconds),
                 message.expiresAt());
         // When
-        PushProcessingResult result = worker(NOW).process(invalid, sender);
+        PushProcessingResult result = worker(NOW).process(invalid);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         verifyNoInteractions(sender);
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, devices, sessions,
+        return new PushWorkerService(notifications, devices, sessions, sender,
                 Clock.fixed(now, ZoneOffset.UTC), manager);
     }
 

@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
-import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushProcessingResult;
 import com.chalkak.backend.notification.service.PushWorkerService;
@@ -52,7 +51,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-class SqsWorkerServiceTest {
+class SqsPushServiceTest {
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
     private final ObjectMapper mapper = JsonMapper.builder().build();
     private final List<String> operations = new CopyOnWriteArrayList<>();
@@ -63,7 +62,7 @@ class SqsWorkerServiceTest {
     private HttpServer server;
     private ExecutorService serverExecutor;
     private SqsClient client;
-    private SqsWorkerService worker;
+    private SqsPushService worker;
     private PushWorkerService service;
     private ScheduledFuture<?> future;
     private PushMessage push;
@@ -116,9 +115,9 @@ class SqsWorkerServiceTest {
                 .when(executor).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(),
                         any(TimeUnit.class));
         service = mock(PushWorkerService.class);
-        given(service.process(any(), any())).willReturn(PushProcessingResult.completed());
-        worker = new SqsWorkerService(client, endpoint + "/000000000000/test", mapper, service,
-                mock(DevicePushSender.class), Clock.fixed(NOW, ZoneOffset.UTC), executor);
+        given(service.process(any())).willReturn(PushProcessingResult.completed());
+        worker = new SqsPushService(client, endpoint + "/000000000000/test", mapper, service,
+                Clock.fixed(NOW, ZoneOffset.UTC), executor);
         push = new PushMessage(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 NotificationType.POST_APPROVED, NotificationSourceType.POST, UUID.randomUUID(), NOW,
                 NOW.plusSeconds(1800));
@@ -191,7 +190,7 @@ class SqsWorkerServiceTest {
     @DisplayName("처리 중에는 숨김 시간을 연장하고 일시 실패 후에는 연장을 멈춘다")
     void process_processingAndTransientFailure_extendsOnlyWhileProcessing() {
         // Given
-        given(service.process(any(), any())).willAnswer(call -> {
+        given(service.process(any())).willAnswer(call -> {
             heartbeatAction.get().run();
             return new PushProcessingResult(true, Duration.ZERO);
         });
@@ -212,7 +211,7 @@ class SqsWorkerServiceTest {
         holdVisibilityResponse = true;
         CountDownLatch deliveryCompleted = new CountDownLatch(1);
         FutureTask<Void> extension = new FutureTask<>(() -> heartbeatAction.get().run(), null);
-        given(service.process(any(), any())).willAnswer(call -> {
+        given(service.process(any())).willAnswer(call -> {
             Thread.ofPlatform().start(extension);
             assertThat(visibilityStarted.await(3, TimeUnit.SECONDS)).isTrue();
             deliveryCompleted.countDown();
@@ -258,7 +257,7 @@ class SqsWorkerServiceTest {
     @DisplayName("Retry-After가 있으면 삭제 없이 다음 전달을 지연한다")
     void process_retryAfter_changesVisibilityWithoutDeleting() {
         // Given
-        given(service.process(any(), any()))
+        given(service.process(any()))
                 .willReturn(new PushProcessingResult(true, Duration.ofSeconds(120)));
         // When
         worker.process(message);
@@ -271,7 +270,7 @@ class SqsWorkerServiceTest {
     @DisplayName("재시도 지연은 사건의 원래 기한을 넘기지 않는다")
     void process_delayBeyondDeadline_capsVisibilityAtDeadline() {
         // Given
-        given(service.process(any(), any()))
+        given(service.process(any()))
                 .willReturn(new PushProcessingResult(true, Duration.ofSeconds(3600)));
         // When
         worker.process(message);
@@ -283,7 +282,7 @@ class SqsWorkerServiceTest {
     @DisplayName("예상하지 못한 처리 오류는 삭제하지 않아 SQS 재전달에 맡긴다")
     void process_unexpectedFailure_keepsMessage() {
         // Given
-        given(service.process(any(), any())).willThrow(new IllegalStateException("test"));
+        given(service.process(any())).willThrow(new IllegalStateException("test"));
         // When
         worker.process(message);
         // Then

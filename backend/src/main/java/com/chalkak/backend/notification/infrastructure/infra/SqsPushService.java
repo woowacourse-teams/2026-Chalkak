@@ -1,6 +1,5 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
-import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushProcessingResult;
 import com.chalkak.backend.notification.service.PushWorkerService;
@@ -19,23 +18,21 @@ import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
-public class SqsWorkerService {
+public class SqsPushService {
     private static final Duration VISIBILITY_EXTENSION_INTERVAL = Duration.ofSeconds(40);
 
     private final SqsClient sqsClient;
     private final String queueUrl;
     private final ObjectMapper objectMapper;
     private final PushWorkerService pushWorkerService;
-    private final DevicePushSender sender;
     private final Clock clock;
     private final ScheduledExecutorService visibilityExtensionExecutor;
 
-    public SqsWorkerService(
+    public SqsPushService(
             SqsClient sqsClient,
             String queueUrl,
             ObjectMapper objectMapper,
             PushWorkerService pushWorkerService,
-            DevicePushSender sender,
             Clock clock,
             ScheduledExecutorService visibilityExtensionExecutor
     ) {
@@ -43,7 +40,6 @@ public class SqsWorkerService {
         this.queueUrl = queueUrl;
         this.objectMapper = objectMapper;
         this.pushWorkerService = pushWorkerService;
-        this.sender = sender;
         this.clock = clock;
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
     }
@@ -90,7 +86,7 @@ public class SqsWorkerService {
             return;
         }
         logReceived(message, pushMessage);
-        PushProcessingResult result = pushWorkerService.process(pushMessage, sender);
+        PushProcessingResult result = pushWorkerService.process(pushMessage);
         visibility.finishAttempt(() -> handleProcessingResult(message, pushMessage, result));
     }
 

@@ -1,10 +1,14 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.auth.service.LoginSessionService;
 import com.chalkak.backend.config.SchedulingConfig;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import com.google.firebase.FirebaseApp;
@@ -16,6 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
@@ -23,21 +29,24 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-class FcmPushConfigurationTest {
+class PushWorkerConfigurationTest {
     @Test
     @DisplayName("Worker가 꺼져 있으면 Firebase 키 없이도 앱 컨텍스트를 만들 수 있다")
     void configuration_workerDisabled_doesNotInitializeFirebase() {
         // When & Then
-        new ApplicationContextRunner().withUserConfiguration(FcmPushConfiguration.class)
+        new ApplicationContextRunner().withUserConfiguration(PushWorkerConfiguration.class)
                 .withPropertyValues("chalkak.notification.fcm.worker-enabled=false")
                 .run(context -> assertThat(context).hasNotFailed()
-                        .doesNotHaveBean(SqsWorkerService.class));
+                        .doesNotHaveBean(SqsPushService.class)
+                        .doesNotHaveBean(PushWorkerService.class)
+                        .doesNotHaveBean(DevicePushSender.class));
     }
 
     @ParameterizedTest
@@ -46,7 +55,7 @@ class FcmPushConfigurationTest {
     void configuration_workerEnabledWithoutCredentials_rejectsConfiguration(
             String projectId, String credentialsPath) {
         // When & Then
-        new ApplicationContextRunner().withUserConfiguration(FcmPushConfiguration.class)
+        new ApplicationContextRunner().withUserConfiguration(PushWorkerConfiguration.class)
                 .withPropertyValues("chalkak.notification.fcm.worker-enabled=true",
                         "chalkak.notification.fcm.project-id=" + projectId,
                         "chalkak.notification.fcm.credentials-path=" + credentialsPath)
@@ -57,6 +66,26 @@ class FcmPushConfigurationTest {
                             .hasRootCauseMessage(
                                     "PushWorker를 켜려면 Firebase 프로젝트와 서버 인증 파일 경로가 필요합니다.");
                 });
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "http://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
+            "https://example.com/000000000000/test",
+            "https://sqs.ap-northeast-2.amazonaws.com/123/test",
+            "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test.fifo"})
+    @DisplayName("Relay와 Worker는 같은 조건으로 잘못된 Standard 큐 URL을 거절한다")
+    void configuration_invalidQueueUrl_rejectsRelayAndWorker(String queueUrl) {
+        // Given
+        PushWorkerConfiguration configuration = new PushWorkerConfiguration("test", "test.json");
+        SqsPushProperties properties = new SqsPushProperties(false, queueUrl, "ap-northeast-2");
+        // When & Then
+        assertThatThrownBy(() -> new SqsPushProperties(true, queueUrl, "ap-northeast-2"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
+        assertThatThrownBy(() -> configuration.notificationWorkerSqsClient(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
     }
 
     @Test
@@ -75,9 +104,16 @@ class FcmPushConfigurationTest {
                 .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false,
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
                         "ap-northeast-2"))
-                .withBean(PushWorkerService.class, () -> mock(PushWorkerService.class))
+                .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
+                .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
+                .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
+                .withBean(PlatformTransactionManager.class,
+                        () -> mock(PlatformTransactionManager.class))
                 .run(context -> {
-                    assertThat(context).hasNotFailed().hasSingleBean(ThreadPoolTaskScheduler.class);
+                    assertThat(context).hasNotFailed().hasSingleBean(ThreadPoolTaskScheduler.class)
+                            .hasSingleBean(PushWorkerService.class)
+                            .hasSingleBean(SqsPushService.class)
+                            .hasSingleBean(DevicePushSender.class);
                     ScheduledExecutorService executor = context.getBean(
                             "notificationVisibilityExtensionExecutor",
                             ScheduledExecutorService.class);
@@ -93,7 +129,7 @@ class FcmPushConfigurationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    static class SchedulingTestConfiguration extends FcmPushConfiguration {
+    static class SchedulingTestConfiguration extends PushWorkerConfiguration {
         SchedulingTestConfiguration(
                 @Value("${chalkak.notification.fcm.project-id:}") String projectId,
                 @Value("${chalkak.notification.fcm.credentials-path:}") String credentialsPath) {

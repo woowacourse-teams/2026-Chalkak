@@ -1,5 +1,8 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.auth.service.LoginSessionService;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -18,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.StandardRetryStrategy;
@@ -26,11 +30,11 @@ import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "chalkak.notification.fcm", name = "worker-enabled", havingValue = "true")
-public class FcmPushConfiguration {
+public class PushWorkerConfiguration {
     private final String projectId;
     private final String credentialsPath;
 
-    public FcmPushConfiguration(
+    public PushWorkerConfiguration(
             @Value("${chalkak.notification.fcm.project-id:}") String projectId,
             @Value("${chalkak.notification.fcm.credentials-path:}") String credentialsPath) {
         if (projectId == null || projectId.isBlank()
@@ -71,10 +75,7 @@ public class FcmPushConfiguration {
 
     @Bean
     public SqsClient notificationWorkerSqsClient(SqsPushProperties properties) {
-        if (properties.queueUrl() == null || !properties.queueUrl().matches(
-                "https://sqs\\.[a-z0-9-]+\\.amazonaws\\.com/[0-9]{12}/[A-Za-z0-9_-]+")) {
-            throw new IllegalArgumentException("PushWorker를 켜려면 Standard SQS 큐 URL이 필요합니다.");
-        }
+        properties.validateQueueUrl();
         return SqsClient.builder().region(Region.of(properties.region()))
                 .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .overrideConfiguration(configuration -> configuration
@@ -84,6 +85,19 @@ public class FcmPushConfiguration {
                 .build();
     }
 
+    @Bean
+    public PushWorkerService pushWorkerService(
+            NotificationRepository notificationRepository,
+            PushDeviceRepository deviceRepository,
+            LoginSessionService loginSessionService,
+            DevicePushSender sender,
+            Clock clock,
+            PlatformTransactionManager transactionManager
+    ) {
+        return new PushWorkerService(notificationRepository, deviceRepository, loginSessionService,
+                sender, clock, transactionManager);
+    }
+
     // 자동 연장 전용 실행기가 애플리케이션 공용 스케줄러를 대체하지 않게 한다.
     @Bean(defaultCandidate = false, destroyMethod = "shutdownNow")
     public ScheduledExecutorService notificationVisibilityExtensionExecutor() {
@@ -91,17 +105,15 @@ public class FcmPushConfiguration {
     }
 
     @Bean
-    public SqsWorkerService sqsWorkerService(
+    public SqsPushService sqsPushService(
             @Qualifier("notificationWorkerSqsClient") SqsClient sqsClient,
             SqsPushProperties properties,
             ObjectMapper mapper,
             PushWorkerService service,
-            DevicePushSender sender,
             Clock clock,
             @Qualifier("notificationVisibilityExtensionExecutor") ScheduledExecutorService visibilityExtensionExecutor
     ) {
-        return new SqsWorkerService(sqsClient, properties.queueUrl(), mapper, service, sender,
-                clock,
+        return new SqsPushService(sqsClient, properties.queueUrl(), mapper, service, clock,
                 visibilityExtensionExecutor);
     }
 }
