@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.service.DevicePushRequest;
+import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushResult.Status;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.google.api.client.http.LowLevelHttpRequest;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -200,13 +202,21 @@ class FcmDevicePushSenderTest {
                 .isEqualTo(java.time.Duration.ofSeconds(seconds));
     }
 
-    @Test
-    @DisplayName("이미 만료된 푸시는 SDK에 요청하지 않는다")
-    void send_expiredRequest_skipsWithoutHttpRequest() {
+    @ParameterizedTest
+    @ValueSource(longs = {1799, 1800, 1801})
+    @DisplayName("FCM 요청 직전 기한을 확인하여 30분 직전만 발송하고 정각·이후에는 생략한다")
+    void send_deadlineBoundary_acceptsBeforeAndSkipsAtDeadline(long seconds) {
         // Given
-        now = NOW.plusSeconds(1800);
-        // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(Status.SKIPPED);
+        now = NOW.plusSeconds(seconds);
+        // When
+        DevicePushResult result = sender.send(request);
+        // Then
+        if (seconds < 1800) {
+            assertThat(result.status()).isEqualTo(Status.ACCEPTED);
+            assertThat(calls.get()).isEqualTo(1);
+            return;
+        }
+        assertThat(result.status()).isEqualTo(Status.SKIPPED);
         assertThat(calls.get()).isZero();
     }
 

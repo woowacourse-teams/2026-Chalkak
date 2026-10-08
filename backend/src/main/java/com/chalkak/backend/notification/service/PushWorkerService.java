@@ -92,7 +92,7 @@ public class PushWorkerService {
             UUID deviceId
     ) {
         DevicePushRequest request = findCurrentRequest(message, deviceId);
-        if (request == null || !request.isSendableAt(clock.instant())) {
+        if (request == null) {
             logSkipped(message, deviceId, "LATEST_CONDITIONS");
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
