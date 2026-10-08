@@ -42,6 +42,11 @@ required_keys=(
   DB_USERNAME
   DB_PASSWORD
   AWS_REGION
+  NOTIFICATION_RELAY_ENABLED
+  NOTIFICATION_WORKER_ENABLED
+  NOTIFICATION_FCM_PROJECT_ID
+  NOTIFICATION_FCM_CREDENTIALS_PATH
+  NOTIFICATION_SQS_QUEUE_URL
   S3_BUCKET
   S3_PREFIX
   CLOUDFRONT_BASE_URL
@@ -179,6 +184,18 @@ if [[ "${admin_notification_delivery_enabled}" == true ]]; then
   fi
 fi
 
+notification_relay_enabled="$(read_value NOTIFICATION_RELAY_ENABLED)"
+notification_sqs_queue_url="$(read_value NOTIFICATION_SQS_QUEUE_URL)"
+if [[ "${notification_relay_enabled}" != true && "${notification_relay_enabled}" != false ]]; then
+  echo "NOTIFICATION_RELAY_ENABLED must be true or false." >&2
+  exit 1
+fi
+if [[ "${notification_relay_enabled}" == true
+      && ! "${notification_sqs_queue_url}" =~ ^https://sqs\.ap-northeast-2\.amazonaws\.com/[0-9]{12}/[A-Za-z0-9_-]+$ ]]; then
+  echo "NOTIFICATION_SQS_QUEUE_URL must be a Standard queue URL in ap-northeast-2." >&2
+  exit 1
+fi
+
 case "${profile}" in
   dev)
     if [[ "${db_host}" != 127.0.0.1 && "${db_host}" != localhost ]]; then
@@ -197,3 +214,22 @@ case "${profile}" in
     exit 1
     ;;
 esac
+
+notification_worker_enabled="$(read_value NOTIFICATION_WORKER_ENABLED)"
+if [[ "${notification_worker_enabled}" != true && "${notification_worker_enabled}" != false ]]; then
+  echo "NOTIFICATION_WORKER_ENABLED must be true or false." >&2
+  exit 1
+fi
+if [[ "${notification_worker_enabled}" == true ]]; then
+  if [[ ! "${notification_sqs_queue_url}" =~ ^https://sqs\.ap-northeast-2\.amazonaws\.com/[0-9]{12}/[A-Za-z0-9_-]+$ ]]; then
+    echo "PushWorker requires a Standard SQS queue URL." >&2
+    exit 1
+  fi
+  for key in NOTIFICATION_FCM_PROJECT_ID NOTIFICATION_FCM_CREDENTIALS_PATH; do
+    value="$(read_value "$key")"
+    if [[ -z "${value}" || "${value}" == REPLACE_WITH_* ]]; then
+      echo "$key must be configured when PushWorker is enabled." >&2
+      exit 1
+    fi
+  done
+fi

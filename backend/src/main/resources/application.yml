@@ -28,6 +28,15 @@ spring:
         size: 4
 
 chalkak:
+  notification:
+    fcm:
+      worker-enabled: ${NOTIFICATION_WORKER_ENABLED:false}
+      project-id: ${NOTIFICATION_FCM_PROJECT_ID:}
+      credentials-path: ${NOTIFICATION_FCM_CREDENTIALS_PATH:}
+    sqs:
+      relay-enabled: ${NOTIFICATION_RELAY_ENABLED:false}
+      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}
+      region: ${AWS_REGION:ap-northeast-2}
   monitoring:
     runtime-log:
       # 1분마다 JVM·커넥션 풀 상태를 한 줄 로그로 남긴다. 로컬·테스트에서는 소음이라 끄고 dev·prod에서만 켠다.

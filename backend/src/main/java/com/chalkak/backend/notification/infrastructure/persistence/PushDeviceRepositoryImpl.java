@@ -3,6 +3,7 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,21 @@ import org.springframework.stereotype.Repository;
 public class PushDeviceRepositoryImpl implements PushDeviceRepository {
 
     private final PushDeviceJpaRepository pushDeviceJpaRepository;
+
+    @Override
+    public List<UUID> findIdsByUserId(UUID userId) {
+        return pushDeviceJpaRepository.findIdsByUserId(userId);
+    }
+
+    @Override
+    public Optional<PushDevice> findByIdAndUserId(UUID id, UUID userId) {
+        return pushDeviceJpaRepository.findByIdAndUserId(id, userId);
+    }
+
+    @Override
+    public void deleteByIdAndTokenHash(UUID id, String tokenHash) {
+        pushDeviceJpaRepository.deleteByIdAndTokenHash(id, tokenHash);
+    }
 
     @Override
     public void lockToken(String tokenHash) {

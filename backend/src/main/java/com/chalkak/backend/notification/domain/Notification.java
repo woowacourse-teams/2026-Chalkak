@@ -25,6 +25,8 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification {
 
+    private static final Duration PUSH_LIFETIME = Duration.ofMinutes(30);
+    private static final Duration PUBLISH_RETRY_DELAY = Duration.ofMinutes(1);
     private static final Duration RETENTION = Duration.ofDays(30);
     private static final String APPROVED_TITLE = "게시물이 승인되었습니다.";
     private static final String APPROVED_BODY = "내 사진이 피드에 공개되었습니다.";
@@ -71,6 +73,16 @@ public class Notification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sqs_publish_status", nullable = false, length = 20)
+    private PublishStatus publishStatus;
+
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "sqs_published_at")
+    private Instant publishedAt;
+
     public static Instant getRetentionThreshold(Instant now) {
         return now.minus(RETENTION);
     }
@@ -79,7 +91,8 @@ public class Notification {
             UUID userId,
             UUID postId,
             UUID eventKey,
-            Instant createdAt
+            Instant createdAt,
+            boolean pushEnabled
     ) {
         validateRequired(userId, postId, eventKey, createdAt);
         Notification notification = new Notification();
@@ -91,6 +104,7 @@ public class Notification {
         notification.title = APPROVED_TITLE;
         notification.body = APPROVED_BODY;
         notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
         return notification;
     }
 
@@ -99,7 +113,8 @@ public class Notification {
             UUID postId,
             UUID eventKey,
             String rejectionReason,
-            Instant createdAt
+            Instant createdAt,
+            boolean pushEnabled
     ) {
         validateRequired(userId, postId, eventKey, createdAt);
         if (rejectionReason == null || rejectionReason.isBlank()) {
@@ -123,7 +138,63 @@ public class Notification {
         notification.body = REJECTED_BODY;
         notification.payload = new NotificationPayload(rejectionReason);
         notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
         return notification;
+    }
+
+    public void markPublished(Instant acceptedAt) {
+        validatePendingPublication();
+        if (acceptedAt == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "SQS 수락 시각이 필요합니다.");
+        }
+        publishStatus = PublishStatus.PUBLISHED;
+        publishedAt = acceptedAt;
+        nextAttemptAt = null;
+    }
+
+    public void retryPublication(Instant attemptedAt) {
+        validatePendingPublication();
+        if (isPushExpired(attemptedAt)) {
+            expirePublication();
+            return;
+        }
+        Instant retryAt = attemptedAt.plus(PUBLISH_RETRY_DELAY);
+        if (retryAt.isBefore(getPushExpiresAt())) {
+            nextAttemptAt = retryAt;
+            return;
+        }
+        nextAttemptAt = getPushExpiresAt();
+    }
+
+    public void expirePublication() {
+        validatePendingPublication();
+        publishStatus = PublishStatus.EXPIRED;
+        nextAttemptAt = null;
+    }
+
+    public void failPublication() {
+        validatePendingPublication();
+        publishStatus = PublishStatus.FAILED;
+        nextAttemptAt = null;
+    }
+
+    public boolean isPushExpired(Instant now) {
+        return !now.isBefore(getPushExpiresAt());
+    }
+
+    private void validatePendingPublication() {
+        if (publishStatus != PublishStatus.PENDING) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "발행 대기 중인 알림만 처리할 수 있습니다.");
+        }
+    }
+
+    private void initializePublication(boolean pushEnabled) {
+        if (!pushEnabled) {
+            publishStatus = PublishStatus.NOT_REQUIRED;
+            return;
+        }
+        publishStatus = PublishStatus.PENDING;
+        nextAttemptAt = createdAt;
     }
 
     private static void validateRequired(
@@ -137,6 +208,10 @@ public class Notification {
                     ErrorCode.BUSINESS_ERROR,
                     "알림 생성 정보가 올바르지 않습니다.");
         }
+    }
+
+    public Instant getPushExpiresAt() {
+        return createdAt.plus(PUSH_LIFETIME);
     }
 
     public String getRejectionReason() {

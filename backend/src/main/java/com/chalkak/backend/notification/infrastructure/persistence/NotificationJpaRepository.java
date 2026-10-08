@@ -5,6 +5,7 @@ import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationSummary;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -14,6 +15,41 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
+
+    @Query(value = """
+            SELECT id FROM notifications
+            WHERE sqs_publish_status = 'PENDING' AND next_attempt_at <= :now
+            ORDER BY next_attempt_at, id
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UUID> findDuePublicationIds(@Param("now") Instant now, @Param("limit") int limit);
+
+    @Query(value = """
+            SELECT * FROM notifications
+            WHERE id = :notificationId AND sqs_publish_status = 'PENDING'
+                AND next_attempt_at <= :now
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    Optional<Notification> findPendingPublicationForUpdate(
+            @Param("notificationId") UUID notificationId,
+            @Param("now") Instant now
+    );
+
+    @Query("""
+            SELECT notification FROM Notification notification
+            LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                AND post.id = notification.sourceId
+            WHERE notification.id = :notificationId AND notification.userId = :userId
+                AND (
+                    notification.sourceType IS NULL
+                    OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.POST
+                    OR (post.id IS NOT NULL AND post.deletedAt IS NULL)
+                )
+            """)
+    Optional<Notification> findForPushByIdAndUserId(
+            @Param("notificationId") UUID notificationId,
+            @Param("userId") UUID userId
+    );
 
     @Query("""
             SELECT new com.chalkak.backend.notification.repository.NotificationSummary(

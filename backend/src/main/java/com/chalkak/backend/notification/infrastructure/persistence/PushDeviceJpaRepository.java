@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 
 import com.chalkak.backend.notification.domain.PushDevice;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,6 +10,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PushDeviceJpaRepository extends JpaRepository<PushDevice, UUID> {
+
+    @Query("SELECT device.id FROM PushDevice device WHERE device.user.id = :userId ORDER BY device.id")
+    List<UUID> findIdsByUserId(@Param("userId") UUID userId);
+
+    Optional<PushDevice> findByIdAndUserId(UUID id, UUID userId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM PushDevice device WHERE device.id = :id AND device.fcmTokenHash = :tokenHash")
+    int deleteByIdAndTokenHash(@Param("id") UUID id, @Param("tokenHash") String tokenHash);
 
     // 회차 잠금(단일 키)과 다른 네임스페이스를 사용한다. 토큰 원문은 잠금·조회에 쓰지 않는다.
     @Query(value = "SELECT pg_advisory_xact_lock(1, hashtext(:tokenHash))", nativeQuery = true)

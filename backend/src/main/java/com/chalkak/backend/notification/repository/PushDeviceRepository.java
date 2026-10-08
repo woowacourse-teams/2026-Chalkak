@@ -2,9 +2,16 @@ package com.chalkak.backend.notification.repository;
 
 import com.chalkak.backend.notification.domain.PushDevice;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface PushDeviceRepository {
+
+    List<UUID> findIdsByUserId(UUID userId);
+
+    Optional<PushDevice> findByIdAndUserId(UUID id, UUID userId);
+
+    void deleteByIdAndTokenHash(UUID id, String tokenHash);
 
     void lockToken(String tokenHash);
 

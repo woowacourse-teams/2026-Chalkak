@@ -45,6 +45,7 @@
 | --- | --- |
 | 알림함 조회·읽음, 30일 보관과 만료된 알림 처리 | [알림함 연동 안내](guides/notification-inbox.md) |
 | 푸시 기기 등록·갱신, 이전 JWT의 자동 토큰 갱신 | [푸시 기기 등록 연동 안내](guides/push-device-registration.md) |
+| FCM 메시지 필드·플랫폼별 수신·클릭 후 화면 이동 | [Android·iOS 푸시 메시지 연동 계약](guides/notification-push-contract.md) |
 
 ## 변경 이유
 

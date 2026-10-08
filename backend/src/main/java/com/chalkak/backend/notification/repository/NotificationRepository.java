@@ -3,9 +3,16 @@ package com.chalkak.backend.notification.repository;
 import com.chalkak.backend.notification.domain.Notification;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface NotificationRepository {
+
+    List<UUID> findDuePublicationIds(Instant now, int limit);
+
+    Optional<Notification> findPendingPublicationForUpdate(UUID notificationId, Instant now);
+
+    Optional<Notification> findForPushByIdAndUserId(UUID notificationId, UUID userId);
 
     Notification save(Notification notification);
 

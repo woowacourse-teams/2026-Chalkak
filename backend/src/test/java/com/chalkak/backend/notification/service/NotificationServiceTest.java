@@ -377,10 +377,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update("""
                 INSERT INTO notifications (
                     id, user_id, source_type, source_id, event_key, type, title, body,
-                    payload, created_at
+                    payload, created_at, sqs_publish_status
                 ) VALUES (
                     ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?
+                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
+                    'NOT_REQUIRED'
                 )
                 """, SECOND_NOTIFICATION_ID, recipientId, POST_ID, SECOND_EVENT_ID,
                 Timestamp.from(CREATED_AT.plusSeconds(1)));
@@ -434,10 +435,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update("""
                 INSERT INTO notifications (
                     id, user_id, source_type, source_id, event_key, type, title, body,
-                    payload, created_at
+                    payload, created_at, sqs_publish_status
                 ) VALUES (
                     ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?
+                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
+                    'NOT_REQUIRED'
                 )
                 """, NOTIFICATION_ID, USER_ID, POST_ID, EVENT_ID, Timestamp.from(CREATED_AT));
     }
