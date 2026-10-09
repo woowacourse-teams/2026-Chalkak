@@ -10,19 +10,25 @@ phases:
     commands:
       # Gradle의 Foojay 검색 결과에 의존하지 않고 프로젝트의 Temurin 25를 준비한다.
       - |
-        set -euo pipefail
-        temurin_directory="$(mktemp -d /tmp/chalkak-build-jdk.XXXXXX)"
-        temurin_archive="${temurin_directory}/temurin.tar.gz"
-        curl --fail --location --silent --show-error \
-          --retry 3 --connect-timeout 10 --max-time 180 \
-          --output "${temurin_archive}" \
-          'https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz'
-        printf '%s  %s\n' \
-          'dbb698396d478e7fa2b1e50f4103324b2a99b90569ee27c33f2261f9215cf41e' \
-          "${temurin_archive}" | sha256sum --check
-        tar --extract --gzip --file "${temurin_archive}" \
-          --directory "${temurin_directory}" --strip-components=1
-        rm "${temurin_archive}"
+        temurin_directory="$(mktemp -d /tmp/chalkak-build-jdk.XXXXXX)" || exit $?
+        (
+          set -euo pipefail
+          temurin_archive="${temurin_directory}/temurin.tar.gz"
+          curl --fail --location --silent --show-error \
+            --retry 3 --connect-timeout 10 --max-time 180 \
+            --output "${temurin_archive}" \
+            'https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz'
+          printf '%s  %s\n' \
+            'dbb698396d478e7fa2b1e50f4103324b2a99b90569ee27c33f2261f9215cf41e' \
+            "${temurin_archive}" | sha256sum --check
+          tar --extract --gzip --file "${temurin_archive}" \
+            --directory "${temurin_directory}" --strip-components=1
+          rm "${temurin_archive}"
+        )
+        temurin_install_status=$?
+        if [ "${temurin_install_status}" -ne 0 ]; then
+          exit "${temurin_install_status}"
+        fi
         export JAVA_HOME="${temurin_directory}"
         export PATH="${JAVA_HOME}/bin:${PATH}"
       - java -version
