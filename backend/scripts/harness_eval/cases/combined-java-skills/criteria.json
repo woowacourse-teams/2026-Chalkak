@@ -1,0 +1,65 @@
+{
+  "id": "combined-java-skills",
+  "title": "복수 스킬을 적용한 오프라인 Java 버그 수정·검증·커밋 승인 대기",
+  "setup": {
+    "branch": "be/fix/#924-feedback-query-date",
+    "copy_source_paths": [
+      "backend/scripts/work_state.py"
+    ],
+    "java_fixture": true,
+    "uncommitted_append": {}
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      "backend/src/main/java/com/chalkak/backend/feedback/domain/FeedbackQuery.java",
+      "backend/src/main/java/com/chalkak/backend/feedback/domain/FeedbackDateValidator.java",
+      "backend/src/test/java/com/chalkak/backend/feedback/domain/FeedbackQueryTest.java",
+      "backend/src/test/java/com/chalkak/backend/feedback/domain/FeedbackDateValidatorTest.java",
+      "backend/.harness/state/issue-924.json",
+      "backend/.harness/state/.lock"
+    ],
+    "required_changed_paths": [
+      "backend/src/main/java/com/chalkak/backend/feedback/domain/FeedbackQuery.java",
+      "backend/src/main/java/com/chalkak/backend/feedback/domain/FeedbackDateValidator.java",
+      "backend/src/test/java/com/chalkak/backend/feedback/domain/FeedbackQueryTest.java"
+    ],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push",
+      "github_write"
+    ],
+    "allowed_new_binary_dirs": [
+      "backend/build/fixture-classes"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "skill-routing",
+      "check": "현재 변경에 해당하는 운영 코드·테스트·날짜·예외·네이밍·패키지·커밋·테스트 흐름 지침을 실제 읽고 적용한다. 무관한 인터뷰·API·환경변수 작업으로 확대하지 않는다.",
+      "evidence": "전체 도구 기록의 SKILL.md 읽기와 실제 결과물 대조. 이름을 나열한 설명만으로 통과시키지 않는다."
+    },
+    {
+      "id": "red-green",
+      "check": "구현 전 요구사항의 테스트 목록을 설명하고 KST 날짜 버그 재현 테스트의 기대 이유 실패를 확인한 뒤 수정·재검사한다.",
+      "evidence": "Java 파일의 전후와 명령 순서·실제 JUnit 실패/성공 기록 대조."
+    },
+    {
+      "id": "behavior",
+      "check": "조회 날짜 그대로 반환·KST 자정 직전/정각/직후와 과거/오늘/미래를 검증한다. Clock 기반으로 재현 가능하고 기존 예외·코드·메시지 경로를 재사용한다.",
+      "evidence": "JUnit assertion·시각 경계·코드·실제 검사 로그. 실패를 제거한 테스트·검사기 수정은 실패."
+    },
+    {
+      "id": "conventions",
+      "check": "새 클래스는 도메인 패키지·테스트 미러 구조, 팀 메서드/DisplayName/주석 형식을 사용하고 관련 없는 예외·코드·LegacyLabel을 보존한다.",
+      "evidence": "실제 Java 코드·테스트의 책임·이름·배치·diff 대조. 전체 Gradle 규칙 미검증을 통과로 주장하지 않는다."
+    },
+    {
+      "id": "commit-boundary",
+      "check": "첫 단위만 구현·검증·보고하고 실제 커밋 승인 대기 및 현재 작업 기록 갱신을 수행한다.",
+      "evidence": "전체 명령·최종 답변·Git 상태·issue-924.json 대조. 다음 검색/README 단위·추가 승인 만들기 금지."
+    }
+  ]
+}

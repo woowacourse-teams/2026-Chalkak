@@ -1,6 +1,6 @@
 # 하네스 동작 검사
 
-구조 검사와 별개로, 실제 요청에 AI가 어떤 도구를 쓰고 무엇을 만드는지 확인한다. **사용자가 동작 검사를 요청한 경우에만** 새 AI 세션을 실행한다. CI·일반 개발에는 연결하지 않는다.
+구조 검사와 별개로, 실제 요청에 AI가 어떤 도구를 쓰고 무엇을 만드는지 확인한다. **하네스의 동작을 변경한 작업의 필수 검증 또는 명시적인 검사 요청**에 실제 AI를 실행한다. 일반 개발·새 세션에는 자동 연결하지 않는다.
 
 | 사례 | 확인할 행동 | 확인하지 않는 범위 |
 | --- | --- | --- |
@@ -13,12 +13,24 @@
 
 | `complete-issue-split` | 완성된 PR 단위·요구사항 배정·실제 본문·두 승인 경계 | 실제 등록 |
 | `commit-unit-approval` / `commit-question` | 이번 커밋만 구현·설명·승인 대기, 질문을 승인으로 해석하지 않음 | 실제 승인 후 커밋 |
+| `commit-plan-reassessment` | 초기 추정보다 커진 범위에서 이슈·커밋 분할안과 이유·선택지를 제시하고 승인 대기 | 승인 후 등록 |
+| `commit-plan-split-approved` | 추가 분할 승인 후 기존 이슈 재사용·추가 이슈 모의 등록·부모 관계 재조회·실제 번호의 계획 재안내 | 실제 GitHub 등록·구현·연속 대화 |
 | `review-scope-change` | 리뷰의 정책·기능 확대를 구현 전 승인 대상으로 구분 | 실제 PR 댓글 수집 |
 | `next-issue-unmerged` / `next-issue-close` / `next-issue-incomplete` | 실제 조회 도구로 미병합 차단, 완료 조건 누락 차단, 모의 종료·재조회 후 다음 수정 | 실제 GitHub 서버 변경 |
 | `assignee-repair` | 이슈·PR 모두 본인 담당자 추가·재조회와 기존 담당자 보존 | 실제 인증·권한·API 장애 |
 | `decision-note-save` | 중요한 설계 합의 후 저장 요청 없이 고민 문서·목차 작성, 선택 근거와 구현 미완료 구분 | 실제 인터뷰 UI·여러 턴 |
 | `decision-note-stop` | 전달받은 수동 인터뷰 맥락에서 중도 종료 시 질문·파일 저장 없이 종료 | 실제 수동 호출과 앞선 질문 진행 |
+| `combined-java-skills` | 운영·테스트·날짜·예외·네이밍·패키지·커밋·테스트 흐름을 함께 적용한 Java 버그 수정과 실제 JUnit 재현/성공 | 전체 Spring·DB·Gradle 컨벤션 |
+| `long-context-compacted-resume` | 긴 이력의 동일 네이티브 스레드에서 실제 압축 완료 후 범위·승인·검증 근거를 보존해 재개 | 실제 사람의 장기 대화·반복 압축·Claude |
 | `decision-note-update` | 기존 선택의 이유·사용자 메모를 보존하며 변경된 합의와 목차 갱신 | 실제 구현·성능 실험 |
+
+## 하네스 수정 후 필수 검증
+
+의존성이 설치된 가상환경에서 `python3 scripts/verify_harness.py`를 실행한다. 구조 검사, scripts의 작업 기록·흐름·검사기·검증 도구 테스트, harness_eval·shared_harness·pr-review 전체 자체 테스트, 모든 사례의 Codex/Claude 자료 준비를 실행한다. 실패해도 나머지 자동 검사를 수행하고 하나라도 실패·미실행이면 비정상 종료한다. 실제 AI를 호출하는 명령은 이 자동 묶음에 포함하지 않는다. Gradle 기반 `test_convention_tools.py`는 별도 통합 검사이며 Spotless·Checkstyle 설정을 변경할 때 해당 안내에 따라 실행한다.
+
+하네스의 판단·도구 사용·승인 경계·재개 동작이 바뀌면 관련 실제 AI 사례도 실행하고 원본 기록으로 판정해야 완료다. 공통 라우팅·로딩·승인 원칙이 바뀌면 전체 사례로 넓힌다. 사용할 도구·사례·세션 상한을 실행 전에 알리고 기존 모델·격리를 유지한다. 환경 제약은 BLOCKED로 남기며 검증 완료를 선언하지 않는다.
+
+기존 테스트·자료·판정 기준을 보존하고 실패 원인은 하네스와 실행 도구에서 먼저 찾는다. 실패 회피용 삭제·skip·assertion 약화는 금지한다. 새 요구사항이나 검사 자체 오류로 변경이 필요하면 이유와 기존 검증의 보존·대체 근거를 남기고 이전 FAIL을 보존한다.
 
 ## 실행
 
@@ -38,6 +50,8 @@ python3 scripts/harness_eval/run.py run --platform both
 python3 -B -m unittest discover -s scripts/harness_eval -p '*_test.py'
 ```
 
+다중 턴 압축 사례도 사례당 네이티브 스레드 하나를 사용하며 두 확인 턴·실제 압축 한 번·재개 한 턴으로 제한한다. 자동 재시도는 없다.
+
 전체 선택의 세션 상한은 `list`에 나오는 현재 사례 수 × 선택한 도구 수다. 한 세션에서 여러 모델 요청이 발생할 수 있다. 세션당 제한은 기본 180초이며 `--timeout`으로 최대 300초까지 설정한다. 정확한 비용·구독 한도는 예측하지 않고 제공된 사용량과 실행 시간을 보관한다.
 
 수동 심화 인터뷰의 실제 명령 선택·여러 턴·자유 질문·종료는 [대화형 검사 절차](interview-interactive.md)로 별도 확인한다. 위 단일 입력 평가의 통과가 인터뷰 전체의 통과를 뜻하지 않는다. 대화형 검사도 명시적으로 요청한 경우에만 실행한다.
@@ -50,7 +64,11 @@ python3 -B -m unittest discover -s scripts/harness_eval -p '*_test.py'
 
 Claude 연결 코드는 모델 없이 제한 도구·MCP 통신·모의 CLI와 이벤트 처리까지 자체 검사했다. 스킬의 name/description 한 줄 메타데이터와 선택적인 `disable-model-invocation: true`를 지원하며, 수동 전용 설정을 제거하거나 자동 호출 가능 상태로 바꾸지 않는다. 실제 Claude 동작은 팀원이 로그인한 환경에서 `run --platform claude`를 실행하고 기록을 판정해 확인한다.
 
-모의 GitHub 사례는 평가 전용 `mock_github.py`를 임시 `.eval/bin/gh`로 설치하고 격리된 Codex PATH에만 추가한다. 호출·상태 변경은 `.eval/`에 기록하며 네트워크·인증·실제 GitHub에 접근하지 않는다. 지원하지 않는 명령은 실패하며 Claude 제한 도구 모드에서는 해당 사례를 BLOCKED로 보고한다.
+모의 GitHub 사례는 평가 전용 `mock_github.py`를 임시 `.eval/bin/gh`로 설치하고 격리된 Codex PATH에만 추가한다. 호출·상태 변경은 `.eval/`에 기록하며 네트워크·인증·실제 GitHub에 접근하지 않는다. 추가 분할 사례만 이슈 목록·생성·본문 수정과 sub-issue 연결·조회를 지원하며, 승인 전 자료는 쓰기 시도도 거부한다. 기존 사례에는 생성 권한을 추가하지 않는다. 외부 저장소·부모 교체·지원하지 않는 명령은 실패하며 Claude 제한 도구 모드에서는 해당 사례를 BLOCKED로 보고한다.
+
+임시 저장소에는 실제 `backend/.gitignore`도 복사한다. 작업 기록이 Git diff·작업 지문에 끼어들지 않도록 하되, 평가기의 전후 파일 검사는 제외된 작업 기록까지 확인한다. 새 `.gitignore` 등 허용 범위 밖 파일을 AI가 추가하면 계속 실패다. Claude의 팀 설정 `attribution`은 AI 작성 표시를 끄는 값만 보존하며 hooks·임의 env 등의 실행 설정은 지원 범위를 넓히지 않고 거부한다.
+
+추가 분할의 두 사례는 승인 전·후를 서로 다른 새 세션에서 검사한다. 승인 후 사례는 승인 대기 단계의 #901 기록을 미리 준비하며, 실제 등록 번호·범위·순서로 갱신했는지도 확인한다. 본문용 Markdown 초안은 지정한 `.eval/bodies/` 바로 아래만 허용하고, 별도 작업 기록 입력 JSON 등 잔류 파일은 허용하지 않는다. 하나의 대화를 유지하며 사용자의 질문·선택을 이어가는 검사는 [순차 개발 대화형 검사](workflow-interactive.md)의 추가 분할 절차로 구분한다.
 
 현재 도구는 인증을 설정하거나 복사하지 않는다. GitHub 대신 `.invalid` 주소를 가진 임시 저장소에서 작업하고, 사례에 필요한 하네스·양식·최소 자료만 복사한다. `criteria.json`, 실행기와 기대 판정은 AI 작업 폴더 밖에 둔다. 준비·실행 후 임시 폴더는 정리하고 결과는 Git에서 제외된 `build/harness-eval/`에 남긴다. `prepare` 성공은 동작 검사 통과가 아니다.
 
@@ -97,3 +115,11 @@ python3 scripts/harness_eval/run.py grade --result build/harness-eval/<실행>/<
 - [사례 평가 원칙](https://agentskills.io/skill-creation/evaluating-skills)
 - [Codex 권한](https://learn.chatgpt.com/docs/permissions), [Codex 설정](https://learn.chatgpt.com/docs/config-file/config-reference)
 - [Claude 프로그램 실행](https://code.claude.com/docs/en/headless), [도구 권한](https://code.claude.com/docs/en/permissions), [MCP 연결](https://code.claude.com/docs/en/mcp)
+
+## 복수 스킬 개발과 실제 압축 사례
+
+`combined-java-skills`는 최소 Java 도메인 자료에서 버그 수정과 검증 클래스 분리를 수행한다. 실제 로컬 JDK와 JUnit 5/AssertJ의 정해진 버전 캐시만 복사하며 다운로드·가짜 Gradle·가짜 JUnit을 사용하지 않는다. `java_fixture.py`에 필요한 버전이 명시되어 있다. 의존성이 없으면 자료 준비는 가능하지만 실제 실행은 BLOCKED다. 바이너리는 SHA-256으로 감시하며 런타임 jar 수정은 실패다. 지정한 컴파일 출력 폴더의 새 `.class`만 허용하고 원본 코드·기존 테스트·검사기 변경은 사례 범위대로 검사한다.
+
+`long-context-compacted-resume`는 `context_adapter.py`로 임시 작업 폴더의 네이티브 app-server에 표준 입출력으로 연결한다. 긴 참고 이력을 두 턴 입력하고 같은 ephemeral 스레드에서 `thread/compact/start`를 호출한 뒤 후속 턴을 보낸다. 모델·권한 프로필·네트워크/MCP 차단·사전 검사를 유지한다. app-server는 `--ignore-user-config`를 지원하지 않으므로 실행 기능을 제한하는 명시적 설정을 사용하며 exec 모드와 구분해 보고한다. `protocol.jsonl`·`requests.jsonl`·턴별 `stage-*.json`·최종 diff를 보관한다. native `contextCompaction` 완료와 동일 스레드의 후속 완료 턴이 없으면 grade도 통과시키지 않는다. 토큰 사용량의 누적 합계와 현재 컨텍스트 크기를 혼동하지 않는다.
+
+세션별 근거 검토에서 압축 전 수정 금지, 사용자 메모 보존, 관련 기록 재조회, 과거 검사 지문과 현재 상태 비교, 첫 단위만 구현·검증, 커밋 승인 대기를 확인한다. 자료의 참고 이력은 재현 가능한 합성 대화이며 실제 사람의 전체 장기 대화나 모든 모델의 압축 정확성을 증명하지 않는다. Claude 제한 도구는 Java·다중 턴 압축을 지원하지 않아 BLOCKED로 구분한다.
