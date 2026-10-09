@@ -35,11 +35,13 @@ import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
+import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
@@ -51,7 +53,6 @@ import com.stonefive.chalkak.feature.signature.OnboardingSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.OnboardingSignatureRoute
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.feature.terms.TermsRoute
-import com.stonefive.chalkak.feature.today.TodayRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateUiEvent
 import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateViewModel
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
@@ -99,7 +100,7 @@ fun ChalkakNavHost(
 
     val navigateToLogin: () -> Unit = {
         navController.navigate(Login) {
-            popUpTo<Today> { inclusive = true }
+            popUpTo<Home> { inclusive = true }
             launchSingleTop = true
         }
     }
@@ -170,7 +171,7 @@ fun ChalkakNavHost(
             composable<Login> {
                 LoginRoute(
                     onGuestAccessGranted = {
-                        navController.navigate(Today) {
+                        navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
                         }
@@ -253,7 +254,7 @@ fun ChalkakNavHost(
                         if (reminderTime.returnToSettings) {
                             navController.popBackStack()
                         } else {
-                            navController.navigate(Today) {
+                            navController.navigate(Home) {
                                 popUpTo(navController.graph.startDestinationId) {
                                     inclusive = true
                                 }
@@ -283,14 +284,45 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Today> {
-                TodayRoute(
-                    onOpenPhotoUpload = openPhotoUpload,
-                    onNavigateToBottomBar = navigateToBottomBar,
-                    onOpenNotifications = {
-                        navController.navigate(Notifications) { launchSingleTop = true }
-                    },
-                )
+            composable<Home> {
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    HomeRoute(
+                        onOpenPhotoUpload = openPhotoUpload,
+                        onNavigateToBottomBar = navigateToBottomBar,
+                        onOpenRecord = { navigateToBottomBar(ChalkakBottomBarItem.RECORD) },
+                        onOpenDisplay = { date ->
+                            navController.navigate(
+                                Display(
+                                    date = date.toString(),
+                                    sort = PostSort.POPULAR.name,
+                                ),
+                            ) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenFeed = { post ->
+                            if (sessionState is UserSessionState.Authenticated) {
+                                navController.navigate(
+                                    FeedById(
+                                        postId = post.id,
+                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                    ),
+                                )
+                            } else {
+                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                            }
+                        },
+                        onNotificationClick = {
+                            navController.navigate(Notifications) { launchSingleTop = true }
+                        },
+                        onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
+                    )
+                }
             }
 
             composable<Notifications> {
@@ -309,6 +341,9 @@ fun ChalkakNavHost(
                         onOpenPhotoUpload = openPhotoUpload,
                         onNavigateToBottomBar = navigateToBottomBar,
                         initialDate = display.date.toLocalDateOrNull(),
+                        initialSort = PostSort.entries.firstOrNull {
+                            it.name == display.sort
+                        } ?: PostSort.LATEST,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
                             if (sessionState is UserSessionState.Authenticated) {
                                 navController.navigate(
@@ -491,7 +526,7 @@ fun ChalkakNavHost(
                     onBack = { navController.popBackStack() },
                     onReauthenticationRequired = {
                         navController.navigate(Login) {
-                            popUpTo<Today> { inclusive = true }
+                            popUpTo<Home> { inclusive = true }
                             launchSingleTop = true
                         }
                     },
@@ -525,7 +560,7 @@ fun ChalkakNavHost(
                     ),
                     onConfirmClick = {
                         navController.navigate(Display(date = success.date)) {
-                            popUpTo<Today> { inclusive = false }
+                            popUpTo<Home> { inclusive = false }
                             launchSingleTop = true
                         }
                     },
@@ -555,7 +590,7 @@ private fun NavHostController.navigateToBottomBar(
     }
 
     val destination = when (item) {
-        ChalkakBottomBarItem.TODAY -> Today
+        ChalkakBottomBarItem.TODAY -> Home
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
         ChalkakBottomBarItem.RECORD -> Record
         ChalkakBottomBarItem.SETTINGS -> Settings
@@ -563,8 +598,9 @@ private fun NavHostController.navigateToBottomBar(
 
     navigate(destination) {
         launchSingleTop = true
-        restoreState = true
-        popUpTo(Today) {
+        // Home is the retained root; restoring its saved stack can reopen the Display just popped.
+        restoreState = item != ChalkakBottomBarItem.TODAY
+        popUpTo(Home) {
             saveState = true
         }
     }
@@ -572,14 +608,14 @@ private fun NavHostController.navigateToBottomBar(
 
 private val ChalkakBottomBarItem.analyticsName: String
     get() = when (this) {
-        ChalkakBottomBarItem.TODAY -> "today"
+        ChalkakBottomBarItem.TODAY -> "home"
         ChalkakBottomBarItem.DISPLAY -> "display"
         ChalkakBottomBarItem.RECORD -> "record"
         ChalkakBottomBarItem.SETTINGS -> "settings"
     }
 
 private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
-    hasRoute<Today>() -> AnalyticsScreen(name = "today", screenClass = "Today")
+    hasRoute<Home>() -> AnalyticsScreen(name = "home", screenClass = "Home")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")

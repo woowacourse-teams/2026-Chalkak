@@ -47,7 +47,7 @@ class TodayViewModel(
     val uiEvent = _uiEvent.receiveAsFlow()
 
     private var latestLoadGeneration = 0
-    private var homeContentRevision = 0
+    private var todayContentRevision = 0
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
     private var isFirstPageRequestPending = false
@@ -190,13 +190,13 @@ class TodayViewModel(
         requestedSort: PostSort,
     ) {
         loadedDate = content.topicDate
-        homeContentRevision++
+        todayContentRevision++
         _uiState.value = TodayUiState(
             contentStatus = TodayContentStatus.Content,
             topicDate = content.topicDate,
             topic = content.topic,
             photos = content.photos,
-            contentRevision = homeContentRevision,
+            contentRevision = todayContentRevision,
             selectedSort = requestedSort,
             likedPhotoIds = content.likedPhotoIds,
             currentPage = content.currentPage,
@@ -298,7 +298,7 @@ class TodayViewModel(
         val wasLiked = photoId in previousState.likedPhotoIds
         val isLiked = !wasLiked
         val generation = latestLikeGenerationByPhotoId.getOrDefault(photoId, 0) + 1
-        val requestedContentRevision = homeContentRevision
+        val requestedContentRevision = todayContentRevision
         latestLikeGenerationByPhotoId[photoId] = generation
         _uiState.value = previousState.copy(
             photos = previousState.photos.map { photo ->
@@ -326,7 +326,7 @@ class TodayViewModel(
                 val result = repository.updateLike(photoId, isLiked)
                 if (
                     latestLikeGenerationByPhotoId[photoId] != generation ||
-                    homeContentRevision != requestedContentRevision
+                    todayContentRevision != requestedContentRevision
                 ) {
                     return@launch
                 }

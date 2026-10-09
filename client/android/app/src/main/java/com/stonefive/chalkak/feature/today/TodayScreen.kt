@@ -62,7 +62,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
-const val TODAY_ERROR_MESSAGE = "홈을 불러오지 못했어요"
+const val TODAY_ERROR_MESSAGE = "오늘을 불러오지 못했어요"
 const val TODAY_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
 const val TODAY_LOADING_TEST_TAG = "home-loading"
 const val TODAY_INITIAL_ERROR_TEST_TAG = "home-initial-error"
@@ -421,7 +421,7 @@ val TodayInitialError.message: String
         TodayInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
         TodayInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
         TodayInitialError.Network -> "네트워크 연결을 확인해 주세요"
-        TodayInitialError.InvalidResponse -> "홈 정보를 불러오지 못했어요"
+        TodayInitialError.InvalidResponse -> "오늘 정보를 불러오지 못했어요"
         TodayInitialError.Client -> "요청을 처리하지 못했어요"
         TodayInitialError.Server -> "서버에 잠시 문제가 생겼어요"
         TodayInitialError.Generic -> TODAY_ERROR_MESSAGE

@@ -51,6 +51,21 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `초기 정렬을 전달하면 최신 전시 첫 요청에 사용한다`() = runTest {
+        val sortedRepository = FakePostRepository()
+        val sortedViewModel = displayViewModel(
+            repository = sortedRepository,
+            initialSort = PostSort.POPULAR,
+        )
+
+        val content = sortedViewModel.uiState.value.content
+
+        assertTrue(content is DisplayContentState.Latest)
+        assertEquals(PostSort.POPULAR, (content as DisplayContentState.Latest).selectedSort)
+        assertEquals(listOf(firstPageQuery(LATEST_DATE, PostSort.POPULAR)), sortedRepository.requests)
+    }
+
+    @Test
     fun `전달받은 날짜의 전시 상태로 시작한다`() = runTest {
         val selectedRepository = FakePostRepository()
         val selectedViewModel = displayViewModel(
@@ -754,9 +769,11 @@ private class FakePostRepository : PostRepository {
 private fun displayViewModel(
     repository: PostRepository,
     initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
 ) = DisplayViewModel(
     repository = repository,
     initialDate = initialDate,
+    initialSort = initialSort,
     dateProvider = { LATEST_DATE },
 )
 

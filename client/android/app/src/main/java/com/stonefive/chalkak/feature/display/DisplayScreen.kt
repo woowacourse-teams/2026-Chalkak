@@ -59,9 +59,13 @@ fun DisplayRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
     viewModel: DisplayViewModel = viewModel(
-        key = "display-${initialDate ?: "latest"}",
-        factory = DisplayViewModel.factory(initialDate),
+        key = "display-${initialDate ?: "latest"}-$initialSort",
+        factory = DisplayViewModel.factory(
+            initialDate = initialDate,
+            initialSort = initialSort,
+        ),
     ),
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
 ) {

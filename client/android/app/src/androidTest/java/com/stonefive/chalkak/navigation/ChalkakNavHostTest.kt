@@ -4,8 +4,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -13,7 +15,9 @@ import androidx.navigation.toRoute
 import com.stonefive.chalkak.MainActivity
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.feature.home.HOME_CONTENT_TEST_TAG
 import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,7 +36,7 @@ class ChalkakNavHostTest {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
                     navController = navController,
-                    startDestination = Today,
+                    startDestination = Home,
                 )
             }
         }
@@ -46,7 +50,62 @@ class ChalkakNavHostTest {
 
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.runOnIdle {
-            assertTrue(navController.currentDestination?.hasRoute<Today>() == true)
+            assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun homeRankingLinksOpenPopularDisplayForTheirDates() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
+
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithContentDescription("오늘 인기있는 사진 더보기").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Display>() == true
+        }
+        composeRule.runOnIdle {
+            val display = navController.currentBackStackEntry!!.toRoute<Display>()
+            assertEquals(today.toString(), display.date)
+            assertEquals("POPULAR", display.sort)
+        }
+        composeRule.onNodeWithText("홈").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(3)
+        composeRule.onNodeWithContentDescription("어제 랭킹 더보기").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Display>() == true
+        }
+        composeRule.runOnIdle {
+            val display = navController.currentBackStackEntry!!.toRoute<Display>()
+            assertEquals(today.minusDays(1).toString(), display.date)
+            assertEquals("POPULAR", display.sort)
+        }
+        composeRule.onNodeWithText("홈").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+        composeRule.onNodeWithText("설정").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Settings>() == true
+        }
+        composeRule.onNodeWithText("홈").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
         }
     }
 
@@ -60,7 +119,7 @@ class ChalkakNavHostTest {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
                     navController = navController,
-                    startDestination = Today,
+                    startDestination = Home,
                 )
             }
         }
@@ -68,7 +127,7 @@ class ChalkakNavHostTest {
 
         val selectedDate = LocalDate.of(2026, 8, 2)
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Today>() == true
+            navController.currentDestination?.hasRoute<Home>() == true
         }
         composeRule.runOnIdle {
             navController.navigate(Record)
@@ -107,7 +166,7 @@ class ChalkakNavHostTest {
             assertTrue(
                 navController.previousBackStackEntry
                     ?.destination
-                    ?.hasRoute<Today>() == true,
+                    ?.hasRoute<Home>() == true,
             )
         }
     }
@@ -123,7 +182,7 @@ class ChalkakNavHostTest {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
                     navController = navController,
-                    startDestination = Today,
+                    startDestination = Home,
                 )
             }
         }
@@ -155,7 +214,7 @@ class ChalkakNavHostTest {
             assertTrue(
                 navController.previousBackStackEntry
                     ?.destination
-                    ?.hasRoute<Today>() == true,
+                    ?.hasRoute<Home>() == true,
             )
         }
     }

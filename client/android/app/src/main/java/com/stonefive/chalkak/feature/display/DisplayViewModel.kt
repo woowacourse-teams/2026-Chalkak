@@ -29,13 +29,14 @@ import kotlinx.coroutines.launch
 class DisplayViewModel(
     private val repository: PostRepository,
     private val initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DisplayUiState())
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
-    private var selectedSort = PostSort.LATEST
+    private var selectedSort = initialSort
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
     private var isRevalidating = false
@@ -594,12 +595,16 @@ class DisplayViewModel(
     }
 
     companion object {
-        fun factory(initialDate: LocalDate? = null) = viewModelFactory {
+        fun factory(
+            initialDate: LocalDate? = null,
+            initialSort: PostSort = PostSort.LATEST,
+        ) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 DisplayViewModel(
                     repository = application.appContainer.postRepository,
                     initialDate = initialDate,
+                    initialSort = initialSort,
                 )
             }
         }

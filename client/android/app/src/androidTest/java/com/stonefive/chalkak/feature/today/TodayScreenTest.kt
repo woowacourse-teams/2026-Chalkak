@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -67,46 +68,46 @@ class TodayScreenTest {
         composeRule.onNodeWithText("오늘의 주제가 아직 준비되지 않았어요").assertIsDisplayed()
 
         composeRule.runOnIdle {
-            uiState = contentUiState(photos = emptyList())
+            uiState = contentTodayUiState(photos = emptyList())
         }
         composeRule.onNodeWithTag(TODAY_EMPTY_TEST_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("아직 올라온 사진이 없어요").assertIsDisplayed()
         composeRule.onNodeWithText("첫 번째 사진을 올려보세요").assertIsDisplayed()
 
         composeRule.runOnIdle {
-            uiState = contentUiState()
+            uiState = contentTodayUiState()
         }
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
         composeRule.onNodeWithText("8월 28일 · 오늘의 주제").assertIsDisplayed()
 
         composeRule.runOnIdle {
-            uiState = contentUiState(isLoadingNext = true)
+            uiState = contentTodayUiState(isLoadingNext = true)
         }
         composeRule.onNodeWithTag(TODAY_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
     }
 
     @Test
-    fun homePhotoDoesNotExposeFeedNavigationClickAction() {
-        setTodayContent(uiState = contentUiState())
+    fun todayPhotoDoesNotExposeFeedNavigationClickAction() {
+        setTodayContent(uiState = contentTodayUiState())
         composeRule
             .onNodeWithContentDescription("작품 이미지: 사진 0")
             .assertHasNoClickAction()
     }
 
     @Test
-    fun homePhotoUsesLoadedImageAspectRatio() {
+    fun todayPhotoUsesLoadedImageAspectRatio() {
         val differentlyProportionedPhoto = photos(1).single().copy(
             id = "photo-1",
-            originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
+            originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
             contentDescription = "작품 이미지: 사진 1",
         )
         setTodayContent(
-            uiState = contentUiState(
+            uiState = contentTodayUiState(
                 photos = photos(1) + differentlyProportionedPhoto,
             ),
         )
 
-        composeRule.waitUntil {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
             val bounds = composeRule
                 .onNodeWithContentDescription("작품 이미지: 사진 0")
                 .fetchSemanticsNode()
@@ -116,7 +117,7 @@ class TodayScreenTest {
         }
 
         composeRule.onNode(hasScrollAction()).performScrollToIndex(1)
-        composeRule.waitUntil {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
             val bounds = composeRule
                 .onNodeWithContentDescription("작품 이미지: 사진 1")
                 .fetchSemanticsNode()
@@ -141,7 +142,7 @@ class TodayScreenTest {
             .onNodeWithContentDescription(TODAY_REFRESH_CONTENT_DESCRIPTION)
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNodeWithText("홈을 불러오지 못했어요").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘을 불러오지 못했어요").assertIsDisplayed()
 
         assertEquals(listOf(TodayUiAction.RetryClicked), actions)
     }
@@ -152,10 +153,10 @@ class TodayScreenTest {
             TodayInitialError.TopicNotFound to "오늘의 주제가 아직 준비되지 않았어요",
             TodayInitialError.Unauthorized to "로그인 정보를 확인할 수 없어요",
             TodayInitialError.Network to "네트워크 연결을 확인해 주세요",
-            TodayInitialError.InvalidResponse to "홈 정보를 불러오지 못했어요",
+            TodayInitialError.InvalidResponse to "오늘 정보를 불러오지 못했어요",
             TodayInitialError.Client to "요청을 처리하지 못했어요",
             TodayInitialError.Server to "서버에 잠시 문제가 생겼어요",
-            TodayInitialError.Generic to "홈을 불러오지 못했어요",
+            TodayInitialError.Generic to "오늘을 불러오지 못했어요",
         )
         var uiState by mutableStateOf(
             TodayUiState(contentStatus = TodayContentStatus.Error(cases.first().first)),
@@ -181,7 +182,7 @@ class TodayScreenTest {
     fun pullToRefreshDispatchesRefreshAndBottomItemsDispatchSelection() {
         val actions = mutableListOf<TodayUiAction>()
         setTodayContent(
-            uiState = contentUiState(photos = photos(12)),
+            uiState = contentTodayUiState(photos = photos(12)),
             onAction = actions::add,
         )
 
@@ -194,7 +195,7 @@ class TodayScreenTest {
         }
         composeRule.waitUntil { TodayUiAction.RefreshRequested in actions }
 
-        composeRule.onNodeWithText("오늘").performClick()
+        composeRule.onNodeWithText("홈").performClick()
         composeRule.onNodeWithText("전시").performClick()
 
         assertEquals(1, actions.count { it == TodayUiAction.RefreshRequested })
@@ -213,17 +214,17 @@ class TodayScreenTest {
     }
 
     @Test
-    fun homeReselectionScrollsToTopAndDispatchesSelection() {
+    fun todayReselectionScrollsToTopAndDispatchesSelection() {
         val actions = mutableListOf<TodayUiAction>()
         setTodayContent(
-            uiState = contentUiState(photos = photos(20)),
+            uiState = contentTodayUiState(photos = photos(20)),
             onAction = actions::add,
         )
 
         composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
 
-        composeRule.onNodeWithText("오늘").performClick()
+        composeRule.onNodeWithText("홈").performClick()
 
         composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
         assertEquals(
@@ -237,7 +238,7 @@ class TodayScreenTest {
     @Test
     fun returningToTodayPreservesSavedListPosition() {
         var isTodayVisible by mutableStateOf(true)
-        val uiState = contentUiState(photos = photos(20))
+        val uiState = contentTodayUiState(photos = photos(20))
         composeRule.setContent {
             val stateHolder = rememberSaveableStateHolder()
             ChalkakTheme {
@@ -265,12 +266,12 @@ class TodayScreenTest {
     fun emptyFeedBlocksChromeCollapseAndStillAllowsPullToRefresh() {
         val actions = mutableListOf<TodayUiAction>()
         setTodayContent(
-            uiState = contentUiState(photos = emptyList()),
+            uiState = contentTodayUiState(photos = emptyList()),
             onAction = actions::add,
         )
         val photoList = composeRule.onNode(hasScrollAction())
         val topic = composeRule.onNodeWithText("바다")
-        val today = composeRule.onNodeWithText("오늘")
+        val today = composeRule.onNodeWithText("홈")
         val topicTopBefore = topic
             .fetchSemanticsNode()
             .boundsInRoot.top
@@ -381,7 +382,7 @@ class TodayScreenTest {
     fun endThresholdEmitsOnceUntilListLeavesAndReenters() {
         val thresholdEvents = mutableListOf<Boolean>()
         setTodayContent(
-            uiState = contentUiState(photos = photos(20)),
+            uiState = contentTodayUiState(photos = photos(20)),
             onAction = { action ->
                 if (action is TodayUiAction.EndThresholdChanged) {
                     thresholdEvents += action.isReached
@@ -415,9 +416,9 @@ class TodayScreenTest {
     }
 }
 
-private const val TODAY_STATE_KEY = "home"
+private const val TODAY_STATE_KEY = "today"
 
-private fun contentUiState(
+private fun contentTodayUiState(
     photos: List<Post> = photos(1),
     isLoadingNext: Boolean = false,
 ) = TodayUiState(
@@ -434,10 +435,10 @@ private fun contentUiState(
 private fun photos(count: Int) = List(count) { index ->
     Post(
         id = "photo-$index",
-        originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
-        signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+        originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}",
+        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}",
+        signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+        signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
         contentDescription = "작품 이미지: 사진 $index",
         title = "사진 $index",
         likeCount = 17,

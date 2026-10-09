@@ -8,9 +8,9 @@ import com.stonefive.chalkak.feature.reminder.ReminderGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateRoute
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 import com.stonefive.chalkak.navigation.ChalkakNavHost
+import com.stonefive.chalkak.navigation.Home
 import com.stonefive.chalkak.navigation.Login
 import com.stonefive.chalkak.navigation.ReminderTime
-import com.stonefive.chalkak.navigation.Today
 
 @Composable
 fun ChalkakApp(
@@ -47,7 +47,7 @@ fun ChalkakApp(
                         ChalkakNavHost(
                             analyticsTracker = analyticsTracker,
                             modifier = gateModifier,
-                            startDestination = Today,
+                            startDestination = Home,
                         )
                     },
                     modifier = contentModifier,
