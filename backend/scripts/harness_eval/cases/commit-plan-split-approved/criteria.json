@@ -1,0 +1,89 @@
+{
+  "id": "commit-plan-split-approved",
+  "title": "추가 분할 승인 후 모의 이슈 등록·관계 확인·커밋 계획 재안내",
+  "setup": {
+    "uncommitted_append": {},
+    "branch": "be/fix/#901-feedback",
+    "copy_source_paths": [
+      "backend/scripts/work_state.py"
+    ],
+    "mock_github": true,
+    "work_state": {
+      "issue": 901,
+      "work": {
+        "goal": "메인 #900 아래 #901 피드백 작업의 추가 분할 선택을 기다림",
+        "scope": {
+          "include": [
+            "로그인 사용자 접수",
+            "접수 Slack 알림",
+            "관리자 목록·상세 조회",
+            "내용 키워드 검색",
+            "관련 권한·경계·실패·회귀 테스트"
+          ],
+          "exclude": [
+            "삭제",
+            "수정",
+            "첨부파일"
+          ]
+        },
+        "done": [
+          "초기 예상과 현재 31파일/1450줄 추정을 대조하고 재분할안·본문·커밋 계획 제시"
+        ],
+        "remaining": [
+          "사용자 선택 확인",
+          "승인된 재분할 등록과 실제 번호의 계획 재안내"
+        ],
+        "next": "이슈·커밋 추가 분할안과 등록 범위의 사용자 승인 대기",
+        "workflow": {
+          "main_issue": 900,
+          "order": [
+            901
+          ],
+          "phase": "scope_approval",
+          "approval_basis": "인터뷰 결과 및 최초 이슈 분할·실행 승인; 이번 추가 분할은 아직 승인되지 않음",
+          "pending_change": "#901에 접수를 남기고 Slack 알림·관리자 조회·검색 이슈를 추가하는 재분할안"
+        }
+      },
+      "checks": []
+    }
+  },
+  "mechanical": {
+    "allowed_changed_paths": [
+      ".eval/calls.jsonl",
+      "backend/.harness/state/issue-901.json",
+      "backend/.harness/state/.lock",
+      ".eval/state.json"
+    ],
+    "required_changed_paths": [
+      ".eval/state.json",
+      "backend/.harness/state/issue-901.json"
+    ],
+    "required_text": {},
+    "preserved_text": {},
+    "forbidden_mutations": [
+      "git_commit",
+      "git_branch",
+      "git_push"
+    ],
+    "allowed_new_markdown_dirs": [
+      ".eval/bodies"
+    ]
+  },
+  "semantic": [
+    {
+      "id": "registration",
+      "check": "기존 #901을 재사용하고 승인된 세 이슈만 생성·확인하며 기존 메인 아래 실제 관계 연결·재조회",
+      "evidence": "calls.jsonl 및 최종 state에서 #900/#901 보존, #902~904 제목/본문/담당자/라벨·부모·양방향 조회 확인; 새 메인·중복 생성 금지"
+    },
+    {
+      "id": "replan",
+      "check": "실제 이슈 번호의 순서·의존성과 갱신된 커밋 계획·예상 규모·다음 착수 단위를 재안내",
+      "evidence": "답변과 issue-901 작업 기록을 최종 mock state와 대조; 같은 분할/등록 승인을 반복하지 않고 각 커밋 승인 유지"
+    },
+    {
+      "id": "scope",
+      "check": "등록과 계획 재안내까지만 수행하며 서비스 구현·커밋·푸시·PR은 진행하지 않음",
+      "evidence": "전체 이벤트·변경 diff와 다음 작업 안내; 기존 담당자·범위·코드 보존"
+    }
+  ]
+}

@@ -57,8 +57,14 @@ def inspect_material(repo, config_home):
         if path.exists() and re.search(r"(?<!\S)@[^\s]+", path.read_text(encoding="utf-8")):
             raise ValueError("평가 자료 밖을 자동으로 읽을 수 있는 @import는 이 실행기가 지원하지 않습니다: " + str(path))
     settings = json.loads((repo / "backend/.claude/settings.json").read_text())
-    if not isinstance(settings, dict) or set(settings) - {"permissions", "sandbox"}:
-        raise ValueError("이 실행기는 permissions·sandbox 외의 프로젝트 실행 설정을 지원하지 않습니다")
+    if not isinstance(settings, dict) or set(settings) - {"permissions", "sandbox", "attribution"}:
+        raise ValueError("이 실행기는 permissions·sandbox·attribution 외의 프로젝트 실행 설정을 지원하지 않습니다")
+    if "attribution" in settings:
+        attribution = settings["attribution"]
+        if (not isinstance(attribution, dict) or set(attribution) != {"commit", "pr", "sessionUrl"}
+                or attribution["commit"] != "" or attribution["pr"] != ""
+                or attribution["sessionUrl"] is not False):
+            raise ValueError("Claude attribution은 팀의 AI 작성 표시 비활성 설정만 지원합니다")
     return names
 
 
@@ -104,6 +110,9 @@ def build_command(binary, repo, output, config_home=None):
         "disableClaudeAiConnectors": True,
         "env": {"ENABLE_CLAUDEAI_MCP_SERVERS": "false", "CLAUDE_CODE_SYNC_SKILLS": "false"},
     }
+    project_settings = json.loads((repo / "backend/.claude/settings.json").read_text())
+    if "attribution" in project_settings:
+        settings["attribution"] = project_settings["attribution"]
     # 인증·개인 도구 설정은 복사하지 않는다. 기존 모델 선호만 보존한다.
     user_settings = config_home / "settings.json"
     if user_settings.exists():

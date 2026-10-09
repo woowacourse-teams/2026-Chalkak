@@ -2,7 +2,103 @@
 """격리 평가 전용 gh 대역. 네트워크·인증·실제 GitHub에 접근하지 않는다."""
 import json
 from pathlib import Path
+import re
 import sys
+
+
+def split_command(args, folder, state, flag, output, save):
+    """재분할 사례만 사용하는 오프라인 이슈 저장소. 기존 사례의 권한은 넓히지 않는다."""
+    issues = state['issues']
+    selected_repo = flag('--repo', flag('-R', 'team/fixture'))
+    if selected_repo != 'team/fixture':
+        raise ValueError('외부 저장소는 지원하지 않습니다')
+
+    def view(value):
+        return {**value, 'url': value['html_url'], 'state': value['state'].upper(),
+                'author': {'login': 'fixture-author'}}
+
+    def writable():
+        if state.get('allow_issue_split') is not True:
+            raise ValueError('이 사례는 이슈 쓰기를 허용하지 않습니다')
+
+    def body():
+        filename = flag('--body-file')
+        if filename:
+            path = Path(filename).resolve()
+            if not path.is_relative_to(folder.parent.resolve()) or path.stat().st_size > 100_000:
+                raise ValueError('모의 본문 파일은 평가 저장소 내부의 작은 파일만 허용합니다')
+            return path.read_text()
+        return flag('--body', flag('-b'))
+
+    if args[:2] == ['issue', 'list']:
+        output([view(value) for value in issues.values()]); return
+    if args[:2] == ['issue', 'create']:
+        writable()
+        supported = {'--repo', '-R', '--title', '-t', '--body', '-b', '--body-file', '--assignee', '-a', '--label', '-l'}
+        if len(args[2:]) % 2 or any(arg not in supported for arg in args[2::2]):
+            raise ValueError('지원하지 않는 이슈 생성 옵션')
+        title, content = flag('--title', flag('-t')), body()
+        assignee = flag('--assignee', flag('-a'))
+        if not title or not content or assignee not in ('fixture-author', '@me'):
+            raise ValueError('제목·본문·본인 담당자가 필요합니다')
+        labels = []
+        for index, arg in enumerate(args[:-1]):
+            if arg in ('--label', '-l'):
+                labels.extend(args[index+1].split(','))
+        if not labels or set(labels) - {'Server', 'feat', 'docs'}:
+            raise ValueError('확인된 라벨이 필요합니다')
+        number = state['next_issue']
+        issues[str(number)] = {'number': number, 'id': 100000 + number,
+            'html_url': f'https://github.com/team/fixture/issues/{number}',
+            'title': title, 'body': content, 'state': 'open', 'parent': None,
+            'labels': [{'name': label} for label in labels],
+            'assignees': [{'login': 'fixture-author'}]}
+        state['next_issue'] += 1
+        save(); print(issues[str(number)]['html_url']); return
+    if len(args) >= 3 and args[0] == 'issue' and args[1] in ('view', 'edit'):
+        number = args[2].rsplit('/', 1)[-1]
+        value = issues[number]
+        if args[1] == 'edit':
+            writable()
+            supported = {'--repo', '-R', '--title', '-t', '--body', '-b', '--body-file', '--add-assignee'}
+            if len(args[3:]) % 2 or any(arg not in supported for arg in args[3::2]):
+                raise ValueError('지원하지 않는 이슈 수정 옵션')
+            title, content = flag('--title', flag('-t')), body()
+            if title is not None: value['title'] = title
+            if content is not None: value['body'] = content
+            assignee = flag('--add-assignee')
+            if assignee not in (None, 'fixture-author', '@me'):
+                raise ValueError('본인 담당자 추가만 지원합니다')
+            if assignee and not any(a['login'] == 'fixture-author' for a in value['assignees']):
+                value['assignees'].append({'login': 'fixture-author'})
+            save()
+        output(view(value)); return
+    if args and args[0] == 'api':
+        endpoint = next((a for a in args[1:] if a.startswith('repos/')), '')
+        match = re.fullmatch(r'repos/team/fixture/issues(?:/(\d+)(?:/(parent|sub_issues))?)?', endpoint)
+        if not match: raise ValueError('지원하지 않는 모의 REST 경로')
+        method = flag('--method', flag('-X', 'GET'))
+        number, relation = match.groups()
+        value = issues[number] if number else None
+        if method == 'GET':
+            if relation == 'parent':
+                if value['parent'] is None: raise ValueError('부모 이슈 없음')
+                output(issues[str(value['parent'])]); return
+            if relation == 'sub_issues':
+                output([v for v in issues.values() if v['parent'] == int(number)]); return
+            output(value if number else list(issues.values())); return
+        if method == 'POST' and relation == 'sub_issues':
+            writable()
+            fields = dict(arg.split('=', 1) for arg in args[1:] if '=' in arg)
+            if set(fields) != {'sub_issue_id'}: raise ValueError('sub_issue_id만 허용합니다')
+            child = next(v for v in issues.values() if v['id'] == int(fields['sub_issue_id']))
+            if child['number'] == int(number) or value['parent'] is not None:
+                raise ValueError('이 사례의 메인 아래에만 연결할 수 있습니다')
+            if child['parent'] not in (None, int(number)):
+                raise ValueError('기존 부모 변경은 허용하지 않습니다')
+            child['parent'] = int(number)
+            save(); output(child); return
+    raise ValueError('지원하지 않는 재분할 모의 gh 명령: ' + str(args))
 
 
 def main():
@@ -33,7 +129,9 @@ def main():
     if args[:2] == ['repo','view']:
         output({'nameWithOwner':'team/fixture','url':'https://github.com/team/fixture','defaultBranchRef':{'name':'be/develop'}});return
     if args[:2] == ['label','list']:
-        output([{'name':'Server'},{'name':'docs'}]);return
+        output([{'name': label} for label in ('Server', 'docs', 'feat')]);return
+    if 'issues' in state and (args[:1] == ['issue'] or args[:1] == ['api'] and any(a.startswith('repos/') for a in args)):
+        split_command(args, folder, state, flag, output, save); return
     if args and args[0] == 'api':
         endpoint = next((a for a in args[1:] if a == 'user' or a.startswith('repos/')), '')
         method = flag('--method',flag('-X','GET'))

@@ -31,6 +31,7 @@ class HarnessEvaluationTests(unittest.TestCase):
         source_files = {
             "backend/AGENTS.md": "# Backend instructions\n",
             "backend/CLAUDE.md": "# Backend instructions\n",
+            "backend/.gitignore": "/.harness/state/\n",
             "backend/.agents/skills/example/SKILL.md": "---\nname: example\ndescription: Example\n---\nBody\n",
             "backend/.claude/skills/example/SKILL.md": "---\nname: example\ndescription: Example\n---\nBody\n",
             "backend/.claude/rules/main-code.md": "---\npaths: [src/main/java/**/*.java]\n---\nRule\n",
@@ -149,6 +150,19 @@ class HarnessEvaluationTests(unittest.TestCase):
         errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
         self.assertTrue(any("preserved_text" in error and "8080" in error for error in errors))
 
+    def test_state_is_ignored_but_still_inspected_by_evaluator(self):
+        repo, _, criteria, before = self.prepare_case("commit-unit-approval")
+        folder = repo / "backend/.harness/state"
+        folder.mkdir(parents=True)
+        (folder / "issue-901.json").write_text("{}\n")
+        self.assertEqual("", runner.git(repo, "status", "--short"))
+        readme = repo / "backend/README.md"
+        readme.write_text(readme.read_text().replace("JDK 버전 안내 예정.", "JDK 25"))
+        self.assertEqual([], runner.compare(before, runner.snapshot(repo), criteria)[0])
+        (folder / ".gitignore").write_text("*\n")
+        errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
+        self.assertIn("범위 밖 변경: backend/.harness/state/.gitignore", errors)
+
     def test_new_markdown_permission_does_not_allow_existing_files_or_nested_paths(self):
         before = {"files": {"backend/docs/interviews/기존.md": "보존"},
                   "refs": "same", "head": "same", "config": "same"}
@@ -167,6 +181,28 @@ class HarnessEvaluationTests(unittest.TestCase):
         after = {**before, "files": {}}
         errors, _ = runner.compare(before, after, criteria)
         self.assertTrue(errors, "기존 문서 삭제도 허용하면 안 됩니다")
+
+    def test_split_proposal_allows_body_drafts_but_not_extra_state_input_files(self):
+        repo, _, criteria, before = self.prepare_case("commit-plan-reassessment")
+        bodies = repo / ".eval/bodies"
+        bodies.mkdir()
+        (bodies / "proposal.md").write_text("검토할 이슈 본문\n")
+        self.assertEqual([], runner.compare(before, runner.snapshot(repo), criteria)[0])
+        (bodies / "state-input.json").write_text("{}\n")
+        errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
+        self.assertIn("범위 밖 변경: .eval/bodies/state-input.json", errors)
+
+    def test_split_approval_starts_with_existing_pending_record_and_requires_update(self):
+        repo, _, criteria, before = self.prepare_case("commit-plan-split-approved")
+        record_path = repo / "backend/.harness/state/issue-901.json"
+        record = json.loads(record_path.read_text())
+        self.assertEqual("scope_approval", record["work"]["workflow"]["phase"])
+        self.assertEqual([901], record["work"]["workflow"]["order"])
+        self.assertIsNone(record.get("verification"))
+        self.assertIn("backend/.harness/state/issue-901.json", before["files"])
+        self.assertEqual("", runner.git(repo, "status", "--short"))
+        errors, _ = runner.compare(before, runner.snapshot(repo), criteria)
+        self.assertIn("요청한 변경 없음: backend/.harness/state/issue-901.json", errors)
 
     def test_business_rule_case_uses_shared_skill_and_allows_only_rule_document(self):
         shared = {
