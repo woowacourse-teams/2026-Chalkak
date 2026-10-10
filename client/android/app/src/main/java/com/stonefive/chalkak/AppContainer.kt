@@ -20,6 +20,8 @@ import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
+import com.stonefive.chalkak.data.remote.notification.NotificationRemoteDataSourceImpl
+import com.stonefive.chalkak.data.remote.notification.NotificationRepositoryImpl
 import com.stonefive.chalkak.data.remote.post.OkHttpPostImageUploader
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
@@ -35,6 +37,7 @@ import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.model.ReminderPreference
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -89,6 +92,17 @@ class AppContainer(context: Context) {
             networkModule.feedbackApi,
             networkModule.apiRequestExecutor,
         )
+    }
+
+    private val notificationRemoteDataSource by lazy {
+        NotificationRemoteDataSourceImpl(
+            api = networkModule.notificationApi,
+            requestExecutor = networkModule.apiRequestExecutor,
+        )
+    }
+
+    val notificationRepository: NotificationRepository by lazy {
+        NotificationRepositoryImpl(notificationRemoteDataSource)
     }
 
     val googleIdTokenClient = GoogleIdTokenClient(
@@ -181,6 +195,8 @@ class AppContainer(context: Context) {
             reconcileReminderAlarm()
         }
     }
+
+    suspend fun markNotificationRead(notificationId: String) = notificationRepository.markAsRead(notificationId)
 
     suspend fun reconcileReminderAlarm() {
         val preference = reminderPreferenceRepository.preference.first { preference ->

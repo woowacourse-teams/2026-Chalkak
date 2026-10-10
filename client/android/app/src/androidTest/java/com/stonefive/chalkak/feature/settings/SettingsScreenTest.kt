@@ -129,7 +129,7 @@ class SettingsScreenTest {
             onReminderClick = { reminderClickCount++ },
         )
 
-        composeRule.onNodeWithText("알림 설정").performClick()
+        composeRule.onNodeWithText("매일 알림 시간").performClick()
 
         assertEquals(1, reminderClickCount)
     }

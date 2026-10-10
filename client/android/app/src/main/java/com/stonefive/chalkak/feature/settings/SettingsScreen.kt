@@ -1,5 +1,10 @@
 package com.stonefive.chalkak.feature.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,11 +16,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -30,6 +44,7 @@ import com.stonefive.chalkak.feature.settings.component.SettingsAppCard
 import com.stonefive.chalkak.feature.settings.component.SettingsFeedbackCard
 import com.stonefive.chalkak.feature.settings.component.SettingsInformationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsLoginButton
+import com.stonefive.chalkak.feature.settings.component.SettingsPushNotificationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsSectionLabel
 
 @Composable
@@ -45,7 +60,22 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var deviceNotificationsEnabled by remember {
+        mutableStateOf(context.areDeviceNotificationsEnabled())
+    }
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                deviceNotificationsEnabled = context.areDeviceNotificationsEnabled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(signatureUpdateUrl) {
         signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
@@ -65,6 +95,12 @@ fun SettingsRoute(
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
+        onTopicPushChanged = viewModel::updateTopicPushEnabled,
+        onModerationPushChanged = viewModel::updateModerationPushEnabled,
+        deviceNotificationsEnabled = deviceNotificationsEnabled,
+        onOpenDeviceNotificationSettings = {
+            context.openDeviceNotificationSettings()
+        },
     )
 }
 
@@ -83,6 +119,10 @@ fun SettingsScreen(
     onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
+    onTopicPushChanged: (Boolean) -> Unit = {},
+    onModerationPushChanged: (Boolean) -> Unit = {},
+    deviceNotificationsEnabled: Boolean = true,
+    onOpenDeviceNotificationSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     uiState.accountDialog?.let { accountDialog ->
@@ -129,6 +169,25 @@ fun SettingsScreen(
                 onChangeSignatureClick = onChangeSignatureClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (uiState.isLoggedIn) {
+                Spacer(modifier = Modifier.height(36.dp))
+
+                SettingsSectionLabel(text = "푸시 알림")
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsPushNotificationCard(
+                    settings = uiState.pushSettings,
+                    isLoading = uiState.isPushSettingsLoading,
+                    isSaving = uiState.isPushSettingsSaving,
+                    deviceNotificationsEnabled = deviceNotificationsEnabled,
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
+                    onOpenDeviceNotificationSettings = onOpenDeviceNotificationSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             Spacer(modifier = Modifier.height(36.dp))
 
@@ -179,6 +238,22 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
         }
     }
+}
+
+private fun Context.areDeviceNotificationsEnabled(): Boolean =
+    NotificationManagerCompat.from(this).areNotificationsEnabled()
+
+private fun Context.openDeviceNotificationSettings() {
+    val appNotificationsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+    val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:$packageName"))
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        appNotificationsIntent
+    } else {
+        appDetailsIntent
+    }
+    startActivity(intent)
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)

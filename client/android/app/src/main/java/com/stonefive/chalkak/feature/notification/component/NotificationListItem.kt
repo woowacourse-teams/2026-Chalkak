@@ -1,8 +1,10 @@
 package com.stonefive.chalkak.feature.notification.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,16 +29,20 @@ import com.stonefive.chalkak.feature.notification.previewNotifications
 fun NotificationListItem(
     item: NotificationItemUiState,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     Row(
         modifier = modifier
+            .clickable(onClick = onClick)
             .semantics {
                 stateDescription = if (item.isUnread) {
                     "읽지 않음"
                 } else {
                     "읽음"
                 }
-            }.padding(vertical = ChalkakTheme.spacing.xl),
+            }.padding(contentPadding)
+            .padding(vertical = ChalkakTheme.spacing.xl),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
@@ -68,6 +74,17 @@ fun NotificationListItem(
                 maxLines = NOTIFICATION_TITLE_MAX_LINES,
                 overflow = TextOverflow.Ellipsis,
             )
+
+            if (item.body.isNotBlank()) {
+                Text(
+                    text = item.body,
+                    modifier = Modifier.padding(top = ChalkakTheme.spacing.xs),
+                    color = ChalkakTheme.colors.textSecondary,
+                    style = ChalkakTheme.typography.caption,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
             Text(
                 text = item.timeText,

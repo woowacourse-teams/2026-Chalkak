@@ -32,7 +32,7 @@ fun SettingsAppCard(
 ) {
     SettingsCard(modifier = modifier) {
         SettingsRow(
-            text = "알림 설정",
+            text = "매일 알림 시간",
             onClick = onReminderClick,
             modifier = Modifier.fillMaxWidth(),
             trailingContent = { SettingsArrowIcon() },

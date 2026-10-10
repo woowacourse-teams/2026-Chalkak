@@ -4,6 +4,7 @@ import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.auth.AuthApi
 import com.stonefive.chalkak.data.remote.auth.RefreshApi
 import com.stonefive.chalkak.data.remote.feedback.FeedbackApi
+import com.stonefive.chalkak.data.remote.notification.NotificationApi
 import com.stonefive.chalkak.data.remote.post.PostApi
 import com.stonefive.chalkak.data.remote.topic.TopicApi
 import com.stonefive.chalkak.data.remote.user.UserApi
@@ -55,6 +56,7 @@ class NetworkModule(
     val postApi: PostApi = retrofit.create(PostApi::class.java)
     val userApi: UserApi = retrofit.create(UserApi::class.java)
     val feedbackApi: FeedbackApi = retrofit.create(FeedbackApi::class.java)
+    val notificationApi: NotificationApi = retrofit.create(NotificationApi::class.java)
     val apiRequestExecutor = ApiRequestExecutor(json = json)
 
     val presignedUploadClient = OkHttpClient

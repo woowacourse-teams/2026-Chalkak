@@ -8,10 +8,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,7 @@ class SettingsViewModel(
     private val authRepository: AuthRepository,
     private val userRepository: UserRepository,
     versionName: String,
+    private val notificationRepository: NotificationRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         SettingsUiState(
@@ -36,6 +40,7 @@ class SettingsViewModel(
 
     init {
         loadProfile()
+        loadPushSettings()
     }
 
     fun startLogin() {
@@ -58,6 +63,14 @@ class SettingsViewModel(
                 signatureUrl = signatureUrl,
             )
         }
+    }
+
+    fun updateTopicPushEnabled(enabled: Boolean) {
+        updatePushSettings(NotificationPushSettingsUpdate(topicPushEnabled = enabled))
+    }
+
+    fun updateModerationPushEnabled(enabled: Boolean) {
+        updatePushSettings(NotificationPushSettingsUpdate(moderationPushEnabled = enabled))
     }
 
     fun dismissAccountDialog() {
@@ -171,6 +184,57 @@ class SettingsViewModel(
         }
     }
 
+    private fun loadPushSettings() {
+        val repository = notificationRepository ?: return
+        if (authRepository.sessionState.value !is UserSessionState.Authenticated) return
+
+        _uiState.update { it.copy(isPushSettingsLoading = true) }
+        viewModelScope.launch {
+            when (val result = repository.getPushSettings()) {
+                is NotificationResult.Success -> _uiState.update {
+                    it.copy(pushSettings = result.value, isPushSettingsLoading = false)
+                }
+
+                is NotificationResult.Failure -> {
+                    val pendingMessage = nextToast("푸시 알림 설정을 불러오지 못했어요.")
+                    _uiState.update {
+                        it.copy(isPushSettingsLoading = false, pendingMessage = pendingMessage)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updatePushSettings(update: NotificationPushSettingsUpdate) {
+        val repository = notificationRepository ?: return
+        val previous = _uiState.value.pushSettings ?: return
+        if (_uiState.value.isPushSettingsSaving) return
+
+        val optimistic = previous.copy(
+            topicPushEnabled = update.topicPushEnabled ?: previous.topicPushEnabled,
+            moderationPushEnabled = update.moderationPushEnabled ?: previous.moderationPushEnabled,
+        )
+        _uiState.update { it.copy(pushSettings = optimistic, isPushSettingsSaving = true) }
+        viewModelScope.launch {
+            when (repository.updatePushSettings(update)) {
+                is NotificationResult.Success -> _uiState.update {
+                    it.copy(isPushSettingsSaving = false)
+                }
+
+                is NotificationResult.Failure -> {
+                    val pendingMessage = nextToast("푸시 알림 설정을 저장하지 못했어요.")
+                    _uiState.update {
+                        it.copy(
+                            pushSettings = previous,
+                            isPushSettingsSaving = false,
+                            pendingMessage = pendingMessage,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         val Factory = viewModelFactory {
             initializer {
@@ -179,6 +243,7 @@ class SettingsViewModel(
                     authRepository = application.appContainer.authRepository,
                     userRepository = application.appContainer.userRepository,
                     versionName = BuildConfig.VERSION_NAME,
+                    notificationRepository = application.appContainer.notificationRepository,
                 )
             }
         }
