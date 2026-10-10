@@ -8,7 +8,7 @@ struct NotificationScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            topBar
+            NotificationTopBar(onBackClick: onBackClick)
 
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -25,28 +25,6 @@ struct NotificationScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 0) {
-            ChalkakNavigationButton(kind: .back, action: onBackClick)
-                .accessibilityIdentifier("notification.back")
-
-            Text("알림")
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.textPrimary)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("notification.title")
-
-            Color.clear
-                .frame(
-                    width: ChalkakNavigationButton.diameter,
-                    height: ChalkakNavigationButton.diameter
-                )
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, Metrics.topBarHorizontalPadding)
-        .frame(height: Metrics.topBarHeight)
     }
 }
 
@@ -119,8 +97,6 @@ private struct NotificationListItem: View {
 }
 
 private enum Metrics {
-    static let topBarHeight: CGFloat = 72
-    static let topBarHorizontalPadding: CGFloat = 20
     static let thumbnailSize: CGFloat = 44
     static let dividerHeight: CGFloat = 1
 }

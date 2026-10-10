@@ -256,6 +256,49 @@ struct PushDeviceRegistrarTests {
 }
 
 @MainActor
+struct NotificationDetailViewModelTests {
+    @Test("상세를 불러오면 사진과 반려 사유를 보여준다")
+    func showsLoadedDetail() async {
+        let detail = NotificationDetail(
+            id: "019a0010-0000-7000-8000-000000000002",
+            title: "게시물이 반려되었습니다.",
+            body: "반려 사유를 확인해 주세요.",
+            originalImageURL: URL(string: "https://example.com/original.webp"),
+            rejectionReason: "주제와 맞지 않아요."
+        )
+        let viewModel = NotificationDetailViewModel(loadDetail: { detail })
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.status == .content)
+        #expect(viewModel.viewState.detail == detail)
+    }
+
+    @Test("찾을 수 없는 알림은 이전 정보를 대신 보여주지 않는다")
+    func showsNotFoundWithoutStaleDetail() async {
+        let viewModel = NotificationDetailViewModel(
+            loadDetail: { throw NotificationAPIError.notFound }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.status == .notFound)
+        #expect(viewModel.viewState.detail == nil)
+    }
+
+    @Test("그 밖의 실패는 다시 시도할 수 있는 상태로 둔다")
+    func showsFailure() async {
+        let viewModel = NotificationDetailViewModel(
+            loadDetail: { throw NotificationAPIError.network }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.status == .failed)
+    }
+}
+
+@MainActor
 private final class RegisteredTokenRecorder {
     var tokens: [String] = []
 }
