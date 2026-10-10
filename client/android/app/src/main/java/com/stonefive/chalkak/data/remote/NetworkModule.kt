@@ -37,11 +37,12 @@ class NetworkModule(
         .build()
         .create(RefreshApi::class.java)
     private val tokenRefresher = AuthTokenRefresher(refreshApi, json)
+    val sessionRefreshCoordinator = SessionRefreshCoordinator(sessionStore, tokenRefresher)
 
     private val backendClient = OkHttpClient
         .Builder()
         .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
-        .authenticator(TokenAuthenticator(sessionStore, tokenRefresher, json))
+        .authenticator(TokenAuthenticator(sessionStore, sessionRefreshCoordinator, json))
         .build()
 
     private val retrofit = Retrofit

@@ -1,6 +1,7 @@
 package com.stonefive.chalkak
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -11,6 +12,7 @@ import androidx.activity.viewModels
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.notification.NotificationPushData
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 
 class MainActivity : ComponentActivity() {
@@ -41,6 +43,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enqueueNotificationNavigation(intent)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 scrim = android.graphics.Color.TRANSPARENT,
@@ -63,5 +66,20 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        enqueueNotificationNavigation(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appContainer.syncPushDevice()
+    }
+
+    private fun enqueueNotificationNavigation(intent: Intent?) {
+        NotificationPushData.from(intent)?.let(appContainer.pendingNotificationNavigation::enqueue)
     }
 }

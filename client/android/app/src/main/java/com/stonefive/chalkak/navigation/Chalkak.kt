@@ -30,6 +30,9 @@ data object Today
 data object Notifications
 
 @Serializable
+data class NotificationDetail(val notificationId: String)
+
+@Serializable
 data class Display(val date: String)
 
 @Serializable

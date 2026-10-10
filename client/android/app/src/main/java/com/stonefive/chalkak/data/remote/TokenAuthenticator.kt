@@ -12,10 +12,18 @@ import okhttp3.Route
 
 class TokenAuthenticator(
     private val sessionStore: SessionStore,
-    private val tokenRefresher: TokenRefresher,
+    private val sessionRefreshCoordinator: SessionRefreshCoordinator,
     private val json: Json,
 ) : Authenticator {
-    private val refreshLock = Any()
+    constructor(
+        sessionStore: SessionStore,
+        tokenRefresher: TokenRefresher,
+        json: Json,
+    ) : this(
+        sessionStore = sessionStore,
+        sessionRefreshCoordinator = SessionRefreshCoordinator(sessionStore, tokenRefresher),
+        json = json,
+    )
 
     override fun authenticate(
         route: Route?,
@@ -23,42 +31,58 @@ class TokenAuthenticator(
     ): Request? {
         if (responseCount(response) >= MAX_ATTEMPTS) return null
 
-        synchronized(refreshLock) {
-            val latest = (sessionStore.session.value as? LocalSession.Authenticated)?.credentials
-                ?: return null
+        val latest = (sessionStore.session.value as? LocalSession.Authenticated)?.credentials
+            ?: return null
 
-            val usedAccessToken = response.request
-                .tag(AuthorizationRequestContext::class.java)
-                ?.accessToken
+        val usedAccessToken = response.request
+            .tag(AuthorizationRequestContext::class.java)
+            ?.accessToken
+        val requestUserId = response.request
+            .tag(AuthorizationRequestContext::class.java)
+            ?.userId
 
-            if (usedAccessToken != null && usedAccessToken != latest.accessToken) {
-                return response.request.withAccessToken(latest.accessToken)
+        if (requestUserId != null && requestUserId != latest.userId) return null
+
+        if (usedAccessToken != null && usedAccessToken != latest.accessToken) {
+            return response.request.withAccessToken(latest.accessToken, latest.userId)
+        }
+
+        if (response.requiresReauthentication()) {
+            runBlocking { sessionStore.clear() }
+            return null
+        }
+
+        return when (
+            val result = runBlocking {
+                sessionRefreshCoordinator.refreshAfterUnauthorized(
+                    userId = latest.userId,
+                    usedAccessToken = latest.accessToken,
+                )
             }
-
-            if (response.requiresReauthentication()) {
-                runBlocking { sessionStore.clear() }
-                return null
-            }
-
-            return when (
-                val result = runBlocking { tokenRefresher.refresh(latest.userId, latest.refreshToken) }
-            ) {
-                is TokenRefreshResult.Success -> {
-                    val applied = runBlocking { sessionStore.updateTokens(result.credentials) }
-                    if (applied) {
-                        response.request.withAccessToken(result.credentials.accessToken)
-                    } else {
-                        null
-                    }
-                }
-
-                TokenRefreshResult.ReauthenticationRequired -> {
-                    runBlocking { sessionStore.clear() }
+        ) {
+            is TokenRefreshResult.Success -> {
+                val currentUserId = (sessionStore.session.value as? LocalSession.Authenticated)
+                    ?.credentials
+                    ?.userId
+                if (currentUserId == result.credentials.userId) {
+                    response.request.withAccessToken(
+                        result.credentials.accessToken,
+                        result.credentials.userId,
+                    )
+                } else {
                     null
                 }
-
-                TokenRefreshResult.TransientFailure -> null
             }
+
+            TokenRefreshResult.ReauthenticationRequired -> {
+                val currentUserId = (sessionStore.session.value as? LocalSession.Authenticated)
+                    ?.credentials
+                    ?.userId
+                if (currentUserId == latest.userId) runBlocking { sessionStore.clear() }
+                null
+            }
+
+            TokenRefreshResult.TransientFailure -> null
         }
     }
 
@@ -68,11 +92,14 @@ class TokenAuthenticator(
         return errorCode == REAUTHENTICATION_REQUIRED
     }
 
-    private fun Request.withAccessToken(accessToken: String): Request = newBuilder()
+    private fun Request.withAccessToken(
+        accessToken: String,
+        userId: String,
+    ): Request = newBuilder()
         .header(AUTHORIZATION_HEADER, "$BEARER_PREFIX$accessToken")
         .tag(
             AuthorizationRequestContext::class.java,
-            AuthorizationRequestContext(accessToken),
+            AuthorizationRequestContext(accessToken, userId),
         ).build()
 
     private fun responseCount(response: Response): Int {

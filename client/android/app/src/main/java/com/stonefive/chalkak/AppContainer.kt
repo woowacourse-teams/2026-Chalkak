@@ -2,6 +2,7 @@ package com.stonefive.chalkak
 
 import android.content.Context
 import androidx.credentials.CredentialManager
+import com.google.firebase.messaging.FirebaseMessaging
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.analytics.FirebaseAnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
@@ -11,7 +12,10 @@ import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.core.network.AndroidConnectivityObserver
 import com.stonefive.chalkak.core.network.ConnectivityObserver
+import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
+import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
+import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.local.reminder.AndroidReminderAlarmScheduler
 import com.stonefive.chalkak.data.local.reminder.ReminderNotificationManager
 import com.stonefive.chalkak.data.local.reminder.ReminderPreferenceStore
@@ -22,6 +26,7 @@ import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
 import com.stonefive.chalkak.data.remote.notification.NotificationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.notification.NotificationRepositoryImpl
+import com.stonefive.chalkak.data.remote.notification.PushDeviceRegistrationCoordinator
 import com.stonefive.chalkak.data.remote.post.OkHttpPostImageUploader
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSourceImpl
@@ -43,11 +48,16 @@ import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.ReminderPreferenceRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 class AppContainer(context: Context) {
     private val applicationContext = context.applicationContext
@@ -104,6 +114,16 @@ class AppContainer(context: Context) {
     val notificationRepository: NotificationRepository by lazy {
         NotificationRepositoryImpl(notificationRemoteDataSource)
     }
+
+    private val pushDeviceRegistrationCoordinator by lazy {
+        PushDeviceRegistrationCoordinator(
+            sessionStore = sessionStore,
+            sessionRefreshCoordinator = networkModule.sessionRefreshCoordinator,
+            notificationRepository = notificationRepository,
+        )
+    }
+
+    val pendingNotificationNavigation = PendingNotificationNavigationStore()
 
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
@@ -196,7 +216,59 @@ class AppContainer(context: Context) {
         }
     }
 
+    fun initializePush() {
+        PushNotificationManager.createChannel(applicationContext)
+        applicationScope.launch {
+            sessionStore.session
+                .map { session ->
+                    (session as? LocalSession.Authenticated)?.credentials?.userId
+                }.distinctUntilChanged()
+                .collectLatest { userId ->
+                    pushDeviceRegistrationCoordinator.onSessionChanged(userId)
+                    if (userId != null) syncPushDevice(userId)
+                }
+        }
+    }
+
+    fun registerPushDevice(token: String) {
+        applicationScope.launch {
+            pushDeviceRegistrationCoordinator.register(token)
+        }
+    }
+
+    fun syncPushDevice() {
+        applicationScope.launch {
+            val userId = (sessionStore.session.value as? LocalSession.Authenticated)
+                ?.credentials
+                ?.userId
+                ?: return@launch
+            syncPushDevice(userId)
+        }
+    }
+
     suspend fun markNotificationRead(notificationId: String) = notificationRepository.markAsRead(notificationId)
+
+    private suspend fun syncPushDevice(expectedUserId: String) {
+        val token = try {
+            FirebaseMessaging
+                .getInstance()
+                .token
+                .awaitResult()
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            null
+        }?.takeIf(String::isNotBlank)
+        if (token == null) {
+            return
+        }
+        val currentUserId = (sessionStore.session.value as? LocalSession.Authenticated)
+            ?.credentials
+            ?.userId
+        if (currentUserId == expectedUserId) {
+            pushDeviceRegistrationCoordinator.register(token)
+        }
+    }
 
     suspend fun reconcileReminderAlarm() {
         val preference = reminderPreferenceRepository.preference.first { preference ->
@@ -213,3 +285,15 @@ class AppContainer(context: Context) {
         }
     }
 }
+
+private suspend fun com.google.android.gms.tasks.Task<String>.awaitResult(): String? =
+    suspendCancellableCoroutine { continuation ->
+        addOnCompleteListener { task ->
+            if (!continuation.isActive) return@addOnCompleteListener
+            if (task.isSuccessful) {
+                continuation.resume(task.result)
+            } else {
+                continuation.resume(null)
+            }
+        }
+    }

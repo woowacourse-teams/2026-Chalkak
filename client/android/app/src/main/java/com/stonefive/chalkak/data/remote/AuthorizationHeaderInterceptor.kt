@@ -28,7 +28,10 @@ class AuthorizationHeaderInterceptor(
                 if (credentials != null) {
                     tag(
                         AuthorizationRequestContext::class.java,
-                        AuthorizationRequestContext(credentials.accessToken),
+                        AuthorizationRequestContext(
+                            accessToken = credentials.accessToken,
+                            userId = credentials.userId,
+                        ),
                     )
                     if (credentials.expiresAtEpochSeconds > currentEpochSeconds()) {
                         header(AUTHORIZATION_HEADER, "$BEARER_PREFIX${credentials.accessToken}")
@@ -44,4 +47,7 @@ class AuthorizationHeaderInterceptor(
     }
 }
 
-data class AuthorizationRequestContext(val accessToken: String)
+data class AuthorizationRequestContext(
+    val accessToken: String,
+    val userId: String? = null,
+)

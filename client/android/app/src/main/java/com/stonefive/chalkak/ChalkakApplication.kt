@@ -10,5 +10,6 @@ class ChalkakApplication : Application() {
         super.onCreate()
         KakaoSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
         appContainer.initializeReminder()
+        appContainer.initializePush()
     }
 }
