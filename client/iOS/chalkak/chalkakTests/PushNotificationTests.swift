@@ -2,6 +2,53 @@ import Foundation
 import Testing
 @testable import chalkak
 
+struct PushNotificationTapTests {
+    private static let notificationID = "019a0010-0000-7000-8000-000000000002"
+    private static let postID = "019a0010-0000-7000-8000-000000000003"
+
+    @Test("승인 푸시는 sourceId의 게시물로 이동한다")
+    func parsesApprovedPush() {
+        let tap = PushNotificationTap(userInfo: Self.userInfo(type: "POST_APPROVED"))
+
+        #expect(tap == .postApproved(postID: Self.postID, notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("반려 푸시는 notificationId의 알림 상세로 이동한다")
+    func parsesRejectedPush() {
+        let tap = PushNotificationTap(userInfo: Self.userInfo(type: "POST_REJECTED"))
+
+        #expect(tap == .postRejected(notificationID: Self.notificationID))
+    }
+
+    @Test("알 수 없는 종류·누락된 필드·UUID가 아닌 식별자는 이동하지 않는다")
+    func ignoresUnusablePayloads() {
+        var missingNotificationID = Self.userInfo(type: "POST_REJECTED")
+        missingNotificationID["notificationId"] = nil
+        var missingPostID = Self.userInfo(type: "POST_APPROVED")
+        missingPostID["sourceId"] = nil
+        var malformedPostID = Self.userInfo(type: "POST_APPROVED")
+        malformedPostID["sourceId"] = "../users/me"
+
+        #expect(PushNotificationTap(userInfo: Self.userInfo(type: "ADMIN_NOTICE")) == nil)
+        #expect(PushNotificationTap(userInfo: missingNotificationID) == nil)
+        #expect(PushNotificationTap(userInfo: missingPostID) == nil)
+        #expect(PushNotificationTap(userInfo: malformedPostID) == nil)
+        #expect(PushNotificationTap(userInfo: [:]) == nil)
+    }
+
+    private static func userInfo(type: String) -> [AnyHashable: Any] {
+        [
+            "aps": ["alert": ["title": "제목", "body": "본문"], "sound": "default"],
+            "eventId": "019a0010-0000-7000-8000-000000000001",
+            "notificationId": notificationID,
+            "type": type,
+            "sourceType": "POST",
+            "sourceId": postID,
+        ]
+    }
+}
+
 @Suite(.serialized)
 struct PushDeviceAPIClientTests {
     @Test("로그인 ID가 있는 JWT는 갱신 없이 현재 기기를 등록한다")

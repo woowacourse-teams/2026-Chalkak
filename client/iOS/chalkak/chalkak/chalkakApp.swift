@@ -73,10 +73,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard response.notification.request.identifier == UserNotificationDailyScheduler.requestIdentifier else {
+        let request = response.notification.request
+        if request.identifier == UserNotificationDailyScheduler.requestIdentifier {
+            NotificationCenter.default.post(name: .dailyReminderNotificationTapped, object: nil)
             return
         }
-        NotificationCenter.default.post(name: .dailyReminderNotificationTapped, object: nil)
+
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+              let tap = PushNotificationTap(userInfo: request.content.userInfo) else {
+            return
+        }
+        PushTapRouter.shared.receive(tap)
     }
 }
 

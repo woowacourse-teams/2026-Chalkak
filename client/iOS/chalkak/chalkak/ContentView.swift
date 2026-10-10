@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
     @State private var isNotificationInboxPresented = false
+    @State private var notificationDetailTarget: NotificationDetailTarget?
     @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -40,13 +41,16 @@ struct ContentView: View {
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
     private let analyticsTracker: any AnalyticsTracking
+    private let pushTapRouter: PushTapRouter
     private let pushDeviceRegistrar: PushDeviceRegistrar
 
     init(
         analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker(),
+        pushTapRouter: PushTapRouter = .shared,
         pushDeviceRegistrar: PushDeviceRegistrar = .shared
     ) {
         self.analyticsTracker = analyticsTracker
+        self.pushTapRouter = pushTapRouter
         self.pushDeviceRegistrar = pushDeviceRegistrar
     }
 
@@ -80,6 +84,15 @@ struct ContentView: View {
                             NotificationScreen(onBackClick: { isNotificationInboxPresented = false })
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
+                        }
+                        .navigationDestination(item: $notificationDetailTarget) { target in
+                            NotificationDetailScreen(
+                                viewModel: Self.makeNotificationDetailViewModel(target),
+                                onBackClick: { notificationDetailTarget = nil }
+                            )
+                            .id(target.id)
+                            .toolbar(.hidden, for: .navigationBar)
+                            .background(InteractivePopGestureEnabler())
                         }
                 }
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
@@ -178,6 +191,12 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .dailyReminderNotificationTapped)) { _ in
             showHome()
+        }
+        .onChange(of: pushTapRouter.pendingTap, initial: true) { _, _ in
+            handlePendingPushTap()
+        }
+        .onChange(of: canOpenPushDestination) { _, _ in
+            handlePendingPushTap()
         }
         .onChange(of: selectedFeed) { previousFeed, currentFeed in
             guard previousFeed != nil, currentFeed == nil else { return }
@@ -404,6 +423,41 @@ struct ContentView: View {
         route = .home
     }
 
+    // 작성 중인 화면을 닫지 않도록, 홈이 보이고 다른 전체 화면이 없을 때만 푸시의 화면으로 이동한다.
+    private var canOpenPushDestination: Bool {
+        route == .home
+            && !isPhotoUploadPresented
+            && !isFeedbackPresented
+            && !isNotificationSetupPresented
+    }
+
+    private func handlePendingPushTap() {
+        guard pushTapRouter.pendingTap != nil else { return }
+        // 로그아웃 상태의 클릭은 이동 정책이 정해지지 않아 화면을 바꾸지 않는다.
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            _ = pushTapRouter.consume()
+            return
+        }
+        guard canOpenPushDestination, let tap = pushTapRouter.consume() else { return }
+
+        switch tap {
+        case let .postApproved(postID, _):
+            notificationDetailTarget = nil
+            selectedFeed = FeedTarget(postID: postID)
+        case let .postRejected(notificationID):
+            selectedFeed = nil
+            isNotificationInboxPresented = false
+            notificationDetailTarget = NotificationDetailTarget(id: notificationID)
+        }
+
+        let apiClient = Self.makeNotificationAPIClient()
+        let notificationID = tap.notificationID
+        Task {
+            // 읽음 처리 실패는 화면 이동을 막지 않는다.
+            try? await apiClient.markRead(notificationID: notificationID)
+        }
+    }
+
     private func openNotificationSetup() {
         notificationSetupViewModel = NotificationSetupViewModel()
         selectedTab = .settings
@@ -543,6 +597,7 @@ struct ContentView: View {
         selectedTab = .today
         selectedFeed = nil
         isNotificationInboxPresented = false
+        notificationDetailTarget = nil
         isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
@@ -638,6 +693,22 @@ struct ContentView: View {
                 try await apiClient.withdraw()
                 KeychainSessionStore.delete()
             }
+        )
+    }
+
+    private static func makeNotificationAPIClient() -> NotificationAPIClient {
+        NotificationAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+    }
+
+    private static func makeNotificationDetailViewModel(
+        _ target: NotificationDetailTarget
+    ) -> NotificationDetailViewModel {
+        let apiClient = makeNotificationAPIClient()
+        return NotificationDetailViewModel(
+            loadDetail: { try await apiClient.fetchDetail(notificationID: target.id) }
         )
     }
 
