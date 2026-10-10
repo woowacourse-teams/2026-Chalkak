@@ -7,20 +7,59 @@
 
 import SwiftUI
 import FirebaseCore
+import FirebaseMessaging
 import GoogleSignIn
 import KakaoSDKAuth
 import KakaoSDKCommon
+import OSLog
 import UIKit
 import UserNotifications
 
-final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "stonefive.chalkak",
+        category: "Push"
+    )
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
         UNUserNotificationCenter.current().delegate = self
+        Messaging.messaging().delegate = self
+        application.registerForRemoteNotifications()
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        // FirebaseAppDelegateProxyEnabled가 꺼져 있어 APNs 토큰을 직접 넘겨야 FCM 토큰이 발급된다.
+#if targetEnvironment(simulator)
+        // 시뮬레이터의 APNs 토큰은 개발용인데 Firebase가 운영용으로 추정하므로 종류를 직접 알려준다.
+        Messaging.messaging().setAPNSToken(deviceToken, type: .sandbox)
+#else
+        Messaging.messaging().apnsToken = deviceToken
+#endif
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        logger.error("Remote notification registration failed: \(error.localizedDescription, privacy: .public)")
+    }
+
+    nonisolated func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        Task { @MainActor in
+#if DEBUG
+            // 실기기 수신 확인용. 디버그 빌드에서만 토큰을 남긴다.
+            logger.debug("FCM token: \(fcmToken ?? "nil", privacy: .public)")
+#endif
+            PushDeviceRegistrar.shared.updateFCMToken(fcmToken)
+        }
     }
 
     func userNotificationCenter(

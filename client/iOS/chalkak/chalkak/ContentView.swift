@@ -40,9 +40,14 @@ struct ContentView: View {
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
     private let analyticsTracker: any AnalyticsTracking
+    private let pushDeviceRegistrar: PushDeviceRegistrar
 
-    init(analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker()) {
+    init(
+        analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker(),
+        pushDeviceRegistrar: PushDeviceRegistrar = .shared
+    ) {
         self.analyticsTracker = analyticsTracker
+        self.pushDeviceRegistrar = pushDeviceRegistrar
     }
 
     var body: some View {
@@ -388,6 +393,7 @@ struct ContentView: View {
     }
 
     private func showNotificationSetupAfterAuthentication() {
+        pushDeviceRegistrar.registerCurrentDevice()
         resetMainState()
         route = AppRouteResolver.destinationAfterAuthentication(
             hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
