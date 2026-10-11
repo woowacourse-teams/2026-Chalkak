@@ -6,10 +6,12 @@ struct NotificationDetailScreen: View {
     @State private var viewModel: NotificationDetailViewModel
 
     let onBackClick: () -> Void
+    let onNotFound: () -> Void
 
-    init(viewModel: NotificationDetailViewModel, onBackClick: @escaping () -> Void) {
+    init(viewModel: NotificationDetailViewModel, onBackClick: @escaping () -> Void, onNotFound: @escaping () -> Void = {}) {
         _viewModel = State(initialValue: viewModel)
         self.onBackClick = onBackClick
+        self.onNotFound = onNotFound
     }
 
     var body: some View {
@@ -25,7 +27,7 @@ struct NotificationDetailScreen: View {
                     content(detail)
                 }
             case .notFound:
-                placeholder(message: "알림을 찾을 수 없어요")
+                placeholder(message: "더 이상 확인할 수 없는 알림이에요")
                     .accessibilityIdentifier("notificationDetail.notFound")
             case .failed:
                 placeholder(message: "알림을 불러오지 못했어요") {
@@ -40,6 +42,9 @@ struct NotificationDetailScreen: View {
         .background(theme.colors.background)
         .task {
             await viewModel.load()
+        }
+        .onChange(of: viewModel.viewState.status) { _, status in
+            if status == .notFound { onNotFound() }
         }
     }
 

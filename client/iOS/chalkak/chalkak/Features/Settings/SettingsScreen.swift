@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 
 enum SettingsAccountDialog: Equatable {
     case logout
@@ -29,6 +30,8 @@ enum SettingsAccountDialog: Equatable {
 
 struct SettingsScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @Bindable var viewModel: SettingsViewModel
     var onLogin: () -> Void = {}
@@ -44,6 +47,8 @@ struct SettingsScreen: View {
     var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSignatureChangePresented = false
+    @State private var notificationAuthorizationStatus: UNAuthorizationStatus?
+    @State private var isRequestingNotificationPermission = false
 
     var body: some View {
         ScrollView {
@@ -61,6 +66,10 @@ struct SettingsScreen: View {
                             )
 
                             SettingsNotificationCard(
+                                permissionStatus: notificationPermissionLabel,
+                                onOpenNotificationPermission: {
+                                    Task { await openNotificationPermission() }
+                                },
                                 onOpenNotificationSetup: onOpenNotificationSetup
                             )
                             .padding(.top, theme.spacing.lg)
@@ -128,7 +137,13 @@ struct SettingsScreen: View {
         .overlay(alignment: .bottom) { toast }
         .animation(.easeOut(duration: 0.16), value: viewModel.viewState.accountDialog)
         .task {
+            await refreshNotificationPermission()
             await viewModel.load()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await refreshNotificationPermission() }
+            }
         }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
@@ -138,6 +153,39 @@ struct SettingsScreen: View {
         }
         .fullScreenCover(isPresented: $isSignatureChangePresented) {
             SignatureChangeFlow(onUpdate: viewModel.updateSignature)
+        }
+    }
+
+    private var notificationPermissionLabel: String {
+        switch notificationAuthorizationStatus {
+        case .authorized, .provisional, .ephemeral: "허용됨"
+        case .denied: "꺼짐"
+        case .notDetermined: "미설정"
+        default: "확인 중"
+        }
+    }
+
+    private func refreshNotificationPermission() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationAuthorizationStatus = settings.authorizationStatus
+    }
+
+    private func openNotificationPermission() async {
+        guard !isRequestingNotificationPermission else { return }
+        isRequestingNotificationPermission = true
+        defer { isRequestingNotificationPermission = false }
+        await refreshNotificationPermission()
+        if notificationAuthorizationStatus == .notDetermined {
+            do {
+                let granted = try await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.alert, .sound, .badge])
+                await refreshNotificationPermission()
+                if granted { PushDeviceRegistrar.shared.registerCurrentDevice() }
+            } catch {
+                showMessage("알림 권한을 요청하지 못했어요. 다시 시도해 주세요.")
+            }
+        } else if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+            openURL(url)
         }
     }
 

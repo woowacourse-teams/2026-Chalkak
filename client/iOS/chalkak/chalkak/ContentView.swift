@@ -16,8 +16,10 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .today
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
-    @State private var isNotificationInboxPresented = false
-    @State private var notificationDetailTarget: NotificationDetailTarget?
+    @State private var notificationPath: [NotificationRoute] = []
+    @State private var notificationNavigationID: String?
+    @State private var notificationNavigationTask: Task<Void, Never>?
+    @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
     @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -78,21 +80,42 @@ struct ContentView: View {
                     onFinish: finishNotificationSetup
                 )
             case .home:
-                NavigationStack {
+                NavigationStack(path: $notificationPath) {
                     mainTab
-                        .navigationDestination(isPresented: $isNotificationInboxPresented) {
-                            NotificationScreen(onBackClick: { isNotificationInboxPresented = false })
+                        .navigationDestination(for: NotificationRoute.self) { destination in
+                            switch destination {
+                            case .inbox:
+                                NotificationScreen(
+                                    viewModel: notificationInboxViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onSelect: openInboxNotification
+                                )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                        }
-                        .navigationDestination(item: $notificationDetailTarget) { target in
-                            NotificationDetailScreen(
-                                viewModel: Self.makeNotificationDetailViewModel(target),
-                                onBackClick: { notificationDetailTarget = nil }
-                            )
-                            .id(target.id)
-                            .toolbar(.hidden, for: .navigationBar)
-                            .background(InteractivePopGestureEnabler())
+                            case let .approved(postID):
+                                FeedScreen(
+                                    viewModel: makeFeedViewModel(FeedTarget(postID: postID)),
+                                    usesPhotoTransition: false,
+                                    onBack: { closeNotificationDestination(destination) },
+                                    onDeleted: { postID in
+                                        closeNotificationDestination(destination)
+                                        handleDeletedPost(postID)
+                                    }
+                                )
+                                .id(postID)
+                                .background(InteractivePopGestureEnabler())
+                            case let .rejected(target):
+                                NotificationDetailScreen(
+                                    viewModel: Self.makeNotificationDetailViewModel(target),
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onNotFound: {
+                                        Task { await notificationInboxViewModel.refresh() }
+                                    }
+                                )
+                                .id(target.id)
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            }
                         }
                 }
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
@@ -245,6 +268,12 @@ struct ContentView: View {
         .task {
             await appVersionGate.checkForUpdate()
         }
+        .task(id: NotificationUnreadRefreshID(
+            modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .home
+        )) {
+            guard route == .home, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            await notificationInboxViewModel.refreshUnread()
+        }
 #if DEBUG
         .task {
             guard Self.isDailyReminderTapUITest else { return }
@@ -255,7 +284,21 @@ struct ContentView: View {
 #endif
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await appVersionGate.checkForUpdate() }
+            Task {
+                await appVersionGate.checkForUpdate()
+                guard route == .home, KeychainSessionStore.hasAuthenticatedSession() else { return }
+                await notificationInboxViewModel.refreshUnread()
+                if isNotificationInboxPresented { await notificationInboxViewModel.refresh() }
+            }
+        }
+    }
+
+    private var isNotificationInboxPresented: Bool {
+        get { notificationPath.contains(.inbox) }
+        nonmutating set {
+            withAnimation {
+                notificationPath = newValue ? [.inbox] : []
+            }
         }
     }
 
@@ -341,7 +384,14 @@ struct ContentView: View {
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onOpenNotifications: { isNotificationInboxPresented = true },
+                onOpenNotifications: {
+                    guard KeychainSessionStore.hasAuthenticatedSession() else {
+                        showMessage("로그인 후 알림을 확인할 수 있어요")
+                        return
+                    }
+                    isNotificationInboxPresented = true
+                },
+                hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onNavigateToBottomBar: select,
                 bottomBarCompact: $isBottomBarCompact
             )
@@ -440,21 +490,64 @@ struct ContentView: View {
         }
         guard canOpenPushDestination, let tap = pushTapRouter.consume() else { return }
 
-        switch tap {
-        case let .postApproved(postID, _):
-            notificationDetailTarget = nil
-            selectedFeed = FeedTarget(postID: postID)
-        case let .postRejected(notificationID):
-            selectedFeed = nil
-            isNotificationInboxPresented = false
-            notificationDetailTarget = NotificationDetailTarget(id: notificationID)
+        guard notificationNavigationID != tap.notificationID else { return }
+        notificationNavigationID = tap.notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == tap.notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(tap.notificationID)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .home,
+                  KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else {
+                if let message = inbox.message { showMessage(message) }
+                return
+            }
+            openNotificationDestination(tap, fromInbox: false)
+            if let message = inbox.message { showMessage(message) }
         }
+    }
 
-        let apiClient = Self.makeNotificationAPIClient()
-        let notificationID = tap.notificationID
-        Task {
-            // 읽음 처리 실패는 화면 이동을 막지 않는다.
-            try? await apiClient.markRead(notificationID: notificationID)
+    private func openInboxNotification(_ item: NotificationItem) {
+        guard let tap = item.destination else {
+            showMessage("이 알림은 아직 열 수 없어요")
+            return
+        }
+        guard notificationNavigationID != tap.notificationID else { return }
+        notificationNavigationID = tap.notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == tap.notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(item.id)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .home,
+                  isNotificationInboxPresented, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else { return }
+            openNotificationDestination(tap, fromInbox: true)
+        }
+    }
+
+    private func closeNotificationDestination(_ destination: NotificationRoute) {
+        guard notificationPath.last == destination else { return }
+        withAnimation {
+            notificationPath.removeLast()
+        }
+    }
+
+    private func openNotificationDestination(_ tap: PushNotificationTap, fromInbox: Bool) {
+        selectedFeed = nil
+        withAnimation {
+            notificationPath = fromInbox ? [.inbox] : []
+            switch tap {
+            case let .postApproved(postID, _):
+                notificationPath.append(.approved(postID))
+            case let .postRejected(notificationID):
+                notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
+            }
         }
     }
 
@@ -594,10 +687,12 @@ struct ContentView: View {
     }
 
     private func resetMainState() {
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = nil
+        notificationNavigationID = nil
         selectedTab = .today
         selectedFeed = nil
         isNotificationInboxPresented = false
-        notificationDetailTarget = nil
         isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
@@ -606,6 +701,7 @@ struct ContentView: View {
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
         settingsViewModel = Self.makeSettingsViewModel()
+        notificationInboxViewModel = Self.makeNotificationInboxViewModel()
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -700,6 +796,15 @@ struct ContentView: View {
         NotificationAPIClient(
             baseURL: AppConfiguration().apiBaseURL,
             accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+    }
+
+    private static func makeNotificationInboxViewModel() -> NotificationInboxViewModel {
+        let client = makeNotificationAPIClient()
+        return NotificationInboxViewModel(
+            loadPage: { try await client.fetchPage(page: $0) },
+            loadUnread: { try await client.fetchUnreadStatus() },
+            markRead: { try await client.markRead(notificationID: $0) }
         )
     }
 
@@ -908,4 +1013,15 @@ private func apiResult<Value: Sendable>(
     } catch {
         return .failure(.generic)
     }
+}
+
+private struct NotificationUnreadRefreshID: Hashable {
+    let modelID: ObjectIdentifier
+    let isHome: Bool
+}
+
+private enum NotificationRoute: Hashable {
+    case inbox
+    case approved(String)
+    case rejected(NotificationDetailTarget)
 }

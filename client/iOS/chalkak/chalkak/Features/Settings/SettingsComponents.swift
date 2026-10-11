@@ -131,10 +131,21 @@ struct SettingsFeedbackCard: View {
 }
 
 struct SettingsNotificationCard: View {
+    @Environment(\.chalkakTheme) private var theme
+    let permissionStatus: String
+    let onOpenNotificationPermission: () -> Void
     let onOpenNotificationSetup: () -> Void
 
     var body: some View {
         SettingsCard {
+            SettingsRow(title: "알림 허용", action: onOpenNotificationPermission) {
+                Text(permissionStatus)
+                    .font(theme.typography.callout)
+                    .foregroundStyle(theme.colors.textMuted)
+                SettingsChevron()
+            }
+            .accessibilityIdentifier("settings.notificationPermission")
+            SettingsDivider()
             SettingsRow(title: "알림 설정", action: onOpenNotificationSetup) {
                 SettingsChevron()
             }
