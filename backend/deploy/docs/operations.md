@@ -17,12 +17,14 @@
 
 루트 `buildspec.yml`은 다음을 수행한다.
 
-1. Corretto 25로 Gradle을 실행한다.
+1. Temurin 25.0.4.1+1 공식 배포 파일을 내려받고 SHA-256을 검증해 설치한다. 설치한 Java로 Gradle을 실행한다.
 2. PostgreSQL 18.4 Docker container를 기동한다.
 3. 테스트와 `bootJar`를 실행한다.
 4. `application.jar`, `appspec.yml`, 배포 script, systemd unit을 하나의 output artifact로 만든다.
 
-Gradle toolchain vendor는 Adoptium이므로 실제 compilation toolchain은 Foojay resolver가 Temurin 25를 준비한다.
+Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준비한 Temurin을 사용하므로 Foojay 자동 다운로드에 의존하지 않는다. 로컬의 기존 Foojay 설정은 유지한다. 다운로드 또는 체크섬 검증에 실패하면 설치 단계에서 빌드를 중단한다.
+
+2026-10-09 개발 빌드 #129·#130은 테스트 실행 전에 Temurin 25 toolchain을 찾지 못해 실패했다. 같은 날 Foojay 플러그인과 동일한 Linux 조회 조건으로 확인한 결과는 `No package(s) found`였지만, Adoptium 공식 API에서는 설치 파일을 확인했다. 이전 성공 소스와 Java 설정은 같았다. 과거 Foojay 응답 기록이 없어 검색 결과가 바뀐 시점과 원인은 확정하지 않는다.
 
 ### CodeDeploy
 

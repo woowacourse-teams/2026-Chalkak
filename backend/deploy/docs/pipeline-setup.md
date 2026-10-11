@@ -53,7 +53,9 @@ Privileged mode는 테스트용 PostgreSQL Docker container를 실행하기 위�
 | Build specifications | Use a buildspec file |
 | Buildspec name | `buildspec.yml` |
 
-저장소 루트의 `buildspec.yml`은 Corretto 25로 Gradle을 실행하고, PostgreSQL 18.4 container에서 테스트한 뒤 JAR과 CodeDeploy revision을 생성한다.
+저장소 루트의 `buildspec.yml`은 Temurin 25.0.4.1+1을 공식 배포 파일에서 설치하고 SHA-256을 검증한 뒤 Gradle을 실행한다. PostgreSQL 18.4 container에서 테스트한 뒤 JAR과 CodeDeploy revision을 생성한다.
+
+현재 설치 파일은 Linux x86_64용이다. CodeBuild는 x86_64 환경을 사용하며, ARM으로 변경할 때는 설치 파일과 체크섬을 함께 변경한다. `corretto25`는 관리형 이미지의 초기 Java 설정이고, 설치 단계에서 `JAVA_HOME`과 `PATH`를 Temurin으로 바꾼다. Temurin 업데이트 시 `buildspec.yml`의 버전별 URL과 공식 SHA-256을 함께 갱신한다.
 
 ### Artifacts와 logs
 

@@ -186,6 +186,22 @@ else:
         with self.assertRaises(ValueError):
             adapter.inspect_material(self.repo, self.config_home)
 
+    def test_project_attribution_is_preserved_without_allowing_execution_settings(self):
+        path = self.repo / "backend/.claude/settings.json"
+        attribution = {"commit": "", "pr": "", "sessionUrl": False}
+        path.write_text(json.dumps({"attribution": attribution}))
+        adapter.build_command(str(self.binary), self.repo, self.output, self.config_home)
+        settings = json.loads((self.output / "claude-settings.json").read_text())
+        self.assertEqual(attribution, settings["attribution"])
+        self.assertIn("Bash", settings["permissions"]["deny"])
+        for unsupported in ({"hooks": {}}, {"env": {"RUN": "anything"}},
+                            {"attribution": {**attribution, "sessionUrl": 0}},
+                            {"attribution": {**attribution, "sessionUrl": True}}):
+            with self.subTest(settings=unsupported):
+                path.write_text(json.dumps(unsupported))
+                with self.assertRaises(ValueError):
+                    adapter.inspect_material(self.repo, self.config_home)
+
     def test_dynamic_skills_imports_and_personal_collisions_are_rejected(self):
         skill = self.repo / "backend/.claude/skills/example/SKILL.md"
         original = skill.read_text()
