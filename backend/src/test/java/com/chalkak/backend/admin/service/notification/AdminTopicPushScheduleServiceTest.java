@@ -22,6 +22,8 @@ import com.chalkak.backend.admin.domain.AdminAction;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.common.logging.LogFields;
 import org.slf4j.MDC;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -153,10 +155,44 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
     @DisplayName("시각이 잘못되면 DB에 저장하지 않는다")
     void createSchedule_nullSendTime_doesNotPersist() {
         // When & Then
-        assertThatThrownBy(() -> scheduleService.createSchedule(ADMIN_ID, null))
-                .isInstanceOf(BusinessException.class);
+        assertPreparedStatementCount(0, () -> assertThatThrownBy(
+                () -> scheduleService.createSchedule(ADMIN_ID, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
         assertThat(entityManager.createQuery("select count(s) from TopicPushSchedule s", Long.class)
                 .getSingleResult()).isZero();
+    }
+
+    @Test
+    @DisplayName("초 단위 생성 시각은 중복 조회 없이 거절하고 설정·감사 기록을 남기지 않는다")
+    void createSchedule_nonZeroSecond_doesNotQueryOrPersist() {
+        // When & Then
+        assertPreparedStatementCount(0, () -> assertThatThrownBy(
+                () -> scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0, 1)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
+        assertThat(scheduleService.getSchedules()).isEmpty();
+        assertThat(countAuditLogs(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED)).isZero();
+    }
+
+    @Test
+    @DisplayName("잘못된 수정 시각은 대상 조회 후 중복 조회 없이 거절하고 기존 설정을 유지한다")
+    void updateSchedule_nonZeroSecond_preservesScheduleWithoutDuplicateQuery() {
+        // Given
+        TopicPushScheduleResult original = scheduleService.createSchedule(ADMIN_ID,
+                LocalTime.of(9, 0));
+        entityManager.clear();
+
+        // When & Then
+        assertPreparedStatementCount(1, () -> assertThatThrownBy(
+                () -> scheduleService.updateSchedule(original.scheduleId(), ADMIN_ID,
+                        LocalTime.of(18, 0, 1)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
+        entityManager.clear();
+        assertThat(entityManager.find(TopicPushSchedule.class, original.scheduleId()).getSendTime())
+                .isEqualTo(LocalTime.of(9, 0));
+        assertThat(countAuditLogs(AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED)).isZero();
     }
 
     @Test
@@ -290,6 +326,21 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
         assertThat(
                 entityManager.find(TopicPushSchedule.class, recreated.scheduleId()).getSendTime())
                 .isEqualTo(LocalTime.of(9, 0));
+    }
+
+    private void assertPreparedStatementCount(long expectedCount, Runnable operation) {
+        Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class)
+                .getStatistics();
+        boolean wasEnabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        long beforeCount = statistics.getPrepareStatementCount();
+        try {
+            operation.run();
+            assertThat(statistics.getPrepareStatementCount() - beforeCount)
+                    .isEqualTo(expectedCount);
+        } finally {
+            statistics.setStatisticsEnabled(wasEnabled);
+        }
     }
 
     private AdminAuditLog getAuditLog(UUID scheduleId, AdminAction action) {

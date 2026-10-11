@@ -1,7 +1,5 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
-import com.chalkak.backend.exception.BusinessException;
-import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import java.time.LocalTime;
@@ -48,8 +46,7 @@ public class TopicPushScheduleRepositoryImpl implements TopicPushScheduleReposit
             return jpaRepository.saveAndFlush(schedule);
         } catch (DataIntegrityViolationException exception) {
             if (isDuplicateSendTime(exception)) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                        "해당 시각의 주제 푸시 설정이 이미 존재합니다.");
+                throw TopicPushSchedule.duplicateSendTimeException();
             }
             throw exception;
         }

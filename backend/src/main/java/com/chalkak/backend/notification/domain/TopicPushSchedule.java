@@ -50,7 +50,12 @@ public class TopicPushSchedule {
         this.sendTime = sendTime;
     }
 
-    private void validateSendTime(LocalTime sendTime) {
+    public static BusinessException duplicateSendTimeException() {
+        return new BusinessException(ErrorCode.BUSINESS_ERROR,
+                "해당 시각의 주제 푸시 설정이 이미 존재합니다.");
+    }
+
+    public static void validateSendTime(LocalTime sendTime) {
         if (sendTime == null || sendTime.getSecond() != 0 || sendTime.getNano() != 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다.");

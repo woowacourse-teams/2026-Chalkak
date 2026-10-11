@@ -43,6 +43,7 @@ public class AdminTopicPushScheduleService {
     @Transactional
     public TopicPushScheduleResult createSchedule(UUID adminId, LocalTime sendTime) {
         validateAdminId(adminId);
+        TopicPushSchedule.validateSendTime(sendTime);
         validateSendTimeAvailable(sendTime);
         TopicPushSchedule schedule = new TopicPushSchedule(sendTime);
         TopicPushSchedule saved = scheduleRepository.saveAndFlush(schedule);
@@ -59,6 +60,7 @@ public class AdminTopicPushScheduleService {
     ) {
         validateAdminId(adminId);
         TopicPushSchedule schedule = getSchedule(scheduleId);
+        TopicPushSchedule.validateSendTime(sendTime);
         if (schedule.getSendTime().equals(sendTime)) {
             return TopicPushScheduleResult.from(schedule);
         }
@@ -89,8 +91,7 @@ public class AdminTopicPushScheduleService {
 
     private void validateSendTimeAvailable(LocalTime sendTime) {
         if (scheduleRepository.existsBySendTime(sendTime)) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                    "해당 시각의 주제 푸시 설정이 이미 존재합니다.");
+            throw TopicPushSchedule.duplicateSendTimeException();
         }
     }
 
