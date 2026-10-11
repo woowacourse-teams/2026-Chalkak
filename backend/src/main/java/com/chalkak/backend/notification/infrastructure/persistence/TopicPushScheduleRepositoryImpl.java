@@ -5,6 +5,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import java.time.LocalTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
@@ -18,6 +19,11 @@ public class TopicPushScheduleRepositoryImpl implements TopicPushScheduleReposit
     private static final String SEND_TIME_UNIQUE_CONSTRAINT = "ux_topic_push_schedules_send_time";
 
     private final TopicPushScheduleJpaRepository jpaRepository;
+
+    @Override
+    public List<TopicPushSchedule> findAllByOrderBySendTimeAsc() {
+        return jpaRepository.findAllByOrderBySendTimeAsc();
+    }
 
     @Override
     public boolean existsBySendTime(LocalTime sendTime) {

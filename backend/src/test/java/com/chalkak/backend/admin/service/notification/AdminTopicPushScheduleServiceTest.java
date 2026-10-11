@@ -8,6 +8,7 @@ import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.LocalTime;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,10 +24,43 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @Test
+    @DisplayName("설정 전체를 등록 순서와 관계없이 발송 시각 오름차순으로 조회한다")
+    void getSchedules_multipleSchedules_returnsAllOrderedBySendTime() {
+        // Given
+        scheduleService.createSchedule(LocalTime.of(18, 0));
+        scheduleService.createSchedule(LocalTime.of(9, 0));
+        scheduleService.createSchedule(LocalTime.of(8, 30));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<TopicPushScheduleResult> results = scheduleService.getSchedules();
+
+        // Then
+        assertThat(results).extracting(TopicPushScheduleResult::sendTime)
+                .containsExactly(LocalTime.of(8, 30), LocalTime.of(9, 0), LocalTime.of(18, 0));
+        assertThat(results).allSatisfy(result -> {
+            assertThat(result.scheduleId()).isNotNull();
+            assertThat(result.createdAt()).isNotNull();
+            assertThat(result.updatedAt()).isNotNull();
+        });
+    }
+
+    @Test
+    @DisplayName("등록된 설정이 없으면 빈 목록을 조회한다")
+    void getSchedules_noSchedules_returnsEmptyList() {
+        // When
+        List<TopicPushScheduleResult> results = scheduleService.getSchedules();
+
+        // Then
+        assertThat(results).isEmpty();
+    }
+
+    @Test
     @DisplayName("설정을 생성하면 시각·식별자·생성 시각을 저장한다")
     void createSchedule_validInput_persistsSchedule() {
         // When
-        AdminTopicPushScheduleResult result = scheduleService.createSchedule(
+        TopicPushScheduleResult result = scheduleService.createSchedule(
                 LocalTime.of(9, 0));
         entityManager.flush();
         entityManager.clear();
@@ -42,8 +76,8 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
     @DisplayName("서로 다른 시각을 여러 개 등록할 수 있다")
     void createSchedule_differentTimes_persistsMultipleSchedules() {
         // When
-        AdminTopicPushScheduleResult first = scheduleService.createSchedule(LocalTime.of(8, 0));
-        AdminTopicPushScheduleResult second = scheduleService.createSchedule(LocalTime.of(18, 0));
+        TopicPushScheduleResult first = scheduleService.createSchedule(LocalTime.of(8, 0));
+        TopicPushScheduleResult second = scheduleService.createSchedule(LocalTime.of(18, 0));
         entityManager.flush();
         entityManager.clear();
 

@@ -210,6 +210,19 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("관리자 토큰으로 주제 푸시 설정 목록을 조회할 수 있다")
+    void getTopicPushSchedules_adminToken_returnsOk() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedules").isArray());
+    }
+
+    @Test
     @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 생성할 수 있다")
     void createTopicPushSchedule_adminToken_returnsCreated() throws Exception {
         // Given
@@ -219,10 +232,28 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"sendTime\":\"14:35:01\"}"))
+                .content("{\"sendTime\":\"14:35:00\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.sendTime").value("14:35:01"))
+                .andExpect(jsonPath("$.sendTime").value("14:35:00"))
                 .andExpect(jsonPath("$.enabled").doesNotExist());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"09:00:01", "09:00:00.000000001"})
+    @DisplayName("초 또는 소수 초가 있는 생성 요청은 400으로 거절한다")
+    void createTopicPushSchedule_nonMinuteSendTime_returnsBadRequest(String time) throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"" + time + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
     }
 
     @ParameterizedTest
@@ -245,6 +276,28 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 조회할 수 없다")
+    void getTopicPushSchedules_memberState_returnsForbidden(String state) throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (id, email, status, signature_original_storage_key,
+                    created_at, updated_at, deleted_at)
+                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
+                """, userId, userId + "@schedule.test",
+                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
@@ -285,6 +338,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
+                Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topics/" + id),
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),

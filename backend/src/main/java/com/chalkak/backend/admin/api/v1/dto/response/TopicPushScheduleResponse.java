@@ -1,12 +1,12 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleResult;
+import com.chalkak.backend.admin.service.notification.TopicPushScheduleResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.util.UUID;
 
-public record AdminTopicPushScheduleResponse(
+public record TopicPushScheduleResponse(
         UUID scheduleId,
         @Schema(
                 description = "KST 기준 발송 시각",
@@ -17,8 +17,8 @@ public record AdminTopicPushScheduleResponse(
         Instant createdAt,
         Instant updatedAt) {
 
-    public static AdminTopicPushScheduleResponse from(AdminTopicPushScheduleResult result) {
-        return new AdminTopicPushScheduleResponse(result.scheduleId(), result.sendTime(),
+    public static TopicPushScheduleResponse from(TopicPushScheduleResult result) {
+        return new TopicPushScheduleResponse(result.scheduleId(), result.sendTime(),
                 result.createdAt(), result.updatedAt());
     }
 }

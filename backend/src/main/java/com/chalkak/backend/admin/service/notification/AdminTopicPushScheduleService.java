@@ -5,6 +5,8 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,11 +17,21 @@ public class AdminTopicPushScheduleService {
 
     private final TopicPushScheduleRepository scheduleRepository;
 
+    @Transactional(readOnly = true)
+    public List<TopicPushScheduleResult> getSchedules() {
+        List<TopicPushSchedule> schedules = scheduleRepository.findAllByOrderBySendTimeAsc();
+        List<TopicPushScheduleResult> results = new ArrayList<>(schedules.size());
+        for (TopicPushSchedule schedule : schedules) {
+            results.add(TopicPushScheduleResult.from(schedule));
+        }
+        return results;
+    }
+
     @Transactional
-    public AdminTopicPushScheduleResult createSchedule(LocalTime sendTime) {
+    public TopicPushScheduleResult createSchedule(LocalTime sendTime) {
         validateSendTimeAvailable(sendTime);
         TopicPushSchedule schedule = new TopicPushSchedule(sendTime);
-        return AdminTopicPushScheduleResult.from(scheduleRepository.saveAndFlush(schedule));
+        return TopicPushScheduleResult.from(scheduleRepository.saveAndFlush(schedule));
     }
 
     private void validateSendTimeAvailable(LocalTime sendTime) {

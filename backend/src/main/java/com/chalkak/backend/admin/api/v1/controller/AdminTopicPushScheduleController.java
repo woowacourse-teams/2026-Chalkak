@@ -4,12 +4,14 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminTopicPushScheduleApiDocs;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicPushScheduleCreationRequest;
-import com.chalkak.backend.admin.api.v1.dto.response.AdminTopicPushScheduleResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleListResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleResponse;
 import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,12 +25,21 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
     private final AdminTopicPushScheduleService scheduleService;
 
     @Override
+    @GetMapping
+    public ResponseEntity<TopicPushScheduleListResponse> getSchedules(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin
+    ) {
+        return ResponseEntity.ok(TopicPushScheduleListResponse.from(
+                scheduleService.getSchedules()));
+    }
+
+    @Override
     @PostMapping
-    public ResponseEntity<AdminTopicPushScheduleResponse> createSchedule(
+    public ResponseEntity<TopicPushScheduleResponse> createSchedule(
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @RequestBody AdminTopicPushScheduleCreationRequest request
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(AdminTopicPushScheduleResponse.from(
+        return ResponseEntity.status(HttpStatus.CREATED).body(TopicPushScheduleResponse.from(
                 scheduleService.createSchedule(request.sendTime())));
     }
 }

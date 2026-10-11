@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -8,13 +9,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
-import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleResult;
+import com.chalkak.backend.admin.service.notification.TopicPushScheduleResult;
 import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,12 +54,43 @@ class AdminTopicPushScheduleControllerTest {
     }
 
     @Test
+    @DisplayName("설정 목록 조회는 200과 설정별 시각·식별자·UTC 시각을 응답한다")
+    void getSchedules_registeredSchedules_returnsScheduleList() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
+        given(scheduleService.getSchedules()).willReturn(List.of(
+                new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
+                        createdAt, createdAt)));
+
+        // When & Then
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedules.length()").value(1))
+                .andExpect(jsonPath("$.schedules[0].scheduleId").value(SCHEDULE_ID.toString()))
+                .andExpect(jsonPath("$.schedules[0].sendTime").value("09:00:00"))
+                .andExpect(jsonPath("$.schedules[0].createdAt").value(createdAt.toString()))
+                .andExpect(jsonPath("$.schedules[0].updatedAt").value(createdAt.toString()));
+    }
+
+    @Test
+    @DisplayName("등록된 설정이 없으면 200과 빈 배열을 응답한다")
+    void getSchedules_noSchedules_returnsEmptyList() throws Exception {
+        // Given
+        given(scheduleService.getSchedules()).willReturn(List.of());
+
+        // When & Then
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedules").isEmpty());
+    }
+
+    @Test
     @DisplayName("생성 성공 시 201과 저장된 설정을 응답한다")
     void createSchedule_validRequest_returnsCreatedSchedule() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
         given(scheduleService.createSchedule(LocalTime.of(9, 0)))
-                .willReturn(new AdminTopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
+                .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
                         createdAt, createdAt));
 
         // When & Then
