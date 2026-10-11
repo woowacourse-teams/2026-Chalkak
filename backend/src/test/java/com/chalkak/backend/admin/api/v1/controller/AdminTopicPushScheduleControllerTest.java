@@ -1,6 +1,9 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -208,5 +211,38 @@ class AdminTopicPushScheduleControllerTest {
                 .content("{\"sendTime\":\"09:00:00\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 성공 시 본문 없는 204를 응답한다")
+    void deleteSchedule_existingSchedule_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + SCHEDULE_ID))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "1-1-1-1-1"})
+    @DisplayName("표준 UUID가 아닌 설정 ID의 삭제는 400으로 거절한다")
+    void deleteSchedule_invalidScheduleId_returnsBadRequest(String id) throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + id))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 설정의 삭제는 404로 응답한다")
+    void deleteSchedule_missingSchedule_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제 푸시 설정을 찾을 수 없습니다."))
+                .given(scheduleService).deleteSchedule(SCHEDULE_ID);
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + SCHEDULE_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("주제 푸시 설정을 찾을 수 없습니다."));
     }
 }

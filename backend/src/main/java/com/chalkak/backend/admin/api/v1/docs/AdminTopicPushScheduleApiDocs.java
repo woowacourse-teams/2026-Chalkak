@@ -47,4 +47,15 @@ public interface AdminTopicPushScheduleApiDocs {
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(description = "주제 푸시 설정 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String scheduleId,
             TopicPushScheduleUpdateRequest request);
+
+    @Operation(summary = "주제 푸시 설정 삭제", description = "발송 시각 설정을 삭제합니다. 해당 설정의 향후 정시 발송을 중단하며 이미 SQS에 발행한 작업은 취소하지 않습니다. 요청 본문은 없습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공", content = @Content),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "설정 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteSchedule(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "주제 푸시 설정 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String scheduleId);
 }

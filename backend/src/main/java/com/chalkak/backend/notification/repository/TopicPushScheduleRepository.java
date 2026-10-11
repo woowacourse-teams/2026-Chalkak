@@ -15,4 +15,6 @@ public interface TopicPushScheduleRepository {
     boolean existsBySendTime(LocalTime sendTime);
 
     TopicPushSchedule saveAndFlush(TopicPushSchedule schedule);
+
+    void delete(TopicPushSchedule schedule);
 }

@@ -2,6 +2,7 @@ package com.chalkak.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -344,6 +345,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),
+                Arguments.of("DELETE", "/api/v1/admin/topic-push-schedules/" + id),
                 Arguments.of("GET", "/api/v1/admin/topics/" + id),
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
@@ -424,6 +426,47 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 삭제할 수 있다")
+    void deleteTopicPushSchedule_adminToken_deletesSchedule() throws Exception {
+        // Given
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        entityManager.persist(schedule);
+        entityManager.flush();
+        UUID scheduleId = schedule.getId();
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/topic-push-schedules/" + scheduleId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(entityManager.find(TopicPushSchedule.class, scheduleId)).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 삭제할 수 없다")
+    void deleteTopicPushSchedule_memberState_returnsForbidden(String state) throws Exception {
+        // Given
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO users (id, email, status, signature_original_storage_key,
+                    created_at, updated_at, deleted_at)
+                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
+                """, userId, userId + "@schedule.test",
+                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/topic-push-schedules/" + UUID.randomUUID())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }

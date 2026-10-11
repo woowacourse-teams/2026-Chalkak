@@ -119,4 +119,37 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}']")
                         .doesNotExist());
     }
+
+    @Test
+    @DisplayName("삭제 API는 설정 ID·관리자 보안·본문 없는 응답 계약을 노출한다")
+    void adminApiDocs_deleteSchedule_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.responses.keys()")
+                        .value(containsInAnyOrder("204", "400", "401", "403", "404")))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.security[0].adminAccessToken")
+                        .isArray())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.parameters[0].name")
+                        .value("scheduleId"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.parameters[0].required")
+                        .value(true))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.parameters[0].schema.format")
+                        .value("uuid"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.requestBody")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.responses['204'].content")
+                        .doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}']")
+                        .doesNotExist());
+    }
 }

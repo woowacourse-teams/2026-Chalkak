@@ -180,4 +180,53 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("주제 푸시 설정을 찾을 수 없습니다.");
     }
+
+    @Test
+    @DisplayName("설정을 삭제하면 DB에서 제거하고 다른 설정은 유지한다")
+    void deleteSchedule_existingSchedule_deletesOnlyTarget() {
+        // Given
+        TopicPushScheduleResult target = scheduleService.createSchedule(LocalTime.of(9, 0));
+        TopicPushScheduleResult remaining = scheduleService.createSchedule(LocalTime.of(18, 0));
+
+        // When
+        scheduleService.deleteSchedule(target.scheduleId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(entityManager.find(TopicPushSchedule.class, target.scheduleId())).isNull();
+        assertThat(entityManager.find(TopicPushSchedule.class, remaining.scheduleId())).isNotNull();
+        assertThat(scheduleService.getSchedules()).extracting(TopicPushScheduleResult::scheduleId)
+                .containsExactly(remaining.scheduleId());
+    }
+
+    @Test
+    @DisplayName("삭제한 발송 시각은 새 설정으로 다시 등록할 수 있다")
+    void deleteSchedule_deletedTime_allowsRecreation() {
+        // Given
+        TopicPushScheduleResult original = scheduleService.createSchedule(LocalTime.of(9, 0));
+        scheduleService.deleteSchedule(original.scheduleId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        TopicPushScheduleResult recreated = scheduleService.createSchedule(LocalTime.of(9, 0));
+        entityManager.clear();
+
+        // Then
+        assertThat(recreated.scheduleId()).isNotEqualTo(original.scheduleId());
+        assertThat(entityManager.find(TopicPushSchedule.class, original.scheduleId())).isNull();
+        assertThat(
+                entityManager.find(TopicPushSchedule.class, recreated.scheduleId()).getSendTime())
+                .isEqualTo(LocalTime.of(9, 0));
+    }
+
+    @Test
+    @DisplayName("없는 설정을 삭제하면 찾을 수 없음 오류로 거절한다")
+    void deleteSchedule_missingSchedule_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> scheduleService.deleteSchedule(UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("주제 푸시 설정을 찾을 수 없습니다.");
+    }
 }

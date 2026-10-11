@@ -50,6 +50,11 @@ public class TopicPushScheduleRepositoryImpl implements TopicPushScheduleReposit
         }
     }
 
+    @Override
+    public void delete(TopicPushSchedule schedule) {
+        jpaRepository.delete(schedule);
+    }
+
     private boolean isDuplicateSendTime(DataIntegrityViolationException exception) {
         if (!(exception.getMostSpecificCause() instanceof PSQLException postgresException)) {
             return false;

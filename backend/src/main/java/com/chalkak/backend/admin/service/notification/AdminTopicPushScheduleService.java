@@ -38,15 +38,25 @@ public class AdminTopicPushScheduleService {
 
     @Transactional
     public TopicPushScheduleResult updateSchedule(UUID scheduleId, LocalTime sendTime) {
-        TopicPushSchedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
-                        "주제 푸시 설정을 찾을 수 없습니다."));
+        TopicPushSchedule schedule = getSchedule(scheduleId);
         if (schedule.getSendTime().equals(sendTime)) {
             return TopicPushScheduleResult.from(schedule);
         }
         validateSendTimeAvailable(sendTime);
         schedule.updateSendTime(sendTime);
         return TopicPushScheduleResult.from(scheduleRepository.saveAndFlush(schedule));
+    }
+
+    @Transactional
+    public void deleteSchedule(UUID scheduleId) {
+        TopicPushSchedule schedule = getSchedule(scheduleId);
+        scheduleRepository.delete(schedule);
+    }
+
+    private TopicPushSchedule getSchedule(UUID scheduleId) {
+        return scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "주제 푸시 설정을 찾을 수 없습니다."));
     }
 
     private void validateSendTimeAvailable(LocalTime sendTime) {
