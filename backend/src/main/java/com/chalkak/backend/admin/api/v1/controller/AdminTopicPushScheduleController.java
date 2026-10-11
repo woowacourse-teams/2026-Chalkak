@@ -3,8 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminTopicPushScheduleApiDocs;
-import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicPushScheduleCreationRequest;
-import com.chalkak.backend.admin.api.v1.dto.request.TopicPushScheduleUpdateRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.TopicPushScheduleRequest;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleResponse;
@@ -42,7 +41,7 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
     @PostMapping
     public ResponseEntity<TopicPushScheduleResponse> createSchedule(
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
-            @Valid @RequestBody AdminTopicPushScheduleCreationRequest request
+            @Valid @RequestBody TopicPushScheduleRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(TopicPushScheduleResponse.from(
                 scheduleService.createSchedule(authenticatedAdmin.adminId(), request.sendTime())));
@@ -53,7 +52,7 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
     public ResponseEntity<TopicPushScheduleResponse> updateSchedule(
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @PathVariable String scheduleId,
-            @Valid @RequestBody TopicPushScheduleUpdateRequest request
+            @Valid @RequestBody TopicPushScheduleRequest request
     ) {
         return ResponseEntity.ok(TopicPushScheduleResponse.from(
                 scheduleService.updateSchedule(CanonicalUuidParser.parse(scheduleId),

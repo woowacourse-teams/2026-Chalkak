@@ -61,16 +61,19 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                         "$.paths['/api/v1/admin/topic-push-schedules'].post.security[0].adminAccessToken")
                         .isArray())
                 .andExpect(jsonPath(
-                        "$.components.schemas.AdminTopicPushScheduleCreationRequest.required")
+                        "$.paths['/api/v1/admin/topic-push-schedules'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/TopicPushScheduleRequest"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.TopicPushScheduleRequest.required")
                         .value(containsInAnyOrder("sendTime")))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AdminTopicPushScheduleCreationRequest.properties.sendTime.format")
+                        "$.components.schemas.TopicPushScheduleRequest.properties.sendTime.format")
                         .value("time"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AdminTopicPushScheduleCreationRequest.properties.sendTime.description")
+                        "$.components.schemas.TopicPushScheduleRequest.properties.sendTime.description")
                         .value("KST 기준 발송 시각. 날짜·시간대 없이 HH:mm:ss 형식으로 전달하며 초는 00이어야 합니다."))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AdminTopicPushScheduleCreationRequest.properties.enabled")
+                        "$.components.schemas.TopicPushScheduleRequest.properties.enabled")
                         .doesNotExist())
                 .andExpect(jsonPath(
                         "$.components.schemas.TopicPushScheduleResponse.properties.enabled")
@@ -106,10 +109,13 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.parameters[0].schema.format")
                         .value("uuid"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.TopicPushScheduleUpdateRequest.required")
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/TopicPushScheduleRequest"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.TopicPushScheduleRequest.required")
                         .value(containsInAnyOrder("sendTime")))
                 .andExpect(jsonPath(
-                        "$.components.schemas.TopicPushScheduleUpdateRequest.properties.sendTime.format")
+                        "$.components.schemas.TopicPushScheduleRequest.properties.sendTime.format")
                         .value("time"))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.responses['200'].content['*/*'].schema['$ref']")

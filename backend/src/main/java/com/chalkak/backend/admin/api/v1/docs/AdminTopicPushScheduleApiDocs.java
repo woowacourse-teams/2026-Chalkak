@@ -1,8 +1,7 @@
 package com.chalkak.backend.admin.api.v1.docs;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
-import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicPushScheduleCreationRequest;
-import com.chalkak.backend.admin.api.v1.dto.request.TopicPushScheduleUpdateRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.TopicPushScheduleRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleResponse;
 import com.chalkak.backend.exception.ErrorResponse;
@@ -34,7 +33,7 @@ public interface AdminTopicPushScheduleApiDocs {
     })
     ResponseEntity<TopicPushScheduleResponse> createSchedule(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
-            AdminTopicPushScheduleCreationRequest request);
+            TopicPushScheduleRequest request);
 
     @Operation(summary = "주제 푸시 설정 수정", description = "기존 설정의 KST 발송 시각을 변경합니다. 다른 설정과 같은 시각으로 변경할 수 없으며 기존 설정과 동일한 시각의 요청은 허용합니다. 변경 이후 도래하는 시각부터 적용하고 지난 시각은 소급 실행하지 않습니다. 이 요청 자체는 푸시를 발송하지 않습니다.")
     @ApiResponses({
@@ -46,7 +45,7 @@ public interface AdminTopicPushScheduleApiDocs {
     ResponseEntity<TopicPushScheduleResponse> updateSchedule(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(description = "주제 푸시 설정 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String scheduleId,
-            TopicPushScheduleUpdateRequest request);
+            TopicPushScheduleRequest request);
 
     @Operation(summary = "주제 푸시 설정 삭제", description = "발송 시각 설정을 삭제합니다. 해당 설정의 향후 정시 발송을 중단하며 이미 SQS에 발행한 작업은 취소하지 않습니다. 요청 본문은 없습니다.")
     @ApiResponses({
