@@ -45,7 +45,7 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
             @Valid @RequestBody AdminTopicPushScheduleCreationRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(TopicPushScheduleResponse.from(
-                scheduleService.createSchedule(request.sendTime())));
+                scheduleService.createSchedule(authenticatedAdmin.adminId(), request.sendTime())));
     }
 
     @Override
@@ -57,7 +57,7 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
     ) {
         return ResponseEntity.ok(TopicPushScheduleResponse.from(
                 scheduleService.updateSchedule(CanonicalUuidParser.parse(scheduleId),
-                        request.sendTime())));
+                        authenticatedAdmin.adminId(), request.sendTime())));
     }
 
     @Override
@@ -66,7 +66,8 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @PathVariable String scheduleId
     ) {
-        scheduleService.deleteSchedule(CanonicalUuidParser.parse(scheduleId));
+        scheduleService.deleteSchedule(CanonicalUuidParser.parse(scheduleId),
+                authenticatedAdmin.adminId());
         return ResponseEntity.noContent().build();
     }
 }

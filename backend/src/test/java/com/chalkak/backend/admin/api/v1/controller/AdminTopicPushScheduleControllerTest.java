@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -41,6 +42,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import({GlobalExceptionHandler.class, AdminArgumentResolverWebMvcConfig.class})
 class AdminTopicPushScheduleControllerTest {
 
+    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000901");
+
     private static final String PATH = "/api/v1/admin/topic-push-schedules";
     private static final UUID SCHEDULE_ID = UUID.fromString("019a0000-0000-7000-8000-000000000493");
 
@@ -55,7 +58,7 @@ class AdminTopicPushScheduleControllerTest {
 
     @BeforeEach
     void setUp() {
-        given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(UUID.randomUUID()));
+        given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
     }
 
     @Test
@@ -94,7 +97,7 @@ class AdminTopicPushScheduleControllerTest {
     void createSchedule_validRequest_returnsCreatedSchedule() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
-        given(scheduleService.createSchedule(LocalTime.of(9, 0)))
+        given(scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)))
                 .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
                         createdAt, createdAt));
 
@@ -129,7 +132,7 @@ class AdminTopicPushScheduleControllerTest {
     @DisplayName("중복 등록 오류는 기존 400 BUSINESS_ERROR로 응답한다")
     void createSchedule_duplicateTime_returnsBusinessError() throws Exception {
         // Given
-        given(scheduleService.createSchedule(LocalTime.of(9, 0)))
+        given(scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "해당 시각의 주제 푸시 설정이 이미 존재합니다."));
 
@@ -147,7 +150,7 @@ class AdminTopicPushScheduleControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
         Instant updatedAt = Instant.parse("2026-10-11T05:00:00Z");
-        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(18, 30)))
+        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(18, 30)))
                 .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(18, 30),
                         createdAt, updatedAt));
 
@@ -188,7 +191,7 @@ class AdminTopicPushScheduleControllerTest {
     @DisplayName("없는 설정의 수정은 404로 응답한다")
     void updateSchedule_missingSchedule_returnsNotFound() throws Exception {
         // Given
-        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(9, 0)))
+        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(9, 0)))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제 푸시 설정을 찾을 수 없습니다."));
 
         // When & Then
@@ -202,7 +205,7 @@ class AdminTopicPushScheduleControllerTest {
     @DisplayName("다른 설정과 중복되는 수정은 400으로 응답한다")
     void updateSchedule_duplicateTime_returnsBusinessError() throws Exception {
         // Given
-        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(9, 0)))
+        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(9, 0)))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "해당 시각의 주제 푸시 설정이 이미 존재합니다."));
 
@@ -220,6 +223,7 @@ class AdminTopicPushScheduleControllerTest {
         mockMvc.perform(delete(PATH + "/" + SCHEDULE_ID))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
+        verify(scheduleService).deleteSchedule(SCHEDULE_ID, ADMIN_ID);
     }
 
     @ParameterizedTest
@@ -237,7 +241,7 @@ class AdminTopicPushScheduleControllerTest {
     void deleteSchedule_missingSchedule_returnsNotFound() throws Exception {
         // Given
         willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제 푸시 설정을 찾을 수 없습니다."))
-                .given(scheduleService).deleteSchedule(SCHEDULE_ID);
+                .given(scheduleService).deleteSchedule(SCHEDULE_ID, ADMIN_ID);
 
         // When & Then
         mockMvc.perform(delete(PATH + "/" + SCHEDULE_ID))

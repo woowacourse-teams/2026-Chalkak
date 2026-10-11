@@ -25,10 +25,76 @@ class AdminAuditLogTest {
     private static final UUID REQUEST_ID = UUID.randomUUID();
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-27T11:20:00Z");
 
+    @ParameterizedTest
+    @MethodSource("validTopicPushScheduleTransitions")
+    @DisplayName("주제 푸시 설정 생성·수정·삭제의 올바른 변경 전후 상태를 기록한다")
+    void create_validTopicPushScheduleTransition_createsAuditLog(
+            AdminAction action, Map<String, Object> before, Map<String, Object> after) {
+        // When
+        AdminAuditLog audit = createScheduleAudit(action, before, after);
+
+        // Then
+        assertThat(audit.getTargetType()).isEqualTo(AdminTargetType.TOPIC_PUSH_SCHEDULE);
+        assertThat(audit.getBeforeState()).containsExactlyEntriesOf(before);
+        assertThat(audit.getAfterState()).containsExactlyEntriesOf(after);
+        assertThat(audit.getReason()).isNull();
+    }
+
+    private static Stream<Arguments> validTopicPushScheduleTransitions() {
+        return Stream.of(
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "00:00:00")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED,
+                        Map.of("sendTime", "09:00:00"), Map.of("sendTime", "23:59:00")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_DELETED,
+                        Map.of("sendTime", "09:00:00"), Map.of()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidTopicPushScheduleTransitions")
+    @DisplayName("주제 푸시 설정의 잘못된 시각·허용되지 않은 필드·상태 전이를 거절한다")
+    void create_invalidTopicPushScheduleTransition_throwsBusinessException(
+            AdminAction action, Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createScheduleAudit(action, before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidTopicPushScheduleTransitions() {
+        Map<String, Object> valid = Map.of("sendTime", "09:00:00");
+        return Stream.of(
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, valid, valid),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "24:00:00")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "09:60:00")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "09:00:01")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "09:00:00.001")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", 9)),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("other", "09:00:00")),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, Map.of(),
+                        Map.of("sendTime", "09:00:00", "enabled", true)),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED, valid, valid),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED, Map.of(), valid),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_DELETED, valid, valid),
+                Arguments.of(AdminAction.TOPIC_PUSH_SCHEDULE_DELETED, Map.of("sendTime", "invalid"),
+                        Map.of()));
+    }
+
+    private AdminAuditLog createScheduleAudit(
+            AdminAction action, Map<String, Object> before, Map<String, Object> after) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID, action, AdminTargetType.TOPIC_PUSH_SCHEDULE, TARGET_ID, null,
+                AdminAuditSnapshot.from(before), AdminAuditSnapshot.from(after), OCCURRED_AT,
+                REQUEST_ID);
+    }
+
     @Test
-    @DisplayName(
-            "관리자 작업의 대상과 변경 전후 상태를 감사 로그로 생성한다"
-    )
+    @DisplayName("관리자 작업의 대상과 변경 전후 상태를 감사 로그로 생성한다")
     void create_validAuditInformation_createsAuditLog() {
         // Given
         Map<String, Object> beforeState = new LinkedHashMap<>();
@@ -37,8 +103,7 @@ class AdminAuditLogTest {
         Map<String, Object> afterState = Map.of(
                 "moderationStatus", "APPROVED",
                 "moderatedAt", OCCURRED_AT,
-                "moderatedBy", ACTOR_ADMIN_ID
-        );
+                "moderatedBy", ACTOR_ADMIN_ID);
 
         // When
         AdminAuditLog auditLog = AdminAuditLog.create(
@@ -50,8 +115,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(beforeState),
                 AdminAuditSnapshot.from(afterState),
                 OCCURRED_AT,
-                REQUEST_ID
-        );
+                REQUEST_ID);
         beforeState.put("moderationStatus", "REJECTED");
 
         // Then
@@ -77,17 +141,14 @@ class AdminAuditLogTest {
         AdminAuditLog auditLog = createAuditLog(
                 "   ",
                 pendingPostState(),
-                approvedPostState(ACTOR_ADMIN_ID)
-        );
+                approvedPostState(ACTOR_ADMIN_ID));
 
         // Then
         assertThat(auditLog.getReason()).isNull();
     }
 
     @Test
-    @DisplayName(
-            "동작과 대상 유형이 맞지 않으면 감사 로그를 생성할 수 없다"
-    )
+    @DisplayName("동작과 대상 유형이 맞지 않으면 감사 로그를 생성할 수 없다")
     void create_mismatchedActionAndTarget_throwsBusinessException() {
         // When & Then
         assertThatThrownBy(() -> AdminAuditLog.create(
@@ -99,8 +160,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(Map.of("moderationStatus", "PENDING")),
                 AdminAuditSnapshot.from(Map.of("moderationStatus", "APPROVED")),
                 OCCURRED_AT,
-                REQUEST_ID
-        ))
+                REQUEST_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -115,9 +175,7 @@ class AdminAuditLogTest {
                 Map.of(
                         "moderationStatus", "REJECTED",
                         "moderatedAt", OCCURRED_AT,
-                        "moderatedBy", ACTOR_ADMIN_ID
-                )
-        ))
+                        "moderatedBy", ACTOR_ADMIN_ID)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -129,8 +187,7 @@ class AdminAuditLogTest {
         assertThatThrownBy(() -> createAuditLog(
                 null,
                 pendingPostState(),
-                Map.of("moderationStatus", "APPROVED")
-        ))
+                Map.of("moderationStatus", "APPROVED")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -145,9 +202,7 @@ class AdminAuditLogTest {
                 Map.of(
                         "moderationStatus", "APPROVED",
                         "moderatedAt", OCCURRED_AT,
-                        "moderatedBy", UUID.randomUUID()
-                )
-        ))
+                        "moderatedBy", UUID.randomUUID())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -165,8 +220,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(Map.of("status", "ACTIVE")),
                 AdminAuditSnapshot.from(Map.of("status", "ACTIVE")),
                 OCCURRED_AT,
-                REQUEST_ID
-        ))
+                REQUEST_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -184,8 +238,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(Map.of("title", "이전 주제")),
                 AdminAuditSnapshot.from(Map.of("title", "새 주제")),
                 OCCURRED_AT,
-                REQUEST_ID
-        ))
+                REQUEST_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -210,8 +263,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(beforeState),
                 AdminAuditSnapshot.from(afterState),
                 OCCURRED_AT,
-                REQUEST_ID
-        );
+                REQUEST_ID);
 
         // Then
         assertThat(auditLog.getAction()).isEqualTo(action);
@@ -231,8 +283,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(Map.of("moderationStatus", "PENDING")),
                 AdminAuditSnapshot.from(Map.of("moderationStatus", "APPROVED")),
                 OCCURRED_AT,
-                REQUEST_ID
-        ))
+                REQUEST_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -244,8 +295,7 @@ class AdminAuditLogTest {
         assertThatThrownBy(() -> createAuditLog(
                 "가".repeat(501),
                 pendingPostState(),
-                approvedPostState(ACTOR_ADMIN_ID)
-        ))
+                approvedPostState(ACTOR_ADMIN_ID)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
@@ -257,8 +307,7 @@ class AdminAuditLogTest {
         AdminAuditLog auditLog = createAuditLog(
                 "📸".repeat(500),
                 pendingPostState(),
-                approvedPostState(ACTOR_ADMIN_ID)
-        );
+                approvedPostState(ACTOR_ADMIN_ID));
 
         // Then
         assertThat(auditLog.getReason()).hasSize(1_000);
@@ -274,20 +323,16 @@ class AdminAuditLogTest {
             "https://storage.example.com/private/photo.webp?version=1",
             "data:image/png;base64,AAAA"
     })
-    @DisplayName(
-            "사유에 명백한 민감정보 값이 있으면 감사 로그를 생성할 수 없다"
-    )
+    @DisplayName("사유에 명백한 민감정보 값이 있으면 감사 로그를 생성할 수 없다")
     void create_reasonContainingSensitiveValue_throwsBusinessException(String reason) {
         // When & Then
         assertThatThrownBy(() -> createAuditLog(
                 reason,
                 pendingPostState(),
-                approvedPostState(ACTOR_ADMIN_ID)
-        ))
+                approvedPostState(ACTOR_ADMIN_ID)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(
-                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다."
-                )
+                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.")
                 .hasMessageNotContaining(reason);
     }
 
@@ -301,8 +346,7 @@ class AdminAuditLogTest {
         AdminAuditLog auditLog = createAuditLog(
                 reason,
                 pendingPostState(),
-                approvedPostState(ACTOR_ADMIN_ID)
-        );
+                approvedPostState(ACTOR_ADMIN_ID));
 
         // Then
         assertThat(auditLog.getReason()).isEqualTo(reason);
@@ -321,16 +365,13 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(pendingPostState()),
                 AdminAuditSnapshot.from(rejectedPostState(ACTOR_ADMIN_ID)),
                 OCCURRED_AT,
-                REQUEST_ID
-        ))
+                REQUEST_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName(
-            "변경 전후 상태가 모두 비어 있으면 감사 로그를 생성할 수 없다"
-    )
+    @DisplayName("변경 전후 상태가 모두 비어 있으면 감사 로그를 생성할 수 없다")
     void create_withoutChangedState_throwsBusinessException() {
         // When & Then
         assertThatThrownBy(() -> createAuditLog(null, Map.of(), Map.of()))
@@ -339,58 +380,47 @@ class AdminAuditLogTest {
     }
 
     @Test
-    @DisplayName(
-            "작업별 허용목록 밖의 상태 필드는 감사 로그에 저장할 수 없다"
-    )
+    @DisplayName("작업별 허용목록 밖의 상태 필드는 감사 로그에 저장할 수 없다")
     void create_stateFieldOutsideActionAllowlist_throwsBusinessException() {
         // When & Then
         assertThatThrownBy(() -> createAuditLog(
                 null,
                 Map.of("email", "user@example.com"),
-                Map.of("moderationStatus", "APPROVED")
-        ))
+                Map.of("moderationStatus", "APPROVED")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 정보가 올바르지 않습니다.");
     }
 
     @Test
-    @DisplayName(
-            "중첩 상태에 비밀번호나 토큰이 있으면 "
-                    + "감사 로그를 생성할 수 없다"
-    )
+    @DisplayName("중첩 상태에 비밀번호나 토큰이 있으면 "
+            + "감사 로그를 생성할 수 없다")
     void create_stateContainingCredential_throwsBusinessException() {
         // Given
         Map<String, Object> beforeState = Map.of(
                 "account",
-                Map.of("passwordHash", "hash", "accessToken", "token")
-        );
+                Map.of("passwordHash", "hash", "accessToken", "token"));
 
         // When & Then
         assertThatThrownBy(() -> createAuditLog(null, beforeState, Map.of()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(
-                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다."
-                );
+                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
     }
 
     @Test
-    @DisplayName(
-            "이미지 URL이나 스토리지 키가 있으면 "
-                    + "감사 로그를 생성할 수 없다"
-    )
+    @DisplayName("이미지 URL이나 스토리지 키가 있으면 "
+            + "감사 로그를 생성할 수 없다")
     void create_stateContainingImageReference_throwsBusinessException() {
         // Given
         Map<String, Object> afterState = Map.of(
                 "changes",
-                List.of(Map.of("originalStorageKey", "chalkak/private/image.webp"))
-        );
+                List.of(Map.of("originalStorageKey", "chalkak/private/image.webp")));
 
         // When & Then
         assertThatThrownBy(() -> createAuditLog(null, Map.of(), afterState))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(
-                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다."
-                );
+                        "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
     }
 
     @Test
@@ -400,8 +430,7 @@ class AdminAuditLogTest {
         assertThatThrownBy(() -> createAuditLog(
                 null,
                 Map.of("payload", new byte[]{1, 2, 3}),
-                Map.of()
-        ))
+                Map.of()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 감사 로그 상태가 올바르지 않습니다.");
     }
@@ -420,8 +449,7 @@ class AdminAuditLogTest {
                 AdminAuditSnapshot.from(beforeState),
                 AdminAuditSnapshot.from(afterState),
                 OCCURRED_AT,
-                REQUEST_ID
-        );
+                REQUEST_ID);
     }
 
     private static Stream<Arguments> validActionStateChanges() {
@@ -433,58 +461,49 @@ class AdminAuditLogTest {
                         AdminTargetType.POST,
                         null,
                         pendingPostState(),
-                        approvedPostState(ACTOR_ADMIN_ID)
-                ),
+                        approvedPostState(ACTOR_ADMIN_ID)),
                 Arguments.of(
                         AdminAction.POST_REJECTED,
                         AdminTargetType.POST,
                         "검수 기준 미충족",
                         pendingPostState(),
-                        rejectedPostState(ACTOR_ADMIN_ID)
-                ),
+                        rejectedPostState(ACTOR_ADMIN_ID)),
                 Arguments.of(
                         AdminAction.POST_DELETED,
                         AdminTargetType.POST,
                         "운영 정책 위반",
                         postDeletionState("APPROVED", null),
-                        postDeletionState("APPROVED", OCCURRED_AT)
-                ),
+                        postDeletionState("APPROVED", OCCURRED_AT)),
                 Arguments.of(
                         AdminAction.USER_BANNED,
                         AdminTargetType.USER,
                         "운영 정책 위반",
                         Map.of("status", "ACTIVE"),
-                        Map.of("status", "BANNED")
-                ),
+                        Map.of("status", "BANNED")),
                 Arguments.of(
                         AdminAction.USER_UNBANNED,
                         AdminTargetType.USER,
                         "정지 사유 해소",
                         Map.of("status", "BANNED"),
-                        Map.of("status", "ACTIVE")
-                ),
+                        Map.of("status", "ACTIVE")),
                 Arguments.of(
                         AdminAction.TOPIC_CREATED,
                         AdminTargetType.TOPIC,
                         null,
                         Map.of(),
-                        topicAfterState
-                ),
+                        topicAfterState),
                 Arguments.of(
                         AdminAction.TOPIC_UPDATED,
                         AdminTargetType.TOPIC,
                         null,
                         topicBeforeState,
-                        topicAfterState
-                ),
+                        topicAfterState),
                 Arguments.of(
                         AdminAction.TOPIC_DELETED,
                         AdminTargetType.TOPIC,
                         "잘못 생성된 주제",
                         topicDeletionState(topicAfterState, null),
-                        topicDeletionState(topicAfterState, OCCURRED_AT)
-                )
-        );
+                        topicDeletionState(topicAfterState, OCCURRED_AT)));
     }
 
     private static Map<String, Object> pendingPostState() {
@@ -498,16 +517,14 @@ class AdminAuditLogTest {
         return Map.of(
                 "moderationStatus", "APPROVED",
                 "moderatedAt", OCCURRED_AT,
-                "moderatedBy", moderatedBy
-        );
+                "moderatedBy", moderatedBy);
     }
 
     private static Map<String, Object> rejectedPostState(UUID moderatedBy) {
         return Map.of(
                 "moderationStatus", "REJECTED",
                 "moderatedAt", OCCURRED_AT,
-                "moderatedBy", moderatedBy
-        );
+                "moderatedBy", moderatedBy);
     }
 
     private static Map<String, Object> postDeletionState(
@@ -525,8 +542,7 @@ class AdminAuditLogTest {
                 "title", title,
                 "topicDate", LocalDate.of(2026, 8, 27),
                 "startsAt", Instant.parse("2026-08-27T00:00:00Z"),
-                "endsAt", Instant.parse("2026-08-27T12:00:00Z")
-        );
+                "endsAt", Instant.parse("2026-08-27T12:00:00Z"));
     }
 
     private static Map<String, Object> topicDeletionState(

@@ -38,6 +38,11 @@ public class TopicPushScheduleRepositoryImpl implements TopicPushScheduleReposit
     }
 
     @Override
+    public Optional<TopicPushSchedule> findByIdForUpdate(UUID scheduleId) {
+        return jpaRepository.findByIdForUpdate(scheduleId);
+    }
+
+    @Override
     public TopicPushSchedule saveAndFlush(TopicPushSchedule schedule) {
         try {
             return jpaRepository.saveAndFlush(schedule);

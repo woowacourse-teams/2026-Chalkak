@@ -26,6 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
 
+    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000902");
+
     @Autowired
     private AdminTopicPushScheduleService scheduleService;
 
@@ -40,12 +42,24 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        new DatabaseCleaner(jdbcTemplate).clean();
+        clean();
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'push-schedule-manager', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ADMIN_ID);
     }
 
     @AfterEach
     void tearDown() {
+        clean();
+    }
+
+    private void clean() {
         new DatabaseCleaner(jdbcTemplate).clean();
+        jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE actor_admin_id = ?", ADMIN_ID);
+        jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
     }
 
     @Test
@@ -65,6 +79,9 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         assertThat(results).containsExactlyInAnyOrder("CREATED", "DUPLICATE");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM topic_push_schedules", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'TOPIC_PUSH_SCHEDULE_CREATED'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -112,7 +129,7 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
     private String createAfterBarrier(CyclicBarrier barrier) throws Exception {
         barrier.await(5, TimeUnit.SECONDS);
         try {
-            scheduleService.createSchedule(LocalTime.of(9, 0));
+            scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0));
             return "CREATED";
         } catch (BusinessException exception) {
             assertThat(exception.getMessage()).isEqualTo("해당 시각의 주제 푸시 설정이 이미 존재합니다.");
@@ -124,8 +141,8 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
     @DisplayName("서로 다른 설정이 같은 시각으로 동시 수정되어도 한 건만 커밋한다")
     void updateSchedule_bothPrechecksPass_updatesExactlyOnce() throws Exception {
         // Given
-        UUID firstId = scheduleService.createSchedule(LocalTime.of(8, 0)).scheduleId();
-        UUID secondId = scheduleService.createSchedule(LocalTime.of(18, 0)).scheduleId();
+        UUID firstId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(8, 0)).scheduleId();
+        UUID secondId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(18, 0)).scheduleId();
         CyclicBarrier barrier = new CyclicBarrier(2);
         List<String> results;
 
@@ -147,6 +164,45 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
                 "SELECT COUNT(*) FROM topic_push_schedules WHERE send_time IN ('08:00:00', '18:00:00')",
                 Integer.class))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("같은 설정을 동시에 수정하면 직전 변경 값을 감사 로그의 변경 전 값으로 기록한다")
+    void updateSchedule_sameScheduleConcurrently_preservesAuditChain() throws Exception {
+        // Given
+        UUID scheduleId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)).scheduleId();
+        CyclicBarrier barrier = new CyclicBarrier(2);
+
+        // When
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> first = executor
+                    .submit(() -> updateAfterBarrier(scheduleId, LocalTime.of(10, 0), barrier));
+            Future<?> second = executor
+                    .submit(() -> updateAfterBarrier(scheduleId, LocalTime.of(11, 0), barrier));
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        // Then
+        List<java.util.Map<String, Object>> audits = jdbcTemplate.queryForList(
+                """
+                        SELECT before_state ->> 'sendTime' AS before_time, after_state ->> 'sendTime' AS after_time
+                        FROM admin_audit_logs WHERE target_id = ? AND action = 'TOPIC_PUSH_SCHEDULE_UPDATED'
+                        ORDER BY id
+                        """,
+                scheduleId);
+        assertThat(audits).hasSize(2);
+        assertThat(audits.getFirst()).containsEntry("before_time", "09:00:00");
+        assertThat(audits.get(1).get("before_time")).isEqualTo(audits.getFirst().get("after_time"));
+        assertThat(audits.get(1).get("after_time")).isEqualTo(
+                jdbcTemplate.queryForObject(
+                        "SELECT to_char(send_time, 'HH24:MI:SS') FROM topic_push_schedules WHERE id = ?",
+                        String.class, scheduleId));
+    }
+
+    private void updateAfterBarrier(UUID scheduleId, LocalTime sendTime, CyclicBarrier barrier) {
+        awaitPrechecks(barrier);
+        scheduleService.updateSchedule(scheduleId, ADMIN_ID, sendTime);
     }
 
     private String updateAfterPrecheck(UUID scheduleId, CyclicBarrier barrier) {

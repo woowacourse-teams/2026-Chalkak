@@ -231,7 +231,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 생성할 수 있다")
     void createTopicPushSchedule_adminToken_returnsCreated() throws Exception {
         // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
@@ -241,6 +242,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.sendTime").value("14:35:00"))
                 .andExpect(jsonPath("$.enabled").doesNotExist());
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_CREATED");
     }
 
     @ParameterizedTest
@@ -307,6 +309,20 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
+    private Admin createScheduleAdmin() {
+        Admin admin = adminRepository.save(Admin.create("push-schedule-security-manager",
+                passwordEncoder.encode("test-password")));
+        entityManager.flush();
+        return admin;
+    }
+
+    private void assertScheduleAuditActor(UUID adminId, String action) {
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT actor_admin_id FROM admin_audit_logs WHERE action = CAST(? AS admin_action)
+                """, UUID.class, action)).isEqualTo(adminId);
+    }
+
     private IssuedTokens login(UUID adminId, String username) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -370,7 +386,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
         entityManager.persist(schedule);
         entityManager.flush();
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/topic-push-schedules/" + schedule.getId())
@@ -384,6 +401,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         assertThat(
                 entityManager.find(TopicPushSchedule.class, schedule.getId()).getSendTime())
                 .isEqualTo(LocalTime.of(18, 30));
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_UPDATED");
     }
 
     @ParameterizedTest
@@ -438,7 +456,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         entityManager.persist(schedule);
         entityManager.flush();
         UUID scheduleId = schedule.getId();
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/topic-push-schedules/" + scheduleId)
@@ -447,6 +466,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         entityManager.flush();
         entityManager.clear();
         assertThat(entityManager.find(TopicPushSchedule.class, scheduleId)).isNull();
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_DELETED");
     }
 
     @ParameterizedTest

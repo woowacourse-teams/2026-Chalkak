@@ -12,6 +12,8 @@ public interface TopicPushScheduleRepository {
 
     Optional<TopicPushSchedule> findById(UUID scheduleId);
 
+    Optional<TopicPushSchedule> findByIdForUpdate(UUID scheduleId);
+
     boolean existsBySendTime(LocalTime sendTime);
 
     TopicPushSchedule saveAndFlush(TopicPushSchedule schedule);
