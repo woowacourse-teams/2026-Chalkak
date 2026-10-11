@@ -6,6 +6,8 @@ import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
@@ -23,6 +25,11 @@ public class TopicPushScheduleRepositoryImpl implements TopicPushScheduleReposit
     @Override
     public List<TopicPushSchedule> findAllByOrderBySendTimeAsc() {
         return jpaRepository.findAllByOrderBySendTimeAsc();
+    }
+
+    @Override
+    public Optional<TopicPushSchedule> findById(UUID scheduleId) {
+        return jpaRepository.findById(scheduleId);
     }
 
     @Override

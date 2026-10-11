@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,6 +14,7 @@ import com.chalkak.backend.admin.service.notification.TopicPushScheduleResult;
 import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.time.LocalTime;
@@ -134,5 +136,77 @@ class AdminTopicPushScheduleControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("해당 시각의 주제 푸시 설정이 이미 존재합니다."));
+    }
+
+    @Test
+    @DisplayName("수정 성공 시 200과 변경된 설정을 응답한다")
+    void updateSchedule_validRequest_returnsUpdatedSchedule() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
+        Instant updatedAt = Instant.parse("2026-10-11T05:00:00Z");
+        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(18, 30)))
+                .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(18, 30),
+                        createdAt, updatedAt));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + SCHEDULE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"18:30:00\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleId").value(SCHEDULE_ID.toString()))
+                .andExpect(jsonPath("$.sendTime").value("18:30:00"))
+                .andExpect(jsonPath("$.createdAt").value(createdAt.toString()))
+                .andExpect(jsonPath("$.updatedAt").value(updatedAt.toString()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"sendTime\":null}", "{\"sendTime\":\"24:00:00\"}",
+            "{\"sendTime\":\"invalid\"}"})
+    @DisplayName("시각 누락·null·잘못된 시각의 수정 요청은 400으로 거절한다")
+    void updateSchedule_invalidRequest_returnsBadRequest(String body) throws Exception {
+        // When & Then
+        mockMvc.perform(
+                put(PATH + "/" + SCHEDULE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "1-1-1-1-1"})
+    @DisplayName("표준 UUID가 아닌 설정 ID는 400으로 거절한다")
+    void updateSchedule_invalidScheduleId_returnsBadRequest(String id) throws Exception {
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 설정의 수정은 404로 응답한다")
+    void updateSchedule_missingSchedule_returnsNotFound() throws Exception {
+        // Given
+        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(9, 0)))
+                .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제 푸시 설정을 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + SCHEDULE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("다른 설정과 중복되는 수정은 400으로 응답한다")
+    void updateSchedule_duplicateTime_returnsBusinessError() throws Exception {
+        // Given
+        given(scheduleService.updateSchedule(SCHEDULE_ID, LocalTime.of(9, 0)))
+                .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "해당 시각의 주제 푸시 설정이 이미 존재합니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + SCHEDULE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"09:00:00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 }

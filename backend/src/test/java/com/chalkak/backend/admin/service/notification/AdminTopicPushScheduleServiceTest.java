@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
+import java.util.UUID;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.LocalTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -109,5 +112,72 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class);
         assertThat(entityManager.createQuery("select count(s) from TopicPushSchedule s", Long.class)
                 .getSingleResult()).isZero();
+    }
+
+    @Test
+    @DisplayName("시각을 수정하면 식별자·생성 시각을 유지하고 DB에 반영한다")
+    void updateSchedule_validTime_persistsChangedTime() {
+        // Given
+        TopicPushScheduleResult original = scheduleService.createSchedule(LocalTime.of(9, 0));
+        entityManager.clear();
+
+        Instant createdAt = entityManager.find(TopicPushSchedule.class, original.scheduleId())
+                .getCreatedAt();
+
+        // When
+        TopicPushScheduleResult result = scheduleService.updateSchedule(
+                original.scheduleId(), LocalTime.of(18, 30));
+        entityManager.clear();
+
+        // Then
+        TopicPushSchedule stored = entityManager.find(TopicPushSchedule.class,
+                original.scheduleId());
+        assertThat(stored.getSendTime()).isEqualTo(LocalTime.of(18, 30));
+        assertThat(result.scheduleId()).isEqualTo(original.scheduleId());
+        assertThat(result.createdAt()).isEqualTo(createdAt);
+        assertThat(stored.getCreatedAt()).isEqualTo(createdAt);
+        assertThat(result.updatedAt()).isEqualTo(stored.getUpdatedAt());
+        assertThat(result.updatedAt()).isAfterOrEqualTo(original.updatedAt());
+    }
+
+    @Test
+    @DisplayName("현재 설정 시각으로 다시 수정해도 중복 오류 없이 같은 결과를 반환한다")
+    void updateSchedule_sameTime_returnsUnchangedSchedule() {
+        // Given
+        TopicPushScheduleResult original = scheduleService.createSchedule(LocalTime.of(9, 0));
+
+        // When
+        TopicPushScheduleResult result = scheduleService.updateSchedule(
+                original.scheduleId(), LocalTime.of(9, 0));
+
+        // Then
+        assertThat(result).isEqualTo(original);
+        assertThat(scheduleService.getSchedules()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("다른 설정의 시각으로 수정할 수 없다")
+    void updateSchedule_duplicateTime_preservesBothSchedules() {
+        // Given
+        TopicPushScheduleResult original = scheduleService.createSchedule(LocalTime.of(9, 0));
+        scheduleService.createSchedule(LocalTime.of(18, 0));
+
+        // When & Then
+        assertThatThrownBy(
+                () -> scheduleService.updateSchedule(original.scheduleId(), LocalTime.of(18, 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("해당 시각의 주제 푸시 설정이 이미 존재합니다.");
+        assertThat(scheduleService.getSchedules()).extracting(TopicPushScheduleResult::sendTime)
+                .containsExactly(LocalTime.of(9, 0), LocalTime.of(18, 0));
+    }
+
+    @Test
+    @DisplayName("없는 설정을 수정하면 찾을 수 없음 오류로 거절한다")
+    void updateSchedule_missingSchedule_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(
+                () -> scheduleService.updateSchedule(UUID.randomUUID(), LocalTime.of(9, 0)))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("주제 푸시 설정을 찾을 수 없습니다.");
     }
 }

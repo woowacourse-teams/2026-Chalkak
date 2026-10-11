@@ -2,11 +2,13 @@ package com.chalkak.backend.admin.service.notification;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,19 @@ public class AdminTopicPushScheduleService {
     public TopicPushScheduleResult createSchedule(LocalTime sendTime) {
         validateSendTimeAvailable(sendTime);
         TopicPushSchedule schedule = new TopicPushSchedule(sendTime);
+        return TopicPushScheduleResult.from(scheduleRepository.saveAndFlush(schedule));
+    }
+
+    @Transactional
+    public TopicPushScheduleResult updateSchedule(UUID scheduleId, LocalTime sendTime) {
+        TopicPushSchedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "주제 푸시 설정을 찾을 수 없습니다."));
+        if (schedule.getSendTime().equals(sendTime)) {
+            return TopicPushScheduleResult.from(schedule);
+        }
+        validateSendTimeAvailable(sendTime);
+        schedule.updateSendTime(sendTime);
         return TopicPushScheduleResult.from(scheduleRepository.saveAndFlush(schedule));
     }
 

@@ -9,6 +9,7 @@ import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -113,6 +114,52 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         try {
             scheduleService.createSchedule(LocalTime.of(9, 0));
             return "CREATED";
+        } catch (BusinessException exception) {
+            assertThat(exception.getMessage()).isEqualTo("해당 시각의 주제 푸시 설정이 이미 존재합니다.");
+            return "DUPLICATE";
+        }
+    }
+
+    @Test
+    @DisplayName("서로 다른 설정이 같은 시각으로 동시 수정되어도 한 건만 커밋한다")
+    void updateSchedule_bothPrechecksPass_updatesExactlyOnce() throws Exception {
+        // Given
+        UUID firstId = scheduleService.createSchedule(LocalTime.of(8, 0)).scheduleId();
+        UUID secondId = scheduleService.createSchedule(LocalTime.of(18, 0)).scheduleId();
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        List<String> results;
+
+        // When
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<String> first = executor.submit(() -> updateAfterPrecheck(firstId, barrier));
+            Future<String> second = executor.submit(() -> updateAfterPrecheck(secondId, barrier));
+            results = List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        }
+
+        // Then
+        assertThat(results).containsExactlyInAnyOrder("UPDATED", "DUPLICATE");
+        assertThat(scheduleService.getSchedules()).hasSize(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM topic_push_schedules WHERE send_time = '09:00:00'",
+                Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM topic_push_schedules WHERE send_time IN ('08:00:00', '18:00:00')",
+                Integer.class))
+                .isEqualTo(1);
+    }
+
+    private String updateAfterPrecheck(UUID scheduleId, CyclicBarrier barrier) {
+        try {
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                TopicPushSchedule schedule = scheduleRepository.findById(scheduleId).orElseThrow();
+                LocalTime sendTime = LocalTime.of(9, 0);
+                assertThat(scheduleRepository.existsBySendTime(sendTime)).isFalse();
+                awaitPrechecks(barrier);
+                schedule.updateSendTime(sendTime);
+                scheduleRepository.saveAndFlush(schedule);
+            });
+            return "UPDATED";
         } catch (BusinessException exception) {
             assertThat(exception.getMessage()).isEqualTo("해당 시각의 주제 푸시 설정이 이미 존재합니다.");
             return "DUPLICATE";

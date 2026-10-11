@@ -4,6 +4,8 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminTopicPushScheduleApiDocs;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminTopicPushScheduleCreationRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.TopicPushScheduleUpdateRequest;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.TopicPushScheduleResponse;
 import com.chalkak.backend.admin.service.notification.AdminTopicPushScheduleService;
@@ -13,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,5 +45,17 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(TopicPushScheduleResponse.from(
                 scheduleService.createSchedule(request.sendTime())));
+    }
+
+    @Override
+    @PutMapping("/{scheduleId}")
+    public ResponseEntity<TopicPushScheduleResponse> updateSchedule(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String scheduleId,
+            @Valid @RequestBody TopicPushScheduleUpdateRequest request
+    ) {
+        return ResponseEntity.ok(TopicPushScheduleResponse.from(
+                scheduleService.updateSchedule(CanonicalUuidParser.parse(scheduleId),
+                        request.sendTime())));
     }
 }

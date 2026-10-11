@@ -83,4 +83,40 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                 .andExpect(
                         jsonPath("$.paths['/api/v1/admin/topic-push-schedules']").doesNotExist());
     }
+
+    @Test
+    @DisplayName("수정 API는 설정 ID·필수 시각·관리자 보안·오류 계약을 노출한다")
+    void adminApiDocs_updateSchedule_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.responses.keys()")
+                        .value(containsInAnyOrder("200", "400", "401", "403", "404")))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.security[0].adminAccessToken")
+                        .isArray())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.parameters[0].name")
+                        .value("scheduleId"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.parameters[0].required")
+                        .value(true))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.parameters[0].schema.format")
+                        .value("uuid"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.TopicPushScheduleUpdateRequest.required")
+                        .value(containsInAnyOrder("sendTime")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.TopicPushScheduleUpdateRequest.properties.sendTime.format")
+                        .value("time"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/TopicPushScheduleResponse"));
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}']")
+                        .doesNotExist());
+    }
 }

@@ -41,10 +41,19 @@ public class TopicPushSchedule {
     private Instant updatedAt;
 
     public TopicPushSchedule(LocalTime sendTime) {
+        validateSendTime(sendTime);
+        this.sendTime = sendTime;
+    }
+
+    public void updateSendTime(LocalTime sendTime) {
+        validateSendTime(sendTime);
+        this.sendTime = sendTime;
+    }
+
+    private void validateSendTime(LocalTime sendTime) {
         if (sendTime == null || sendTime.getSecond() != 0 || sendTime.getNano() != 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다.");
         }
-        this.sendTime = sendTime;
     }
 }
