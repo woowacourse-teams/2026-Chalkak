@@ -100,13 +100,17 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         assertThat(committedNotificationIds()).containsExactly(id);
     }
 
-    @Test
-    @DisplayName("일시 실패는 1분 뒤 다시 시도하고 그 전에는 발행하지 않는다")
-    void publishPendingNotifications_transientFailure_retriesAtOneMinute() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("일시 실패·수락 불명은 1분 뒤 다시 시도하고 그 전에는 발행하지 않는다")
+    void publishPendingNotifications_transientFailure_retriesAtOneMinute(boolean unknown) {
         // Given
         UUID id = saveNotification(NOW, true);
-        given(publisher.publish(any()))
-                .willReturn(PushPublicationResult.retry("ServiceUnavailable"));
+        PushPublicationResult result = PushPublicationResult.retry("RequestThrottled");
+        if (unknown) {
+            result = PushPublicationResult.unknown("InternalError");
+        }
+        given(publisher.publish(any())).willReturn(result);
 
         // When
         relay(NOW).publishPendingNotifications();

@@ -15,6 +15,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.infrastructure.infra.SqsPushMessagePublisher;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -39,12 +40,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+import software.amazon.awssdk.services.sqs.model.SqsException;
+import tools.jackson.databind.json.JsonMapper;
 
 class TopicPushServiceTest extends IntegrationTestSupport {
 
@@ -306,8 +313,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
             insertUser(new UUID(0, id));
         }
         given(publisher.publish(any())).willReturn(PushPublicationResult.accepted("sqs-message"),
-                PushPublicationResult.retry("ServiceUnavailable"),
-                PushPublicationResult.retry("SQS_CLIENT_ERROR"))
+                PushPublicationResult.retry("RequestThrottled"),
+                PushPublicationResult.unknown("SQS_CLIENT_ERROR"))
                 .willThrow(new IllegalStateException("private-message-must-not-be-logged"));
         // When
         service.publishDueTopics();
@@ -319,6 +326,35 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 .containsEntry("expiredCount", 0);
         assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains("private-message-must-not-be-logged"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"503, InternalError, 1, 0", "429, TooManyRequests, 0, 1",
+            "403, AccessDenied, 0, 1"})
+    @DisplayName("SQS 서버 오류는 수락 불명으로, 명시적 거절은 실패로 집계하고 재발행하지 않는다")
+    void publishDueTopics_sqsError_classifiesOutcomeWithoutRepublishing(
+            int status,
+            String errorCode,
+            int unknownCount,
+            int failedCount
+    ) {
+        // Given
+        SqsClient client = mock(SqsClient.class);
+        given(client.sendMessage(any(SendMessageRequest.class))).willThrow(SqsException.builder()
+                .statusCode(status)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build()).build());
+        publisher = new SqsPushMessagePublisher(client, "test-queue", JsonMapper.builder().build());
+        service = newService();
+
+        // When
+        service.publishDueTopics();
+        service.publishDueTopics();
+
+        // Then
+        assertThat(summary()).containsEntry("acceptedCount", 0)
+                .containsEntry("unknownCount", unknownCount)
+                .containsEntry("failedCount", failedCount);
+        verify(client).sendMessage(any(SendMessageRequest.class));
     }
 
     @Test

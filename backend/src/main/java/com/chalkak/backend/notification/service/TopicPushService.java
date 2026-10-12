@@ -133,7 +133,7 @@ public class TopicPushService {
                 accepted++;
                 continue;
             }
-            if (isAcceptanceUnknown(result)) {
+            if (result.isAcceptanceUnknown()) {
                 unknown++;
                 continue;
             }
@@ -171,7 +171,7 @@ public class TopicPushService {
                     .addKeyValue("userId", message.userId())
                     .addKeyValue("errorCode", exception.getClass().getSimpleName())
                     .log("주제 푸시 SQS 발행 결과 확인 실패");
-            return PushPublicationResult.retry("SQS_ACCEPTANCE_UNKNOWN");
+            return PushPublicationResult.unknown("SQS_ACCEPTANCE_UNKNOWN");
         }
     }
 
@@ -179,15 +179,10 @@ public class TopicPushService {
         if (result.isAccepted()) {
             return "SQS_ACCEPTED";
         }
-        if (isAcceptanceUnknown(result)) {
+        if (result.isAcceptanceUnknown()) {
             return "UNKNOWN";
         }
         return "FAILED";
-    }
-
-    private boolean isAcceptanceUnknown(PushPublicationResult result) {
-        return "SQS_ACCEPTANCE_UNKNOWN".equals(result.errorCode())
-                || "SQS_CLIENT_ERROR".equals(result.errorCode());
     }
 
     private record PublicationTargets(UUID topicId, List<UUID> userIds) {

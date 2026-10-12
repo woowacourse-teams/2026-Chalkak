@@ -155,11 +155,17 @@ class SqsPushMessagePublisherTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"500, ServiceUnavailable, true", "503, InternalError, true",
-            "400, RequestThrottled, true", "429, TooManyRequests, true", "403, AccessDenied, false",
-            "400, QueueDoesNotExist, false", "400, InvalidMessageContents, false"})
+    @CsvSource({"500, ServiceUnavailable, true, true", "503, InternalError, true, true",
+            "400, RequestThrottled, true, false", "429, TooManyRequests, true, false",
+            "403, AccessDenied, false, false", "400, QueueDoesNotExist, false, false",
+            "400, InvalidMessageContents, false, false"})
     @DisplayName("SQS 오류 코드·HTTP 상태를 재시도 여부로 변환하고 원문 오류를 전달하지 않는다")
-    void publish_serviceError_classifiesRetryability(int status, String code, boolean retryable) {
+    void publish_serviceError_classifiesRetryability(
+            int status,
+            String code,
+            boolean retryable,
+            boolean acceptanceUnknown
+    ) {
         // Given
         responseStatus = status;
         responseBody = "{\"__type\":\"" + code + "\",\"message\":\"SECRET_REQUEST_BODY\"}";
@@ -170,6 +176,7 @@ class SqsPushMessagePublisherTest {
         // Then
         assertThat(result.isAccepted()).isFalse();
         assertThat(result.retryable()).isEqualTo(retryable);
+        assertThat(result.isAcceptanceUnknown()).isEqualTo(acceptanceUnknown);
         assertThat(result.errorCode()).isEqualTo(code);
         assertThat(result.toString()).doesNotContain("SECRET_REQUEST_BODY");
         assertThat(requests.get()).isEqualTo(1);
@@ -203,6 +210,7 @@ class SqsPushMessagePublisherTest {
         // Then
         assertThat(result.isAccepted()).isFalse();
         assertThat(result.retryable()).isTrue();
+        assertThat(result.isAcceptanceUnknown()).isTrue();
         assertThat(result.errorCode()).isEqualTo("SQS_ACCEPTANCE_UNKNOWN");
     }
 
@@ -220,6 +228,7 @@ class SqsPushMessagePublisherTest {
 
         // Then
         assertThat(result.retryable()).isTrue();
+        assertThat(result.isAcceptanceUnknown()).isTrue();
         assertThat(result.errorCode()).isEqualTo("SQS_CLIENT_ERROR");
         assertThat(result.toString()).doesNotContain("SECRET_REQUEST_BODY");
     }
@@ -237,6 +246,7 @@ class SqsPushMessagePublisherTest {
 
         // Then
         assertThat(result.retryable()).isFalse();
+        assertThat(result.isAcceptanceUnknown()).isFalse();
         assertThat(result.errorCode()).isEqualTo("SQS_MESSAGE_SERIALIZATION_ERROR");
         assertThat(requests.get()).isZero();
     }

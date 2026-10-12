@@ -34,19 +34,21 @@ public class SqsPushMessagePublisher implements PushMessagePublisher {
                     .messageBody(objectMapper.writeValueAsString(message))
                     .build()).messageId();
             if (messageId == null || messageId.isBlank()) {
-                return PushPublicationResult.retry("SQS_ACCEPTANCE_UNKNOWN");
+                return PushPublicationResult.unknown("SQS_ACCEPTANCE_UNKNOWN");
             }
             return PushPublicationResult.accepted(messageId);
         } catch (SqsException exception) {
             String errorCode = getSafeErrorCode(exception);
-            if (exception.statusCode() >= 500 || exception.isThrottlingException()
-                    || exception.statusCode() == 429 || exception.statusCode() < 400) {
+            if (exception.statusCode() >= 500 || exception.statusCode() < 400) {
+                return PushPublicationResult.unknown(errorCode);
+            }
+            if (exception.isThrottlingException() || exception.statusCode() == 429) {
                 return PushPublicationResult.retry(errorCode);
             }
             return PushPublicationResult.failed(errorCode);
         } catch (SdkClientException exception) {
-            // 재시도 가능 여부만 반환한다. Relay는 DB에서 재발행하고, 주제는 최종 결과 불명으로 종료한다.
-            return PushPublicationResult.retry("SQS_CLIENT_ERROR");
+            // 응답을 확인하지 못했으므로 수락 여부를 보수적으로 불명 처리한다.
+            return PushPublicationResult.unknown("SQS_CLIENT_ERROR");
         } catch (JacksonException exception) {
             return PushPublicationResult.failed("SQS_MESSAGE_SERIALIZATION_ERROR");
         }
