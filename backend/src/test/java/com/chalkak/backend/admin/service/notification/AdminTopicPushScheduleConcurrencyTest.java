@@ -1,12 +1,17 @@
 package com.chalkak.backend.admin.service.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -15,10 +20,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -39,6 +47,9 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @BeforeEach
     void setUp() {
@@ -198,6 +209,102 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
                 jdbcTemplate.queryForObject(
                         "SELECT to_char(send_time, 'HH24:MI:SS') FROM topic_push_schedules WHERE id = ?",
                         String.class, scheduleId));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DELETE", "UPDATE"})
+    @DisplayName("삭제 트랜잭션을 기다린 삭제·수정은 대상 없음 오류로 끝나고 추가 감사 기록을 남기지 않는다")
+    void deleteSchedule_waitingDeleteOrUpdate_returnsNotFound(String operation) throws Exception {
+        // Given
+        UUID scheduleId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)).scheduleId();
+        Runnable waitingOperation = () -> scheduleService.deleteSchedule(scheduleId, ADMIN_ID);
+        if (operation.equals("UPDATE")) {
+            waitingOperation = () -> scheduleService.updateSchedule(scheduleId, ADMIN_ID,
+                    LocalTime.of(10, 0));
+        }
+
+        // When
+        NotFoundException failure = runWithWaitingOperation(
+                () -> scheduleService.deleteSchedule(scheduleId, ADMIN_ID), waitingOperation);
+
+        // Then
+        assertThat(failure).isNotNull()
+                .hasMessage("주제 푸시 설정을 찾을 수 없습니다.");
+        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(scheduleRepository.findById(scheduleId)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'TOPIC_PUSH_SCHEDULE_DELETED'",
+                Integer.class, scheduleId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'TOPIC_PUSH_SCHEDULE_UPDATED'",
+                Integer.class, scheduleId)).isZero();
+    }
+
+    @Test
+    @DisplayName("수정을 기다린 삭제는 수정된 시각을 감사 기록에 남기고 설정을 삭제한다")
+    void deleteSchedule_waitingForUpdate_deletesLatestState() throws Exception {
+        // Given
+        UUID scheduleId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)).scheduleId();
+
+        // When
+        NotFoundException failure = runWithWaitingOperation(
+                () -> scheduleService.updateSchedule(scheduleId, ADMIN_ID, LocalTime.of(10, 0)),
+                () -> scheduleService.deleteSchedule(scheduleId, ADMIN_ID));
+
+        // Then
+        assertThat(failure).isNull();
+        assertThat(scheduleRepository.findById(scheduleId)).isEmpty();
+        List<java.util.Map<String, Object>> audits = jdbcTemplate.queryForList(
+                """
+                        SELECT action::text AS action, before_state ->> 'sendTime' AS before_time,
+                            after_state ->> 'sendTime' AS after_time
+                        FROM admin_audit_logs WHERE target_id = ?
+                            AND action IN ('TOPIC_PUSH_SCHEDULE_UPDATED', 'TOPIC_PUSH_SCHEDULE_DELETED')
+                        ORDER BY id
+                        """,
+                scheduleId);
+        assertThat(audits).hasSize(2);
+        assertThat(audits.getFirst()).containsEntry("action", "TOPIC_PUSH_SCHEDULE_UPDATED")
+                .containsEntry("before_time", "09:00:00").containsEntry("after_time", "10:00:00");
+        assertThat(audits.get(1)).containsEntry("action", "TOPIC_PUSH_SCHEDULE_DELETED")
+                .containsEntry("before_time", "10:00:00").containsEntry("after_time", null);
+    }
+
+    private NotFoundException runWithWaitingOperation(
+            Runnable lockedOperation,
+            Runnable waitingOperation
+    ) throws Exception {
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<NotFoundException> waiting = new TransactionTemplate(transactionManager)
+                    .execute(status -> {
+                        lockedOperation.run();
+                        entityManager.flush();
+                        AtomicInteger waitingPid = new AtomicInteger();
+                        Future<NotFoundException> future = executor.submit(() -> {
+                            try {
+                                new TransactionTemplate(transactionManager)
+                                        .executeWithoutResult(waitingStatus -> {
+                                            waitingPid.set(jdbcTemplate.queryForObject(
+                                                    "SELECT pg_backend_pid()", Integer.class));
+                                            waitingOperation.run();
+                                        });
+                                return null;
+                            } catch (NotFoundException exception) {
+                                return exception;
+                            }
+                        });
+                        // DB에서 실제 잠금 대기를 확인한 뒤 첫 요청을 커밋한다.
+                        await().atMost(Duration.ofSeconds(5))
+                                .until(() -> waitingPid.get() > 0);
+                        await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(10))
+                                .until(() -> Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                                        "SELECT cardinality(pg_blocking_pids(?)) > 0",
+                                        Boolean.class, waitingPid.get())));
+                        assertThat(future.isDone()).isFalse();
+                        return future;
+                    });
+            return waiting.get(10, TimeUnit.SECONDS);
+        }
     }
 
     private void updateAfterBarrier(UUID scheduleId, LocalTime sendTime, CyclicBarrier barrier) {
