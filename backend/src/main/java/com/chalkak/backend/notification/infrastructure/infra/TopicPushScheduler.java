@@ -15,7 +15,7 @@ public class TopicPushScheduler {
 
     private final TopicPushService topicPushService;
 
-    @Scheduled(fixedDelay = 1000, scheduler = "notificationTopicTaskScheduler")
+    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul", scheduler = "notificationTopicTaskScheduler")
     public void publishDueTopics() {
         try {
             topicPushService.publishDueTopics();

@@ -9,6 +9,8 @@ import com.chalkak.backend.notification.service.NotificationRelayService;
 import com.chalkak.backend.notification.service.TopicPushService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import java.time.ZonedDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +21,10 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.scheduling.config.CronTask;
+import org.springframework.scheduling.config.ScheduledTask;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -75,6 +81,29 @@ class SqsPushConfigurationTest {
                     assertThat(context).hasBean("notificationTopicTaskScheduler");
                     assertThat(context).doesNotHaveBean(NotificationRelayScheduler.class);
                 });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-10-12T08:59:59+09:00, 2026-10-12T09:00:00+09:00",
+            "2026-10-12T09:00:00+09:00, 2026-10-12T09:01:00+09:00",
+            "2026-10-12T09:00:30+09:00, 2026-10-12T09:01:00+09:00"
+    })
+    @DisplayName("주제 설정은 KST 매분 정각에 전용 스케줄러로 확인한다")
+    void configuration_topicSchedule_pollsAtEveryMinuteBoundary(String now, String next)
+            throws NoSuchMethodException {
+        // Given
+        Scheduled scheduled = TopicPushScheduler.class.getMethod("publishDueTopics")
+                .getAnnotation(Scheduled.class);
+
+        // When
+        ZonedDateTime nextExecution = CronExpression.parse(scheduled.cron())
+                .next(ZonedDateTime.parse(now));
+
+        // Then
+        assertThat(nextExecution).isEqualTo(ZonedDateTime.parse(next));
+        assertThat(scheduled.zone()).isEqualTo("Asia/Seoul");
+        assertThat(scheduled.scheduler()).isEqualTo("notificationTopicTaskScheduler");
     }
 
     @ParameterizedTest
@@ -151,6 +180,13 @@ class SqsPushConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     // Then: 공용 스레드 하나만 있어도 발행 작업이 점유하지 않아야 한다.
+                    if (kind.equals("topic")) {
+                        // 분 경계를 기다리지 않고 Spring에 등록된 실제 주제 작업을 실행한다.
+                        ScheduledAnnotationBeanPostProcessor processor = context.getBean(
+                                ScheduledAnnotationBeanPostProcessor.class);
+                        context.getBean(selectedScheduler, ThreadPoolTaskScheduler.class)
+                                .execute(findTopicTask(processor));
+                    }
                     try {
                         assertThat(probe.publicationStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
@@ -172,6 +208,16 @@ class SqsPushConfigurationTest {
                 });
         assertThat(publicationExecutor.get().isShutdown()).isTrue();
         assertThat(commonExecutor.get().isShutdown()).isTrue();
+    }
+
+    private Runnable findTopicTask(ScheduledAnnotationBeanPostProcessor processor) {
+        for (ScheduledTask task : processor.getScheduledTasks()) {
+            if (task.getTask() instanceof CronTask cronTask) {
+                assertThat(cronTask.getExpression()).isEqualTo("0 * * * * *");
+                return cronTask.getRunnable();
+            }
+        }
+        throw new AssertionError("주제 푸시의 분 단위 예약 작업이 없습니다.");
     }
 
     static class FakePublicationProbe {
