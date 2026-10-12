@@ -77,9 +77,9 @@ class HomeViewModel(
         if (isPreloadingEnabled.value) return
         isPreloadingEnabled.value = true
         viewModelScope.launch {
-            val session = sessionState.first { it != UserSessionState.Loading }
-            if (session.canLoadHome()) {
-                withTimeoutOrNull(HOME_PRELOAD_MAX_WAIT_MS) {
+            withTimeoutOrNull(HOME_PRELOAD_MAX_WAIT_MS) {
+                val session = sessionState.first { it != UserSessionState.Loading }
+                if (session.canLoadHome()) {
                     uiState.first { it.isInitialLoadComplete }
                 }
             }

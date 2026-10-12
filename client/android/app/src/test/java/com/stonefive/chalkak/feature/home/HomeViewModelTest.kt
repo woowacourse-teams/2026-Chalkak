@@ -27,6 +27,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -262,6 +263,53 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `initial display is released after deadline when session stays loading`() = runTest {
+        val repository = FakeHomeRepository()
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Loading)
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        advanceTimeBy(699)
+        runCurrent()
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertEquals(UserSessionState.Loading, session.value)
+        assertTrue(repository.contentQueries.isEmpty())
+        assertTrue(repository.months.isEmpty())
+
+        session.value = UserSessionState.Authenticated("user")
+        advanceUntilIdle()
+        assertEquals(listOf(HomeQuery(TODAY, PostSort.POPULAR, 1)), repository.contentQueries)
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `session and home loading share initial display deadline`() = runTest {
+        val repository = FakeHomeRepository().apply { calendarGate = CompletableDeferred() }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Loading)
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        advanceTimeBy(500)
+        session.value = UserSessionState.Authenticated("user")
+        runCurrent()
+        advanceTimeBy(199)
+        runCurrent()
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertFalse(viewModel.uiState.value.isInitialLoadComplete)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
     }
 
     @Test
