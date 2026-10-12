@@ -19,6 +19,13 @@ data class HomeUiState(
     val isAuthenticated: Boolean = false,
 )
 
+val HomeUiState.isInitialLoadComplete: Boolean
+    get() = topicStatus != HomeSectionStatus.Loading &&
+        hero != HomeHeroState.Loading &&
+        recordsStatus != HomeSectionStatus.Loading &&
+        yesterday.status != HomeSectionStatus.Loading &&
+        trending.status != HomeSectionStatus.Loading
+
 enum class HomeSectionStatus {
     Loading,
     Ready,

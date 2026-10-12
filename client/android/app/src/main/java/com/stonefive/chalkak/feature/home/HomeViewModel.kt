@@ -31,8 +31,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class HomeViewModel(
     private val repository: PostRepository,
@@ -44,17 +47,48 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
     private var hasBeenPresented = false
+    private val isPreloadingEnabled = MutableStateFlow(false)
+    private val _isReadyForInitialDisplay = MutableStateFlow(false)
+    val isReadyForInitialDisplay: StateFlow<Boolean> = _isReadyForInitialDisplay.asStateFlow()
 
     init {
         viewModelScope.launch {
-            sessionState.collectLatest { session ->
-                if (session != UserSessionState.Loading) loadHome(reset = true)
+            combine(sessionState, isPreloadingEnabled) { session, enabled -> session to enabled }
+                .collectLatest { (session, enabled) ->
+                    if (!enabled) return@collectLatest
+                    when {
+                        session.canLoadHome() -> loadHome(reset = true)
+
+                        session == UserSessionState.SignedOut -> {
+                            loadJob?.cancel()
+                            _uiState.value = HomeUiState(date = dateProvider())
+                        }
+
+                        else -> {
+                            loadJob?.cancel()
+                            _uiState.value = HomeUiState(date = dateProvider())
+                        }
+                    }
+                }
+        }
+    }
+
+    fun startPreloading() {
+        if (isPreloadingEnabled.value) return
+        isPreloadingEnabled.value = true
+        viewModelScope.launch {
+            val session = sessionState.first { it != UserSessionState.Loading }
+            if (session.canLoadHome()) {
+                withTimeoutOrNull(HOME_PRELOAD_MAX_WAIT_MS) {
+                    uiState.first { it.isInitialLoadComplete }
+                }
             }
+            _isReadyForInitialDisplay.value = true
         }
     }
 
     fun refresh() {
-        if (sessionState.value == UserSessionState.Loading || loadJob?.isActive == true) return
+        if (!sessionState.value.canLoadHome() || loadJob?.isActive == true) return
         loadHome(reset = false, showRefreshIndicator = true)
     }
 
@@ -63,8 +97,7 @@ class HomeViewModel(
             hasBeenPresented = true
             return
         }
-        // Returning from upload/record revalidates ownership, moderation and the KST date.
-        if (sessionState.value != UserSessionState.Loading && loadJob?.isActive != true) {
+        if (sessionState.value.canLoadHome() && loadJob?.isActive != true) {
             loadHome(reset = false)
         }
     }
@@ -231,6 +264,8 @@ class HomeViewModel(
     }
 
     companion object {
+        private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
+
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
@@ -243,3 +278,6 @@ class HomeViewModel(
         }
     }
 }
+
+private fun UserSessionState.canLoadHome(): Boolean =
+    this == UserSessionState.Guest || this is UserSessionState.Authenticated

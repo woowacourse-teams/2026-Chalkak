@@ -27,6 +27,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -178,6 +179,40 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `signed out session waits before preloading home APIs`() = runTest {
+        val repository = FakeHomeRepository()
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+
+        assertTrue(repository.contentQueries.isEmpty())
+        assertTrue(repository.pageQueries.isEmpty())
+        assertTrue(repository.months.isEmpty())
+
+        session.value = UserSessionState.Guest
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeQuery(TODAY, PostSort.POPULAR, 1)), repository.contentQueries)
+        assertEquals(listOf(HomeQuery(TODAY.minusDays(1), PostSort.POPULAR, 1)), repository.pageQueries)
+        assertTrue(repository.months.isEmpty())
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `initial display waits for home preload to finish`() = runTest {
+        val repository = FakeHomeRepository().apply { calendarGate = CompletableDeferred() }
+        val viewModel = createViewModel(repository)
+        runCurrent()
+
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
     fun `returning from upload refreshes and crossing KST midnight moves week`() = runTest {
         var date = LocalDate.of(2026, 10, 10)
         val repository = FakeHomeRepository()
@@ -268,7 +303,9 @@ class HomeViewModelTest {
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, dateProvider)
+    ) = HomeViewModel(repository, repository, session, dateProvider).also {
+        it.startPreloading()
+    }
 }
 
 private class FakeHomeRepository :

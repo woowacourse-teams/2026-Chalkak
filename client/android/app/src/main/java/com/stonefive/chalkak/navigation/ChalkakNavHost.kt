@@ -42,6 +42,7 @@ import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
+import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
@@ -64,6 +65,7 @@ import java.time.LocalDate
 @Composable
 fun ChalkakNavHost(
     analyticsTracker: AnalyticsTracker,
+    homeViewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     startDestination: Any = Login,
@@ -321,6 +323,7 @@ fun ChalkakNavHost(
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },
                         onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
+                        viewModel = homeViewModel,
                     )
                 }
             }
