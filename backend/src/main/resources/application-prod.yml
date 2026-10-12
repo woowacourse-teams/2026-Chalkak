@@ -28,6 +28,9 @@ chalkak:
     # excluded-user-ids:
     #   - 00000000-0000-0000-0000-000000000000
     excluded-user-ids: []
+    log-group: /chalkak/prod/application
+    # prod 접근 로그에 userId가 남기 시작한 다음 날(#502). 이전 날짜는 로그 지표가 비어 있어 집계하지 않는다.
+    log-metrics-start-date: 2026-10-02
   monitoring:
     runtime-log:
       enabled: true

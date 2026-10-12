@@ -1,6 +1,9 @@
 package com.chalkak.backend.analytics.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -13,6 +16,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +29,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
+ * 로그 지표는 시작일을 먼 미래로 두어 끄고 DB 지표만 검증한다. 로그 지표는
+ * {@link UserMetricsAggregationLogMetricsTest}에서 다룬다.
+ *
+ * <p>
  * 게시물 지표는 2030년 날짜로 한정해 다른 테스트가 남긴 행과 섞이지 않게 한다. 회원·좋아요 지표는 DB 전체의 스냅샷이라
  * 데이터를 넣기 전후의 차이로 검증한다.
  */
@@ -33,6 +41,8 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final LocalDate METRIC_DATE = LocalDate.of(2030, 3, 15);
+    private static final String LOG_GROUP = "/chalkak/test/application";
+    private static final LocalDate LOG_METRICS_START_DATE = LocalDate.of(2099, 1, 1);
     private static final LocalDate TOPIC_BASE_DATE = LocalDate.of(2041, 1, 1);
 
     @Autowired
@@ -241,9 +251,13 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
     }
 
     private UserMetricsAggregationService serviceExcluding(List<UUID> excludedUserIds) {
-        return new UserMetricsAggregationService(new UserMetricsRepositoryImpl(
-                namedParameterJdbcTemplate,
-                new AnalyticsProperties(excludedUserIds)));
+        AnalyticsProperties properties =
+                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LOG_METRICS_START_DATE);
+        AccessLogMetricsReader reader = mock(AccessLogMetricsReader.class);
+        when(reader.read(any())).thenReturn(Optional.empty());
+        return new UserMetricsAggregationService(
+                new UserMetricsRepositoryImpl(namedParameterJdbcTemplate, properties),
+                reader);
     }
 
     private OffsetDateTime kst(LocalDate date, String time) {

@@ -137,6 +137,10 @@ chalkak:
       enabled: false
     # 팀원·테스트 계정 회원 ID. 지표에서 뺀다. prod 값은 application-prod.yml에 둔다.
     excluded-user-ids: []
+    # 접근 로그가 쌓이는 CloudWatch 로그 그룹. 로그 지표를 집계하는 prod 값은 application-prod.yml에 둔다.
+    log-group: /chalkak/dev/application
+    # 이 날짜 이후부터 CloudWatch Logs Insights로 접근 로그 지표를 집계한다. 이른 날짜는 DB 지표만 남긴다.
+    log-metrics-start-date: 2026-10-02
 
 management:
   endpoints:
