@@ -1,11 +1,11 @@
 # Android·iOS 푸시 메시지 연동 계약
 
-현재 [알림 규칙](../rules/notification.md)의 NOTIFICATION-002·003·005·008과 서버의 `FcmDevicePushSender` 구현을 기준으로 작성한다. 앱에서 푸시를 해석하고 화면 이동·읽음 처리를 구현할 때 사용하는 문서다.
+현재 [알림 규칙](../rules/notification.md)의 NOTIFICATION-002·003·005·008·010과 서버의 `FcmDevicePushSender` 구현을 기준으로 작성한다. 앱에서 푸시를 해석하고 화면 이동·읽음 처리를 구현할 때 사용하는 문서다.
 
 ## 적용 범위와 상태
 
-- 현재 메시지는 게시물 승인·반려만 제공한다. 주제 푸시는 후속 이슈 #493에서 계약을 정하며, 관리자 공지·좋아요는 현재 제공하지 않는다.
-- 서버 구현은 [PR #562](https://github.com/woowacourse-teams/2026-Chalkak/pull/562)에 있다. 실제 AWS·Firebase·기기 수신과 서버 배포는 아직 확인하지 않았다.
+- 승인·반려의 공통 발송에 [#572](https://github.com/woowacourse-teams/2026-Chalkak/issues/572)의 변경으로 주제 Worker·FCM 처리와 아래 계약, 관리자 설정 시각의 정시 SQS 직접 발행을 추가한다. 관리자 공지·좋아요는 제공하지 않는다.
+- 승인·반려 구현은 [PR #562](https://github.com/woowacourse-teams/2026-Chalkak/pull/562)에 있다. 주제 변경의 PR은 아직 등록하지 않았다. 실제 AWS·Firebase·기기 수신과 해당 서버 배포는 아직 확인하지 않았다.
 - 이 안내는 현재 구현을 설명한다. REST API 요청·응답과 기존 서비스 정책을 변경하지 않는다.
 - 연동 준비와 토큰 등록은 [푸시 기기 등록 안내](push-device-registration.md), 알림함 조회는 [알림함 안내](notification-inbox.md)를 함께 읽는다.
 
@@ -49,19 +49,38 @@
 }
 ```
 
+### 주제
+
+```json
+{
+  "notification": {
+    "title": "오늘의 주제",
+    "body": "빛과 그림자"
+  },
+  "data": {
+    "eventId": "019a0010-0000-7000-8000-000000000007",
+    "type": "TOPIC",
+    "sourceType": "TOPIC",
+    "sourceId": "019a0010-0000-7000-8000-000000000008"
+  }
+}
+```
+
+본문은 발송 직전에 조회한 오늘 주제명이다. 주제에는 알림함 기록이 없으므로 `notificationId` 필드 자체를 보내지 않는다. `sourceId`는 원래 발송 대상 주제 ID이며, 클릭 시에는 그 ID로 과거 주제를 열지 않고 **클릭한 날의 오늘 주제 화면**을 연다.
+
 ### 필드 의미
 
 | 필드 | 형식·현재 값 | 앱에서의 용도 |
 | --- | --- | --- |
 | `notification.title` | 문자열 | OS 알림 또는 앱의 알림 표시 제목 |
 | `notification.body` | 문자열 | 표시 문구. 반려 사유 자체가 아님 |
-| `data.type` | `POST_APPROVED` / `POST_REJECTED` | 이동할 화면 구분 |
-| `data.notificationId` | 알림 UUID 문자열 | 알림 상세 조회·단건 읽음 처리. 알림 목록의 `id`와 같은 값 |
-| `data.sourceType` | `POST` | 관련 대상 종류 구분. 현재 두 종류 모두 게시물 |
-| `data.sourceId` | 게시물 UUID 문자열 | 승인된 게시물 화면에서 조회할 게시물 식별자 |
-| `data.eventId` | 검수 사건 UUID 문자열 | 사건 식별·로그 추적. 알림 ID나 게시물 ID를 대신하지 않음 |
+| `data.type` | `POST_APPROVED` / `POST_REJECTED` / `TOPIC` | 이동할 화면 구분 |
+| `data.notificationId` | 승인·반려의 알림 UUID 문자열. 주제에는 필드 없음 | 알림 상세 조회·단건 읽음 처리. 알림 목록의 `id`와 같은 값 |
+| `data.sourceType` | 승인·반려는 `POST`, 주제는 `TOPIC` | 관련 대상 종류 구분 |
+| `data.sourceId` | 게시물 또는 주제 UUID 문자열 | 승인은 해당 게시물 조회. 주제에서는 원래 대상 식별용이며 클릭 화면은 클릭 당일의 오늘 주제 |
+| `data.eventId` | 사건·발송 회차 UUID 문자열 | 로그 추적. 알림 ID나 관련 대상 ID를 대신하지 않음 |
 
-현재 승인·반려에서는 위 `data` 다섯 필드를 모두 제공하며 값은 모두 문자열이다. `eventId`와 `notificationId`는 서로 다른 식별자다. 제목·본문 문자열을 비교해서 알림 종류나 대상을 판단하지 않는다.
+승인·반려에서는 위 `data` 다섯 필드를 모두 제공하며 값은 모두 문자열이다. 주제는 `notificationId`를 제외한 네 필드를 제공한다. `eventId`와 `notificationId`는 서로 다른 식별자다. 제목·본문 문자열을 비교해서 알림 종류나 대상을 판단하지 않는다.
 
 ## 2. 푸시에 알림함 데이터를 모두 담지 않는다
 
@@ -72,12 +91,13 @@
 | 알림 목록·썸네일·읽음 상태 | 알림 목록 API |
 | 반려 사진 원본·반려 사유 | 알림 상세 API |
 | 승인된 게시물 내용·사진 | 기존 게시물 조회 API |
+| 클릭한 날의 오늘 주제 | 기존 오늘 주제 조회 API |
 
 푸시에는 썸네일 URL·원본 사진 URL·반려 사유·회원 ID·FCM 토큰 원문을 사용자 데이터로 넣지 않는다. 서버가 FCM 발송 대상으로 사용하는 토큰은 앱에 보내는 `data`가 아니다.
 
 사진과 사유를 푸시에 복제하기보다 **클릭 시 인증된 API로 최신 정보를 조회**한다. 푸시를 받았다는 사실만으로 현재 계정이 해당 알림에 접근할 권한을 얻는 것은 아니다.
 
-현재 화면 이동·읽음 처리에는 `type`, `notificationId`, `sourceId`를 사용한다. `sourceType`은 대상 종류를 구분하고 `eventId`는 사건을 추적하기 위한 정보다. 다섯 필드가 모두 화면 이동의 필수 값이라는 뜻은 아니며, 현재 구현의 계약은 그대로 유지한다.
+승인·반려의 화면 이동·읽음 처리에는 `type`, `notificationId`, `sourceId`를 사용한다. 주제는 `type=TOPIC`으로 분기해 기존 오늘 주제 화면을 연다. `sourceType`은 대상 종류를 구분하고 `eventId`는 사건을 추적하기 위한 정보다. 주제에서 없는 `notificationId`를 필수로 검사하거나 알림 상세·읽음 API를 호출하지 않는다.
 
 ## 3. 클릭 시 처리 순서
 
@@ -87,13 +107,15 @@
   → 현재 로그인 계정으로 필요한 API 호출
   → 승인: sourceId로 게시물 화면
   → 반려: notificationId로 알림 상세 화면
-  → notificationId로 단건 읽음 API 호출
+  → 주제: 클릭한 날의 오늘 주제 화면
+  → 승인·반려만 notificationId로 단건 읽음 API 호출
 ```
 
 | 종류 | 화면·조회 | 읽음 처리 |
 | --- | --- | --- |
 | `POST_APPROVED` | `sourceId`로 승인된 게시물 화면을 연다. 알림 상세를 먼저 조회할 필요는 없다. | `PATCH /api/v1/notifications/{notificationId}/read` |
 | `POST_REJECTED` | `GET /api/v1/notifications/{notificationId}`로 본인 사진 원본·반려 사유를 조회한다. 새로 올리기 버튼은 없다. | 같은 단건 읽음 API |
+| `TOPIC` | 클릭한 날의 오늘 주제 화면을 연다. 원래 `sourceId`의 날짜로 화면을 고정하지 않는다. | 알림함 기록이 없어 호출하지 않음 |
 
 - API에 현재 회원 액세스 토큰을 전달한다. 알림 ID 대신 게시물 ID를 읽음 API에 넣지 않는다.
 - 상세 조회 자체는 읽음 처리하지 않는다. 단건 읽음 성공은 본문 없는 `204`이며 반복 요청도 최초 읽은 시각을 유지한다.
@@ -123,7 +145,7 @@
 
 ## 5. 시간·중복·오류에 대한 주의점
 
-- 서버는 검수 사건 발생 후 **30분 안에만 새 FCM 발송을 시작**한다. SQS 재전달 때도 같은 기한을 확인한다. Android TTL은 메시지 생성 시 남은 기간으로 한 번 계산하고, iOS `apns-expiration`은 원래 기한의 절대 시각으로 설정한다.
+- 서버는 승인·반려의 검수 사건 발생 시각 또는 주제의 원래 예정 시각부터 **30분 안에만 새 FCM 발송을 시작**한다. SQS 재전달 때도 같은 기한을 확인한다. Android TTL은 메시지 생성 시 남은 기간으로 한 번 계산하고, iOS `apns-expiration`은 원래 기한의 절대 시각으로 설정한다.
 - 기한 전에 시작한 Firebase SDK 내부 재시도는 기한 이후에도 계속될 수 있다. Android TTL을 재시도마다 갱신하지 않으므로 실제 만료 시각이 원래 기한보다 늦어질 수 있다. 앱이 `data`에서 만료 시각을 받아 계산하거나 오래된 푸시를 자동으로 제거하는 계약은 현재 없다.
 - FCM의 요청 수락은 실제 기기 수신·표시·클릭 성공을 뜻하지 않는다.
 - 푸시 발송 기한 30분과 알림함 보관 30일은 다르다. 이미 표시된 푸시를 나중에 누른 경우에는 현재 API의 대상 존재·권한·보관 조건에 따라 처리한다.
