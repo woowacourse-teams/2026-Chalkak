@@ -374,7 +374,7 @@ final class chalkakUITests: XCTestCase {
     @MainActor
     func testNotificationSetupSkipContinuesToHome() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-show-notification-setup"]
+        app.launchArguments = ["-show-notification-setup", "-notificationSetup.hasCompleted", "NO"]
         app.launch()
 
         XCTAssertTrue(
@@ -399,6 +399,24 @@ final class chalkakUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
+    }
+
+    @MainActor
+    func testInitialNotificationSetupCloseReturnsHomeWithoutRepeating() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-show-notification-setup", "-notificationSetup.hasCompleted", "NO"]
+        app.launch()
+
+        let title = app.staticTexts["notificationSetup.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        app.buttons["notificationSetup.close"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+
+        app.buttons["전시"].tap()
+        app.buttons["오늘"].tap()
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+        XCTAssertFalse(title.exists)
     }
 
     @MainActor

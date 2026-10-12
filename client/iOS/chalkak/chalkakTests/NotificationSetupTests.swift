@@ -141,19 +141,49 @@ struct NotificationSetupStoreTests {
 
 struct NotificationSetupRouteTests {
     @Test
-    func routesIncompleteSetupToNotificationScreenAfterAuthentication() {
-        #expect(
-            AppRouteResolver.destinationAfterAuthentication(hasCompletedNotificationSetup: false)
-                == .notificationSetup
-        )
+    func firstLaunchStartsAtLogin() {
+        #expect(AppRouteResolver.initialDestination(hasActiveSession: false) == .login)
     }
 
     @Test
-    func routesCompletedSetupDirectlyHomeAfterAuthentication() {
-        #expect(
-            AppRouteResolver.destinationAfterAuthentication(hasCompletedNotificationSetup: true)
-                == .home
-        )
+    func restoredSessionStartsAtHome() {
+        #expect(AppRouteResolver.initialDestination(hasActiveSession: true) == .home)
+    }
+
+    @Test
+    func incompleteSetupIsPresentedForAuthenticatedHome() {
+        #expect(AppRouteResolver.shouldPresentNotificationSetup(
+            isAuthenticated: true,
+            hasCompletedNotificationSetup: false,
+            hasPresentedDuringSession: false
+        ))
+    }
+
+    @Test
+    func guestHomeDoesNotPresentSetup() {
+        #expect(!AppRouteResolver.shouldPresentNotificationSetup(
+            isAuthenticated: false,
+            hasCompletedNotificationSetup: false,
+            hasPresentedDuringSession: false
+        ))
+    }
+
+    @Test
+    func completedOrSkippedSetupIsNotPresentedAgain() {
+        #expect(!AppRouteResolver.shouldPresentNotificationSetup(
+            isAuthenticated: true,
+            hasCompletedNotificationSetup: true,
+            hasPresentedDuringSession: false
+        ))
+    }
+
+    @Test
+    func dismissedSetupIsNotPresentedAgainDuringSameSession() {
+        #expect(!AppRouteResolver.shouldPresentNotificationSetup(
+            isAuthenticated: true,
+            hasCompletedNotificationSetup: false,
+            hasPresentedDuringSession: true
+        ))
     }
 }
 
