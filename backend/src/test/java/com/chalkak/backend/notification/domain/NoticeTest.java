@@ -130,4 +130,42 @@ class NoticeTest {
         // Then
         assertThat(notice.getScheduledAt()).isEqualTo(nextYear);
     }
+
+    @Test
+    @DisplayName("제목 판단은 앞뒤 공백을 제거한 뒤 50자까지 허용하고 51자는 거절한다")
+    void isValidTitle_lengthBoundary_acceptsUpToFifty() {
+        // When & Then
+        assertThat(Notice.isValidTitle(" " + "가".repeat(50) + " ")).isTrue();
+        assertThat(Notice.isValidTitle("가".repeat(51))).isFalse();
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   ", "\n\t"})
+    @DisplayName("제목 판단은 없거나 공백뿐인 값을 거절한다")
+    void isValidTitle_blankTitle_returnsFalse(String title) {
+        // When & Then
+        assertThat(Notice.isValidTitle(title)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 50, 51})
+    @DisplayName("제목 판단은 공지 생성의 제목 검증과 같은 결과를 낸다")
+    void isValidTitle_sameAsCreate_returnsConsistentResult(int length) {
+        // Given
+        String title = "가".repeat(length);
+        boolean created = canCreateWithTitle(title);
+
+        // When & Then
+        assertThat(Notice.isValidTitle(title)).isEqualTo(created);
+    }
+
+    private boolean canCreateWithTitle(String title) {
+        try {
+            Notice.create(title, BODY, NOW, NOW);
+            return true;
+        } catch (BusinessException exception) {
+            return false;
+        }
+    }
 }

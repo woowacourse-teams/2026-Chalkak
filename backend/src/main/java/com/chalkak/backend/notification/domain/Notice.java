@@ -57,19 +57,15 @@ public class Notice {
             Instant now
     ) {
         Notice notice = new Notice();
-        notice.title = normalizeTitle(title);
-        notice.body = normalizeBody(body);
+        notice.title = normalizeText(title, MAX_TITLE_LENGTH, "공지 제목은 1자 이상 50자 이하여야 합니다.");
+        notice.body = normalizeText(body, MAX_BODY_LENGTH, "공지 본문은 1자 이상 500자 이하여야 합니다.");
         validateScheduledAt(scheduledAt, now);
         notice.scheduledAt = scheduledAt;
         return notice;
     }
 
-    private static String normalizeTitle(String title) {
-        return normalizeText(title, MAX_TITLE_LENGTH, "공지 제목은 1자 이상 50자 이하여야 합니다.");
-    }
-
-    private static String normalizeBody(String body) {
-        return normalizeText(body, MAX_BODY_LENGTH, "공지 본문은 1자 이상 500자 이하여야 합니다.");
+    public static boolean isValidTitle(String title) {
+        return title != null && isValidNormalizedText(title.trim(), MAX_TITLE_LENGTH);
     }
 
     private static String normalizeText(
@@ -77,14 +73,16 @@ public class Notice {
             int maxLength,
             String message
     ) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, message);
-        }
-        String normalized = value.trim();
-        if (normalized.codePointCount(0, normalized.length()) > maxLength) {
+        String normalized = value == null ? "" : value.trim();
+        if (!isValidNormalizedText(normalized, maxLength)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, message);
         }
         return normalized;
+    }
+
+    private static boolean isValidNormalizedText(String normalized, int maxLength) {
+        return !normalized.isBlank()
+                && normalized.codePointCount(0, normalized.length()) <= maxLength;
     }
 
     private static void validateScheduledAt(Instant scheduledAt, Instant now) {

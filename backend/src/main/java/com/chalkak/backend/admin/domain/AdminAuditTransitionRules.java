@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.domain;
 
+import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.DateTimeException;
@@ -15,7 +16,6 @@ import java.util.regex.Pattern;
 final class AdminAuditTransitionRules {
 
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
-    private static final int MAX_NOTICE_TITLE_LENGTH = 50;
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt");
@@ -177,9 +177,13 @@ final class AdminAuditTransitionRules {
 
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
         return state.hasExactlyFields(NOTICE_STATE_FIELDS)
-                && isValidText(state.value("title"), MAX_NOTICE_TITLE_LENGTH)
+                && isValidNoticeTitle(state.value("title"))
                 && isInstant(state.value("scheduledAt"))
                 && isSha256Hex(state.value("bodySha256"));
+    }
+
+    private static boolean isValidNoticeTitle(Object value) {
+        return value instanceof String title && Notice.isValidTitle(title);
     }
 
     private static boolean isSha256Hex(Object value) {
@@ -268,15 +272,11 @@ final class AdminAuditTransitionRules {
     }
 
     private static boolean isValidTitle(Object value) {
-        return isValidText(value, MAX_TOPIC_TITLE_LENGTH);
-    }
-
-    private static boolean isValidText(Object value, int maxLength) {
-        if (!(value instanceof String text)) {
+        if (!(value instanceof String title)) {
             return false;
         }
-        return !text.isBlank()
-                && text.codePointCount(0, text.length()) <= maxLength;
+        return !title.isBlank()
+                && title.codePointCount(0, title.length()) <= MAX_TOPIC_TITLE_LENGTH;
     }
 
     private static boolean isLocalDate(Object value) {

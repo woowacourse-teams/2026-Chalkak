@@ -15,7 +15,8 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class NoticeRepositoryImpl implements NoticeRepository {
 
-    private static final Sort LATEST_CREATED_FIRST = Sort.by(Sort.Direction.DESC, "createdAt", "id");
+    private static final Sort LATEST_CREATED_FIRST = Sort.by(Sort.Direction.DESC, "createdAt",
+            "id");
 
     private final NoticeJpaRepository jpaRepository;
 
