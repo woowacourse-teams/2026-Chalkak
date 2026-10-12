@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import java.time.Instant;
 import java.time.LocalTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.NullSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class TopicPushScheduleTest {
 
@@ -85,5 +87,89 @@ class TopicPushScheduleTest {
         assertThatThrownBy(() -> schedule.updateSendTime(invalidTime))
                 .isInstanceOf(BusinessException.class);
         assertThat(schedule.getSendTime()).isEqualTo(LocalTime.of(9, 0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 1, 1799, 1800, 1801})
+    @DisplayName("예정 시각부터 30분 직전까지만 원래 회차를 반환한다")
+    void findDueOccurrence_timeBoundaries_preservesOriginalOccurrence(long seconds) {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.minusSeconds(60));
+
+        // When
+        Instant occurrence = schedule.findDueOccurrence(scheduledAt.plusSeconds(seconds));
+
+        // Then
+        if (seconds < 0 || seconds >= 1800) {
+            assertThat(occurrence).isNull();
+            return;
+        }
+        assertThat(occurrence).isEqualTo(scheduledAt);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 1})
+    @DisplayName("생성·수정 시각 이후에 도래한 회차만 실행한다")
+    void findDueOccurrence_updateTimeBoundaries_requiresLaterOccurrence(long seconds) {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.plusSeconds(seconds));
+
+        // When
+        Instant occurrence = schedule.findDueOccurrence(scheduledAt.plusSeconds(60));
+
+        // Then
+        if (seconds >= 0) {
+            assertThat(occurrence).isNull();
+            return;
+        }
+        assertThat(occurrence).isEqualTo(scheduledAt);
+    }
+
+    @Test
+    @DisplayName("지난 시각으로 생성·수정한 설정은 소급 실행하지 않고 다음 날 실행한다")
+    void findDueOccurrence_pastSettingChange_appliesNextDay() {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.plusSeconds(1));
+
+        // When & Then
+        assertThat(schedule.findDueOccurrence(scheduledAt.plusSeconds(60))).isNull();
+        assertThat(schedule.findDueOccurrence(scheduledAt.plusSeconds(86400)))
+                .isEqualTo(scheduledAt.plusSeconds(86400));
+    }
+
+    @Test
+    @DisplayName("UTC 날짜가 달라도 KST 자정의 회차를 반환한다")
+    void findDueOccurrence_kstMidnight_usesKstDate() {
+        // Given
+        Instant midnight = Instant.parse("2026-10-12T15:00:00Z");
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.MIDNIGHT);
+        ReflectionTestUtils.setField(schedule, "updatedAt", midnight.minusSeconds(60));
+
+        // When
+        Instant occurrence = schedule.findDueOccurrence(midnight);
+
+        // Then
+        assertThat(occurrence).isEqualTo(midnight);
+    }
+
+    @Test
+    @DisplayName("KST 날짜가 바뀌면 전날 마지막 회차를 소급 실행하지 않는다")
+    void findDueOccurrence_previousDayOccurrence_skipsAfterMidnight() {
+        // Given
+        Instant midnight = Instant.parse("2026-10-12T15:00:00Z");
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(23, 59));
+        ReflectionTestUtils.setField(schedule, "updatedAt", midnight.minusSeconds(3600));
+
+        // When
+        Instant occurrence = schedule.findDueOccurrence(midnight);
+
+        // Then
+        assertThat(occurrence).isNull();
     }
 }

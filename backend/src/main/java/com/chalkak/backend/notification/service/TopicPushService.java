@@ -67,7 +67,7 @@ public class TopicPushService {
     }
 
     private void publishSchedule(TopicPushSchedule schedule) {
-        Instant scheduledAt = findScheduledAt(schedule, clock.instant());
+        Instant scheduledAt = schedule.findDueOccurrence(clock.instant());
         if (scheduledAt == null || scheduledAt.equals(attemptedSchedules.get(schedule.getId()))) {
             return;
         }
@@ -97,22 +97,9 @@ public class TopicPushService {
         }
     }
 
-    private Instant findScheduledAt(TopicPushSchedule schedule, Instant now) {
-        LocalDate today = LocalDate.ofInstant(now, KST);
-        Instant scheduledAt = today.atTime(schedule.getSendTime()).atZone(KST).toInstant();
-        if (now.isBefore(scheduledAt) || !scheduledAt.isAfter(schedule.getUpdatedAt())) {
-            return null;
-        }
-        if (PushDeadlinePolicy.isExpiredAt(PushDeadlinePolicy.calculateExpiresAt(scheduledAt),
-                now)) {
-            return null;
-        }
-        return scheduledAt;
-    }
-
     private PublicationTargets findTargets(UUID scheduleId, Instant scheduledAt) {
         TopicPushSchedule current = scheduleRepository.findById(scheduleId).orElse(null);
-        if (current == null || !scheduledAt.equals(findScheduledAt(current, clock.instant()))) {
+        if (current == null || !scheduledAt.equals(current.findDueOccurrence(clock.instant()))) {
             return null;
         }
         Topic topic = topicRepository.findActiveByTopicDate(LocalDate.ofInstant(scheduledAt, KST))
