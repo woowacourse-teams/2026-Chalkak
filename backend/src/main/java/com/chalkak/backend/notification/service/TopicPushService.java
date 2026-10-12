@@ -107,7 +107,8 @@ public class TopicPushService {
         if (topic == null) {
             return null;
         }
-        return new PublicationTargets(topic.getId(), userRepository.findTopicPushRecipientIds());
+        return new PublicationTargets(topic.getId(),
+                userRepository.findTopicPushRecipientIds(topic.getId()));
     }
 
     private void publishTargets(

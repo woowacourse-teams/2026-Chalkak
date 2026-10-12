@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface UserRepository {
 
-    List<UUID> findTopicPushRecipientIds();
+    List<UUID> findTopicPushRecipientIds(UUID topicId);
 
     Optional<User> findById(UUID id);
 

@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.infrastructure.persistence;
 
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -16,8 +17,10 @@ public class UserRepositoryImpl implements UserRepository {
     private final UserJpaRepository userJpaRepository;
 
     @Override
-    public List<UUID> findTopicPushRecipientIds() {
-        return userJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE);
+    public List<UUID> findTopicPushRecipientIds(UUID topicId) {
+        return userJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
+                List.of(ModerationStatus.VALIDATING, ModerationStatus.PENDING,
+                        ModerationStatus.APPROVED));
     }
 
     @Override

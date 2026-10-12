@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.infrastructure.persistence;
 
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.LockModeType;
@@ -18,9 +19,20 @@ public interface UserJpaRepository extends JpaRepository<User, UUID> {
             WHERE user.deletedAt IS NULL
                 AND user.status = :status
                 AND user.topicPushEnabled = true
+                AND NOT EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.author.id = user.id
+                        AND post.topic.id = :topicId
+                        AND post.deletedAt IS NULL
+                        AND post.moderationStatus IN :participationStatuses
+                )
             ORDER BY user.id
             """)
-    List<UUID> findTopicPushRecipientIds(@Param("status") UserStatus status);
+    List<UUID> findTopicPushRecipientIds(
+            @Param("status") UserStatus status,
+            @Param("topicId") UUID topicId,
+            @Param("participationStatuses") List<ModerationStatus> participationStatuses
+    );
 
     Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 
