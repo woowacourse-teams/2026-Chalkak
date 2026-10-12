@@ -7,17 +7,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
-import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.service.SocialLoginResult;
-import com.chalkak.backend.auth.service.SocialLoginService;
-import com.chalkak.backend.auth.service.SocialSignupResult;
-import com.chalkak.backend.auth.service.SocialSignupService;
-import com.chalkak.backend.auth.service.SocialSignupSignatureUploadResult;
-import com.chalkak.backend.auth.service.TokenRefreshResult;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.auth.domain.signup.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.login.SocialLoginResult;
+import com.chalkak.backend.auth.service.login.SocialLoginService;
+import com.chalkak.backend.auth.service.signup.SocialSignupResult;
+import com.chalkak.backend.auth.service.signup.SocialSignupService;
+import com.chalkak.backend.auth.service.signup.SocialSignupSignatureUploadResult;
+import com.chalkak.backend.auth.service.token.TokenRefreshResult;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;

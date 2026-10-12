@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.api.support;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.common.logging.LogFields;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

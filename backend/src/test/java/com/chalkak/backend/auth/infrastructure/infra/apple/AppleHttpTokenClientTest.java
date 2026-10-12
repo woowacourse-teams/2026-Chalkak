@@ -15,7 +15,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
-import com.chalkak.backend.auth.service.AppleTokenExchangeResult;
+import com.chalkak.backend.auth.service.apple.AppleTokenExchangeResult;
 import com.chalkak.backend.exception.UnauthorizedException;
 import java.io.IOException;
 import java.net.URI;

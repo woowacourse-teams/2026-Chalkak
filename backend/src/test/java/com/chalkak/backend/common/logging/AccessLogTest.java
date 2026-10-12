@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;

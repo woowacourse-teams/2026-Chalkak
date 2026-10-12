@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;

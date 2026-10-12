@@ -3,8 +3,8 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.chalkak.backend.auth.domain.SocialAccount;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialAccount;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -23,10 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class SocialAccountRepositoryTest extends IntegrationTestSupport {
 
-    private static final String GOOGLE_SUBJECT_HMAC =
-            "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
-    private static final String KAKAO_SUBJECT_HMAC =
-            "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
+    private static final String GOOGLE_SUBJECT_HMAC = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
+    private static final String KAKAO_SUBJECT_HMAC = "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
 
     @Autowired
     private SocialAccountRepository socialAccountRepository;

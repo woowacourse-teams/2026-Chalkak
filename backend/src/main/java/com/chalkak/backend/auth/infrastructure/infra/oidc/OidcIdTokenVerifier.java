@@ -1,8 +1,8 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.service.IdTokenVerifier;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.service.identity.IdTokenVerifier;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import java.nio.charset.StandardCharsets;

@@ -3,7 +3,7 @@ package com.chalkak.backend.auth.infrastructure.infra.signup;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import com.chalkak.backend.auth.domain.ConsumedSignupToken;
+import com.chalkak.backend.auth.domain.signup.ConsumedSignupToken;
 import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;

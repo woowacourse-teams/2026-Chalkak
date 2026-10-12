@@ -1,7 +1,7 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
-import com.chalkak.backend.auth.service.AppleTokenClient;
+import com.chalkak.backend.auth.service.apple.AppleTokenClient;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;

@@ -2,10 +2,10 @@ package com.chalkak.backend.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.SocialAccount;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialAccount;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.identity.SocialIdentityFingerprintEncoder;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;

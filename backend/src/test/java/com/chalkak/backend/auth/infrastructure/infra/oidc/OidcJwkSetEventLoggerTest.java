@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.events.Event;

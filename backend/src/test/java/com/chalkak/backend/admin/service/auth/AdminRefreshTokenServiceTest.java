@@ -7,10 +7,10 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
-import com.chalkak.backend.auth.service.RefreshTokenHasher;
-import com.chalkak.backend.auth.service.TokenRefreshResult;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.service.token.RefreshTokenHasher;
+import com.chalkak.backend.auth.service.token.TokenRefreshResult;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
