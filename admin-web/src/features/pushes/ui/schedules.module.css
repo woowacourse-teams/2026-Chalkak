@@ -1,0 +1,14 @@
+.intro { display: grid; gap: 8px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 20px; color: #656776; font-size: 13px; line-height: 1.7; }
+.intro p { margin: 0; }
+.intro p:first-child { color: #41434f; font-weight: 600; }
+.help { margin: 0; color: #77798d; font-size: 12px; line-height: 1.6; }
+.listHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.listHeading h3 { margin: 0; color: #41434f; font-size: 15px; }
+.listHeading a { display: inline-flex; min-height: 44px; align-items: center; color: #5557a1; font-size: 13px; }
+.list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.schedule { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 20px; scroll-margin-top: 90px; }
+.schedule > div:first-child { display: grid; gap: 6px; }
+.schedule strong { color: #252631; font-size: 26px; font-variant-numeric: tabular-nums; }
+.schedule span { color: #77798d; font-size: 12px; }
+.actions { display: flex; gap: 8px; }
+@media (max-width: 480px) { .intro, .schedule { padding: 14px; } .schedule { gap: 8px; } .actions button { padding-inline: 12px; } }
