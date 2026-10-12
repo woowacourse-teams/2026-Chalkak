@@ -6,43 +6,57 @@ public enum AdminAction {
     POST_APPROVED(
             AdminTargetType.POST,
             false,
-            AdminAuditTransitionRules::isPostApproved
-    ),
+            AdminAuditTransitionRules::isPostApproved),
+
     POST_REJECTED(
             AdminTargetType.POST,
             true,
-            AdminAuditTransitionRules::isPostRejected
-    ),
+            AdminAuditTransitionRules::isPostRejected),
+
     POST_DELETED(
             AdminTargetType.POST,
             true,
-            AdminAuditTransitionRules::isPostDeleted
-    ),
+            AdminAuditTransitionRules::isPostDeleted),
+
     USER_BANNED(
             AdminTargetType.USER,
             true,
-            AdminAuditTransitionRules::isUserBanned
-    ),
+            AdminAuditTransitionRules::isUserBanned),
+
     USER_UNBANNED(
             AdminTargetType.USER,
             true,
-            AdminAuditTransitionRules::isUserUnbanned
-    ),
+            AdminAuditTransitionRules::isUserUnbanned),
+
     TOPIC_CREATED(
             AdminTargetType.TOPIC,
             false,
-            AdminAuditTransitionRules::isTopicCreated
-    ),
+            AdminAuditTransitionRules::isTopicCreated),
+
     TOPIC_UPDATED(
             AdminTargetType.TOPIC,
             false,
-            AdminAuditTransitionRules::isTopicUpdated
-    ),
+            AdminAuditTransitionRules::isTopicUpdated),
+
     TOPIC_DELETED(
             AdminTargetType.TOPIC,
             true,
-            AdminAuditTransitionRules::isTopicDeleted
-    );
+            AdminAuditTransitionRules::isTopicDeleted),
+
+    TOPIC_PUSH_SCHEDULE_CREATED(
+            AdminTargetType.TOPIC_PUSH_SCHEDULE,
+            false,
+            AdminAuditTransitionRules::isTopicPushScheduleCreated),
+
+    TOPIC_PUSH_SCHEDULE_UPDATED(
+            AdminTargetType.TOPIC_PUSH_SCHEDULE,
+            false,
+            AdminAuditTransitionRules::isTopicPushScheduleUpdated),
+
+    TOPIC_PUSH_SCHEDULE_DELETED(
+            AdminTargetType.TOPIC_PUSH_SCHEDULE,
+            false,
+            AdminAuditTransitionRules::isTopicPushScheduleDeleted);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;

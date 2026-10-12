@@ -16,31 +16,27 @@ final class AdminAuditTransitionRules {
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
-            "moderatedAt"
-    );
+            "moderatedAt");
     private static final Set<String> POST_MODERATION_AFTER_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt",
-            "moderatedBy"
-    );
+            "moderatedBy");
     private static final Set<String> POST_DELETION_FIELDS = Set.of(
             "moderationStatus",
-            "deletedAt"
-    );
+            "deletedAt");
     private static final Set<String> USER_STATUS_FIELDS = Set.of("status");
+    private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
-            "endsAt"
-    );
+            "endsAt");
     private static final Set<String> DELETED_TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
             "endsAt",
-            "deletedAt"
-    );
+            "deletedAt");
 
     private AdminAuditTransitionRules() {
     }
@@ -54,8 +50,7 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.APPROVED
-        );
+                ModerationStatus.APPROVED);
     }
 
     static boolean isPostRejected(
@@ -67,8 +62,7 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.REJECTED
-        );
+                ModerationStatus.REJECTED);
     }
 
     static boolean isPostDeleted(
@@ -94,8 +88,7 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.ACTIVE,
-                UserStatus.BANNED
-        );
+                UserStatus.BANNED);
     }
 
     static boolean isUserUnbanned(
@@ -107,8 +100,7 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.BANNED,
-                UserStatus.ACTIVE
-        );
+                UserStatus.ACTIVE);
     }
 
     static boolean isTopicCreated(
@@ -142,6 +134,40 @@ final class AdminAuditTransitionRules {
                 && hasSameTopicBusinessState(beforeState, afterState);
     }
 
+    static boolean isTopicPushScheduleCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidTopicPushScheduleState(afterState);
+    }
+
+    static boolean isTopicPushScheduleUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidTopicPushScheduleState(beforeState)
+                && isValidTopicPushScheduleState(afterState)
+                && !beforeState.values().equals(afterState.values());
+    }
+
+    static boolean isTopicPushScheduleDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidTopicPushScheduleState(beforeState) && afterState.isEmpty();
+    }
+
+    private static boolean isValidTopicPushScheduleState(AdminAuditSnapshot state) {
+        if (!state.hasExactlyFields(TOPIC_PUSH_SCHEDULE_FIELDS)
+                || !(state.value("sendTime") instanceof String sendTime)) {
+            return false;
+        }
+        return sendTime.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]:00");
+    }
+
     private static boolean isPostModeration(
             UUID actorAdminId,
             AdminAuditSnapshot beforeState,
@@ -153,8 +179,7 @@ final class AdminAuditTransitionRules {
                 && hasValue(
                         beforeState,
                         "moderationStatus",
-                        ModerationStatus.PENDING.name()
-                )
+                        ModerationStatus.PENDING.name())
                 && beforeState.value("moderatedAt") == null
                 && hasValue(afterState, "moderationStatus", decidedStatus.name())
                 && isInstant(afterState.value("moderatedAt"))
@@ -196,8 +221,7 @@ final class AdminAuditTransitionRules {
         return TOPIC_STATE_FIELDS.stream()
                 .allMatch(fieldName -> Objects.equals(
                         beforeValues.get(fieldName),
-                        afterValues.get(fieldName)
-                ));
+                        afterValues.get(fieldName)));
     }
 
     private static boolean hasValue(

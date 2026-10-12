@@ -11,6 +11,7 @@ public final class DatabaseCleaner {
                 posts,
                 photos,
                 post_image_uploads,
+                topic_push_schedules,
                 topics,
                 users
             RESTART IDENTITY CASCADE
