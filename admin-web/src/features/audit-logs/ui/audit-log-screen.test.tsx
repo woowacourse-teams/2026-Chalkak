@@ -55,3 +55,15 @@ describe("administrator action history", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("관리자 권한이 없습니다."));
   });
 });
+
+it("shows schedule audit labels and links to the settings even after deletion", async () => {
+  const result = await getApiClient().request<{ scheduleId: string }>("/topic-push-schedules", { method: "POST", body: { sendTime: "12:00:00" } });
+  await getApiClient().request(`/topic-push-schedules/${result.scheduleId}`, { method: "DELETE" });
+  mount();
+  await screen.findAllByRole("link", { name: "주제 알림 설정 보기 →" });
+  expect(screen.getAllByText("알림 시간 등록")).toHaveLength(2);
+  for (const link of screen.getAllByRole("link", { name: "주제 알림 설정 보기 →" })) expect(link).toHaveAttribute("href", "/pushes");
+  fireEvent.change(screen.getByRole("combobox", { name: "대상" }), { target: { value: "TOPIC_PUSH_SCHEDULE" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=TOPIC_PUSH_SCHEDULE");
+});
