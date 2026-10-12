@@ -153,6 +153,9 @@ public class TopicPushService {
     private PushPublicationResult publishMessage(PushMessage message) {
         try {
             PushPublicationResult result = publisher.publish(message);
+            if (result.isAccepted()) {
+                return result;
+            }
             log.atInfo().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_publication_result")
                     .addKeyValue("eventId", message.eventId())
@@ -176,9 +179,6 @@ public class TopicPushService {
     }
 
     private String getPublicationStatus(PushPublicationResult result) {
-        if (result.isAccepted()) {
-            return "SQS_ACCEPTED";
-        }
         if (result.isAcceptanceUnknown()) {
             return "UNKNOWN";
         }

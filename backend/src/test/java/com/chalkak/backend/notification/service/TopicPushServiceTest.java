@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +143,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications", Integer.class))
                 .isZero();
         assertThat(summary()).containsEntry("targetCount", 2).containsEntry("acceptedCount", 2);
+        assertThat(logsAtStage("topic_publication_result")).isEmpty();
+        assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
     }
 
     @ParameterizedTest
@@ -320,10 +323,26 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         service.publishDueTopics();
         service.publishDueTopics();
         // Then
-        assertThat(captureMessages(4)).hasSize(4);
+        List<PushMessage> messages = captureMessages(4);
+        assertThat(messages).hasSize(4);
         assertThat(summary()).containsEntry("targetCount", 4).containsEntry("acceptedCount", 1)
                 .containsEntry("failedCount", 1).containsEntry("unknownCount", 2)
                 .containsEntry("expiredCount", 0);
+        List<Map<String, Object>> failures = logsAtStage("topic_publication_result");
+        assertThat(failures).hasSize(2);
+        assertThat(failures.getFirst()).containsEntry("userId", new UUID(0, 2))
+                .containsEntry("result", "FAILED")
+                .containsEntry("errorCode", "RequestThrottled");
+        assertThat(failures.get(1)).containsEntry("userId", new UUID(0, 3))
+                .containsEntry("result", "UNKNOWN")
+                .containsEntry("errorCode", "SQS_CLIENT_ERROR");
+        assertThat(failures).allSatisfy(log -> assertThat(log)
+                .containsEntry("eventId", messages.getFirst().eventId())
+                .containsEntry("sourceId", TOPIC_ID));
+        assertThat(logsAtStage("topic_publication_unknown")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("userId", new UUID(0, 4))
+                        .containsEntry("errorCode", "IllegalStateException"));
+        assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
         assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains("private-message-must-not-be-logged"));
     }
@@ -406,16 +425,25 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     private Map<String, Object> summary() {
+        List<Map<String, Object>> summaries = logsAtStage("topic_publication_summary");
+        if (summaries.isEmpty()) {
+            throw new AssertionError("주제 발행 집계 로그가 없습니다.");
+        }
+        return summaries.getFirst();
+    }
+
+    private List<Map<String, Object>> logsAtStage(String stage) {
+        List<Map<String, Object>> logs = new ArrayList<>();
         for (ILoggingEvent event : appender.list) {
             Map<String, Object> values = new HashMap<>();
             for (var entry : event.getKeyValuePairs()) {
                 values.put(entry.key, entry.value);
             }
-            if ("topic_publication_summary".equals(values.get("stage"))) {
-                return values;
+            if (stage.equals(values.get("stage"))) {
+                logs.add(values);
             }
         }
-        throw new AssertionError("주제 발행 집계 로그가 없습니다.");
+        return logs;
     }
 
     private void insertUser(UUID id) {
