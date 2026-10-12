@@ -83,3 +83,14 @@
 - [Instant Rollback](https://vercel.com/docs/instant-rollback)
 - [프로젝트 일시 중지](https://vercel.com/docs/projects/managing-projects#pausing-a-project)
 - [Gitleaks 사용법](https://github.com/gitleaks/gitleaks)
+
+
+## 주제 알림 설정의 개발·운영 관리자 반영 (#583)
+
+- 개발 관리자: https://chalkak-admin-web.vercel.app/
+- 운영 관리자: https://chalkak-admin-prod.vercel.app/
+- 두 화면은 같은 `admin-web` 소스를 사용한다. 현재 `admin-web/develop`과 `main`의 관리자 웹 소스는 동일하며, 기능은 개발 통합 후 운영 릴리스에도 반영한다. 각 Vercel 프로젝트의 실제 추적 브랜치·배포 SHA·API 연결은 배포 시 따로 확인한다.
+- API 주소를 코드에 고정하거나 브라우저에서 개발·운영 서버를 전환하지 않는다. 각 프로젝트의 기존 API 설정과 세션 쿠키를 사용한다. 한 사이트에서 시간을 바꾸어도 다른 서버 설정은 바뀌지 않는다.
+- 각 환경에서 `/pushes` 조회·추가·수정·삭제와 처리 이력을 확인한다. 삭제 요청은 본문 없는 DELETE이며 기존 게시물·주제 삭제의 사유 본문은 유지한다.
+- 시간 설정 API의 서버 배포와 #572 정시 발송의 배포·활성화는 별도다. 화면 저장 성공을 실제 푸시 발송·기기 수신 성공으로 표시하지 않는다.
+- 운영 환경의 설정 변경은 실제 발송에 영향을 준다. 운영 데이터 변경이나 전체 사용자 대상 발송을 검증용으로 실행하지 않는다.

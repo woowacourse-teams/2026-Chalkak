@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;
@@ -227,4 +227,16 @@ export interface AdminPushResponse {
   status: PushStatus;
   requestedAt: Instant;
   completedAt: Instant | null;
+}
+
+export interface TopicPushSchedule {
+  scheduleId: string;
+  /** KST wall-clock time; never convert using the browser time zone. */
+  sendTime: string;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface TopicPushScheduleListResponse {
+  schedules: TopicPushSchedule[];
 }

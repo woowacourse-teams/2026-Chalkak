@@ -2,6 +2,7 @@ import { delay, http, HttpResponse } from "msw";
 
 import type {
   AdminAuditLogResponse,
+  TopicPushSchedule,
   AdminFeedbackListResponse,
   AdminPostCounts,
   AdminPostDetailResponse,
@@ -30,10 +31,16 @@ let postStore = structuredClone(postDetailFixtures);
 let userStore = structuredClone(userDetailFixtures);
 let topicStore = structuredClone(topicDetailFixtures);
 let auditStore: AdminAuditLogResponse[] = [];
+const scheduleFixtures: TopicPushSchedule[] = [
+  { scheduleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", sendTime: "09:00:00", createdAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" },
+  { scheduleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", sendTime: "18:30:00", createdAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" },
+];
+let scheduleStore = structuredClone(scheduleFixtures);
 
 export function resetMockData() {
   mockAdminSignedIn = false;
   auditStore = [];
+  scheduleStore = structuredClone(scheduleFixtures);
   postStore = structuredClone(postDetailFixtures);
   userStore = structuredClone(userDetailFixtures);
   topicStore = structuredClone(topicDetailFixtures);
@@ -230,7 +237,40 @@ function listPosts(request: Request): AdminPostListResponse {
   };
 }
 
+function scheduleError(message: string, status = 400) {
+  return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message }, { status });
+}
+
+async function saveSchedule(request: Request, scheduleId?: string) {
+  const existing = scheduleId ? scheduleStore.find((row) => row.scheduleId === scheduleId) : undefined;
+  if (scheduleId && !existing) return scheduleError("주제 푸시 설정을 찾을 수 없습니다.", 404);
+  const body = await request.json() as { sendTime?: unknown };
+  if (typeof body?.sendTime !== "string" || !/^([01]\d|2[0-3]):[0-5]\d:00$/.test(body.sendTime)) {
+    return scheduleError("KST 발송 시각을 분 단위로 입력해 주세요.");
+  }
+  if (scheduleStore.some((row) => row.scheduleId !== scheduleId && row.sendTime === body.sendTime)) {
+    return scheduleError("같은 발송 시각의 설정이 이미 존재합니다.");
+  }
+  if (existing?.sendTime === body.sendTime) return HttpResponse.json(existing);
+  const now = new Date().toISOString();
+  const result: TopicPushSchedule = { scheduleId: scheduleId ?? crypto.randomUUID(), sendTime: body.sendTime, createdAt: existing?.createdAt ?? now, updatedAt: now };
+  scheduleStore = scheduleStore.filter((row) => row.scheduleId !== result.scheduleId).concat(result);
+  recordAudit(existing ? "TOPIC_PUSH_SCHEDULE_UPDATED" : "TOPIC_PUSH_SCHEDULE_CREATED", "TOPIC_PUSH_SCHEDULE", result.scheduleId, null, existing ? { sendTime: existing.sendTime } : {}, { sendTime: result.sendTime });
+  return HttpResponse.json(result, { status: existing ? 200 : 201 });
+}
+
 export const handlers = [
+  http.get(adminApi + "/topic-push-schedules", () => HttpResponse.json({ schedules: [...scheduleStore].sort((left, right) => left.sendTime.localeCompare(right.sendTime)) })),
+  http.post(adminApi + "/topic-push-schedules", ({ request }) => saveSchedule(request)),
+  http.put(adminApi + "/topic-push-schedules/:scheduleId", ({ request, params }) => saveSchedule(request, String(params.scheduleId))),
+  http.delete(adminApi + "/topic-push-schedules/:scheduleId", async ({ request, params }) => {
+    if (await request.text()) return scheduleError("삭제에는 요청 본문을 보내지 않습니다.");
+    const existing = scheduleStore.find((row) => row.scheduleId === params.scheduleId);
+    if (!existing) return scheduleError("주제 푸시 설정을 찾을 수 없습니다.", 404);
+    scheduleStore = scheduleStore.filter((row) => row.scheduleId !== existing.scheduleId);
+    recordAudit("TOPIC_PUSH_SCHEDULE_DELETED", "TOPIC_PUSH_SCHEDULE", existing.scheduleId, null, { sendTime: existing.sendTime }, {});
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(adminApi + "/audit-logs", ({ request }) => {
     const params = new URL(request.url).searchParams;
     const page = Math.max(1, Number(params.get("page") ?? 1));
