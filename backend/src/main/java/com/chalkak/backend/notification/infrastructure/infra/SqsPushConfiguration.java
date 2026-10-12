@@ -18,6 +18,15 @@ import tools.jackson.databind.ObjectMapper;
 @EnableConfigurationProperties(SqsPushProperties.class)
 public class SqsPushConfiguration {
 
+    @Bean(defaultCandidate = false)
+    @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "topic-push-enabled", havingValue = "true")
+    public ThreadPoolTaskScheduler notificationTopicTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("notification-topic-");
+        return scheduler;
+    }
+
     // SQS 발행 대기는 Relay 전용 스레드에서 실행하고 공용 예약 작업은 유지한다.
     @Bean(defaultCandidate = false)
     @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "relay-enabled", havingValue = "true")

@@ -132,6 +132,28 @@ class SqsPushMessagePublisherTest {
         assertThat(requests.get()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("주제 메시지도 원본 시각과 null 알림함 ID를 JSON으로 전달하고 그대로 복원된다")
+    void publish_topicMessage_preservesContractAndRoundTrip() {
+        // Given
+        PushMessage topic = new PushMessage(MESSAGE.eventId(), null, MESSAGE.userId(),
+                NotificationType.TOPIC, NotificationSourceType.TOPIC, MESSAGE.sourceId(),
+                OCCURRED_AT, MESSAGE.expiresAt());
+        // When
+        PushPublicationResult result = publisher.publish(topic);
+        // Then
+        assertThat(result.isAccepted()).isTrue();
+        JsonNode envelope = objectMapper.readTree(requestBody);
+        String messageBody = envelope.get("MessageBody").asText();
+        JsonNode body = objectMapper.readTree(messageBody);
+        assertThat(body.size()).isEqualTo(8);
+        assertThat(body.get("notificationId").isNull()).isTrue();
+        assertThat(body.get("type").asText()).isEqualTo("TOPIC");
+        assertThat(body.get("expiresAt").isString()).isTrue();
+        assertThat(objectMapper.readValue(messageBody, PushMessage.class)).isEqualTo(topic);
+        assertThat(requests.get()).isEqualTo(1);
+    }
+
     @ParameterizedTest
     @CsvSource({"500, ServiceUnavailable, true", "503, InternalError, true",
             "400, RequestThrottled, true", "429, TooManyRequests, true", "403, AccessDenied, false",

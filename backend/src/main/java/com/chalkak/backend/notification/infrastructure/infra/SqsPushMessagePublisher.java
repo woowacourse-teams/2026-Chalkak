@@ -45,7 +45,7 @@ public class SqsPushMessagePublisher implements PushMessagePublisher {
             }
             return PushPublicationResult.failed(errorCode);
         } catch (SdkClientException exception) {
-            // 연결·타임아웃 등 수락 여부를 확인하지 못한 호출은 DB의 다음 시도 시각으로 재시도한다.
+            // 재시도 가능 여부만 반환한다. Relay는 DB에서 재발행하고, 주제는 최종 결과 불명으로 종료한다.
             return PushPublicationResult.retry("SQS_CLIENT_ERROR");
         } catch (JacksonException exception) {
             return PushPublicationResult.failed("SQS_MESSAGE_SERIALIZATION_ERROR");
