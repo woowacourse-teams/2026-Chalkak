@@ -26,6 +26,8 @@ const ROUTES = [
   { pattern: new RegExp(`^/topics/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
   { pattern: /^\/audit-logs$/, methods: ["GET"] },
   { pattern: /^\/feedbacks$/, methods: ["GET"] },
+  { pattern: /^\/topic-push-schedules$/, methods: ["GET", "POST"] },
+  { pattern: new RegExp(`^/topic-push-schedules/${UUID}$`), methods: ["PUT", "DELETE"] },
 ];
 
 class RelayError extends Error {
@@ -153,8 +155,17 @@ async function upstreamPayload(response: Response): Promise<unknown> {
   }
 }
 
-async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boolean) {
+async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boolean, isScheduleDelete: boolean) {
   if (request.method === "GET") return undefined;
+  if (isScheduleDelete) {
+    if (request.headers.has("Content-Encoding") && request.headers.get("Content-Encoding") !== "identity") {
+      throw new RelayError(415, "ADMIN_JSON_REQUIRED", "압축된 요청 본문은 지원하지 않습니다.");
+    }
+    if ((await readBoundedBody(request, MAX_BODY_BYTES)).byteLength !== 0) {
+      throw new RelayError(400, "ADMIN_INVALID_REQUEST", "발송 시간 삭제에는 요청 본문을 보내지 않습니다.");
+    }
+    return undefined;
+  }
   const encoding = request.headers.get("Content-Encoding");
   if (isLogout && !request.headers.has("Content-Type") && (!encoding || encoding === "identity")) {
     try {
@@ -210,7 +221,8 @@ async function upstreamError(response: Response, secrets: string[]) {
 async function forward(request: NextRequest, path: string, token: string | undefined) {
   const isLogin = path === "/auth/login";
   const isLogout = path === "/auth/logout";
-  const body = await requestBody(request, isLogout, isLogin);
+  const isScheduleDelete = request.method === "DELETE" && new RegExp(`^/topic-push-schedules/${UUID}$`).test(path);
+  const body = await requestBody(request, isLogout, isLogin, isScheduleDelete);
   const url = upstreamUrl(path, request.nextUrl.search);
   const headers = new Headers({ Accept: "application/json" });
   if (body !== undefined) headers.set("Content-Type", "application/json");

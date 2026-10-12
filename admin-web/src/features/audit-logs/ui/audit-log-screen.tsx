@@ -19,11 +19,14 @@ const actions: Record<string, string> = {
   POST_APPROVED: "게시물 승인", POST_REJECTED: "게시물 거절", POST_DELETED: "게시물 삭제",
   USER_BANNED: "사용자 차단", USER_UNBANNED: "사용자 차단 해제",
   TOPIC_CREATED: "주제 등록", TOPIC_UPDATED: "주제 수정", TOPIC_DELETED: "주제 삭제",
+  TOPIC_PUSH_SCHEDULE_CREATED: "알림 시간 등록", TOPIC_PUSH_SCHEDULE_UPDATED: "알림 시간 수정", TOPIC_PUSH_SCHEDULE_DELETED: "알림 시간 삭제",
 };
-const targetTypes = { POST: "게시물", USER: "사용자", TOPIC: "주제" };
+const targetTypes = { POST: "게시물", USER: "사용자", TOPIC: "주제", TOPIC_PUSH_SCHEDULE: "주제 알림 설정" };
 const targetPaths = { POST: "posts", USER: "users", TOPIC: "topics" };
 
 function targetHref(log: AdminAuditLogResponse, returnTo: string) {
+  if (log.targetType === "TOPIC_PUSH_SCHEDULE") return "/pushes";
+  if (!Object.hasOwn(targetPaths, log.targetType)) return null;
   return "/" + targetPaths[log.targetType] + "/" + encodeURIComponent(log.targetId) + "?" + new URLSearchParams({ returnTo });
 }
 
@@ -86,7 +89,7 @@ export function AuditLogScreen() {
         </div>
         <div className={styles.entryMeta}>
           <span>처리자 {log.actorUsername}</span>
-          <Link href={targetHref(log, returnTo)}>{targetTypes[log.targetType]} 보기 →</Link>
+          {targetHref(log, returnTo) ? <Link href={targetHref(log, returnTo)!}>{targetTypes[log.targetType]} 보기 →</Link> : <span>{log.targetType}</span>}
         </div>
         {log.reason ? <p className={styles.reason}>{log.reason}</p> : null}
         <details className={styles.states}>

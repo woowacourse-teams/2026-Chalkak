@@ -556,3 +556,43 @@ describe("upstream safety and logout", () => {
     expectClearedCookie(response);
   });
 });
+
+describe("topic push schedule relay", () => {
+  it.each(["https://chalkak-dev.pysun.kr/api/v1/admin", "https://production-api.example.test/api/v1/admin"])("forwards CRUD to only the configured backend: %s", async (api) => {
+    vi.stubEnv("NEXT_PUBLIC_ADMIN_API_BASE_URL", api);
+    const schedule = { scheduleId: resourceId, sendTime: "09:00:00", createdAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" };
+    for (const [path, method, body] of [
+      ["topic-push-schedules", "GET", undefined],
+      ["topic-push-schedules", "POST", { sendTime: "09:00:00" }],
+      [`topic-push-schedules/${resourceId}`, "PUT", { sendTime: "18:30:00" }],
+      [`topic-push-schedules/${resourceId}`, "DELETE", undefined],
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(method === "DELETE" ? new Response(null, { status: 204 }) : Response.json(method === "GET" ? { schedules: [schedule] } : schedule, { status: method === "POST" ? 201 : 200 }));
+      const response = await relay(path, { method, body, cookie: token });
+      expect(response.status).toBe(method === "DELETE" ? 204 : method === "POST" ? 201 : 200);
+      expect(fetchMock).toHaveBeenLastCalledWith(`${api}/${path}`, expect.objectContaining({ method, body: body === undefined ? undefined : JSON.stringify(body) }));
+      expect(new Headers(fetchMock.mock.lastCall?.[1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+    }
+  });
+
+  it("rejects bodies on schedule deletion while preserving required JSON on other deletions", async () => {
+    expect((await relay(`topic-push-schedules/${resourceId}`, { method: "DELETE", body: {}, cookie: token })).status).toBe(400);
+    expect((await relay(`topics/${resourceId}`, { method: "DELETE", cookie: token })).status).toBe(415);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps authentication, origin, method, and UUID checks", async () => {
+    expect((await relay("topic-push-schedules")).status).toBe(401);
+    expect((await relay(`topic-push-schedules/${resourceId}`, { method: "DELETE", cookie: token, headers: { Origin: "https://other.example.test" } })).status).toBe(403);
+    expect((await relay("topic-push-schedules", { method: "PUT", body: {}, cookie: token })).status).toBe(405);
+    expect((await relay("topic-push-schedules/not-a-uuid", { method: "DELETE", cookie: token })).status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("clears the session on an expired schedule request", async () => {
+    fetchMock.mockResolvedValue(Response.json({ errorCode: "UNAUTHORIZED", message: "인증이 만료되었습니다." }, { status: 401 }));
+    const response = await relay("topic-push-schedules", { cookie: token });
+    expect(response.status).toBe(401);
+    expectClearedCookie(response);
+  });
+});
