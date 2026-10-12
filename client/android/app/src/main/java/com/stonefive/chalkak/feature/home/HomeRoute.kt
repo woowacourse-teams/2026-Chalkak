@@ -40,9 +40,7 @@ fun HomeRoute(
         onOpenRecord = onOpenRecord,
         onOpenDisplay = onOpenDisplay,
         onOpenFeed = onOpenFeed,
-        onNavigateToBottomBar = { item ->
-            if (item == ChalkakBottomBarItem.TODAY) viewModel.refresh() else onNavigateToBottomBar(item)
-        },
+        onNavigateToBottomBar = onNavigateToBottomBar,
         onRetry = viewModel::refresh,
         onNotificationClick = onNotificationClick,
         onIssueClick = onIssueClick,

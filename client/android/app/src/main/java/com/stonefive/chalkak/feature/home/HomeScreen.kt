@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -18,16 +20,29 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
+import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
+import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -41,6 +56,7 @@ import com.stonefive.chalkak.feature.home.component.HomeWeeklyRecord
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 const val HOME_CONTENT_TEST_TAG = "home-content"
 
@@ -57,45 +73,115 @@ fun HomeScreen(
     onIssueClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    val bottomBarState = rememberBottomBarScrollState()
+    val interactionScope = rememberCoroutineScope()
+    val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
+        CollapsingScrollToTopThreshold.toPx()
+    }
+    val bottomBarHeight = with(LocalDensity.current) { bottomBarState.height.toDp() }
+    val nestedScrollConnection = remember(
+        listState,
+        bottomBarState,
+        scrollToTopToggleThresholdPx,
+        interactionScope,
+    ) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    bottomBarState.onScroll(
+                        scrollDeltaY = available.y,
+                        atTop = !listState.canScrollBackward,
+                        toggleThresholdPx = scrollToTopToggleThresholdPx,
+                    )
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                bottomBarState.settle(interactionScope)
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(listState.canScrollBackward) {
+        if (!listState.canScrollBackward) {
+            bottomBarState.hideScrollToTopButton()
+        }
+    }
+
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().nestedScroll(nestedScrollConnection),
         containerColor = ChalkakTheme.colors.background,
         contentWindowInsets = WindowInsets(0),
-        bottomBar = {
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ChalkakTheme.colors.background),
+            ) {
+                HomeTopBar(
+                    onNotificationClick = onNotificationClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .height(HomeTopBarHeight)
+                        .homeBottomDivider()
+                        .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                )
+                HomeContent(
+                    uiState = uiState,
+                    onOpenPhotoUpload = onOpenPhotoUpload,
+                    onOpenRecord = onOpenRecord,
+                    onOpenDisplay = onOpenDisplay,
+                    onOpenFeed = onOpenFeed,
+                    onRetry = onRetry,
+                    onIssueClick = onIssueClick,
+                    listState = listState,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (bottomBarState.isScrollToTopButtonVisible) {
+                ChalkakScrollToTopButton(
+                    onClick = {
+                        interactionScope.launch {
+                            listState.animateScrollToTopSmoothly()
+                            bottomBarState.reset()
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(
+                            end = 24.dp,
+                            bottom = bottomBarHeight + 18.dp,
+                        ),
+                )
+            }
             ChalkakBottomBar(
                 selectedItem = ChalkakBottomBarItem.TODAY,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(ChalkakTheme.colors.background),
-        ) {
-            HomeTopBar(
-                onNotificationClick = onNotificationClick,
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(HomeTopBarHeight)
-                    .homeBottomDivider()
-                    .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-            )
-            HomeContent(
-                uiState = uiState,
-                onOpenPhotoUpload = onOpenPhotoUpload,
-                onOpenRecord = onOpenRecord,
-                onOpenDisplay = onOpenDisplay,
-                onOpenFeed = onOpenFeed,
-                onRetry = onRetry,
-                onIssueClick = onIssueClick,
-                modifier = Modifier.fillMaxSize(),
+                    .onSizeChanged { bottomBarState.height = it.height }
+                    .graphicsLayer { translationY = bottomBarState.offset },
             )
         }
+    }
+}
+
+private suspend fun LazyListState.animateScrollToTopSmoothly() {
+    for (index in firstVisibleItemIndex downTo 0) {
+        animateScrollToItem(index)
     }
 }
 
@@ -108,9 +194,9 @@ private fun HomeContent(
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
     onIssueClick: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
 
     PullToRefreshBox(
