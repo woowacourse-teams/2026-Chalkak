@@ -305,7 +305,7 @@ private fun HomeTopicHeader(
             text = when (topicStatus) {
                 HomeSectionStatus.Loading -> "오늘의 주제를 불러오는 중"
                 HomeSectionStatus.Error -> "오늘의 주제를 불러오지 못했어요"
-                HomeSectionStatus.Ready -> topic.ifBlank { "오늘의 주제" }
+                HomeSectionStatus.Ready -> topic.ifBlank { "오늘의 주제가 아직 준비되지 않았어요" }
             },
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title2,

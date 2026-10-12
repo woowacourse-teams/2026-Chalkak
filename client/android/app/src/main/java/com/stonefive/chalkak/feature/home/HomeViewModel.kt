@@ -140,7 +140,11 @@ class HomeViewModel(
 
                 is HomeResult.Failure -> state.copy(
                     topic = "",
-                    topicStatus = HomeSectionStatus.Error,
+                    topicStatus = if (result.reason == HomeFailure.TopicNotFound) {
+                        HomeSectionStatus.Ready
+                    } else {
+                        HomeSectionStatus.Error
+                    },
                     trending = HomeRankingState(
                         status = if (result.reason == HomeFailure.TopicNotFound) {
                             HomeSectionStatus.Ready
@@ -249,7 +253,7 @@ class HomeViewModel(
             }
 
             is TodayPostStatusResult.Failure -> if (result.reason == TodayPostStatusFailure.NoOpenTopic) {
-                HomeHeroState.Empty
+                HomeHeroState.NoOpenTopic
             } else {
                 HomeHeroState.Error
             }

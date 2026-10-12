@@ -16,6 +16,7 @@ import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
@@ -132,6 +133,57 @@ class HomeViewModelTest {
     fun `no uploaded photo shows empty hero`() = runTest {
         val viewModel = createViewModel(FakeHomeRepository())
         advanceUntilIdle()
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `missing today topic is ready for guest without private requests`() = runTest {
+        val repository = FakeHomeRepository().apply { todayFailure = HomeFailure.TopicNotFound }
+        val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
+        advanceUntilIdle()
+        val state = viewModel.uiState.value
+        assertEquals("", state.topic)
+        assertEquals(HomeSectionStatus.Ready, state.topicStatus)
+        assertEquals(HomeRankingState(HomeSectionStatus.Ready), state.trending)
+        assertTrue(state.isInitialLoadComplete)
+        assertEquals(0, repository.statusCalls)
+    }
+
+    @Test
+    fun `no open topic does not invite upload even when today topic exists`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Failure(TodayPostStatusFailure.NoOpenTopic)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals("하늘", viewModel.uiState.value.topic)
+        assertEquals(HomeHeroState.NoOpenTopic, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `today network failure remains an error`() = runTest {
+        val repository = FakeHomeRepository().apply { todayFailure = HomeFailure.Network }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.topicStatus)
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.trending.status)
+    }
+
+    @Test
+    fun `refresh after topic opens restores topic and empty upload slot`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            todayFailure = HomeFailure.TopicNotFound
+            uploadStatus = TodayPostStatusResult.Failure(TodayPostStatusFailure.NoOpenTopic)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.NoOpenTopic, viewModel.uiState.value.hero)
+        repository.todayFailure = null
+        repository.uploadStatus = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals("하늘", viewModel.uiState.value.topic)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.topicStatus)
         assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
     }
 
@@ -343,12 +395,14 @@ private class FakeHomeRepository :
     var records = emptyList<PostCalendarItem>()
     var calendarFailure = false
     var detailFailure = false
+    var todayFailure: HomeFailure? = null
     var yesterdayFailure: HomeFailure? = null
     var calendarGate: CompletableDeferred<Unit>? = null
     var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         contentQueries += query
+        todayFailure?.let { return HomeResult.Failure(it) }
         return HomeResult.Success(PostContent(query.date, "하늘", listOf(photo("rank-1"), photo("rank-2")), emptySet()))
     }
 

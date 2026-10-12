@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
 import android.graphics.Bitmap
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -15,6 +16,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.home.component.HOME_HERO_TEST_TAG
 import java.io.File
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -48,6 +50,16 @@ class HomeScreenTest {
         showHome(readyState().copy(hero = HomeHeroState.Processing))
         composeRule.onNodeWithText("사진을 처리하고 있어요").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("하늘 사진을 공유하지 않았어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun missingTopicShowsPreparationMessageAndHeroHasNoUploadAction() {
+        showHome(readyState().copy(topic = "", hero = HomeHeroState.NoOpenTopic))
+        composeRule.onNodeWithText("오늘의 주제가 아직 준비되지 않았어요").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘의 주제를 불러오지 못했어요").assertDoesNotExist()
+        composeRule.onNodeWithText("지금은 참여할 수 있는 주제가 없어요").assertIsDisplayed()
+        composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("오늘의 주제 사진을 공유하지 않았어요").assertDoesNotExist()
     }
 
     @Test

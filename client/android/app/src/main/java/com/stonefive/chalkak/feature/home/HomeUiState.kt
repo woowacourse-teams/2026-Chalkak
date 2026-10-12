@@ -37,6 +37,8 @@ sealed interface HomeHeroState {
 
     data object Empty : HomeHeroState
 
+    data object NoOpenTopic : HomeHeroState
+
     data object Processing : HomeHeroState
 
     data object Error : HomeHeroState

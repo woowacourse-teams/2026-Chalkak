@@ -70,6 +70,8 @@ fun HomeHeroCard(
                 modifier = Modifier.fillMaxSize(),
             )
 
+            HomeHeroState.NoOpenTopic -> HeroStatusContent("지금은 참여할 수 있는 주제가 없어요")
+
             HomeHeroState.Processing -> HeroStatusContent("사진을 처리하고 있어요")
 
             HomeHeroState.Error -> HeroStatusContent("사진 상태를 불러오지 못했어요") {
