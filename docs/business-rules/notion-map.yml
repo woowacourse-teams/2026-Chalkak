@@ -68,4 +68,5 @@ rule_pages:
       푸시 수신 설정: [NOTIFICATION-006]
       검수 알림 SQS 발행: [NOTIFICATION-007]
       검수 푸시 발송과 재처리: [NOTIFICATION-008]
-      주제 푸시 설정: [NOTIFICATION-009]
+      주제 푸시 설정: [NOTIFICATION-009, NOTIFICATION-011]
+      주제 푸시 발송과 화면 이동: [NOTIFICATION-010]

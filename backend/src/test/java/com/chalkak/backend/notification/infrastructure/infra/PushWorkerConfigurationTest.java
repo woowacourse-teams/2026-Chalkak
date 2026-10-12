@@ -9,6 +9,7 @@ import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.config.SchedulingConfig;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import com.google.firebase.FirebaseApp;
@@ -82,11 +83,14 @@ class PushWorkerConfigurationTest {
     void configuration_invalidQueueUrl_rejectsRelayAndWorker(String queueUrl) {
         // Given
         PushWorkerConfiguration configuration = new PushWorkerConfiguration("test", "test.json");
-        SqsPushProperties properties = new SqsPushProperties(false, queueUrl, "ap-northeast-2");
+        SqsPushProperties properties = new SqsPushProperties(false, false, queueUrl,
+                "ap-northeast-2");
         // When & Then
-        assertThatThrownBy(() -> new SqsPushProperties(true, queueUrl, "ap-northeast-2"))
+        assertThatThrownBy(() -> new SqsPushProperties(true, false, queueUrl, "ap-northeast-2"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
+        assertThatThrownBy(() -> new SqsPushProperties(false, true, queueUrl, "ap-northeast-2"))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> configuration.notificationWorkerSqsClient(properties))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
@@ -111,10 +115,11 @@ class PushWorkerConfigurationTest {
                 .withBean(Clock.class, Clock::systemUTC)
                 .withBean(FakePollingProbe.class, () -> probe)
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
-                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false,
+                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false, false,
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
                         "ap-northeast-2"))
                 .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
+                .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
                 .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
                 .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
                 .withBean(PlatformTransactionManager.class,

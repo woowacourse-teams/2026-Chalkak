@@ -17,6 +17,7 @@ import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.topic.repository.TopicRepository;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
@@ -44,6 +45,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PushDeviceRepository devices;
     @Autowired
     private UserRepository users;
+    @Autowired
+    private TopicRepository topics;
     @Autowired
     private LoginSessionService sessions;
     @Autowired
@@ -335,7 +338,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, devices, sessions, sender,
+        return new PushWorkerService(notifications, topics, devices, sessions, sender,
                 Clock.fixed(now, ZoneOffset.UTC), manager);
     }
 

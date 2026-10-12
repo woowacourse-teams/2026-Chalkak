@@ -143,6 +143,32 @@ class FcmDevicePushSenderTest {
         assertThat(body.get("data").has("rejectionReason")).isFalse();
     }
 
+    @Test
+    @DisplayName("주제 SDK 요청은 알림함 ID 없이 주제 종류·대상을 보내고 기존 플랫폼 만료를 유지한다")
+    void send_topicMessage_omitsInboxIdAndPreservesExpiration() {
+        // Given
+        UUID topicId = UUID.randomUUID();
+        PushMessage topic = new PushMessage(UUID.randomUUID(), null, UUID.randomUUID(),
+                NotificationType.TOPIC, NotificationSourceType.TOPIC, topicId, NOW,
+                NOW.plusSeconds(1800));
+        DevicePushRequest topicRequest = new DevicePushRequest(topic, "fcm-test-token", "오늘의 주제",
+                "빛과 그림자", topic.expiresAt());
+        // When & Then
+        assertThat(sender.send(topicRequest).status()).isEqualTo(Status.ACCEPTED);
+        JsonNode body = bodies.getFirst().get("message");
+        assertThat(body.get("notification").get("title").asText()).isEqualTo("오늘의 주제");
+        assertThat(body.get("notification").get("body").asText()).isEqualTo("빛과 그림자");
+        assertThat(body.get("data").get("type").asText()).isEqualTo("TOPIC");
+        assertThat(body.get("data").get("sourceType").asText()).isEqualTo("TOPIC");
+        assertThat(body.get("data").get("sourceId").asText()).isEqualTo(topicId.toString());
+        assertThat(body.get("data").get("eventId").asText()).isEqualTo(topic.eventId().toString());
+        assertThat(body.get("data").has("notificationId")).isFalse();
+        assertThat(body.get("data").has("userId")).isFalse();
+        assertThat(body.get("android").get("ttl").asText()).isEqualTo("1800s");
+        assertThat(body.get("apns").get("headers").get("apns-expiration").asText())
+                .isEqualTo(Long.toString(topic.expiresAt().getEpochSecond()));
+    }
+
     @ParameterizedTest
     @CsvSource({"404,NOT_FOUND,UNREGISTERED,INVALID_TOKEN",
             "400,INVALID_ARGUMENT,INVALID_ARGUMENT,PERMANENT_FAILURE",

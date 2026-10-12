@@ -7,7 +7,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -22,6 +24,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TopicPushSchedule {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Id
     @Generated
@@ -48,6 +52,19 @@ public class TopicPushSchedule {
     public void updateSendTime(LocalTime sendTime) {
         validateSendTime(sendTime);
         this.sendTime = sendTime;
+    }
+
+    public Instant findDueOccurrence(Instant now) {
+        LocalDate today = LocalDate.ofInstant(now, KST);
+        Instant scheduledAt = today.atTime(sendTime).atZone(KST).toInstant();
+        if (now.isBefore(scheduledAt) || !scheduledAt.isAfter(updatedAt)) {
+            return null;
+        }
+        if (PushDeadlinePolicy.isExpiredAt(PushDeadlinePolicy.calculateExpiresAt(scheduledAt),
+                now)) {
+            return null;
+        }
+        return scheduledAt;
     }
 
     public static BusinessException duplicateSendTimeException() {

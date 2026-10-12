@@ -25,7 +25,6 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification {
 
-    private static final Duration PUSH_LIFETIME = Duration.ofMinutes(30);
     private static final Duration PUBLISH_RETRY_DELAY = Duration.ofMinutes(1);
     private static final Duration RETENTION = Duration.ofDays(30);
     private static final String APPROVED_TITLE = "게시물이 승인되었습니다.";
@@ -179,7 +178,7 @@ public class Notification {
     }
 
     public boolean isPushExpired(Instant now) {
-        return !now.isBefore(getPushExpiresAt());
+        return PushDeadlinePolicy.isExpiredAt(getPushExpiresAt(), now);
     }
 
     private void validatePendingPublication() {
@@ -211,7 +210,7 @@ public class Notification {
     }
 
     public Instant getPushExpiresAt() {
-        return createdAt.plus(PUSH_LIFETIME);
+        return PushDeadlinePolicy.calculateExpiresAt(createdAt);
     }
 
     public String getRejectionReason() {

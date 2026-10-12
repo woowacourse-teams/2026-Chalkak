@@ -145,6 +145,22 @@ class SqsPushServiceTest {
     }
 
     @Test
+    @DisplayName("알림함 ID가 없는 주제 JSON도 공통 Worker에 전달하고 완료 결과이면 SQS에서 삭제한다")
+    void process_topicMessageWithoutInboxId_passesToWorkerAndDeletes() throws Exception {
+        // Given
+        PushMessage topic = new PushMessage(UUID.randomUUID(), null, UUID.randomUUID(),
+                NotificationType.TOPIC, NotificationSourceType.TOPIC, UUID.randomUUID(), NOW,
+                NOW.plusSeconds(1800));
+        Message topicMessage = Message.builder().messageId("topic-sqs-id")
+                .receiptHandle("topic-receipt").body(mapper.writeValueAsString(topic)).build();
+        // When
+        worker.process(topicMessage);
+        // Then
+        verify(service).process(topic);
+        assertThat(operations).containsExactly("AmazonSQS.DeleteMessage");
+    }
+
+    @Test
     @DisplayName("수신은 20초 롱 폴링·60초 숨김·한 건으로 요청한다")
     void poll_emptyQueue_requestsLongPollingAndVisibility() {
         // When
