@@ -319,7 +319,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
                 Arguments.of("GET", "/api/v1/admin/audit-logs"),
-                Arguments.of("POST", "/api/v1/admin/notices"));
+                Arguments.of("POST", "/api/v1/admin/notices"),
+                Arguments.of("GET", "/api/v1/admin/notices"),
+                Arguments.of("GET", "/api/v1/admin/notices/" + id));
     }
 
     private static List<Arguments> protectedAdminMemberEndpoints() {

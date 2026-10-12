@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,17 +11,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
+import com.chalkak.backend.admin.service.notification.AdminNoticeListResult;
 import com.chalkak.backend.admin.service.notification.AdminNoticeResult;
 import com.chalkak.backend.admin.service.notification.AdminNoticeService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.NotFoundException;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -52,6 +57,91 @@ class AdminNoticeControllerTest {
     @BeforeEach
     void setUp() {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
+    }
+
+    @Test
+    @DisplayName("목록 조회는 200과 페이지 정보·공지 목록을 응답한다")
+    void getNotices_validRequest_returnsNoticeList() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
+        given(noticeService.getNotices(2, 10)).willReturn(new AdminNoticeListResult(2, 10, true,
+                List.of(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
+                        SCHEDULED_AT, createdAt, createdAt))));
+
+        // When & Then
+        mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(2))
+                .andExpect(jsonPath("$.pageSize").value(10))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.notices.length()").value(1))
+                .andExpect(jsonPath("$.notices[0].noticeId").value(NOTICE_ID.toString()))
+                .andExpect(jsonPath("$.notices[0].title").value("서비스 점검 안내"))
+                .andExpect(jsonPath("$.notices[0].scheduledAt").value("2026-10-19T09:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("페이지 조건을 생략하면 1페이지·20개로 조회한다")
+    void getNotices_omittedPagination_usesDefaults() throws Exception {
+        // Given
+        given(noticeService.getNotices(1, 20))
+                .willReturn(new AdminNoticeListResult(1, 20, false, List.of()));
+
+        // When & Then
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(1))
+                .andExpect(jsonPath("$.pageSize").value(20))
+                .andExpect(jsonPath("$.notices").isEmpty());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"page, 0", "pageSize, 0", "pageSize, 101"})
+    @DisplayName("페이지 번호 0이나 페이지 크기 0·101은 400으로 응답한다")
+    void getNotices_invalidPagination_returnsBadRequest(String name, String value)
+            throws Exception {
+        // When & Then
+        mockMvc.perform(get(PATH).param(name, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("상세 조회는 200과 공지를 응답한다")
+    void getNotice_existingNotice_returnsNotice() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
+        given(noticeService.getNotice(NOTICE_ID)).willReturn(new AdminNoticeResult(NOTICE_ID,
+                "서비스 점검 안내", "점검합니다.", SCHEDULED_AT, createdAt, createdAt));
+
+        // When & Then
+        mockMvc.perform(get(PATH + "/" + NOTICE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.noticeId").value(NOTICE_ID.toString()))
+                .andExpect(jsonPath("$.body").value("점검합니다."));
+    }
+
+    @Test
+    @DisplayName("상세 조회의 잘못된 UUID는 400으로 응답한다")
+    void getNotice_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get(PATH + "/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 공지의 상세 조회는 404로 응답한다")
+    void getNotice_unknownNotice_returnsNotFound() throws Exception {
+        // Given
+        given(noticeService.getNotice(NOTICE_ID)).willThrow(
+                new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(get(PATH + "/" + NOTICE_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("공지를 찾을 수 없습니다."));
     }
 
     @Test

@@ -26,10 +26,6 @@ public class Notice {
     private static final int MAX_TITLE_LENGTH = 50;
     private static final int MAX_BODY_LENGTH = 500;
     private static final Duration PAST_SCHEDULE_TOLERANCE = Duration.ofMinutes(5);
-    private static final String INVALID_TITLE_MESSAGE = "공지 제목은 1자 이상 50자 이하여야 합니다.";
-    private static final String INVALID_BODY_MESSAGE = "공지 본문은 1자 이상 500자 이하여야 합니다.";
-    private static final String MISSING_SCHEDULED_AT_MESSAGE = "공지 예약 시각이 필요합니다.";
-    private static final String PAST_SCHEDULED_AT_MESSAGE = "공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.";
 
     @Id
     @Generated
@@ -69,11 +65,11 @@ public class Notice {
     }
 
     private static String normalizeTitle(String title) {
-        return normalizeText(title, MAX_TITLE_LENGTH, INVALID_TITLE_MESSAGE);
+        return normalizeText(title, MAX_TITLE_LENGTH, "공지 제목은 1자 이상 50자 이하여야 합니다.");
     }
 
     private static String normalizeBody(String body) {
-        return normalizeText(body, MAX_BODY_LENGTH, INVALID_BODY_MESSAGE);
+        return normalizeText(body, MAX_BODY_LENGTH, "공지 본문은 1자 이상 500자 이하여야 합니다.");
     }
 
     private static String normalizeText(
@@ -93,10 +89,11 @@ public class Notice {
 
     private static void validateScheduledAt(Instant scheduledAt, Instant now) {
         if (scheduledAt == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MISSING_SCHEDULED_AT_MESSAGE);
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "공지 예약 시각이 필요합니다.");
         }
         if (scheduledAt.isBefore(now.minus(PAST_SCHEDULE_TOLERANCE))) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, PAST_SCHEDULED_AT_MESSAGE);
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
         }
     }
 }

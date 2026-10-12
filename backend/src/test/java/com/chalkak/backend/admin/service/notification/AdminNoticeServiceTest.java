@@ -8,6 +8,7 @@ import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
@@ -20,6 +21,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -119,6 +122,84 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 식별자가 필요합니다.");
         assertThat(countRows("notices")).isZero();
+    }
+
+    @Test
+    @DisplayName("공지 목록은 등록 최신순으로 요청한 페이지만 조회하고 다음 페이지 여부를 알려준다")
+    void getNotices_multipleNotices_returnsLatestCreatedFirst() {
+        // Given
+        UUID oldest = insertNotice("첫 공지", "2026-10-10T00:00:00Z");
+        UUID middle = insertNotice("둘째 공지", "2026-10-11T00:00:00Z");
+        UUID latest = insertNotice("셋째 공지", "2026-10-12T00:00:00Z");
+
+        // When
+        AdminNoticeListResult firstPage = noticeService.getNotices(1, 2);
+        AdminNoticeListResult secondPage = noticeService.getNotices(2, 2);
+
+        // Then
+        assertThat(firstPage.notices()).extracting(AdminNoticeResult::noticeId)
+                .containsExactly(latest, middle);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.currentPage()).isEqualTo(1);
+        assertThat(firstPage.pageSize()).isEqualTo(2);
+        assertThat(secondPage.notices()).extracting(AdminNoticeResult::noticeId)
+                .containsExactly(oldest);
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("등록된 공지가 없으면 빈 목록을 조회한다")
+    void getNotices_noNotices_returnsEmptyList() {
+        // When
+        AdminNoticeListResult result = noticeService.getNotices(1, 20);
+
+        // Then
+        assertThat(result.notices()).isEmpty();
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 20", "1, 0", "1, 101"})
+    @DisplayName("페이지 번호나 페이지 크기가 범위를 벗어나면 거절한다")
+    void getNotices_invalidPagination_throwsBusinessException(int page, int pageSize) {
+        // When & Then
+        assertThatThrownBy(() -> noticeService.getNotices(page, pageSize))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("조회 조건이 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("공지 상세는 저장된 제목·본문·예약 시각을 조회한다")
+    void getNotice_existingNotice_returnsNotice() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+
+        // When
+        AdminNoticeResult result = noticeService.getNotice(noticeId);
+
+        // Then
+        assertThat(result.noticeId()).isEqualTo(noticeId);
+        assertThat(result.title()).isEqualTo("서비스 점검 안내");
+        assertThat(result.body()).isEqualTo("점검합니다.");
+        assertThat(result.scheduledAt()).isEqualTo(Instant.parse("2026-10-19T09:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("없는 공지를 상세 조회하면 찾을 수 없음 예외를 던진다")
+    void getNotice_unknownNotice_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> noticeService.getNotice(UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("공지를 찾을 수 없습니다.");
+    }
+
+    private UUID insertNotice(String title, String createdAt) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                VALUES (?, '점검합니다.', '2026-10-19T09:00:00Z', CAST(? AS TIMESTAMPTZ),
+                    CAST(? AS TIMESTAMPTZ))
+                RETURNING id
+                """, UUID.class, title, createdAt, createdAt);
     }
 
     private int countRows(String table) {
