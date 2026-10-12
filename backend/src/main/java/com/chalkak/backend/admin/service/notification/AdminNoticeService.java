@@ -11,8 +11,12 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NoticeSlice;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -63,8 +67,19 @@ public class AdminNoticeService {
     private AdminAuditSnapshot createNoticeState(Notice notice) {
         return AdminAuditSnapshot.from(Map.of(
                 "title", notice.getTitle(),
-                "body", notice.getBody(),
-                "scheduledAt", notice.getScheduledAt().toString()));
+                "scheduledAt", notice.getScheduledAt().toString(),
+                "bodySha256", createBodySha256(notice.getBody())));
+    }
+
+    // 공개 문구인 본문은 감사 로그의 민감 정보 검사 대상이 아니므로 원문 대신 해시를 남긴다.
+    private String createBodySha256(String body) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(body.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", exception);
+        }
     }
 
     private void validatePagination(int page, int pageSize) {

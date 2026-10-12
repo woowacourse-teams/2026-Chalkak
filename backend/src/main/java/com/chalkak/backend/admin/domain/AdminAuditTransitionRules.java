@@ -10,12 +10,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 final class AdminAuditTransitionRules {
 
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
     private static final int MAX_NOTICE_TITLE_LENGTH = 50;
-    private static final int MAX_NOTICE_BODY_LENGTH = 500;
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt");
@@ -30,8 +30,9 @@ final class AdminAuditTransitionRules {
     private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
     private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
             "title",
-            "body",
-            "scheduledAt");
+            "scheduledAt",
+            "bodySha256");
+    private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -177,8 +178,12 @@ final class AdminAuditTransitionRules {
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
         return state.hasExactlyFields(NOTICE_STATE_FIELDS)
                 && isValidText(state.value("title"), MAX_NOTICE_TITLE_LENGTH)
-                && isValidText(state.value("body"), MAX_NOTICE_BODY_LENGTH)
-                && isInstant(state.value("scheduledAt"));
+                && isInstant(state.value("scheduledAt"))
+                && isSha256Hex(state.value("bodySha256"));
+    }
+
+    private static boolean isSha256Hex(Object value) {
+        return value instanceof String hash && SHA_256_HEX.matcher(hash).matches();
     }
 
     private static boolean isValidTopicPushScheduleState(AdminAuditSnapshot state) {

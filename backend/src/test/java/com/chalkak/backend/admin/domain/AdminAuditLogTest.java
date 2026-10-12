@@ -24,6 +24,7 @@ class AdminAuditLogTest {
     private static final UUID TARGET_ID = UUID.randomUUID();
     private static final UUID REQUEST_ID = UUID.randomUUID();
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-27T11:20:00Z");
+    private static final String VALID_BODY_SHA256 = "0123456789abcdef".repeat(4);
 
     @ParameterizedTest
     @MethodSource("validTopicPushScheduleTransitions")
@@ -94,13 +95,13 @@ class AdminAuditLogTest {
     }
 
     @Test
-    @DisplayName("공지 작성은 빈 변경 전 상태와 제목·본문·예약 시각의 변경 후 상태를 기록한다")
+    @DisplayName("공지 작성은 빈 변경 전 상태와 제목·예약 시각·본문 해시의 변경 후 상태를 기록한다")
     void create_validNoticeCreation_createsAuditLog() {
         // Given
         Map<String, Object> after = Map.of(
                 "title", "가".repeat(50),
-                "body", "나".repeat(500),
-                "scheduledAt", "2026-10-19T09:00:00Z");
+                "scheduledAt", "2026-10-19T09:00:00Z",
+                "bodySha256", VALID_BODY_SHA256);
 
         // When
         AdminAuditLog audit = createNoticeAudit(Map.of(), after);
@@ -112,7 +113,7 @@ class AdminAuditLogTest {
 
     @ParameterizedTest
     @MethodSource("invalidNoticeCreations")
-    @DisplayName("공지 작성의 잘못된 길이·필드·시각·변경 전 상태를 거절한다")
+    @DisplayName("공지 작성의 잘못된 제목·시각·본문 해시·필드·변경 전 상태를 거절한다")
     void create_invalidNoticeCreation_throwsBusinessException(
             Map<String, Object> before, Map<String, Object> after) {
         // When & Then
@@ -121,25 +122,35 @@ class AdminAuditLogTest {
     }
 
     private static Stream<Arguments> invalidNoticeCreations() {
-        Map<String, Object> valid = Map.of(
-                "title", "서비스 점검 안내",
-                "body", "점검합니다.",
-                "scheduledAt", "2026-10-19T09:00:00Z");
+        Map<String, Object> valid = noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                VALID_BODY_SHA256);
+        Map<String, Object> withBody = new LinkedHashMap<>(valid);
+        withBody.put("body", "점검합니다.");
         return Stream.of(
                 Arguments.of(valid, valid),
+                Arguments.of(Map.of(), noticeState("가".repeat(51), "2026-10-19T09:00:00Z",
+                        VALID_BODY_SHA256)),
+                Arguments.of(Map.of(), noticeState(" ", "2026-10-19T09:00:00Z",
+                        VALID_BODY_SHA256)),
+                Arguments.of(Map.of(), noticeState("서비스 점검 안내", "2026-10-19",
+                        VALID_BODY_SHA256)),
+                Arguments.of(Map.of(), noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                        VALID_BODY_SHA256.substring(1))),
+                Arguments.of(Map.of(), noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                        VALID_BODY_SHA256.toUpperCase())),
+                Arguments.of(Map.of(), noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                        "g" + VALID_BODY_SHA256.substring(1))),
                 Arguments.of(Map.of(), Map.of(
-                        "title", "가".repeat(51), "body", "점검합니다.",
-                        "scheduledAt", "2026-10-19T09:00:00Z")),
-                Arguments.of(Map.of(), Map.of(
-                        "title", "서비스 점검 안내", "body", "나".repeat(501),
-                        "scheduledAt", "2026-10-19T09:00:00Z")),
-                Arguments.of(Map.of(), Map.of(
-                        "title", " ", "body", "점검합니다.",
-                        "scheduledAt", "2026-10-19T09:00:00Z")),
-                Arguments.of(Map.of(), Map.of(
-                        "title", "서비스 점검 안내", "body", "점검합니다.",
-                        "scheduledAt", "2026-10-19")),
-                Arguments.of(Map.of(), Map.of("title", "서비스 점검 안내", "body", "점검합니다.")));
+                        "title", "서비스 점검 안내", "scheduledAt", "2026-10-19T09:00:00Z")),
+                Arguments.of(Map.of(), withBody));
+    }
+
+    private static Map<String, Object> noticeState(
+            String title,
+            String scheduledAt,
+            String bodySha256
+    ) {
+        return Map.of("title", title, "scheduledAt", scheduledAt, "bodySha256", bodySha256);
     }
 
     private AdminAuditLog createNoticeAudit(Map<String, Object> before, Map<String, Object> after) {

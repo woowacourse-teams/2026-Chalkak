@@ -12,9 +12,13 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -61,8 +65,8 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("공지를 등록하면 정규화한 내용과 예약 시각을 저장하고 작성 감사 로그를 남긴다")
-    void createNotice_validInput_persistsNoticeAndAuditLog() {
+    @DisplayName("공지를 등록하면 정규화한 내용을 저장하고 감사 로그에는 본문 대신 해시를 남긴다")
+    void createNotice_validInput_persistsNoticeAndAuditLog() throws Exception {
         // Given
         Instant scheduledAt = Instant.now().plus(Duration.ofHours(1))
                 .truncatedTo(ChronoUnit.MICROS);
@@ -92,10 +96,26 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         assertThat(auditLog.getBeforeState()).isEmpty();
         assertThat(auditLog.getAfterState()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "title", "서비스 점검 안내",
-                "body", "10월 20일 02:00부터 점검합니다.",
-                "scheduledAt", scheduledAt.toString()));
+                "scheduledAt", scheduledAt.toString(),
+                "bodySha256", sha256("10월 20일 02:00부터 점검합니다.")));
         assertThat(auditLog.getReason()).isNull();
         assertThat(auditLog.getRequestId()).isEqualTo(requestId);
+    }
+
+    @Test
+    @DisplayName("본문에 설정값 형식 문구나 이미지 링크가 있어도 공지를 등록한다")
+    void createNotice_sensitiveLookingBody_persistsNotice() {
+        // Given
+        String body = "비밀번호 정책 변경 안내 — password: 8자 이상\nhttps://cdn.example.com/banner.png";
+
+        // When
+        AdminNoticeResult result = noticeService.createNotice(ADMIN_ID, "비밀번호 정책 변경 안내",
+                body, Instant.now());
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(entityManager.find(Notice.class, result.noticeId()).getBody()).isEqualTo(body);
     }
 
     @Test
@@ -200,6 +220,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                     CAST(? AS TIMESTAMPTZ))
                 RETURNING id
                 """, UUID.class, title, createdAt, createdAt);
+    }
+
+    private String sha256(String value) throws NoSuchAlgorithmException {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private int countRows(String table) {

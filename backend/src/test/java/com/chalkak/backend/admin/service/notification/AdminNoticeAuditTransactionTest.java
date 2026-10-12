@@ -49,14 +49,14 @@ class AdminNoticeAuditTransactionTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("감사 로그가 거절하는 민감 정보를 본문에 포함하면 공지 등록도 함께 롤백한다")
-    void createNotice_sensitiveBody_rollsBackNotice() {
+    @DisplayName("감사 로그가 민감 정보로 판정하는 형식을 제목에 포함하면 공지 등록도 함께 롤백한다")
+    void createNotice_sensitiveTitle_rollsBackNotice() {
         // Given
         insertAdmin();
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.createNotice(ADMIN_ID, "이벤트 안내",
-                "https://cdn.example.com/event.png", Instant.now()))
+        assertThatThrownBy(() -> noticeService.createNotice(ADMIN_ID, "password: 8자 이상",
+                "비밀번호 정책이 변경됩니다.", Instant.now()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
         assertThat(countRows("notices")).isZero();
