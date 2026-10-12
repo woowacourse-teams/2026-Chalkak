@@ -1,5 +1,5 @@
 package com.chalkak.backend.notification.domain;
 
 public enum NotificationType {
-    POST_APPROVED, POST_REJECTED
+    POST_APPROVED, POST_REJECTED, TOPIC
 }

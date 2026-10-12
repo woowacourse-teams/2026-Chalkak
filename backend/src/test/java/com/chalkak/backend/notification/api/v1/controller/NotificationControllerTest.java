@@ -49,7 +49,7 @@ class NotificationControllerTest {
     private NotificationService notificationService;
 
     @ParameterizedTest
-    @EnumSource(NotificationType.class)
+    @EnumSource(value = NotificationType.class, names = {"POST_APPROVED", "POST_REJECTED"})
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("승인·반려 알림 목록은 관련 게시물 정보와 기존 목록 필드를 함께 반환한다")
     void getNotifications_returnsPaginatedNotificationsWithPostTarget(NotificationType type)

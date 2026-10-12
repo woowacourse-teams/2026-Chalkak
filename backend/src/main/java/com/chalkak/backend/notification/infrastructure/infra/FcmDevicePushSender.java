@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushSender;
@@ -33,7 +34,7 @@ public class FcmDevicePushSender implements DevicePushSender {
 
     @Override
     public DevicePushResult send(DevicePushRequest request) {
-        if (!request.isSendableAt(clock.instant())) {
+        if (PushDeadlinePolicy.isExpiredAt(request.expiresAt(), clock.instant())) {
             return DevicePushResult.skipped("EXPIRED");
         }
         try {
@@ -61,7 +62,9 @@ public class FcmDevicePushSender implements DevicePushSender {
     private void addNavigationData(Message.Builder builder, DevicePushRequest request) {
         var source = request.message();
         builder.putData("eventId", source.eventId().toString());
-        builder.putData("notificationId", source.notificationId().toString());
+        if (source.notificationId() != null) {
+            builder.putData("notificationId", source.notificationId().toString());
+        }
         builder.putData("type", source.type().name());
         builder.putData("sourceType", source.sourceType().name());
         builder.putData("sourceId", source.sourceId().toString());

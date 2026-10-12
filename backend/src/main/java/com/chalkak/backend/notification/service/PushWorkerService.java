@@ -2,14 +2,21 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.auth.service.LoginSessionService;
 import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.NotificationSourceType;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.domain.PublishStatus;
+import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -19,7 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 public class PushWorkerService {
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final NotificationRepository notificationRepository;
+    private final TopicRepository topicRepository;
     private final PushDeviceRepository deviceRepository;
     private final LoginSessionService loginSessionService;
     private final DevicePushSender sender;
@@ -28,6 +37,7 @@ public class PushWorkerService {
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
+            TopicRepository topicRepository,
             PushDeviceRepository deviceRepository,
             LoginSessionService loginSessionService,
             DevicePushSender sender,
@@ -35,6 +45,7 @@ public class PushWorkerService {
             PlatformTransactionManager transactionManager
     ) {
         this.notificationRepository = notificationRepository;
+        this.topicRepository = topicRepository;
         this.deviceRepository = deviceRepository;
         this.loginSessionService = loginSessionService;
         this.sender = sender;
@@ -43,7 +54,8 @@ public class PushWorkerService {
     }
 
     public PushProcessingResult process(PushMessage message) {
-        if (!isValidMessage(message) || !clock.instant().isBefore(message.expiresAt())) {
+        if (!isValidMessage(message)
+                || PushDeadlinePolicy.isExpiredAt(message.expiresAt(), clock.instant())) {
             logSkipped(message, null, "INVALID_OR_EXPIRED");
             return PushProcessingResult.completed();
         }
@@ -123,11 +135,6 @@ public class PushWorkerService {
     }
 
     private DevicePushRequest findRequest(PushMessage message, UUID deviceId) {
-        Notification notification = notificationRepository
-                .findForPushByIdAndUserId(message.notificationId(), message.userId()).orElse(null);
-        if (!isSendableNotification(notification, message)) {
-            return null;
-        }
         PushDevice device = deviceRepository.findByIdAndUserId(deviceId, message.userId())
                 .orElse(null);
         if (device == null) {
@@ -136,7 +143,43 @@ public class PushWorkerService {
         User user = loginSessionService
                 .findUsableUser(message.userId(), device.getSessionId(), clock.instant())
                 .orElse(null);
-        if (user == null || !user.isModerationPushEnabled()) {
+        if (user == null) {
+            return null;
+        }
+        if (message.type() == NotificationType.TOPIC) {
+            return findTopicRequest(message, device, user);
+        }
+        return findModerationRequest(message, device, user);
+    }
+
+    private DevicePushRequest findTopicRequest(
+            PushMessage message,
+            PushDevice device,
+            User user
+    ) {
+        if (!user.isActive() || !user.isTopicPushEnabled()) {
+            return null;
+        }
+        LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
+        Topic topic = topicRepository.findActiveByTopicDate(today).orElse(null);
+        if (topic == null || !topic.getId().equals(message.sourceId())) {
+            return null;
+        }
+        return new DevicePushRequest(message, device.getFcmToken(), "오늘의 주제", topic.getTitle(),
+                message.expiresAt());
+    }
+
+    private DevicePushRequest findModerationRequest(
+            PushMessage message,
+            PushDevice device,
+            User user
+    ) {
+        if (!user.isModerationPushEnabled()) {
+            return null;
+        }
+        Notification notification = notificationRepository
+                .findForPushByIdAndUserId(message.notificationId(), message.userId()).orElse(null);
+        if (!isSendableNotification(notification, message)) {
             return null;
         }
         return new DevicePushRequest(message, device.getFcmToken(), notification.getTitle(),
@@ -155,10 +198,21 @@ public class PushWorkerService {
     }
 
     private boolean isValidMessage(PushMessage message) {
-        return message != null && message.notificationId() != null && message.eventId() != null
-                && message.userId() != null && message.type() != null
-                && message.sourceType() != null && message.sourceId() != null
-                && message.occurredAt() != null && message.expiresAt() != null;
+        if (message == null || message.eventId() == null || message.userId() == null
+                || message.type() == null || message.sourceType() == null
+                || message.sourceId() == null
+                || message.occurredAt() == null || message.expiresAt() == null) {
+            return false;
+        }
+        if (message.type() == NotificationType.TOPIC) {
+            return message.notificationId() == null
+                    && message.sourceType() == NotificationSourceType.TOPIC
+                    && !message.occurredAt().isAfter(clock.instant())
+                    && PushDeadlinePolicy.isValidLifetime(message.occurredAt(),
+                            message.expiresAt());
+        }
+        return message.notificationId() != null
+                && message.sourceType() == NotificationSourceType.POST;
     }
 
     private boolean matches(PushMessage message, Notification notification) {
@@ -195,6 +249,8 @@ public class PushWorkerService {
             event = log.atError();
         }
         event.addKeyValue("type", "notification").addKeyValue("stage", "fcm_result")
+                .addKeyValue("notificationType", message.type())
+                .addKeyValue("sourceId", message.sourceId())
                 .addKeyValue("eventId", message.eventId())
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId).addKeyValue("result", result.status())
