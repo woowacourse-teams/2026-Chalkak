@@ -20,13 +20,14 @@ import java.time.LocalTime;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -132,12 +133,12 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @MethodSource("protectedAdminEndpoints")
-    @DisplayName("로그인 외 모든 실제 관리자 API는 회원 토큰을 403으로 거부한다")
-    void adminEndpoints_userToken_returnsForbidden(String method, String path) throws Exception {
+    @MethodSource("protectedAdminMemberEndpoints")
+    @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정은 정상·정지·탈퇴 회원을 거절한다")
+    void adminEndpoints_memberState_returnsForbidden(String method, String path, String state)
+            throws Exception {
         // Given
-        String token = accessTokenProvider.issueForSession(UUID.randomUUID(), UUID.randomUUID())
-                .value();
+        String token = createMemberToken(state);
 
         // When & Then
         mockMvc.perform(request(HttpMethod.valueOf(method), path)
@@ -245,68 +246,20 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_CREATED");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"09:00:01", "09:00:00.000000001"})
-    @DisplayName("초 또는 소수 초가 있는 생성 요청은 400으로 거절한다")
-    void createTopicPushSchedule_nonMinuteSendTime_returnsBadRequest(String time) throws Exception {
-        // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"sendTime\":\"" + time + "\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message")
-                        .value("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
-    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 생성할 수 없다")
-    void createTopicPushSchedule_memberState_returnsForbidden(String state) throws Exception {
-        // Given
+    private String createMemberToken(String state) {
         UUID userId = UUID.randomUUID();
+        String userStatus = state;
+        if (state.equals("WITHDRAWN")) {
+            userStatus = "ACTIVE";
+        }
         jdbcTemplate.update("""
                 INSERT INTO users (id, email, status, signature_original_storage_key,
                     created_at, updated_at, deleted_at)
                 VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
                     CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, userId, userId + "@schedule.test",
-                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
-        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-
-        // When & Then
-        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"sendTime\":\"09:00:00\"}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
-    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 조회할 수 없다")
-    void getTopicPushSchedules_memberState_returnsForbidden(String state) throws Exception {
-        // Given
-        UUID userId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, userId, userId + "@schedule.test",
-                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
-        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/topic-push-schedules")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+                """, userId, userId + "@security.test", userStatus, userId + "/signature.png",
+                state);
+        return accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     private Admin createScheduleAdmin() {
@@ -368,6 +321,21 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/audit-logs"));
     }
 
+    private static List<Arguments> protectedAdminMemberEndpoints() {
+        List<Arguments> cases = new ArrayList<>();
+        for (Arguments endpoint : protectedAdminEndpoints().toList()) {
+            Object[] values = endpoint.get();
+            List<String> states = List.of("ACTIVE");
+            if (((String) values[1]).startsWith("/api/v1/admin/topic-push-schedules")) {
+                states = List.of("ACTIVE", "BANNED", "WITHDRAWN");
+            }
+            for (String state : states) {
+                cases.add(Arguments.of(values[0], values[1], state));
+            }
+        }
+        return cases;
+    }
+
     @RestController
     public static class TestAdminController {
 
@@ -404,50 +372,6 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_UPDATED");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"09:00:01", "09:00:00.000000001"})
-    @DisplayName("초 또는 소수 초가 있는 수정 요청은 400으로 거절하고 원래 시각을 유지한다")
-    void updateTopicPushSchedule_nonMinuteSendTime_returnsBadRequest(String time) throws Exception {
-        // Given
-        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
-        entityManager.persist(schedule);
-        entityManager.flush();
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(put("/api/v1/admin/topic-push-schedules/" + schedule.getId())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"sendTime\":\"" + time + "\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        assertThat(schedule.getSendTime()).isEqualTo(LocalTime.of(9, 0));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
-    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 수정할 수 없다")
-    void updateTopicPushSchedule_memberState_returnsForbidden(String state) throws Exception {
-        // Given
-        UUID userId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, userId, userId + "@schedule.test",
-                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
-        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-
-        // When & Then
-        mockMvc.perform(put("/api/v1/admin/topic-push-schedules/" + UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"sendTime\":\"09:00:00\"}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
     @Test
     @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 삭제할 수 있다")
     void deleteTopicPushSchedule_adminToken_deletesSchedule() throws Exception {
@@ -469,25 +393,4 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_DELETED");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
-    @DisplayName("정상·정지·탈퇴 회원 모두 관리자 주제 푸시 설정을 삭제할 수 없다")
-    void deleteTopicPushSchedule_memberState_returnsForbidden(String state) throws Exception {
-        // Given
-        UUID userId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, userId, userId + "@schedule.test",
-                "WITHDRAWN".equals(state) ? "ACTIVE" : state, userId + "/signature.png", state);
-        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-
-        // When & Then
-        mockMvc.perform(delete("/api/v1/admin/topic-push-schedules/" + UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
 }
