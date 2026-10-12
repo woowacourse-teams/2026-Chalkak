@@ -27,6 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class PushWorkerService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final String TOPIC_PUSH_TITLE = "오늘의 주제";
     private final NotificationRepository notificationRepository;
     private final TopicRepository topicRepository;
     private final PushDeviceRepository deviceRepository;
@@ -165,7 +166,8 @@ public class PushWorkerService {
         if (topic == null || !topic.getId().equals(message.sourceId())) {
             return null;
         }
-        return new DevicePushRequest(message, device.getFcmToken(), "오늘의 주제", topic.getTitle(),
+        return new DevicePushRequest(message, device.getFcmToken(), TOPIC_PUSH_TITLE,
+                topic.getTitle(),
                 message.expiresAt());
     }
 

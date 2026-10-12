@@ -8,7 +8,4 @@ public record DevicePushRequest(
         String title,
         String body,
         Instant expiresAt) {
-    public boolean isSendableAt(Instant now) {
-        return now.isBefore(expiresAt);
-    }
 }
