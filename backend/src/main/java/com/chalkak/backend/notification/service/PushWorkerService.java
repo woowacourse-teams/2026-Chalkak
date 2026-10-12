@@ -10,6 +10,7 @@ import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.domain.User;
@@ -30,6 +31,7 @@ public class PushWorkerService {
     private static final String TOPIC_PUSH_TITLE = "오늘의 주제";
     private final NotificationRepository notificationRepository;
     private final TopicRepository topicRepository;
+    private final PostRepository postRepository;
     private final PushDeviceRepository deviceRepository;
     private final LoginSessionService loginSessionService;
     private final DevicePushSender sender;
@@ -39,6 +41,7 @@ public class PushWorkerService {
     public PushWorkerService(
             NotificationRepository notificationRepository,
             TopicRepository topicRepository,
+            PostRepository postRepository,
             PushDeviceRepository deviceRepository,
             LoginSessionService loginSessionService,
             DevicePushSender sender,
@@ -47,6 +50,7 @@ public class PushWorkerService {
     ) {
         this.notificationRepository = notificationRepository;
         this.topicRepository = topicRepository;
+        this.postRepository = postRepository;
         this.deviceRepository = deviceRepository;
         this.loginSessionService = loginSessionService;
         this.sender = sender;
@@ -164,6 +168,10 @@ public class PushWorkerService {
         LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
         Topic topic = topicRepository.findActiveByTopicDate(today).orElse(null);
         if (topic == null || !topic.getId().equals(message.sourceId())) {
+            return null;
+        }
+        if (postRepository.findActiveByAuthorIdAndTopicId(user.getId(), topic.getId())
+                .isPresent()) {
             return null;
         }
         return new DevicePushRequest(message, device.getFcmToken(), TOPIC_PUSH_TITLE,
