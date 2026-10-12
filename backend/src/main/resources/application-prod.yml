@@ -19,6 +19,15 @@ management:
       show-details: never
 
 chalkak:
+  analytics:
+    aggregation:
+      enabled: true
+    # 지표에서 뺄 팀원·테스트 계정의 회원 ID. 추가하려면 ID를 이 목록에 넣고 PR을 올려 릴리스한다.
+    # 회원 ID는 비밀 값이 아니라 저장소에 둬도 된다.
+    # 예)
+    # excluded-user-ids:
+    #   - 00000000-0000-0000-0000-000000000000
+    excluded-user-ids: []
   monitoring:
     runtime-log:
       enabled: true

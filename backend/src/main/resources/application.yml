@@ -131,6 +131,13 @@ chalkak:
     # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
     enabled: true
 
+  analytics:
+    aggregation:
+      # 사용자 지표 일일 집계. dev·test·local은 꺼 두고 prod만 켠다.
+      enabled: false
+    # 팀원·테스트 계정 회원 ID. 지표에서 뺀다. prod 값은 application-prod.yml에 둔다.
+    excluded-user-ids: []
+
 management:
   endpoints:
     web:

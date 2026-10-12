@@ -21,6 +21,7 @@ public final class LogFields {
     public static final String THREADS = "threads";
     public static final String HIKARI_ACTIVE = "hikariActive";
     public static final String HIKARI_PENDING = "hikariPending";
+    public static final String METRIC_DATE = "metricDate";
 
     public static final String USER_ID_REQUEST_ATTRIBUTE = "chalkak.userId";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
@@ -29,6 +30,7 @@ public final class LogFields {
     public static final String TYPE_ERROR = "error";
     public static final String TYPE_RUNTIME = "runtime";
     public static final String TYPE_MODERATION = "moderation";
+    public static final String TYPE_AGGREGATION = "aggregation";
     public static final String UNMATCHED_ROUTE = "UNMATCHED";
 
     private LogFields() {
