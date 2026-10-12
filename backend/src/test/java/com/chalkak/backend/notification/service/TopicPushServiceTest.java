@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -338,11 +339,21 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 .containsEntry("errorCode", "SQS_CLIENT_ERROR");
         assertThat(failures).allSatisfy(log -> assertThat(log)
                 .containsEntry("eventId", messages.getFirst().eventId())
-                .containsEntry("sourceId", TOPIC_ID));
+                .containsEntry("sourceId", TOPIC_ID)
+                .doesNotContainKey("messageId"));
         assertThat(logsAtStage("topic_publication_unknown")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("userId", new UUID(0, 4))
                         .containsEntry("errorCode", "IllegalStateException"));
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
+        assertThat(appender.list)
+                .filteredOn(event -> "주제 푸시 SQS 발행 결과".equals(event.getFormattedMessage()))
+                .extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN, Level.WARN);
+        assertThat(appender.list)
+                .filteredOn(event -> "주제 푸시 SQS 발행 집계".equals(event.getFormattedMessage()))
+                .extracting(ILoggingEvent::getLevel).containsExactly(Level.INFO);
+        assertThat(appender.list)
+                .filteredOn(event -> "주제 푸시 SQS 발행 결과 확인 실패".equals(event.getFormattedMessage()))
+                .extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
         assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains("private-message-must-not-be-logged"));
     }

@@ -156,14 +156,13 @@ public class TopicPushService {
             if (result.isAccepted()) {
                 return result;
             }
-            log.atInfo().addKeyValue("type", "notification")
+            log.atWarn().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_publication_result")
                     .addKeyValue("eventId", message.eventId())
                     .addKeyValue("userId", message.userId())
                     .addKeyValue("sourceId", message.sourceId())
                     .addKeyValue("occurredAt", message.occurredAt())
                     .addKeyValue("result", getPublicationStatus(result))
-                    .addKeyValue("messageId", result.messageId())
                     .addKeyValue("errorCode", result.errorCode())
                     .log("주제 푸시 SQS 발행 결과");
             return result;
