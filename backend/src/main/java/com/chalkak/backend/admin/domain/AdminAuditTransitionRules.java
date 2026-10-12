@@ -14,6 +14,8 @@ import java.util.UUID;
 final class AdminAuditTransitionRules {
 
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
+    private static final int MAX_NOTICE_TITLE_LENGTH = 50;
+    private static final int MAX_NOTICE_BODY_LENGTH = 500;
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt");
@@ -26,6 +28,10 @@ final class AdminAuditTransitionRules {
             "deletedAt");
     private static final Set<String> USER_STATUS_FIELDS = Set.of("status");
     private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
+    private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
+            "title",
+            "body",
+            "scheduledAt");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -160,6 +166,21 @@ final class AdminAuditTransitionRules {
         return isValidTopicPushScheduleState(beforeState) && afterState.isEmpty();
     }
 
+    static boolean isNoticeCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidNoticeState(afterState);
+    }
+
+    private static boolean isValidNoticeState(AdminAuditSnapshot state) {
+        return state.hasExactlyFields(NOTICE_STATE_FIELDS)
+                && isValidText(state.value("title"), MAX_NOTICE_TITLE_LENGTH)
+                && isValidText(state.value("body"), MAX_NOTICE_BODY_LENGTH)
+                && isInstant(state.value("scheduledAt"));
+    }
+
     private static boolean isValidTopicPushScheduleState(AdminAuditSnapshot state) {
         if (!state.hasExactlyFields(TOPIC_PUSH_SCHEDULE_FIELDS)
                 || !(state.value("sendTime") instanceof String sendTime)) {
@@ -242,11 +263,15 @@ final class AdminAuditTransitionRules {
     }
 
     private static boolean isValidTitle(Object value) {
-        if (!(value instanceof String title)) {
+        return isValidText(value, MAX_TOPIC_TITLE_LENGTH);
+    }
+
+    private static boolean isValidText(Object value, int maxLength) {
+        if (!(value instanceof String text)) {
             return false;
         }
-        return !title.isBlank()
-                && title.codePointCount(0, title.length()) <= MAX_TOPIC_TITLE_LENGTH;
+        return !text.isBlank()
+                && text.codePointCount(0, text.length()) <= maxLength;
     }
 
     private static boolean isLocalDate(Object value) {

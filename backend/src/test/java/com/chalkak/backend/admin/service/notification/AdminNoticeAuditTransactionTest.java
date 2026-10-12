@@ -1,0 +1,84 @@
+package com.chalkak.backend.admin.service.notification;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.support.DatabaseCleaner;
+import com.chalkak.backend.support.IntegrationTestSupport;
+import java.time.Instant;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+class AdminNoticeAuditTransactionTest extends IntegrationTestSupport {
+
+    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000594");
+    private static final UUID UNKNOWN_ADMIN_ID = UUID
+            .fromString("019a0000-0000-7000-8000-000000000593");
+
+    @Autowired
+    private AdminNoticeService noticeService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUp() {
+        clean();
+    }
+
+    @AfterEach
+    void tearDown() {
+        clean();
+    }
+
+    @Test
+    @DisplayName("감사 로그 저장이 실패하면 공지 등록도 함께 롤백한다")
+    void createNotice_auditInsertFails_rollsBackNotice() {
+        // When & Then
+        assertThatThrownBy(() -> noticeService.createNotice(UNKNOWN_ADMIN_ID, "서비스 점검 안내",
+                "점검합니다.", Instant.now()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(countRows("notices")).isZero();
+    }
+
+    @Test
+    @DisplayName("감사 로그가 거절하는 민감 정보를 본문에 포함하면 공지 등록도 함께 롤백한다")
+    void createNotice_sensitiveBody_rollsBackNotice() {
+        // Given
+        insertAdmin();
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.createNotice(ADMIN_ID, "이벤트 안내",
+                "https://cdn.example.com/event.png", Instant.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
+        assertThat(countRows("notices")).isZero();
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    private void insertAdmin() {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'notice-audit-manager', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ADMIN_ID);
+    }
+
+    private int countRows(String table) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
+    }
+
+    private void clean() {
+        new DatabaseCleaner(jdbcTemplate).clean();
+        jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE actor_admin_id = ?", ADMIN_ID);
+        jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
+    }
+}

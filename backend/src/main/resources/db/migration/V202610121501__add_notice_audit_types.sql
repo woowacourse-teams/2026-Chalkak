@@ -1,0 +1,3 @@
+ALTER TYPE admin_target_type ADD VALUE 'NOTICE';
+
+ALTER TYPE admin_action ADD VALUE 'NOTICE_CREATED';

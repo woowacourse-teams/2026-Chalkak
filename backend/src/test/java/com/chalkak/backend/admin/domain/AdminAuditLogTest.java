@@ -94,6 +94,62 @@ class AdminAuditLogTest {
     }
 
     @Test
+    @DisplayName("공지 작성은 빈 변경 전 상태와 제목·본문·예약 시각의 변경 후 상태를 기록한다")
+    void create_validNoticeCreation_createsAuditLog() {
+        // Given
+        Map<String, Object> after = Map.of(
+                "title", "가".repeat(50),
+                "body", "나".repeat(500),
+                "scheduledAt", "2026-10-19T09:00:00Z");
+
+        // When
+        AdminAuditLog audit = createNoticeAudit(Map.of(), after);
+
+        // Then
+        assertThat(audit.getTargetType()).isEqualTo(AdminTargetType.NOTICE);
+        assertThat(audit.getAfterState()).containsExactlyInAnyOrderEntriesOf(after);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidNoticeCreations")
+    @DisplayName("공지 작성의 잘못된 길이·필드·시각·변경 전 상태를 거절한다")
+    void create_invalidNoticeCreation_throwsBusinessException(
+            Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createNoticeAudit(before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidNoticeCreations() {
+        Map<String, Object> valid = Map.of(
+                "title", "서비스 점검 안내",
+                "body", "점검합니다.",
+                "scheduledAt", "2026-10-19T09:00:00Z");
+        return Stream.of(
+                Arguments.of(valid, valid),
+                Arguments.of(Map.of(), Map.of(
+                        "title", "가".repeat(51), "body", "점검합니다.",
+                        "scheduledAt", "2026-10-19T09:00:00Z")),
+                Arguments.of(Map.of(), Map.of(
+                        "title", "서비스 점검 안내", "body", "나".repeat(501),
+                        "scheduledAt", "2026-10-19T09:00:00Z")),
+                Arguments.of(Map.of(), Map.of(
+                        "title", " ", "body", "점검합니다.",
+                        "scheduledAt", "2026-10-19T09:00:00Z")),
+                Arguments.of(Map.of(), Map.of(
+                        "title", "서비스 점검 안내", "body", "점검합니다.",
+                        "scheduledAt", "2026-10-19")),
+                Arguments.of(Map.of(), Map.of("title", "서비스 점검 안내", "body", "점검합니다.")));
+    }
+
+    private AdminAuditLog createNoticeAudit(Map<String, Object> before, Map<String, Object> after) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID, AdminAction.NOTICE_CREATED, AdminTargetType.NOTICE, TARGET_ID, null,
+                AdminAuditSnapshot.from(before), AdminAuditSnapshot.from(after), OCCURRED_AT,
+                REQUEST_ID);
+    }
+
+    @Test
     @DisplayName("관리자 작업의 대상과 변경 전후 상태를 감사 로그로 생성한다")
     void create_validAuditInformation_createsAuditLog() {
         // Given
