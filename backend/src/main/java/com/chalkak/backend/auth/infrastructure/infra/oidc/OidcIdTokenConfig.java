@@ -1,10 +1,10 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.google.GoogleOidcProperties;
 import com.chalkak.backend.auth.infrastructure.infra.oidc.kakao.KakaoOidcProperties;
-import com.chalkak.backend.auth.service.IdTokenVerifier;
+import com.chalkak.backend.auth.service.identity.IdTokenVerifier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.api.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

@@ -1,8 +1,8 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
 import com.chalkak.backend.auth.infrastructure.infra.oidc.apple.AppleOidcProperties;
-import com.chalkak.backend.auth.service.AppleTokenClient;
-import com.chalkak.backend.auth.service.AppleTokenExchangeResult;
+import com.chalkak.backend.auth.service.apple.AppleTokenClient;
+import com.chalkak.backend.auth.service.apple.AppleTokenExchangeResult;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.fasterxml.jackson.annotation.JsonProperty;

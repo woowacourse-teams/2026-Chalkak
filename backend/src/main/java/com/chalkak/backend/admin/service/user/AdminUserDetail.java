@@ -2,7 +2,7 @@ package com.chalkak.backend.admin.service.user;
 
 import com.chalkak.backend.admin.repository.user.AdminUserDetailProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import java.time.Instant;
 import java.util.UUID;

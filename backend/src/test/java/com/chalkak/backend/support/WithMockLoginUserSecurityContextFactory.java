@@ -1,6 +1,6 @@
 package com.chalkak.backend.support;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

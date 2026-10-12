@@ -4,8 +4,8 @@ import com.chalkak.backend.admin.infrastructure.infra.AdminAuthenticationPropert
 import com.chalkak.backend.auth.api.support.AuthenticationErrorResponder;
 import com.chalkak.backend.auth.api.support.ForbiddenAccessDeniedHandler;
 import com.chalkak.backend.auth.api.support.UnauthorizedEntryPoint;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.api.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.common.logging.LogFields;
 import java.time.Instant;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
-import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
+import com.chalkak.backend.auth.service.apple.AppleAuthorizationCipher;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;

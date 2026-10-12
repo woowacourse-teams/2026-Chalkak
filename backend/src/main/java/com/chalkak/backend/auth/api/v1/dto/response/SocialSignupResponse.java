@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.api.v1.dto.response;
 
-import com.chalkak.backend.auth.service.SocialSignupResult;
+import com.chalkak.backend.auth.service.signup.SocialSignupResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
