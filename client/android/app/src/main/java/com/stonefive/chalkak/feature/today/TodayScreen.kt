@@ -63,11 +63,11 @@ import kotlinx.coroutines.launch
 
 const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
 const val TODAY_ERROR_MESSAGE = "오늘을 불러오지 못했어요"
-const val TODAY_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
-const val TODAY_LOADING_TEST_TAG = "home-loading"
-const val TODAY_INITIAL_ERROR_TEST_TAG = "home-initial-error"
-const val TODAY_EMPTY_TEST_TAG = "home-empty"
-const val TODAY_NEXT_LOADING_TEST_TAG = "home-next-loading"
+const val TODAY_REFRESH_CONTENT_DESCRIPTION = "투데이 새로고침"
+const val TODAY_LOADING_TEST_TAG = "today-loading"
+const val TODAY_INITIAL_ERROR_TEST_TAG = "today-initial-error"
+const val TODAY_EMPTY_TEST_TAG = "today-empty"
+const val TODAY_NEXT_LOADING_TEST_TAG = "today-next-loading"
 
 @Composable
 fun TodayRoute(
