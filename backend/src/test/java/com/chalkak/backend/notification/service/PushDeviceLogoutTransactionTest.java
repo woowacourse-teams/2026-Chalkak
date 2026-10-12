@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.support.DatabaseCleaner;

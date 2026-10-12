@@ -7,10 +7,10 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
+import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
-import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
-import com.chalkak.backend.auth.service.AppleTokenClient;
+import com.chalkak.backend.auth.service.apple.AppleAuthorizationCipher;
+import com.chalkak.backend.auth.service.apple.AppleTokenClient;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.Clock;

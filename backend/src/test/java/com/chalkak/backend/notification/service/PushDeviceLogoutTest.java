@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.PushDevice;
@@ -34,8 +34,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
 @AutoConfigureMockMvc

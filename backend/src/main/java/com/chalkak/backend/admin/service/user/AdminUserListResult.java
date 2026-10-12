@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.service.user;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.repository.user.AdminUserSummaryProjection;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

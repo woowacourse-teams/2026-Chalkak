@@ -1,6 +1,6 @@
 package com.chalkak.backend.notification.service;
 
-import com.chalkak.backend.auth.service.LoginSessionService;
+import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.FcmToken;

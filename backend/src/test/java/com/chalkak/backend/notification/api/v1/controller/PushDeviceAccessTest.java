@@ -6,10 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;

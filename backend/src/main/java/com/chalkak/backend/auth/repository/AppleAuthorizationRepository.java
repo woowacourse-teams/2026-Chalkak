@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.repository;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
+import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
 import java.util.List;
 import java.util.UUID;
 

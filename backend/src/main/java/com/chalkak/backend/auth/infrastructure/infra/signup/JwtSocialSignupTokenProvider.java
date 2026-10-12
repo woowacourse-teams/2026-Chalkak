@@ -1,11 +1,11 @@
 package com.chalkak.backend.auth.infrastructure.infra.signup;
 
-import com.chalkak.backend.auth.domain.IssuedSocialSignupToken;
-import com.chalkak.backend.auth.domain.SocialProvider;
-import com.chalkak.backend.auth.domain.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.domain.VerifiedSocialSignupToken;
-import com.chalkak.backend.auth.service.SocialSignupTokenIssuer;
-import com.chalkak.backend.auth.service.SocialSignupTokenVerifier;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.domain.signup.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.signup.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.service.signup.SocialSignupTokenIssuer;
+import com.chalkak.backend.auth.service.signup.SocialSignupTokenVerifier;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
@@ -21,6 +21,8 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -29,10 +31,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
-import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 
 public class JwtSocialSignupTokenProvider
         implements

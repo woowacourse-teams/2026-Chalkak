@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.TokenRefreshResult;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.TokenRefreshResult;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.notification.domain.PushDevice;

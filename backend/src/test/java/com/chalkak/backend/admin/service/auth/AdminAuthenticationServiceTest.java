@@ -6,7 +6,7 @@ import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;

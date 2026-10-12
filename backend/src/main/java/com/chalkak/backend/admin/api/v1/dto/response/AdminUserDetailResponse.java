@@ -2,7 +2,7 @@ package com.chalkak.backend.admin.api.v1.dto.response;
 
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.user.AdminUserDetail;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.UUID;

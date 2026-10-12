@@ -2,10 +2,10 @@ package com.chalkak.backend.admin.service.auth;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.AccessTokenIssuer;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.AccessTokenIssuer;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
 import java.util.Optional;

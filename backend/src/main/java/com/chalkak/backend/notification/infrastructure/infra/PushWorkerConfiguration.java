@@ -1,6 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
-import com.chalkak.backend.auth.service.LoginSessionService;
+import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
