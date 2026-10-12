@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.navigation
 
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -8,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -16,6 +18,7 @@ import com.stonefive.chalkak.MainActivity
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.home.HOME_CONTENT_TEST_TAG
+import com.stonefive.chalkak.feature.home.HomeViewModel
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
@@ -31,10 +34,13 @@ class ChalkakNavHostTest {
     fun notificationsOpenFromHomeAndBackReturnsToHome() {
         lateinit var navController: NavHostController
         composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
             ChalkakTheme {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
                     navController = navController,
                     startDestination = Home,
                 )
@@ -58,10 +64,13 @@ class ChalkakNavHostTest {
     fun homeRankingLinksOpenPopularDisplayForTheirDates() {
         lateinit var navController: NavHostController
         composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
             ChalkakTheme {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
                     navController = navController,
                     startDestination = Home,
                 )
@@ -114,10 +123,13 @@ class ChalkakNavHostTest {
         lateinit var navController: NavHostController
 
         composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
             ChalkakTheme {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
                     navController = navController,
                     startDestination = Home,
                 )
@@ -177,10 +189,13 @@ class ChalkakNavHostTest {
         val uploadedDate = LocalDate.of(2026, 9, 22)
 
         composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
             ChalkakTheme {
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
                     navController = navController,
                     startDestination = Home,
                 )

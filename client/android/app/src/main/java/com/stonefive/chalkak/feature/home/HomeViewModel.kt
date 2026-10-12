@@ -93,11 +93,12 @@ class HomeViewModel(
     }
 
     fun onResume() {
-        if (!hasBeenPresented) {
-            hasBeenPresented = true
-            return
-        }
-        if (sessionState.value.canLoadHome() && loadJob?.isActive != true) {
+        val isFirstPresentation = !hasBeenPresented
+        hasBeenPresented = true
+        if (!sessionState.value.canLoadHome()) return
+        if (_uiState.value.date != dateProvider()) {
+            loadHome(reset = true)
+        } else if (!isFirstPresentation && loadJob?.isActive != true) {
             loadHome(reset = false)
         }
     }

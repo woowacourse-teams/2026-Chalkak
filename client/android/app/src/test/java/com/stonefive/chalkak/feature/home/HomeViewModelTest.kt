@@ -213,6 +213,30 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `first presentation after KST midnight refreshes preloaded content`() = runTest {
+        var date = LocalDate.of(2026, 10, 10)
+        val repository = FakeHomeRepository()
+        val viewModel = createViewModel(repository, dateProvider = { date })
+        advanceUntilIdle()
+
+        date = date.plusDays(1)
+        repository.records = listOf(record(date, PostStatus.PENDING))
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(date, viewModel.uiState.value.date)
+        assertEquals(
+            date,
+            viewModel.uiState.value.week
+                .first()
+                .date,
+        )
+        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), viewModel.uiState.value.hero)
+        assertEquals(listOf(date.minusDays(1), date), repository.contentQueries.map { it.date })
+        assertEquals(listOf(date.minusDays(2), date.minusDays(1)), repository.pageQueries.map { it.date })
+    }
+
+    @Test
     fun `returning from upload refreshes and crossing KST midnight moves week`() = runTest {
         var date = LocalDate.of(2026, 10, 10)
         val repository = FakeHomeRepository()

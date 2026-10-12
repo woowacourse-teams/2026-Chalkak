@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -25,6 +27,7 @@ import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.signature.SignUpViewModel
 import com.stonefive.chalkak.navigation.ChalkakNavHost
 import com.stonefive.chalkak.navigation.Display
@@ -47,10 +50,13 @@ class SignatureFlowTest {
         lateinit var navController: NavHostController
 
         composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             ChalkakTheme {
                 navController = rememberNavController()
                 ChalkakNavHost(
                     analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
                     navController = navController,
                     startDestination = Terms,
                     signUpViewModel = signUpViewModel,
