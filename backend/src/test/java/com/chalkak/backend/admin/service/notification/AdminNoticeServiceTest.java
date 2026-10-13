@@ -218,9 +218,9 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
 
     private UUID insertNotice(String title, String createdAt) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, status, created_at, updated_at)
-                VALUES (?, '점검합니다.', '2026-10-19T09:00:00Z', 'SCHEDULED',
-                    CAST(? AS TIMESTAMPTZ), CAST(? AS TIMESTAMPTZ))
+                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                VALUES (?, '점검합니다.', '2026-10-19T09:00:00Z', CAST(? AS TIMESTAMPTZ),
+                    CAST(? AS TIMESTAMPTZ))
                 RETURNING id
                 """, UUID.class, title, createdAt, createdAt);
     }

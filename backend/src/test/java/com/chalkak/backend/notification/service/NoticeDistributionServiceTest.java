@@ -72,10 +72,7 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
             assertThat(row.get("sqs_publish_status")).isEqualTo("PENDING");
             assertThat(row.get("next_attempt_at")).isEqualTo(row.get("created_at"));
         });
-        Map<String, Object> notice = jdbcTemplate.queryForMap(
-                "SELECT status, distributed_at FROM notices WHERE id = ?", noticeId);
-        assertThat(notice.get("status")).isEqualTo("DISTRIBUTED");
-        assertThat(notice.get("distributed_at")).isEqualTo(rows.getFirst().get("created_at"));
+        assertThat(distributedAtOf(noticeId)).isEqualTo(rows.getFirst().get("created_at"));
     }
 
     @Test
@@ -89,7 +86,7 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(countNotifications()).isZero();
-        assertThat(statusOf(noticeId)).isEqualTo("SCHEDULED");
+        assertThat(distributedAtOf(noticeId)).isNull();
     }
 
     @Test
@@ -107,7 +104,7 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("한 공지의 배포가 실패하면 그 공지는 예약 상태로 남고 다른 공지는 배포한다")
+    @DisplayName("한 공지의 배포가 실패하면 그 공지는 배포되지 않은 채 남고 다른 공지는 배포한다")
     void distributeNotices_oneNoticeFails_distributesOthers() {
         // Given
         UUID failing = insertNotice(Instant.now().minus(Duration.ofMinutes(2)));
@@ -118,8 +115,8 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
         distributionService.distributeNotices();
 
         // Then
-        assertThat(statusOf(failing)).isEqualTo("SCHEDULED");
-        assertThat(statusOf(other)).isEqualTo("DISTRIBUTED");
+        assertThat(distributedAtOf(failing)).isNull();
+        assertThat(distributedAtOf(other)).isNotNull();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE source_id = ?", Integer.class, other))
                 .isEqualTo(2);
@@ -148,7 +145,7 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(countNotifications()).isEqualTo(2);
-        assertThat(statusOf(noticeId)).isEqualTo("DISTRIBUTED");
+        assertThat(distributedAtOf(noticeId)).isNotNull();
     }
 
     private void runAfter(CountDownLatch start) {
@@ -175,9 +172,8 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
 
     private UUID insertNotice(Instant scheduledAt) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, status, created_at, updated_at)
-                VALUES ('서비스 점검 안내', '점검합니다.', ?, 'SCHEDULED', CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP)
+                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id
                 """, UUID.class, Timestamp.from(scheduledAt));
     }
@@ -195,8 +191,8 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notifications", Integer.class);
     }
 
-    private String statusOf(UUID noticeId) {
-        return jdbcTemplate.queryForObject("SELECT status FROM notices WHERE id = ?",
-                String.class, noticeId);
+    private Timestamp distributedAtOf(UUID noticeId) {
+        return jdbcTemplate.queryForObject("SELECT distributed_at FROM notices WHERE id = ?",
+                Timestamp.class, noticeId);
     }
 }

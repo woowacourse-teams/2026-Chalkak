@@ -25,13 +25,13 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("배포 대상은 예약 시각이 지났거나 정각인 예약 상태 공지만 예약 시각 순으로 조회한다")
+    @DisplayName("배포 대상은 예약 시각이 지났거나 정각인 미배포 공지만 예약 시각 순으로 조회한다")
     void findDistributableIds_mixedNotices_returnsDueScheduledNoticesInOrder() {
         // Given
-        UUID later = insertNotice(SCHEDULED_AT, "SCHEDULED");
-        UUID earlier = insertNotice(SCHEDULED_AT.minusSeconds(60), "SCHEDULED");
-        insertNotice(SCHEDULED_AT.plusNanos(1_000), "SCHEDULED");
-        insertNotice(SCHEDULED_AT.minusSeconds(120), "DISTRIBUTED");
+        UUID later = insertNotice(SCHEDULED_AT, false);
+        UUID earlier = insertNotice(SCHEDULED_AT.minusSeconds(60), false);
+        insertNotice(SCHEDULED_AT.plusNanos(1_000), false);
+        insertNotice(SCHEDULED_AT.minusSeconds(120), true);
 
         // When & Then
         assertThat(noticeRepository.findDistributableIds(SCHEDULED_AT, 10)).containsExactly(earlier,
@@ -45,9 +45,9 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
     @DisplayName("배포할 공지를 잠글 때 이미 배포했거나 예약 시각 전인 공지는 조회하지 않는다")
     void findDistributableForUpdate_notDue_returnsEmpty() {
         // Given
-        UUID distributed = insertNotice(SCHEDULED_AT, "DISTRIBUTED");
-        UUID future = insertNotice(SCHEDULED_AT.plusSeconds(60), "SCHEDULED");
-        UUID due = insertNotice(SCHEDULED_AT, "SCHEDULED");
+        UUID distributed = insertNotice(SCHEDULED_AT, true);
+        UUID future = insertNotice(SCHEDULED_AT.plusSeconds(60), false);
+        UUID due = insertNotice(SCHEDULED_AT, false);
 
         // When & Then
         assertThat(noticeRepository.findDistributableForUpdate(distributed, SCHEDULED_AT))
@@ -56,16 +56,16 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         assertThat(noticeRepository.findDistributableForUpdate(due, SCHEDULED_AT)).isPresent();
     }
 
-    private UUID insertNotice(Instant scheduledAt, String status) {
+    private UUID insertNotice(Instant scheduledAt, boolean distributed) {
         Timestamp distributedAt = null;
-        if (status.equals("DISTRIBUTED")) {
+        if (distributed) {
             distributedAt = Timestamp.from(scheduledAt);
         }
         return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, status, distributed_at,
-                    created_at, updated_at)
-                VALUES ('공지', '본문', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO notices (title, body, scheduled_at, distributed_at, created_at,
+                    updated_at)
+                VALUES ('공지', '본문', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id
-                """, UUID.class, Timestamp.from(scheduledAt), status, distributedAt);
+                """, UUID.class, Timestamp.from(scheduledAt), distributedAt);
     }
 }

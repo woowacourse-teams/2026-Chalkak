@@ -17,7 +17,7 @@ public interface NoticeJpaRepository extends JpaRepository<Notice, UUID> {
 
     @Query(value = """
             SELECT id FROM notices
-            WHERE status = 'SCHEDULED' AND scheduled_at <= :now
+            WHERE distributed_at IS NULL AND scheduled_at <= :now
             ORDER BY scheduled_at, id
             LIMIT :limit
             """, nativeQuery = true)
@@ -25,7 +25,7 @@ public interface NoticeJpaRepository extends JpaRepository<Notice, UUID> {
 
     @Query(value = """
             SELECT * FROM notices
-            WHERE id = :noticeId AND status = 'SCHEDULED' AND scheduled_at <= :now
+            WHERE id = :noticeId AND distributed_at IS NULL AND scheduled_at <= :now
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     Optional<Notice> findDistributableForUpdate(
