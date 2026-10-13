@@ -1,10 +1,12 @@
 package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.notification.domain.Notice;
+import com.chalkak.backend.notification.repository.DistributableNotice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,18 +36,31 @@ public class NoticeDistributionService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
+    // 한 번 실행하는 동안 대상 공지를 묶음 단위로 끝까지 시도한다. 실패한 공지가 앞을 막아도 뒤 공지를 배포한다.
     public void distributeNotices() {
-        for (UUID noticeId : noticeRepository.findDistributableIds(clock.instant(), BATCH_SIZE)) {
-            try {
-                transactionTemplate.executeWithoutResult(status -> distribute(noticeId));
-            } catch (RuntimeException exception) {
-                // 실패한 공지는 예약 상태로 남아 다음 확인에서 다시 시도한다.
-                log.atError().addKeyValue("type", "notification")
-                        .addKeyValue("stage", "notice_distribution_failed")
-                        .addKeyValue("noticeId", noticeId)
-                        .addKeyValue("errorCode", exception.getClass().getSimpleName())
-                        .log("공지 배포 실패");
+        Instant now = clock.instant();
+        DistributableNotice cursor = null;
+        while (true) {
+            List<DistributableNotice> targets = noticeRepository
+                    .findDistributableNotices(now, cursor, BATCH_SIZE);
+            targets.forEach(target -> distributeSafely(target.noticeId()));
+            if (targets.size() < BATCH_SIZE) {
+                return;
             }
+            cursor = targets.getLast();
+        }
+    }
+
+    private void distributeSafely(UUID noticeId) {
+        try {
+            transactionTemplate.executeWithoutResult(status -> distribute(noticeId));
+        } catch (RuntimeException exception) {
+            // 실패한 공지는 배포되지 않은 채 남아 다음 확인에서 다시 시도한다.
+            log.atError().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "notice_distribution_failed")
+                    .addKeyValue("noticeId", noticeId)
+                    .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                    .log("공지 배포 실패");
         }
     }
 

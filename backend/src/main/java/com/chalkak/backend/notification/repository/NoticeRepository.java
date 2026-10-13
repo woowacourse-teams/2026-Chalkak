@@ -14,7 +14,11 @@ public interface NoticeRepository {
 
     NoticeSlice findNotices(int page, int pageSize);
 
-    List<UUID> findDistributableIds(Instant now, int limit);
+    List<DistributableNotice> findDistributableNotices(
+            Instant now,
+            DistributableNotice after,
+            int limit
+    );
 
     Optional<Notice> findDistributableForUpdate(UUID noticeId, Instant now);
 }

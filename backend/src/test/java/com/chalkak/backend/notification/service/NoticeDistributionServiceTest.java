@@ -123,6 +123,46 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("계속 실패하는 공지 10건 뒤의 정상 공지도 같은 실행에서 배포한다")
+    void distributeNotices_failingNoticesFillBatch_distributesLaterNotice() {
+        // Given
+        Instant base = Instant.now().minus(Duration.ofHours(1));
+        for (int i = 0; i < 10; i++) {
+            UUID failing = insertNotice(base.plusSeconds(i));
+            insertConflictingNotification(activeUser, failing);
+        }
+        UUID normal = insertNotice(base.plusSeconds(60));
+
+        // When
+        distributionService.distributeNotices();
+
+        // Then
+        assertThat(distributedAtOf(normal)).isNotNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notices WHERE distributed_at IS NULL", Integer.class))
+                .isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("배포 대상이 한 묶음(10건)을 넘어도 한 번 실행으로 모두 배포한다")
+    void distributeNotices_moreThanBatch_distributesAllInOneRun() {
+        // Given
+        Instant base = Instant.now().minus(Duration.ofHours(1));
+        for (int i = 0; i < 12; i++) {
+            insertNotice(base.plusSeconds(i));
+        }
+
+        // When
+        distributionService.distributeNotices();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notices WHERE distributed_at IS NULL", Integer.class))
+                .isZero();
+        assertThat(countNotifications()).isEqualTo(24);
+    }
+
+    @Test
     @DisplayName("두 실행이 동시에 같은 공지를 배포해도 회원당 알림은 하나만 생긴다")
     void distributeNotices_concurrentRuns_createsOncePerUser() throws Exception {
         // Given

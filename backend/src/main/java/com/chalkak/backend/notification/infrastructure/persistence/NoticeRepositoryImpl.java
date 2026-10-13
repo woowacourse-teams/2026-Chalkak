@@ -1,6 +1,7 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
 import com.chalkak.backend.notification.domain.Notice;
+import com.chalkak.backend.notification.repository.DistributableNotice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NoticeSlice;
 import java.time.Instant;
@@ -20,32 +21,41 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     private static final Sort LATEST_CREATED_FIRST = Sort.by(Sort.Direction.DESC, "createdAt",
             "id");
 
-    private final NoticeJpaRepository jpaRepository;
+    private final NoticeJpaRepository noticeJpaRepository;
 
     @Override
     public Notice saveAndFlush(Notice notice) {
-        return jpaRepository.saveAndFlush(notice);
+        return noticeJpaRepository.saveAndFlush(notice);
     }
 
     @Override
     public Optional<Notice> findById(UUID noticeId) {
-        return jpaRepository.findById(noticeId);
+        return noticeJpaRepository.findById(noticeId);
     }
 
     @Override
     public NoticeSlice findNotices(int page, int pageSize) {
-        Slice<Notice> slice = jpaRepository.findSliceBy(
+        Slice<Notice> slice = noticeJpaRepository.findSliceBy(
                 PageRequest.of(page - 1, pageSize, LATEST_CREATED_FIRST));
         return new NoticeSlice(slice.getContent(), slice.hasNext());
     }
 
     @Override
-    public List<UUID> findDistributableIds(Instant now, int limit) {
-        return jpaRepository.findDistributableIds(now, limit);
+    public List<DistributableNotice> findDistributableNotices(
+            Instant now,
+            DistributableNotice after,
+            int limit
+    ) {
+        PageRequest firstPage = PageRequest.of(0, limit);
+        if (after == null) {
+            return noticeJpaRepository.findDistributableNotices(now, firstPage);
+        }
+        return noticeJpaRepository.findDistributableNoticesAfter(now, after.scheduledAt(),
+                after.noticeId(), firstPage);
     }
 
     @Override
     public Optional<Notice> findDistributableForUpdate(UUID noticeId, Instant now) {
-        return jpaRepository.findDistributableForUpdate(noticeId, now);
+        return noticeJpaRepository.findDistributableForUpdate(noticeId, now);
     }
 }
