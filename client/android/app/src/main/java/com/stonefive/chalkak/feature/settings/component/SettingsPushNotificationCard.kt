@@ -23,7 +23,7 @@ fun SettingsPushNotificationCard(
     onDeviceNotificationSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val checked = settings?.let { it.topicPushEnabled && it.moderationPushEnabled } == true
+    val checked = settings?.let { it.topicPushEnabled || it.moderationPushEnabled } == true
     val enabled = settings != null && !isSaving
     SettingsCard(modifier = modifier) {
         SettingsRow(
