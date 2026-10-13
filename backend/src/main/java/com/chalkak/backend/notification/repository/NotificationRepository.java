@@ -8,6 +8,8 @@ import java.util.UUID;
 
 public interface NotificationRepository {
 
+    List<UUID> findTopicPushRecipientIds(UUID topicId);
+
     List<UUID> findDuePublicationIds(Instant now, int limit);
 
     Optional<Notification> findPendingPublicationForUpdate(UUID notificationId, Instant now);

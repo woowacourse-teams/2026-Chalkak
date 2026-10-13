@@ -21,7 +21,7 @@ import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.topic.repository.TopicRepository;
-import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -67,7 +67,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     @Autowired
     private TopicRepository topics;
     @Autowired
-    private UserRepository users;
+    private NotificationRepository notifications;
     @Autowired
     private PlatformTransactionManager manager;
     @Autowired
@@ -448,7 +448,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     private TopicPushService newService() {
-        return new TopicPushService(schedules, topics, users, publisher, clock, manager);
+        return new TopicPushService(schedules, topics, notifications, publisher, clock, manager);
     }
 
     private List<PushMessage> captureMessages(int count) {

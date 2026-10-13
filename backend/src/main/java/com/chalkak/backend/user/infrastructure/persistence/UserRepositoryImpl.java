@@ -1,11 +1,8 @@
 package com.chalkak.backend.user.infrastructure.persistence;
 
-import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.User;
-import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.util.Optional;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -15,12 +12,6 @@ import org.springframework.stereotype.Repository;
 public class UserRepositoryImpl implements UserRepository {
 
     private final UserJpaRepository userJpaRepository;
-
-    @Override
-    public List<UUID> findTopicPushRecipientIds(UUID topicId) {
-        return userJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
-                ModerationStatus.REJECTED);
-    }
 
     @Override
     public Optional<User> findById(UUID id) {

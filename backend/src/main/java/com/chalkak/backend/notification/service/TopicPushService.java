@@ -7,7 +7,7 @@ import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
-import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,7 +31,7 @@ public class TopicPushService {
 
     private final TopicPushScheduleRepository scheduleRepository;
     private final TopicRepository topicRepository;
-    private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
     private final PushMessagePublisher publisher;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
@@ -41,14 +41,14 @@ public class TopicPushService {
     public TopicPushService(
             TopicPushScheduleRepository scheduleRepository,
             TopicRepository topicRepository,
-            UserRepository userRepository,
+            NotificationRepository notificationRepository,
             PushMessagePublisher publisher,
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
         this.scheduleRepository = scheduleRepository;
         this.topicRepository = topicRepository;
-        this.userRepository = userRepository;
+        this.notificationRepository = notificationRepository;
         this.publisher = publisher;
         this.clock = clock;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -108,7 +108,7 @@ public class TopicPushService {
             return null;
         }
         return new PublicationTargets(topic.getId(),
-                userRepository.findTopicPushRecipientIds(topic.getId()));
+                notificationRepository.findTopicPushRecipientIds(topic.getId()));
     }
 
     private void publishTargets(

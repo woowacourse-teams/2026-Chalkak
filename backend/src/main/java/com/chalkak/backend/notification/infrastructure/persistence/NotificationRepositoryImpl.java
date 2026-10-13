@@ -5,6 +5,8 @@ import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.NotificationSlice;
 import com.chalkak.backend.notification.repository.NotificationSummary;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.List;
@@ -19,6 +21,12 @@ import org.springframework.stereotype.Repository;
 public class NotificationRepositoryImpl implements NotificationRepository {
 
     private final NotificationJpaRepository notificationJpaRepository;
+
+    @Override
+    public List<UUID> findTopicPushRecipientIds(UUID topicId) {
+        return notificationJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
+                ModerationStatus.REJECTED);
+    }
 
     @Override
     public List<UUID> findDuePublicationIds(Instant now, int limit) {
