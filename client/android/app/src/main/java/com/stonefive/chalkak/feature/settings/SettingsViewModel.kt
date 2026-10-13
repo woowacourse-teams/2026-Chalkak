@@ -208,25 +208,52 @@ class SettingsViewModel(
     private fun updatePushSettings(update: NotificationPushSettingsUpdate) {
         val repository = notificationRepository ?: return
         val previous = _uiState.value.pushSettings ?: return
-        if (_uiState.value.isPushSettingsSaving) return
+        val isTopicUpdate = update.topicPushEnabled != null
+        val isSaving = if (isTopicUpdate) {
+            _uiState.value.isTopicPushSaving
+        } else {
+            _uiState.value.isModerationPushSaving
+        }
+        if (isSaving) return
 
         val optimistic = previous.copy(
             topicPushEnabled = update.topicPushEnabled ?: previous.topicPushEnabled,
             moderationPushEnabled = update.moderationPushEnabled ?: previous.moderationPushEnabled,
         )
-        _uiState.update { it.copy(pushSettings = optimistic, isPushSettingsSaving = true) }
+        _uiState.update {
+            it.copy(
+                pushSettings = optimistic,
+                isTopicPushSaving = if (isTopicUpdate) true else it.isTopicPushSaving,
+                isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else true,
+            )
+        }
         viewModelScope.launch {
             when (repository.updatePushSettings(update)) {
                 is NotificationResult.Success -> _uiState.update {
-                    it.copy(isPushSettingsSaving = false)
+                    it.copy(
+                        isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
+                        isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else false,
+                    )
                 }
 
                 is NotificationResult.Failure -> {
                     val pendingMessage = nextToast("푸시 알림 설정을 저장하지 못했어요.")
                     _uiState.update {
                         it.copy(
-                            pushSettings = previous,
-                            isPushSettingsSaving = false,
+                            pushSettings = it.pushSettings?.copy(
+                                topicPushEnabled = if (isTopicUpdate) {
+                                    previous.topicPushEnabled
+                                } else {
+                                    it.pushSettings.topicPushEnabled
+                                },
+                                moderationPushEnabled = if (isTopicUpdate) {
+                                    it.pushSettings.moderationPushEnabled
+                                } else {
+                                    previous.moderationPushEnabled
+                                },
+                            ),
+                            isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
+                            isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else false,
                             pendingMessage = pendingMessage,
                         )
                     }

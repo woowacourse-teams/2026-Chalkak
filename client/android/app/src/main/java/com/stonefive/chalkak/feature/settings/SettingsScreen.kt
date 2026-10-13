@@ -158,7 +158,8 @@ fun SettingsScreen(
 
                 SettingsPushNotificationCard(
                     settings = uiState.pushSettings,
-                    isSaving = uiState.isPushSettingsSaving,
+                    isTopicSaving = uiState.isTopicPushSaving,
+                    isModerationSaving = uiState.isModerationPushSaving,
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
                     modifier = Modifier.fillMaxWidth(),

@@ -210,7 +210,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `개별 설정 저장 실패 시 기존 개별 설정을 복원한다`() = runTest {
+    fun `개별 설정 저장 실패 시 실패한 설정만 복원한다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository().apply {
             settings = NotificationPushSettings(true, false)
@@ -223,27 +223,136 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
-        assertFalse(viewModel.uiState.value.isPushSettingsSaving)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
         assertTrue(viewModel.uiState.value.pendingMessage != null)
     }
 
     @Test
-    fun `개별 설정 저장 중 반복 입력은 추가 요청하지 않는다`() = runTest {
+    fun `다른 설정은 저장 중이어도 각각 요청한다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository().apply {
-            updateAwait = CompletableDeferred()
+            suspendUpdates = true
         }
         val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
         advanceUntilIdle()
 
         viewModel.updateTopicPushEnabled(false)
-        viewModel.updateModerationPushEnabled(true)
-        assertEquals(1, repository.updates.size)
-        assertEquals(NotificationPushSettings(false, true), viewModel.uiState.value.pushSettings)
+        viewModel.updateModerationPushEnabled(false)
 
-        repository.updateAwait?.complete(Unit)
+        assertEquals(
+            listOf(
+                NotificationPushSettingsUpdate(topicPushEnabled = false),
+                NotificationPushSettingsUpdate(moderationPushEnabled = false),
+            ),
+            repository.updates,
+        )
+        assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
+        assertTrue(viewModel.uiState.value.isTopicPushSaving)
+        assertTrue(viewModel.uiState.value.isModerationPushSaving)
+
+        repository.completePendingUpdate(1, NotificationResult.Success(Unit))
         advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.isPushSettingsSaving)
+
+        assertTrue(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
+
+        repository.completePendingUpdate(0, NotificationResult.Success(Unit))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
+        assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
+    }
+
+    @Test
+    fun `같은 설정 저장 중 반복 입력은 추가 요청하지 않는다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            suspendUpdates = true
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateTopicPushEnabled(false)
+        viewModel.updateTopicPushEnabled(true)
+
+        assertEquals(listOf(NotificationPushSettingsUpdate(topicPushEnabled = false)), repository.updates)
+        assertEquals(NotificationPushSettings(false, true), viewModel.uiState.value.pushSettings)
+        assertTrue(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
+
+        repository.completeOnlyPendingUpdate(NotificationResult.Success(Unit))
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+    }
+
+    @Test
+    fun `한 설정 저장 실패는 진행 중인 다른 설정 값을 되돌리지 않는다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            suspendUpdates = true
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateTopicPushEnabled(false)
+        viewModel.updateModerationPushEnabled(false)
+        repository.completePendingUpdate(0, NotificationResult.Failure(NotificationFailure.Network))
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertTrue(viewModel.uiState.value.isModerationPushSaving)
+
+        repository.completePendingUpdate(1, NotificationResult.Success(Unit))
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
+    }
+
+    @Test
+    fun `나중 요청이 실패해도 먼저 성공한 다른 설정 값은 유지한다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            suspendUpdates = true
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateTopicPushEnabled(false)
+        viewModel.updateModerationPushEnabled(false)
+        repository.completePendingUpdate(0, NotificationResult.Success(Unit))
+        advanceUntilIdle()
+        repository.completePendingUpdate(1, NotificationResult.Failure(NotificationFailure.Network))
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(false, true), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
+    }
+
+    @Test
+    fun `두 설정 저장이 모두 실패하면 각 설정을 기존 값으로 복원한다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            suspendUpdates = true
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateTopicPushEnabled(false)
+        viewModel.updateModerationPushEnabled(false)
+        repository.completePendingUpdate(0, NotificationResult.Failure(NotificationFailure.Network))
+        advanceUntilIdle()
+        repository.completePendingUpdate(1, NotificationResult.Failure(NotificationFailure.Network))
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(true, true), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertFalse(viewModel.uiState.value.isModerationPushSaving)
     }
 
     private fun createViewModel() = SettingsViewModel(
@@ -316,15 +425,20 @@ private class FakeSettingsUserRepository(private val onWithdraw: () -> Unit) : U
 private class FakeSettingsNotificationRepository : NotificationRepository {
     var settings = NotificationPushSettings(true, true)
     var updateResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
-    var updateAwait: CompletableDeferred<Unit>? = null
+    var suspendUpdates: Boolean = false
     val updates = mutableListOf<NotificationPushSettingsUpdate>()
+    val pendingUpdates = mutableListOf<PendingPushSettingsUpdate>()
 
     override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> =
         NotificationResult.Success(settings)
 
     override suspend fun updatePushSettings(settings: NotificationPushSettingsUpdate): NotificationResult<Unit> {
         updates += settings
-        updateAwait?.await()
+        if (suspendUpdates) {
+            val pending = PendingPushSettingsUpdate()
+            pendingUpdates += pending
+            return pending.result.await()
+        }
         return updateResult
     }
 
@@ -343,4 +457,20 @@ private class FakeSettingsNotificationRepository : NotificationRepository {
     override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Not used")
 
     override suspend fun registerCurrentPushDevice(fcmToken: String): NotificationResult<Unit> = error("Not used")
+}
+
+private data class PendingPushSettingsUpdate(
+    val result: CompletableDeferred<NotificationResult<Unit>> = CompletableDeferred(),
+)
+
+private fun FakeSettingsNotificationRepository.completePendingUpdate(
+    index: Int,
+    result: NotificationResult<Unit>,
+) {
+    pendingUpdates[index].result.complete(result)
+}
+
+private fun FakeSettingsNotificationRepository.completeOnlyPendingUpdate(result: NotificationResult<Unit>) {
+    val pendingUpdate = pendingUpdates.single()
+    pendingUpdate.result.complete(result)
 }

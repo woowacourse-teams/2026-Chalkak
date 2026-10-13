@@ -18,24 +18,24 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsPushNotificationCard(
     settings: NotificationPushSettings?,
-    isSaving: Boolean,
+    isTopicSaving: Boolean,
+    isModerationSaving: Boolean,
     onTopicPushChanged: (Boolean) -> Unit,
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val enabled = settings != null && !isSaving
     SettingsCard(modifier = modifier) {
         SettingsPushToggleRow(
             text = "주제 알림",
             checked = settings?.topicPushEnabled == true,
-            enabled = enabled,
+            enabled = settings != null && !isTopicSaving,
             onCheckedChange = onTopicPushChanged,
         )
         SettingsDivider(modifier = Modifier.fillMaxWidth())
         SettingsPushToggleRow(
             text = "승인·반려 알림",
             checked = settings?.moderationPushEnabled == true,
-            enabled = enabled,
+            enabled = settings != null && !isModerationSaving,
             onCheckedChange = onModerationPushChanged,
         )
     }
@@ -87,7 +87,8 @@ private fun SettingsPushNotificationCardPreview() {
     ChalkakTheme {
         SettingsPushNotificationCard(
             settings = NotificationPushSettings(topicPushEnabled = true, moderationPushEnabled = true),
-            isSaving = false,
+            isTopicSaving = false,
+            isModerationSaving = false,
             onTopicPushChanged = {},
             onModerationPushChanged = {},
         )

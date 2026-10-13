@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.settings.component
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
@@ -64,6 +66,42 @@ class SettingsPushNotificationCardTest(
         assertEquals(listOf(!moderationEnabled), moderationChanges)
     }
 
+    @Test
+    fun topicSavingOnlyDisablesTopicSwitch() {
+        val topicChanges = mutableListOf<Boolean>()
+        val moderationChanges = mutableListOf<Boolean>()
+        setCardContent(
+            onTopicPushChanged = topicChanges::add,
+            onModerationPushChanged = moderationChanges::add,
+            isTopicSaving = true,
+            isModerationSaving = false,
+        )
+
+        switchFor("주제 알림").assertIsNotEnabled()
+        switchFor("승인·반려 알림").assertIsEnabled().performClick()
+
+        assertEquals(emptyList<Boolean>(), topicChanges)
+        assertEquals(listOf(!moderationEnabled), moderationChanges)
+    }
+
+    @Test
+    fun moderationSavingOnlyDisablesModerationSwitch() {
+        val topicChanges = mutableListOf<Boolean>()
+        val moderationChanges = mutableListOf<Boolean>()
+        setCardContent(
+            onTopicPushChanged = topicChanges::add,
+            onModerationPushChanged = moderationChanges::add,
+            isTopicSaving = false,
+            isModerationSaving = true,
+        )
+
+        switchFor("주제 알림").assertIsEnabled().performClick()
+        switchFor("승인·반려 알림").assertIsNotEnabled()
+
+        assertEquals(listOf(!topicEnabled), topicChanges)
+        assertEquals(emptyList<Boolean>(), moderationChanges)
+    }
+
     private fun switchFor(label: String) = composeRule.onAllNodes(isToggleable())[
         if (label == "주제 알림") 0 else 1,
     ]
@@ -78,12 +116,15 @@ class SettingsPushNotificationCardTest(
     private fun setCardContent(
         onTopicPushChanged: (Boolean) -> Unit = {},
         onModerationPushChanged: (Boolean) -> Unit = {},
+        isTopicSaving: Boolean = false,
+        isModerationSaving: Boolean = false,
     ) {
         composeRule.setContent {
             ChalkakTheme {
                 SettingsPushNotificationCard(
                     settings = NotificationPushSettings(topicEnabled, moderationEnabled),
-                    isSaving = false,
+                    isTopicSaving = isTopicSaving,
+                    isModerationSaving = isModerationSaving,
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
                 )
