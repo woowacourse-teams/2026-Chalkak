@@ -46,7 +46,6 @@ fun SettingsRoute(
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
     onOpenFeedback: () -> Unit,
-    onOpenReminder: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
@@ -67,7 +66,6 @@ fun SettingsRoute(
         onPrivacyPolicyClick = onOpenPrivacyPolicy,
         onTermsClick = onOpenTerms,
         onFeedbackClick = onOpenFeedback,
-        onReminderClick = onOpenReminder,
         onLogoutClick = viewModel::showLogoutDialog,
         onWithdrawClick = viewModel::showWithdrawDialog,
         onAccountDialogConfirm = viewModel::confirmAccountAction,
@@ -91,7 +89,6 @@ fun SettingsScreen(
     onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
     onFeedbackClick: () -> Unit,
-    onReminderClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onWithdrawClick: () -> Unit,
     onAccountDialogConfirm: () -> Unit,
@@ -134,19 +131,18 @@ fun SettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            SettingsSectionLabel(text = "앱 설정")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            SettingsAppCard(
-                showSignature = uiState.isLoggedIn,
-                signatureUrl = uiState.signatureUrl,
-                onReminderClick = onReminderClick,
-                onChangeSignatureClick = onChangeSignatureClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
             if (uiState.isLoggedIn) {
+                SettingsSectionLabel(text = "앱 설정")
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsAppCard(
+                    showSignature = true,
+                    signatureUrl = uiState.signatureUrl,
+                    onChangeSignatureClick = onChangeSignatureClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 Spacer(modifier = Modifier.height(36.dp))
 
                 SettingsSectionLabel(text = "푸시 알림")
@@ -159,9 +155,9 @@ fun SettingsScreen(
                     onPushChanged = onPushChanged,
                     modifier = Modifier.fillMaxWidth(),
                 )
-            }
 
-            Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(36.dp))
+            }
 
             SettingsSectionLabel(text = "계정")
 
@@ -263,7 +259,6 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onPrivacyPolicyClick = {},
         onTermsClick = {},
         onFeedbackClick = {},
-        onReminderClick = {},
         onLogoutClick = {},
         onWithdrawClick = {},
         onAccountDialogConfirm = {},

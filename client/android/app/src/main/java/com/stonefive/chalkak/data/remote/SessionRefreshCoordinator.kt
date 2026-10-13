@@ -16,6 +16,8 @@ sealed interface PushSessionReadiness {
 
     data object NoSession : PushSessionReadiness
 
+    data object RegistrationUnavailable : PushSessionReadiness
+
     data object ReauthenticationRequired : PushSessionReadiness
 
     data object TransientFailure : PushSessionReadiness
@@ -50,7 +52,8 @@ class SessionRefreshCoordinator(
                 } else if (currentUserId() != expectedUserId) {
                     PushSessionReadiness.SessionChanged
                 } else {
-                    PushSessionReadiness.ReauthenticationRequired
+                    // Refresh succeeded: missing push metadata does not invalidate the login.
+                    PushSessionReadiness.RegistrationUnavailable
                 }
             }
 

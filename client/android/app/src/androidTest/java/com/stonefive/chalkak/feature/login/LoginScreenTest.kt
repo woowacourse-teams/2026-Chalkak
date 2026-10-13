@@ -71,6 +71,28 @@ class LoginScreenTest {
     }
 
     @Test
+    fun successfulLoginInvokesLoginSuccessCallback() {
+        var loginSuccessCount = 0
+        val viewModel = LoginViewModel(FakeLoginRepository())
+        composeRule.setContent {
+            ChalkakTheme {
+                LoginRoute(
+                    onLoginSuccess = { loginSuccessCount++ },
+                    onGuestAccessGranted = {},
+                    onSignUpRequired = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+        composeRule.runOnIdle {
+            viewModel.login(SocialLoginProvider.GOOGLE, "test-id-token", "test-nonce")
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) { loginSuccessCount == 1 }
+        composeRule.waitForIdle()
+        assertEquals(1, loginSuccessCount)
+    }
+
+    @Test
     fun tappingGuestOptionInvokesGuestAccessCallback() {
         var guestAccessGranted = false
         val viewModel = LoginViewModel(FakeLoginRepository())
@@ -78,6 +100,7 @@ class LoginScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 LoginRoute(
+                    onLoginSuccess = {},
                     onGuestAccessGranted = { guestAccessGranted = true },
                     onSignUpRequired = {},
                     viewModel = viewModel,
@@ -99,7 +122,10 @@ private class FakeLoginRepository : AuthRepository {
         provider: SocialLoginProvider,
         idToken: String,
         rawNonce: String,
-    ): SocialLoginResult = error("Not used")
+    ): SocialLoginResult {
+        sessionState.value = UserSessionState.Authenticated("test-user")
+        return SocialLoginResult.LoginSuccess("test-user")
+    }
 
     override suspend fun completeSocialSignUp(signaturePng: ByteArray): SocialSignUpResult = error("Not used")
 

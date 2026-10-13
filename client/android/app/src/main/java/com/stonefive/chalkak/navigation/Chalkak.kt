@@ -21,9 +21,6 @@ data object OnboardingSignaturePreview
 data object ChangeSignaturePreview
 
 @Serializable
-data class ReminderTime(val returnToSettings: Boolean = false)
-
-@Serializable
 data object Home
 
 @Serializable

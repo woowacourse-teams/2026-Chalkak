@@ -48,6 +48,7 @@ class PushDeviceRegistrationCoordinator(
             PushSessionReadiness.NoSession,
             PushSessionReadiness.SessionChanged,
             PushSessionReadiness.TransientFailure,
+            PushSessionReadiness.RegistrationUnavailable,
             -> {
                 return@withLock
             }

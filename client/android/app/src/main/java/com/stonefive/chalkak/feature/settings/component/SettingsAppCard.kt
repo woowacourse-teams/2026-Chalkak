@@ -26,21 +26,11 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun SettingsAppCard(
     showSignature: Boolean,
     signatureUrl: String?,
-    onReminderClick: () -> Unit,
     onChangeSignatureClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SettingsCard(modifier = modifier) {
-        SettingsRow(
-            text = "매일 알림 시간",
-            onClick = onReminderClick,
-            modifier = Modifier.fillMaxWidth(),
-            trailingContent = { SettingsArrowIcon() },
-        )
-
         if (showSignature) {
-            SettingsDivider(modifier = Modifier.fillMaxWidth())
-
             SettingsRow(
                 text = "사인 재설정",
                 modifier = Modifier.fillMaxWidth(),
@@ -95,7 +85,6 @@ private fun SettingsAppCardPreview() {
         SettingsAppCard(
             showSignature = true,
             signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-            onReminderClick = {},
             onChangeSignatureClick = {},
             modifier = Modifier
                 .padding(25.dp)
