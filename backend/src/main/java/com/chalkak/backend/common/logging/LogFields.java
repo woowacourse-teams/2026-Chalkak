@@ -4,6 +4,7 @@ public final class LogFields {
 
     public static final String REQUEST_ID = "requestId";
     public static final String USER_ID = "userId";
+    public static final String ADMIN_ID = "adminId";
     public static final String TYPE = "type";
     public static final String METHOD = "method";
     public static final String ROUTE = "route";
