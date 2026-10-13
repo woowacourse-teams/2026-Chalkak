@@ -3,6 +3,8 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationSummary;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.List;
@@ -15,6 +17,26 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
+
+    @Query("""
+            SELECT user.id FROM User user
+            WHERE user.deletedAt IS NULL
+                AND user.status = :status
+                AND user.topicPushEnabled = true
+                AND NOT EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.author.id = user.id
+                        AND post.topic.id = :topicId
+                        AND post.deletedAt IS NULL
+                        AND post.moderationStatus <> :excludedStatus
+                )
+            ORDER BY user.id
+            """)
+    List<UUID> findTopicPushRecipientIds(
+            @Param("status") UserStatus status,
+            @Param("topicId") UUID topicId,
+            @Param("excludedStatus") ModerationStatus excludedStatus
+    );
 
     @Query(value = """
             SELECT id FROM notifications

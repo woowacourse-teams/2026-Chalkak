@@ -14,6 +14,8 @@ import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.topic.repository.TopicRepository;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -46,6 +49,8 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     private NotificationRepository notifications;
     @Autowired
     private TopicRepository topics;
+    @Autowired
+    private PostRepository posts;
     @Autowired
     private PushDeviceRepository devices;
     @Autowired
@@ -79,20 +84,11 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         new DatabaseCleaner(jdbc).clean();
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    @DisplayName("게시물 제출 여부·검수 수신 설정과 관계없이 현재 기기에 주제를 보내고 알림함에 저장하지 않는다")
-    void process_topicMessage_sendsWithoutInboxOrSubmissionRestriction(boolean submitted) {
+    @Test
+    @DisplayName("오늘 주제에 제출하지 않은 회원에게 검수 설정과 관계없이 주제를 보내고 알림함에 저장하지 않는다")
+    void process_noTopicSubmission_sendsWithoutInbox() {
         // Given
         jdbc.update("UPDATE users SET moderation_push_enabled=false WHERE id=?", USER_ID);
-        if (submitted) {
-            UUID photoId = UUID.randomUUID();
-            jdbc.update("INSERT INTO photos(id,original_storage_key) VALUES (?, 'topic/photo')",
-                    photoId);
-            jdbc.update(
-                    "INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status) VALUES (?,?,?,?, 'APPROVED')",
-                    UUID.randomUUID(), USER_ID, TOPIC_ID, photoId);
-        }
         // When
         PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
         // Then
@@ -107,6 +103,116 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         assertThat(request.getValue().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications", Integer.class))
                 .isZero();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "VALIDATING, false, false", "PENDING, false, false", "APPROVED, false, false",
+            "REJECTED, false, true", "VALIDATING, true, true", "PENDING, true, true",
+            "APPROVED, true, true", "REJECTED, true, true"
+    })
+    @DisplayName("큐 등록 후 오늘 주제에 참여하면 발송을 생략하고 반려·삭제만 있으면 발송한다")
+    void process_postCreatedAfterEnqueue_rechecksParticipation(
+            ModerationStatus status,
+            boolean deleted,
+            boolean sendable
+    ) {
+        // Given
+        insertPost(USER_ID, TOPIC_ID, status, deleted);
+
+        // When
+        PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        if (sendable) {
+            verify(sender).send(any());
+            return;
+        }
+        verifyNoInteractions(sender);
+    }
+
+    @Test
+    @DisplayName("반려 후 재제출한 승인 대기 게시물이 있으면 재시도 없이 완료한다")
+    void process_resubmittedPost_completesWithoutSending() {
+        // Given
+        insertPost(USER_ID, TOPIC_ID, ModerationStatus.REJECTED, false);
+        insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+
+        // When
+        PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verifyNoInteractions(sender);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"otherTopic", "otherUser"})
+    @DisplayName("다른 주제나 다른 회원의 제출은 현재 회원의 주제 발송을 막지 않는다")
+    void process_unrelatedPost_sendsToCurrentUser(String state) {
+        // Given
+        UUID authorId = USER_ID;
+        UUID topicId = TOPIC_ID;
+        if (state.equals("otherTopic")) {
+            topicId = UUID.randomUUID();
+            jdbc.update("""
+                    INSERT INTO topics(id,title,topic_date,starts_at,ends_at)
+                    VALUES (?,'다른 주제',?,?,?)
+                    """, topicId, Date.valueOf("2026-10-11"),
+                    Timestamp.from(NOW.minusSeconds(86400)),
+                    Timestamp.from(NOW.minusSeconds(3600)));
+        }
+        if (state.equals("otherUser")) {
+            authorId = UUID.randomUUID();
+            jdbc.update("""
+                    INSERT INTO users(id,email,status,signature_original_storage_key)
+                    VALUES (?,?,'ACTIVE',?)
+                    """, authorId, authorId + "@topic-worker.test", "signature/" + authorId);
+        }
+        insertPost(authorId, topicId, ModerationStatus.APPROVED, false);
+
+        // When
+        PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender).send(any());
+    }
+
+    @Test
+    @DisplayName("일시 실패 후 제출한 회원은 같은 메시지를 다시 받아도 FCM 재발송 없이 완료한다")
+    void process_submissionBeforeRedelivery_completesWithoutResending() {
+        // Given
+        given(sender.send(any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"));
+        PushWorkerService service = worker(NOW.plusSeconds(60));
+        assertThat(service.process(message).retryable()).isTrue();
+        insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+
+        // When
+        PushProcessingResult result = service.process(message);
+
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender, times(1)).send(any());
+    }
+
+    @Test
+    @DisplayName("첫 기기 처리 중 제출하면 다음 기기 요청 직전에 재확인해 추가 발송을 생략한다")
+    void process_submissionBetweenDevices_rechecksBeforeEachSend() {
+        // Given
+        addDevice("second-topic-token");
+        given(sender.send(any())).willAnswer(call -> {
+            insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender, times(1)).send(any());
     }
 
     @ParameterizedTest
@@ -267,7 +373,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, topics, devices, sessions, sender,
+        return new PushWorkerService(notifications, topics, posts, devices, sessions, sender,
                 Clock.fixed(now, ZoneOffset.UTC), manager);
     }
 
@@ -281,5 +387,27 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
                 "INSERT INTO push_devices(user_id,session_id,fcm_token,fcm_token_hash,registered_at,updated_at) VALUES (?,?,?,?,?,?)",
                 USER_ID, sessionId, token, new FcmToken(token).getHash(),
                 Timestamp.from(NOW.plusSeconds(1)), Timestamp.from(NOW.plusSeconds(1)));
+    }
+
+    private void insertPost(
+            UUID userId,
+            UUID topicId,
+            ModerationStatus status,
+            boolean deleted
+    ) {
+        UUID photoId = UUID.randomUUID();
+        jdbc.update("INSERT INTO photos(id,original_storage_key) VALUES (?,?)", photoId,
+                "topic/photo/" + photoId);
+        Timestamp deletedAt = null;
+        if (deleted) {
+            deletedAt = Timestamp.from(NOW.plusSeconds(30));
+        }
+        jdbc.update(
+                """
+                        INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status,deleted_at,created_at)
+                        VALUES (?,?,?,?,CAST(? AS moderation_status),?,?)
+                        """,
+                UUID.randomUUID(), userId, topicId, photoId, status.name(), deletedAt,
+                Timestamp.from(NOW.plusSeconds(10)));
     }
 }
