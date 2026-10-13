@@ -10,6 +10,7 @@ import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Notice;
+import com.chalkak.backend.notification.domain.NoticeStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.nio.charset.StandardCharsets;
@@ -82,6 +83,8 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         assertThat(stored.getTitle()).isEqualTo("서비스 점검 안내");
         assertThat(stored.getBody()).isEqualTo("10월 20일 02:00부터 점검합니다.");
         assertThat(stored.getScheduledAt()).isEqualTo(scheduledAt);
+        assertThat(result.status()).isEqualTo(NoticeStatus.SCHEDULED);
+        assertThat(result.distributedAt()).isNull();
         assertThat(result.createdAt()).isNotNull();
         assertThat(result.updatedAt()).isNotNull();
         AdminAuditLog auditLog = entityManager.createQuery("""

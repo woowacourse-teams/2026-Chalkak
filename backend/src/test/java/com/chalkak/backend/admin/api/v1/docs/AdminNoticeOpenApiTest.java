@@ -60,7 +60,10 @@ class AdminNoticeOpenApiTest extends IntegrationTestSupport {
                         .value("date-time"))
                 .andExpect(jsonPath("$.components.schemas.AdminNoticeResponse.properties.keys()")
                         .value(containsInAnyOrder("noticeId", "title", "body", "scheduledAt",
-                                "createdAt", "updatedAt")));
+                                "status", "distributedAt", "createdAt", "updatedAt")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminNoticeResponse.properties.status.enum")
+                        .value(containsInAnyOrder("SCHEDULED", "DISTRIBUTED")));
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(NOTICES).doesNotExist());
