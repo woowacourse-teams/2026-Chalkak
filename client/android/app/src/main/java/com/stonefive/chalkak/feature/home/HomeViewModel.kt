@@ -6,435 +6,283 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
-import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostContent
-import com.stonefive.chalkak.domain.model.PostPage
+import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
+import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.job
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class HomeViewModel(
     private val repository: PostRepository,
+    private val uploadEntryRepository: PhotoUploadEntryRepository,
     private val sessionState: StateFlow<UserSessionState>,
-    private val dateProvider: () -> LocalDate,
-    private val launchContext: CoroutineContext = EmptyCoroutineContext,
+    private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
-    val uiEvent = _uiEvent.receiveAsFlow()
-
-    private var latestLoadGeneration = 0
-    private var homeContentRevision = 0
-    private var loadedDate: LocalDate? = null
-    private var isEndThresholdReached = false
-    private var isFirstPageRequestPending = false
-    private var firstPageJob: Job? = null
-    private var nextPageJob: Job? = null
-    private val latestLikeGenerationByPhotoId = mutableMapOf<String, Int>()
-    private val likeJobsByPhotoId = mutableMapOf<String, MutableSet<Job>>()
-    private var nextMessageId = 0L
+    private var loadJob: Job? = null
+    private var hasBeenPresented = false
+    private val isPreloadingEnabled = MutableStateFlow(false)
+    private val _isReadyForInitialDisplay = MutableStateFlow(false)
+    val isReadyForInitialDisplay: StateFlow<Boolean> = _isReadyForInitialDisplay.asStateFlow()
 
     init {
-        loadHome()
-    }
+        viewModelScope.launch {
+            combine(sessionState, isPreloadingEnabled) { session, enabled -> session to enabled }
+                .collectLatest { (session, enabled) ->
+                    if (!enabled) return@collectLatest
+                    when {
+                        session.canLoadHome() -> loadHome(reset = true)
 
-    fun onAction(action: HomeUiAction) {
-        when (action) {
-            HomeUiAction.AddClicked -> sendUiEvent(HomeUiEvent.OpenPhotoUpload)
-
-            HomeUiAction.RetryClicked -> loadHome()
-
-            HomeUiAction.RefreshRequested -> refreshHome()
-
-            is HomeUiAction.BottomBarSelected -> {
-                if (action.item == ChalkakBottomBarItem.TODAY) {
-                    refreshHome()
-                } else {
-                    sendUiEvent(HomeUiEvent.NavigateToBottomBar(action.item))
-                }
-            }
-
-            is HomeUiAction.EndThresholdChanged -> updateEndThreshold(action.isReached)
-
-            is HomeUiAction.LikeClicked -> updateLike(action.photoId)
-        }
-    }
-
-    fun onMessageShown(messageId: Long) {
-        _uiState.update { state ->
-            if (state.pendingMessage?.id == messageId) {
-                state.copy(pendingMessage = null)
-            } else {
-                state
-            }
-        }
-    }
-
-    private fun loadHome() {
-        requestFirstPage(
-            requestedSort = _uiState.value.selectedSort,
-            mode = FirstPageMode.Load,
-        )
-    }
-
-    private fun refreshHome() {
-        val previousState = _uiState.value
-        if (previousState.contentStatus == HomeContentStatus.Loading || previousState.isRefreshing) return
-
-        requestFirstPage(
-            requestedSort = PostSort.RANDOM,
-            mode = FirstPageMode.Refresh,
-        )
-    }
-
-    private fun requestFirstPage(
-        requestedSort: PostSort,
-        mode: FirstPageMode,
-    ) {
-        val requestedDate = dateProvider()
-        val generation = ++latestLoadGeneration
-        val preservesContent = mode == FirstPageMode.Refresh &&
-            _uiState.value.contentStatus == HomeContentStatus.Content
-
-        firstPageJob?.cancel()
-        nextPageJob?.cancel()
-        nextPageJob = null
-        isEndThresholdReached = false
-        isFirstPageRequestPending = true
-
-        if (preservesContent) {
-            _uiState.update {
-                it.copy(
-                    isLoadingNext = false,
-                    isRefreshing = true,
-                    areLikesEnabled = false,
-                )
-            }
-        } else {
-            _uiState.value = HomeUiState(
-                contentStatus = HomeContentStatus.Loading,
-                selectedSort = requestedSort,
-                areLikesEnabled = false,
-            )
-        }
-
-        firstPageJob = viewModelScope.launch(launchContext) {
-            awaitLikeMutations()
-            if (generation != latestLoadGeneration) return@launch
-
-            val result = repository.getPostContent(
-                HomeQuery(
-                    date = requestedDate,
-                    sort = requestedSort,
-                    page = HomeQuery.FIRST_PAGE,
-                ),
-            )
-            if (generation != latestLoadGeneration) return@launch
-
-            isFirstPageRequestPending = false
-            firstPageJob = null
-            when (result) {
-                is HomeResult.Success -> applyFirstPage(
-                    content = result.value,
-                    requestedSort = requestedSort,
-                )
-
-                is HomeResult.Failure -> {
-                    val reason = result.reason.toInitialError()
-                    if (preservesContent) {
-                        val pendingMessage = nextToast(reason.message)
-                        _uiState.update {
-                            it.copy(
-                                isRefreshing = false,
-                                isLoadingNext = false,
-                                areLikesEnabled = true,
-                                pendingMessage = pendingMessage,
-                            )
+                        session == UserSessionState.SignedOut -> {
+                            loadJob?.cancel()
+                            _uiState.value = HomeUiState(date = dateProvider())
                         }
-                    } else {
-                        _uiState.value = HomeUiState(
-                            contentStatus = HomeContentStatus.Error(reason),
-                            selectedSort = requestedSort,
-                        )
+
+                        else -> {
+                            loadJob?.cancel()
+                            _uiState.value = HomeUiState(date = dateProvider())
+                        }
                     }
                 }
+        }
+    }
+
+    fun startPreloading() {
+        if (isPreloadingEnabled.value) return
+        isPreloadingEnabled.value = true
+        viewModelScope.launch {
+            withTimeoutOrNull(HOME_PRELOAD_MAX_WAIT_MS) {
+                val session = sessionState.first { it != UserSessionState.Loading }
+                if (session.canLoadHome()) {
+                    uiState.first { it.isInitialLoadComplete }
+                }
             }
+            _isReadyForInitialDisplay.value = true
         }
     }
 
-    private fun applyFirstPage(
-        content: PostContent,
-        requestedSort: PostSort,
+    fun refresh() {
+        if (!sessionState.value.canLoadHome() || loadJob?.isActive == true) return
+        loadHome(reset = false, showRefreshIndicator = true)
+    }
+
+    fun onResume() {
+        val isFirstPresentation = !hasBeenPresented
+        hasBeenPresented = true
+        if (!sessionState.value.canLoadHome()) return
+        if (_uiState.value.date != dateProvider()) {
+            loadHome(reset = true)
+        } else if (!isFirstPresentation && loadJob?.isActive != true) {
+            loadHome(reset = false)
+        }
+    }
+
+    private fun loadHome(
+        reset: Boolean,
+        showRefreshIndicator: Boolean = false,
     ) {
-        loadedDate = content.topicDate
-        homeContentRevision++
-        _uiState.value = HomeUiState(
-            contentStatus = HomeContentStatus.Content,
-            topicDate = content.topicDate,
-            topic = content.topic,
-            photos = content.photos,
-            contentRevision = homeContentRevision,
-            selectedSort = requestedSort,
-            likedPhotoIds = content.likedPhotoIds,
-            currentPage = content.currentPage,
-            hasNext = content.hasNext,
-            randomSeed = content.randomSeed,
-        )
-    }
-
-    private suspend fun awaitLikeMutations() {
-        while (true) {
-            val jobs = likeJobsByPhotoId.values.flatMap { it.toList() }
-            if (jobs.isEmpty()) return
-            jobs.joinAll()
+        loadJob?.cancel()
+        val date = dateProvider()
+        val authenticated = sessionState.value is UserSessionState.Authenticated
+        val previous = _uiState.value
+        _uiState.value = if (reset || previous.date != date) {
+            HomeUiState(date = date, isAuthenticated = authenticated)
+        } else {
+            previous.copy(isRefreshing = showRefreshIndicator, isAuthenticated = authenticated)
+        }
+        loadJob = viewModelScope.launch {
+            coroutineScope {
+                launch { loadTodayRanking(date) }
+                launch { loadYesterdayRanking(date.minusDays(1)) }
+                launch { loadPersonalContent(date, authenticated) }
+            }
+            _uiState.update { it.copy(isRefreshing = false) }
         }
     }
 
-    private fun updateEndThreshold(isReached: Boolean) {
-        if (!isReached) {
-            isEndThresholdReached = false
-            return
+    private suspend fun loadTodayRanking(date: LocalDate) {
+        val result = request {
+            repository.getPostContent(HomeQuery(date, PostSort.POPULAR, HomeQuery.FIRST_PAGE))
         }
-        if (isFirstPageRequestPending) return
-        if (isEndThresholdReached) return
-
-        isEndThresholdReached = true
-        loadNextPage()
-    }
-
-    private fun loadNextPage() {
-        val state = _uiState.value
-        val date = loadedDate ?: return
-        if (
-            state.contentStatus != HomeContentStatus.Content ||
-            isFirstPageRequestPending ||
-            !state.hasNext ||
-            state.isLoadingNext
-        ) {
-            return
-        }
-
-        val requestedPage = state.currentPage + 1
-        val generation = latestLoadGeneration
-        val randomSeed = state.randomSeed.takeIf { state.selectedSort == PostSort.RANDOM }
-        if (state.selectedSort == PostSort.RANDOM && randomSeed.isNullOrBlank()) {
-            _uiState.update { it.copy(hasNext = false, isLoadingNext = false) }
-            return
-        }
-        val query = HomeQuery(
-            date = date,
-            sort = state.selectedSort,
-            page = requestedPage,
-            randomSeed = randomSeed,
-        )
-        _uiState.update { it.copy(isLoadingNext = true) }
-
-        nextPageJob = viewModelScope.launch(launchContext) {
-            val result = repository.getPostPage(query)
-            if (generation != latestLoadGeneration) return@launch
-
+        _uiState.update { state ->
             when (result) {
-                is HomeResult.Success -> appendPage(result.value)
-                is HomeResult.Failure -> _uiState.update { it.copy(isLoadingNext = false) }
+                is HomeResult.Success -> state.copy(
+                    topic = result.value.topic,
+                    topicStatus = HomeSectionStatus.Ready,
+                    trending = HomeRankingState(HomeSectionStatus.Ready, result.value.photos),
+                )
+
+                is HomeResult.Failure -> state.copy(
+                    topic = "",
+                    topicStatus = if (result.reason == HomeFailure.TopicNotFound) {
+                        HomeSectionStatus.Ready
+                    } else {
+                        HomeSectionStatus.Error
+                    },
+                    trending = HomeRankingState(
+                        status = if (result.reason == HomeFailure.TopicNotFound) {
+                            HomeSectionStatus.Ready
+                        } else {
+                            HomeSectionStatus.Error
+                        },
+                    ),
+                )
             }
-            nextPageJob = null
         }
     }
 
-    private fun appendPage(page: PostPage) {
+    private suspend fun loadYesterdayRanking(date: LocalDate) {
+        val result = request {
+            repository.getPostPage(HomeQuery(date, PostSort.POPULAR, HomeQuery.FIRST_PAGE))
+        }
         _uiState.update { state ->
-            val existingIds = state.photos.mapTo(mutableSetOf(), Post::id)
-            val newPhotos = page.photos.filter { existingIds.add(it.id) }
-            val newPhotoIds = newPhotos.mapTo(mutableSetOf(), Post::id)
             state.copy(
-                photos = state.photos + newPhotos,
-                likedPhotoIds = (state.likedPhotoIds - newPhotoIds) +
-                    page.likedPhotoIds.intersect(newPhotoIds),
-                currentPage = page.currentPage,
-                hasNext = page.hasNext,
-                randomSeed = if (state.selectedSort == PostSort.RANDOM) {
-                    state.randomSeed ?: page.randomSeed
-                } else {
-                    null
+                yesterday = when (result) {
+                    is HomeResult.Success -> HomeRankingState(HomeSectionStatus.Ready, result.value.photos)
+
+                    is HomeResult.Failure -> HomeRankingState(
+                        status = if (result.reason == HomeFailure.Http(404)) {
+                            HomeSectionStatus.Ready
+                        } else {
+                            HomeSectionStatus.Error
+                        },
+                    )
                 },
-                isLoadingNext = false,
             )
         }
     }
 
-    private fun updateLike(photoId: String) {
-        if (isFirstPageRequestPending) return
-
-        if (sessionState.value !is UserSessionState.Authenticated) {
-            _uiState.update { it.copy(pendingMessage = nextToast(GUEST_LIKE_MESSAGE)) }
+    private suspend fun loadPersonalContent(
+        date: LocalDate,
+        authenticated: Boolean,
+    ) {
+        if (!authenticated) {
+            _uiState.update { it.copy(hero = HomeHeroState.Empty, recordsStatus = HomeSectionStatus.Ready) }
             return
         }
-
-        val previousState = _uiState.value
-        val previousPhoto = previousState.photos.find { it.id == photoId } ?: return
-        val wasLiked = photoId in previousState.likedPhotoIds
-        val isLiked = !wasLiked
-        val generation = latestLikeGenerationByPhotoId.getOrDefault(photoId, 0) + 1
-        val requestedContentRevision = homeContentRevision
-        latestLikeGenerationByPhotoId[photoId] = generation
-        _uiState.value = previousState.copy(
-            photos = previousState.photos.map { photo ->
-                if (photo.id == photoId) {
-                    photo.copy(
-                        likeCount = photo.likeCount + if (isLiked) 1 else -1,
-                        isLiked = isLiked,
-                    )
-                } else {
-                    photo
-                }
-            },
-            likedPhotoIds = if (isLiked) {
-                previousState.likedPhotoIds + photoId
-            } else {
-                previousState.likedPhotoIds - photoId
-            },
-        )
-
-        val job = viewModelScope.launch(
-            context = launchContext,
-            start = CoroutineStart.LAZY,
-        ) {
-            try {
-                val result = repository.updateLike(photoId, isLiked)
-                if (
-                    latestLikeGenerationByPhotoId[photoId] != generation ||
-                    homeContentRevision != requestedContentRevision
-                ) {
-                    return@launch
-                }
-
-                when (result) {
-                    is HomeResult.Success -> _uiState.update { state ->
-                        state.copy(
-                            photos = state.photos.map { photo ->
-                                if (photo.id == photoId) {
-                                    photo.copy(
-                                        likeCount = result.value.likeCount,
-                                        isLiked = result.value.isLiked,
-                                    )
-                                } else {
-                                    photo
-                                }
-                            },
-                            likedPhotoIds = if (result.value.isLiked) {
-                                state.likedPhotoIds + photoId
-                            } else {
-                                state.likedPhotoIds - photoId
-                            },
-                        )
-                    }
-
-                    is HomeResult.Failure -> restoreLike(photoId, previousPhoto, wasLiked)
-                }
-            } finally {
-                removeLikeJob(photoId, currentCoroutineContext().job)
+        val dates = homeWeekDates(date)
+        val months = dates.map(YearMonth::from).distinct()
+        val results = coroutineScope {
+            months
+                .map { month -> async { request { repository.getPostCalendar(month) } } }
+                .map { it.await() }
+        }
+        val records = results.flatMap { result ->
+            when (result) {
+                is HomeResult.Success -> result.value.posts
+                is HomeResult.Failure -> emptyList()
             }
         }
-        likeJobsByPhotoId.getOrPut(photoId, ::mutableSetOf).add(job)
-        job.start()
-    }
-
-    private fun removeLikeJob(
-        photoId: String,
-        job: Job,
-    ) {
-        likeJobsByPhotoId[photoId]?.let { jobs ->
-            jobs.remove(job)
-            if (jobs.isEmpty()) likeJobsByPhotoId.remove(photoId)
-        }
-    }
-
-    private fun restoreLike(
-        photoId: String,
-        previousPhoto: Post,
-        wasLiked: Boolean,
-    ) {
-        _uiState.update { state ->
-            if (state.photos.none { it.id == photoId }) return@update state
-
-            state.copy(
-                photos = state.photos.map { photo ->
-                    if (photo.id == photoId) previousPhoto else photo
-                },
-                likedPhotoIds = if (wasLiked) {
-                    state.likedPhotoIds + photoId
-                } else {
-                    state.likedPhotoIds - photoId
-                },
+        val hasFailure = results.any { it is HomeResult.Failure }
+        _uiState.update {
+            it.copy(
+                week = dates.map { day -> HomeWeekDay(day, records.firstOrNull { post -> post.topicDate == day }) },
+                recordsStatus = if (hasFailure) HomeSectionStatus.Error else HomeSectionStatus.Ready,
             )
         }
-    }
-
-    private fun sendUiEvent(event: HomeUiEvent) {
-        viewModelScope.launch { _uiEvent.send(event) }
-    }
-
-    private fun HomeFailure.toInitialError(): HomeInitialError = when (this) {
-        HomeFailure.TopicNotFound -> HomeInitialError.TopicNotFound
-
-        HomeFailure.Unauthorized -> HomeInitialError.Unauthorized
-
-        HomeFailure.Network -> HomeInitialError.Network
-
-        HomeFailure.InvalidResponse -> HomeInitialError.InvalidResponse
-
-        is HomeFailure.Http -> when (statusCode) {
-            in 400..499 -> HomeInitialError.Client
-            in 500..599 -> HomeInitialError.Server
-            else -> HomeInitialError.Generic
+        val todayRecord = records.firstOrNull { it.topicDate == date }
+        val hero = if (todayRecord != null) {
+            loadHero(todayRecord)
+        } else if (hasFailure) {
+            HomeHeroState.Error
+        } else {
+            loadMissingHero(date)
         }
+        _uiState.update { it.copy(hero = hero) }
+    }
+
+    private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
+        if (record.status == PostStatus.PENDING) {
+            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true)
+        }
+        return when (val detail = request { repository.getPostDetail(record.postId) }) {
+            is HomeResult.Success -> HomeHeroState.Photo(
+                imageUrl = detail.value.post.originalImageUrl,
+                thumbnailUrl = record.thumbnailImageUrl,
+                signatureUrl = detail.value.post.signatureOriginalImageUrl,
+                signatureThumbnailUrl = detail.value.post.signatureThumbnailImageUrl,
+            )
+
+            // The calendar already proves ownership and provides a usable image.
+            is HomeResult.Failure -> HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl)
+        }
+    }
+
+    private suspend fun loadMissingHero(date: LocalDate): HomeHeroState {
+        val result = try {
+            uploadEntryRepository.getTodayPostStatus().also { currentCoroutineContext().ensureActive() }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            return HomeHeroState.Error
+        }
+        return when (result) {
+            is TodayPostStatusResult.Success -> when {
+                result.value.topicDate != date || !result.value.isPosted -> HomeHeroState.Empty
+
+                result.value.moderationStatus == TodayPostModerationStatus.VALIDATING -> HomeHeroState.Processing
+
+                // A posted result without a calendar image is not an empty upload slot.
+                else -> HomeHeroState.Error
+            }
+
+            is TodayPostStatusResult.Failure -> if (result.reason == TodayPostStatusFailure.NoOpenTopic) {
+                HomeHeroState.NoOpenTopic
+            } else {
+                HomeHeroState.Error
+            }
+        }
+    }
+
+    private suspend fun <T> request(block: suspend () -> HomeResult<T>): HomeResult<T> = try {
+        block().also { currentCoroutineContext().ensureActive() }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        HomeResult.Failure(HomeFailure.Network)
     }
 
     companion object {
-        private val KST: ZoneId = ZoneId.of("Asia/Seoul")
+        private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
 
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 HomeViewModel(
                     repository = application.appContainer.postRepository,
+                    uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
-                    dateProvider = { LocalDate.now(KST) },
                 )
             }
         }
     }
-
-    private enum class FirstPageMode {
-        Load,
-        Refresh,
-    }
-
-    private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
-        id = nextMessageId++,
-        text = text,
-    )
 }
+
+private fun UserSessionState.canLoadHome(): Boolean =
+    this == UserSessionState.Guest || this is UserSessionState.Authenticated

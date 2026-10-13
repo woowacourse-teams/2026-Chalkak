@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.feature.home.component
+package com.stonefive.chalkak.feature.today.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +25,11 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.feature.home.HOME_NEXT_LOADING_TEST_TAG
+import com.stonefive.chalkak.feature.today.TODAY_NEXT_LOADING_TEST_TAG
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
-fun HomePhotoList(
+fun TodayPhotoList(
     photos: List<Post>,
     contentRevision: Int,
     likedPhotoIds: Set<String>,
@@ -62,7 +62,7 @@ fun HomePhotoList(
             items = photos,
             key = { photo -> "$contentRevision:${photo.id}" },
         ) { photo ->
-            HomePhotoCard(
+            TodayPhotoCard(
                 photo = photo,
                 isLiked = photo.id in likedPhotoIds,
                 isLikeEnabled = areLikesEnabled,
@@ -80,7 +80,7 @@ fun HomePhotoList(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag(HOME_NEXT_LOADING_TEST_TAG)
+                        .testTag(TODAY_NEXT_LOADING_TEST_TAG)
                         .padding(ChalkakTheme.spacing.xl),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -102,9 +102,9 @@ private fun LazyListState.isNearEnd(totalItemCount: Int): Boolean {
 
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
-private fun HomePhotoListPreview() {
+private fun TodayPhotoListPreview() {
     ChalkakTheme {
-        HomePhotoList(
+        TodayPhotoList(
             photos = listOf(
                 Post(
                     id = "preview-1",
@@ -135,7 +135,7 @@ private fun HomePhotoListPreview() {
             onEndThresholdChanged = {},
             modifier = Modifier
                 .fillMaxWidth()
-                .height(HOME_PHOTO_LIST_PREVIEW_HEIGHT),
+                .height(TODAY_PHOTO_LIST_PREVIEW_HEIGHT),
         )
     }
 }
@@ -144,4 +144,4 @@ private fun drawableResourceUrl(resourceId: Int): String = "android.resource://c
 
 private const val END_THRESHOLD = 2
 private const val NEXT_PAGE_LOADING_KEY = "next-page-loading"
-private val HOME_PHOTO_LIST_PREVIEW_HEIGHT = 700.dp
+private val TODAY_PHOTO_LIST_PREVIEW_HEIGHT = 700.dp

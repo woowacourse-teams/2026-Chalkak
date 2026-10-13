@@ -1,9 +1,9 @@
-package com.stonefive.chalkak.feature.home
+package com.stonefive.chalkak.feature.today
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class HomeScrollBehaviorTest {
+class TodayScrollBehaviorTest {
     @Test
     fun `로고 배경은 상단 영역이 거의 접힌 후에만 투명해진다`() {
         assertEquals(1f, topBarBackgroundAlpha(collapsedProgress = 0.8f))

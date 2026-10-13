@@ -11,8 +11,11 @@
 
     <style name="Theme.Chalkak" parent="Theme.Chalkak.Base" />
 
-    <style name="Theme.Chalkak.Splash" parent="Theme.Chalkak">
-        <item name="android:windowBackground">@drawable/splash_screen</item>
+    <style name="Theme.Chalkak.Splash" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/chalkak_logo_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/chalkak_logo_transparent</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/chalkak_logo_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.Chalkak</item>
     </style>
 
     <style name="Theme.Chalkak.TimePickerSpinner" parent="android:style/Theme.Material.Light.Dialog.Alert">
