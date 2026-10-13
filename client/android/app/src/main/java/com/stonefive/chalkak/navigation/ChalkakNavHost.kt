@@ -185,6 +185,20 @@ fun ChalkakNavHost(
     ) {
         val push = pendingNotificationPush ?: return@LaunchedEffect
         if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
+        if (currentBackStackEntry == null) return@LaunchedEffect
+
+        if (push.type == TOPIC) {
+            application.appContainer.pendingNotificationNavigation
+                .consume(push)
+            navController.openNotificationTarget(
+                type = push.type,
+                sourceType = push.sourceType,
+                sourceId = push.sourceId,
+                notificationId = push.notificationId,
+            )
+            return@LaunchedEffect
+        }
+
         if (currentBackStackEntry?.destination?.hasRoute<Home>() != true) return@LaunchedEffect
 
         val notificationId = push.notificationId?.takeIf(String::isNotBlank)
@@ -646,13 +660,20 @@ private fun NavHostController.openNotificationTarget(item: NotificationItemUiSta
     )
 }
 
-private fun NavHostController.openNotificationTarget(
+internal fun NavHostController.openNotificationTarget(
     type: String?,
     sourceType: String?,
     sourceId: String?,
     notificationId: String?,
 ) {
     when {
+        type == TOPIC -> {
+            navigate(Home) {
+                popUpTo<Home>()
+                launchSingleTop = true
+            }
+        }
+
         type == POST_APPROVED && sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
             navigate(
                 FeedById(
@@ -673,6 +694,7 @@ private fun NavHostController.openNotificationTarget(
 private const val POST_APPROVED = "POST_APPROVED"
 private const val POST_REJECTED = "POST_REJECTED"
 private const val POST_SOURCE_TYPE = "POST"
+private const val TOPIC = "TOPIC"
 
 private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
