@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 class UserMetricsAggregationLogMetricsTest {
 
     private static final LocalDate START_DATE = LocalDate.of(2026, 10, 2);
+    private static final LocalDate SUNDAY = LocalDate.of(2026, 10, 4);
     private static final long DB_POSTS = 3L;
 
     private final UserMetricsRepository repository = mock(UserMetricsRepository.class);
@@ -137,6 +138,46 @@ class UserMetricsAggregationLogMetricsTest {
 
         // Then
         assertThat(appender.list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("일요일 기준일은 코호트 인원, 유지 회원 수, 유지율(소수 첫째 자리)을 같은 줄에 남긴다")
+    void aggregate_sunday_logsRetentionKeys() {
+        // Given
+        when(repository.countPostAuthors(any(), any())).thenReturn(3L);
+        when(repository.countReturningPostAuthors(any(), any(), any(), any())).thenReturn(2L);
+
+        // When
+        service.aggregate(SUNDAY);
+
+        // Then
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.getFirst();
+        assertThat(keys(event)).containsExactly(
+                "type", "metricDate", "dau", "posts", "wau", "eligibleUsers", "likesTotal",
+                "retentionW1Cohort", "retentionW1Retained", "retentionW1Rate",
+                "retentionW2Cohort", "retentionW2Retained", "retentionW2Rate",
+                "retentionW3Cohort", "retentionW3Retained", "retentionW3Rate",
+                "retentionW4Cohort", "retentionW4Retained", "retentionW4Rate");
+        assertThat(keyValue(event, "retentionW1Cohort")).isEqualTo(3L);
+        assertThat(keyValue(event, "retentionW1Retained")).isEqualTo(2L);
+        assertThat(keyValue(event, "retentionW1Rate")).isEqualTo(66.7);
+    }
+
+    @Test
+    @DisplayName("코호트가 비면 유지율 키는 남기지 않고 인원과 유지 회원 수는 0으로 남긴다")
+    void aggregate_emptyCohort_omitsRateKey() {
+        // Given
+        when(repository.countPostAuthors(any(), any())).thenReturn(0L);
+
+        // When
+        service.aggregate(SUNDAY);
+
+        // Then
+        ILoggingEvent event = appender.list.getFirst();
+        assertThat(keyValue(event, "retentionW1Cohort")).isEqualTo(0L);
+        assertThat(keyValue(event, "retentionW1Retained")).isEqualTo(0L);
+        assertThat(keys(event)).noneMatch(key -> key.endsWith("Rate"));
     }
 
     private AccessLogMetrics logMetrics(long postCreations) {

@@ -36,6 +36,21 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
               AND p.user_id <> ALL (CAST(:excludedUserIds AS uuid[]))
             """;
 
+    private static final String COUNT_RETURNING_POST_AUTHORS = """
+            SELECT COUNT(DISTINCT c.user_id)
+            FROM posts c
+            WHERE c.created_at >= :cohortFrom
+              AND c.created_at < :cohortTo
+              AND c.user_id <> ALL (CAST(:excludedUserIds AS uuid[]))
+              AND EXISTS (
+                SELECT 1
+                FROM posts r
+                WHERE r.user_id = c.user_id
+                  AND r.created_at >= :returnFrom
+                  AND r.created_at < :returnTo
+              )
+            """;
+
     /**
      * 가입 때 사인 등록이 끝나야 하므로({@code signature_original_storage_key}는 NOT NULL) 탈퇴하지 않은
      * ACTIVE 회원은 모두 사인을 등록한 회원이다.
@@ -81,6 +96,20 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
             Instant to
     ) {
         return count(COUNT_POSTS, periodParameters(from, to));
+    }
+
+    @Override
+    public long countReturningPostAuthors(
+            Instant cohortFrom,
+            Instant cohortTo,
+            Instant returnFrom,
+            Instant returnTo
+    ) {
+        return count(COUNT_RETURNING_POST_AUTHORS, new MapSqlParameterSource()
+                .addValue("cohortFrom", OffsetDateTime.ofInstant(cohortFrom, ZoneOffset.UTC))
+                .addValue("cohortTo", OffsetDateTime.ofInstant(cohortTo, ZoneOffset.UTC))
+                .addValue("returnFrom", OffsetDateTime.ofInstant(returnFrom, ZoneOffset.UTC))
+                .addValue("returnTo", OffsetDateTime.ofInstant(returnTo, ZoneOffset.UTC)));
     }
 
     @Override

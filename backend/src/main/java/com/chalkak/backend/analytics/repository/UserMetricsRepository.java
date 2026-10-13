@@ -19,6 +19,14 @@ public interface UserMetricsRepository {
             Instant to
     );
 
+    /** 코호트 구간에 게시물을 만든 회원 중 복귀 구간에도 게시물을 만든 회원 수. 두 구간 모두 {@code [from, to)}이다. */
+    long countReturningPostAuthors(
+            Instant cohortFrom,
+            Instant cohortTo,
+            Instant returnFrom,
+            Instant returnTo
+    );
+
     /** 탈퇴하지 않았고 정지되지 않은 회원 수. */
     long countEligibleUsers();
 

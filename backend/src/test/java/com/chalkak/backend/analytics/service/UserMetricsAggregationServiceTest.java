@@ -41,6 +41,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final LocalDate METRIC_DATE = LocalDate.of(2030, 3, 15);
+    private static final LocalDate SUNDAY_METRIC_DATE = LocalDate.of(2030, 3, 17);
     private static final String LOG_GROUP = "/chalkak/test/application";
     private static final LocalDate LOG_METRICS_START_DATE = LocalDate.of(2099, 1, 1);
     private static final LocalDate TOPIC_BASE_DATE = LocalDate.of(2041, 1, 1);
@@ -248,6 +249,78 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(second).isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("일요일 기준일은 1~4주 전 코호트별 인원과 유지 회원 수를 주 경계에 맞춰 센다")
+    void aggregate_sunday_countsWeeklyRetentionPerCohort() {
+        // Given: 기준 주 2030-03-11(월)~03-17(일), 코호트 W+1=03-04, W+2=02-25, W+3=02-18, W+4=02-11
+        UUID returned = insertUser("retention-returned");
+        UUID cohortOnly = insertUser("retention-cohort-only");
+        UUID mondayEdge = insertUser("retention-monday-edge");
+        UUID returnsTooLate = insertUser("retention-too-late");
+        UUID deletedAuthor = insertUser("retention-deleted");
+        UUID farCohort = insertUser("retention-far");
+        UUID targetOnly = insertUser("retention-target-only");
+        UUID previousSunday = insertUser("retention-previous-sunday");
+        UUID excluded = insertUser("retention-excluded");
+        insertPost(returned, kst(LocalDate.of(2030, 3, 5), "10:00:00"), "APPROVED", false);
+        insertPost(returned, kst(LocalDate.of(2030, 3, 1), "10:00:00"), "APPROVED", false);
+        insertPost(returned, kst(LocalDate.of(2030, 3, 12), "10:00:00"), "APPROVED", false);
+        insertPost(cohortOnly, kst(LocalDate.of(2030, 3, 6), "10:00:00"), "APPROVED", false);
+        insertPost(mondayEdge, kst(LocalDate.of(2030, 3, 4), "00:00:00"), "APPROVED", false);
+        insertPost(mondayEdge, kst(LocalDate.of(2030, 3, 11), "00:00:00"), "APPROVED", false);
+        insertPost(returnsTooLate, kst(LocalDate.of(2030, 3, 10), "23:59:59"), "APPROVED", false);
+        insertPost(returnsTooLate, kst(LocalDate.of(2030, 3, 18), "00:00:00"), "APPROVED", false);
+        insertPost(deletedAuthor, kst(LocalDate.of(2030, 2, 20), "10:00:00"), "APPROVED", true);
+        insertPost(deletedAuthor, kst(LocalDate.of(2030, 3, 14), "10:00:00"), "REJECTED", false);
+        insertPost(farCohort, kst(LocalDate.of(2030, 2, 12), "10:00:00"), "APPROVED", false);
+        insertPost(farCohort, kst(LocalDate.of(2030, 3, 13), "10:00:00"), "APPROVED", false);
+        insertPost(targetOnly, kst(LocalDate.of(2030, 3, 11), "00:00:00"), "APPROVED", false);
+        insertPost(previousSunday, kst(LocalDate.of(2030, 3, 3), "23:59:59"), "APPROVED", false);
+        insertPost(excluded, kst(LocalDate.of(2030, 3, 5), "10:00:00"), "APPROVED", false);
+        insertPost(excluded, kst(LocalDate.of(2030, 3, 12), "10:00:00"), "APPROVED", false);
+
+        // When
+        DailyUserMetrics metrics = serviceExcluding(List.of(excluded)).aggregate(SUNDAY_METRIC_DATE);
+
+        // Then
+        assertThat(metrics.weeklyRetentions()).containsExactly(
+                new WeeklyRetention(1, LocalDate.of(2030, 3, 4), 4, 2),
+                new WeeklyRetention(2, LocalDate.of(2030, 2, 25), 2, 1),
+                new WeeklyRetention(3, LocalDate.of(2030, 2, 18), 1, 1),
+                new WeeklyRetention(4, LocalDate.of(2030, 2, 11), 1, 1));
+    }
+
+    @Test
+    @DisplayName("제외 회원이 없으면 제외 회원도 코호트와 유지 회원 수에 센다")
+    void aggregate_sundayWithoutExclusion_countsEveryUser() {
+        // Given
+        UUID member = insertUser("retention-member");
+        insertPost(member, kst(LocalDate.of(2030, 3, 5), "10:00:00"), "APPROVED", false);
+        insertPost(member, kst(LocalDate.of(2030, 3, 12), "10:00:00"), "APPROVED", false);
+
+        // When
+        DailyUserMetrics metrics = serviceExcluding(List.of()).aggregate(SUNDAY_METRIC_DATE);
+
+        // Then
+        assertThat(metrics.weeklyRetentions().getFirst())
+                .isEqualTo(new WeeklyRetention(1, LocalDate.of(2030, 3, 4), 1, 1));
+    }
+
+    @Test
+    @DisplayName("일요일이 아닌 기준일은 유지율을 계산하지 않고 로그에도 남기지 않는다")
+    void aggregate_nonSunday_hasNoRetention() {
+        // Given
+        appender.list.clear();
+
+        // When
+        DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(metrics.weeklyRetentions()).isEmpty();
+        assertThat(appender.list.getFirst().getKeyValuePairs())
+                .noneMatch(pair -> pair.key.startsWith("retention"));
     }
 
     private UserMetricsAggregationService serviceExcluding(List<UUID> excludedUserIds) {
