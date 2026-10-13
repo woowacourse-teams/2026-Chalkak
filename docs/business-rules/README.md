@@ -47,6 +47,7 @@
 | 푸시 기기 등록·갱신, 이전 JWT의 자동 토큰 갱신 | [푸시 기기 등록 연동 안내](guides/push-device-registration.md) |
 | FCM 메시지 필드·플랫폼별 수신·클릭 후 화면 이동 | [Android·iOS 푸시 메시지 연동 계약](guides/notification-push-contract.md) |
 | 관리자 주제 푸시 설정 생성과 변경 적용 정책 | [주제 푸시 설정 연동 안내](guides/topic-push-schedules.md) |
+| 관리자 공지 등록·조회와 예약 시각 정책 | [관리자 공지 연동 안내](guides/admin-notices.md) |
 
 ## 변경 이유
 

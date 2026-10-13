@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.domain;
 
+import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.DateTimeException;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 final class AdminAuditTransitionRules {
 
@@ -26,6 +28,11 @@ final class AdminAuditTransitionRules {
             "deletedAt");
     private static final Set<String> USER_STATUS_FIELDS = Set.of("status");
     private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
+    private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
+            "title",
+            "scheduledAt",
+            "bodySha256");
+    private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -158,6 +165,29 @@ final class AdminAuditTransitionRules {
             AdminAuditSnapshot afterState
     ) {
         return isValidTopicPushScheduleState(beforeState) && afterState.isEmpty();
+    }
+
+    static boolean isNoticeCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidNoticeState(afterState);
+    }
+
+    private static boolean isValidNoticeState(AdminAuditSnapshot state) {
+        return state.hasExactlyFields(NOTICE_STATE_FIELDS)
+                && isValidNoticeTitle(state.value("title"))
+                && isInstant(state.value("scheduledAt"))
+                && isSha256Hex(state.value("bodySha256"));
+    }
+
+    private static boolean isValidNoticeTitle(Object value) {
+        return value instanceof String title && Notice.isValidTitle(title);
+    }
+
+    private static boolean isSha256Hex(Object value) {
+        return value instanceof String hash && SHA_256_HEX.matcher(hash).matches();
     }
 
     private static boolean isValidTopicPushScheduleState(AdminAuditSnapshot state) {
