@@ -12,6 +12,7 @@ import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.google.firebase.FirebaseApp;
 import java.time.Clock;
 import java.util.concurrent.CountDownLatch;
@@ -120,6 +121,7 @@ class PushWorkerConfigurationTest {
                         "ap-northeast-2"))
                 .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
                 .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
+                .withBean(PostRepository.class, () -> mock(PostRepository.class))
                 .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
                 .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
                 .withBean(PlatformTransactionManager.class,

@@ -21,7 +21,7 @@ import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.topic.repository.TopicRepository;
-import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -67,7 +67,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     @Autowired
     private TopicRepository topics;
     @Autowired
-    private UserRepository users;
+    private NotificationRepository notifications;
     @Autowired
     private PlatformTransactionManager manager;
     @Autowired
@@ -101,10 +101,10 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("제출 여부·검수 설정과 무관하게 주제 수신 정상 회원에게 사용자별 메시지를 직접 발행한다")
+    @DisplayName("오늘 주제 참여 회원을 제외하고 검수 설정과 무관하게 사용자별 메시지를 직접 발행한다")
     void publishDueTopics_normalRecipients_publishesWithoutInboxOrTransaction() {
         // Given
-        for (int id = 2; id <= 5; id++) {
+        for (int id = 2; id <= 6; id++) {
             insertUser(new UUID(0, id));
         }
         jdbc.update("UPDATE users SET moderation_push_enabled=false WHERE id=?", new UUID(0, 2));
@@ -120,7 +120,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         jdbc.update("""
                 INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
                 VALUES (?,?,?,?,'APPROVED')
-                """, UUID.randomUUID(), USER_ID, TOPIC_ID, photoId);
+                """, UUID.randomUUID(), new UUID(0, 6), TOPIC_ID, photoId);
         given(publisher.publish(any())).willAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return PushPublicationResult.accepted("sqs-message");
@@ -146,6 +146,28 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         assertThat(summary()).containsEntry("targetCount", 2).containsEntry("acceptedCount", 2);
         assertThat(logsAtStage("topic_publication_result")).isEmpty();
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("모든 회원이 오늘 주제에 참여했다면 SQS 발행 없이 빈 대상 집계를 남긴다")
+    void publishDueTopics_allUsersParticipating_skipsPublication() {
+        // Given
+        UUID photoId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
+                VALUES (?,'topic/original','topic/thumbnail')
+                """, photoId);
+        jdbc.update("""
+                INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
+                VALUES (?,?,?,?,'PENDING')
+                """, UUID.randomUUID(), USER_ID, TOPIC_ID, photoId);
+
+        // When
+        service.publishDueTopics();
+
+        // Then
+        verifyNoInteractions(publisher);
+        assertThat(summary()).containsEntry("targetCount", 0).containsEntry("acceptedCount", 0);
     }
 
     @ParameterizedTest
@@ -426,7 +448,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     private TopicPushService newService() {
-        return new TopicPushService(schedules, topics, users, publisher, clock, manager);
+        return new TopicPushService(schedules, topics, notifications, publisher, clock, manager);
     }
 
     private List<PushMessage> captureMessages(int count) {

@@ -5,6 +5,7 @@ import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
@@ -84,13 +85,15 @@ public class PushWorkerConfiguration {
     public PushWorkerService pushWorkerService(
             NotificationRepository notificationRepository,
             TopicRepository topicRepository,
+            PostRepository postRepository,
             PushDeviceRepository deviceRepository,
             LoginSessionService loginSessionService,
             DevicePushSender sender,
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
-        return new PushWorkerService(notificationRepository, topicRepository, deviceRepository,
+        return new PushWorkerService(notificationRepository, topicRepository, postRepository,
+                deviceRepository,
                 loginSessionService,
                 sender, clock, transactionManager);
     }
