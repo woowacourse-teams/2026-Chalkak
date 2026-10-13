@@ -14,6 +14,8 @@ import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.notification.NotificationPushData
+import com.stonefive.chalkak.core.notification.restoreFrom
+import com.stonefive.chalkak.core.notification.saveTo
 import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.versiongate.VersionGateStatus
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
@@ -50,7 +52,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
-        enqueueNotificationNavigation(intent)
+        if (savedInstanceState == null) {
+            enqueueNotificationNavigation(intent)
+        } else {
+            appContainer.pendingNotificationNavigation.restoreFrom(savedInstanceState)
+        }
         splashScreen.setKeepOnScreenCondition {
             when (versionGateViewModel.uiState.value.status) {
                 VersionGateStatus.Checking -> true
@@ -92,6 +98,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         enqueueNotificationNavigation(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        appContainer.pendingNotificationNavigation.saveTo(outState)
     }
 
     override fun onResume() {
