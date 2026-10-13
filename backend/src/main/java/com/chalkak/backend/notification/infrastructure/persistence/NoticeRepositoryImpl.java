@@ -3,6 +3,8 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NoticeSlice;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -35,5 +37,15 @@ public class NoticeRepositoryImpl implements NoticeRepository {
         Slice<Notice> slice = jpaRepository.findSliceBy(
                 PageRequest.of(page - 1, pageSize, LATEST_CREATED_FIRST));
         return new NoticeSlice(slice.getContent(), slice.hasNext());
+    }
+
+    @Override
+    public List<UUID> findDistributableIds(Instant now, int limit) {
+        return jpaRepository.findDistributableIds(now, limit);
+    }
+
+    @Override
+    public Optional<Notice> findDistributableForUpdate(UUID noticeId, Instant now) {
+        return jpaRepository.findDistributableForUpdate(noticeId, now);
     }
 }

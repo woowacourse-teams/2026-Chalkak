@@ -4,6 +4,8 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
@@ -42,6 +44,13 @@ public class Notice {
     @Column(name = "scheduled_at", nullable = false)
     private Instant scheduledAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private NoticeStatus status;
+
+    @Column(name = "distributed_at")
+    private Instant distributedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -61,7 +70,16 @@ public class Notice {
         notice.body = normalizeText(body, MAX_BODY_LENGTH, "공지 본문은 1자 이상 500자 이하여야 합니다.");
         validateScheduledAt(scheduledAt, now);
         notice.scheduledAt = scheduledAt;
+        notice.status = NoticeStatus.SCHEDULED;
         return notice;
+    }
+
+    public void distribute(Instant distributedAt) {
+        if (status != NoticeStatus.SCHEDULED) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "예약 상태의 공지만 배포할 수 있습니다.");
+        }
+        this.status = NoticeStatus.DISTRIBUTED;
+        this.distributedAt = distributedAt;
     }
 
     public static boolean isValidTitle(String title) {

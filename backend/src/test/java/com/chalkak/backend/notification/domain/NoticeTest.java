@@ -160,6 +160,46 @@ class NoticeTest {
         assertThat(Notice.isValidTitle(title)).isEqualTo(created);
     }
 
+    @Test
+    @DisplayName("공지를 생성하면 예약 상태이고 배포 시각이 없다")
+    void create_validInput_startsScheduled() {
+        // When
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+
+        // Then
+        assertThat(notice.getStatus()).isEqualTo(NoticeStatus.SCHEDULED);
+        assertThat(notice.getDistributedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("예약 상태의 공지를 배포하면 배포 상태와 배포 시각을 기록한다")
+    void distribute_scheduledNotice_marksDistributed() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Instant distributedAt = NOW.plusSeconds(60);
+
+        // When
+        notice.distribute(distributedAt);
+
+        // Then
+        assertThat(notice.getStatus()).isEqualTo(NoticeStatus.DISTRIBUTED);
+        assertThat(notice.getDistributedAt()).isEqualTo(distributedAt);
+    }
+
+    @Test
+    @DisplayName("이미 배포한 공지는 다시 배포할 수 없고 최초 배포 시각을 유지한다")
+    void distribute_distributedNotice_throwsBusinessException() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.distribute(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.distribute(NOW.plusSeconds(60)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("예약 상태의 공지만 배포할 수 있습니다.");
+        assertThat(notice.getDistributedAt()).isEqualTo(NOW);
+    }
+
     private boolean canCreateWithTitle(String title) {
         try {
             Notice.create(title, BODY, NOW, NOW);

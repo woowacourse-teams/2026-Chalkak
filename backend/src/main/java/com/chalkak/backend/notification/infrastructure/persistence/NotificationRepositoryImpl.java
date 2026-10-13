@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
+import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -26,6 +27,12 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public List<UUID> findTopicPushRecipientIds(UUID topicId) {
         return notificationJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
                 ModerationStatus.REJECTED);
+    }
+
+    @Override
+    public int createNoticeNotifications(Notice notice, Instant createdAt) {
+        return notificationJpaRepository.insertNoticeNotifications(notice.getId(),
+                notice.getTitle(), notice.getBody(), createdAt);
     }
 
     @Override

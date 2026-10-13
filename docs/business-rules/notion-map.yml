@@ -70,4 +70,4 @@ rule_pages:
       검수 푸시 발송과 재처리: [NOTIFICATION-008]
       주제 푸시 설정: [NOTIFICATION-009, NOTIFICATION-011]
       주제 푸시 발송과 화면 이동: [NOTIFICATION-010]
-      관리자 공지: [NOTIFICATION-012]
+      관리자 공지: [NOTIFICATION-012, NOTIFICATION-013]
