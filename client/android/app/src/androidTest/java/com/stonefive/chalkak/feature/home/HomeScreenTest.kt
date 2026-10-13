@@ -41,7 +41,7 @@ class HomeScreenTest {
             .onNodeWithText("홈")
             .assertIsDisplayed()
             .performClick()
-        assertEquals(ChalkakBottomBarItem.TODAY, tab)
+        assertEquals(ChalkakBottomBarItem.HOME, tab)
         screenshot("home-empty")
     }
 

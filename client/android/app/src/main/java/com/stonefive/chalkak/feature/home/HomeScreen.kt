@@ -166,7 +166,7 @@ fun HomeScreen(
                 )
             }
             ChalkakBottomBar(
-                selectedItem = ChalkakBottomBarItem.TODAY,
+                selectedItem = ChalkakBottomBarItem.HOME,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,
                 modifier = Modifier

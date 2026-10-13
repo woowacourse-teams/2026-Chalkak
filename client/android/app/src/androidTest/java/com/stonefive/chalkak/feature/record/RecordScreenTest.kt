@@ -140,7 +140,7 @@ class RecordScreenTest {
         composeRule.onNodeWithText("기록").assertIsDisplayed()
         composeRule.onNodeWithText("홈").performClick()
 
-        assertEquals(ChalkakBottomBarItem.TODAY, selectedItem)
+        assertEquals(ChalkakBottomBarItem.HOME, selectedItem)
     }
 
     @Test

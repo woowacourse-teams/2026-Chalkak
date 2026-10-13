@@ -593,7 +593,7 @@ private fun NavHostController.navigateToBottomBar(
     }
 
     val destination = when (item) {
-        ChalkakBottomBarItem.TODAY -> Home
+        ChalkakBottomBarItem.HOME -> Home
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
         ChalkakBottomBarItem.RECORD -> Record
         ChalkakBottomBarItem.SETTINGS -> Settings
@@ -602,7 +602,7 @@ private fun NavHostController.navigateToBottomBar(
     navigate(destination) {
         launchSingleTop = true
         // Home is the retained root; restoring its saved stack can reopen the Display just popped.
-        restoreState = item != ChalkakBottomBarItem.TODAY
+        restoreState = item != ChalkakBottomBarItem.HOME
         popUpTo(Home) {
             saveState = true
         }
@@ -611,7 +611,7 @@ private fun NavHostController.navigateToBottomBar(
 
 private val ChalkakBottomBarItem.analyticsName: String
     get() = when (this) {
-        ChalkakBottomBarItem.TODAY -> "home"
+        ChalkakBottomBarItem.HOME -> "home"
         ChalkakBottomBarItem.DISPLAY -> "display"
         ChalkakBottomBarItem.RECORD -> "record"
         ChalkakBottomBarItem.SETTINGS -> "settings"

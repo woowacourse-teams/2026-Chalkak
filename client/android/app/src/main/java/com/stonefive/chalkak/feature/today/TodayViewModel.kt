@@ -70,7 +70,7 @@ class TodayViewModel(
             TodayUiAction.RefreshRequested -> refreshToday()
 
             is TodayUiAction.BottomBarSelected -> {
-                if (action.item == ChalkakBottomBarItem.TODAY) {
+                if (action.item == ChalkakBottomBarItem.HOME) {
                     refreshToday()
                 } else {
                     sendUiEvent(TodayUiEvent.NavigateToBottomBar(action.item))

@@ -709,7 +709,7 @@ class TodayViewModelTest {
         )
         val viewModel = todayViewModel(repository)
 
-        viewModel.onAction(TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
+        viewModel.onAction(TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.HOME))
         assertEquals(
             PostSort.RANDOM,
             repository.todayQueries

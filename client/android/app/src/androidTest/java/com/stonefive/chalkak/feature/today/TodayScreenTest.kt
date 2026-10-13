@@ -202,7 +202,7 @@ class TodayScreenTest {
         assertEquals(
             1,
             actions.count {
-                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
+                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.HOME)
             },
         )
         assertEquals(
@@ -230,7 +230,7 @@ class TodayScreenTest {
         assertEquals(
             1,
             actions.count {
-                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
+                it == TodayUiAction.BottomBarSelected(ChalkakBottomBarItem.HOME)
             },
         )
     }

@@ -109,7 +109,7 @@ fun TodayScreen(
         bottomBar = {
             if (uiState.contentStatus != TodayContentStatus.Content) {
                 ChalkakBottomBar(
-                    selectedItem = ChalkakBottomBarItem.TODAY,
+                    selectedItem = ChalkakBottomBarItem.HOME,
                     onItemSelected = { onAction(TodayUiAction.BottomBarSelected(it)) },
                     onAddClick = { onAction(TodayUiAction.AddClicked) },
                     modifier = Modifier.fillMaxWidth(),
@@ -354,9 +354,9 @@ private fun TodayContent(
             )
         }
         ChalkakBottomBar(
-            selectedItem = ChalkakBottomBarItem.TODAY,
+            selectedItem = ChalkakBottomBarItem.HOME,
             onItemSelected = { item ->
-                if (item == ChalkakBottomBarItem.TODAY) {
+                if (item == ChalkakBottomBarItem.HOME) {
                     localResetSignal++
                 }
                 onAction(TodayUiAction.BottomBarSelected(item))
