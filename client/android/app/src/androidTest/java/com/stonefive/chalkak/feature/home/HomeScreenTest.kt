@@ -1,42 +1,24 @@
 package com.stonefive.chalkak.feature.home
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assertCountEquals
+import android.graphics.Bitmap
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipe
+import androidx.test.platform.app.InstrumentationRegistry
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.HomeFailure
-import com.stonefive.chalkak.domain.model.HomeLike
-import com.stonefive.chalkak.domain.model.HomeQuery
-import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostCalendar
-import com.stonefive.chalkak.domain.model.PostContent
-import com.stonefive.chalkak.domain.model.PostDetail
-import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
-import com.stonefive.chalkak.domain.model.UserSessionState
-import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.home.component.HOME_HERO_TEST_TAG
+import java.io.File
 import java.time.LocalDate
-import java.time.YearMonth
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -46,473 +28,211 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun rendersAllInitialAndContentStates() {
-        var uiState by mutableStateOf(HomeUiState(contentStatus = HomeContentStatus.Loading))
-        composeRule.setContent {
-            ChalkakTheme {
-                HomeScreen(
-                    uiState = uiState,
-                    onAction = {},
-                )
-            }
-        }
-        composeRule.onNodeWithTag(HOME_LOADING_TEST_TAG).assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Error(HomeInitialError.TopicNotFound),
-            )
-        }
-        composeRule.onNodeWithTag(HOME_INITIAL_ERROR_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("오늘의 주제가 아직 준비되지 않았어요").assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            uiState = contentUiState(photos = emptyList())
-        }
-        composeRule.onNodeWithTag(HOME_EMPTY_TEST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("아직 올라온 사진이 없어요").assertIsDisplayed()
-        composeRule.onNodeWithText("첫 번째 사진을 올려보세요").assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            uiState = contentUiState()
-        }
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
-        composeRule.onNodeWithText("8월 28일 · 오늘의 주제").assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            uiState = contentUiState(isLoadingNext = true)
-        }
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
-    }
-
-    @Test
-    fun homePhotoDoesNotExposeFeedNavigationClickAction() {
-        setHomeContent(uiState = contentUiState())
+    fun emptyHeroOpensUploadAndBottomTabReadsHome() {
+        var uploads = 0
+        var tab: ChalkakBottomBarItem? = null
+        showHome(readyState(), onUpload = { uploads++ }, onTab = { tab = it })
         composeRule
-            .onNodeWithContentDescription("작품 이미지: 사진 0")
-            .assertHasNoClickAction()
-    }
-
-    @Test
-    fun homePhotoUsesLoadedImageAspectRatio() {
-        val differentlyProportionedPhoto = photos(1).single().copy(
-            id = "photo-1",
-            originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
-            contentDescription = "작품 이미지: 사진 1",
-        )
-        setHomeContent(
-            uiState = contentUiState(
-                photos = photos(1) + differentlyProportionedPhoto,
-            ),
-        )
-
-        composeRule.waitUntil {
-            val bounds = composeRule
-                .onNodeWithContentDescription("작품 이미지: 사진 0")
-                .fetchSemanticsNode()
-                .boundsInRoot
-            val aspectRatio = bounds.width / bounds.height
-            kotlin.math.abs(aspectRatio - 0.75f) < 0.02f
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(1)
-        composeRule.waitUntil {
-            val bounds = composeRule
-                .onNodeWithContentDescription("작품 이미지: 사진 1")
-                .fetchSemanticsNode()
-                .boundsInRoot
-            val aspectRatio = bounds.width / bounds.height
-            val expectedAspectRatio = 804f / 830f
-            kotlin.math.abs(aspectRatio - expectedAspectRatio) < 0.02f
-        }
-    }
-
-    @Test
-    fun genericErrorRefreshButtonIsAccessibleAndDispatchesRetry() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
-            uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Error(HomeInitialError.Generic),
-            ),
-            onAction = actions::add,
-        )
-
-        composeRule
-            .onNodeWithContentDescription(HOME_REFRESH_CONTENT_DESCRIPTION)
+            .onNodeWithContentDescription("하늘 사진을 공유하지 않았어요")
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNodeWithText("홈을 불러오지 못했어요").assertIsDisplayed()
-
-        assertEquals(listOf(HomeUiAction.RetryClicked), actions)
+        assertEquals(1, uploads)
+        composeRule
+            .onNodeWithText("홈")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(ChalkakBottomBarItem.HOME, tab)
+        screenshot("home-empty")
     }
 
     @Test
-    fun eachInitialErrorDisplaysItsApprovedMessage() {
-        val cases = listOf(
-            HomeInitialError.TopicNotFound to "오늘의 주제가 아직 준비되지 않았어요",
-            HomeInitialError.Unauthorized to "로그인 정보를 확인할 수 없어요",
-            HomeInitialError.Network to "네트워크 연결을 확인해 주세요",
-            HomeInitialError.InvalidResponse to "홈 정보를 불러오지 못했어요",
-            HomeInitialError.Client to "요청을 처리하지 못했어요",
-            HomeInitialError.Server to "서버에 잠시 문제가 생겼어요",
-            HomeInitialError.Generic to "홈을 불러오지 못했어요",
-        )
-        var uiState by mutableStateOf(
-            HomeUiState(contentStatus = HomeContentStatus.Error(cases.first().first)),
-        )
-        composeRule.setContent {
-            ChalkakTheme {
-                HomeScreen(
-                    uiState = uiState,
-                    onAction = {},
+    fun validatingUploadShowsProcessingInsteadOfEmptySlot() {
+        showHome(readyState().copy(hero = HomeHeroState.Processing))
+        composeRule.onNodeWithText("사진을 처리하고 있어요").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("하늘 사진을 공유하지 않았어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun missingTopicShowsPreparationMessageAndHeroHasNoUploadAction() {
+        showHome(readyState().copy(topic = "", hero = HomeHeroState.NoOpenTopic))
+        composeRule.onNodeWithText("오늘의 주제가 아직 준비되지 않았어요").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘의 주제를 불러오지 못했어요").assertDoesNotExist()
+        composeRule.onNodeWithText("지금은 참여할 수 있는 주제가 없어요").assertIsDisplayed()
+        composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("오늘의 주제 사진을 공유하지 않았어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun ownedHeroShowsPhotoAndWeeklyCountIncludesPending() {
+        var records = 0
+        val state = readyState().copy(
+            hero = HomeHeroState.Photo(
+                image(R.drawable.home_feed_photo),
+                signatureUrl = image(R.drawable.preview_signature),
+            ),
+            week = homeWeekDates(DATE).mapIndexed { index, day ->
+                HomeWeekDay(
+                    day,
+                    if (index <
+                        5
+                    ) {
+                        PostCalendarItem("week-$index", day, image(R.drawable.preview_photo), PostStatus.PENDING)
+                    } else {
+                        null
+                    },
                 )
-            }
-        }
-
-        cases.forEach { (error, message) ->
-            composeRule.runOnIdle {
-                uiState = HomeUiState(contentStatus = HomeContentStatus.Error(error))
-            }
-            composeRule.onNodeWithText(message).assertIsDisplayed()
-        }
+            },
+        )
+        showHome(state, onRecord = { records++ })
+        composeRule
+            .onNodeWithContentDescription("오늘 제출한 사진")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(1, records)
+        screenshot("home-owned")
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithText("5/7").assertIsDisplayed()
+        composeRule.onNodeWithText("금", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("토", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("일", useUnmergedTree = true).assertDoesNotExist()
+        screenshot("home-weekly")
+        composeRule.onNodeWithContentDescription("이번 주 기록 더보기").performClick()
+        assertEquals(2, records)
     }
 
     @Test
-    fun pullToRefreshDispatchesRefreshAndBottomItemsDispatchSelection() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
-            uiState = contentUiState(photos = photos(12)),
-            onAction = actions::add,
-        )
+    fun pendingHeroDisplaysModerationBadge() {
+        showHome(readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo), isPending = true)))
+        composeRule.onNodeWithContentDescription("오늘 제출한 사진, 검수 대기").assertIsDisplayed()
+        composeRule.onNodeWithText("검수 대기", useUnmergedTree = true).assertIsDisplayed()
+    }
 
-        composeRule.onNode(hasScrollAction()).performTouchInput {
-            swipe(
-                start = center.copy(y = center.y * 0.25f),
-                end = center.copy(y = center.y * 1.75f),
-                durationMillis = 600,
+    @Test
+    fun rankingLinksOpenYesterdayAndTodayDates() {
+        val dates = mutableListOf<LocalDate>()
+        showHome(readyState(), onDisplay = dates::add)
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(3)
+        composeRule
+            .onNodeWithContentDescription("어제 랭킹 더보기")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule
+            .onNodeWithContentDescription("오늘 인기있는 사진 더보기")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(listOf(DATE.minusDays(1), DATE), dates)
+        screenshot("home-rankings")
+    }
+
+    @Test
+    fun rankingPhotosOpenTheirOwnFeedInsteadOfDisplay() {
+        val selectedPosts = mutableListOf<Post>()
+        val displayDates = mutableListOf<LocalDate>()
+        val state = readyState().let { state ->
+            state.copy(
+                trending = state.trending.copy(
+                    photos = state.trending.photos
+                        .map { it.copy(contentDescription = "오늘 ${it.id}") },
+                ),
             )
         }
-        composeRule.waitUntil { HomeUiAction.RefreshRequested in actions }
-
-        composeRule.onNodeWithText("오늘").performClick()
-        composeRule.onNodeWithText("전시").performClick()
-
-        assertEquals(1, actions.count { it == HomeUiAction.RefreshRequested })
+        showHome(state, onDisplay = displayDates::add, onFeed = selectedPosts::add)
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(3)
+        composeRule.onNodeWithContentDescription("랭킹 사진 0").performClick()
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithContentDescription("오늘 photo-3").performClick()
         assertEquals(
-            1,
-            actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
-            },
+            listOf(
+                state.yesterday.photos
+                    .first(),
+                state.trending.photos
+                    .first(),
+            ),
+            selectedPosts,
         )
-        assertEquals(
-            1,
-            actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY)
-            },
-        )
+        assertEquals(emptyList<LocalDate>(), displayDates)
     }
 
     @Test
-    fun homeReselectionScrollsToTopAndDispatchesSelection() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
-            uiState = contentUiState(photos = photos(20)),
-            onAction = actions::add,
-        )
-
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
-
-        composeRule.onNodeWithText("오늘").performClick()
-
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 0").assertIsDisplayed()
-        assertEquals(
-            1,
-            actions.count {
-                it == HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY)
-            },
-        )
+    fun issuesShowTwoExampleCardsAndInvokePlaceholderAction() {
+        var clicks = 0
+        showHome(readyState(), onIssue = { clicks++ })
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(5)
+        composeRule.onNodeWithText("ISSUE").assertIsDisplayed()
+        composeRule
+            .onNodeWithContentDescription("바다에서 구도를 잘 잡는 방법")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule
+            .onNodeWithContentDescription("지난 주 가장 인기있었던 사진")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(2, clicks)
+        screenshot("home-issues")
     }
 
-    @Test
-    fun returningToHomePreservesSavedListPosition() {
-        var isHomeVisible by mutableStateOf(true)
-        val uiState = contentUiState(photos = photos(20))
-        composeRule.setContent {
-            val stateHolder = rememberSaveableStateHolder()
-            ChalkakTheme {
-                if (isHomeVisible) {
-                    stateHolder.SaveableStateProvider(HOME_STATE_KEY) {
-                        HomeScreen(
-                            uiState = uiState,
-                            onAction = {},
-                        )
-                    }
-                }
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(12)
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
-
-        composeRule.runOnIdle { isHomeVisible = false }
-        composeRule.runOnIdle { isHomeVisible = true }
-
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 12").assertIsDisplayed()
-    }
-
-    @Test
-    fun emptyFeedBlocksChromeCollapseAndStillAllowsPullToRefresh() {
-        val actions = mutableListOf<HomeUiAction>()
-        setHomeContent(
-            uiState = contentUiState(photos = emptyList()),
-            onAction = actions::add,
-        )
-        val photoList = composeRule.onNode(hasScrollAction())
-        val topic = composeRule.onNodeWithText("바다")
-        val today = composeRule.onNodeWithText("오늘")
-        val topicTopBefore = topic
-            .fetchSemanticsNode()
-            .boundsInRoot.top
-        val todayTopBefore = today
-            .fetchSemanticsNode()
-            .boundsInRoot.top
-
-        photoList.performTouchInput {
-            swipe(
-                start = center.copy(y = center.y * 1.5f),
-                end = center.copy(y = center.y * 0.5f),
-                durationMillis = 600,
-            )
-        }
-        composeRule.waitForIdle()
-
-        val topicTopAfter = topic
-            .fetchSemanticsNode()
-            .boundsInRoot.top
-        val todayTopAfter = today
-            .fetchSemanticsNode()
-            .boundsInRoot.top
-        assertEquals(topicTopBefore, topicTopAfter, 0.5f)
-        assertEquals(todayTopBefore, todayTopAfter, 0.5f)
-
-        photoList.performTouchInput {
-            swipe(
-                start = center.copy(y = center.y * 0.25f),
-                end = center.copy(y = center.y * 1.75f),
-                durationMillis = 600,
-            )
-        }
-        composeRule.waitUntil { HomeUiAction.RefreshRequested in actions }
-
-        assertEquals(1, actions.count { it == HomeUiAction.RefreshRequested })
-    }
-
-    @Test
-    fun pageFailureHasNoRetryRowOrSnackbar() {
-        val repository = PageFailurePostRepository()
-        val viewModel = HomeViewModel(
-            repository = repository,
-            sessionState = MutableStateFlow(UserSessionState.Authenticated("user-id")),
-            dateProvider = { LocalDate.of(2026, 8, 28) },
-        )
-        composeRule.setContent {
-            ChalkakTheme {
-                HomeRoute(
-                    onOpenPhotoUpload = {},
-                    onNavigateToBottomBar = {},
-                    onOpenNotifications = {},
-                    viewModel = viewModel,
-                )
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(19)
-        composeRule.waitUntil { repository.pageRequestCount == 1 }
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertIsDisplayed()
-
-        repository.pageResult.complete(HomeResult.Failure(HomeFailure.Network))
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithTag(HOME_NEXT_LOADING_TEST_TAG).assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("작품 이미지: 사진 19").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription(HOME_REFRESH_CONTENT_DESCRIPTION).assertCountEquals(0)
-        composeRule.onAllNodesWithText(GUEST_LIKE_MESSAGE).assertCountEquals(0)
-        composeRule.onAllNodesWithText("네트워크 연결을 확인해 주세요").assertCountEquals(0)
-        composeRule.onAllNodesWithText(HOME_ERROR_MESSAGE).assertCountEquals(0)
-    }
-
-    @Test
-    fun guestLikeSnackbarDoesNotDelayNavigationEvents() {
-        val repository = GuestPostRepository()
-        var openPhotoUploadCount = 0
-        var navigateToBottomBarCount = 0
-        val viewModel = HomeViewModel(
-            repository = repository,
-            sessionState = MutableStateFlow(UserSessionState.Guest),
-            dateProvider = { LocalDate.of(2026, 8, 28) },
-        )
-        composeRule.setContent {
-            ChalkakTheme {
-                HomeRoute(
-                    onOpenPhotoUpload = { openPhotoUploadCount++ },
-                    onNavigateToBottomBar = { navigateToBottomBarCount++ },
-                    onOpenNotifications = {},
-                    viewModel = viewModel,
-                )
-            }
-        }
-
-        composeRule.onNodeWithContentDescription("좋아요 17").performClick()
-
-        assertEquals(0, repository.likeRequestCount)
-        composeRule.onAllNodesWithText("로그인 없이 사진 둘러보기").assertCountEquals(0)
-        composeRule.onAllNodesWithText("로그인").assertCountEquals(0)
-
-        composeRule.onNodeWithContentDescription("추가").performClick()
-        composeRule.onNodeWithText("전시").performClick()
-
-        composeRule.waitUntil(timeoutMillis = 1_000) {
-            openPhotoUploadCount == 1 && navigateToBottomBarCount == 1
-        }
-    }
-
-    @Test
-    fun endThresholdEmitsOnceUntilListLeavesAndReenters() {
-        val thresholdEvents = mutableListOf<Boolean>()
-        setHomeContent(
-            uiState = contentUiState(photos = photos(20)),
-            onAction = { action ->
-                if (action is HomeUiAction.EndThresholdChanged) {
-                    thresholdEvents += action.isReached
-                }
-            },
-        )
-        val photoList = composeRule.onNode(hasScrollAction())
-
-        photoList.performScrollToIndex(19)
-        composeRule.waitUntil { thresholdEvents.count { it } == 1 }
-
-        photoList.performScrollToIndex(0)
-        composeRule.waitUntil { thresholdEvents.lastOrNull() == false }
-
-        photoList.performScrollToIndex(19)
-        composeRule.waitUntil { thresholdEvents.count { it } == 2 }
-    }
-
-    private fun setHomeContent(
-        uiState: HomeUiState,
-        onAction: (HomeUiAction) -> Unit = {},
+    private fun showHome(
+        state: HomeUiState,
+        onUpload: () -> Unit = {},
+        onRecord: () -> Unit = {},
+        onDisplay: (LocalDate) -> Unit = {},
+        onFeed: (Post) -> Unit = {},
+        onTab: (ChalkakBottomBarItem) -> Unit = {},
+        onIssue: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
                 HomeScreen(
-                    uiState = uiState,
-                    onAction = onAction,
+                    uiState = state,
+                    onOpenPhotoUpload = onUpload,
+                    onOpenRecord = onRecord,
+                    onOpenDisplay = onDisplay,
+                    onOpenFeed = onFeed,
+                    onNavigateToBottomBar = onTab,
+                    onRetry = {},
+                    onNotificationClick = {},
+                    onIssueClick = onIssue,
                 )
             }
         }
+        composeRule.waitForIdle()
+    }
+
+    private fun screenshot(name: String) {
+        composeRule.waitForIdle()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val bitmap = instrumentation.uiAutomation.takeScreenshot() ?: return
+        val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "home-review")
+        directory.mkdirs()
+        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
     }
 }
 
-private const val HOME_STATE_KEY = "home"
+private val DATE = LocalDate.of(2026, 10, 8)
 
-private fun contentUiState(
-    photos: List<Post> = photos(1),
-    isLoadingNext: Boolean = false,
-) = HomeUiState(
-    contentStatus = HomeContentStatus.Content,
-    topicDate = LocalDate.of(2026, 8, 28),
-    topic = "바다",
-    photos = photos,
-    selectedSort = PostSort.LATEST,
-    currentPage = 1,
-    hasNext = true,
-    isLoadingNext = isLoadingNext,
+private fun readyState() = HomeUiState(
+    date = DATE,
+    topic = "하늘",
+    topicStatus = HomeSectionStatus.Ready,
+    hero = HomeHeroState.Empty,
+    recordsStatus = HomeSectionStatus.Ready,
+    yesterday = HomeRankingState(HomeSectionStatus.Ready, samplePhotos()),
+    trending = HomeRankingState(HomeSectionStatus.Ready, samplePhotos().reversed()),
+    isAuthenticated = true,
 )
 
-private fun photos(count: Int) = List(count) { index ->
+private fun samplePhotos(): List<Post> = List(4) { index ->
     Post(
         id = "photo-$index",
-        originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-        signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
-        signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
-        contentDescription = "작품 이미지: 사진 $index",
-        title = "사진 $index",
-        likeCount = 17,
+        originalImageUrl = image(R.drawable.preview_photo),
+        thumbnailImageUrl = image(if (index % 2 == 0) R.drawable.preview_photo else R.drawable.home_feed_photo),
+        signatureOriginalImageUrl = image(R.drawable.preview_signature),
+        contentDescription = "랭킹 사진 $index",
+        title = null,
+        likeCount = 10 - index,
     )
 }
 
-private class GuestPostRepository : PostRepository {
-    var likeRequestCount = 0
-
-    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
-
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
-
-    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-
-    override suspend fun updatePostTitle(
-        postId: String,
-        title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
-
-    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
-        PostContent(
-            topicDate = LocalDate.of(2026, 8, 28),
-            topic = "바다",
-            photos = photos(1),
-            likedPhotoIds = emptySet(),
-            currentPage = 1,
-            hasNext = false,
-        ),
-    )
-
-    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): HomeResult<HomeLike> {
-        likeRequestCount++
-        return HomeResult.Success(HomeLike(likeCount = 18, isLiked = isLiked))
-    }
-}
-
-private class PageFailurePostRepository : PostRepository {
-    val pageResult = CompletableDeferred<HomeResult<PostPage>>()
-    var pageRequestCount = 0
-
-    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
-
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
-
-    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-
-    override suspend fun updatePostTitle(
-        postId: String,
-        title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
-
-    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(
-        PostContent(
-            topicDate = LocalDate.of(2026, 8, 28),
-            topic = "바다",
-            photos = photos(20),
-            likedPhotoIds = emptySet(),
-            currentPage = 1,
-            hasNext = true,
-        ),
-    )
-
-    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
-        pageRequestCount++
-        return pageResult.await()
-    }
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): HomeResult<HomeLike> = error("unused")
-}
+private fun image(resourceId: Int) = "android.resource://com.stonefive.chalkak/$resourceId"

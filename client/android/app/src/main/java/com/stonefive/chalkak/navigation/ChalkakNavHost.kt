@@ -37,12 +37,14 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
+import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.login.LoginRoute
 import com.stonefive.chalkak.feature.notification.NotificationDetailRoute
 import com.stonefive.chalkak.feature.notification.NotificationItemUiState
@@ -67,6 +69,7 @@ import java.time.LocalDate
 @Composable
 fun ChalkakNavHost(
     analyticsTracker: AnalyticsTracker,
+    homeViewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     startDestination: Any = Login,
@@ -105,7 +108,7 @@ fun ChalkakNavHost(
 
     val navigateToLogin: () -> Unit = {
         navController.navigate(Login) {
-            popUpTo<Today> { inclusive = true }
+            popUpTo<Home> { inclusive = true }
             launchSingleTop = true
         }
     }
@@ -163,7 +166,7 @@ fun ChalkakNavHost(
     ) {
         val push = pendingNotificationPush ?: return@LaunchedEffect
         if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
-        if (currentBackStackEntry?.destination?.hasRoute<Today>() != true) return@LaunchedEffect
+        if (currentBackStackEntry?.destination?.hasRoute<Home>() != true) return@LaunchedEffect
 
         val notificationId = push.notificationId?.takeIf(String::isNotBlank)
         if (notificationId == null) {
@@ -216,7 +219,7 @@ fun ChalkakNavHost(
             composable<Login> {
                 LoginRoute(
                     onGuestAccessGranted = {
-                        navController.navigate(Today) {
+                        navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
                         }
@@ -299,7 +302,7 @@ fun ChalkakNavHost(
                         if (reminderTime.returnToSettings) {
                             navController.popBackStack()
                         } else {
-                            navController.navigate(Today) {
+                            navController.navigate(Home) {
                                 popUpTo(navController.graph.startDestinationId) {
                                     inclusive = true
                                 }
@@ -329,14 +332,46 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Today> {
-                HomeRoute(
-                    onOpenPhotoUpload = openPhotoUpload,
-                    onNavigateToBottomBar = navigateToBottomBar,
-                    onOpenNotifications = {
-                        navController.navigate(Notifications) { launchSingleTop = true }
-                    },
-                )
+            composable<Home> {
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    HomeRoute(
+                        onOpenPhotoUpload = openPhotoUpload,
+                        onNavigateToBottomBar = navigateToBottomBar,
+                        onOpenRecord = { navigateToBottomBar(ChalkakBottomBarItem.RECORD) },
+                        onOpenDisplay = { date ->
+                            navController.navigate(
+                                Display(
+                                    date = date.toString(),
+                                    sort = PostSort.POPULAR.name,
+                                ),
+                            ) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenFeed = { post ->
+                            if (sessionState is UserSessionState.Authenticated) {
+                                navController.navigate(
+                                    FeedById(
+                                        postId = post.id,
+                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                    ),
+                                )
+                            } else {
+                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                            }
+                        },
+                        onNotificationClick = {
+                            navController.navigate(Notifications) { launchSingleTop = true }
+                        },
+                        onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
+                        viewModel = homeViewModel,
+                    )
+                }
             }
 
             composable<Notifications> {
@@ -371,6 +406,9 @@ fun ChalkakNavHost(
                         onOpenPhotoUpload = openPhotoUpload,
                         onNavigateToBottomBar = navigateToBottomBar,
                         initialDate = display.date.toLocalDateOrNull(),
+                        initialSort = PostSort.entries.firstOrNull {
+                            it.name == display.sort
+                        } ?: PostSort.LATEST,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
                             if (sessionState is UserSessionState.Authenticated) {
                                 navController.navigate(
@@ -553,7 +591,7 @@ fun ChalkakNavHost(
                     onBack = { navController.popBackStack() },
                     onReauthenticationRequired = {
                         navController.navigate(Login) {
-                            popUpTo<Today> { inclusive = true }
+                            popUpTo<Home> { inclusive = true }
                             launchSingleTop = true
                         }
                     },
@@ -587,7 +625,7 @@ fun ChalkakNavHost(
                     ),
                     onConfirmClick = {
                         navController.navigate(Display(date = success.date)) {
-                            popUpTo<Today> { inclusive = false }
+                            popUpTo<Home> { inclusive = false }
                             launchSingleTop = true
                         }
                     },
@@ -654,7 +692,7 @@ private fun NavHostController.navigateToBottomBar(
     }
 
     val destination = when (item) {
-        ChalkakBottomBarItem.TODAY -> Today
+        ChalkakBottomBarItem.HOME -> Home
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
         ChalkakBottomBarItem.RECORD -> Record
         ChalkakBottomBarItem.SETTINGS -> Settings
@@ -662,8 +700,9 @@ private fun NavHostController.navigateToBottomBar(
 
     navigate(destination) {
         launchSingleTop = true
-        restoreState = true
-        popUpTo(Today) {
+        // Home is the retained root; restoring its saved stack can reopen the Display just popped.
+        restoreState = item != ChalkakBottomBarItem.HOME
+        popUpTo(Home) {
             saveState = true
         }
     }
@@ -671,14 +710,14 @@ private fun NavHostController.navigateToBottomBar(
 
 private val ChalkakBottomBarItem.analyticsName: String
     get() = when (this) {
-        ChalkakBottomBarItem.TODAY -> "today"
+        ChalkakBottomBarItem.HOME -> "home"
         ChalkakBottomBarItem.DISPLAY -> "display"
         ChalkakBottomBarItem.RECORD -> "record"
         ChalkakBottomBarItem.SETTINGS -> "settings"
     }
 
 private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
-    hasRoute<Today>() -> AnalyticsScreen(name = "today", screenClass = "Today")
+    hasRoute<Home>() -> AnalyticsScreen(name = "home", screenClass = "Home")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")

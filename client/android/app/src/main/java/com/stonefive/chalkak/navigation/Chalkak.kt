@@ -24,7 +24,7 @@ data object ChangeSignaturePreview
 data class ReminderTime(val returnToSettings: Boolean = false)
 
 @Serializable
-data object Today
+data object Home
 
 @Serializable
 data object Notifications
@@ -33,7 +33,10 @@ data object Notifications
 data class NotificationDetail(val notificationId: String)
 
 @Serializable
-data class Display(val date: String)
+data class Display(
+    val date: String,
+    val sort: String = "LATEST",
+)
 
 @Serializable
 data class Feed(

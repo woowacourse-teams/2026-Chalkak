@@ -3,21 +3,17 @@ package com.stonefive.chalkak.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -25,404 +21,385 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
-import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
-import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
-import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
+import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.feature.home.component.HomePhotoList
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.home.component.HomeHeroCard
+import com.stonefive.chalkak.feature.home.component.HomeIssueSection
+import com.stonefive.chalkak.feature.home.component.HomeRankingRow
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
-import com.stonefive.chalkak.feature.home.component.HomeTopic
-import com.stonefive.chalkak.feature.home.component.homeBottomDivider
+import com.stonefive.chalkak.feature.home.component.HomeTopBarHeight
+import com.stonefive.chalkak.feature.home.component.HomeWeeklyRecord
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.launch
 
-const val GUEST_LIKE_MESSAGE = "로그인 후 좋아요를 누를 수 있어요"
-const val HOME_ERROR_MESSAGE = "홈을 불러오지 못했어요"
-const val HOME_REFRESH_CONTENT_DESCRIPTION = "홈 새로고침"
-const val HOME_LOADING_TEST_TAG = "home-loading"
-const val HOME_INITIAL_ERROR_TEST_TAG = "home-initial-error"
-const val HOME_EMPTY_TEST_TAG = "home-empty"
-const val HOME_NEXT_LOADING_TEST_TAG = "home-next-loading"
-
-@Composable
-fun HomeRoute(
-    onOpenPhotoUpload: () -> Unit,
-    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
-    onOpenNotifications: () -> Unit,
-    viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
-
-    LaunchedEffect(viewModel) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                HomeUiEvent.OpenPhotoUpload -> onOpenPhotoUpload()
-                is HomeUiEvent.NavigateToBottomBar -> onNavigateToBottomBar(event.item)
-            }
-        }
-    }
-
-    HomeScreen(
-        uiState = uiState,
-        onAction = viewModel::onAction,
-        onNotificationClick = onOpenNotifications,
-    )
-}
+const val HOME_CONTENT_TEST_TAG = "home-content"
 
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
-    onAction: (HomeUiAction) -> Unit,
+    onOpenPhotoUpload: () -> Unit,
+    onOpenRecord: () -> Unit,
+    onOpenDisplay: (LocalDate) -> Unit,
+    onOpenFeed: (Post) -> Unit,
+    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onRetry: () -> Unit,
+    onNotificationClick: () -> Unit,
+    onIssueClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onNotificationClick: () -> Unit = {},
 ) {
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = ChalkakBackground,
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            if (uiState.contentStatus != HomeContentStatus.Content) {
-                ChalkakBottomBar(
-                    selectedItem = ChalkakBottomBarItem.TODAY,
-                    onItemSelected = { onAction(HomeUiAction.BottomBarSelected(it)) },
-                    onAddClick = { onAction(HomeUiAction.AddClicked) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+    val listState = rememberLazyListState()
+    val bottomBarState = rememberBottomBarScrollState()
+    val interactionScope = rememberCoroutineScope()
+    val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
+        CollapsingScrollToTopThreshold.toPx()
+    }
+    val bottomBarHeight = with(LocalDensity.current) { bottomBarState.height.toDp() }
+    val nestedScrollConnection = remember(
+        listState,
+        bottomBarState,
+        scrollToTopToggleThresholdPx,
+        interactionScope,
+    ) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    bottomBarState.onScroll(
+                        scrollDeltaY = available.y,
+                        atTop = !listState.canScrollBackward,
+                        toggleThresholdPx = scrollToTopToggleThresholdPx,
+                    )
+                }
+                return Offset.Zero
             }
-        },
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                bottomBarState.settle(interactionScope)
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(listState.canScrollBackward) {
+        if (!listState.canScrollBackward) {
+            bottomBarState.hideScrollToTopButton()
+        }
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize().nestedScroll(nestedScrollConnection),
+        containerColor = ChalkakTheme.colors.background,
+        contentWindowInsets = WindowInsets(0),
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when (uiState.contentStatus) {
-                HomeContentStatus.Loading -> HomeInitialStatus(
-                    status = uiState.contentStatus,
-                    onRetryClick = { onAction(HomeUiAction.RetryClicked) },
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ChalkakTheme.colors.background),
+            ) {
+                HomeTopBar(
                     onNotificationClick = onNotificationClick,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .height(HomeTopBarHeight)
+                        .homeBottomDivider()
+                        .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
-
-                is HomeContentStatus.Error -> HomeInitialStatus(
-                    status = uiState.contentStatus,
-                    onRetryClick = { onAction(HomeUiAction.RetryClicked) },
-                    onNotificationClick = onNotificationClick,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                HomeContentStatus.Content -> HomeContent(
+                HomeContent(
                     uiState = uiState,
-                    onAction = onAction,
-                    onNotificationClick = onNotificationClick,
-                    modifier = Modifier.fillMaxSize(),
+                    onOpenPhotoUpload = onOpenPhotoUpload,
+                    onOpenRecord = onOpenRecord,
+                    onOpenDisplay = onOpenDisplay,
+                    onOpenFeed = onOpenFeed,
+                    onRetry = onRetry,
+                    onIssueClick = onIssueClick,
+                    listState = listState,
+                    modifier = Modifier.weight(1f),
                 )
             }
+            if (bottomBarState.isScrollToTopButtonVisible) {
+                ChalkakScrollToTopButton(
+                    onClick = {
+                        interactionScope.launch {
+                            listState.animateScrollToTopSmoothly()
+                            bottomBarState.reset()
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(
+                            end = 24.dp,
+                            bottom = bottomBarHeight + 18.dp,
+                        ),
+                )
+            }
+            ChalkakBottomBar(
+                selectedItem = ChalkakBottomBarItem.HOME,
+                onItemSelected = onNavigateToBottomBar,
+                onAddClick = onOpenPhotoUpload,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { bottomBarState.height = it.height }
+                    .graphicsLayer { translationY = bottomBarState.offset },
+            )
         }
     }
 }
 
-@Composable
-private fun HomeInitialStatus(
-    status: HomeContentStatus,
-    onRetryClick: () -> Unit,
-    onNotificationClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val testTag = when (status) {
-        HomeContentStatus.Loading -> HOME_LOADING_TEST_TAG
-        is HomeContentStatus.Error -> HOME_INITIAL_ERROR_TEST_TAG
-        HomeContentStatus.Content -> error("Content is rendered by HomeContent")
-    }
-    Column(modifier = modifier.statusBarsPadding()) {
-        HomeTopBar(
-            onNotificationClick = onNotificationClick,
-            modifier = Modifier.fillMaxWidth().homeBottomDivider(),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .testTag(testTag),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (status) {
-                HomeContentStatus.Loading -> {
-                    CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
-                }
-
-                is HomeContentStatus.Error -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = status.reason.message,
-                            color = ChalkakTheme.colors.textSecondary,
-                            style = ChalkakTheme.typography.body,
-                        )
-                        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
-                        ChalkakFilledIconButton(onClick = onRetryClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = HOME_REFRESH_CONTENT_DESCRIPTION,
-                            )
-                        }
-                    }
-                }
-
-                HomeContentStatus.Content -> Unit
-            }
-        }
+private suspend fun LazyListState.animateScrollToTopSmoothly() {
+    for (index in firstVisibleItemIndex downTo 0) {
+        animateScrollToItem(index)
     }
 }
 
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
-    onAction: (HomeUiAction) -> Unit,
-    onNotificationClick: () -> Unit,
+    onOpenPhotoUpload: () -> Unit,
+    onOpenRecord: () -> Unit,
+    onOpenDisplay: (LocalDate) -> Unit,
+    onOpenFeed: (Post) -> Unit,
+    onRetry: () -> Unit,
+    onIssueClick: () -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val photoListState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
-    var localResetSignal by remember { mutableIntStateOf(0) }
-    val interactionScope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val statusBarHeightPx = WindowInsets.statusBars.getTop(density)
-    val fixedTopAreaHeightPx = statusBarHeightPx + with(density) {
-        HomeTopBarHeight.toPx()
-    }
-    val scrollState = rememberHomeScrollBehaviorState(
-        photoListState = photoListState,
-        interactionScope = interactionScope,
-        scrollToTopToggleThresholdPx = with(density) {
-            CollapsingScrollToTopThreshold.toPx()
-        },
-    )
-    val photoListTopPadding = with(density) {
-        scrollState.visibleTopAreaHeight(fixedTopAreaHeightPx).toDp()
-    }
-    val bottomBarHeight = with(density) {
-        scrollState.bottomBarState.height
-            .toDp()
-    }
-    val topBarBackgroundAlpha = topBarBackgroundAlpha(scrollState.collapsedTopAreaProgress)
 
-    LaunchedEffect(localResetSignal) {
-        if (localResetSignal == 0) return@LaunchedEffect
-        scrollState.reset()
-        photoListState.animateScrollToItem(0)
-    }
-
-    LaunchedEffect(
-        photoListState.canScrollBackward,
-        photoListState.canScrollForward,
-        scrollState.topAreaOffset,
-    ) {
-        if (!photoListState.canScrollBackward && !photoListState.canScrollForward) {
-            scrollState.reset()
-        } else {
-            scrollState.updateScrollToTopVisibility()
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(ChalkakBackground)
-            .nestedScroll(scrollState.nestedScrollConnection),
-    ) {
-        PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
-            onRefresh = { onAction(HomeUiAction.RefreshRequested) },
-            modifier = Modifier.fillMaxSize(),
-            state = pullToRefreshState,
-            indicator = {
-                PullToRefreshDefaults.Indicator(
-                    state = pullToRefreshState,
-                    isRefreshing = uiState.isRefreshing,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = photoListTopPadding),
-                )
-            },
-        ) {
-            HomePhotoList(
-                photos = uiState.photos,
-                contentRevision = uiState.contentRevision,
-                likedPhotoIds = uiState.likedPhotoIds,
-                isLoadingNext = uiState.isLoadingNext,
-                areLikesEnabled = uiState.areLikesEnabled,
-                onLikeClick = { onAction(HomeUiAction.LikeClicked(it)) },
-                onEndThresholdChanged = { onAction(HomeUiAction.EndThresholdChanged(it)) },
-                modifier = Modifier.fillMaxSize(),
-                state = photoListState,
-                topContentPadding = photoListTopPadding,
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = onRetry,
+        modifier = modifier,
+        state = pullToRefreshState,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullToRefreshState,
+                isRefreshing = uiState.isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
             )
-            if (uiState.photos.isEmpty()) {
-                ChalkakEmptyPostContent(
-                    modifier = Modifier.align(Alignment.Center),
-                    testTag = HOME_EMPTY_TEST_TAG,
-                )
-            }
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            Spacer(modifier = Modifier.height(HomeTopBarHeight))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clipToBounds()
-                    .collapsingArea(scrollState.topAreaOffset),
-            ) {
-                Column(
+        },
+    ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(HOME_CONTENT_TEST_TAG),
+            contentPadding = PaddingValues(bottom = ChalkakTheme.spacing.xxl),
+        ) {
+            item {
+                HomeTopicHeader(
+                    date = uiState.date,
+                    topic = uiState.topic,
+                    topicStatus = uiState.topicStatus,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(ChalkakBackground)
-                        .onSizeChanged { scrollState.topAreaHeight = it.height },
-                ) {
-                    HomeTopic(
-                        topicDate = uiState.topicDate,
-                        topic = uiState.topic,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                        .padding(
+                            start = ChalkakTheme.spacing.screenHorizontal,
+                            top = ChalkakTheme.spacing.xl + ChalkakTheme.spacing.sm,
+                            end = ChalkakTheme.spacing.screenHorizontal,
+                        ),
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
+                HomeHeroCard(
+                    hero = uiState.hero,
+                    topic = uiState.topic,
+                    onOpenPhotoUpload = onOpenPhotoUpload,
+                    onOpenRecord = onOpenRecord,
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                HomeWeeklyRecord(
+                    days = uiState.week,
+                    status = uiState.recordsStatus,
+                    onOpenRecord = onOpenRecord,
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                HomeRankingRow(
+                    title = "어제 랭킹",
+                    ranking = uiState.yesterday,
+                    displayDate = uiState.date.minusDays(1),
+                    onOpenDisplay = onOpenDisplay,
+                    onOpenFeed = onOpenFeed,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                HomeRankingRow(
+                    title = "오늘 인기있는 사진",
+                    ranking = uiState.trending,
+                    displayDate = uiState.date,
+                    onOpenDisplay = onOpenDisplay,
+                    onOpenFeed = onOpenFeed,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                HomeIssueSection(
+                    onIssueClick = onIssueClick,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                )
             }
         }
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .background(ChalkakBackground.copy(alpha = topBarBackgroundAlpha)),
-        ) {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsTopHeight(WindowInsets.statusBars),
-            )
-            HomeTopBar(
-                onNotificationClick = onNotificationClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (scrollState.isTopAreaVisible) {
-                            Modifier.homeBottomDivider()
-                        } else {
-                            Modifier
-                        },
-                    ),
-            )
-        }
-        if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
-            ChalkakScrollToTopButton(
-                onClick = {
-                    interactionScope.launch {
-                        scrollState.reset()
-                        photoListState.animateScrollToItem(0)
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(
-                        end = 24.dp,
-                        bottom = bottomBarHeight + 18.dp,
-                    ),
-            )
-        }
-        ChalkakBottomBar(
-            selectedItem = ChalkakBottomBarItem.TODAY,
-            onItemSelected = { item ->
-                if (item == ChalkakBottomBarItem.TODAY) {
-                    localResetSignal++
-                }
-                onAction(HomeUiAction.BottomBarSelected(item))
+    }
+}
+
+@Composable
+private fun HomeTopicHeader(
+    date: LocalDate,
+    topic: String,
+    topicStatus: HomeSectionStatus,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = "${date.format(HomeDateFormatter)} · 오늘의 주제",
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.subheadline,
+        )
+        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
+        Text(
+            text = when (topicStatus) {
+                HomeSectionStatus.Loading -> "오늘의 주제를 불러오는 중"
+                HomeSectionStatus.Error -> "오늘의 주제를 불러오지 못했어요"
+                HomeSectionStatus.Ready -> topic.ifBlank { "오늘의 주제가 아직 준비되지 않았어요" }
             },
-            onAddClick = { onAction(HomeUiAction.AddClicked) },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .onSizeChanged { scrollState.bottomBarState.height = it.height }
-                .graphicsLayer { translationY = scrollState.bottomBarState.offset },
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.title2,
         )
     }
 }
 
-private val HomeTopBarHeight = 55.dp
+@Composable
+private fun Modifier.homeBottomDivider(): Modifier {
+    val borderColor = ChalkakTheme.colors.border
+    return drawBehind {
+        val strokeWidth = HomeDividerWidth.toPx()
+        drawLine(
+            color = borderColor,
+            start = Offset(0f, size.height - strokeWidth / 2),
+            end = Offset(size.width, size.height - strokeWidth / 2),
+            strokeWidth = strokeWidth,
+        )
+    }
+}
 
-@Preview(
-    showBackground = true,
-    widthDp = 402,
-    heightDp = 874,
-)
+private val HomeDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
+private val HomeDividerWidth = 0.5.dp
+
+@Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
 private fun HomeScreenPreview() {
+    val date = LocalDate.of(2026, 8, 3)
     ChalkakTheme {
         HomeScreen(
             uiState = HomeUiState(
-                contentStatus = HomeContentStatus.Content,
-                topicDate = LocalDate.of(2026, 8, 3),
-                topic = "하늘하늘하늘",
-                photos = listOf(
-                    Post(
-                        id = "preview-1",
-                        originalImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        thumbnailImageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        contentDescription = "노을이 진 하늘과 전신주",
-                        title = "안녕하세요 찰캌입니다.",
-                        likeCount = 24,
-                    ),
-                    Post(
-                        id = "preview-2",
-                        originalImageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                        thumbnailImageUrl = drawableResourceUrl(R.drawable.preview_photo),
-                        signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
-                        contentDescription = "두 번째 사진",
-                        title = null,
-                        likeCount = 12,
-                    ),
+                date = date,
+                topic = "하늘",
+                topicStatus = HomeSectionStatus.Ready,
+                hero = HomeHeroState.Photo(
+                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    thumbnailUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+                    signatureThumbnailUrl = drawableResourceUrl(R.drawable.preview_signature),
                 ),
+                week = homeWeekDates(date).mapIndexed { index, day ->
+                    HomeWeekDay(
+                        date = day,
+                        post = if (index in listOf(0, 2, 3, 5, 6)) {
+                            PostCalendarItem(
+                                postId = "week-$index",
+                                topicDate = day,
+                                thumbnailImageUrl = drawableResourceUrl(
+                                    if (index % 2 == 0) R.drawable.preview_photo else R.drawable.home_feed_photo,
+                                ),
+                                status = if (index == 3) PostStatus.PENDING else PostStatus.APPROVED,
+                            )
+                        } else {
+                            null
+                        },
+                    )
+                },
+                recordsStatus = HomeSectionStatus.Ready,
+                yesterday = HomeRankingState(HomeSectionStatus.Ready, previewHomePosts()),
+                trending = HomeRankingState(HomeSectionStatus.Ready, previewHomePosts().reversed()),
+                isAuthenticated = true,
             ),
-            onAction = {},
+            onOpenPhotoUpload = {},
+            onOpenRecord = {},
+            onOpenDisplay = {},
+            onOpenFeed = {},
+            onNavigateToBottomBar = {},
+            onRetry = {},
+            onNotificationClick = {},
+            onIssueClick = {},
         )
     }
 }
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun previewHomePosts(): List<Post> = listOf(
+    previewHomePost("1", R.drawable.preview_photo, "등대"),
+    previewHomePost("2", R.drawable.home_feed_photo, "노을"),
+    previewHomePost("3", R.drawable.record_landscape_photo, "산"),
+    previewHomePost("4", R.drawable.preview_photo, "바다"),
+)
 
-val HomeInitialError.message: String
-    get() = when (this) {
-        HomeInitialError.TopicNotFound -> "오늘의 주제가 아직 준비되지 않았어요"
-        HomeInitialError.Unauthorized -> "로그인 정보를 확인할 수 없어요"
-        HomeInitialError.Network -> "네트워크 연결을 확인해 주세요"
-        HomeInitialError.InvalidResponse -> "홈 정보를 불러오지 못했어요"
-        HomeInitialError.Client -> "요청을 처리하지 못했어요"
-        HomeInitialError.Server -> "서버에 잠시 문제가 생겼어요"
-        HomeInitialError.Generic -> HOME_ERROR_MESSAGE
-    }
+private fun previewHomePost(
+    id: String,
+    imageRes: Int,
+    title: String,
+): Post = Post(
+    id = "preview-$id",
+    originalImageUrl = drawableResourceUrl(imageRes),
+    thumbnailImageUrl = drawableResourceUrl(imageRes),
+    signatureOriginalImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+    signatureThumbnailImageUrl = drawableResourceUrl(R.drawable.preview_signature),
+    contentDescription = "$title 사진",
+    title = title,
+    likeCount = id.toInt(),
+)
+
+private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"

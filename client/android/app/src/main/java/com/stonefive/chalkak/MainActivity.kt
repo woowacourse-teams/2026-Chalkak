@@ -9,15 +9,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.notification.NotificationPushData
+import com.stonefive.chalkak.feature.home.HomeViewModel
+import com.stonefive.chalkak.feature.versiongate.VersionGateStatus
 import com.stonefive.chalkak.feature.versiongate.VersionGateViewModel
 
 class MainActivity : ComponentActivity() {
     private val versionGateViewModel: VersionGateViewModel by viewModels {
         VersionGateViewModel.Factory
+    }
+    private val homeViewModel: HomeViewModel by viewModels {
+        HomeViewModel.Factory
     }
 
     private val appContainer: AppContainer
@@ -42,8 +48,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enqueueNotificationNavigation(intent)
+        splashScreen.setKeepOnScreenCondition {
+            when (versionGateViewModel.uiState.value.status) {
+                VersionGateStatus.Checking -> true
+
+                VersionGateStatus.Accessible -> !homeViewModel.isReadyForInitialDisplay.value
+
+                VersionGateStatus.CheckFailed,
+                VersionGateStatus.UpdateRequired,
+                VersionGateStatus.UpdateInProgress,
+                -> false
+            }
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 scrim = android.graphics.Color.TRANSPARENT,
@@ -58,6 +77,7 @@ class MainActivity : ComponentActivity() {
             ChalkakTheme {
                 ChalkakApp(
                     versionGateViewModel = versionGateViewModel,
+                    homeViewModel = homeViewModel,
                     analyticsTracker = analyticsTracker,
                     onStartImmediateUpdate = {
                         appUpdateGateway.startImmediateUpdate(updateLauncher)
