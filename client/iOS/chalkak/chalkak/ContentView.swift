@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var recordViewModel = Self.makeRecordViewModel()
     @State private var notificationSetupViewModel = NotificationSetupViewModel()
     @State private var isNotificationSetupPresented = false
+    @State private var hasPresentedInitialNotificationSetup = false
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -51,22 +52,17 @@ struct ContentView: View {
             case .login:
                 LoginView(
                     authRepository: authRepository,
-                    onAuthenticated: showNotificationSetupAfterAuthentication,
+                    onAuthenticated: showHomeAfterAuthentication,
                     onGuestAccessGranted: showHome,
                     onSignUpRequired: showOnboarding
                 )
             case .onboarding:
                 OnboardingRoute(
                     authRepository: authRepository,
-                    onFinish: showNotificationSetupAfterAuthentication,
+                    onFinish: showHomeAfterAuthentication,
                     onReauthenticationRequired: showLogin,
                     onServiceTermsView: showServiceTerms,
                     onPrivacyPolicyView: showPrivacyPolicy
-                )
-            case .notificationSetup:
-                NotificationSetupScreen(
-                    viewModel: notificationSetupViewModel,
-                    onFinish: finishNotificationSetup
                 )
             case .home:
                 NavigationStack {
@@ -321,6 +317,7 @@ struct ContentView: View {
                 onNavigateToBottomBar: select,
                 bottomBarCompact: $isBottomBarCompact
             )
+            .onAppear(perform: presentInitialNotificationSetupIfNeeded)
             .task(id: ObjectIdentifier(homeViewModel)) {
                 guard homeViewModel.viewState.contentStatus == .loading else { return }
                 await homeViewModel.retry()
@@ -387,15 +384,27 @@ struct ContentView: View {
         route = .home
     }
 
-    private func showNotificationSetupAfterAuthentication() {
-        resetMainState()
-        route = AppRouteResolver.destinationAfterAuthentication(
-            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
-        )
+    private func showHomeAfterAuthentication() {
+        hasPresentedInitialNotificationSetup = false
+        showHome()
     }
 
-    private func finishNotificationSetup() {
-        route = .home
+    private func presentInitialNotificationSetupIfNeeded() {
+        guard route == .home, selectedTab == .today else { return }
+#if DEBUG
+        let isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+            || ProcessInfo.processInfo.arguments.contains("-show-notification-setup")
+#else
+        let isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+#endif
+        guard AppRouteResolver.shouldPresentNotificationSetup(
+            isAuthenticated: isAuthenticated,
+            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup,
+            hasPresentedDuringSession: hasPresentedInitialNotificationSetup
+        ) else { return }
+        hasPresentedInitialNotificationSetup = true
+        notificationSetupViewModel = NotificationSetupViewModel()
+        isNotificationSetupPresented = true
     }
 
     private func openNotificationSetup() {
@@ -739,12 +748,11 @@ struct ContentView: View {
             return .onboarding
         }
         if ProcessInfo.processInfo.arguments.contains("-show-notification-setup") {
-            return .notificationSetup
+            return .home
         }
 #endif
-        guard KeychainSessionStore.hasActiveSession() else { return .login }
-        return AppRouteResolver.destinationAfterAuthentication(
-            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
+        return AppRouteResolver.initialDestination(
+            hasActiveSession: KeychainSessionStore.hasActiveSession()
         )
     }
 
@@ -776,16 +784,21 @@ struct ContentView: View {
 enum AppRoute: Equatable {
     case login
     case onboarding
-    case notificationSetup
     case home
     case photoUploadSuccess
 }
 
 enum AppRouteResolver {
-    static func destinationAfterAuthentication(
-        hasCompletedNotificationSetup: Bool
-    ) -> AppRoute {
-        hasCompletedNotificationSetup ? .home : .notificationSetup
+    static func initialDestination(hasActiveSession: Bool) -> AppRoute {
+        hasActiveSession ? .home : .login
+    }
+
+    static func shouldPresentNotificationSetup(
+        isAuthenticated: Bool,
+        hasCompletedNotificationSetup: Bool,
+        hasPresentedDuringSession: Bool
+    ) -> Bool {
+        isAuthenticated && !hasCompletedNotificationSetup && !hasPresentedDuringSession
     }
 }
 
