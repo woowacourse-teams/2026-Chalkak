@@ -184,25 +184,33 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `통합 토글은 두 알림 설정을 함께 켜고 끈다`() = runTest {
+    fun `개별 토글은 선택한 알림만 변경한다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository()
         val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
         advanceUntilIdle()
 
-        viewModel.updatePushEnabled(false)
+        viewModel.updateTopicPushEnabled(false)
         advanceUntilIdle()
-        assertEquals(NotificationPushSettingsUpdate(false, false), repository.updates.last())
+        assertEquals(NotificationPushSettingsUpdate(topicPushEnabled = false), repository.updates.last())
+        assertEquals(NotificationPushSettings(false, true), viewModel.uiState.value.pushSettings)
+
+        viewModel.updateModerationPushEnabled(false)
+        advanceUntilIdle()
+        assertEquals(NotificationPushSettingsUpdate(moderationPushEnabled = false), repository.updates.last())
         assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
 
-        viewModel.updatePushEnabled(true)
+        viewModel.updateTopicPushEnabled(true)
         advanceUntilIdle()
-        assertEquals(NotificationPushSettingsUpdate(true, true), repository.updates.last())
+        assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
+
+        viewModel.updateModerationPushEnabled(true)
+        advanceUntilIdle()
         assertEquals(NotificationPushSettings(true, true), viewModel.uiState.value.pushSettings)
     }
 
     @Test
-    fun `통합 설정 저장 실패 시 기존 개별 설정을 복원한다`() = runTest {
+    fun `개별 설정 저장 실패 시 기존 개별 설정을 복원한다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository().apply {
             settings = NotificationPushSettings(true, false)
@@ -211,7 +219,7 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
         advanceUntilIdle()
 
-        viewModel.updatePushEnabled(true)
+        viewModel.updateModerationPushEnabled(true)
         advanceUntilIdle()
 
         assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
@@ -220,7 +228,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `통합 설정 저장 중 반복 입력은 추가 요청하지 않는다`() = runTest {
+    fun `개별 설정 저장 중 반복 입력은 추가 요청하지 않는다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository().apply {
             updateAwait = CompletableDeferred()
@@ -228,10 +236,10 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
         advanceUntilIdle()
 
-        viewModel.updatePushEnabled(false)
-        viewModel.updatePushEnabled(true)
+        viewModel.updateTopicPushEnabled(false)
+        viewModel.updateModerationPushEnabled(true)
         assertEquals(1, repository.updates.size)
-        assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
+        assertEquals(NotificationPushSettings(false, true), viewModel.uiState.value.pushSettings)
 
         repository.updateAwait?.complete(Unit)
         advanceUntilIdle()

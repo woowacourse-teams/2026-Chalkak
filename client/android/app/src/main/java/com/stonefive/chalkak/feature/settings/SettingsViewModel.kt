@@ -65,13 +65,12 @@ class SettingsViewModel(
         }
     }
 
-    fun updatePushEnabled(enabled: Boolean) {
-        updatePushSettings(
-            NotificationPushSettingsUpdate(
-                topicPushEnabled = enabled,
-                moderationPushEnabled = enabled,
-            ),
-        )
+    fun updateTopicPushEnabled(enabled: Boolean) {
+        updatePushSettings(NotificationPushSettingsUpdate(topicPushEnabled = enabled))
+    }
+
+    fun updateModerationPushEnabled(enabled: Boolean) {
+        updatePushSettings(NotificationPushSettingsUpdate(moderationPushEnabled = enabled))
     }
 
     fun dismissAccountDialog() {

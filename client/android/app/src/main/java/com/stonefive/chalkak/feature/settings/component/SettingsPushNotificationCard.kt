@@ -19,54 +19,66 @@ import kotlin.math.roundToInt
 fun SettingsPushNotificationCard(
     settings: NotificationPushSettings?,
     isSaving: Boolean,
-    onPushChanged: (Boolean) -> Unit,
-    onDeviceNotificationSettingsClick: () -> Unit,
+    onTopicPushChanged: (Boolean) -> Unit,
+    onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val checked = settings?.let { it.topicPushEnabled || it.moderationPushEnabled } == true
     val enabled = settings != null && !isSaving
     SettingsCard(modifier = modifier) {
-        SettingsRow(
-            text = "알림 설정",
+        SettingsPushToggleRow(
+            text = "주제 알림",
+            checked = settings?.topicPushEnabled == true,
             enabled = enabled,
-            onClick = { onPushChanged(!checked) },
-            modifier = Modifier.fillMaxWidth(),
-            trailingContent = {
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    Switch(
-                        checked = checked,
-                        onCheckedChange = onPushChanged,
-                        enabled = enabled,
-                        modifier = Modifier
-                            .layout { measurable, constraints ->
-                                val placeable = measurable.measure(constraints)
-                                val width = (placeable.width * NOTIFICATION_SWITCH_SCALE).roundToInt()
-                                val height = (placeable.height * NOTIFICATION_SWITCH_SCALE).roundToInt()
-                                layout(width, height) {
-                                    placeable.placeRelative(
-                                        x = (width - placeable.width) / 2,
-                                        y = (height - placeable.height) / 2,
-                                    )
-                                }
-                            }.scale(NOTIFICATION_SWITCH_SCALE),
-                        colors = SwitchDefaults.colors(
-                            uncheckedBorderColor = ChalkakTheme.colors.textMuted,
-                            disabledUncheckedBorderColor = ChalkakTheme.colors.textMuted,
-                        ),
-                    )
-                }
-            },
+            onCheckedChange = onTopicPushChanged,
         )
-
         SettingsDivider(modifier = Modifier.fillMaxWidth())
-
-        SettingsRow(
-            text = "기기 알림 설정",
-            onClick = onDeviceNotificationSettingsClick,
-            modifier = Modifier.fillMaxWidth(),
-            trailingContent = { SettingsArrowIcon() },
+        SettingsPushToggleRow(
+            text = "승인·반려 알림",
+            checked = settings?.moderationPushEnabled == true,
+            enabled = enabled,
+            onCheckedChange = onModerationPushChanged,
         )
     }
+}
+
+@Composable
+private fun SettingsPushToggleRow(
+    text: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    SettingsRow(
+        text = text,
+        enabled = enabled,
+        onClick = { onCheckedChange(!checked) },
+        modifier = Modifier.fillMaxWidth(),
+        trailingContent = {
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                Switch(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    enabled = enabled,
+                    modifier = Modifier
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            val width = (placeable.width * NOTIFICATION_SWITCH_SCALE).roundToInt()
+                            val height = (placeable.height * NOTIFICATION_SWITCH_SCALE).roundToInt()
+                            layout(width, height) {
+                                placeable.placeRelative(
+                                    x = (width - placeable.width) / 2,
+                                    y = (height - placeable.height) / 2,
+                                )
+                            }
+                        }.scale(NOTIFICATION_SWITCH_SCALE),
+                    colors = SwitchDefaults.colors(
+                        uncheckedBorderColor = ChalkakTheme.colors.textMuted,
+                        disabledUncheckedBorderColor = ChalkakTheme.colors.textMuted,
+                    ),
+                )
+            }
+        },
+    )
 }
 
 @Preview(showBackground = true)
@@ -76,8 +88,8 @@ private fun SettingsPushNotificationCardPreview() {
         SettingsPushNotificationCard(
             settings = NotificationPushSettings(topicPushEnabled = true, moderationPushEnabled = true),
             isSaving = false,
-            onPushChanged = {},
-            onDeviceNotificationSettingsClick = {},
+            onTopicPushChanged = {},
+            onModerationPushChanged = {},
         )
     }
 }

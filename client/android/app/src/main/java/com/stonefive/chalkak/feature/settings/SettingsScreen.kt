@@ -72,9 +72,14 @@ fun SettingsRoute(
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
-        onDeviceNotificationSettingsClick = { context.openDeviceNotificationSettings() },
-        onPushChanged = { enabled ->
-            viewModel.updatePushEnabled(enabled)
+        onTopicPushChanged = { enabled ->
+            viewModel.updateTopicPushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
+        },
+        onModerationPushChanged = { enabled ->
+            viewModel.updateModerationPushEnabled(enabled)
             if (enabled && !context.areDeviceNotificationsEnabled()) {
                 context.openDeviceNotificationSettings()
             }
@@ -96,8 +101,8 @@ fun SettingsScreen(
     onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
-    onDeviceNotificationSettingsClick: () -> Unit,
-    onPushChanged: (Boolean) -> Unit = {},
+    onTopicPushChanged: (Boolean) -> Unit,
+    onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     uiState.accountDialog?.let { accountDialog ->
@@ -154,8 +159,8 @@ fun SettingsScreen(
                 SettingsPushNotificationCard(
                     settings = uiState.pushSettings,
                     isSaving = uiState.isPushSettingsSaving,
-                    onPushChanged = onPushChanged,
-                    onDeviceNotificationSettingsClick = onDeviceNotificationSettingsClick,
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -268,7 +273,8 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onAccountDialogDismiss = {},
         onNavigateToBottomBar = {},
         onAddClick = {},
-        onDeviceNotificationSettingsClick = {},
+        onTopicPushChanged = {},
+        onModerationPushChanged = {},
     )
 }
 

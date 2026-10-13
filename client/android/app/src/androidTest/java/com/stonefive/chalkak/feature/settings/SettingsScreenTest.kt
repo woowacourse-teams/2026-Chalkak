@@ -14,7 +14,6 @@ import androidx.compose.ui.test.performTouchInput
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.NotificationPushSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -99,40 +98,6 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun deviceNotificationSettingsRemainAccessibleWithoutChangingPushPreferences() {
-        var deviceSettingsClickCount = 0
-        var pushChangeCount = 0
-        setSettingsContent(
-            uiState = SettingsUiState(
-                isLoggedIn = true,
-                pushSettings = NotificationPushSettings(topicPushEnabled = true, moderationPushEnabled = true),
-                isPushSettingsSaving = true,
-                versionName = "1.0",
-            ),
-            onDeviceNotificationSettingsClick = { deviceSettingsClickCount++ },
-            onPushChanged = { pushChangeCount++ },
-        )
-
-        composeRule.onNodeWithText("기기 알림 설정").performClick()
-
-        assertEquals(1, deviceSettingsClickCount)
-        assertEquals(0, pushChangeCount)
-    }
-
-    @Test
-    fun deviceNotificationSettingsRemainAccessibleWhenPushSettingsAreUnavailable() {
-        var deviceSettingsClickCount = 0
-        setSettingsContent(
-            uiState = SettingsUiState(isLoggedIn = true, versionName = "1.0"),
-            onDeviceNotificationSettingsClick = { deviceSettingsClickCount++ },
-        )
-
-        composeRule.onNodeWithText("기기 알림 설정").performClick()
-
-        assertEquals(1, deviceSettingsClickCount)
-    }
-
-    @Test
     fun tappingPrivacyPolicyRowInvokesPrivacyPolicyCallback() {
         var privacyPolicyClickCount = 0
         setSettingsContent(
@@ -202,8 +167,8 @@ class SettingsScreenTest {
         onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
-        onDeviceNotificationSettingsClick: () -> Unit = {},
-        onPushChanged: (Boolean) -> Unit = {},
+        onTopicPushChanged: (Boolean) -> Unit = {},
+        onModerationPushChanged: (Boolean) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -220,8 +185,8 @@ class SettingsScreenTest {
                     onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
-                    onDeviceNotificationSettingsClick = onDeviceNotificationSettingsClick,
-                    onPushChanged = onPushChanged,
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
                 )
             }
         }
