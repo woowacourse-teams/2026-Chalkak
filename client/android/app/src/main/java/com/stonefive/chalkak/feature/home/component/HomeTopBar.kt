@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -31,7 +32,7 @@ fun HomeTopBar(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChalkakLogo()
+        ChalkakLogo(modifier = Modifier.offset(y = LogoOpticalCenterOffset))
         Spacer(modifier = Modifier.weight(1f))
         Box(
             modifier = Modifier
@@ -46,7 +47,7 @@ fun HomeTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_bell),
+                painter = painterResource(R.drawable.ic_notification),
                 contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
                 modifier = Modifier.size(NotificationIconSize),
@@ -58,7 +59,10 @@ fun HomeTopBar(
 val HomeTopBarHeight = 55.dp
 
 private val NotificationTouchTargetSize = 40.dp
-private val NotificationIconSize = 22.dp
+private val NotificationIconSize = 24.dp
+
+// The lettering sits above the center of its font's line box.
+private val LogoOpticalCenterOffset = 5.dp
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
