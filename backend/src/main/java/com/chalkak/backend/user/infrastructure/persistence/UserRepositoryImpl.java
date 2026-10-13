@@ -19,8 +19,7 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public List<UUID> findTopicPushRecipientIds(UUID topicId) {
         return userJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
-                List.of(ModerationStatus.VALIDATING, ModerationStatus.PENDING,
-                        ModerationStatus.APPROVED));
+                ModerationStatus.REJECTED);
     }
 
     @Override

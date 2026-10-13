@@ -24,14 +24,14 @@ public interface UserJpaRepository extends JpaRepository<User, UUID> {
                     WHERE post.author.id = user.id
                         AND post.topic.id = :topicId
                         AND post.deletedAt IS NULL
-                        AND post.moderationStatus IN :participationStatuses
+                        AND post.moderationStatus <> :excludedStatus
                 )
             ORDER BY user.id
             """)
     List<UUID> findTopicPushRecipientIds(
             @Param("status") UserStatus status,
             @Param("topicId") UUID topicId,
-            @Param("participationStatuses") List<ModerationStatus> participationStatuses
+            @Param("excludedStatus") ModerationStatus excludedStatus
     );
 
     Optional<User> findByIdAndDeletedAtIsNull(UUID id);
