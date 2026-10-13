@@ -2,6 +2,12 @@ package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.NotificationDetail
+import com.stonefive.chalkak.domain.model.NotificationFailure
+import com.stonefive.chalkak.domain.model.NotificationPage
+import com.stonefive.chalkak.domain.model.NotificationPushSettings
+import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -11,6 +17,7 @@ import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -176,6 +183,61 @@ class SettingsViewModelTest {
         assertEquals(UserSessionState.SignedOut, authRepository.sessionState.value)
     }
 
+    @Test
+    fun `통합 토글은 두 알림 설정을 함께 켜고 끈다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository()
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updatePushEnabled(false)
+        advanceUntilIdle()
+        assertEquals(NotificationPushSettingsUpdate(false, false), repository.updates.last())
+        assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
+
+        viewModel.updatePushEnabled(true)
+        advanceUntilIdle()
+        assertEquals(NotificationPushSettingsUpdate(true, true), repository.updates.last())
+        assertEquals(NotificationPushSettings(true, true), viewModel.uiState.value.pushSettings)
+    }
+
+    @Test
+    fun `통합 설정 저장 실패 시 기존 개별 설정을 복원한다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            settings = NotificationPushSettings(true, false)
+            updateResult = NotificationResult.Failure(NotificationFailure.Http(500, null))
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updatePushEnabled(true)
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(true, false), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isPushSettingsSaving)
+        assertTrue(viewModel.uiState.value.pendingMessage != null)
+    }
+
+    @Test
+    fun `통합 설정 저장 중 반복 입력은 추가 요청하지 않는다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            updateAwait = CompletableDeferred()
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updatePushEnabled(false)
+        viewModel.updatePushEnabled(true)
+        assertEquals(1, repository.updates.size)
+        assertEquals(NotificationPushSettings(false, false), viewModel.uiState.value.pushSettings)
+
+        repository.updateAwait?.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isPushSettingsSaving)
+    }
+
     private fun createViewModel() = SettingsViewModel(
         authRepository = authRepository,
         userRepository = userRepository,
@@ -241,4 +303,36 @@ private class FakeSettingsUserRepository(private val onWithdraw: () -> Unit) : U
         profileError = null
         onWithdraw()
     }
+}
+
+private class FakeSettingsNotificationRepository : NotificationRepository {
+    var settings = NotificationPushSettings(true, true)
+    var updateResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
+    var updateAwait: CompletableDeferred<Unit>? = null
+    val updates = mutableListOf<NotificationPushSettingsUpdate>()
+
+    override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> =
+        NotificationResult.Success(settings)
+
+    override suspend fun updatePushSettings(settings: NotificationPushSettingsUpdate): NotificationResult<Unit> {
+        updates += settings
+        updateAwait?.await()
+        return updateResult
+    }
+
+    override suspend fun getNotifications(
+        page: Int,
+        pageSize: Int,
+    ): NotificationResult<NotificationPage> = error("Not used")
+
+    override suspend fun getNotification(notificationId: String): NotificationResult<NotificationDetail> =
+        error("Not used")
+
+    override suspend fun getUnreadStatus(): NotificationResult<Boolean> = error("Not used")
+
+    override suspend fun markAsRead(notificationId: String): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun registerCurrentPushDevice(fcmToken: String): NotificationResult<Unit> = error("Not used")
 }

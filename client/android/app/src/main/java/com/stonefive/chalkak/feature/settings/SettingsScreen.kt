@@ -16,20 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -61,21 +54,7 @@ fun SettingsRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var deviceNotificationsEnabled by remember {
-        mutableStateOf(context.areDeviceNotificationsEnabled())
-    }
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
-
-    DisposableEffect(lifecycleOwner, context) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                deviceNotificationsEnabled = context.areDeviceNotificationsEnabled()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     LaunchedEffect(signatureUpdateUrl) {
         signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
@@ -95,11 +74,11 @@ fun SettingsRoute(
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
-        onTopicPushChanged = viewModel::updateTopicPushEnabled,
-        onModerationPushChanged = viewModel::updateModerationPushEnabled,
-        deviceNotificationsEnabled = deviceNotificationsEnabled,
-        onOpenDeviceNotificationSettings = {
-            context.openDeviceNotificationSettings()
+        onPushChanged = { enabled ->
+            viewModel.updatePushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
         },
     )
 }
@@ -119,10 +98,7 @@ fun SettingsScreen(
     onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
-    onTopicPushChanged: (Boolean) -> Unit = {},
-    onModerationPushChanged: (Boolean) -> Unit = {},
-    deviceNotificationsEnabled: Boolean = true,
-    onOpenDeviceNotificationSettings: () -> Unit = {},
+    onPushChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     uiState.accountDialog?.let { accountDialog ->
@@ -179,12 +155,8 @@ fun SettingsScreen(
 
                 SettingsPushNotificationCard(
                     settings = uiState.pushSettings,
-                    isLoading = uiState.isPushSettingsLoading,
                     isSaving = uiState.isPushSettingsSaving,
-                    deviceNotificationsEnabled = deviceNotificationsEnabled,
-                    onTopicPushChanged = onTopicPushChanged,
-                    onModerationPushChanged = onModerationPushChanged,
-                    onOpenDeviceNotificationSettings = onOpenDeviceNotificationSettings,
+                    onPushChanged = onPushChanged,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
