@@ -72,6 +72,7 @@ fun SettingsRoute(
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
+        onDeviceNotificationSettingsClick = { context.openDeviceNotificationSettings() },
         onPushChanged = { enabled ->
             viewModel.updatePushEnabled(enabled)
             if (enabled && !context.areDeviceNotificationsEnabled()) {
@@ -95,6 +96,7 @@ fun SettingsScreen(
     onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
+    onDeviceNotificationSettingsClick: () -> Unit,
     onPushChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -153,6 +155,7 @@ fun SettingsScreen(
                     settings = uiState.pushSettings,
                     isSaving = uiState.isPushSettingsSaving,
                     onPushChanged = onPushChanged,
+                    onDeviceNotificationSettingsClick = onDeviceNotificationSettingsClick,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -265,6 +268,7 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onAccountDialogDismiss = {},
         onNavigateToBottomBar = {},
         onAddClick = {},
+        onDeviceNotificationSettingsClick = {},
     )
 }
 

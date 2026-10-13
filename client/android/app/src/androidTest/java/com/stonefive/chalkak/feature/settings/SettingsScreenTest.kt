@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performTouchInput
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.NotificationPushSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -94,6 +95,41 @@ class SettingsScreenTest {
         composeRule.onAllNodesWithText("사인 재설정").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그아웃").assertCountEquals(0)
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)
+        composeRule.onAllNodesWithText("기기 알림 설정").assertCountEquals(0)
+    }
+
+    @Test
+    fun deviceNotificationSettingsRemainAccessibleWithoutChangingPushPreferences() {
+        var deviceSettingsClickCount = 0
+        var pushChangeCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(
+                isLoggedIn = true,
+                pushSettings = NotificationPushSettings(topicPushEnabled = true, moderationPushEnabled = true),
+                isPushSettingsSaving = true,
+                versionName = "1.0",
+            ),
+            onDeviceNotificationSettingsClick = { deviceSettingsClickCount++ },
+            onPushChanged = { pushChangeCount++ },
+        )
+
+        composeRule.onNodeWithText("기기 알림 설정").performClick()
+
+        assertEquals(1, deviceSettingsClickCount)
+        assertEquals(0, pushChangeCount)
+    }
+
+    @Test
+    fun deviceNotificationSettingsRemainAccessibleWhenPushSettingsAreUnavailable() {
+        var deviceSettingsClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(isLoggedIn = true, versionName = "1.0"),
+            onDeviceNotificationSettingsClick = { deviceSettingsClickCount++ },
+        )
+
+        composeRule.onNodeWithText("기기 알림 설정").performClick()
+
+        assertEquals(1, deviceSettingsClickCount)
     }
 
     @Test
@@ -166,6 +202,8 @@ class SettingsScreenTest {
         onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
+        onDeviceNotificationSettingsClick: () -> Unit = {},
+        onPushChanged: (Boolean) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -182,6 +220,8 @@ class SettingsScreenTest {
                     onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
+                    onDeviceNotificationSettingsClick = onDeviceNotificationSettingsClick,
+                    onPushChanged = onPushChanged,
                 )
             }
         }

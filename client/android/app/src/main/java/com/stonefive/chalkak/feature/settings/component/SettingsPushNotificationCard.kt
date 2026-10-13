@@ -20,6 +20,7 @@ fun SettingsPushNotificationCard(
     settings: NotificationPushSettings?,
     isSaving: Boolean,
     onPushChanged: (Boolean) -> Unit,
+    onDeviceNotificationSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val checked = settings?.let { it.topicPushEnabled && it.moderationPushEnabled } == true
@@ -56,6 +57,15 @@ fun SettingsPushNotificationCard(
                 }
             },
         )
+
+        SettingsDivider(modifier = Modifier.fillMaxWidth())
+
+        SettingsRow(
+            text = "기기 알림 설정",
+            onClick = onDeviceNotificationSettingsClick,
+            modifier = Modifier.fillMaxWidth(),
+            trailingContent = { SettingsArrowIcon() },
+        )
     }
 }
 
@@ -67,6 +77,7 @@ private fun SettingsPushNotificationCardPreview() {
             settings = NotificationPushSettings(topicPushEnabled = true, moderationPushEnabled = true),
             isSaving = false,
             onPushChanged = {},
+            onDeviceNotificationSettingsClick = {},
         )
     }
 }
