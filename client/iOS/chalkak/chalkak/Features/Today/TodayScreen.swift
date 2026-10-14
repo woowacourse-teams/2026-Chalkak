@@ -5,6 +5,7 @@ struct TodayScreen: View {
     @Bindable var viewModel: TodayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
+    var hasUnreadNotifications = false
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
 
     @State private var message: String?
@@ -18,18 +19,21 @@ struct TodayScreen: View {
                 TodayInitialStatus(
                     status: viewModel.viewState.contentStatus,
                     onRetry: { Task { await viewModel.retry() } },
-                    onOpenNotifications: onOpenNotifications
+                    onOpenNotifications: onOpenNotifications,
+                    hasUnreadNotifications: hasUnreadNotifications
                 )
             case .error:
                 TodayInitialStatus(
                     status: viewModel.viewState.contentStatus,
                     onRetry: { Task { await viewModel.retry() } },
-                    onOpenNotifications: onOpenNotifications
+                    onOpenNotifications: onOpenNotifications,
+                    hasUnreadNotifications: hasUnreadNotifications
                 )
             case .content:
                 TodayContent(
                     viewModel: viewModel,
                     onOpenNotifications: onOpenNotifications,
+                    hasUnreadNotifications: hasUnreadNotifications,
                     isBottomBarCompact: bottomBarCompact
                 )
             }
@@ -92,10 +96,14 @@ private struct TodayInitialStatus: View {
     let status: TodayContentStatus
     let onRetry: () -> Void
     let onOpenNotifications: () -> Void
+    let hasUnreadNotifications: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            TodayTopBar(onOpenNotifications: onOpenNotifications)
+            TodayTopBar(
+                onOpenNotifications: onOpenNotifications,
+                hasUnreadNotifications: hasUnreadNotifications
+            )
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .todayBottomDivider()
 
@@ -140,6 +148,7 @@ private struct TodayContent: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: TodayViewModel
     let onOpenNotifications: () -> Void
+    let hasUnreadNotifications: Bool
     @Binding var isBottomBarCompact: Bool
     @State private var scrollPosition = ScrollPosition()
 
@@ -156,7 +165,10 @@ private struct TodayContent: View {
     var body: some View {
         VStack(spacing: 0) {
             // 고정된 상단 바를 스크롤 뷰 밖에 배치해, 배경이 당겨서 새로고침 인디케이터를 가리지 않게 한다.
-            TodayTopBar(onOpenNotifications: onOpenNotifications)
+            TodayTopBar(
+                onOpenNotifications: onOpenNotifications,
+                hasUnreadNotifications: hasUnreadNotifications
+            )
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(TodayMetrics.topBarOpacity))
                 .todayBottomDivider()

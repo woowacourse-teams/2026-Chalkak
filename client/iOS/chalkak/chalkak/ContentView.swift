@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct ContentView: View {
     @Environment(\.chalkakTheme) private var theme
@@ -16,15 +18,16 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
-    @State private var isNotificationInboxPresented = false
+    @State private var notificationPath: [NotificationRoute] = []
+    @State private var notificationNavigationID: String?
+    @State private var notificationNavigationTask: Task<Void, Never>?
+    @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
     @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
+    @State private var notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
-    @State private var notificationSetupViewModel = NotificationSetupViewModel()
-    @State private var isNotificationSetupPresented = false
-    @State private var hasPresentedInitialNotificationSetup = false
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -40,10 +43,22 @@ struct ContentView: View {
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
+    @AppStorage("notifications.permissionSettingsGuidanceShown")
+    private var hasShownNotificationPermissionPrompt = false
+    @State private var isNotificationSettingsGuidancePresented = false
+    @State private var hasHandledNotificationPermissionAtHomeEntry = false
     private let analyticsTracker: any AnalyticsTracking
+    private let pushTapRouter: PushTapRouter
+    private let pushDeviceRegistrar: PushDeviceRegistrar
 
-    init(analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker()) {
+    init(
+        analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker(),
+        pushTapRouter: PushTapRouter = .shared,
+        pushDeviceRegistrar: PushDeviceRegistrar = .shared
+    ) {
         self.analyticsTracker = analyticsTracker
+        self.pushTapRouter = pushTapRouter
+        self.pushDeviceRegistrar = pushDeviceRegistrar
     }
 
     var body: some View {
@@ -65,12 +80,42 @@ struct ContentView: View {
                     onPrivacyPolicyView: showPrivacyPolicy
                 )
             case .main:
-                NavigationStack {
+                NavigationStack(path: $notificationPath) {
                     mainTab
-                        .navigationDestination(isPresented: $isNotificationInboxPresented) {
-                            NotificationScreen(onBackClick: { isNotificationInboxPresented = false })
+                        .navigationDestination(for: NotificationRoute.self) { destination in
+                            switch destination {
+                            case .inbox:
+                                NotificationScreen(
+                                    viewModel: notificationInboxViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onSelect: openInboxNotification
+                                )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
+                            case let .approved(postID):
+                                FeedScreen(
+                                    viewModel: makeFeedViewModel(FeedTarget(postID: postID)),
+                                    usesPhotoTransition: false,
+                                    onBack: { closeNotificationDestination(destination) },
+                                    onDeleted: { postID in
+                                        closeNotificationDestination(destination)
+                                        handleDeletedPost(postID)
+                                    }
+                                )
+                                .id(postID)
+                                .background(InteractivePopGestureEnabler())
+                            case let .rejected(target):
+                                NotificationDetailScreen(
+                                    viewModel: Self.makeNotificationDetailViewModel(target),
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onNotFound: {
+                                        Task { await notificationInboxViewModel.refresh() }
+                                    }
+                                )
+                                .id(target.id)
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            }
                         }
                 }
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
@@ -115,26 +160,6 @@ struct ContentView: View {
                 .interactiveDismissDisabled()
             }
         }
-        .fullScreenCover(isPresented: $isNotificationSetupPresented) {
-            NavigationStack {
-                NotificationSetupScreen(
-                    viewModel: notificationSetupViewModel,
-                    onFinish: { isNotificationSetupPresented = false },
-                    topPadding: theme.spacing.xl,
-                    onDismiss: { isNotificationSetupPresented = false }
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        ChalkakCloseButton {
-                            isNotificationSetupPresented = false
-                        }
-                        .accessibilityLabel("닫기")
-                        .accessibilityIdentifier("notificationSetup.close")
-                    }
-                    .chalkakNavigationBackground()
-                }
-            }
-        }
         .fullScreenCover(isPresented: $isFeedbackPresented, onDismiss: {
             feedbackViewModel = nil
         }) { [feedbackViewModel] in
@@ -167,8 +192,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dailyReminderNotificationTapped)) { _ in
-            showMain()
+        .onChange(of: pushTapRouter.pendingTap, initial: true) { _, _ in
+            handlePendingPushTap()
+        }
+        .onChange(of: canOpenPushDestination) { _, _ in
+            handlePendingPushTap()
         }
         .onChange(of: selectedFeed) { previousFeed, currentFeed in
             guard previousFeed != nil, currentFeed == nil else { return }
@@ -208,6 +236,21 @@ struct ContentView: View {
         .onAppear {
             trackCurrentScreen()
         }
+        .alert(
+            "알림을 허용하시겠어요?",
+            isPresented: $isNotificationSettingsGuidancePresented
+        ) {
+            Button("거부", role: .cancel) {
+                Task { await applyInitialNotificationChoice(enabled: false) }
+            }
+            Button("허용") {
+                Task { await applyInitialNotificationChoice(enabled: true) }
+            }
+            .keyboardShortcut(.defaultAction)
+            .tint(.blue)
+        } message: {
+            Text("오늘 주제와 게시물 승인 반려 소식을 알려드려요.")
+        }
         .onChange(of: currentAnalyticsScreen) { _, _ in
             trackCurrentScreen()
         }
@@ -220,17 +263,23 @@ struct ContentView: View {
         .task {
             await appVersionGate.checkForUpdate()
         }
-#if DEBUG
-        .task {
-            guard Self.isDailyReminderTapUITest else { return }
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            NotificationCenter.default.post(name: .dailyReminderNotificationTapped, object: nil)
+        .task(id: route) {
+            await handleNotificationPermissionAtHomeEntry()
         }
-#endif
+        .task(id: NotificationUnreadRefreshID(
+            modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .main
+        )) {
+            guard route == .main, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            await notificationInboxViewModel.refreshUnread()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await appVersionGate.checkForUpdate() }
+            Task {
+                await appVersionGate.checkForUpdate()
+                guard route == .main, KeychainSessionStore.hasAuthenticatedSession() else { return }
+                await notificationInboxViewModel.refreshUnread()
+                if isNotificationInboxPresented { await notificationInboxViewModel.refresh() }
+            }
             if route == .main, selectedTab == .home {
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
@@ -238,6 +287,94 @@ struct ContentView: View {
                 Task { await homeViewModel.resume() }
             }
         }
+    }
+
+    private var isNotificationInboxPresented: Bool {
+        get { notificationPath.contains(.inbox) }
+        nonmutating set {
+            withAnimation {
+                notificationPath = newValue ? [.inbox] : []
+            }
+        }
+    }
+
+    @MainActor
+    private func handleNotificationPermissionAtHomeEntry() async {
+        guard route == .main,
+              KeychainSessionStore.hasAuthenticatedSession(),
+              !hasHandledNotificationPermissionAtHomeEntry else { return }
+
+        hasHandledNotificationPermissionAtHomeEntry = true
+        guard !hasShownNotificationPermissionPrompt else { return }
+
+        let model = notificationSettingsViewModel
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+
+        switch NotificationPermissionPromptAction.resolve(
+            status: status,
+            hasShownPrompt: hasShownNotificationPermissionPrompt
+        ) {
+        case .requestSystemPermission:
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                hasShownNotificationPermissionPrompt = true
+                guard model === notificationSettingsViewModel,
+                      route == .main,
+                      KeychainSessionStore.hasAuthenticatedSession() else { return }
+                await applyInitialNotificationChoice(enabled: granted)
+            } catch {
+                showMessage("알림 권한을 요청하지 못했어요. 기기 설정에서 확인해 주세요.")
+            }
+        case .showAppPrompt:
+            hasShownNotificationPermissionPrompt = true
+            isNotificationSettingsGuidancePresented = true
+        case .none:
+            break
+        }
+    }
+
+    @MainActor
+    private func applyInitialNotificationChoice(enabled: Bool) async {
+        let model = notificationSettingsViewModel
+        let saved = await model.setAllPushEnabled(enabled)
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+
+        guard saved else {
+            showMessage("알림 설정을 저장하지 못했어요. 앱 설정에서 다시 시도해 주세요.")
+            return
+        }
+        guard enabled else { return }
+
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+        switch status {
+        case .notDetermined:
+            do {
+                _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            } catch {
+                showMessage("알림 권한을 요청하지 못했어요. 기기 설정에서 확인해 주세요.")
+            }
+        case .denied:
+            openNotificationSettings()
+        case .authorized, .provisional, .ephemeral:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+        openURL(url)
     }
 
     private var mainTab: some View {
@@ -294,6 +431,7 @@ struct ContentView: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
+                notificationSettingsViewModel: notificationSettingsViewModel,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
@@ -301,7 +439,6 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onOpenNotificationSetup: openNotificationSetup,
                 bottomBarCompact: $isBottomBarCompact
             )
         case .record:
@@ -328,11 +465,17 @@ struct ContentView: View {
                 onOpenRecord: { select(.record) },
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
                 onOpenFeed: openHomeFeed,
-                onOpenNotifications: { isNotificationInboxPresented = true },
+                onOpenNotifications: {
+                    guard KeychainSessionStore.hasAuthenticatedSession() else {
+                        showMessage("로그인 후 알림을 확인할 수 있어요")
+                        return
+                    }
+                    isNotificationInboxPresented = true
+                },
+                hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { showMessage("콘텐츠는 준비 중이에요") },
                 bottomBarCompact: $isBottomBarCompact
             )
-            .onAppear(perform: presentInitialNotificationSetupIfNeeded)
             .task(id: ObjectIdentifier(homeViewModel)) {
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
@@ -425,32 +568,100 @@ struct ContentView: View {
     }
 
     private func showMainAfterAuthentication() {
-        hasPresentedInitialNotificationSetup = false
+        pushDeviceRegistrar.registerCurrentDevice()
         showMain()
     }
 
-    private func presentInitialNotificationSetupIfNeeded() {
-        guard route == .main, selectedTab == .home else { return }
-#if DEBUG
-        let isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
-            || ProcessInfo.processInfo.arguments.contains("-show-notification-setup")
-#else
-        let isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
-#endif
-        guard AppRouteResolver.shouldPresentNotificationSetup(
-            isAuthenticated: isAuthenticated,
-            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup,
-            hasPresentedDuringSession: hasPresentedInitialNotificationSetup
-        ) else { return }
-        hasPresentedInitialNotificationSetup = true
-        notificationSetupViewModel = NotificationSetupViewModel()
-        isNotificationSetupPresented = true
+    // 작성 중인 화면을 닫지 않도록, 홈이 보이고 다른 전체 화면이 없을 때만 푸시의 화면으로 이동한다.
+    private var canOpenPushDestination: Bool {
+        route == .main
+            && !isPhotoUploadPresented
+            && !isFeedbackPresented
     }
 
-    private func openNotificationSetup() {
-        notificationSetupViewModel = NotificationSetupViewModel()
-        selectedTab = .settings
-        isNotificationSetupPresented = true
+    private func handlePendingPushTap() {
+        guard pushTapRouter.pendingTap != nil else { return }
+        // 로그아웃 상태의 클릭은 이동 정책이 정해지지 않아 화면을 바꾸지 않는다.
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            _ = pushTapRouter.consume()
+            return
+        }
+        guard canOpenPushDestination, let tap = pushTapRouter.consume() else { return }
+
+        if tap == .topic {
+            notificationNavigationTask?.cancel()
+            notificationNavigationTask = nil
+            notificationNavigationID = nil
+            openNotificationDestination(tap, fromInbox: false)
+            return
+        }
+        guard let notificationID = tap.notificationID,
+              notificationNavigationID != notificationID else { return }
+        notificationNavigationID = notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(notificationID)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
+                  KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else {
+                if let message = inbox.message { showMessage(message) }
+                return
+            }
+            openNotificationDestination(tap, fromInbox: false)
+            if let message = inbox.message { showMessage(message) }
+        }
+    }
+
+    private func openInboxNotification(_ item: NotificationItem) {
+        guard let tap = item.destination else {
+            showMessage("이 알림은 아직 열 수 없어요")
+            return
+        }
+        guard let notificationID = tap.notificationID,
+              notificationNavigationID != notificationID else { return }
+        notificationNavigationID = notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(item.id)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
+                  isNotificationInboxPresented, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else { return }
+            openNotificationDestination(tap, fromInbox: true)
+        }
+    }
+
+    private func closeNotificationDestination(_ destination: NotificationRoute) {
+        guard notificationPath.last == destination else { return }
+        withAnimation {
+            notificationPath.removeLast()
+        }
+    }
+
+    private func openNotificationDestination(_ tap: PushNotificationTap, fromInbox: Bool) {
+        selectedFeed = nil
+        withAnimation {
+            notificationPath = fromInbox ? [.inbox] : []
+            switch tap {
+            case .topic:
+                // 주제 푸시는 클릭한 날의 오늘 주제가 보이는 홈으로 이동한다.
+                notificationPath = []
+                selectedTab = .home
+                homeViewModel.scrollToTop()
+                Task { await homeViewModel.refresh() }
+            case let .postApproved(postID, _):
+                notificationPath.append(.approved(postID))
+            case let .postRejected(notificationID):
+                notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
+            }
+        }
     }
 
     private func showOnboarding() {
@@ -569,6 +780,7 @@ struct ContentView: View {
     }
 
     private func showLogin() {
+        hasHandledNotificationPermissionAtHomeEntry = false
         photoUploadEntryTask?.cancel()
         photoUploadEntryTask = nil
         photoUploadEntryTaskID = nil
@@ -583,18 +795,36 @@ struct ContentView: View {
     }
 
     private func resetMainState() {
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = nil
+        notificationNavigationID = nil
         homeViewModel.cancel()
         selectedTab = .home
         selectedFeed = nil
         isNotificationInboxPresented = false
-        isNotificationSetupPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
         isFeedbackPresented = false
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
+        notificationSettingsViewModel.reset()
         settingsViewModel = Self.makeSettingsViewModel()
+        notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
+        notificationInboxViewModel = Self.makeNotificationInboxViewModel()
+    }
+
+    private static func makeNotificationSettingsViewModel() -> NotificationSettingsViewModel {
+        let client = NotificationSettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return NotificationSettingsViewModel(
+            loadSettings: { try await client.fetch() },
+            saveSettings: { topic, moderation in
+                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation)
+            },
+        )
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -628,16 +858,6 @@ struct ContentView: View {
                 }
             }
             return HomePreviewData.viewModel(state: state)
-        }
-        if isDailyReminderTapUITest {
-            let loader = HomeDataLoader(
-                today: { date in DisplayContent(topicDate: date, topic: "오늘의 주제", page: DisplayPage(photos: [], currentPage: 1, hasNext: false, randomSeed: nil)) },
-                ranking: { _ in [] },
-                calendar: { month in RecordCalendar(month: month, posts: []) },
-                detail: { _ in throw FeedError.notFound },
-                postStatus: { throw PhotoUploadAPIError.http(statusCode: 404, message: nil) }
-            )
-            return HomeViewModel(loader: loader, isAuthenticated: { false })
         }
 #endif
         return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
@@ -693,6 +913,31 @@ struct ContentView: View {
                 try await apiClient.withdraw()
                 KeychainSessionStore.delete()
             }
+        )
+    }
+
+    private static func makeNotificationAPIClient() -> NotificationAPIClient {
+        NotificationAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+    }
+
+    private static func makeNotificationInboxViewModel() -> NotificationInboxViewModel {
+        let client = makeNotificationAPIClient()
+        return NotificationInboxViewModel(
+            loadPage: { try await client.fetchPage(page: $0) },
+            loadUnread: { try await client.fetchUnreadStatus() },
+            markRead: { try await client.markRead(notificationID: $0) }
+        )
+    }
+
+    private static func makeNotificationDetailViewModel(
+        _ target: NotificationDetailTarget
+    ) -> NotificationDetailViewModel {
+        let apiClient = makeNotificationAPIClient()
+        return NotificationDetailViewModel(
+            loadDetail: { try await apiClient.fetchDetail(notificationID: target.id) }
         )
     }
 
@@ -783,30 +1028,18 @@ struct ContentView: View {
 #endif
     }
 
-    private static var isDailyReminderTapUITest: Bool {
-#if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-test-daily-reminder-tap")
-#else
-        false
-#endif
-    }
-
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest || isFeedbackEntryUITest || isDailyReminderTapUITest
+        if isPhotoUploadEntryUITest || isFeedbackEntryUITest
             || ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
             return .main
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
-        if ProcessInfo.processInfo.arguments.contains("-show-notification-setup") {
-            return .main
-        }
 #endif
-        return AppRouteResolver.initialDestination(
-            hasActiveSession: KeychainSessionStore.hasActiveSession()
-        )
+        guard KeychainSessionStore.hasActiveSession() else { return .login }
+        return .main
     }
 
     private static var isFeedbackEntryUITest: Bool {
@@ -841,20 +1074,6 @@ enum AppRoute: Equatable {
     case photoUploadSuccess
 }
 
-enum AppRouteResolver {
-    static func initialDestination(hasActiveSession: Bool) -> AppRoute {
-        hasActiveSession ? .main : .login
-    }
-
-    static func shouldPresentNotificationSetup(
-        isAuthenticated: Bool,
-        hasCompletedNotificationSetup: Bool,
-        hasPresentedDuringSession: Bool
-    ) -> Bool {
-        isAuthenticated && !hasCompletedNotificationSetup && !hasPresentedDuringSession
-    }
-}
-
 private struct AnalyticsScreen: Equatable {
     let name: String
     let screenClass: String
@@ -882,4 +1101,38 @@ private enum ContentMetrics {
 #Preview {
     ContentView()
         .chalkakTheme(.light)
+}
+
+private struct NotificationUnreadRefreshID: Hashable {
+    let modelID: ObjectIdentifier
+    let isHome: Bool
+}
+
+private enum NotificationRoute: Hashable {
+    case inbox
+    case approved(String)
+    case rejected(NotificationDetailTarget)
+}
+
+
+enum NotificationPermissionPromptAction: Equatable {
+    case requestSystemPermission
+    case showAppPrompt
+    case none
+
+    static func resolve(
+        status: UNAuthorizationStatus,
+        hasShownPrompt: Bool
+    ) -> NotificationPermissionPromptAction {
+        guard !hasShownPrompt else { return .none }
+
+        return switch status {
+        case .notDetermined:
+            .requestSystemPermission
+        case .denied, .authorized, .provisional, .ephemeral:
+            .showAppPrompt
+        @unknown default:
+            .none
+        }
+    }
 }

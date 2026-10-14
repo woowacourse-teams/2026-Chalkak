@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.notification.component.NotificationListItem
 import com.stonefive.chalkak.feature.notification.component.NotificationTopBar
@@ -44,6 +45,7 @@ fun NotificationRoute(
     onBackClick: () -> Unit,
     onNotificationClick: (NotificationItemUiState) -> Unit = {},
     modifier: Modifier = Modifier,
+    onReadFailureMessage: (String) -> Unit = {},
     viewModel: NotificationViewModel = viewModel(factory = NotificationViewModel.Factory),
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -58,7 +60,17 @@ fun NotificationRoute(
         onLoadNextPage = viewModel::loadNextPage,
         onNotificationClick = { item ->
             coroutineScope.launch {
-                if (viewModel.markAsRead(item.id)) onNotificationClick(item)
+                val previousMessageId = viewModel.uiState.value.pendingMessage
+                    ?.id
+                if (viewModel.markAsRead(item.id)) {
+                    val message = viewModel.uiState.value.pendingMessage
+                    if (message is UiMessage.Toast && message.id != previousMessageId) {
+                        // 알림함을 떠나도 안내가 보이도록 상위 내비게이션에 전달한다.
+                        onReadFailureMessage(message.text)
+                        viewModel.onMessageShown(message.id)
+                    }
+                    onNotificationClick(item)
+                }
             }
         },
         modifier = modifier,

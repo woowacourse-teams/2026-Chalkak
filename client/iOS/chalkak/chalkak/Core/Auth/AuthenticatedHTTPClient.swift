@@ -118,20 +118,7 @@ struct AuthenticatedHTTPClient: Sendable {
                 return initial
             }
 
-            let accessToken: String
-            do {
-                accessToken = try await refreshCoordinator.accessToken(
-                    afterUnauthorizedToken: sentAccessToken,
-                    currentAccessToken: sessionStore.accessToken,
-                    refresh: refreshTokens
-                )
-            } catch let error as AuthenticatedHTTPClientError {
-                throw error
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                throw AuthenticatedHTTPClientError.refreshFailed
-            }
+            let accessToken = try await refreshAccessToken(replacing: sentAccessToken)
 
             let retried = try await response(for: authorized(request, accessToken: accessToken))
             if retried.response.statusCode == 401,
@@ -145,6 +132,23 @@ struct AuthenticatedHTTPClient: Sendable {
             return retried
         default:
             return initial
+        }
+    }
+
+    /// 401 응답을 기다리지 않고 토큰을 갱신해야 할 때 사용한다. 진행 중인 갱신이 있으면 그 결과를 함께 쓴다.
+    func refreshAccessToken(replacing staleAccessToken: String?) async throws -> String {
+        do {
+            return try await refreshCoordinator.accessToken(
+                afterUnauthorizedToken: staleAccessToken,
+                currentAccessToken: sessionStore.accessToken,
+                refresh: refreshTokens
+            )
+        } catch let error as AuthenticatedHTTPClientError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw AuthenticatedHTTPClientError.refreshFailed
         }
     }
 

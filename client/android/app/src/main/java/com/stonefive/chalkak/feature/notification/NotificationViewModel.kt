@@ -91,6 +91,18 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
             }
 
             is NotificationResult.Failure -> {
+                // 읽음 저장 실패와 알림 내용의 접근 가능 여부는 별개다.
+                if (result.reason == NotificationFailure.Network) {
+                    _uiState.update {
+                        it.copy(
+                            pendingMessage = UiMessage.Toast(
+                                nextMessageId++,
+                                "읽음 상태를 저장하지 못했어요. 네트워크 연결을 확인해 주세요.",
+                            ),
+                        )
+                    }
+                    return true
+                }
                 val isNotFound = (result.reason as? NotificationFailure.Http)?.statusCode == 404
                 if (isNotFound) {
                     _uiState.update {

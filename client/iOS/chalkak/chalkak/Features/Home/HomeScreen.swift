@@ -8,6 +8,7 @@ struct HomeScreen: View {
     var onOpenDisplay: (Date) -> Void = { _ in }
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
+    var hasUnreadNotifications = false
     var onIssueClick: () -> Void = {}
     var bottomBarCompact: Binding<Bool> = .constant(false)
 
@@ -15,7 +16,10 @@ struct HomeScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HomeTopBar(onOpenNotifications: onOpenNotifications)
+            HomeTopBar(
+                onOpenNotifications: onOpenNotifications,
+                hasUnreadNotifications: hasUnreadNotifications
+            )
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(Metrics.topBarOpacity))
                 .overlay(alignment: .bottom) {

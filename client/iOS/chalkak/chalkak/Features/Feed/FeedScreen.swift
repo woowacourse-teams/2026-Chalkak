@@ -13,6 +13,7 @@ struct FeedScreen: View {
     @State private var isClosing = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
+    private let usesPhotoTransition: Bool
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
@@ -29,12 +30,14 @@ struct FeedScreen: View {
         viewModel: FeedViewModel,
         placeholder: FeedPhotoPlaceholder? = nil,
         zoomSource: FeedZoomSource? = nil,
+        usesPhotoTransition: Bool = true,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
+        self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
     }
@@ -72,7 +75,7 @@ struct FeedScreen: View {
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
-        .simultaneousGesture(backSwipeGesture)
+        .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
         .onAppear(perform: open)
         .onDisappear {
             if zoomRegistry?.activeSource == zoomSource {
@@ -211,6 +214,12 @@ struct FeedScreen: View {
     }
 
     private func open() {
+        guard usesPhotoTransition else {
+            photoProgress = 1
+            contentProgress = 1
+            isPhotoMoving = false
+            return
+        }
         captureTransitionSource()
         isPhotoMoving = true
         // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
@@ -228,6 +237,10 @@ struct FeedScreen: View {
 
     private func close() {
         guard !isClosing else { return }
+        guard usesPhotoTransition else {
+            onBack()
+            return
+        }
         captureTransitionSource()
         isClosing = true
         isPhotoMoving = true
