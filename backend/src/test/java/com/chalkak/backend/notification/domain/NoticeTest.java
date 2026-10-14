@@ -202,6 +202,19 @@ class NoticeTest {
     }
 
     @Test
+    @DisplayName("예약 시각은 DB 저장 정밀도인 마이크로초까지만 남긴다")
+    void create_nanosecondScheduledAt_truncatesToMicros() {
+        // Given
+        Instant scheduledAt = NOW.plusNanos(1_234_567);
+
+        // When
+        Notice notice = Notice.create(TITLE, BODY, scheduledAt, NOW);
+
+        // Then
+        assertThat(notice.getScheduledAt()).isEqualTo(NOW.plusNanos(1_234_000));
+    }
+
+    @Test
     @DisplayName("예약 상태의 공지는 제목·본문의 앞뒤 공백을 제거해 수정하고 예약 시각을 바꾼다")
     void update_scheduledNotice_updatesNormalizedContent() {
         // Given

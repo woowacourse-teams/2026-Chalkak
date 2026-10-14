@@ -273,6 +273,23 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("나노초만 다른 같은 예약 시각으로 수정하면 변경으로 보지 않고 감사 로그를 남기지 않는다")
+    void updateNotice_sameContentWithNanoseconds_returnsNoticeWithoutAuditLog() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant scheduledAt = Instant.parse("2099-01-01T00:00:00.123456Z");
+        jdbcTemplate.update("UPDATE notices SET scheduled_at = ? WHERE id = ?",
+                Timestamp.from(scheduledAt), noticeId);
+
+        // When
+        noticeService.updateNotice(noticeId, ADMIN_ID, "서비스 점검 안내", "점검합니다.",
+                scheduledAt.plusNanos(789));
+
+        // Then
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
     @DisplayName("배포된 공지는 수정을 거절하고 내용과 감사 로그를 바꾸지 않는다")
     void updateNotice_distributedNotice_throwsWithoutChange() {
         // Given

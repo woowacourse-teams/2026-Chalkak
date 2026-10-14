@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -109,7 +110,8 @@ public class Notice {
         validateScheduledAt(scheduledAt, now);
         this.title = normalizedTitle;
         this.body = normalizedBody;
-        this.scheduledAt = scheduledAt;
+        // DB는 마이크로초까지 저장하므로 저장값·감사 기록·변경 비교가 같은 값을 쓰도록 맞춘다.
+        this.scheduledAt = scheduledAt.truncatedTo(ChronoUnit.MICROS);
     }
 
     private static String normalizeText(
