@@ -17,6 +17,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminNoticeService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_DELETION_REASON_LENGTH = 500;
 
     private final NoticeRepository noticeRepository;
     private final AdminAuditLogService adminAuditLogService;
@@ -86,6 +88,39 @@ public class AdminNoticeService {
                 adminId, AdminAction.NOTICE_UPDATED, AdminTargetType.NOTICE, saved.getId(), null,
                 beforeState, afterState));
         return AdminNoticeResult.from(saved);
+    }
+
+    @Transactional
+    public void deleteNotice(UUID noticeId, UUID adminId, String reason) {
+        validateAdminId(adminId);
+        String normalizedReason = normalizeDeletionReason(reason);
+        Notice notice = noticeRepository.findByIdForUpdate(noticeId)
+                .orElseThrow(this::noticeNotFoundException);
+        // 이미 삭제한 공지는 최초 삭제 결과를 유지하고 감사 로그를 추가하지 않는다.
+        if (notice.isDeleted()) {
+            return;
+        }
+        AdminAuditSnapshot beforeState = createDeletionState(notice);
+        notice.delete(clock.instant());
+        adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId, AdminAction.NOTICE_DELETED, AdminTargetType.NOTICE, notice.getId(),
+                normalizedReason, beforeState, createDeletionState(notice)));
+    }
+
+    private String normalizeDeletionReason(String reason) {
+        String normalized = reason == null ? "" : reason.trim();
+        if (normalized.isEmpty()
+                || normalized.codePointCount(0, normalized.length()) > MAX_DELETION_REASON_LENGTH) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "공지 삭제 사유는 1자 이상 500자 이하여야 합니다.");
+        }
+        return normalized;
+    }
+
+    private AdminAuditSnapshot createDeletionState(Notice notice) {
+        Map<String, Object> state = new LinkedHashMap<>(createNoticeState(notice).values());
+        state.put("deletedAt", notice.getDeletedAt());
+        return AdminAuditSnapshot.from(state);
     }
 
     private AdminAuditSnapshot createNoticeState(Notice notice) {

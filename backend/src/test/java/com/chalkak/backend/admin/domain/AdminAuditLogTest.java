@@ -190,6 +190,60 @@ class AdminAuditLogTest {
                         VALID_BODY_SHA256)));
     }
 
+    @Test
+    @DisplayName("공지 삭제는 사유와 함께 삭제 시각만 바뀐 변경 전후 상태를 기록한다")
+    void create_validNoticeDeletion_createsAuditLog() {
+        // Given
+        Map<String, Object> before = deletedNoticeState("서비스 점검 안내", null);
+        Map<String, Object> after = deletedNoticeState("서비스 점검 안내", "2026-10-19T09:00:00Z");
+
+        // When
+        AdminAuditLog audit = createNoticeDeletionAudit("점검 일정 취소", before, after);
+
+        // Then
+        assertThat(audit.getReason()).isEqualTo("점검 일정 취소");
+        assertThat(audit.getAfterState()).containsEntry("deletedAt", "2026-10-19T09:00:00Z");
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidNoticeDeletions")
+    @DisplayName("공지 삭제의 사유 누락, 이미 삭제된 변경 전 상태, 삭제 시각 누락, 내용 변경을 거절한다")
+    void create_invalidNoticeDeletion_throwsBusinessException(
+            String reason, Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createNoticeDeletionAudit(reason, before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidNoticeDeletions() {
+        Map<String, Object> before = deletedNoticeState("서비스 점검 안내", null);
+        Map<String, Object> after = deletedNoticeState("서비스 점검 안내", "2026-10-19T09:00:00Z");
+        return Stream.of(
+                Arguments.of(null, before, after),
+                Arguments.of("점검 일정 취소", after, after),
+                Arguments.of("점검 일정 취소", before, before),
+                Arguments.of("점검 일정 취소", before,
+                        deletedNoticeState("점검 일정 변경", "2026-10-19T09:00:00Z")));
+    }
+
+    private static Map<String, Object> deletedNoticeState(String title, String deletedAt) {
+        Map<String, Object> state = new LinkedHashMap<>(noticeState(title, "2026-10-19T09:00:00Z",
+                VALID_BODY_SHA256));
+        state.put("deletedAt", deletedAt);
+        return state;
+    }
+
+    private AdminAuditLog createNoticeDeletionAudit(
+            String reason,
+            Map<String, Object> before,
+            Map<String, Object> after
+    ) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID, AdminAction.NOTICE_DELETED, AdminTargetType.NOTICE, TARGET_ID,
+                reason, AdminAuditSnapshot.from(before), AdminAuditSnapshot.from(after),
+                OCCURRED_AT, REQUEST_ID);
+    }
+
     private AdminAuditLog createNoticeAudit(Map<String, Object> before, Map<String, Object> after) {
         return createNoticeAudit(AdminAction.NOTICE_CREATED, before, after);
     }

@@ -15,12 +15,17 @@ public record AdminNoticeResponse(
         NoticeStatus status,
         @Schema(description = "회원 알림함에 배포한 시각. 배포 전이면 null", nullable = true)
         Instant distributedAt,
+        @Schema(
+                description = "공지를 삭제한 시각. 삭제하지 않았으면 null. 배포 전 삭제는 발송 취소, 배포 후 삭제는 회원 알림함에서 숨김",
+                nullable = true)
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt) {
 
     public static AdminNoticeResponse from(AdminNoticeResult result) {
         return new AdminNoticeResponse(result.noticeId(), result.title(), result.body(),
-                result.scheduledAt(), result.status(), result.distributedAt(), result.createdAt(),
+                result.scheduledAt(), result.status(), result.distributedAt(), result.deletedAt(),
+                result.createdAt(),
                 result.updatedAt());
     }
 }

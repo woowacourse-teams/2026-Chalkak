@@ -268,6 +268,77 @@ class NoticeTest {
         assertThat(notice.getScheduledAt()).isEqualTo(NOW);
     }
 
+    @Test
+    @DisplayName("예약 상태의 공지를 삭제하면 삭제 시각을 마이크로초까지 기록하고 예약 상태를 유지한다")
+    void delete_scheduledNotice_recordsDeletedAt() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+
+        // When
+        notice.delete(NOW.plusNanos(1_234_567));
+
+        // Then
+        assertThat(notice.isDeleted()).isTrue();
+        assertThat(notice.getDeletedAt()).isEqualTo(NOW.plusNanos(1_234_000));
+        assertThat(notice.getStatus()).isEqualTo(NoticeStatus.SCHEDULED);
+    }
+
+    @Test
+    @DisplayName("배포된 공지도 삭제할 수 있고 배포 시각을 유지한다")
+    void delete_distributedNotice_recordsDeletedAt() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.distribute(NOW);
+
+        // When
+        notice.delete(NOW.plusSeconds(60));
+
+        // Then
+        assertThat(notice.getDeletedAt()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(notice.getDistributedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 공지는 다시 삭제할 수 없고 최초 삭제 시각을 유지한다")
+    void delete_deletedNotice_throwsBusinessException() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.delete(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.delete(NOW.plusSeconds(60)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 삭제된 공지입니다.");
+        assertThat(notice.getDeletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("삭제된 공지는 수정할 수 없다")
+    void update_deletedNotice_throwsBusinessException() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.delete(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.update("수정한 안내", BODY, NOW, NOW))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("삭제된 공지는 수정할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("삭제된 공지는 배포할 수 없다")
+    void distribute_deletedNotice_throwsBusinessException() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.delete(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.distribute(NOW))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("삭제된 공지는 배포할 수 없습니다.");
+        assertThat(notice.getDistributedAt()).isNull();
+    }
+
     private boolean canCreateWithTitle(String title) {
         try {
             Notice.create(title, BODY, NOW, NOW);

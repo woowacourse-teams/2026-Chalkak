@@ -32,6 +32,11 @@ final class AdminAuditTransitionRules {
             "title",
             "scheduledAt",
             "bodySha256");
+    private static final Set<String> DELETED_NOTICE_STATE_FIELDS = Set.of(
+            "title",
+            "scheduledAt",
+            "bodySha256",
+            "deletedAt");
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
@@ -185,11 +190,40 @@ final class AdminAuditTransitionRules {
                 && !beforeState.values().equals(afterState.values());
     }
 
+    static boolean isNoticeDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidNoticeState(beforeState, DELETED_NOTICE_STATE_FIELDS)
+                && isValidNoticeState(afterState, DELETED_NOTICE_STATE_FIELDS)
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"))
+                && hasSameNoticeContent(beforeState, afterState);
+    }
+
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
-        return state.hasExactlyFields(NOTICE_STATE_FIELDS)
+        return isValidNoticeState(state, NOTICE_STATE_FIELDS);
+    }
+
+    private static boolean isValidNoticeState(
+            AdminAuditSnapshot state,
+            Set<String> expectedFields
+    ) {
+        return state.hasExactlyFields(expectedFields)
                 && isValidNoticeTitle(state.value("title"))
                 && isInstant(state.value("scheduledAt"))
                 && isSha256Hex(state.value("bodySha256"));
+    }
+
+    private static boolean hasSameNoticeContent(
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return NOTICE_STATE_FIELDS.stream()
+                .allMatch(fieldName -> Objects.equals(
+                        beforeState.value(fieldName),
+                        afterState.value(fieldName)));
     }
 
     private static boolean isValidNoticeTitle(Object value) {

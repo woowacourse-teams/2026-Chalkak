@@ -12,12 +12,13 @@ public record AdminNoticeResult(
         Instant scheduledAt,
         NoticeStatus status,
         Instant distributedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt) {
 
     public static AdminNoticeResult from(Notice notice) {
         return new AdminNoticeResult(notice.getId(), notice.getTitle(), notice.getBody(),
                 notice.getScheduledAt(), notice.getStatus(), notice.getDistributedAt(),
-                notice.getCreatedAt(), notice.getUpdatedAt());
+                notice.getDeletedAt(), notice.getCreatedAt(), notice.getUpdatedAt());
     }
 }
