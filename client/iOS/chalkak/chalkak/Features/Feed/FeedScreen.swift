@@ -19,6 +19,7 @@ struct FeedScreen: View {
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
     var placeholder: FeedPhotoPlaceholder?
     var zoomSource: FeedZoomSource?
+    private let usesPhotoTransition: Bool
     // 닫는 전환이 끝난 뒤 호출된다.
     var onBack: () -> Void = {}
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
@@ -27,12 +28,14 @@ struct FeedScreen: View {
         viewModel: FeedViewModel,
         placeholder: FeedPhotoPlaceholder? = nil,
         zoomSource: FeedZoomSource? = nil,
+        usesPhotoTransition: Bool = true,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
+        self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
     }
@@ -69,7 +72,7 @@ struct FeedScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .simultaneousGesture(backSwipeGesture)
+        .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
         .onAppear(perform: open)
         .onDisappear {
             if zoomRegistry?.activeSource == zoomSource {
@@ -199,6 +202,12 @@ struct FeedScreen: View {
     }
 
     private func open() {
+        guard usesPhotoTransition else {
+            photoProgress = 1
+            contentProgress = 1
+            isPhotoMoving = false
+            return
+        }
         isPhotoMoving = true
         hideSourceWhilePhotoMoves()
         withAnimation(Metrics.photoAnimation) {
@@ -219,6 +228,10 @@ struct FeedScreen: View {
     private func close() {
         guard !isClosing else { return }
         isClosing = true
+        guard usesPhotoTransition else {
+            onBack()
+            return
+        }
         isPhotoMoving = true
         hideSourceWhilePhotoMoves()
         withAnimation(Metrics.photoAnimation) {

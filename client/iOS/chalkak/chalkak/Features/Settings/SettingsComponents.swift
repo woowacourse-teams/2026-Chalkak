@@ -131,12 +131,52 @@ struct SettingsFeedbackCard: View {
 }
 
 struct SettingsNotificationCard: View {
-    let onOpenNotificationSetup: () -> Void
+    @Environment(\.chalkakTheme) private var theme
+    let topicPushEnabled: Bool
+    let moderationPushEnabled: Bool
+    let isTopicDisabled: Bool
+    let isModerationDisabled: Bool
+    let errorMessage: String?
+    let onTopicToggle: (Bool) -> Void
+    let onModerationToggle: (Bool) -> Void
+    let onRetry: () -> Void
 
     var body: some View {
         SettingsCard {
-            SettingsRow(title: "알림 설정", action: onOpenNotificationSetup) {
-                SettingsChevron()
+            SettingsRow(title: "오늘 주제 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
+                Toggle("", isOn: Binding(get: { topicPushEnabled }, set: onTopicToggle))
+                    .toggleStyle(.switch)
+                    .tint(theme.colors.actionPrimary)
+                    .controlSize(.regular)
+                    .labelsHidden()
+                    .disabled(isTopicDisabled)
+                    .accessibilityLabel("오늘 주제 알림")
+                    .accessibilityValue(topicPushEnabled ? "켬" : "끔")
+            }
+            SettingsDivider()
+            SettingsRow(title: "게시물 승인·반려 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
+                Toggle("", isOn: Binding(get: { moderationPushEnabled }, set: onModerationToggle))
+                    .toggleStyle(.switch)
+                    .tint(theme.colors.actionPrimary)
+                    .controlSize(.regular)
+                    .labelsHidden()
+                    .disabled(isModerationDisabled)
+                    .accessibilityLabel("게시물 승인·반려 알림")
+                    .accessibilityValue(moderationPushEnabled ? "켬" : "끔")
+            }
+            if let errorMessage {
+                HStack(spacing: theme.spacing.xs) {
+                    Text(errorMessage)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.error)
+                    Button("다시 시도", action: onRetry)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.textSecondary)
+                        .underline()
+                        .buttonStyle(.plain)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .padding(.horizontal, Metrics.cardHorizontalPadding)
             }
         }
         .accessibilityIdentifier("settings.notificationSetup")
@@ -189,17 +229,20 @@ private struct SettingsRow<Trailing: View>: View {
     let title: String
     var textColor: Color?
     var action: (() -> Void)?
+    var verticalPadding: CGFloat
     @ViewBuilder let trailing: Trailing
 
     init(
         title: String,
         textColor: Color? = nil,
         action: (() -> Void)? = nil,
+        verticalPadding: CGFloat = Metrics.rowVerticalPadding,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.textColor = textColor
         self.action = action
+        self.verticalPadding = verticalPadding
         self.trailing = trailing()
     }
 
@@ -224,7 +267,7 @@ private struct SettingsRow<Trailing: View>: View {
             trailing
         }
         .padding(.horizontal, Metrics.cardHorizontalPadding)
-        .padding(.vertical, Metrics.rowVerticalPadding)
+        .padding(.vertical, verticalPadding)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
@@ -275,6 +318,7 @@ private enum Metrics {
     static let cardHorizontalPadding: CGFloat = 20
     static let cardBottomPadding: CGFloat = 20
     static let rowVerticalPadding: CGFloat = 16
+    static let notificationRowVerticalPadding: CGFloat = 10.5
     static let signatureHeaderTopPadding: CGFloat = 18
     static let signatureCanvasHeight: CGFloat = 112
     static let signatureImageWidth: CGFloat = 120
