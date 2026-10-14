@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -52,9 +53,16 @@ fun SignatureEditorRoute(
         }
     }
 
+    val submit = dropUnlessResumed { viewModel.onAction(SignatureUiAction.SubmitClicked) }
     SignatureScreen(
         uiState = uiState,
-        onAction = viewModel::onAction,
+        onAction = { action ->
+            if (action == SignatureUiAction.SubmitClicked) {
+                submit()
+            } else {
+                viewModel.onAction(action)
+            }
+        },
         onBackClick = onBackClick,
         modifier = modifier,
     )
