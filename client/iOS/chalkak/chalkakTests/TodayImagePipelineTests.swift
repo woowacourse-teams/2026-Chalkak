@@ -4,27 +4,27 @@ import UIKit
 @testable import chalkak
 
 @Suite(.serialized)
-struct HomeImagePipelineTests {
+struct TodayImagePipelineTests {
     @Test("같은 홈 이미지를 동시에 요청하면 한 번만 다운로드하고 비율을 함께 반환한다")
     @MainActor
     func coalescesRequestsAndReturnsRatio() async throws {
         let data = try #require(makeImageData(width: 120, height: 80))
-        HomeImageURLProtocol.install(data: data)
-        defer { HomeImageURLProtocol.uninstall() }
+        TodayImageURLProtocol.install(data: data)
+        defer { TodayImageURLProtocol.uninstall() }
 
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [HomeImageURLProtocol.self]
-        let pipeline = HomeImagePipeline(
+        configuration.protocolClasses = [TodayImageURLProtocol.self]
+        let pipeline = TodayImagePipeline(
             session: URLSession(configuration: configuration)
         )
-        let url = try #require(URL(string: "https://example.com/home-image.png"))
+        let url = try #require(URL(string: "https://example.com/today-image.png"))
 
         async let first = pipeline.image(for: url, targetPixelWidth: 60)
         async let second = pipeline.image(for: url, targetPixelWidth: 60)
         let (firstResult, secondResult) = try await (first, second)
         let cachedResult = try await pipeline.image(for: url, targetPixelWidth: 60)
 
-        #expect(HomeImageURLProtocol.requestCount == 1)
+        #expect(TodayImageURLProtocol.requestCount == 1)
         #expect(abs(firstResult.heightToWidthRatio - (2.0 / 3.0)) < 0.001)
         #expect(abs(secondResult.heightToWidthRatio - firstResult.heightToWidthRatio) < 0.001)
         #expect(abs(cachedResult.heightToWidthRatio - firstResult.heightToWidthRatio) < 0.001)
@@ -41,7 +41,7 @@ struct HomeImagePipelineTests {
     }
 }
 
-private final class HomeImageURLProtocol: URLProtocol {
+private final class TodayImageURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var responseData = Data()
     private static var requestCountStorage = 0
@@ -88,7 +88,7 @@ private final class HomeImageURLProtocol: URLProtocol {
                 headerFields: ["Content-Type": "image/png"]
               )
         else {
-            client?.urlProtocol(self, didFailWithError: HomeImagePipelineError.invalidResponse)
+            client?.urlProtocol(self, didFailWithError: TodayImagePipelineError.invalidResponse)
             return
         }
 

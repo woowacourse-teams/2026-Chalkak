@@ -4,144 +4,103 @@ struct HomeScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
+    var onOpenRecord: () -> Void = {}
+    var onOpenDisplay: (Date) -> Void = { _ in }
+    var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
-    var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
-
-    @State private var message: String?
+    var onIssueClick: () -> Void = {}
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
 
-    var body: some View {
-        Group {
-            switch viewModel.viewState.contentStatus {
-            case .loading:
-                HomeInitialStatus(
-                    status: viewModel.viewState.contentStatus,
-                    onRetry: { Task { await viewModel.retry() } },
-                    onOpenNotifications: onOpenNotifications
-                )
-            case .error:
-                HomeInitialStatus(
-                    status: viewModel.viewState.contentStatus,
-                    onRetry: { Task { await viewModel.retry() } },
-                    onOpenNotifications: onOpenNotifications
-                )
-            case .content:
-                HomeContent(
-                    viewModel: viewModel,
-                    onOpenNotifications: onOpenNotifications,
-                    isBottomBarCompact: bottomBarCompact
-                )
-            }
-        }
-        .background(theme.colors.background)
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, HomeMetrics.messageBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
-        .onChange(of: viewModel.event) { _, event in
-            handle(event)
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
-        }
-    }
-
-    private func handle(_ event: HomeEvent?) {
-        guard let event else { return }
-
-        switch event {
-        case .openPhotoUpload:
-            onOpenPhotoUpload()
-        case .showGuestLikeMessage:
-            showMessage("로그인 후 좋아요를 누를 수 있어요")
-        case let .showRefreshFailure(reason):
-            showMessage(reason.message)
-        case let .navigateToBottomBar(item):
-            onNavigateToBottomBar(item)
-        }
-        viewModel.consumeEvent()
-    }
-
-    private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
-    }
-}
-
-private struct HomeInitialStatus: View {
-    @Environment(\.chalkakTheme) private var theme
-    let status: HomeContentStatus
-    let onRetry: () -> Void
-    let onOpenNotifications: () -> Void
+    @State private var scrollPosition = ScrollPosition()
 
     var body: some View {
         VStack(spacing: 0) {
             HomeTopBar(onOpenNotifications: onOpenNotifications)
                 .padding(.horizontal, theme.spacing.screenHorizontal)
-                .homeBottomDivider()
-
-            Spacer(minLength: 0)
-
-            switch status {
-            case .loading:
-                ProgressView()
-                    .tint(theme.colors.actionPrimary)
-                    .accessibilityIdentifier("home-loading")
-            case let .error(reason):
-                VStack(spacing: theme.spacing.xl) {
-                    Text(reason.message)
-                        .font(theme.typography.body)
-                        .foregroundStyle(theme.colors.textSecondary)
-                        .multilineTextAlignment(.center)
-
-                    Button(action: onRetry) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: Metrics.retryIconSize, weight: .semibold))
-                            .foregroundStyle(theme.colors.onActionPrimary)
-                            .frame(width: Metrics.iconButtonSize, height: Metrics.iconButtonSize)
-                            .background(theme.colors.actionPrimary, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("홈 새로고침")
+                .background(theme.colors.background.opacity(Metrics.topBarOpacity))
+                .overlay(alignment: .bottom) {
+                    Divider()
+                        .overlay(theme.colors.border)
                 }
-                .padding(.horizontal, theme.spacing.screenHorizontal)
-                .accessibilityIdentifier("home-initial-error")
-            case .content:
-                EmptyView()
-            }
 
-            Spacer(minLength: 0)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    HomeTopicHeader(
+                        date: viewModel.viewState.date,
+                        topic: viewModel.viewState.topic,
+                        topicStatus: viewModel.viewState.topicStatus
+                    )
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xl + theme.spacing.sm)
+                    .id(HomeScrollTarget.top)
+
+                    HomeHeroCard(
+                        hero: viewModel.viewState.hero,
+                        topic: viewModel.viewState.topic,
+                        onOpenPhotoUpload: onOpenPhotoUpload,
+                        onRetry: { Task { await viewModel.refresh() } }
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xl)
+
+                    HomeWeeklyRecord(
+                        days: viewModel.viewState.week,
+                        status: viewModel.viewState.recordsStatus,
+                        onOpenRecord: onOpenRecord,
+                        onRetry: { Task { await viewModel.refresh() } }
+                    )
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xxl)
+
+                    HomeRankingRow(
+                        title: "어제 랭킹",
+                        ranking: viewModel.viewState.yesterday,
+                        displayDate: yesterday,
+                        onOpenDisplay: onOpenDisplay,
+                        zoomSource: FeedZoomSource.homeYesterday,
+                        onOpenFeed: onOpenFeed
+                    )
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xxl)
+
+                    HomeRankingRow(
+                        title: "오늘 인기있는 사진",
+                        ranking: viewModel.viewState.trending,
+                        displayDate: viewModel.viewState.date,
+                        onOpenDisplay: onOpenDisplay,
+                        zoomSource: FeedZoomSource.homeTrending,
+                        onOpenFeed: onOpenFeed
+                    )
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xxl)
+
+                    HomeIssueSection(onIssueClick: onIssueClick)
+                        .padding(.horizontal, theme.spacing.screenHorizontal)
+                        .padding(.top, theme.spacing.xxl)
+                        .padding(.bottom, theme.spacing.xxl)
+                }
+                .scrollTargetLayout()
+            }
+            .feedZoomViewport(.home)
+            .scrollPosition($scrollPosition, anchor: .top)
+            .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
+            .refreshable {
+                let refreshTask = Task { await viewModel.refresh() }
+                await refreshTask.value
+            }
+            .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
+                scrollToTop()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
     }
-}
 
-private struct HomeContent: View {
-    @Environment(\.chalkakTheme) private var theme
-    @Bindable var viewModel: HomeViewModel
-    let onOpenNotifications: () -> Void
-    @Binding var isBottomBarCompact: Bool
-    @State private var scrollPosition = ScrollPosition()
+    private var yesterday: Date {
+        RecordMonth.calendar.date(byAdding: .day, value: -1, to: viewModel.viewState.date)
+            ?? viewModel.viewState.date
+    }
 
     private func scrollToTop() {
         Task { @MainActor in
@@ -152,64 +111,37 @@ private struct HomeContent: View {
             }
         }
     }
+}
+
+private struct HomeTopicHeader: View {
+    @Environment(\.chalkakTheme) private var theme
+    let date: Date
+    let topic: String
+    let topicStatus: HomeSectionStatus
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 고정된 상단 바를 스크롤 뷰 밖에 배치해, 배경이 당겨서 새로고침 인디케이터를 가리지 않게 한다.
-            HomeTopBar(onOpenNotifications: onOpenNotifications)
-                .padding(.horizontal, theme.spacing.screenHorizontal)
-                .background(theme.colors.background.opacity(HomeMetrics.topBarOpacity))
-                .homeBottomDivider()
+        VStack(alignment: .leading, spacing: theme.spacing.sm) {
+            Text("\(date.homeMonthDayText) · 오늘의 주제")
+                .font(theme.typography.subheadline)
+                .foregroundStyle(theme.colors.textPrimary)
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    HomeTopic(
-                        topicDate: viewModel.viewState.topicDate,
-                        topic: viewModel.viewState.topic
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .homeBottomDivider()
-                    .id(HomeScrollTarget.top)
-
-                    if viewModel.viewState.photos.isEmpty {
-                        HomeEmptyContent()
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, HomeMetrics.emptyTopPadding)
-                    } else {
-                        HomePhotoList(
-                            photos: viewModel.viewState.photos,
-                            likedPhotoIDs: viewModel.viewState.likedPhotoIDs,
-                            areLikesEnabled: viewModel.viewState.areLikesEnabled,
-                            imageReloadGeneration: viewModel.imageReloadGeneration,
-                            onLike: { photoID in
-                                Task { await viewModel.toggleLike(photoID: photoID) }
-                            },
-                            onEndThreshold: { isReached in
-                                Task { await viewModel.didReachEndThreshold(isReached) }
-                            }
-                        )
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            // 이미지 비율이나 페이지 추가로 셀 높이가 바뀌어도 현재 스크롤 기준점을 유지하고,
-            // 최상단 이동도 같은 ScrollPosition을 사용해 API 간 충돌을 피한다.
-            .scrollPosition($scrollPosition, anchor: .top)
-            .chalkakBottomBarScrollBehavior(isCompact: $isBottomBarCompact)
-            .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
-                scrollToTop()
-            }
-            .refreshable {
-                // SwiftUI가 새로고침 컨트롤 작업을 취소하더라도, 사용자가 시작한
-                // 네트워크 갱신은 별도 작업으로 끝까지 완료되도록 한다.
-                let refreshTask = Task { await viewModel.refresh() }
-                await refreshTask.value
-            }
-            .background(theme.colors.background)
+            Text(title)
+                .font(theme.typography.title2)
+                .foregroundStyle(theme.colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.colors.background)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var title: String {
+        switch topicStatus {
+        case .loading:
+            "오늘의 주제를 불러오는 중"
+        case .error:
+            "오늘의 주제를 불러오지 못했어요"
+        case .ready:
+            topic.isEmpty ? "오늘의 주제가 아직 준비되지 않았어요" : topic
+        }
     }
 }
 
@@ -217,58 +149,43 @@ private enum HomeScrollTarget {
     static let top = "home-scroll-top"
 }
 
-private struct HomeEmptyContent: View {
-    @Environment(\.chalkakTheme) private var theme
+private enum Metrics {
+    static let topBarOpacity = 0.96
+}
 
-    var body: some View {
-        VStack(spacing: theme.spacing.sm) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: HomeMetrics.emptyIconSize))
-                .foregroundStyle(theme.colors.iconSecondary)
-                .accessibilityHidden(true)
+extension Date {
+    var homeMonthDayText: String {
+        let components = RecordMonth.calendar.dateComponents([.month, .day], from: self)
+        return "\(components.month ?? 0)월 \(components.day ?? 0)일"
+    }
 
-            Text("아직 올라온 사진이 없어요")
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.textSecondary)
-
-            Text("첫 번째 사진을 올려보세요")
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.textMuted)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("home-empty")
+    var homeFullDateText: String {
+        let components = RecordMonth.calendar.dateComponents([.year, .month, .day], from: self)
+        return "\(components.year ?? 0)년 \(components.month ?? 0)월 \(components.day ?? 0)일"
     }
 }
 
-private enum Metrics {
-    static let retryIconSize: CGFloat = 20
-    static let iconButtonSize: CGFloat = 48
-}
-
-private enum HomeMetrics {
-    static let topBarOpacity = 0.96
-    static let emptyTopPadding: CGFloat = 144
-    static let emptyIconSize: CGFloat = 34
-    static let messageBottomPadding: CGFloat = 88
-}
-
 #Preview("Home") {
-    HomeScreen(
-        viewModel: HomeViewModel(initialState: HomePreviewData.contentState)
-    )
-    .chalkakTheme(.light)
+    HomeScreen(viewModel: HomePreviewData.viewModel(state: HomePreviewData.contentState))
+        .chalkakTheme(.light)
 }
 
 #Preview("Home Loading") {
-    HomeScreen(
-        viewModel: HomeViewModel(initialState: HomePreviewData.loadingState)
-    )
-    .chalkakTheme(.light)
+    HomeScreen(viewModel: HomePreviewData.viewModel(state: HomePreviewData.loadingState))
+        .chalkakTheme(.light)
+}
+
+#Preview("Home Empty") {
+    var state = HomePreviewData.contentState
+    state.hero = .empty
+    state.week = HomeViewState.weekDates(HomePreviewData.previewDate).map { HomeWeekDay(date: $0) }
+    state.yesterday = HomeRankingState(status: .ready)
+    state.trending = HomeRankingState(status: .ready)
+    return HomeScreen(viewModel: HomePreviewData.viewModel(state: state))
+        .chalkakTheme(.light)
 }
 
 #Preview("Home Error") {
-    HomeScreen(
-        viewModel: HomeViewModel(initialState: HomePreviewData.errorState)
-    )
-    .chalkakTheme(.light)
+    HomeScreen(viewModel: HomePreviewData.viewModel(state: HomePreviewData.errorState))
+        .chalkakTheme(.light)
 }

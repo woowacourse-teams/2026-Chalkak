@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import Testing
 @testable import chalkak
 
@@ -313,5 +314,24 @@ private final class AsyncGate {
         isReleased = true
         releaseContinuation?.resume()
         releaseContinuation = nil
+    }
+}
+
+@MainActor
+struct FeedZoomCropTests {
+    @Test("정사각형에서 세로·가로 사진까지 크롭 경계가 연속적으로 이동한다", arguments: [CGFloat(536), CGFloat(268), CGFloat(50)])
+    func cropBoundsMoveContinuously(destinationHeight: CGFloat) {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 25, y: 600, width: 82, height: 82), cornerRadius: 8)
+        let destination = CGRect(x: 0, y: 180, width: 402, height: destinationHeight)
+        for progress in stride(from: CGFloat(0), through: 1, by: 0.1) {
+            let geometry = FeedZoomCropGeometry(progress: progress, source: source, destination: destination)
+            let width = geometry.size.width * geometry.scale
+            let height = geometry.size.height * geometry.scale
+            #expect(abs(width - (82 + (402 - 82) * progress)) < 0.001)
+            #expect(abs(height - (82 + (destinationHeight - 82) * progress)) < 0.001)
+            #expect(abs(geometry.cornerRadius * geometry.scale - 8 * (1 - progress)) < 0.001)
+            #expect(abs(destination.midX + geometry.offset.width - (source.frame.midX + (destination.midX - source.frame.midX) * progress)) < 0.001)
+            #expect(abs(destination.midY + geometry.offset.height - (source.frame.midY + (destination.midY - source.frame.midY) * progress)) < 0.001)
+        }
     }
 }
