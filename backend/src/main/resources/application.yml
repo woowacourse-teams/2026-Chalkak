@@ -153,6 +153,8 @@ chalkak:
     log-group: /chalkak/dev/application
     # 이 날짜 이후부터 CloudWatch Logs Insights로 접근 로그 지표를 집계한다. 이른 날짜는 DB 지표만 남긴다.
     log-metrics-start-date: 2026-10-02
+    # 로그 그룹 보존 기간(일)과 맞춘다. 보존 기간이 지난 날짜는 원본 로그가 없어 로그 지표를 집계하지 않는다.
+    log-retention-days: 7
 
 management:
   endpoints:

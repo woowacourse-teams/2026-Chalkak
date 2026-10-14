@@ -11,8 +11,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.chalkak.backend.analytics.service.AccessLogMetrics;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -32,9 +36,12 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
 
     private static final String LOG_GROUP = "/chalkak/test/application";
     private static final LocalDate METRIC_DATE = LocalDate.of(2026, 10, 2);
+    private static final int RETENTION_DAYS = 7;
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final CloudWatchLogsClient client = mock(CloudWatchLogsClient.class);
     private final List<Duration> sleeps = new ArrayList<>();
+    private Clock clock = Clock.fixed(METRIC_DATE.plusDays(1).atStartOfDay(KST).toInstant(), KST);
 
     @Test
     @DisplayName("로그 그룹과 KST 하루의 epoch 초 구간으로 쿼리를 시작한다")
@@ -263,10 +270,57 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
         assertThat(reader(List.of()).read(METRIC_DATE)).isPresent();
     }
 
+    @Test
+    @DisplayName("하루의 시작이 보존 기간 경계와 정확히 같으면 쿼리를 실행한다")
+    void read_dayStartAtRetentionBoundary_runsQueries() {
+        // Given: 현재가 10-09 00:00 KST이고 보존 7일이면 경계는 10-02 00:00 KST이며, 10-02의 시작과 같다
+        clock = Clock.fixed(instant("2026-10-09T00:00:00+09:00"), KST);
+        stubQueries(completed("1"));
+
+        // When
+        var metrics = reader(List.of()).read(METRIC_DATE);
+
+        // Then
+        assertThat(metrics).isPresent();
+    }
+
+    @Test
+    @DisplayName("하루의 시작이 보존 기간 경계보다 1초라도 앞서면 쿼리 없이 빈 값을 돌려준다")
+    void read_dayStartJustBeforeRetentionBoundary_returnsEmptyWithoutQueries() {
+        // Given: 현재가 10-09 00:00:01 KST이면 경계는 10-02 00:00:01 KST라 10-02 00:00:00은 1초 만료됐다
+        clock = Clock.fixed(instant("2026-10-09T00:00:01+09:00"), KST);
+
+        // When
+        var metrics = reader(List.of()).read(METRIC_DATE);
+
+        // Then
+        assertThat(metrics).isEmpty();
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    @DisplayName("보존 기간이 완전히 지난 날짜는 쿼리 없이 빈 값을 돌려준다")
+    void read_fullyExpiredDate_returnsEmptyWithoutQueries() {
+        // Given: 현재가 10-30 00:00 KST이면 경계는 10-23이라 10-02는 보존 기간보다 3주 전이다
+        clock = Clock.fixed(instant("2026-10-30T00:00:00+09:00"), KST);
+
+        // When
+        var metrics = reader(List.of()).read(METRIC_DATE);
+
+        // Then
+        assertThat(metrics).isEmpty();
+        verifyNoInteractions(client);
+    }
+
+    private static Instant instant(String offsetDateTime) {
+        return OffsetDateTime.parse(offsetDateTime).toInstant();
+    }
+
     private CloudWatchLogsAccessLogMetricsReader reader(List<UUID> excludedUserIds) {
         return new CloudWatchLogsAccessLogMetricsReader(
                 client,
-                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LocalDate.of(2026, 10, 2)),
+                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LocalDate.of(2026, 10, 2), RETENTION_DAYS),
+                clock,
                 sleeps::add,
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(60));

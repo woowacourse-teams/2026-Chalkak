@@ -2,6 +2,7 @@ package com.chalkak.backend.analytics.infrastructure.infra;
 
 import com.chalkak.backend.analytics.service.AccessLogMetrics;
 import com.chalkak.backend.analytics.service.AccessLogMetricsReader;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,7 +26,8 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.StopQueryRequest;
  * CloudWatch Logs Insights로 접근 로그 지표를 센다.
  *
  * <p>
- * 관측 시작일 이전 날짜는 쿼리 없이 빈 값을 돌려준다. 동시에 돌릴 수 있는 쿼리 수가 제한돼 있어 쿼리를 하나씩 순서대로 실행한다.
+ * 관측 시작일 이전이거나 하루 전체가 로그 보존 기간 안에 들지 않는 날짜는 쿼리 없이 빈 값을 돌려준다. 보존 기간이 지난 날짜를 조회하면
+ * 원본 로그가 없어 0으로 센 가짜 지표가 되기 때문이다. 동시에 돌릴 수 있는 쿼리 수가 제한돼 있어 쿼리를 하나씩 순서대로 실행한다.
  * 쿼리가 실패하거나 시간 안에 끝나지 않으면 값을 비워 두지 않고 예외를 던진다. 평균 응답 시간은 소수점 첫째 자리에서 반올림한다.
  */
 @Slf4j
@@ -65,6 +67,8 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
     private final CloudWatchLogsClient client;
     private final String logGroup;
     private final LocalDate logMetricsStartDate;
+    private final Duration logRetention;
+    private final Clock clock;
     private final String excludedUserFilter;
     private final Sleeper sleeper;
     private final Duration pollInterval;
@@ -73,15 +77,17 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
     @Autowired
     public CloudWatchLogsAccessLogMetricsReader(
             CloudWatchLogsClient client,
-            AnalyticsProperties properties
+            AnalyticsProperties properties,
+            Clock clock
     ) {
-        this(client, properties, CloudWatchLogsAccessLogMetricsReader::sleep, POLL_INTERVAL,
+        this(client, properties, clock, CloudWatchLogsAccessLogMetricsReader::sleep, POLL_INTERVAL,
                 MAX_WAIT);
     }
 
     CloudWatchLogsAccessLogMetricsReader(
             CloudWatchLogsClient client,
             AnalyticsProperties properties,
+            Clock clock,
             Sleeper sleeper,
             Duration pollInterval,
             Duration maxWait
@@ -89,6 +95,8 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
         this.client = client;
         this.logGroup = properties.logGroup();
         this.logMetricsStartDate = properties.logMetricsStartDate();
+        this.logRetention = Duration.ofDays(properties.logRetentionDays());
+        this.clock = clock;
         this.excludedUserFilter = excludedUserFilter(properties.excludedUserIds());
         this.sleeper = sleeper;
         this.pollInterval = pollInterval;
@@ -97,10 +105,10 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
 
     @Override
     public Optional<AccessLogMetrics> read(LocalDate metricDate) {
-        if (metricDate.isBefore(logMetricsStartDate)) {
+        Instant from = metricDate.atStartOfDay(KST).toInstant();
+        if (!hasLogs(metricDate, from)) {
             return Optional.empty();
         }
-        Instant from = metricDate.atStartOfDay(KST).toInstant();
         Instant to = metricDate.plusDays(1).atStartOfDay(KST).toInstant();
         List<ResultField> visitors = query(from, to, VISITORS_QUERY.formatted(excludedUserFilter));
         List<ResultField> topicViewers = query(from, to,
@@ -117,6 +125,15 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
                 single(summary, "latencyAvg"),
                 single(summary, "latencyP95"),
                 single(postCreations, "postCreations")));
+    }
+
+    /** 관측 시작일 이후이고 하루 전체가 로그 보존 기간 안에 드는 날짜인가. 하루가 일부만 만료돼도 지표가 모자라므로 없는 것으로 본다. */
+    private boolean hasLogs(
+            LocalDate metricDate,
+            Instant dayStart
+    ) {
+        return !metricDate.isBefore(logMetricsStartDate)
+                && !dayStart.isBefore(clock.instant().minus(logRetention));
     }
 
     private static String excludedUserFilter(List<UUID> excludedUserIds) {

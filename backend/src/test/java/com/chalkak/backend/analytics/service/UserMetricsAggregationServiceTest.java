@@ -325,7 +325,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
 
     private UserMetricsAggregationService serviceExcluding(List<UUID> excludedUserIds) {
         AnalyticsProperties properties =
-                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LOG_METRICS_START_DATE);
+                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LOG_METRICS_START_DATE, 7);
         AccessLogMetricsReader reader = mock(AccessLogMetricsReader.class);
         when(reader.read(any())).thenReturn(Optional.empty());
         return new UserMetricsAggregationService(

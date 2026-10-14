@@ -31,6 +31,8 @@ chalkak:
     log-group: /chalkak/prod/application
     # prod 접근 로그에 userId가 남기 시작한 다음 날(#502). 이전 날짜는 로그 지표가 비어 있어 집계하지 않는다.
     log-metrics-start-date: 2026-10-02
+    # prod 로그 그룹 보존 기간(일). 이보다 오래된 날짜는 DB 지표만 남긴다.
+    log-retention-days: 60
   monitoring:
     runtime-log:
       enabled: true
