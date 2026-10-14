@@ -175,6 +175,16 @@ final class AdminAuditTransitionRules {
         return beforeState.isEmpty() && isValidNoticeState(afterState);
     }
 
+    static boolean isNoticeUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidNoticeState(beforeState)
+                && isValidNoticeState(afterState)
+                && !beforeState.values().equals(afterState.values());
+    }
+
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
         return state.hasExactlyFields(NOTICE_STATE_FIELDS)
                 && isValidNoticeTitle(state.value("title"))

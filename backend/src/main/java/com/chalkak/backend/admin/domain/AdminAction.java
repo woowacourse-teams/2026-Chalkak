@@ -61,7 +61,12 @@ public enum AdminAction {
     NOTICE_CREATED(
             AdminTargetType.NOTICE,
             false,
-            AdminAuditTransitionRules::isNoticeCreated);
+            AdminAuditTransitionRules::isNoticeCreated),
+
+    NOTICE_UPDATED(
+            AdminTargetType.NOTICE,
+            false,
+            AdminAuditTransitionRules::isNoticeUpdated);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;

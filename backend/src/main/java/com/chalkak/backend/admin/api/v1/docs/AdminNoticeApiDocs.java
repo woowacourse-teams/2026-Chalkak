@@ -49,4 +49,16 @@ public interface AdminNoticeApiDocs {
     ResponseEntity<AdminNoticeResponse> createNotice(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             AdminNoticeRequest request);
+
+    @Operation(summary = "공지 수정", description = "배포 전 공지의 제목·본문·예약 시각을 수정합니다. 검증 기준은 등록과 같습니다. 배포된 공지는 수정할 수 없으며, 같은 내용으로 수정하면 변경 없이 현재 공지를 반환합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수정 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID, 필수 값 누락, 제목·본문 길이 초과, 5분 넘게 과거인 예약 시각, 감사 로그에 저장할 수 없는 민감 정보 포함 또는 배포된 공지", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "공지 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AdminNoticeResponse> updateNotice(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "공지 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String noticeId,
+            AdminNoticeRequest request);
 }

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -209,5 +210,92 @@ class AdminNoticeControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
                         .value("공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("수정 성공 시 200과 수정된 공지를 응답한다")
+    void updateNotice_validRequest_returnsUpdatedNotice() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
+        Instant updatedAt = Instant.parse("2026-10-13T09:00:00Z");
+        given(noticeService.updateNotice(NOTICE_ID, ADMIN_ID, "점검 일정 변경", "점검합니다.",
+                SCHEDULED_AT)).willReturn(new AdminNoticeResult(NOTICE_ID, "점검 일정 변경",
+                        "점검합니다.", SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt,
+                        updatedAt));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"점검 일정 변경","body":"점검합니다.",
+                        "scheduledAt":"2026-10-19T09:00:00Z"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.noticeId").value(NOTICE_ID.toString()))
+                .andExpect(jsonPath("$.title").value("점검 일정 변경"))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.updatedAt").value(updatedAt.toString()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"title\":\" \",\"body\":\"점검합니다.\",\"scheduledAt\":\"2026-10-19T09:00:00Z\"}",
+            "{\"title\":\"안내\",\"scheduledAt\":\"2026-10-19T09:00:00Z\"}",
+            "{\"title\":\"안내\",\"body\":\"점검합니다.\",\"scheduledAt\":\"2026-10-19 09:00\"}"
+    })
+    @DisplayName("수정 요청의 제목 공백, 본문 누락, 예약 시각 형식 오류는 400으로 응답한다")
+    void updateNotice_invalidRequest_returnsBadRequest(String content) throws Exception {
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content(content))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("수정 요청의 잘못된 UUID는 400으로 응답한다")
+    void updateNotice_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put(PATH + "/not-a-uuid").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"점검 일정 변경","body":"점검합니다.",
+                        "scheduledAt":"2026-10-19T09:00:00Z"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("배포된 공지의 수정은 400과 BUSINESS_ERROR로 응답한다")
+    void updateNotice_distributedNotice_returnsBadRequest() throws Exception {
+        // Given
+        given(noticeService.updateNotice(any(), any(), anyString(), anyString(), any()))
+                .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "배포된 공지는 수정할 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"점검 일정 변경","body":"점검합니다.",
+                        "scheduledAt":"2026-10-19T09:00:00Z"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("배포된 공지는 수정할 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("없는 공지의 수정은 404로 응답한다")
+    void updateNotice_unknownNotice_returnsNotFound() throws Exception {
+        // Given
+        given(noticeService.updateNotice(any(), any(), anyString(), anyString(), any()))
+                .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"점검 일정 변경","body":"점검합니다.",
+                        "scheduledAt":"2026-10-19T09:00:00Z"}
+                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("공지를 찾을 수 없습니다."));
     }
 }

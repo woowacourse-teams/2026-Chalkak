@@ -12,6 +12,8 @@ public interface NoticeRepository {
 
     Optional<Notice> findById(UUID noticeId);
 
+    Optional<Notice> findByIdForUpdate(UUID noticeId);
+
     NoticeSlice findNotices(int page, int pageSize);
 
     List<DistributableNotice> findDistributableNotices(
