@@ -1,15 +1,16 @@
 # 알림 실패 조사와 개발 검증
 
-이 문서는 승인·반려·주제 알림의 실패 단계를 확인하는 순서다. 지표·경보 설정은
+이 문서는 승인·반려·주제·관리자 공지 알림의 실패 단계를 확인하는 순서다. 지표·경보 설정은
 [알림 모니터링](notification-monitoring.md), 큐·서버 준비는 [SQS 연동 안내](notification-sqs-setup.md)를 따른다.
-관리자 공지·좋아요·클릭 보고 API는 현재 구현 범위에 포함하지 않는다.
+좋아요·클릭 보고 API는 현재 구현 범위에 포함하지 않는다.
 
 ## 1. 조사 범위와 식별자 확보
 
 1. 개발/운영 환경, 사건 발생 시각, 알림 종류를 확인한다. 시간을 알고 있으면 조회 기간을 좁힌다.
 2. CloudWatch 서울 리전 → 로그 → Logs Insights에서 `/chalkak/{env}/notification`을 선택한다.
    로그 분리 배포 전 사건은 `/chalkak/{env}/application`도 함께 선택한다.
-3. 승인·반려는 `notificationId`, 주제는 `eventId + userId`를 확보한다.
+3. 승인·반려와 회원 한 명의 공지는 `notificationId`, 주제는 `eventId + userId`를 확보한다.
+   공지 전체의 발송 결과는 공지 ID가 `eventId`이므로 `eventId = "공지 UUID"`로 조회한다.
    주제 사건 ID를 모르면 `sourceId`(주제 ID)와 회원 ID로 수신 로그를 찾는다.
 4. `worker_received`에서 `sqsMessageId`를 확인하여 같은 메시지의 재수신·기기별 결과를 연결한다.
 
@@ -37,6 +38,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 | 확인된 기록 | 해석과 다음 확인 |
 | --- | --- |
 | DB `NOT_REQUIRED` | 생성 당시 승인·반려 수신 설정이 꺼져 발행 불필요. 알림함 기록은 남음 |
+| 공지 `notice_distributed` 없음 / `notice_distribution_failed` | 공지가 알림함에 배포되지 않음. 배포 설정 `NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED`와 `errorCode` 확인. 실패한 공지는 미배포로 남아 다음 분에 다시 배포 |
 | DB `PENDING`, Relay 결과 없음 | `publication_snapshot`의 건수·나이, Relay 활성화·배포·실행 지연 확인 |
 | `relay`의 `SQS_FAILED` | 재시도 가능한 거절. `errorCode`, `nextAttemptAt` 확인 |
 | `SQS_UNKNOWN` 또는 주제 `UNKNOWN` | 수락 응답을 확인하지 못함. 이미 큐에 들어갔을 수도 있어 중복 가능성 확인 |
@@ -93,7 +95,7 @@ DLQ 도착 후 14일을 보장하지 않는다. 기한이 먼저 지나 Worker�
 
 | 검증 대상 | 개발 환경의 실행·확인 | 기대 결과 |
 | --- | --- | --- |
-| 정상 승인·반려 / 주제 | 테스트 회원으로 실제 사건 생성, 앱 기기에서 수신 확인 | 사건 → 큐 수신 → FCM 결과 → 삭제 로그 연결. 기기 수신은 별도 기록 |
+| 정상 승인·반려 / 주제 / 공지 | 테스트 회원으로 실제 사건 생성(공지는 즉시 예약), 앱 기기에서 수신 확인 | 사건 → 큐 수신 → FCM 결과 → 삭제 로그 연결. 기기 수신은 별도 기록 |
 | DB 발행 정체 | Relay를 잠시 끄고 테스트 알림 생성, 복구 후 다시 켬 | PENDING 나이 증가·db-backlog 경보·복구. 30분을 넘긴 건은 만료 |
 | 발행 거절·수락 불명 | 승인된 개발 장애 조건으로 발행 요청·응답 경계를 실패시킴 | 오류 코드·DB 재시도·publication-errors 경보. 수락 불명 중복 가능성 확인 |
 | FCM 일시 오류 | 통제된 개발 발송 장애를 재현, 해제 | 메시지 유지·재수신·조건 재검증·Worker 오류 경보. 수락한 기기의 결과 유지 |
