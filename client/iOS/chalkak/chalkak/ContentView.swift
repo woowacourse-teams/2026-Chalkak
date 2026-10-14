@@ -22,7 +22,6 @@ struct ContentView: View {
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
     @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
-    @State private var todayViewModel = Self.makeTodayViewModel()
     @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
@@ -90,19 +89,6 @@ struct ContentView: View {
                                     viewModel: notificationInboxViewModel,
                                     onBackClick: { closeNotificationDestination(destination) },
                                     onSelect: openInboxNotification
-                                )
-                                .toolbar(.hidden, for: .navigationBar)
-                                .background(InteractivePopGestureEnabler())
-                            case .today:
-                                TodayScreen(
-                                    viewModel: todayViewModel,
-                                    onOpenPhotoUpload: { openPhotoUpload(from: selectedTab) },
-                                    onOpenNotifications: { isNotificationInboxPresented = true },
-                                    hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                                    onNavigateToBottomBar: { item in
-                                        notificationPath = []
-                                        select(item)
-                                    }
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
@@ -665,9 +651,11 @@ struct ContentView: View {
             notificationPath = fromInbox ? [.inbox] : []
             switch tap {
             case .topic:
-                // 주제 푸시는 클릭한 날의 오늘 주제를 보여 준다.
-                notificationPath.append(.today)
-                Task { await todayViewModel.refresh() }
+                // 주제 푸시는 클릭한 날의 오늘 주제가 보이는 홈으로 이동한다.
+                notificationPath = []
+                selectedTab = .home
+                homeViewModel.scrollToTop()
+                Task { await homeViewModel.refresh() }
             case let .postApproved(postID, _):
                 notificationPath.append(.approved(postID))
             case let .postRejected(notificationID):
@@ -818,7 +806,6 @@ struct ContentView: View {
         feedbackViewModel = nil
         isFeedbackPresented = false
         homeViewModel = Self.makeHomeViewModel()
-        todayViewModel = Self.makeTodayViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
         notificationSettingsViewModel.reset()
@@ -838,13 +825,6 @@ struct ContentView: View {
                 try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation)
             },
         )
-    }
-
-    private static func makeTodayViewModel() -> TodayViewModel {
-        TodayViewModel(apiClient: TodayAPIClient(
-            configuration: TodayAPIConfiguration(baseURL: resolvedAPIBaseURL),
-            accessTokenProvider: { KeychainSessionStore.accessToken() }
-        ))
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
@@ -1130,7 +1110,6 @@ private struct NotificationUnreadRefreshID: Hashable {
 
 private enum NotificationRoute: Hashable {
     case inbox
-    case today
     case approved(String)
     case rejected(NotificationDetailTarget)
 }
