@@ -3,16 +3,16 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-struct HomeLoadedImage {
+struct TodayLoadedImage {
     let image: UIImage
     let heightToWidthRatio: CGFloat
 }
 
-typealias HomeImageLoader = @MainActor (URL, Int) async throws -> HomeLoadedImage
+typealias TodayImageLoader = @MainActor (URL, Int) async throws -> TodayLoadedImage
 
-private struct HomeImageLoaderEnvironmentKey: EnvironmentKey {
-    static let defaultValue: HomeImageLoader = { url, targetPixelWidth in
-        try await HomeImagePipeline.shared.image(
+private struct TodayImageLoaderEnvironmentKey: EnvironmentKey {
+    static let defaultValue: TodayImageLoader = { url, targetPixelWidth in
+        try await TodayImagePipeline.shared.image(
             for: url,
             targetPixelWidth: targetPixelWidth
         )
@@ -20,32 +20,32 @@ private struct HomeImageLoaderEnvironmentKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    var homeImageLoader: HomeImageLoader {
-        get { self[HomeImageLoaderEnvironmentKey.self] }
-        set { self[HomeImageLoaderEnvironmentKey.self] = newValue }
+    var todayImageLoader: TodayImageLoader {
+        get { self[TodayImageLoaderEnvironmentKey.self] }
+        set { self[TodayImageLoaderEnvironmentKey.self] = newValue }
     }
 }
 
-enum HomeImagePipelineError: Error {
+enum TodayImagePipelineError: Error {
     case invalidResponse
     case invalidImage
     case decodeFailed
 }
 
-actor HomeImagePipeline {
-    static let shared = HomeImagePipeline()
+actor TodayImagePipeline {
+    static let shared = TodayImagePipeline()
 
     private final class CacheEntry: NSObject {
-        let value: HomeLoadedImage
+        let value: TodayLoadedImage
 
-        init(value: HomeLoadedImage) {
+        init(value: TodayLoadedImage) {
             self.value = value
         }
     }
 
     private let session: URLSession
     private let cache = NSCache<NSString, CacheEntry>()
-    private var inFlight: [String: Task<HomeLoadedImage, Error>] = [:]
+    private var inFlight: [String: Task<TodayLoadedImage, Error>] = [:]
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -53,7 +53,7 @@ actor HomeImagePipeline {
         cache.countLimit = 60
     }
 
-    func image(for url: URL, targetPixelWidth: Int) async throws -> HomeLoadedImage {
+    func image(for url: URL, targetPixelWidth: Int) async throws -> TodayLoadedImage {
         let normalizedWidth = max(targetPixelWidth, 1)
         let key = "\(url.absoluteString)#\(normalizedWidth)"
 
@@ -93,16 +93,16 @@ actor HomeImagePipeline {
         from url: URL,
         targetPixelWidth: Int,
         session: URLSession
-    ) async throws -> HomeLoadedImage {
+    ) async throws -> TodayLoadedImage {
         let (data, response) = try await session.data(from: url)
         try Task.checkCancellation()
 
         if let httpResponse = response as? HTTPURLResponse,
            !(200..<300).contains(httpResponse.statusCode) {
-            throw HomeImagePipelineError.invalidResponse
+            throw TodayImagePipelineError.invalidResponse
         }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            throw HomeImagePipelineError.invalidImage
+            throw TodayImagePipelineError.invalidImage
         }
 
         let ratio = try imageRatio(from: source)
@@ -118,10 +118,10 @@ actor HomeImagePipeline {
             0,
             options as CFDictionary
         ) else {
-            throw HomeImagePipelineError.decodeFailed
+            throw TodayImagePipelineError.decodeFailed
         }
 
-        return HomeLoadedImage(
+        return TodayLoadedImage(
             image: UIImage(cgImage: cgImage),
             heightToWidthRatio: ratio
         )
@@ -135,7 +135,7 @@ actor HomeImagePipeline {
             pixelWidth > 0,
             pixelHeight > 0
         else {
-            throw HomeImagePipelineError.invalidImage
+            throw TodayImagePipelineError.invalidImage
         }
 
         let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
@@ -151,10 +151,10 @@ actor HomeImagePipeline {
     }
 }
 
-struct HomeRemoteMeasuredImage: View {
+struct TodayRemoteMeasuredImage: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.homeImageLoader) private var imageLoader
+    @Environment(\.todayImageLoader) private var imageLoader
 
     let url: URL?
     let contentDescription: String?
