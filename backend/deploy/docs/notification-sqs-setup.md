@@ -2,11 +2,18 @@
 
 ## 현재 적용 상태
 
-#492의 두 번째 커밋은 DB → Relay → SQS까지 구현한다. PushWorker·FCM은 다음 커밋이다. 사용자는 개발 큐 URL을 제공했고 AWS 권한 확인을 완료했다고 알렸다. 실제 AWS 발행과 기기 수신은 아직 검증하지 않았다. 로컬 HTTP 서버 테스트는 실제 AWS 권한·큐 연결 검증을 대신하지 않는다.
+승인·반려의 DB → Relay → SQS → PushWorker → FCM과 주제의 직접 SQS 발행은 구현되어 있다.
+사용자는 #572의 개발 서버 주제 발행 → FCM 연동 검증 완료를 보고했다. 이 보고를
+이번 #494의 새 로그 그룹·지표·경보·장애·DLQ 검증 완료로 해석하지 않는다.
+Android·iOS 각각의 수신 결과·배포 SHA 등 세부 증거는 실제 연동 기록에서 확인한다.
 
-커밋·푸시만으로 개발 서버에 배포되지 않는다. 이번 PR의 PushWorker·FCM 구현까지 마친 뒤 개발 서버에 배포하여 DB → SQS → FCM 전체 흐름을 검증한다. 두 번째 커밋 직후 개발 서버 테스트를 필수로 진행하지 않는다.
+#494는 로그 식별자 연결, 전용 파일·30일 로그 그룹 수집 구성과 경보 정의를 추가한다.
+실제 그룹·Agent·메트릭 필터·경보 적용 및 장애 검증은 배포 후 수행한다.
+[알림 모니터링](notification-monitoring.md)과 [실패 조사·검증](notification-investigation.md)을 따른다.
+커밋·푸시가 서버 배포나 AWS 설정 완료를 뜻하지 않는다.
 
-현재 `NOTIFICATION_RELAY_ENABLED=false`로 두고, PushWorker·FCM 준비 후 개발 연동 시험을 진행할 때 켠다. 이미 저장한 PENDING이 30분을 넘었다면 켠 뒤 발행하지 않고 만료 처리한다. 과거 알림을 시험용으로 일괄 재발행하지 않는다.
+준비되지 않은 환경의 Relay·Worker·주제 발행 플래그는 꺼 둔다. 이미 PENDING이 30분을 넘었다면
+Relay를 켠 뒤 발행하지 않고 만료 처리한다. 과거 알림을 시험용으로 일괄 재발행하지 않는다.
 
 ## 1. 환경별 Standard 큐와 DLQ
 
@@ -28,7 +35,7 @@ DLQ를 먼저 만든 뒤 원본 큐에 연결한다. 둘 다 Standard이며 같�
 
 `maxReceiveCount`는 최초 수신을 포함한 SQS 메시지 수신 횟수의 한도다. FCM SDK 내부 재시도와 처리 중 Visibility Timeout 연장은 이 횟수를 증가시키지 않는다. PushWorker는 처리 중 숨김 시간을 연장하여 재전달을 줄이고, 일시 실패가 남으면 메시지를 삭제하지 않아 다음 수신에서 재처리한다. 60초마다 정확히 10회 시도하거나 모든 최종 실패가 DLQ에 들어간다는 뜻은 아니다. 원래 30분 발송 기한이 먼저 지나면 Worker의 만료 처리 기준을 따른다.
 
-원본 큐의 Redrive policy는 반복 실패 메시지를 DLQ로 격리하기 위한 설정이다. **DLQ에서 원본 큐로 다시 보내는 자동·수동 Redrive는 하지 않는다.** Standard 메시지의 만료는 최초 큐 입력 시각 기준이므로 DLQ 이동 뒤 14일이 새로 시작되지 않는다. 조사 로그는 #494에서 별도 30일 보관을 구성한다. [AWS DLQ 문서](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
+원본 큐의 Redrive policy는 반복 실패 메시지를 DLQ로 격리하기 위한 설정이다. **DLQ에서 원본 큐로 다시 보내는 자동·수동 Redrive는 하지 않는다.** Standard 메시지의 만료는 최초 큐 입력 시각 기준이므로 DLQ 이동 뒤 14일이 새로 시작되지 않는다. 조사 로그는 알림 전용 CloudWatch 그룹에 30일 보관하도록 설정한다. [AWS DLQ 문서](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
 
 각 원본 큐의 URL·ARN과 DLQ ARN을 기록하고 dev·prod 연결을 구분한다. 메시지의 실제 푸시 기한은 큐 보관 기간과 별개로 사건 발생 후 30분이다.
 
@@ -55,13 +62,14 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 - `NOTIFICATION_WORKER_ENABLED`: Firebase 서버 인증·앱 등록 준비 전 `false`, 개발 전체 연동 시험 시 `true`.
 - `NOTIFICATION_FCM_PROJECT_ID`: 기기 토큰을 발급한 Firebase 프로젝트 ID.
 - `NOTIFICATION_FCM_CREDENTIALS_PATH`: 서버에 별도로 배치한 서비스 계정 JSON의 절대 경로. 서비스 실행 계정에만 읽기 권한을 주고 Git에 넣지 않는다.
+- `NOTIFICATION_TOPIC_PUSH_ENABLED`: 주제 설정·기기·Worker 준비 후 직접 발행을 켠다.
 - 기존 `AWS_REGION`: `ap-northeast-2` 유지.
 
 예제는 [dev](../examples/application.dev.env.example)·[prod](../examples/application.prod.env.example)에 있다. CD는 파일 내용을 자동 수정하지 않는다. 사람이 반영한 뒤 `sudo systemctl restart chalkak-backend.service`를 실행한다.
 
 정상 작업 확인 간격은 처리 완료 후 1초, 한 번에 최대 100건이다. 100건은 한 번에 조회하는 알림 수이며 각 알림은 별도 트랜잭션에서 순차 발행한다. SDK 호출의 전체 제한은 5초이며 SDK 내부 자동 재시도는 끈다. 일시 실패·수락 불명은 DB의 `next_attempt_at`에 1분 뒤를 기록하며, 기한을 넘기지 않는다. 네트워크 장애가 있으면 한 회차 실행 시간이 늘 수 있으므로 1초 이내 전달을 보장한다는 뜻은 아니다.
 
-## 4. 실제 AWS 개발 연동 확인 — 이번 PR 구현 완료 후 수행
+## 4. 실제 AWS 개발 연동 확인
 
 1. 개발 큐 URL·ARN, 원본 큐 Redrive policy/Visibility, DLQ 보관 기간 및 EC2 역할 권한을 콘솔에서 확인한다.
 2. 개발 환경에 테스트 회원·게시물로 승인 또는 반려 알림을 생성한다. 승인·반려 푸시 설정은 켜 둔다. 테스트 알림 ID·사건 ID를 기록한다.
@@ -71,7 +79,7 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 6. 제어된 일시 오류로 SQS 재수신, 처리 중 숨김 시간 연장, 최대 수신 한도 초과 후 DLQ 이동을 검증한다. 설정은 60초·10회이고, 발송 기한은 사건 발생 후 30분이다. 기한이 먼저 지난 경우와 반복 실패로 DLQ에 격리된 경우를 구분하여 기록한다. 자동·수동 Redrive는 수행하지 않는다.
 7. 실패는 `errorCode`와 상태로 확인하고 권한·URL을 수정한다. 영구 오류의 `FAILED`를 자동 PENDING으로 되돌리는 기능은 없다. 시험 결과와 운영 활성화 여부는 구분한다.
 
-실제 AWS 성공 결과는 이 절차를 실행한 뒤 기록한다. 현재 개발 큐 URL과 사용자의 권한 확인 완료 보고만 확보한 상태이며, 실제 발행·Worker 처리·FCM 수신은 미실행이다. Worker·FCM 코드는 작성했지만 실제 AWS·Firebase 연동은 아직 검증하지 않았다.
+각 환경의 실제 결과는 배포 SHA·검증 시각·사건 식별자와 함께 남긴다. 기존 정상 연동에 대한 사용자 보고와 #494의 새 로그·경보·실패 검증은 별개로 기록한다. 이번 작업에서 실제 AWS 설정과 장애 재현은 아직 실행하지 않았다. 상세한 조사·검증 순서는 [실패 조사 런북](notification-investigation.md)을 따른다.
 
 ## 로그 조회
 
@@ -132,15 +140,16 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 
 토큰·수신 핸들·메시지 원문·제목·본문·반려 사유·사진 URL·예외 원문은 기록하지 않는다.
 
-`SQS_ACCEPTED`만 있고 DB 트랜잭션이 실패하면 다음 실행에서 같은 사건이 중복 발행될 수 있다. `PUBLISHED`는 SQS 수락 상태이지 FCM 요청 수락·기기 수신·클릭을 뜻하지 않는다. DB 발행 횟수·오류 이력 컬럼이나 별도 Outbox·push_attempts는 추가하지 않는다. 경보와 로그 보관 설정 완성은 #494 범위다.
+`SQS_ACCEPTED`만 있고 DB 트랜잭션이 실패하면 다음 실행에서 같은 사건이 중복 발행될 수 있다. `PUBLISHED`는 SQS 수락 상태이지 FCM 요청 수락·기기 수신·클릭을 뜻하지 않는다. DB 발행 횟수·오류 이력 컬럼이나 별도 Outbox·push_attempts는 추가하지 않는다. 경보 정의와 적용 절차는 [알림 모니터링](notification-monitoring.md)에 있으며 실제 적용 상태는 환경별로 확인한다.
 
 ## Worker·FCM 준비와 시간 설정
 
 - 앱 담당자에게 Firebase 프로젝트 ID·FCM 등록 여부와 iOS APNs 설정을 확인한다. 서버에는 FCM 발송 권한을 가진 서비스 계정 인증 파일을 별도로 준비한다. 앱 설정 파일을 서버 키로 사용하지 않는다.
 - Worker는 한 건씩 20초 롱 폴링으로 수신한다. 수신 클라이언트는 Relay의 5초 클라이언트와 분리하여 전체 30초·개별 25초 제한을 둔다. 삭제·숨김 변경 요청은 5초 제한으로 덮어쓴다.
 - 최초 숨김 60초, 처리 중 40초마다 60초로 갱신한다. 수신 횟수 10은 AWS 큐 설정이며 DB 카운터나 Worker 반복 횟수가 아니다.
-- FCM Admin Java 9.11.0 SDK 기본값은 503에 최대 4회 추가 요청이다. 앱 차원의 즉시 반복 루프는 없다. 실제 HTTP 요청마다 사건 기한을 확인하고 남은 시간을 Android TTL에 반영한다. iOS는 원래 기한을 `apns-expiration`으로 보낸다. 요청 제한은 최대 10초이며 남은 기한이 짧으면 그 범위로 제한한다.
+- FCM Admin Java 9.11.0의 기본 전송을 사용하며 SDK 내부 재시도와 앱/SQS 재처리를 구분한다. Worker와 어댑터는 새 발송 시작 전에 30분 기한을 확인한다. Android TTL은 메시지 생성 시 남은 시간으로 한 번 계산하고 iOS는 원래 기한을 `apns-expiration`으로 보낸다. SDK 내부 HTTP 재요청마다 TTL을 갱신하지 않는다. 이미 시작한 SDK 재시도가 원래 기한을 넘거나 Android 실제 만료가 늦어질 수 있는 예외를 허용한다. 연결·읽기·쓰기 제한은 각각 10초이며 전체 발송 호출이 10초 안에 끝난다는 뜻은 아니다.
 - FCM 수락이면 SQS 메시지를 삭제한다. 전부 일시 실패면 연장을 멈추고 재전달에 맡긴다. Retry-After가 있으면 최소 60초 또는 해당 값만큼 다음 전달을 지연하되 원래 기한을 넘기지 않는다. SDK 수락과 실제 기기 도착은 별도 확인한다.
+- 주제 시간표는 매분 KST 정각에 확인한다. 원래 예정 시각 기준 30분 기한이며, 같은 프로세스의 회차 시도는 메모리로 관리한다. DB 사용자별 작업·Outbox를 만들지 않고 실패한 발행을 애플리케이션에서 다시 보내지 않는다. 재시작으로 중복되거나 중단으로 누락될 수 있다.
 - DLQ 자동 이동은 큐 Redrive policy가 담당한다. 콘솔 Poll도 수신 횟수를 사용한다. 만료로 삭제된 메시지는 DLQ에 없을 수 있으므로 실패 로그도 함께 조사한다.
 
 공식 근거: [Firebase Admin 설정](https://firebase.google.com/docs/admin/setup), [FCM 오류](https://firebase.google.com/docs/cloud-messaging/error-codes), [메시지 만료](https://firebase.google.com/docs/cloud-messaging/customize-messages/setting-message-lifespan), [9.11.0 SDK 재시도 기본값](https://github.com/firebase/firebase-admin-java/blob/v9.11.0/src/main/java/com/google/firebase/internal/ApiClientUtils.java).
