@@ -1,6 +1,6 @@
 # 로깅·모니터링 설계
 
-- 상태: 구현 중 (#500~#503 구현, #504 진행 중)
+- 상태: 구현 (#500~#504). #504의 메트릭 필터·알람·대시보드는 병합 뒤 런북대로 콘솔에 적용한다.
 - 관련 이슈: [#499 로깅 및 모니터링 구축](https://github.com/woowacourse-teams/2026-Chalkak/issues/499)
 
 찰칵 MVP의 로그 스키마, 모니터링 항목, 사용자 지표 정의, 알람 원칙을 한 곳에 정리한다. 구축 절차와 알람·메트릭 필터의 정확한 값은 [CloudWatch 모니터링 구축 런북](../../deploy/docs/monitoring.md)이 기준이며, 이 문서와 어긋나면 런북이 옳다.
@@ -53,7 +53,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 
 ## 4. 모니터링 항목과 수집 방식
 
-상태 표기: **구현**은 이미 동작하는 것, **계획 #504**는 이슈에만 있고 아직 없는 것, **보류**는 하지 않기로 한 것이다.
+상태 표기: **구현**은 이미 동작하는 것, **보류**는 하지 않기로 한 것이다.
 
 ### 4.1 API·에러
 
@@ -105,7 +105,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 오늘(요청한 날짜) 주제 행 없음 | 메트릭 필터 `TopicNotFound` (`GET /api/v1/topics` 404, 요청한 날짜의 주제가 없을 때. 앱이 오늘 날짜로 조회한다는 전제). 주제 등록 누락이나 삭제를 잡고, 주제가 있어도 BEFORE_OPEN인 경우는 잡지 못한다 | 알람 `chalkak-prod-no-open-topic` | 구현 #503 |
 | 검수 소요 시간 (일별 평균·p95) | Logs Insights 위젯 (`type=moderation`, `waitSeconds`) | 대시보드 prod 운영·사용자 섹션 | 구현 #501, #503 |
 | 검수 대기가 오래된 게시물 | Logs Insights 위젯 (`postId`별 마지막 `event`가 `pending`, 조회 기간 안에 접수된 것만. 정확한 현황은 관리자 페이지) | 대시보드 prod 운영·사용자 섹션 | 구현 #501, #503 |
-| 검수 소요 시간 장기 추세 | DB SQL (`posts.created_at`, `moderated_at`) | 리포트 쿼리 | 계획 #504 |
+| 검수 소요 시간 장기 추세 (주별 평균·p95) | DB SQL (`posts.created_at`, `moderated_at`) | [리포트 쿼리](report-queries.md) | 구현 #504 |
 | 게시물 제출 성공·실패 수 | | | 보류 (7절) |
 
 ### 4.6 사용자 행동
@@ -118,6 +118,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 당일 접속 사용자 수 (일별) | Logs Insights 위젯 (`userId`가 있는 접근 로그의 `count_distinct(userId)`)과 집계 메트릭 `Visitors` (내부 계정 제외) | 대시보드 prod 운영·사용자 섹션, prod 사용자 지표 섹션 | 구현 #504 |
 | WAU | 집계 메트릭 `Wau` | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
 | W+1~W+4 리텐션 | 집계 메트릭 `RetentionW{k}Rate` (월요일 집계) | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
+| 코호트별 리텐션 표 | DB SQL (코호트 주마다 W+1~W+4) | [리포트 쿼리](report-queries.md) | 구현 #504 |
 | 일별 게시물 수 | 집계 메트릭 `Posts` | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
 | 총 좋아요 수 | 집계 로그 `likesTotal`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
 | 주제 조회 사용자 수 | 집계 로그 `topicViewers`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
@@ -188,5 +189,6 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 
 - [CloudWatch 모니터링 구축 런북](../../deploy/docs/monitoring.md): 구축 순서, 메트릭 필터·알람 표, 알람 대응, 비용 점검
 - [알람 전달 Lambda](../../lambda/alarm-notifier/README.md): SNS 알람을 Slack으로 전달하는 코드와 배포 절차
+- [리포트 쿼리](report-queries.md): 코호트별 리텐션 표와 주별 검수 소요 시간 SQL
 - [대시보드 정의](../../deploy/monitoring/dashboard.json): 대시보드 `DASHBOARD-chalkak`의 소스
 - CloudWatch Agent 설정: [dev](../../deploy/monitoring/cloudwatch-agent.dev.json), [prod](../../deploy/monitoring/cloudwatch-agent.prod.json)
