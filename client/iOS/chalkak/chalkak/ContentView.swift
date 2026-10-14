@@ -13,7 +13,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var route: AppRoute = Self.initialRoute
-    @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
     @State private var isNotificationInboxPresented = false
@@ -36,7 +36,7 @@ struct ContentView: View {
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
-    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
+    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .home
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
@@ -52,19 +52,19 @@ struct ContentView: View {
             case .login:
                 LoginView(
                     authRepository: authRepository,
-                    onAuthenticated: showHomeAfterAuthentication,
-                    onGuestAccessGranted: showHome,
+                    onAuthenticated: showMainAfterAuthentication,
+                    onGuestAccessGranted: showMain,
                     onSignUpRequired: showOnboarding
                 )
             case .onboarding:
                 OnboardingRoute(
                     authRepository: authRepository,
-                    onFinish: showHomeAfterAuthentication,
+                    onFinish: showMainAfterAuthentication,
                     onReauthenticationRequired: showLogin,
                     onServiceTermsView: showServiceTerms,
                     onPrivacyPolicyView: showPrivacyPolicy
                 )
-            case .home:
+            case .main:
                 NavigationStack {
                     mainTab
                         .navigationDestination(isPresented: $isNotificationInboxPresented) {
@@ -168,11 +168,14 @@ struct ContentView: View {
             showLogin()
         }
         .onReceive(NotificationCenter.default.publisher(for: .dailyReminderNotificationTapped)) { _ in
-            showHome()
+            showMain()
         }
         .onChange(of: selectedFeed) { previousFeed, currentFeed in
             guard previousFeed != nil, currentFeed == nil else { return }
-            Task { await displayViewModel.revalidate() }
+            Task {
+                await displayViewModel.revalidate()
+                await homeViewModel.resume()
+            }
         }
         .overlay(alignment: .bottom) {
             if let message {
@@ -228,6 +231,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await appVersionGate.checkForUpdate() }
+            if route == .main, selectedTab == .home {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
+                Task { await homeViewModel.resume() }
+            }
         }
     }
 
@@ -249,6 +258,9 @@ struct ContentView: View {
                 .padding(.bottom, bottomBarBottomPadding)
                 .background(bottomBarBackground)
                 .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    feedZoomRegistry.bottomBarFrame = $0
+                }
             }
     }
 
@@ -297,7 +309,7 @@ struct ContentView: View {
                 viewModel: recordViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
-                onOpenDisplay: openDisplay,
+                onOpenDisplay: { openDisplay(at: $0) },
                 onOpenFeed: { post in
                     selectedFeed = FeedTarget(
                         postID: post.postId,
@@ -312,17 +324,44 @@ struct ContentView: View {
         default:
             HomeScreen(
                 viewModel: homeViewModel,
-                onOpenPhotoUpload: { openPhotoUpload(from: .today) },
+                onOpenPhotoUpload: { openPhotoUpload(from: .home) },
+                onOpenRecord: { select(.record) },
+                onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
+                onOpenFeed: openHomeFeed,
                 onOpenNotifications: { isNotificationInboxPresented = true },
-                onNavigateToBottomBar: select,
+                onIssueClick: { showMessage("콘텐츠는 준비 중이에요") },
                 bottomBarCompact: $isBottomBarCompact
             )
             .onAppear(perform: presentInitialNotificationSetupIfNeeded)
             .task(id: ObjectIdentifier(homeViewModel)) {
-                guard homeViewModel.viewState.contentStatus == .loading else { return }
-                await homeViewModel.retry()
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
+                await homeViewModel.resume()
             }
         }
+    }
+
+    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
+        var isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            isAuthenticated = false
+        }
+#endif
+        guard isAuthenticated else {
+            showMessage("상세를 보려면 로그인이 필요해요")
+            return
+        }
+        selectedFeed = FeedTarget(
+            postID: photo.id,
+            isOwnedByCurrentUser: photo.isOwnedByCurrentUser,
+            zoomSource: zoomSource,
+            placeholder: FeedPhotoPlaceholder(
+                imageSource: photo.thumbnailImageSource,
+                signatureImageSource: nil
+            )
+        )
     }
 
     private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
@@ -337,15 +376,16 @@ struct ContentView: View {
     }
 
     private func selectBottomBarItem(_ item: ChalkakBottomBarItem) {
-        if selectedTab == .today, item == .today {
-            Task { await homeViewModel.selectBottomBarItem(item) }
+        if selectedTab == .home, item == .home {
+            homeViewModel.scrollToTop()
+            Task { await homeViewModel.refresh() }
         } else {
             select(item)
         }
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display || item == .record || item == .settings else { return }
+        guard item == .home || item == .display || item == .record || item == .settings else { return }
 
         if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
             showMessage("기록을 보려면 로그인이 필요해요")
@@ -368,8 +408,8 @@ struct ContentView: View {
         }
     }
 
-    private func openDisplay(at date: Date) {
-        displayViewModel = Self.makeDisplayViewModel(initialDate: date)
+    private func openDisplay(at date: Date, sort: DisplaySort = .latest) {
+        displayViewModel = Self.makeDisplayViewModel(initialDate: date, initialSort: sort)
         selectedTab = .display
     }
 
@@ -379,18 +419,18 @@ struct ContentView: View {
         recordViewModel.removeDeletedPost(postID)
     }
 
-    private func showHome() {
+    private func showMain() {
         resetMainState()
-        route = .home
+        route = .main
     }
 
-    private func showHomeAfterAuthentication() {
+    private func showMainAfterAuthentication() {
         hasPresentedInitialNotificationSetup = false
-        showHome()
+        showMain()
     }
 
     private func presentInitialNotificationSetupIfNeeded() {
-        guard route == .home, selectedTab == .today else { return }
+        guard route == .main, selectedTab == .home else { return }
 #if DEBUG
         let isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
             || ProcessInfo.processInfo.arguments.contains("-show-notification-setup")
@@ -492,12 +532,12 @@ struct ContentView: View {
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
         selectedTab = .display
-        route = .home
+        route = .main
     }
 
     private func showPhotoUploadOrigin() {
         isPhotoUploadPresented = false
-        route = .home
+        route = .main
         selectedTab = photoUploadReturnTab
     }
 
@@ -543,7 +583,8 @@ struct ContentView: View {
     }
 
     private func resetMainState() {
-        selectedTab = .today
+        homeViewModel.cancel()
+        selectedTab = .home
         selectedFeed = nil
         isNotificationInboxPresented = false
         isNotificationSetupPresented = false
@@ -558,43 +599,54 @@ struct ContentView: View {
 
     private static func makeHomeViewModel() -> HomeViewModel {
 #if DEBUG
-        if isDailyReminderTapUITest {
-            return HomeViewModel(
-                initialState: HomeViewState(),
-                refreshHandler: { _ in .success(HomeViewState()) }
-            )
-        }
-#endif
-
-        let baseURL = resolvedAPIBaseURL
-        let apiClient = HomeAPIClient(
-            configuration: HomeAPIConfiguration(baseURL: baseURL),
-            accessTokenProvider: { KeychainSessionStore.accessToken() }
-        )
-        return HomeViewModel(
-            initialState: HomeViewState(),
-            isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
-            refreshHandler: { sort in
-                await apiResult {
-                    try await apiClient.fetchHome(date: Date(), sort: sort)
+        if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            var state = HomePreviewData.contentState
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
+                switch arguments[index + 1] {
+                case "empty": state.hero = .empty
+                case "loading": state.hero = .loading
+                case "processing": state.hero = .processing
+                case "error": state.hero = .error
+                case "no-open-topic": state.hero = .noOpenTopic
+                case "rejected-open": state.hero = .rejected(canResubmit: true)
+                case "rejected-closed": state.hero = .rejected(canResubmit: false)
+                case "pending":
+                    let photo = HomePreviewData.heroPhoto
+                    state.hero = .photo(HomeHeroPhoto(imageSource: photo.imageSource, thumbnailSource: photo.thumbnailSource, signatureSource: nil, isPending: true))
+                default: break
                 }
-            },
-            nextPageHandler: { state in
-                await apiResult {
-                    try await apiClient.fetchNextPage(state: state)
-                }
-            },
-            likeHandler: { photoID, isLiked in
-                await apiResult {
-                    try await apiClient.updateLike(photoID: photoID, isLiked: isLiked)
+                switch state.hero {
+                case .photo:
+                    break
+                default:
+                    state.week = state.week.map { day in
+                        RecordMonth.calendar.isDate(day.date, inSameDayAs: state.date)
+                            ? HomeWeekDay(date: day.date)
+                            : day
+                    }
                 }
             }
-        )
+            return HomePreviewData.viewModel(state: state)
+        }
+        if isDailyReminderTapUITest {
+            let loader = HomeDataLoader(
+                today: { date in DisplayContent(topicDate: date, topic: "오늘의 주제", page: DisplayPage(photos: [], currentPage: 1, hasNext: false, randomSeed: nil)) },
+                ranking: { _ in [] },
+                calendar: { month in RecordCalendar(month: month, posts: []) },
+                detail: { _ in throw FeedError.notFound },
+                postStatus: { throw PhotoUploadAPIError.http(statusCode: 404, message: nil) }
+            )
+            return HomeViewModel(loader: loader, isAuthenticated: { false })
+        }
+#endif
+        return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
     }
 
-    private static func makeDisplayViewModel(initialDate: Date? = nil) -> DisplayViewModel {
+    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
         DisplayViewModel(
             initialDate: initialDate,
+            initialSort: initialSort,
             apiClient: DisplayAPIClient(
                 configuration: DisplayAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -720,7 +772,7 @@ struct ContentView: View {
     }
 
     private static var resolvedAPIBaseURL: URL {
-        AppConfiguration().apiBaseURL ?? HomeAPIConfiguration.development.baseURL
+        AppConfiguration().apiBaseURL ?? PhotoUploadAPIConfiguration.development.baseURL
     }
 
     private static var isPhotoUploadEntryUITest: Bool {
@@ -741,14 +793,15 @@ struct ContentView: View {
 
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest || isFeedbackEntryUITest || isDailyReminderTapUITest {
-            return .home
+        if isPhotoUploadEntryUITest || isFeedbackEntryUITest || isDailyReminderTapUITest
+            || ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            return .main
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
         if ProcessInfo.processInfo.arguments.contains("-show-notification-setup") {
-            return .home
+            return .main
         }
 #endif
         return AppRouteResolver.initialDestination(
@@ -765,7 +818,7 @@ struct ContentView: View {
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
-        guard route == .home, !isPhotoUploadPresented else { return nil }
+        guard route == .main, !isPhotoUploadPresented else { return nil }
         if selectedFeed != nil {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")
         }
@@ -784,13 +837,13 @@ struct ContentView: View {
 enum AppRoute: Equatable {
     case login
     case onboarding
-    case home
+    case main
     case photoUploadSuccess
 }
 
 enum AppRouteResolver {
     static func initialDestination(hasActiveSession: Bool) -> AppRoute {
-        hasActiveSession ? .home : .login
+        hasActiveSession ? .main : .login
     }
 
     static func shouldPresentNotificationSetup(
@@ -810,8 +863,8 @@ private struct AnalyticsScreen: Equatable {
 private extension ChalkakBottomBarItem {
     var analyticsScreen: AnalyticsScreen {
         switch self {
-        case .today:
-            AnalyticsScreen(name: "today", screenClass: "Today")
+        case .home:
+            AnalyticsScreen(name: "home", screenClass: "Home")
         case .display:
             AnalyticsScreen(name: "display", screenClass: "Display")
         case .record:
@@ -829,19 +882,4 @@ private enum ContentMetrics {
 #Preview {
     ContentView()
         .chalkakTheme(.light)
-}
-
-@MainActor
-private func apiResult<Value: Sendable>(
-    _ operation: () async throws -> Value
-) async -> Result<Value, HomeInitialError> {
-    do {
-        return .success(try await operation())
-    } catch let error as HomeAPIError {
-        return .failure(error.initialError)
-    } catch is CancellationError {
-        return .failure(.cancelled)
-    } catch {
-        return .failure(.generic)
-    }
 }

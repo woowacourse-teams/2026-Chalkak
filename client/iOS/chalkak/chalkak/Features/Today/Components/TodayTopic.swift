@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct HomeTopic: View {
+struct TodayTopic: View {
     @Environment(\.chalkakTheme) private var theme
     let topicDate: Date?
     let topic: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HomeTopicMetrics.titleSpacing) {
+        VStack(alignment: .leading, spacing: TodayTopicMetrics.titleSpacing) {
             Text(topicDateText)
                 .font(theme.typography.subheadline)
                 .foregroundStyle(theme.colors.textPrimary)
@@ -18,26 +18,26 @@ struct HomeTopic: View {
                 .foregroundStyle(theme.colors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, HomeTopicMetrics.topPadding)
-        .padding(.bottom, HomeTopicMetrics.bottomPadding)
+        .padding(.top, TodayTopicMetrics.topPadding)
+        .padding(.bottom, TodayTopicMetrics.bottomPadding)
         .background(theme.colors.background)
     }
 
     private var topicDateText: String {
         guard let topicDate else { return "" }
-        return "\(HomeDateFormatter.shared.string(from: topicDate)) · 오늘의 주제"
+        return "\(TodayDateFormatter.shared.string(from: topicDate)) · 오늘의 주제"
     }
 }
 
 extension View {
-    func homeBottomDivider() -> some View {
+    func todayBottomDivider() -> some View {
         overlay(alignment: .bottom) {
-            HomeBottomDivider()
+            TodayBottomDivider()
         }
     }
 }
 
-private struct HomeBottomDivider: View {
+private struct TodayBottomDivider: View {
     @Environment(\.chalkakTheme) private var theme
 
     var body: some View {
@@ -48,7 +48,7 @@ private struct HomeBottomDivider: View {
     }
 }
 
-private enum HomeDateFormatter {
+private enum TodayDateFormatter {
     static let shared: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
@@ -57,19 +57,19 @@ private enum HomeDateFormatter {
     }()
 }
 
-private enum HomeTopicMetrics {
+private enum TodayTopicMetrics {
     static let topPadding: CGFloat = 16
     static let bottomPadding: CGFloat = 20
     static let titleSpacing: CGFloat = 10
 }
 
-#Preview("Home Topic", traits: .sizeThatFitsLayout) {
-    HomeTopic(
-        topicDate: HomePreviewData.contentState.topicDate,
-        topic: HomePreviewData.contentState.topic
+#Preview("Today Topic", traits: .sizeThatFitsLayout) {
+    TodayTopic(
+        topicDate: TodayPreviewData.contentState.topicDate,
+        topic: TodayPreviewData.contentState.topic
     )
     .padding(.horizontal, ChalkakTheme.light.spacing.screenHorizontal)
     .background(ChalkakTheme.light.colors.background)
-    .homeBottomDivider()
+    .todayBottomDivider()
     .chalkakTheme(.light)
 }

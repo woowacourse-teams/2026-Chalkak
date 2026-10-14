@@ -1,22 +1,22 @@
 import Foundation
 
-struct HomeAPIConfiguration: Sendable {
+struct TodayAPIConfiguration: Sendable {
     let baseURL: URL
 
-    static let development = HomeAPIConfiguration(
+    static let development = TodayAPIConfiguration(
         baseURL: URL(string: "https://chalkak-dev.pysun.kr/api/v1/")!
     )
 }
 
-struct HomeAPIClient: Sendable {
+struct TodayAPIClient: Sendable {
     typealias AccessTokenProvider = @Sendable () async -> String?
 
-    private let configuration: HomeAPIConfiguration
+    private let configuration: TodayAPIConfiguration
     private let authenticatedClient: AuthenticatedHTTPClient
     private let decoder: JSONDecoder
 
     init(
-        configuration: HomeAPIConfiguration = .development,
+        configuration: TodayAPIConfiguration = .development,
         session: URLSession = .shared,
         accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
@@ -29,14 +29,14 @@ struct HomeAPIClient: Sendable {
         self.decoder = JSONDecoder()
     }
 
-    func fetchHome(date: Date, sort: HomePostSort) async throws -> HomeViewState {
+    func fetchToday(date: Date, sort: TodayPostSort) async throws -> TodayViewState {
         let requestedDate = Self.apiDateFormatter.string(from: date)
         let topic: TopicResponse = try await request(
             path: "topics",
             queryItems: [URLQueryItem(name: "date", value: requestedDate)]
         )
         guard let topicDate = Self.apiDateFormatter.date(from: topic.topicDate) else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
 
         let page = try await fetchPage(
@@ -45,7 +45,7 @@ struct HomeAPIClient: Sendable {
             page: 1,
             randomSeed: nil
         )
-        return HomeViewState(
+        return TodayViewState(
             contentStatus: .content,
             topicDate: topicDate,
             topic: topic.title,
@@ -58,9 +58,9 @@ struct HomeAPIClient: Sendable {
         )
     }
 
-    func fetchNextPage(state: HomeViewState) async throws -> HomePage {
+    func fetchNextPage(state: TodayViewState) async throws -> TodayPage {
         guard let topicDate = state.topicDate else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
         return try await fetchPage(
             topicDate: topicDate,
@@ -70,15 +70,15 @@ struct HomeAPIClient: Sendable {
         )
     }
 
-    func updateLike(photoID: HomePhoto.ID, isLiked: Bool) async throws -> HomeLikeUpdate {
+    func updateLike(photoID: TodayPhoto.ID, isLiked: Bool) async throws -> TodayLikeUpdate {
         let response: LikeResponse = try await request(
             path: "posts/\(photoID)/likes",
             method: isLiked ? "PUT" : "DELETE"
         )
         guard response.postID == photoID, response.likeCount >= 0 else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
-        return HomeLikeUpdate(
+        return TodayLikeUpdate(
             photoID: response.postID,
             isLiked: response.isLiked,
             likeCount: response.likeCount
@@ -87,10 +87,10 @@ struct HomeAPIClient: Sendable {
 
     private func fetchPage(
         topicDate: Date,
-        sort: HomePostSort,
+        sort: TodayPostSort,
         page: Int,
         randomSeed: String?
-    ) async throws -> HomePage {
+    ) async throws -> TodayPage {
         var queryItems = [
             URLQueryItem(name: "topicDate", value: Self.apiDateFormatter.string(from: topicDate)),
             URLQueryItem(name: "sort", value: sort.apiValue),
@@ -107,11 +107,11 @@ struct HomeAPIClient: Sendable {
         )
         let effectiveSeed = sort == .random ? response.randomSeed ?? randomSeed : nil
         if sort == .random, response.hasNext, effectiveSeed?.isEmpty != false {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
 
-        let photos = try response.posts.map { try $0.toHomePhoto() }
-        return HomePage(
+        let photos = try response.posts.map { try $0.toTodayPhoto() }
+        return TodayPage(
             photos: photos,
             likedPhotoIDs: Set(response.posts.filter(\.isLiked).map(\.id)),
             currentPage: response.currentPage,
@@ -129,11 +129,11 @@ struct HomeAPIClient: Sendable {
             url: configuration.baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
         ) else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components.url, url.scheme == "https" else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
 
         var request = URLRequest(url: url)
@@ -143,26 +143,26 @@ struct HomeAPIClient: Sendable {
         do {
             let (data, httpResponse) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(httpResponse.statusCode) else {
-                throw HomeAPIError.http(httpResponse.statusCode)
+                throw TodayAPIError.http(httpResponse.statusCode)
             }
             guard !data.isEmpty else {
-                throw HomeAPIError.invalidResponse
+                throw TodayAPIError.invalidResponse
             }
             do {
                 return try decoder.decode(Response.self, from: data)
             } catch {
-                throw HomeAPIError.invalidResponse
+                throw TodayAPIError.invalidResponse
             }
-        } catch let error as HomeAPIError {
+        } catch let error as TodayAPIError {
             throw error
         } catch AuthenticatedHTTPClientError.reauthenticationRequired {
-            throw HomeAPIError.http(401)
+            throw TodayAPIError.http(401)
         } catch AuthenticatedHTTPClientError.invalidResponse {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw HomeAPIError.network
+            throw TodayAPIError.network
         }
     }
 
@@ -176,12 +176,12 @@ struct HomeAPIClient: Sendable {
     }()
 }
 
-enum HomeAPIError: Error, Equatable, Sendable {
+enum TodayAPIError: Error, Equatable, Sendable {
     case network
     case invalidResponse
     case http(Int)
 
-    var initialError: HomeInitialError {
+    var initialError: TodayInitialError {
         switch self {
         case .network:
             .network
@@ -204,7 +204,7 @@ enum HomeAPIError: Error, Equatable, Sendable {
     }
 }
 
-private extension HomePostSort {
+private extension TodayPostSort {
     var apiValue: String {
         switch self {
         case .latest:
@@ -255,19 +255,19 @@ private struct PostResponse: Decodable {
         case isMine
     }
 
-    func toHomePhoto() throws -> HomePhoto {
+    func toTodayPhoto() throws -> TodayPhoto {
         guard likeCount >= 0,
               let imageURL = URL(string: originalImageURL),
               let signatureURL = URL(string: signatureOriginalImageURL)
         else {
-            throw HomeAPIError.invalidResponse
+            throw TodayAPIError.invalidResponse
         }
         let normalizedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         let contentDescription = normalizedTitle
             .flatMap { $0.isEmpty ? nil : $0 }
             .map { "작품 이미지: \($0)" }
             ?? "무제 작품 이미지"
-        return HomePhoto(
+        return TodayPhoto(
             id: id,
             imageSource: .remote(imageURL),
             signatureSource: .remote(signatureURL),

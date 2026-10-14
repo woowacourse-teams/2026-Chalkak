@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct HomePhotoCard: View {
+struct TodayPhotoCard: View {
     @Environment(\.chalkakTheme) private var theme
-    let photo: HomePhoto
+    let photo: TodayPhoto
     let isLiked: Bool
     let isLikeEnabled: Bool
     let imageReloadGeneration: Int
@@ -14,7 +14,7 @@ struct HomePhotoCard: View {
         VStack(spacing: 0) {
             Color.clear
                 .frame(maxWidth: .infinity)
-                .aspectRatio(1 / (imageRatio ?? HomePhotoCardMetrics.defaultImageRatio), contentMode: .fit)
+                .aspectRatio(1 / (imageRatio ?? TodayPhotoCardMetrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
                     ZStack(alignment: .bottomTrailing) {
                         photoImage
@@ -22,8 +22,8 @@ struct HomePhotoCard: View {
 
                         signatureImage
                         .frame(
-                            width: HomePhotoCardMetrics.signatureSize.width,
-                            height: HomePhotoCardMetrics.signatureSize.height
+                            width: TodayPhotoCardMetrics.signatureSize.width,
+                            height: TodayPhotoCardMetrics.signatureSize.height
                         )
                         .padding(theme.spacing.sm)
                     }
@@ -35,9 +35,9 @@ struct HomePhotoCard: View {
         }
         .background(theme.colors.surfaceElevated)
         .shadow(
-            color: Color.black.opacity(HomePhotoCardMetrics.shadowOpacity),
-            radius: HomePhotoCardMetrics.shadowRadius,
-            y: HomePhotoCardMetrics.shadowY
+            color: Color.black.opacity(TodayPhotoCardMetrics.shadowOpacity),
+            radius: TodayPhotoCardMetrics.shadowRadius,
+            y: TodayPhotoCardMetrics.shadowY
         )
     }
 
@@ -45,7 +45,7 @@ struct HomePhotoCard: View {
     private var photoImage: some View {
         switch photo.imageSource {
         case let .remote(url):
-            HomeRemoteMeasuredImage(
+            TodayRemoteMeasuredImage(
                 url: url,
                 contentDescription: photo.contentDescription,
                 onRatioLoaded: onImageRatioChanged
@@ -66,7 +66,7 @@ struct HomePhotoCard: View {
     private var signatureImage: some View {
         switch photo.signatureSource {
         case let .remote(url):
-            HomeRemoteMeasuredImage(
+            TodayRemoteMeasuredImage(
                 url: url,
                 contentDescription: nil,
                 contentMode: .fit
@@ -83,13 +83,13 @@ struct HomePhotoCard: View {
     private var actionRow: some View {
         HStack(spacing: theme.spacing.md) {
             Button(action: onLike) {
-                HStack(spacing: HomePhotoCardMetrics.likeSpacing) {
+                HStack(spacing: TodayPhotoCardMetrics.likeSpacing) {
                     Image(isLiked ? "ic_heart_filled" : "ic_heart")
                         .renderingMode(.template)
                         .resizable()
                         .frame(
-                            width: HomePhotoCardMetrics.heartSize,
-                            height: HomePhotoCardMetrics.heartSize
+                            width: TodayPhotoCardMetrics.heartSize,
+                            height: TodayPhotoCardMetrics.heartSize
                         )
                         .foregroundStyle(
                             isLiked ? theme.colors.actionPrimary : theme.colors.textSecondary
@@ -101,7 +101,7 @@ struct HomePhotoCard: View {
                         .fontWeight(.regular)
                         .foregroundStyle(theme.colors.textSecondary)
                 }
-                .frame(minHeight: HomePhotoCardMetrics.minimumTouchSize)
+                .frame(minHeight: TodayPhotoCardMetrics.minimumTouchSize)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -117,12 +117,12 @@ struct HomePhotoCard: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, HomePhotoCardMetrics.horizontalPadding)
-        .frame(height: HomePhotoCardMetrics.actionHeight)
+        .padding(.horizontal, TodayPhotoCardMetrics.horizontalPadding)
+        .frame(height: TodayPhotoCardMetrics.actionHeight)
     }
 }
 
-private enum HomePhotoCardMetrics {
+private enum TodayPhotoCardMetrics {
     static let defaultImageRatio: CGFloat = 1
     static let actionHeight: CGFloat = 57
     static let horizontalPadding: CGFloat = 14
@@ -141,9 +141,9 @@ private extension String {
     }
 }
 
-#Preview("Home Photo Card", traits: .sizeThatFitsLayout) {
-    HomePhotoCard(
-        photo: HomePreviewData.contentState.photos[0],
+#Preview("Today Photo Card", traits: .sizeThatFitsLayout) {
+    TodayPhotoCard(
+        photo: TodayPreviewData.contentState.photos[0],
         isLiked: true,
         isLikeEnabled: true,
         imageReloadGeneration: 0,

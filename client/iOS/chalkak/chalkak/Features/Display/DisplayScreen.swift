@@ -208,6 +208,7 @@ struct DisplayScreen: View {
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.bottom, theme.spacing.xxl)
         }
+        .feedZoomViewport(.display)
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .background(theme.colors.background)
     }

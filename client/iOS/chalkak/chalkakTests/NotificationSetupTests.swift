@@ -147,7 +147,7 @@ struct NotificationSetupRouteTests {
 
     @Test
     func restoredSessionStartsAtHome() {
-        #expect(AppRouteResolver.initialDestination(hasActiveSession: true) == .home)
+        #expect(AppRouteResolver.initialDestination(hasActiveSession: true) == .main)
     }
 
     @Test

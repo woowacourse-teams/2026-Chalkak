@@ -7,7 +7,8 @@ final class DisplayViewModel {
     typealias DateProvider = @MainActor @Sendable () -> Date
     typealias FirstPageHandler = @MainActor @Sendable (
         Date,
-        DisplaySort
+        DisplaySort,
+        String?
     ) async -> Result<DisplayContent, DisplayError>
     typealias NextPageHandler = @MainActor @Sendable (
         DisplayPageRequest
@@ -37,12 +38,15 @@ final class DisplayViewModel {
     init(
         initialState: DisplayViewState? = nil,
         initialDate: Date? = nil,
+        initialSort: DisplaySort = .latest,
         dateProvider: @escaping DateProvider = { Date() },
-        firstPageHandler: @escaping FirstPageHandler = { _, _ in .failure(.generic) },
+        firstPageHandler: @escaping FirstPageHandler = { _, _, _ in .failure(.generic) },
         nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
     ) {
-        let initialState = initialState ?? DisplayViewState()
+        var resolvedState = initialState ?? DisplayViewState()
+        if initialState == nil { resolvedState.selectedSort = initialSort }
+        let initialState = resolvedState
         self.viewState = initialState
         self.initialDate = initialDate
         self.dateProvider = dateProvider
@@ -61,15 +65,17 @@ final class DisplayViewModel {
 
     convenience init(
         initialDate: Date? = nil,
+        initialSort: DisplaySort = .latest,
         dateProvider: @escaping DateProvider = { Date() },
         apiClient: DisplayAPIClient
     ) {
         self.init(
             initialDate: initialDate,
+            initialSort: initialSort,
             dateProvider: dateProvider,
-            firstPageHandler: { date, sort in
+            firstPageHandler: { date, sort, randomSeed in
                 do {
-                    return .success(try await apiClient.fetchDisplay(date: date, sort: sort))
+                    return .success(try await apiClient.fetchDisplay(date: date, sort: sort, randomSeed: randomSeed))
                 } catch is CancellationError {
                     return .failure(.generic)
                 } catch let error as DisplayAPIError {
@@ -132,7 +138,8 @@ final class DisplayViewModel {
             date: requestedDate,
             latestDate: latestDate,
             preserves: previous,
-            keepsContentVisible: previous != nil
+            keepsContentVisible: previous != nil,
+            preservesRandomSeed: true
         )
     }
 
@@ -266,7 +273,8 @@ final class DisplayViewModel {
         latestDate: Date,
         preserves previousState: DisplayViewState?,
         isPreviousDateRequest: Bool = false,
-        keepsContentVisible: Bool = false
+        keepsContentVisible: Bool = false,
+        preservesRandomSeed: Bool = false
     ) async {
         generation += 1
         let requestGeneration = generation
@@ -294,8 +302,11 @@ final class DisplayViewModel {
             viewState.transientError = nil
         }
 
+        let randomSeed = preservesRandomSeed && requestSort == .random &&
+            previousState?.selectedSort == .random && previousState?.selectedDate == requestedDate
+            ? previousState?.randomSeed : nil
         let requestLikeVersion = likeVersion
-        let result = await firstPageHandler(requestedDate, requestSort)
+        let result = await firstPageHandler(requestedDate, requestSort, randomSeed)
         guard requestGeneration == generation else { return }
 
         switch result {
