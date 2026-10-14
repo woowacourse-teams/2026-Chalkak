@@ -29,6 +29,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -169,6 +170,41 @@ class ChalkakNavHostTest {
         composeRule.waitForIdle()
         composeRule.runOnIdle {
             assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun selectingHomeWhileAlreadyHomeKeepsTheSameEntry() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val homeEntry = navController.currentBackStackEntry!!
+        val homeClick = composeRule
+            .onNode(hasText("홈") and hasClickAction())
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.runOnIdle {
+            homeClick()
+            homeClick()
+            assertSame(homeEntry, navController.currentBackStackEntry)
+            assertEquals(Lifecycle.State.RESUMED, homeEntry.lifecycle.currentState)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertSame(homeEntry, navController.currentBackStackEntry)
+            assertEquals(null, navController.previousBackStackEntry)
         }
     }
 

@@ -739,6 +739,8 @@ private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
     analyticsTracker: AnalyticsTracker,
 ) {
+    if (item == ChalkakBottomBarItem.HOME && currentDestination?.hasRoute<Home>() == true) return
+
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
     val isDisplayOpenedFromRecord =
