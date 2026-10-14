@@ -143,6 +143,19 @@ chalkak:
     # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
     enabled: true
 
+  analytics:
+    aggregation:
+      # 사용자 지표 일일 집계. dev·test·local은 꺼 두고 prod만 켠다.
+      enabled: false
+    # 팀원·테스트 계정 회원 ID. 지표에서 뺀다. prod 값은 application-prod.yml에 둔다.
+    excluded-user-ids: []
+    # 접근 로그가 쌓이는 CloudWatch 로그 그룹. 로그 지표를 집계하는 prod 값은 application-prod.yml에 둔다.
+    log-group: /chalkak/dev/application
+    # 이 날짜 이후부터 CloudWatch Logs Insights로 접근 로그 지표를 집계한다. 이른 날짜는 DB 지표만 남긴다.
+    log-metrics-start-date: 2026-10-02
+    # 로그 그룹 보존 기간(일)과 맞춘다. 보존 기간이 지난 날짜는 원본 로그가 없어 로그 지표를 집계하지 않는다.
+    log-retention-days: 7
+
 management:
   endpoints:
     web:

@@ -4,6 +4,7 @@ public final class LogFields {
 
     public static final String REQUEST_ID = "requestId";
     public static final String USER_ID = "userId";
+    public static final String ADMIN_ID = "adminId";
     public static final String TYPE = "type";
     public static final String METHOD = "method";
     public static final String ROUTE = "route";
@@ -13,6 +14,7 @@ public final class LogFields {
     public static final String EXCEPTION = "exception";
     public static final String EVENT = "event";
     public static final String POST_ID = "postId";
+    public static final String TOPIC_DATE = "topicDate";
     public static final String WAIT_SECONDS = "waitSeconds";
     public static final String HEAP_USED_BYTES = "heapUsedBytes";
     public static final String HEAP_MAX_BYTES = "heapMaxBytes";
@@ -20,6 +22,7 @@ public final class LogFields {
     public static final String THREADS = "threads";
     public static final String HIKARI_ACTIVE = "hikariActive";
     public static final String HIKARI_PENDING = "hikariPending";
+    public static final String METRIC_DATE = "metricDate";
 
     public static final String USER_ID_REQUEST_ATTRIBUTE = "chalkak.userId";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
@@ -28,6 +31,7 @@ public final class LogFields {
     public static final String TYPE_ERROR = "error";
     public static final String TYPE_RUNTIME = "runtime";
     public static final String TYPE_MODERATION = "moderation";
+    public static final String TYPE_AGGREGATION = "aggregation";
     public static final String UNMATCHED_ROUTE = "UNMATCHED";
 
     private LogFields() {
