@@ -224,9 +224,19 @@ fun ChalkakNavHost(
             is NotificationResult.Failure -> {
                 application.appContainer.pendingNotificationNavigation
                     .consume(push)
-                showToast("알림이 만료되었거나 현재 계정에서 확인할 수 없어요.")
-                if ((result.reason as? NotificationFailure.Http)?.statusCode == 404) {
-                    navController.navigate(Notifications) { launchSingleTop = true }
+                if (result.reason == NotificationFailure.Network) {
+                    showToast("읽음 상태를 저장하지 못했어요. 네트워크 연결을 확인해 주세요.")
+                    navController.openNotificationTarget(
+                        type = push.type,
+                        sourceType = push.sourceType,
+                        sourceId = push.sourceId,
+                        notificationId = notificationId,
+                    )
+                } else {
+                    showToast("알림이 만료되었거나 현재 계정에서 확인할 수 없어요.")
+                    if ((result.reason as? NotificationFailure.Http)?.statusCode == 404) {
+                        navController.navigate(Notifications) { launchSingleTop = true }
+                    }
                 }
             }
         }
@@ -397,6 +407,7 @@ fun ChalkakNavHost(
                 NotificationRoute(
                     onBackClick = { navController.popBackStack() },
                     onNotificationClick = { item -> navController.openNotificationTarget(item) },
+                    onReadFailureMessage = showToast,
                 )
             }
 
