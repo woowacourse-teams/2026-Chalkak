@@ -168,7 +168,7 @@ public class PushWorkerService {
         if (message.type() == NotificationType.TOPIC) {
             return findTopicRequest(message, device, user);
         }
-        return findModerationRequest(message, device, user);
+        return findNotificationRequest(message, device, user);
     }
 
     private DevicePushRequest findTopicRequest(
@@ -196,12 +196,13 @@ public class PushWorkerService {
                 message.expiresAt());
     }
 
-    private DevicePushRequest findModerationRequest(
+    private DevicePushRequest findNotificationRequest(
             PushMessage message,
             PushDevice device,
             User user
     ) {
-        if (!user.isModerationPushEnabled()) {
+        // 공지는 전용 수신 설정이 없어 항상 보낸다.
+        if (message.type() != NotificationType.NOTICE && !user.isModerationPushEnabled()) {
             return skipRequest(message, device.getId(), "PUSH_DISABLED");
         }
         Notification notification = notificationRepository
@@ -248,6 +249,10 @@ public class PushWorkerService {
                     && !message.occurredAt().isAfter(clock.instant())
                     && PushDeadlinePolicy.isValidLifetime(message.occurredAt(),
                             message.expiresAt());
+        }
+        if (message.type() == NotificationType.NOTICE) {
+            return message.notificationId() != null
+                    && message.sourceType() == NotificationSourceType.NOTICE;
         }
         return message.notificationId() != null
                 && message.sourceType() == NotificationSourceType.POST;
