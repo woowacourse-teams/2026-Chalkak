@@ -8,8 +8,8 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.List;
@@ -40,8 +40,8 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
 
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
     private final ListAppender<ILoggingEvent> handlerAppender = new ListAppender<>();
-    private final Logger handlerLogger =
-            (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final Logger handlerLogger = (Logger) LoggerFactory
+            .getLogger(GlobalExceptionHandler.class);
     private final List<Logger> loggers = List.of(
             (Logger) LoggerFactory.getLogger(UnauthorizedEntryPoint.class),
             (Logger) LoggerFactory.getLogger(ForbiddenAccessDeniedHandler.class));
@@ -130,7 +130,6 @@ class AuthenticationFailureLogTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }

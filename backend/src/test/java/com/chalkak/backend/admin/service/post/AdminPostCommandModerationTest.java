@@ -4,14 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.domain.PublishStatus;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -21,13 +27,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
 class AdminPostCommandModerationTest extends IntegrationTestSupport {
 
+    private static final Instant NOW = Instant.parse("2026-10-06T00:00:00Z");
     private static final UUID ADMIN_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6571f1");
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6571a1");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6571b1");
@@ -38,6 +47,12 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
     private AdminPostCommandService adminPostCommandService;
 
     @Autowired
+    private NotificationService notificationService;
+
+    @MockitoBean
+    private Clock clock;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -45,10 +60,44 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
+        given(clock.instant()).willReturn(NOW);
         insertAdmin();
         insertUser();
         insertTopic();
         insertPhoto();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ModerationStatus.class, names = {"APPROVED", "REJECTED"})
+    @DisplayName("검수와 알림은 같은 고정 시각을 기록하고 생성 후 정확한 30일까지만 조회한다")
+    void moderate_fixedClock_usesSameTimestampForPostAndNotificationRetention(
+            ModerationStatus status) {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+        jdbcTemplate.update("UPDATE posts SET created_at = ? WHERE id = ?",
+                Timestamp.from(NOW.minusSeconds(60)), POST_ID);
+        String rejectionReason = status == ModerationStatus.REJECTED ? "운영 정책 위반" : null;
+
+        // When
+        AdminPostModerationResult result = adminPostCommandService.moderate(
+                POST_ID, ADMIN_ID, status, rejectionReason);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.moderatedAt()).isEqualTo(NOW);
+        assertThat(findPost().moderatedAt()).isEqualTo(NOW);
+        Instant notificationCreatedAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM notifications WHERE source_id = ?",
+                (row, rowNum) -> row.getTimestamp(1).toInstant(), POST_ID);
+        assertThat(notificationCreatedAt).isEqualTo(NOW);
+
+        given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)).minusSeconds(1));
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).hasSize(1);
+        given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)));
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).hasSize(1);
+        given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)).plusSeconds(1));
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).isEmpty();
     }
 
     @Test
@@ -98,17 +147,24 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        Map<String, Object> notification = jdbcTemplate.queryForMap("""
-                SELECT user_id, post_id, event_key, type, title, body, rejection_reason, read_at
-                FROM notifications
-                WHERE post_id = ?
-                """, POST_ID);
+        Map<String, Object> notification = jdbcTemplate.queryForMap(
+                """
+                        SELECT id, user_id, source_id, event_key, type, title, body,
+                            payload ->> 'rejectionReason' AS rejection_reason,
+                            payload IS NULL AS payload_is_null, read_at
+                        FROM notifications
+                        WHERE source_id = ?
+                        """,
+                POST_ID);
         assertThat(notification.get("user_id")).isEqualTo(USER_ID);
-        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("source_id")).isEqualTo(POST_ID);
         assertThat(notification.get("type")).isEqualTo("POST_APPROVED");
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
         assertThat(notification.get("rejection_reason")).isNull();
+        assertThat(notification.get("payload_is_null")).isEqualTo(true);
+        Notification loaded = entityManager.find(Notification.class, notification.get("id"));
+        assertThat(loaded.getRejectionReason()).isNull();
         assertThat(notification.get("read_at")).isNull();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE id = ?",
@@ -167,18 +223,75 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        Map<String, Object> notification = jdbcTemplate.queryForMap("""
-                SELECT user_id, post_id, type, title, body, rejection_reason, read_at
-                FROM notifications
-                WHERE post_id = ?
-                """, POST_ID);
+        Map<String, Object> notification = jdbcTemplate.queryForMap(
+                """
+                        SELECT id, user_id, source_id, type, title, body,
+                            payload ->> 'rejectionReason' AS rejection_reason, read_at
+                        FROM notifications
+                        WHERE source_id = ?
+                        """,
+                POST_ID);
         assertThat(notification.get("user_id")).isEqualTo(USER_ID);
-        assertThat(notification.get("post_id")).isEqualTo(POST_ID);
+        assertThat(notification.get("source_id")).isEqualTo(POST_ID);
         assertThat(notification.get("type")).isEqualTo("POST_REJECTED");
         assertThat((String) notification.get("title")).isNotBlank();
         assertThat((String) notification.get("body")).isNotBlank();
         assertThat(notification.get("rejection_reason")).isEqualTo("운영 정책 위반");
+        Notification loaded = entityManager.find(Notification.class, notification.get("id"));
+        assertThat(loaded.getRejectionReason()).isEqualTo("운영 정책 위반");
         assertThat(notification.get("read_at")).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "APPROVED, true, ACTIVE, false, PENDING",
+            "REJECTED, true, ACTIVE, false, PENDING",
+            "APPROVED, false, ACTIVE, false, NOT_REQUIRED",
+            "REJECTED, false, ACTIVE, false, NOT_REQUIRED",
+            "APPROVED, true, BANNED, false, PENDING",
+            "REJECTED, true, BANNED, false, PENDING",
+            "APPROVED, true, ACTIVE, true, NOT_REQUIRED",
+            "REJECTED, true, ACTIVE, true, NOT_REQUIRED"
+    })
+    @DisplayName("검수 알림함은 항상 저장하되 심사 푸시 설정·탈퇴 여부에 따라 발행 상태를 저장한다")
+    void moderate_userPreferenceAndStatus_persistsInitialPublicationState(
+            ModerationStatus status,
+            boolean pushEnabled,
+            String userStatus,
+            boolean withdrawn,
+            PublishStatus expectedStatus
+    ) {
+        // Given
+        insertPost(ModerationStatus.PENDING, null);
+        jdbcTemplate.update("""
+                UPDATE users SET moderation_push_enabled = ?, topic_push_enabled = false,
+                    status = CAST(? AS user_status), deleted_at = ? WHERE id = ?
+                """, pushEnabled, userStatus, withdrawn ? Timestamp.from(NOW) : null, USER_ID);
+
+        // When
+        adminPostCommandService.moderate(POST_ID, ADMIN_ID, status,
+                status == ModerationStatus.REJECTED ? "운영 정책 위반" : null);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        UUID notificationId = jdbcTemplate.queryForObject(
+                "SELECT id FROM notifications WHERE source_id = ?", UUID.class, POST_ID);
+        Notification loaded = entityManager.find(Notification.class, notificationId);
+        assertThat(loaded.getPublishStatus()).isEqualTo(expectedStatus);
+        assertThat(loaded.getNextAttemptAt()).isEqualTo(
+                expectedStatus == PublishStatus.PENDING ? NOW : null);
+        assertThat(loaded.getPublishedAt()).isNull();
+        assertThat(loaded.getType().name()).isEqualTo("POST_" + status.name());
+        assertThat(countAuditLogs()).isEqualTo(1);
+        assertThat(findPost().moderationStatus()).isEqualTo(status.name());
+        if (!pushEnabled && !withdrawn) {
+            jdbcTemplate.update("UPDATE users SET moderation_push_enabled = true WHERE id = ?",
+                    USER_ID);
+            entityManager.clear();
+            assertThat(entityManager.find(Notification.class, notificationId).getPublishStatus())
+                    .isEqualTo(PublishStatus.NOT_REQUIRED);
+        }
     }
 
     @Test
@@ -189,16 +302,18 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
         entityManager.flush();
         UUID eventKey = jdbcTemplate.queryForObject(
-                "SELECT event_key FROM notifications WHERE post_id = ?",
+                "SELECT event_key FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 UUID.class,
                 POST_ID);
 
         // When & Then
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO notifications (
-                    id, user_id, post_id, event_key, type, title, body, created_at
+                    id, user_id, source_type, source_id, event_key, type, title, body, created_at,
+                    sqs_publish_status
                 ) VALUES (
-                    ?, ?, ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP
+                    ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP,
+                    'NOT_REQUIRED'
                 )
                 """, UUID.randomUUID(), USER_ID, POST_ID, eventKey))
                 .hasMessageContaining("ux_notifications_user_event");

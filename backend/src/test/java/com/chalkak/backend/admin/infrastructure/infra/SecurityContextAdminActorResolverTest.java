@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import java.time.Instant;
@@ -21,8 +21,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 class SecurityContextAdminActorResolverTest {
 
-    private final SecurityContextAdminActorResolver resolver =
-            new SecurityContextAdminActorResolver();
+    private final SecurityContextAdminActorResolver resolver = new SecurityContextAdminActorResolver();
 
     @AfterEach
     void tearDown() {
@@ -68,12 +67,10 @@ class SecurityContextAdminActorResolverTest {
                 now,
                 now.plusSeconds(3600),
                 Map.of("alg", "HS256"),
-                Map.of("sub", subjectId.toString(), "scope", scope.name())
-        );
+                Map.of("sub", subjectId.toString(), "scope", scope.name()));
         JwtAuthenticationToken authentication = new JwtAuthenticationToken(
                 jwt,
-                List.of(new SimpleGrantedAuthority(scope.toAuthority()))
-        );
+                List.of(new SimpleGrantedAuthority(scope.toAuthority())));
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

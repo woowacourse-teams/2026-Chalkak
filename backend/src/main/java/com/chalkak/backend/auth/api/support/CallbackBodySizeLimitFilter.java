@@ -19,11 +19,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * 이미지 처리 콜백 본문 크기를 인증 전에 제한한다.
  *
- * <p>{@code @RequestBody}는 컨트롤러 메서드가 실행되기 전에 채워지므로 본문 전체가 HMAC 검증보다 먼저
- * 메모리에 올라간다. 서명이 없는 요청도 큰 본문을 반복해 보내는 것만으로 힙과 대역폭을 소모할 수 있다.
+ * <p>
+ * {@code @RequestBody}는 컨트롤러 메서드가 실행되기 전에 채워지므로 본문 전체가 HMAC 검증보다 먼저 메모리에 올라간다.
+ * 서명이 없는 요청도 큰 본문을 반복해 보내는 것만으로 힙과 대역폭을 소모할 수 있다.
  *
- * <p>정상 콜백은 메타데이터를 포함해도 수 KB 수준이다. Lambda가 metaAttributes를 8KB로 자르므로 기본
- * 상한은 그보다 넉넉히 잡되, 인증까지 가지 못할 요청은 여기서 끊는다.
+ * <p>
+ * 정상 콜백은 메타데이터를 포함해도 수 KB 수준이다. Lambda가 metaAttributes를 8KB로 자르므로 기본 상한은 그보다
+ * 넉넉히 잡되, 인증까지 가지 못할 요청은 여기서 끊는다.
  */
 public class CallbackBodySizeLimitFilter extends OncePerRequestFilter {
 
@@ -145,8 +147,8 @@ public class CallbackBodySizeLimitFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 스트림 계약상 검사 지점에서 체크 예외를 던질 수 없어 런타임 예외로 올린다. 필터가 곧바로 받아
-     * 413으로 바꾸므로 밖으로 새어 나가지 않는다.
+     * 스트림 계약상 검사 지점에서 체크 예외를 던질 수 없어 런타임 예외로 올린다. 필터가 곧바로 받아 413으로 바꾸므로 밖으로 새어 나가지
+     * 않는다.
      */
     private static final class BodyTooLargeException extends RuntimeException {
 

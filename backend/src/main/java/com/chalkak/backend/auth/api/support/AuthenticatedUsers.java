@@ -28,6 +28,24 @@ final class AuthenticatedUsers {
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
             return Optional.empty();
         }
-        return Optional.of(new AuthenticatedUser(UUID.fromString(jwt.getSubject())));
+        return Optional.of(new AuthenticatedUser(
+                UUID.fromString(jwt.getSubject()), findSessionId(jwt)));
+    }
+
+    private static UUID findSessionId(Jwt jwt) {
+        Object claim = jwt.getClaims().get("session_id");
+        if (!(claim instanceof String value)) {
+            return null;
+        }
+        try {
+            UUID sessionId = UUID.fromString(value);
+            if (sessionId.toString().equalsIgnoreCase(value)) {
+                return sessionId;
+            }
+        } catch (IllegalArgumentException e) {
+            // 이전 JWT도 기존 API를 사용하도록 로그인 ID가 없는 것으로 처리한다.
+            return null;
+        }
+        return null;
     }
 }

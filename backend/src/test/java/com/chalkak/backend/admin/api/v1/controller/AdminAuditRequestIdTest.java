@@ -20,8 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 감사 로그의 requestId가 접근·에러 로그와 같은 값이어야, 장애 때 로그에서 찾은 요청이 어떤 관리자 변경이었는지 감사
- * 기록으로 이어진다. MockMvc는 요청 스레드와 테스트 스레드가 같아 롤백 격리를 그대로 쓴다.
+ * 감사 로그의 requestId가 접근·에러 로그와 같은 값이어야, 장애 때 로그에서 찾은 요청이 어떤 관리자 변경이었는지 감사 기록으로
+ * 이어진다. MockMvc는 요청 스레드와 테스트 스레드가 같아 롤백 격리를 그대로 쓴다.
  */
 @Transactional
 @AutoConfigureMockMvc

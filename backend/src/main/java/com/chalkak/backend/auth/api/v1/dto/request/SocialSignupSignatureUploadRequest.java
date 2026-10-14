@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.api.v1.dto.request;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

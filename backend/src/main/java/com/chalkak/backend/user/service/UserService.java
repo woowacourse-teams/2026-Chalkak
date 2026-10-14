@@ -1,7 +1,7 @@
 package com.chalkak.backend.user.service;
 
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.UserRefreshTokenService;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;

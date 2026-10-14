@@ -120,7 +120,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 주제별 피드 조회 수 | 피드 조회 접근 로그의 `topicDate` 필드 | 집계 테이블 | 계획 #504 |
 | 참여 가능 사용자 수 | DB SQL (날짜별 스냅샷) | 리포트 쿼리 | 계획 #504 |
 | API 요청 수·5xx 비율·평균·p95 일별 요약 | Logs Insights 집계 | 집계 테이블 | 계획 #504 |
-| 주제 알림 발송 사용자 수 | | | 보류 (7절) |
+| 주제 알림 발행 대상·수락 건수 | 회차 집계 로그 | 알림 조사 절차 | #572 구현, #494 관측 구성 |
 | 주제별 게시물 상세 조회 수 | | | 보류 (7절) |
 
 ### 4.7 관리자 감사 로그
@@ -163,7 +163,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 미처리 이미지 게시물 수 | 처리 지연은 SQS 나이 알람, 포기는 이미지 처리 포기 알람이 잡는다. 별도 집계 코드를 두지 않는다. |
 | 주제 활성화 실패 | 잡지 않는다. `chalkak-prod-no-open-topic` 알람은 요청한 날짜의 주제 행이 없어 404가 날 때(주로 오늘 주제 등록 누락)만 잡고, 주제가 있어도 참여 단계(BEFORE_OPEN 등)가 열리지 않은 문제는 감지하지 못한다. |
 | 게시물 제출 성공·실패 수 | 별도로 세지 않는다. 성공은 접근 로그의 `POST /api/v1/posts` 201로 볼 수 있고, 서버 오류는 5xx 알람이 잡는다. |
-| 주제 알림 발송 사용자 수 | 주제 푸시 기능(#493)이 생긴 뒤에 다룬다. |
+| 주제 알림 발송 사용자 수 | #572의 회차 집계 로그로 조사한다. 전용 지표·경보는 #494 범위이며 아래 연결 문서를 따른다. |
 | 주제별 게시물 상세 조회 수 | 접근 로그에는 경로 템플릿만 남아 상세 조회는 주제를 알 수 없다. 피드 조회 수만 센다. |
 | JVM·Hikari 메트릭화 | 알람 대상이 아니라 원인 분석용이다. 커스텀 메트릭 비용을 피하려고 `type=runtime` 로그를 Logs Insights 위젯으로 본다. |
 | 가명화 | 로그 접근이 회사 AWS 계정 권한으로 통제되므로 MVP에서는 하지 않는다. 처음에는 HMAC 가명 ID와 이벤트 로그 3종을 계획했으나 접근 로그의 `userId` 한 필드로 줄였다. 로그 접근 범위가 넓어지거나 외부로 내보내게 되면 다시 검토한다. |
@@ -185,3 +185,14 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 - [알람 전달 Lambda](../../lambda/alarm-notifier/README.md): SNS 알람을 Slack으로 전달하는 코드와 배포 절차
 - [대시보드 정의](../../deploy/monitoring/dashboard.json): 대시보드 `DASHBOARD-chalkak`의 소스
 - CloudWatch Agent 설정: [dev](../../deploy/monitoring/cloudwatch-agent.dev.json), [prod](../../deploy/monitoring/cloudwatch-agent.prod.json)
+
+## 알림 전달 관측의 추가 범위 (#494)
+
+알림 전용 CloudWatch 그룹은 dev·prod 모두 30일 보관하고 일반 로그의 dev 7일·prod 60일과 구분한다.
+별도 Outbox·기기별 발송 시도 테이블 대신 사건·알림·SQS 메시지 ID로 조사하며,
+DB 발행 대기 나이는 SQS에 들어가지 못한 정체도 관측한다.
+
+[알림 지표·경보 구성](../../deploy/docs/notification-monitoring.md)과
+[실패 조사·개발 검증](../../deploy/docs/notification-investigation.md)을 따른다.
+이 문서의 일반 모니터링 개수·비용 설명에는 신규 알림 지표·경보가 포함되지 않는다.
+AWS 실제 적용·경보·DLQ 검증은 아직 수행하지 않았다.

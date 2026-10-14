@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.repository;
 
-import com.chalkak.backend.auth.domain.ConsumedSignupToken;
+import com.chalkak.backend.auth.domain.signup.ConsumedSignupToken;
 import java.time.Instant;
 
 public interface ConsumedSignupTokenRepository {

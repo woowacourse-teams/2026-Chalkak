@@ -29,8 +29,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * 콘솔 패턴에는 key-value와 MDC가 나오지 않으므로 로그 이벤트를 직접 받아 검증한다. 실패 로그가 요청 값을 새기지
- * 않는지를 함께 고정한다.
+ * 콘솔 패턴에는 key-value와 MDC가 나오지 않으므로 로그 이벤트를 직접 받아 검증한다. 실패 로그가 요청 값을 새기지 않는지를 함께
+ * 고정한다.
  */
 @AutoConfigureMockMvc
 class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
@@ -61,7 +61,8 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("비즈니스 4xx 응답은 errorCode, status, exception 종류가 담긴 WARN 1건을 requestId와 함께 남긴다")
-    void handleHttpMessageNotReadableException_malformedJson_logsWarnWithoutMessage() throws Exception {
+    void handleHttpMessageNotReadableException_malformedJson_logsWarnWithoutMessage()
+            throws Exception {
         // When
         mockMvc.perform(post(SOCIAL_LOGIN_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -117,7 +118,8 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         assertThat(keyValue(event, "type")).isEqualTo("error");
         assertThat(keyValue(event, "errorCode")).isEqualTo("BUSINESS_ERROR");
         assertThat(keyValue(event, "status")).isEqualTo(405);
-        assertThat(keyValue(event, "exception")).isEqualTo("HttpRequestMethodNotSupportedException");
+        assertThat(keyValue(event, "exception"))
+                .isEqualTo("HttpRequestMethodNotSupportedException");
         assertThat(event.getThrowableProxy()).isNull();
     }
 
@@ -160,7 +162,8 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("Authorization, Cookie, 요청 본문과 파라미터 값이 있는 실패 요청도 로그에 그 값을 남기지 않는다")
-    void handleHttpMessageNotReadableException_requestWithSensitiveValues_logsWithoutThem() throws Exception {
+    void handleHttpMessageNotReadableException_requestWithSensitiveValues_logsWithoutThem()
+            throws Exception {
         // Given
         String email = "leak-check@chalkak.test";
         String token = "secret-bearer-token-value";
@@ -192,7 +195,6 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }

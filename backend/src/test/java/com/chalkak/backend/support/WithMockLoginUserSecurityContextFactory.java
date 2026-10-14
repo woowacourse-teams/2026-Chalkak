@@ -1,6 +1,6 @@
 package com.chalkak.backend.support;
 
-import com.chalkak.backend.auth.domain.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -23,14 +23,17 @@ public class WithMockLoginUserSecurityContextFactory
         }
 
         Instant issuedAt = Instant.now();
-        Jwt jwt = Jwt.withTokenValue("mock-access-token")
+        Jwt.Builder jwtBuilder = Jwt.withTokenValue("mock-access-token")
                 .header("alg", "HS256")
                 .subject(userId)
                 .issuedAt(issuedAt)
                 .expiresAt(issuedAt.plusSeconds(3600))
                 .claim("purpose", "ACCESS")
-                .claim("scope", AccessTokenScope.USER.name())
-                .build();
+                .claim("scope", AccessTokenScope.USER.name());
+        if (!annotation.sessionId().isBlank()) {
+            jwtBuilder.claim("session_id", annotation.sessionId());
+        }
+        Jwt jwt = jwtBuilder.build();
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new JwtAuthenticationToken(

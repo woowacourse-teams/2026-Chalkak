@@ -5,7 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.Map;
@@ -60,7 +60,7 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, userId);
-        token = "Bearer " + accessTokenProvider.issue(userId).value();
+        token = "Bearer " + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
     @Test
