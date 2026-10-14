@@ -6,10 +6,13 @@ SNS → Lambda → Slack 경로와 회사 제공 IAM 역할을 사용한다.
 
 ## 1. DB 발행 정체 관측
 
-`NotificationPublicationMonitor`가 dev·prod에서 1분 간격으로 PENDING 건수와
+`NotificationPublicationMonitor`가 dev·prod에서 시작 기준 60초 간격(`fixedRate`)으로 PENDING 건수와
 가장 오래된 건의 생성 후 경과 시간을 기록한다. Relay 전용 스케줄러와 분리되어
 Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회는 읽기 전용 트랜잭션이며
 쿼리 실행 제한은 5초다. 연결 확보 대기 등까지 포함한 전체 호출의 5초 보장은 아니다.
+공용 스케줄러는 4개 스레드를 사용하고 Worker·Relay·주제 발행은 별도 스케줄러를 사용한다.
+조회 시간을 매번 다음 간격에 더하지 않지만 공용 작업·DB·로그 전송 지연으로 실제 관측은 늦어질 수 있다.
+그래서 DB 대기·관측 누락 경보는 아래의 5분 평가 구간으로 짧은 유입 지연을 견딘다.
 
 - `pendingCount`: 재시도 대기와 기한을 넘겼지만 아직 정리되지 않은 PENDING까지 포함한다.
 - `oldestPendingAgeSeconds`: 다음 시도 시각이 아닌 생성 시각 기준 나이. 대기 없음은 0이다.
@@ -57,8 +60,8 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 
 | 이름 (`chalkak-{env}-push-` 접두사) | 네임스페이스 / 지표 | 통계 | 기간 | 조건 | 평가 N/M | 누락 데이터 | 먼저 확인할 것 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `db-backlog` | 위 전용 / OldestPendingPublicationAge | Maximum | 60초 | ≥ 300초 | 3/3 | notBreaching | Relay 활성화·DB PENDING·발행 오류. 큐가 비어 있어도 발생 가능 |
-| `monitor-missing` | 위 전용 / PublicationMonitorHeartbeat | Sum | 60초 | < 1 | 10/10 | breaching | publication_snapshot_failed, 앱 하트비트, Agent 수집. 앱 중단으로 단정하지 않음 |
+| `db-backlog` | 위 전용 / OldestPendingPublicationAge | Maximum | 300초 | ≥ 300초 | 1/1 | notBreaching | Relay 활성화·DB PENDING·발행 오류. 큐가 비어 있어도 발생 가능 |
+| `monitor-missing` | 위 전용 / PublicationMonitorHeartbeat | Sum | 300초 | < 1 | 2/2 | breaching | publication_snapshot_failed, 앱 하트비트, Agent 수집. 앱 중단으로 단정하지 않음 |
 | `publication-errors` | 위 전용 / PublicationErrors | Sum | 60초 | ≥ 1 | 3/5 | notBreaching | Relay·주제의 errorCode와 SQS 수락 불명 확인 |
 | `publication-failed` | 위 전용 / PublicationFailed | Sum | 300초 | ≥ 1 | 1/1 | notBreaching | 권한·큐 URL·환경 설정, DB 커밋 여부 확인 |
 | `publication-expired` | 위 전용 / PublicationExpired | Sum | 300초 | ≥ 1 | 1/1 | notBreaching | 발행 전 기한 초과, DB 정체와 커밋 여부 확인 |
@@ -66,6 +69,11 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 | `worker-errors` | 위 전용 / WorkerErrors | Sum | 60초 | ≥ 1 | 3/5 | notBreaching | Worker 오류·FCM 일시 장애·수신 횟수·부분 성공 여부 |
 | `queue-age` | AWS/SQS / ApproximateAgeOfOldestMessage | Maximum | 60초 | ≥ 300초 | 3/3 | notBreaching | Worker 실행·큐 적체·FCM 응답 지연 |
 | `dlq` | AWS/SQS / ApproximateNumberOfMessagesVisible | Maximum | 60초 | ≥ 1 | 1/1 | notBreaching | 사건/큐 메시지 ID로 로그 조사. Redrive 하지 않음 |
+
+`db-backlog`는 5분 구간에서 관측한 가장 오래된 대기가 5분 이상이면 경보를 발생시킨다.
+`monitor-missing`은 5분 구간에 정상 스냅샷이 하나도 없는 상태가 두 구간 연속이면 발생한다.
+정상 관측은 60초마다 유지하며 경보의 평가 구간만 넓힌다. 짧은 지연으로 비는 1분 구간을
+곧바로 장애로 해석하지 않는 대신, 감지·복구 판단이 이전보다 늦어질 수 있다.
 
 SQS 경보만 `QueueName` 디멘션을 지정한다. `queue-age`는 `chalkak-{env}-push`,
 `dlq`는 `chalkak-{env}-push-dlq`다. DLQ의 `NumberOfMessagesSent`는 자동 이동 건수를

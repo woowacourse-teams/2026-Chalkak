@@ -28,6 +28,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
@@ -152,6 +153,18 @@ class NotificationPublicationMonitorTest extends IntegrationTestSupport {
                 .doesNotContainKeys("pendingCount", "oldestPendingAgeSeconds");
         assertThat(appender.list.getFirst().getFormattedMessage()).doesNotContain("sensitive");
         assertThat(appender.list.getFirst().getThrowableProxy()).isNull();
+    }
+
+    @Test
+    @DisplayName("발행 대기 관측은 종료 후 지연 없이 시작 기준 60초 간격으로 예약한다")
+    void logBacklog_schedule_usesFixedRate() throws NoSuchMethodException {
+        // Given
+        Scheduled scheduled = NotificationPublicationMonitor.class.getMethod("logBacklog")
+                .getAnnotation(Scheduled.class);
+
+        // When & Then
+        assertThat(scheduled.fixedRate()).isEqualTo(60_000);
+        assertThat(scheduled.fixedDelay()).isEqualTo(-1);
     }
 
     private Map<String, Object> fields() {

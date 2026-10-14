@@ -21,7 +21,7 @@ public class NotificationPublicationMonitor {
     private final Clock clock;
 
     // Relay가 멈추거나 오래 실행되어도 관측하도록 공용 스케줄러에서 별도로 조회한다.
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedRate = 60_000)
     public void logBacklog() {
         try {
             PublicationBacklog backlog = notificationRepository.getPublicationBacklog();
