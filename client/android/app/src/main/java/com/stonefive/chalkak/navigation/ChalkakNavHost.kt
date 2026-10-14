@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -292,9 +293,11 @@ fun ChalkakNavHost(
                 )
             }
 
-            composable<ChangeSignature> {
+            composable<ChangeSignature> { backStackEntry ->
                 ChangeSignatureRoute(
-                    onBackClick = { navController.popBackStack() },
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                     onPreviewRequested = { signaturePng ->
                         signaturePreviewPng = signaturePng
                         navController.navigate(ChangeSignaturePreview)
@@ -302,7 +305,7 @@ fun ChalkakNavHost(
                 )
             }
 
-            composable<OnboardingSignaturePreview> {
+            composable<OnboardingSignaturePreview> { backStackEntry ->
                 signaturePreviewPng?.let { signaturePng ->
                     val previewSignUpViewModel = signUpViewModel
                         ?: viewModel(factory = SignUpViewModel.Factory)
@@ -310,7 +313,7 @@ fun ChalkakNavHost(
                     OnboardingSignaturePreviewRoute(
                         imageModel = R.drawable.preview_photo,
                         signaturePng = signaturePng,
-                        onRedrawClick = {
+                        onRedrawClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                             signaturePreviewPng = null
                         },
@@ -332,11 +335,11 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<ChangeSignaturePreview> {
+            composable<ChangeSignaturePreview> { backStackEntry ->
                 signaturePreviewPng?.let { signaturePng ->
                     ChangeSignaturePreviewRoute(
                         signaturePng = signaturePng,
-                        onRedrawClick = {
+                        onRedrawClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                             signaturePreviewPng = null
                         },
@@ -393,9 +396,11 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Notifications> {
+            composable<Notifications> { backStackEntry ->
                 NotificationRoute(
-                    onBackClick = { navController.popBackStack() },
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                     onNotificationClick = { item -> navController.openNotificationTarget(item) },
                 )
             }
@@ -404,8 +409,10 @@ fun ChalkakNavHost(
                 val detail = backStackEntry.toRoute<NotificationDetail>()
                 NotificationDetailRoute(
                     notificationId = detail.notificationId,
-                    onBackClick = { navController.popBackStack() },
-                    onOpenNotificationList = {
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
+                    onOpenNotificationList = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         if (!navController.popBackStack<Notifications>(inclusive = false)) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         }
@@ -486,7 +493,9 @@ fun ChalkakNavHost(
                             isLiked = false,
                             topicDate = feed.topicDate?.toLocalDateOrNull(),
                         ),
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                            navController.popBackStack()
+                        },
                         onPostDeleted = { postId ->
                             showToast(POST_DELETED_MESSAGE)
                             navController.previousBackStackEntry?.savedStateHandle?.set(
@@ -514,7 +523,9 @@ fun ChalkakNavHost(
                         postId = feed.postId,
                         entryThumbnailImageUrl = feed.thumbnailImageUrl,
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                            navController.popBackStack()
+                        },
                         onPostDeleted = { postId ->
                             showToast(POST_DELETED_MESSAGE)
                             navController.previousBackStackEntry?.savedStateHandle?.set(
@@ -589,9 +600,11 @@ fun ChalkakNavHost(
                 )
             }
 
-            composable<Feedback> {
+            composable<Feedback> { backStackEntry ->
                 FeedbackRoute(
-                    onBack = { navController.popBackStack() },
+                    onBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                     onSubmitted = {
                         showToast(FEEDBACK_SUBMITTED_MESSAGE)
                         navController.popBackStack()
@@ -604,7 +617,9 @@ fun ChalkakNavHost(
                 val upload = backStackEntry.toRoute<PhotoUpload>()
                 PhotoUploadRoute(
                     topicDate = LocalDate.parse(upload.topicDate),
-                    onBack = { navController.popBackStack() },
+                    onBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                     onReauthenticationRequired = {
                         navController.navigate(Login) {
                             popUpTo<Home> { inclusive = true }

@@ -2,6 +2,7 @@ package com.stonefive.chalkak.navigation
 
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -56,6 +58,61 @@ class ChalkakNavHostTest {
         }
 
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun repeatedBackClicksPopOnlyOneEntryAndBackWorksAfterTransition() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { navController.navigate(Notifications) }
+        composeRule.waitForIdle()
+        val firstNotificationEntry = navController.currentBackStackEntry!!
+        composeRule.runOnIdle { navController.navigate(Notifications) }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(
+                Lifecycle.State.RESUMED,
+                navController.currentBackStackEntry!!
+                    .lifecycle.currentState,
+            )
+        }
+
+        // Invoke the same rendered button twice before Compose can replace its callback.
+        val backClick = composeRule
+            .onNodeWithContentDescription("뒤로 가기")
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.runOnIdle {
+            backClick()
+            backClick()
+            assertEquals(firstNotificationEntry.id, navController.currentBackStackEntry?.id)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(Lifecycle.State.RESUMED, firstNotificationEntry.lifecycle.currentState)
+            // An old callback must stay harmless even after the previous screen resumes.
+            backClick()
+            assertEquals(firstNotificationEntry.id, navController.currentBackStackEntry?.id)
+        }
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.waitForIdle()
         composeRule.runOnIdle {
             assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
         }
