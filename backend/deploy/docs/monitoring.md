@@ -4,12 +4,12 @@
 
 ## 개요
 
-애플리케이션은 `/opt/chalkak/logs/application.log`에 JSON 한 줄씩 로그만 남긴다. 커스텀 메트릭은 모두 CloudWatch 메트릭 필터가 로그에서 만들고, 메모리·디스크 지표만 CloudWatch Agent가 수집한다.
+애플리케이션은 일반 로그를 `/opt/chalkak/logs/application.log`, 알림 패키지 로그를 `/opt/chalkak/logs/notification.log`에 JSON 한 줄씩 남긴다. 알림 로그는 일반 파일에 중복 저장하지 않는다. 커스텀 메트릭은 모두 CloudWatch 메트릭 필터가 로그에서 만들고, 메모리·디스크 지표만 CloudWatch Agent가 수집한다.
 
 ```text
-application.log
-  → CloudWatch Agent (EC2)
-  → 로그 그룹 /chalkak/{env}/application
+application.log → 로그 그룹 /chalkak/{env}/application (dev 7일 / prod 60일)
+notification.log → 로그 그룹 /chalkak/{env}/notification (모두 30일)
+  ↑ CloudWatch Agent (EC2)가 각 파일 수집
   → 메트릭 필터
   → 메트릭 (Chalkak/{env})
   → 알람
@@ -92,14 +92,22 @@ prod 백엔드는 [배포 운영 런북](operations.md)의 일반 릴리스로 �
 
 ### 1. 로그 그룹
 
-CloudWatch > 로그 > 로그 그룹 > 로그 그룹 생성으로 두 개를 만든다.
+CloudWatch > 로그 > 로그 그룹 > 로그 그룹 생성에서 아래 그룹을 만든다. 기존 그룹은 보존 기간을 확인한다.
 
 | 이름 | 보존 기간 |
 | --- | --- |
 | `/chalkak/dev/application` | 7일 |
 | `/chalkak/prod/application` | 60일 |
+| `/chalkak/dev/notification` | 30일 |
+| `/chalkak/prod/notification` | 30일 |
 
 Agent보다 먼저 만드는 이유는 Agent가 로그 그룹을 먼저 만들면 보존 기간이 무기한이 되기 때문이다. 생성 화면에서 태그도 붙인다.
+
+알림 그룹의 보존 기간은 **콘솔에서 30일로 설정**한다. Agent JSON은 파일 수집 경로를 정의하며 보존 기간을 자동 변경하지 않는다. IAM 역할을 직접 수정하지 않으며 새 그룹 쓰기 권한이 제한되어 있으면 회사 담당자에게 확인한다.
+
+알림 로그 분리 배포 전에는 새 그룹 생성·30일 설정과 5단계 Agent 설정 갱신을 먼저 마친다. Agent 설정 파일은 애플리케이션 배포만으로 자동 적용되지 않는다. 배포 후에는 알림 한 건을 처리해 새 그룹 유입을 확인한다. 이전 배포에서 `application` 그룹에 이미 저장한 알림 로그는 옮겨지거나 지워지지 않고 기존 보존 기간을 따른다.
+
+서버의 두 파일은 각각 일 단위·50MB 단위로 회전하고, 압축 이력은 최대 14일·1GB로 제한한다. 이는 CloudWatch 수집 전 서버 디스크 사용을 제한하는 설정이며, CloudWatch의 알림 30일 보관과는 별개다. 콘솔 출력은 기존처럼 journald에도 남으며 별도 보관 설정을 따른다. 30일은 CloudWatch 알림 조사 로그의 보존 기간이다.
 
 ### 2. SNS 토픽
 
@@ -193,6 +201,7 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
    ```bash
    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
    sudo -u cwagent head -n 1 /opt/chalkak/logs/application.log
+   sudo -u cwagent head -n 1 /opt/chalkak/logs/notification.log
    sudo tail -n 100 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log
    ```
 
@@ -315,11 +324,12 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 ## 검증 체크리스트
 
-- [ ] 로그 그룹 `/chalkak/dev/application`, `/chalkak/prod/application`에 로그 이벤트가 들어오고, Logs Insights에서 JSON 필드(`type`, `route`, `status`, `userId`)가 자동 인식된다.
+- [ ] 일반 로그 그룹 `/chalkak/dev/application`, `/chalkak/prod/application`에 로그 이벤트가 들어오고, Logs Insights에서 JSON 필드(`type`, `route`, `status`, `userId`)가 자동 인식된다.
 - [ ] `type=runtime` 로그가 1분마다 들어온다.
 - [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 5, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
 - [ ] 알람이 `OK` 또는 예상한 `INSUFFICIENT_DATA` 상태다. `chalkak-*-ec2-status-check`, `chalkak-*-5xx`가 `ALARM`이면 즉시 확인한다.
 - [ ] 대시보드 `DASHBOARD-chalkak`의 위젯에 데이터가 표시된다.
+- [ ] 알림 패키지의 INFO·WARN·ERROR 로그가 `/chalkak/{env}/notification`으로 들어오고 보존 기간이 30일이다. 동일한 새 알림 로그가 `application` 그룹에 중복되지 않으며, 일반 access·runtime 로그는 계속 기존 그룹에 들어온다.
 - [ ] 로그 rotation 후에도 전송이 이어진다. logback은 매일과 50MB마다 `application.log.<날짜>.<n>.gz`로 롤링한다. 배포 다음 날 서버에서 `ls -l /opt/chalkak/logs`로 롤링된 파일을 확인하고, Logs Insights에서 한국 시각 자정 이후 이벤트가 들어오는지 조회한다. 롤링을 강제로 일으킬 필요는 없다.
 - [ ] `image_processing_abandoned` 로그가 실제로 발생했을 때 `Chalkak/shared`의 `ImageProcessingAbandoned`가 1 이상이 된다. 평소에는 발생하지 않으므로 처음 발생할 때 확인한다.
 - [ ] 에이전트 시작 후에도 로그 그룹 보존 기간이 유지된다(prod 60일, dev 7일).

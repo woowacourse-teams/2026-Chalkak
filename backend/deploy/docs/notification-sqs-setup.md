@@ -75,7 +75,14 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 
 ## 로그 조회
 
-알림 로그는 `type=notification`으로 찾는다. 공통 필드는 다음과 같다.
+알림 로그는 `/chalkak/dev/notification` 또는 `/chalkak/prod/notification`에서
+`type=notification`으로 찾는다. 두 그룹의 보존 기간은 **30일**이다.
+
+새 로그 경로를 적용하려면 [모니터링 구축](monitoring.md)의 1단계에서 그룹 생성·30일 설정을 하고,
+5단계에서 해당 환경의 Agent JSON을 서버에 반영한다. 애플리케이션 배포만으로 Agent 설정이나
+AWS 보존 기간이 바뀌지는 않는다. 변경 전 로그는 기존 `application` 그룹에서 조회한다.
+
+공통 필드는 다음과 같다.
 
 | 필드 | 의미 |
 | --- | --- |
