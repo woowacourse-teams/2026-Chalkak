@@ -49,4 +49,5 @@ export const queryKeys = {
   dashboard: ["admin", "dashboard"] as const,
   auditLogs: ["admin", "audit-logs"] as const,
   pushes: ["admin", "pushes"] as const,
+  notices: ["admin", "notices"] as const,
 };

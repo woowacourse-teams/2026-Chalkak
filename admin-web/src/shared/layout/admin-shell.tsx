@@ -40,7 +40,7 @@ export function AdminShell({ children }: PropsWithChildren) {
         </Link>
         <nav aria-label="관리자 메뉴" className={styles.navigation}>
           {adminNavigation.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = current.href === item.href;
             return (
               <Link aria-current={active ? "page" : undefined} className={active ? styles.activeLink : styles.navLink} href={item.href} key={item.href}>
                 <AdminIcon name={item.icon} />
