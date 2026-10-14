@@ -3,6 +3,7 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
+import com.chalkak.backend.notification.repository.PublicationBacklog;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.NotificationSlice;
 import com.chalkak.backend.notification.repository.NotificationSummary;
@@ -22,6 +23,11 @@ import org.springframework.stereotype.Repository;
 public class NotificationRepositoryImpl implements NotificationRepository {
 
     private final NotificationJpaRepository notificationJpaRepository;
+
+    @Override
+    public PublicationBacklog getPublicationBacklog() {
+        return notificationJpaRepository.getPublicationBacklog();
+    }
 
     @Override
     public List<UUID> findTopicPushRecipientIds(UUID topicId) {

@@ -131,6 +131,10 @@ tasks.withType<Test>().configureEach {
         "chalkak.logging.file",
         layout.buildDirectory.file("test-logs/application.log").get().asFile.path,
     )
+    systemProperty(
+        "chalkak.logging.notification-file",
+        layout.buildDirectory.file("test-logs/notification.log").get().asFile.path,
+    )
 }
 
 tasks.named<Test>("test") {

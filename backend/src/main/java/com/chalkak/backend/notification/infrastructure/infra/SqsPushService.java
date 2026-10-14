@@ -6,11 +6,13 @@ import com.chalkak.backend.notification.service.PushWorkerService;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
@@ -55,11 +57,20 @@ public class SqsPushService {
     }
 
     public void process(Message message) {
+        Map<String, String> previousContext = MDC.getCopyOfContextMap();
+        MDC.put("sqsMessageId", message.messageId());
+        MDC.put("receiveCount", message.attributes().get(
+                MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT));
         try (VisibilityExtension visibility = new VisibilityExtension(message)) {
             processMessage(message, visibility);
         } catch (RuntimeException exception) {
             logFailure("worker_processing_failed", exception);
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
+        } finally {
+            MDC.clear();
+            if (previousContext != null) {
+                MDC.setContextMap(previousContext);
+            }
         }
     }
 
@@ -85,7 +96,7 @@ public class SqsPushService {
             visibility.finishAttempt(() -> delete(message));
             return;
         }
-        logReceived(message, pushMessage);
+        logReceived(pushMessage);
         PushProcessingResult result = pushWorkerService.process(pushMessage);
         visibility.finishAttempt(() -> handleProcessingResult(message, pushMessage, result));
     }
@@ -109,6 +120,13 @@ public class SqsPushService {
             return;
         }
         postponeRetry(message, pushMessage, result);
+        log.atInfo().addKeyValue("type", "notification")
+                .addKeyValue("stage", "worker_retry_pending")
+                .addKeyValue("eventId", pushMessage.eventId())
+                .addKeyValue("userId", pushMessage.userId())
+                .addKeyValue("notificationId", pushMessage.notificationId())
+                .addKeyValue("retryAfterSeconds", result.retryAfter().toSeconds())
+                .log("푸시 작업 재전달 대기");
     }
 
     private void extendVisibility(Message message) {
@@ -118,7 +136,14 @@ public class SqsPushService {
                     .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                             .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         } catch (RuntimeException exception) {
-            logFailure("worker_visibility_failed", exception);
+            // 연장 전용 스레드는 처리 스레드의 MDC를 상속하지 않는다.
+            log.atError().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_visibility_failed")
+                    .addKeyValue("sqsMessageId", message.messageId())
+                    .addKeyValue("receiveCount", message.attributes().get(
+                            MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
+                    .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                    .log("푸시 숨김 시간 연장 실패");
         }
     }
 
@@ -145,8 +170,7 @@ public class SqsPushService {
                 .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                         .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_message_deleted")
-                .addKeyValue("messageId", message.messageId()).log("SQS 푸시 작업 완료");
+                .addKeyValue("stage", "worker_message_deleted").log("SQS 푸시 작업 완료");
     }
 
     private void logFailure(String stage, RuntimeException exception) {
@@ -155,13 +179,13 @@ public class SqsPushService {
                 .log("푸시 작업 처리 오류");
     }
 
-    private void logReceived(Message message, PushMessage pushMessage) {
+    private void logReceived(PushMessage pushMessage) {
         log.atInfo().addKeyValue("type", "notification").addKeyValue("stage", "worker_received")
                 .addKeyValue("eventId", pushMessage.eventId())
                 .addKeyValue("notificationId", pushMessage.notificationId())
-                .addKeyValue("messageId", message.messageId())
-                .addKeyValue("receiveCount", message.attributes().get(
-                        MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
+                .addKeyValue("userId", pushMessage.userId())
+                .addKeyValue("notificationType", pushMessage.type())
+                .addKeyValue("sourceId", pushMessage.sourceId())
                 .log("푸시 작업 수신");
     }
 

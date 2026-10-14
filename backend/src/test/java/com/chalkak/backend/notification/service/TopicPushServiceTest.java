@@ -365,7 +365,10 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 .doesNotContainKey("messageId"));
         assertThat(logsAtStage("topic_publication_unknown")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("userId", new UUID(0, 4))
-                        .containsEntry("errorCode", "IllegalStateException"));
+                        .containsEntry("errorCode", "IllegalStateException")
+                        .containsEntry("eventId", messages.getFirst().eventId())
+                        .containsEntry("sourceId", TOPIC_ID)
+                        .containsEntry("result", "UNKNOWN"));
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
         assertThat(appender.list)
                 .filteredOn(event -> "주제 푸시 SQS 발행 결과".equals(event.getFormattedMessage()))

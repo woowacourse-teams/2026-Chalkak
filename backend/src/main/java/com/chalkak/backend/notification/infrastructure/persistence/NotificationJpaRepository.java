@@ -2,6 +2,8 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
+import com.chalkak.backend.notification.repository.PublicationBacklog;
+import org.springframework.transaction.annotation.Transactional;
 import com.chalkak.backend.notification.repository.NotificationSummary;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -17,6 +19,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
+
+    @Transactional(readOnly = true, timeout = 5)
+    @Query("""
+            SELECT new com.chalkak.backend.notification.repository.PublicationBacklog(
+                COUNT(notification), MIN(notification.createdAt))
+            FROM Notification notification
+            WHERE notification.publishStatus = com.chalkak.backend.notification.domain.PublishStatus.PENDING
+            """)
+    PublicationBacklog getPublicationBacklog();
 
     @Query("""
             SELECT user.id FROM User user

@@ -159,6 +159,7 @@ public class TopicPushService {
             }
             log.atWarn().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_publication_result")
+                    .addKeyValue("notificationType", message.type())
                     .addKeyValue("eventId", message.eventId())
                     .addKeyValue("userId", message.userId())
                     .addKeyValue("sourceId", message.sourceId())
@@ -170,6 +171,10 @@ public class TopicPushService {
         } catch (RuntimeException exception) {
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_publication_unknown")
+                    .addKeyValue("notificationType", message.type())
+                    .addKeyValue("sourceId", message.sourceId())
+                    .addKeyValue("occurredAt", message.occurredAt())
+                    .addKeyValue("result", "UNKNOWN")
                     .addKeyValue("eventId", message.eventId())
                     .addKeyValue("userId", message.userId())
                     .addKeyValue("errorCode", exception.getClass().getSimpleName())

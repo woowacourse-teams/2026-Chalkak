@@ -9,6 +9,8 @@ import java.util.UUID;
 
 public interface NotificationRepository {
 
+    PublicationBacklog getPublicationBacklog();
+
     List<UUID> findTopicPushRecipientIds(UUID topicId);
 
     List<UUID> findDuePublicationIds(Instant now, int limit);
