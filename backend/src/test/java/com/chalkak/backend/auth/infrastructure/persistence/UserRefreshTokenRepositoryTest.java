@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.UserRefreshToken;
+import com.chalkak.backend.auth.domain.token.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -59,6 +59,30 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         // when & then
         assertThat(userRefreshTokenRepository.findByTokenHash(unknownTokenHash))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("별도 로그인 행 없이 리프레시 토큰의 로그인 식별자를 저장한다")
+    void save_withoutLoginSession_preservesSessionId() {
+        // given
+        User user = userRepository.save(createUser());
+        UUID sessionId = UUID.randomUUID();
+        String tokenHash = createTokenHash();
+        UserRefreshToken token = UserRefreshToken.create(
+                user,
+                sessionId,
+                tokenHash,
+                NOW.plusSeconds(3600),
+                NOW.plusSeconds(7200));
+
+        // when
+        userRefreshTokenRepository.save(token);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(userRefreshTokenRepository.findByTokenHash(tokenHash).orElseThrow()
+                .getSessionId()).isEqualTo(sessionId);
     }
 
     @Test
@@ -180,9 +204,10 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
             Instant absoluteExpiresAt,
             Instant revokedAt
     ) {
+        UUID sessionId = UUID.randomUUID();
         UserRefreshToken refreshToken = UserRefreshToken.create(
                 user,
-                UUID.randomUUID(),
+                sessionId,
                 tokenHash,
                 absoluteExpiresAt,
                 absoluteExpiresAt);

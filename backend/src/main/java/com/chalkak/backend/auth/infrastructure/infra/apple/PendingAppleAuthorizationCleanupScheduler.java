@@ -1,9 +1,9 @@
 package com.chalkak.backend.auth.infrastructure.infra.apple;
 
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
+import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
-import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
-import com.chalkak.backend.auth.service.AppleTokenClient;
+import com.chalkak.backend.auth.service.apple.AppleAuthorizationCipher;
+import com.chalkak.backend.auth.service.apple.AppleTokenClient;
 import java.time.Clock;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

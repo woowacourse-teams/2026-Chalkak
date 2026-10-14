@@ -73,6 +73,7 @@ public interface AuthApiDocs {
     ResponseEntity<TokenRefreshResponse> refresh(RefreshTokenRequest request);
 
     @Operation(summary = "로그아웃", description = "리프레시 토큰이 가리키는 기기 세션 하나만 끊는다."
+            + " 해당 로그인에 연결된 푸시 기기를 비활성화하고 FCM 토큰을 제거한다. 다른 로그인 기기는 유지한다."
             + " 알 수 없거나 이미 폐기된 토큰에도 204를 반환한다."
             + " 실패를 알리면 토큰의 존재 여부가 새어 나가고,"
             + " 재시도한 클라이언트가 로그아웃하지 못하고 막히기 때문이다")

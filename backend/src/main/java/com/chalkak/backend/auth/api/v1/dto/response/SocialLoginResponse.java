@@ -1,9 +1,9 @@
 package com.chalkak.backend.auth.api.v1.dto.response;
 
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.SocialLoginResult;
-import com.chalkak.backend.auth.service.SocialLoginStatus;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.login.SocialLoginResult;
+import com.chalkak.backend.auth.service.login.SocialLoginStatus;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;

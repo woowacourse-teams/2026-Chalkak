@@ -418,7 +418,7 @@ POST /api/v1/posts/uploads            ISSUED claim 행 생성, presigned URL 발
   → S3 ObjectCreated → SQS → Lambda    WebP 검증, 원본·썸네일 생성, EXIF 추출
   → POST /internal/v1/post-image-processing/{uploadId}/complete
                                        claim을 READY로 올리고 EXIF 보관
-  → Lambda가 staging 객체 삭제          콜백 2xx를 받은 뒤에만
+  → staging 객체는 lifecycle 만료 규칙이 정리
 
 POST /api/v1/posts                    claim 상태에 따라 분기
   READY   → APPROVED 게시물로 즉시 생성. 썸네일 키·메타데이터 반영
@@ -453,7 +453,7 @@ EXIF는 Lambda가 읽어 콜백으로 보내고 S3 객체에서는 제거한다.
   → S3 ObjectCreated → SQS → Lambda     원본·썸네일 생성
   → POST /internal/v1/signature-processing/{uploadId}/complete
                                         백엔드가 pending 일치를 확인하고 active로 승격
-  → Lambda가 staging 객체 삭제           콜백 2xx를 받은 뒤에만
+  → staging 객체는 lifecycle 만료 규칙이 정리
 ```
 
 핵심은 **존재하지 않는 URL을 active로 노출하지 않는 것**이다. 새 사인 처리가 실패해도 기존 active 사인은 그대로 유지되고, 다른 사용자의 게시물 목록은 active 썸네일만 사용한다.

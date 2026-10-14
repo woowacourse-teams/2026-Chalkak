@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.repository;
 
-import com.chalkak.backend.auth.domain.RefreshToken;
+import com.chalkak.backend.auth.domain.token.RefreshToken;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

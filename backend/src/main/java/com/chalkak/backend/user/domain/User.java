@@ -65,6 +65,14 @@ public class User {
     @Column(name = "app_version", length = 50)
     private String appVersion;
 
+    @ColumnDefault("true")
+    @Column(name = "topic_push_enabled", nullable = false)
+    private boolean topicPushEnabled = true;
+
+    @ColumnDefault("true")
+    @Column(name = "moderation_push_enabled", nullable = false)
+    private boolean moderationPushEnabled = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -112,6 +120,12 @@ public class User {
                     "이미 활성 상태인 회원입니다.");
         }
         this.status = UserStatus.ACTIVE;
+    }
+
+    public void updatePushPreferences(boolean topicPushEnabled, boolean moderationPushEnabled) {
+        validateNotWithdrawn();
+        this.topicPushEnabled = topicPushEnabled;
+        this.moderationPushEnabled = moderationPushEnabled;
     }
 
     public void startSignatureProcessing(UUID uploadId, Instant startedAt) {

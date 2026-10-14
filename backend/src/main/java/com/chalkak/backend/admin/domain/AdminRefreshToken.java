@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.domain;
 
-import com.chalkak.backend.auth.domain.RefreshToken;
+import com.chalkak.backend.auth.domain.token.RefreshToken;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Entity;

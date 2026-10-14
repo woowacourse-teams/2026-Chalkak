@@ -2,9 +2,9 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.SocialAccount;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
+import com.chalkak.backend.auth.domain.identity.SocialAccount;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;

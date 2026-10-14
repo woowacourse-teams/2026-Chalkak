@@ -1,6 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.infra.oidc;
 
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.nimbusds.jose.jwk.source.OutageTolerantJWKSetSource;
 import com.nimbusds.jose.jwk.source.RateLimitedJWKSetSource;
 import com.nimbusds.jose.jwk.source.RetryingJWKSetSource;

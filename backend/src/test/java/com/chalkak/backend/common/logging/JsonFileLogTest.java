@@ -10,6 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.boot.logging.LoggingInitializationContext;
@@ -20,8 +22,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 실제 logback-spring.xml을 dev 프로필로 읽어 파일 경로 설정과 JSON 출력 계약을 확인한다. 설정이 깨지면 애플리케이션은
- * 정상 기동하고 파일 로그만 조용히 사라지므로 여기서 잡는다. 로깅 시스템은 JVM 전체가 공유하므로 끝나면 프로필 없는 기본
+ * 실제 logback-spring.xml을 dev 프로필로 읽어 파일 경로 설정과 JSON 출력 계약을 확인한다. 설정이 깨지면
+ * 애플리케이션은 정상 기동하고 파일 로그만 조용히 사라지므로 여기서 잡는다. 로깅 시스템은 JVM 전체가 공유하므로 끝나면 프로필 없는 기본
  * 설정으로 되돌린다.
  */
 class JsonFileLogTest {
@@ -31,15 +33,15 @@ class JsonFileLogTest {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .build();
 
-    private final LogbackLoggingSystem loggingSystem =
-            new LogbackLoggingSystem(getClass().getClassLoader());
+    private final LogbackLoggingSystem loggingSystem = new LogbackLoggingSystem(
+            getClass().getClassLoader());
 
     @TempDir
     private Path tempDir;
 
     @AfterEach
     void restoreDefaultLogging() {
-        MDC.remove(LogFields.REQUEST_ID);
+        MDC.clear();
         initialize(new MockEnvironment());
     }
 
@@ -49,7 +51,9 @@ class JsonFileLogTest {
         // Given
         Path logFile = tempDir.resolve("logs").resolve("application.log");
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("chalkak.logging.file", logFile.toString());
+                .withProperty("chalkak.logging.file", logFile.toString())
+                .withProperty("chalkak.logging.notification-file",
+                        tempDir.resolve("notification.log").toString());
         environment.setActiveProfiles("dev");
         initialize(environment);
         MDC.put(LogFields.REQUEST_ID, "request-id-1");
@@ -72,6 +76,72 @@ class JsonFileLogTest {
         assertThat(json.get(LogFields.TYPE).asString()).isEqualTo("access");
         assertThat(json.get(LogFields.ROUTE).asString()).isEqualTo("/api/v1/posts/{postId}");
         assertThat(json.get(LogFields.STATUS).asInt()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    @DisplayName("개발·운영의 알림 로그는 MDC를 유지해 전용 파일에만 남고 일반 로그와 분리된다")
+    void initialize_deployedProfile_routesNotificationSeparately(String profile)
+            throws IOException {
+        // Given
+        Path applicationFile = tempDir.resolve("application.log");
+        Path notificationFile = tempDir.resolve("notification.log");
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("chalkak.logging.file", applicationFile.toString())
+                .withProperty("chalkak.logging.notification-file", notificationFile.toString());
+        environment.setActiveProfiles(profile);
+        initialize(environment);
+        MDC.put("sqsMessageId", "sqs-id-1");
+        MDC.put("receiveCount", "2");
+
+        // When
+        LoggerFactory.getLogger("com.chalkak.backend.notification.service.PushWorkerService")
+                .atInfo().addKeyValue("type", "notification")
+                .addKeyValue("stage", "fcm_result").log("FCM 수락");
+        LoggerFactory
+                .getLogger("com.chalkak.backend.notification.infrastructure.infra.SqsPushService")
+                .atError().addKeyValue("type", "notification")
+                .addKeyValue("stage", "worker_processing_failed").log("푸시 처리 실패");
+        MDC.clear();
+        LoggerFactory.getLogger("chalkak.access").atInfo()
+                .addKeyValue("type", "access").log("일반 요청");
+
+        // Then
+        List<String> notificationLines = Files.readAllLines(notificationFile);
+        assertThat(notificationLines).hasSize(2);
+        for (String line : notificationLines) {
+            JsonNode json = STRICT_MAPPER.readTree(line);
+            assertThat(json.get("sqsMessageId").asString()).isEqualTo("sqs-id-1");
+            assertThat(json.get("receiveCount").asString()).isEqualTo("2");
+            assertThat(json.get("type").asString()).isEqualTo("notification");
+        }
+        List<String> applicationLines = Files.readAllLines(applicationFile);
+        assertThat(applicationLines).hasSize(1);
+        assertThat(STRICT_MAPPER.readTree(applicationLines.getFirst()).get("type").asString())
+                .isEqualTo("access");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "test"})
+    @DisplayName("로컬·테스트에서는 알림 전용 파일과 일반 파일을 생성하지 않는다")
+    void initialize_localOrTestProfile_doesNotWriteFiles(String profile) {
+        // Given
+        Path applicationFile = tempDir.resolve("application.log");
+        Path notificationFile = tempDir.resolve("notification.log");
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("chalkak.logging.file", applicationFile.toString())
+                .withProperty("chalkak.logging.notification-file", notificationFile.toString());
+        environment.setActiveProfiles(profile);
+        initialize(environment);
+
+        // When
+        LoggerFactory.getLogger("com.chalkak.backend.notification.service.PushWorkerService")
+                .info("알림 로그");
+        LoggerFactory.getLogger("chalkak.access").info("일반 로그");
+
+        // Then
+        assertThat(applicationFile).doesNotExist();
+        assertThat(notificationFile).doesNotExist();
     }
 
     private void initialize(MockEnvironment environment) {

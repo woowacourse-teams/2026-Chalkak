@@ -20,10 +20,12 @@ python3 scripts/work_state.py load --issue 287
 
 - 입력은 `{"work": {...}}` 형식의 JSON이다. `work`에는 `goal`(목표), `done`(완료 목록), `remaining`(남은 목록), `next`(다음 행동)를 두고 필요하면 `scope`, `decisions`, `blockers`, `links`, `stack`, `workflow`, `commit_unit`을 추가한다. 구현·검증·리뷰·병합 상태를 구분하고 관련 PR·의존 관계·실제 base는 `links`에 남긴다. 생략한 기존 필드는 보존하며 목록 교체 시 미완료 항목을 빠뜨리지 않는다. `workflow`와 `commit_unit`을 바꿀 때는 내부 필드 전체를 교체해 이전 승인 근거가 새 단위에 섞이지 않게 한다.
 - 새 승인 근거 없이 `scope.include`·`scope.exclude`를 바꾸거나 제외된 행동을 `remaining`·`next`에 추가하지 않는다. 이번 요청에서 끝난 항목만 `done`으로 옮기고, 기존 범위 밖 후속 작업을 임의로 만들지 않는다.
-- 저장소 밖의 임시 파일이나 표준 입력(`--input -`)으로 전달한다. `load`의 `revision`을 사용하고 신규 기록은 `missing`으로 저장한다. 원자적으로 교체하며 오래된 revision은 거부한다. 충돌하면 최신 기록과 실제 변경을 대조해 합친다.
+- 기본은 표준 입력(`--input -`)이다. JSON은 메모리에서 구성해 전달하며 작업 트리나 본문 임시 폴더에 별도 입력 JSON을 만들지 않는다. 저장소 밖 임시 파일이 꼭 필요하고 쓰기가 허용된 경우에만 사용하고 저장 후 삭제한다. 저장소 밖 쓰기가 제한된 환경에서도 표준 입력을 사용한다. `load`의 `revision`을 사용하고 신규 기록은 `missing`으로 저장한다. 원자적으로 교체하며 오래된 revision은 거부한다. 충돌하면 최신 기록과 실제 변경을 대조해 합친다.
 
 ```bash
-python3 scripts/work_state.py save --issue 287 --expected-revision <읽은 revision 또는 missing> --input <임시 JSON 경로>
+python3 scripts/work_state.py save --issue 287 --expected-revision <읽은 revision 또는 missing> --input - <<'JSON'
+{"work":{"goal":"이번 작업 목표","done":[],"remaining":["남은 작업"],"next":"다음 단계"}}
+JSON
 ```
 
 - 검사 전 `python3 scripts/work_state.py snapshot`으로 지문을 얻는다. 검사 후 명령·결과·로그 위치를 `work`와 나란한 `checks` 배열에 넣고 위 저장 명령에 `--record-checks --checked-fingerprint <검사 전 fingerprint>`를 붙인다. 검사 도중 코드가 바뀌면 저장을 거부하므로 현재 코드로 다시 검증한다. 미실행을 통과로 적지 않는다.

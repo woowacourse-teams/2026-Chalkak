@@ -37,6 +37,8 @@ dependencies {
 
     implementation(platform("software.amazon.awssdk:bom:2.54.1"))
     implementation("software.amazon.awssdk:s3")
+    implementation("software.amazon.awssdk:sqs")
+    implementation("com.google.firebase:firebase-admin:9.11.0")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -127,6 +129,10 @@ tasks.withType<Test>().configureEach {
     systemProperty(
         "chalkak.logging.file",
         layout.buildDirectory.file("test-logs/application.log").get().asFile.path,
+    )
+    systemProperty(
+        "chalkak.logging.notification-file",
+        layout.buildDirectory.file("test-logs/notification.log").get().asFile.path,
     )
 }
 
