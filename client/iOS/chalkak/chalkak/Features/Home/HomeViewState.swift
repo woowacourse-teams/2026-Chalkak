@@ -13,6 +13,7 @@ struct HomeHeroPhoto: Equatable, Sendable {
 
 enum HomeHeroState: Equatable, Sendable {
     case loading, empty, noOpenTopic, processing, error
+    case rejected(canResubmit: Bool)
     case photo(HomeHeroPhoto)
 }
 

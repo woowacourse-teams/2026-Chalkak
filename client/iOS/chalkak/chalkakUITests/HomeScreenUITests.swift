@@ -40,6 +40,30 @@ final class HomeScreenUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["하늘"].isHittable)
     }
     @MainActor
+    func testHeroStatesAndResubmitEntry() {
+        let app = XCUIApplication()
+        let scenarios = ["rejected-open", "rejected-closed", "empty", "pending", "approved", "processing", "loading", "error", "no-open-topic"]
+        for scenario in scenarios {
+            app.launchArguments = ["-test-home-preview", "-test-home-hero-state", scenario, "-test-photo-upload-entry"]
+            app.launch()
+            XCTAssertTrue(app.staticTexts["하늘"].waitForExistence(timeout: 5))
+            if scenario == "rejected-open" {
+                XCTAssertTrue(app.buttons["사진 다시 제출하기"].exists)
+            } else if scenario == "rejected-closed" {
+                XCTAssertFalse(app.buttons["사진 다시 제출하기"].exists)
+                XCTAssertTrue(app.staticTexts["사진이 반려되었어요\n이 주제의 참여 기간이 종료되었어요"].exists)
+            }
+            captureScreenshot(app, named: "hero-\(scenario)")
+            if scenario == "rejected-open" || scenario == "empty" {
+                let label = scenario == "rejected-open" ? "사진 다시 제출하기" : "하늘 사진을 공유하지 않았어요"
+                app.buttons[label].tap()
+                XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor
     private func captureScreenshot(_ app: XCUIApplication, named name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

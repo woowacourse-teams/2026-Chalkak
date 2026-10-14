@@ -18,6 +18,12 @@ struct HomeHeroCard: View {
                 }
             case .empty:
                 EmptyHeroContent(topic: topic, onOpenPhotoUpload: onOpenPhotoUpload)
+            case let .rejected(canResubmit):
+                if canResubmit {
+                    EmptyHeroContent(topic: topic, isRejected: true, onOpenPhotoUpload: onOpenPhotoUpload)
+                } else {
+                    HeroStatusContent(text: "사진이 반려되었어요\n이 주제의 참여 기간이 종료되었어요")
+                }
             case .noOpenTopic:
                 HeroStatusContent(text: "지금은 참여할 수 있는 주제가 없어요")
             case .processing:
@@ -46,6 +52,7 @@ struct HomeHeroCard: View {
         switch hero {
         case .loading: "home-loading"
         case .empty: "home-empty"
+        case .rejected: "home-rejected"
         default: "home-hero"
         }
     }
@@ -95,16 +102,24 @@ private struct PhotoHeroContent: View {
 private struct EmptyHeroContent: View {
     @Environment(\.chalkakTheme) private var theme
     let topic: String
+    var isRejected = false
     let onOpenPhotoUpload: () -> Void
 
     var body: some View {
         Button(action: onOpenPhotoUpload) {
             VStack(spacing: theme.spacing.xl) {
-                Text("\"\(displayTopic)\" 사진을 공유하지 않았어요")
+                Text(isRejected ? "사진이 반려되었어요" : "\"\(displayTopic)\" 사진을 공유하지 않았어요")
                     .font(theme.typography.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.textPrimary)
                     .multilineTextAlignment(.center)
+
+                if isRejected {
+                    Text("참여 기간 안에 다시 제출할 수 있어요")
+                        .font(theme.typography.footnote)
+                        .foregroundStyle(theme.colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Image(systemName: "plus")
                     .font(.system(size: Metrics.addIconSize, weight: .semibold))
@@ -122,7 +137,7 @@ private struct EmptyHeroContent: View {
             .contentShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(displayTopic) 사진을 공유하지 않았어요")
+        .accessibilityLabel(isRejected ? "사진 다시 제출하기" : "\(displayTopic) 사진을 공유하지 않았어요")
     }
 
     private var displayTopic: String {

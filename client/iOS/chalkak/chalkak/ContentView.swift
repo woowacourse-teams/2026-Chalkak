@@ -232,6 +232,9 @@ struct ContentView: View {
             guard phase == .active else { return }
             Task { await appVersionGate.checkForUpdate() }
             if route == .main, selectedTab == .home {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
                 Task { await homeViewModel.resume() }
             }
         }
@@ -331,6 +334,9 @@ struct ContentView: View {
             )
             .onAppear(perform: presentInitialNotificationSetupIfNeeded)
             .task(id: ObjectIdentifier(homeViewModel)) {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
                 await homeViewModel.resume()
             }
         }
@@ -594,7 +600,34 @@ struct ContentView: View {
     private static func makeHomeViewModel() -> HomeViewModel {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
-            return HomePreviewData.viewModel(state: HomePreviewData.contentState)
+            var state = HomePreviewData.contentState
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
+                switch arguments[index + 1] {
+                case "empty": state.hero = .empty
+                case "loading": state.hero = .loading
+                case "processing": state.hero = .processing
+                case "error": state.hero = .error
+                case "no-open-topic": state.hero = .noOpenTopic
+                case "rejected-open": state.hero = .rejected(canResubmit: true)
+                case "rejected-closed": state.hero = .rejected(canResubmit: false)
+                case "pending":
+                    let photo = HomePreviewData.heroPhoto
+                    state.hero = .photo(HomeHeroPhoto(imageSource: photo.imageSource, thumbnailSource: photo.thumbnailSource, signatureSource: nil, isPending: true))
+                default: break
+                }
+                switch state.hero {
+                case .photo:
+                    break
+                default:
+                    state.week = state.week.map { day in
+                        RecordMonth.calendar.isDate(day.date, inSameDayAs: state.date)
+                            ? HomeWeekDay(date: day.date)
+                            : day
+                    }
+                }
+            }
+            return HomePreviewData.viewModel(state: state)
         }
         if isDailyReminderTapUITest {
             let loader = HomeDataLoader(
