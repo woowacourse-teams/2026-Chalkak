@@ -56,7 +56,12 @@ public enum AdminAction {
     TOPIC_PUSH_SCHEDULE_DELETED(
             AdminTargetType.TOPIC_PUSH_SCHEDULE,
             false,
-            AdminAuditTransitionRules::isTopicPushScheduleDeleted);
+            AdminAuditTransitionRules::isTopicPushScheduleDeleted),
+
+    NOTICE_CREATED(
+            AdminTargetType.NOTICE,
+            false,
+            AdminAuditTransitionRules::isNoticeCreated);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;
