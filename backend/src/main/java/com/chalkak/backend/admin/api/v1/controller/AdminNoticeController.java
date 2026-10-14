@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminNoticeApiDocs;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminNoticeDeletionRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminNoticeListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminNoticeRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminNoticeListResponse;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,5 +76,17 @@ public class AdminNoticeController implements AdminNoticeApiDocs {
                 CanonicalUuidParser.parse(noticeId), authenticatedAdmin.adminId(),
                 request.title(), request.body(), request.scheduledAt());
         return ResponseEntity.ok(AdminNoticeResponse.from(result));
+    }
+
+    @Override
+    @DeleteMapping("/{noticeId}")
+    public ResponseEntity<Void> deleteNotice(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String noticeId,
+            @Valid @RequestBody AdminNoticeDeletionRequest request
+    ) {
+        noticeService.deleteNotice(CanonicalUuidParser.parse(noticeId),
+                authenticatedAdmin.adminId(), request.reason());
+        return ResponseEntity.noContent().build();
     }
 }

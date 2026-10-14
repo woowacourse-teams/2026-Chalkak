@@ -82,6 +82,25 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         assertThat(noticeRepository.findDistributableForUpdate(due, SCHEDULED_AT)).isPresent();
     }
 
+    @Test
+    @DisplayName("삭제된 공지는 배포 대상 조회와 배포 잠금 조회에서 제외한다")
+    void findDistributableNotices_deletedNotice_excludes() {
+        // Given
+        UUID deleted = insertNotice(SCHEDULED_AT, false);
+        UUID active = insertNotice(SCHEDULED_AT.plusSeconds(1), false);
+        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(SCHEDULED_AT), deleted);
+        Instant now = SCHEDULED_AT.plusSeconds(60);
+
+        // When & Then
+        assertThat(targetIds(noticeRepository.findDistributableNotices(now, null, 10)))
+                .containsExactly(active);
+        assertThat(targetIds(noticeRepository.findDistributableNotices(now,
+                new DistributableNotice(UUID.randomUUID(), SCHEDULED_AT.minusSeconds(1)), 10)))
+                .containsExactly(active);
+        assertThat(noticeRepository.findDistributableForUpdate(deleted, now)).isEmpty();
+    }
+
     private UUID insertNotice(Instant scheduledAt, boolean distributed) {
         Timestamp distributedAt = null;
         if (distributed) {

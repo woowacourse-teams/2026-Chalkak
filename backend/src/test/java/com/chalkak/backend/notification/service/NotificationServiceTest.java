@@ -361,6 +361,61 @@ class NotificationServiceTest extends IntegrationTestSupport {
         assertThat(notificationService.hasUnreadNotification(USER_ID)).isTrue();
     }
 
+    @Test
+    @DisplayName("공지 알림은 공지가 삭제되지 않았으면 조회·미읽음·읽음 처리 대상이다")
+    void getNotifications_activeNotice_showsNotification() {
+        // Given
+        UUID notificationId = insertNoticeNotification(false);
+
+        // When & Then
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+                .hasSize(1);
+        assertThat(notificationService.getNotification(USER_ID, notificationId)).isNotNull();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isTrue();
+        notificationService.markRead(USER_ID, notificationId);
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("삭제된 공지의 알림은 조회·미읽음·읽음 처리에서 제외하고 기록은 남긴다")
+    void getNotifications_deletedNotice_hidesNotificationFromEveryInboxOperation() {
+        // Given
+        UUID notificationId = insertNoticeNotification(true);
+
+        // When & Then
+        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+                .isEmpty();
+        assertThatThrownBy(() -> notificationService.getNotification(USER_ID, notificationId))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThatThrownBy(() -> notificationService.markRead(USER_ID, notificationId))
+                .isInstanceOf(NotFoundException.class);
+        notificationService.markAllRead(USER_ID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
+                Integer.class, notificationId)).isEqualTo(1);
+    }
+
+    // 기본 검수 알림을 지우고, 이 회원에게 공지 알림 하나만 남긴다.
+    private UUID insertNoticeNotification(boolean noticeDeleted) {
+        jdbcTemplate.update("DELETE FROM notifications");
+        UUID noticeId = jdbcTemplate.queryForObject("""
+                INSERT INTO notices (title, body, scheduled_at, distributed_at, deleted_at,
+                    created_at, updated_at)
+                VALUES ('서비스 점검 안내', '점검합니다.', ?, ?, ?, ?, ?)
+                RETURNING id
+                """, UUID.class, Timestamp.from(CREATED_AT), Timestamp.from(CREATED_AT),
+                noticeDeleted ? Timestamp.from(NOW) : null, Timestamp.from(CREATED_AT),
+                Timestamp.from(CREATED_AT));
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
+                    title, body, created_at, sqs_publish_status)
+                VALUES (?, 'NOTICE', ?, ?, 'NOTICE', '서비스 점검 안내', '점검합니다.', ?,
+                    'NOT_REQUIRED')
+                RETURNING id
+                """, UUID.class, USER_ID, noticeId, noticeId, Timestamp.from(CREATED_AT));
+    }
+
     private void insertSecondNotification(UUID recipientId) {
         jdbcTemplate.update("""
                 INSERT INTO admin_audit_logs (

@@ -27,10 +27,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 공지 수정과 배포가 같은 공지 행 잠금으로 직렬화되는지 검증한다. */
-class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
+/** 공지 수정·삭제와 배포가 같은 공지 행 잠금으로 직렬화되는지 검증한다. */
+class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
 
-    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000593");
+    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000612");
 
     @Autowired
     private AdminNoticeService noticeService;
@@ -54,7 +54,7 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        new DatabaseCleaner(jdbcTemplate).clean();
+        clean();
         noticeId = jdbcTemplate.queryForObject("""
                 INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
                 VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -64,7 +64,7 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
-        new DatabaseCleaner(jdbcTemplate).clean();
+        clean();
     }
 
     @Test
@@ -138,7 +138,81 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
                 "SELECT distributed_at IS NOT NULL FROM notices", Boolean.class)).isTrue();
     }
 
-    // 수정 요청이 공지 행 잠금을 기다리기 시작할 때까지 확인한다.
+    @Test
+    @DisplayName("배포가 먼저 공지를 잠그면 삭제는 배포 커밋을 기다린 뒤 배포된 공지를 삭제한다")
+    void deleteNotice_distributionLocksFirst_deletesDistributedNotice() throws Exception {
+        // Given
+        jdbcTemplate.update("""
+                INSERT INTO admins (id, username, password, created_at, updated_at)
+                VALUES (?, 'notice-concurrency-manager', 'test-password', CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP)
+                """, ADMIN_ID);
+        CountDownLatch distributionLocked = new CountDownLatch(1);
+        CountDownLatch distributionCanCommit = new CountDownLatch(1);
+        CompletableFuture<Void> distribution = CompletableFuture.runAsync(
+                () -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                    Instant now = Instant.now();
+                    Notice notice = noticeRepository.findDistributableForUpdate(noticeId, now)
+                            .orElseThrow();
+                    distributionLocked.countDown();
+                    await(distributionCanCommit);
+                    notificationRepository.createNoticeNotifications(notice, now);
+                    notice.distribute(now);
+                }));
+        await(distributionLocked);
+
+        // When
+        CompletableFuture<Void> deletion = CompletableFuture.runAsync(
+                () -> noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지"));
+        try {
+            awaitLockWaiting();
+            assertThat(deletion.isDone()).isFalse();
+        } finally {
+            distributionCanCommit.countDown();
+        }
+        distribution.get(5, TimeUnit.SECONDS);
+        deletion.get(5, TimeUnit.SECONDS);
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT distributed_at IS NOT NULL AND deleted_at IS NOT NULL FROM notices",
+                Boolean.class)).isTrue();
+    }
+
+    // 삭제 서비스 대신 삭제와 같은 잠금 조회 후 삭제 표시를 해, 삭제가 잡는 공지 행 잠금을 재현한다.
+    @Test
+    @DisplayName("삭제가 공지를 잠그고 있으면 배포는 그 공지를 건너뛰고 삭제 후에도 배포하지 않는다")
+    void distributeNotices_deletionLocksFirst_neverDistributesDeletedNotice() throws Exception {
+        // Given
+        CountDownLatch deletionLocked = new CountDownLatch(1);
+        CountDownLatch deletionCanCommit = new CountDownLatch(1);
+        CompletableFuture<Void> deletion = CompletableFuture.runAsync(
+                () -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                    noticeRepository.findByIdForUpdate(noticeId).orElseThrow()
+                            .delete(Instant.now());
+                    deletionLocked.countDown();
+                    await(deletionCanCommit);
+                }));
+        await(deletionLocked);
+
+        // When
+        try {
+            distributionService.distributeNotices();
+        } finally {
+            deletionCanCommit.countDown();
+        }
+        deletion.get(5, TimeUnit.SECONDS);
+        distributionService.distributeNotices();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT distributed_at IS NULL AND deleted_at IS NOT NULL FROM notices",
+                Boolean.class)).isTrue();
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notifications",
+                Integer.class)).isZero();
+    }
+
+    // 수정·삭제 요청이 공지 행 잠금을 기다리기 시작할 때까지 확인한다.
     private void awaitLockWaiting() throws InterruptedException {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
         while (Instant.now().isBefore(deadline)) {
@@ -152,7 +226,14 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
             }
             Thread.sleep(20);
         }
-        throw new AssertionError("공지 수정이 공지 행 잠금을 기다리지 않았습니다.");
+        throw new AssertionError("공지 수정·삭제가 공지 행 잠금을 기다리지 않았습니다.");
+    }
+
+    // 공용 정리 대상이 아닌 관리자·감사 로그는 이 테스트가 만든 행만 지운다.
+    private void clean() {
+        new DatabaseCleaner(jdbcTemplate).clean();
+        jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE actor_admin_id = ?", ADMIN_ID);
+        jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
     }
 
     private void await(CountDownLatch latch) {

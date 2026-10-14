@@ -218,6 +218,16 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         assertSkipped(worker(NOW).process(tampered), "MESSAGE_MISMATCH");
     }
 
+    @Test
+    @DisplayName("배포 후 삭제된 공지의 알림은 보내지 않는다")
+    void process_deletedNotice_skipsPush() {
+        // Given
+        jdbc.update("UPDATE notices SET deleted_at = ?", Timestamp.from(NOW));
+
+        // When & Then
+        assertSkipped(worker(NOW).process(message), "NOTIFICATION_UNAVAILABLE");
+    }
+
     private void assertSkipped(PushProcessingResult result, String reason) {
         assertThat(result.retryable()).isFalse();
         verifyNoInteractions(sender);

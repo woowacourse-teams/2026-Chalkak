@@ -46,6 +46,9 @@ public class Notice {
     @Column(name = "distributed_at")
     private Instant distributedAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -72,13 +75,28 @@ public class Notice {
             Instant scheduledAt,
             Instant now
     ) {
+        if (deletedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 공지는 수정할 수 없습니다.");
+        }
         if (distributedAt != null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "배포된 공지는 수정할 수 없습니다.");
         }
         applyContent(title, body, scheduledAt, now);
     }
 
+    // 배포 전 삭제는 발송 취소, 배포 후 삭제는 회원 알림함에서 숨김이 된다.
+    public void delete(Instant deletedAt) {
+        if (this.deletedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 삭제된 공지입니다.");
+        }
+        // 감사 기록의 삭제 시각이 DB 저장값과 같도록 저장 정밀도에 맞춘다.
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
     public void distribute(Instant distributedAt) {
+        if (deletedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 공지는 배포할 수 없습니다.");
+        }
         if (this.distributedAt != null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "예약 상태의 공지만 배포할 수 있습니다.");
         }
@@ -91,6 +109,10 @@ public class Notice {
             return NoticeStatus.SCHEDULED;
         }
         return NoticeStatus.DISTRIBUTED;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public static boolean isValidTitle(String title) {
