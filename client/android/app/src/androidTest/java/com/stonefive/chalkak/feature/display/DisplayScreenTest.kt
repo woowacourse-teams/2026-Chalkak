@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
@@ -50,7 +51,7 @@ class DisplayScreenTest {
     @Test
     fun displayPhotoReservesSpaceWhileThumbnailIsLoading() {
         val loadingPhoto = photo.copy(
-            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+            thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/missing_thumbnail",
             signatureThumbnailImageUrl = null,
         )
         setDisplayContent(
@@ -79,7 +80,7 @@ class DisplayScreenTest {
         val photos = List(4) { index ->
             photo.copy(
                 id = "photo-$index",
-                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/missing_thumbnail",
+                thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/missing_thumbnail",
                 signatureThumbnailImageUrl = null,
                 contentDescription = "사진 $index",
             )
@@ -362,10 +363,10 @@ class DisplayScreenTest {
 private val latestDate = LocalDate.of(2026, 8, 5)
 private val photo = Post(
     id = "photo",
-    originalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_photo",
-    signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
-    signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/preview_signature",
+    originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/preview_photo",
+    thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/preview_photo",
+    signatureOriginalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/preview_signature",
+    signatureThumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/preview_signature",
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,

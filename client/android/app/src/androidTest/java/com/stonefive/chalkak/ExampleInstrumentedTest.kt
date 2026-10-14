@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
         val appContext = InstrumentationRegistry
             .getInstrumentation()
             .targetContext
-        assertEquals("com.stonefive.chalkak", appContext.packageName)
+        assertEquals(BuildConfig.APPLICATION_ID, appContext.packageName)
     }
 }

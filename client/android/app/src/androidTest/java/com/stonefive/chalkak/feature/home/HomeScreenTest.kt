@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.platform.app.InstrumentationRegistry
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -235,4 +236,4 @@ private fun samplePhotos(): List<Post> = List(4) { index ->
     )
 }
 
-private fun image(resourceId: Int) = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun image(resourceId: Int) = "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"

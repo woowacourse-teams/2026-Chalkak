@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
@@ -42,8 +43,8 @@ class DisplayPhotoCardTest {
         val coordinator = PhotoTransitionCoordinator()
 
         val photo = previewDisplayPost.copy(
-            originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+            originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+            thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
         )
 
         composeRule.setContent {

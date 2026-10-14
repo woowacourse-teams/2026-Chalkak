@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import org.junit.Assert.assertTrue
@@ -226,4 +227,4 @@ class PhotoUploadScreenTest {
     }
 }
 
-private val PREVIEW_PHOTO_URI = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}"
+private val PREVIEW_PHOTO_URI = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_photo}"

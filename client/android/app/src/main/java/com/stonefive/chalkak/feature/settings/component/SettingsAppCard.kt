@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -84,7 +85,7 @@ private fun SettingsAppCardPreview() {
     ChalkakTheme {
         SettingsAppCard(
             showSignature = true,
-            signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+            signatureUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
             onChangeSignatureClick = {},
             modifier = Modifier
                 .padding(25.dp)

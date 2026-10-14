@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
@@ -245,7 +246,7 @@ private fun AuthenticatedSettingsScreenPreview() {
         SettingsScreenPreview(
             uiState = SettingsUiState(
                 isLoggedIn = true,
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )
