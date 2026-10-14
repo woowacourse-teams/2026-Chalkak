@@ -74,6 +74,13 @@ describe("AdminShell", () => {
     expect(screen.getByText("데모 환경 · 실제 서비스에 영향을 주지 않습니다.")).toBeInTheDocument();
   });
 
+  it("keeps the existing notification menu active for notices", () => {
+    navigation.pathname = "/notices/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01";
+    render(<AdminShell><p>공지 상세</p></AdminShell>);
+    expect(screen.getByRole("link", { name: "알림" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "게시물" })).not.toHaveAttribute("aria-current");
+  });
+
   it("logs out and navigates to login", async () => {
     render(<AdminShell><p>게시물 콘텐츠</p></AdminShell>);
 

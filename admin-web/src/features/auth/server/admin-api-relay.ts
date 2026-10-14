@@ -13,6 +13,8 @@ const MAX_SESSION_SECONDS = 7 * 24 * 60 * 60;
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const UUID_PATTERN = new RegExp(`^${UUID}$`);
 const ROUTES = [
+  { pattern: /^\/notices$/, methods: ["GET", "POST"] },
+  { pattern: new RegExp(`^/notices/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
   { pattern: /^\/auth\/login$/, methods: ["POST"] },
   { pattern: /^\/auth\/me$/, methods: ["GET"] },
   { pattern: /^\/auth\/logout$/, methods: ["POST"] },
