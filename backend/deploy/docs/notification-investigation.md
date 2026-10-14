@@ -45,7 +45,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 | `SQS_ACCEPTED` | SQS 수락. `relay_transaction_committed`로 DB 저장 여부 확인. 주제는 DB 발행 상태가 없음 |
 | DB `FAILED` / `EXPIRED` | 영구 발행 오류 / 원래 기한 초과. 자동으로 PENDING으로 되돌리지 않음 |
 | SQS 수락 후 `worker_received` 없음 | Worker 활성화·같은 환경 큐 URL·큐 적체·배포/수집 상태 확인 |
-| `worker_skipped` | `reason` 확인. 읽음·참여·수신 설정·기한·로그인 등의 정상 생략일 수 있음 |
+| `worker_skipped` | `reason` 확인. 읽음·참여·수신 설정·기한·로그인, 삭제된 게시물·공지(`NOTIFICATION_UNAVAILABLE`) 등의 정상 생략일 수 있음 |
 | `fcm_result=ACCEPTED` | FCM이 요청 수락. 기기 수신·표시·클릭과 구분하고 앱 권한·실행 상태도 확인 |
 | `worker_retry_pending` | 처리 중 연장을 종료하고 SQS 재전달 대기. SDK 반복과 별개이며 기한을 늘리지 않음 |
 | `worker_message_deleted` | 현재 SQS 작업 완료. 수락·정상 생략·영구 실패 중 무엇인지 앞선 로그로 확인 |

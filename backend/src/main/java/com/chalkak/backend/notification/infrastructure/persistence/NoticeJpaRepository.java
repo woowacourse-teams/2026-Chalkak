@@ -28,7 +28,8 @@ public interface NoticeJpaRepository extends JpaRepository<Notice, UUID> {
             SELECT new com.chalkak.backend.notification.repository.DistributableNotice(
                 notice.id, notice.scheduledAt)
             FROM Notice notice
-            WHERE notice.distributedAt IS NULL AND notice.scheduledAt <= :now
+            WHERE notice.distributedAt IS NULL AND notice.deletedAt IS NULL
+                AND notice.scheduledAt <= :now
             ORDER BY notice.scheduledAt, notice.id
             """)
     List<DistributableNotice> findDistributableNotices(
@@ -41,7 +42,8 @@ public interface NoticeJpaRepository extends JpaRepository<Notice, UUID> {
             SELECT new com.chalkak.backend.notification.repository.DistributableNotice(
                 notice.id, notice.scheduledAt)
             FROM Notice notice
-            WHERE notice.distributedAt IS NULL AND notice.scheduledAt <= :now
+            WHERE notice.distributedAt IS NULL AND notice.deletedAt IS NULL
+                AND notice.scheduledAt <= :now
                 AND (notice.scheduledAt > :afterScheduledAt
                     OR (notice.scheduledAt = :afterScheduledAt AND notice.id > :afterId))
             ORDER BY notice.scheduledAt, notice.id
@@ -55,7 +57,8 @@ public interface NoticeJpaRepository extends JpaRepository<Notice, UUID> {
 
     @Query(value = """
             SELECT * FROM notices
-            WHERE id = :noticeId AND distributed_at IS NULL AND scheduled_at <= :now
+            WHERE id = :noticeId AND distributed_at IS NULL AND deleted_at IS NULL
+                AND scheduled_at <= :now
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     Optional<Notice> findDistributableForUpdate(

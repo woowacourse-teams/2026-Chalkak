@@ -85,6 +85,24 @@ class AdminNoticeAuditTransactionTest extends IntegrationTestSupport {
         assertThat(countRows("admin_audit_logs")).isZero();
     }
 
+    @Test
+    @DisplayName("감사 로그 저장이 실패하면 공지 삭제도 함께 롤백한다")
+    void deleteNotice_auditInsertFails_rollsBackDeletion() {
+        // Given
+        UUID noticeId = jdbcTemplate.queryForObject("""
+                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+                """, UUID.class, Timestamp.from(Instant.now().plusSeconds(3600)));
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.deleteNotice(noticeId, UNKNOWN_ADMIN_ID,
+                "점검 일정 취소"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at IS NULL FROM notices", Boolean.class)).isTrue();
+    }
+
     private void insertAdmin() {
         jdbcTemplate.update(
                 """

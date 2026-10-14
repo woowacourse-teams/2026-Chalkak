@@ -66,7 +66,12 @@ public enum AdminAction {
     NOTICE_UPDATED(
             AdminTargetType.NOTICE,
             false,
-            AdminAuditTransitionRules::isNoticeUpdated);
+            AdminAuditTransitionRules::isNoticeUpdated),
+
+    NOTICE_DELETED(
+            AdminTargetType.NOTICE,
+            true,
+            AdminAuditTransitionRules::isNoticeDeleted);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;

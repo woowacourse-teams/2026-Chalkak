@@ -3,6 +3,9 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -68,7 +71,7 @@ class AdminNoticeControllerTest {
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.getNotices(2, 10)).willReturn(new AdminNoticeListResult(2, 10, true,
                 List.of(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt, createdAt))));
+                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null, createdAt, createdAt))));
 
         // When & Then
         mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "10"))
@@ -81,7 +84,8 @@ class AdminNoticeControllerTest {
                 .andExpect(jsonPath("$.notices[0].title").value("서비스 점검 안내"))
                 .andExpect(jsonPath("$.notices[0].scheduledAt").value("2026-10-19T09:00:00Z"))
                 .andExpect(jsonPath("$.notices[0].status").value("SCHEDULED"))
-                .andExpect(jsonPath("$.notices[0].distributedAt").isEmpty());
+                .andExpect(jsonPath("$.notices[0].distributedAt").isEmpty())
+                .andExpect(jsonPath("$.notices[0].deletedAt").isEmpty());
     }
 
     @Test
@@ -117,7 +121,7 @@ class AdminNoticeControllerTest {
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.getNotice(NOTICE_ID)).willReturn(new AdminNoticeResult(NOTICE_ID,
                 "서비스 점검 안내", "점검합니다.", SCHEDULED_AT, NoticeStatus.DISTRIBUTED,
-                SCHEDULED_AT, createdAt, createdAt));
+                SCHEDULED_AT, SCHEDULED_AT.plusSeconds(3600), createdAt, createdAt));
 
         // When & Then
         mockMvc.perform(get(PATH + "/" + NOTICE_ID))
@@ -125,7 +129,8 @@ class AdminNoticeControllerTest {
                 .andExpect(jsonPath("$.noticeId").value(NOTICE_ID.toString()))
                 .andExpect(jsonPath("$.body").value("점검합니다."))
                 .andExpect(jsonPath("$.status").value("DISTRIBUTED"))
-                .andExpect(jsonPath("$.distributedAt").value("2026-10-19T09:00:00Z"));
+                .andExpect(jsonPath("$.distributedAt").value("2026-10-19T09:00:00Z"))
+                .andExpect(jsonPath("$.deletedAt").value("2026-10-19T10:00:00Z"));
     }
 
     @Test
@@ -158,7 +163,7 @@ class AdminNoticeControllerTest {
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.createNotice(ADMIN_ID, "서비스 점검 안내", "점검합니다.", SCHEDULED_AT))
                 .willReturn(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt, createdAt));
+                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null, createdAt, createdAt));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -220,8 +225,8 @@ class AdminNoticeControllerTest {
         Instant updatedAt = Instant.parse("2026-10-13T09:00:00Z");
         given(noticeService.updateNotice(NOTICE_ID, ADMIN_ID, "점검 일정 변경", "점검합니다.",
                 SCHEDULED_AT)).willReturn(new AdminNoticeResult(NOTICE_ID, "점검 일정 변경",
-                        "점검합니다.", SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt,
-                        updatedAt));
+                        "점검합니다.", SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null,
+                        createdAt, updatedAt));
 
         // When & Then
         mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
@@ -295,6 +300,61 @@ class AdminNoticeControllerTest {
                         {"title":"점검 일정 변경","body":"점검합니다.",
                         "scheduledAt":"2026-10-19T09:00:00Z"}
                         """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("공지를 찾을 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("삭제 성공 시 204로 응답하고 사유를 서비스에 전달한다")
+    void deleteNotice_validRequest_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"점검 일정 취소\"}"))
+                .andExpect(status().isNoContent());
+        verify(noticeService).deleteNotice(NOTICE_ID, ADMIN_ID, "점검 일정 취소");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"reason\":\" \"}"})
+    @DisplayName("삭제 사유 누락이나 공백은 400으로 응답한다")
+    void deleteNotice_invalidReason_returnsBadRequest(String content) throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content(content))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 사유가 500자를 넘으면 400으로 응답한다")
+    void deleteNotice_tooLongReason_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"" + "가".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 요청의 잘못된 UUID는 400으로 응답한다")
+    void deleteNotice_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/not-a-uuid").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"점검 일정 취소\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 공지의 삭제는 404로 응답한다")
+    void deleteNotice_unknownNotice_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다."))
+                .given(noticeService).deleteNotice(any(), any(), anyString());
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"점검 일정 취소\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("공지를 찾을 수 없습니다."));
     }

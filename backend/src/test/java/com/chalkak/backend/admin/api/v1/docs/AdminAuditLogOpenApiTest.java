@@ -35,7 +35,7 @@ class AdminAuditLogOpenApiTest extends IntegrationTestSupport {
                         "$.paths['/api/v1/admin/audit-logs'].get.parameters[?(@.name == 'action')].schema.enum[*]")
                         .value(hasItems("TOPIC_PUSH_SCHEDULE_CREATED",
                                 "TOPIC_PUSH_SCHEDULE_UPDATED", "TOPIC_PUSH_SCHEDULE_DELETED",
-                                "NOTICE_CREATED", "NOTICE_UPDATED")))
+                                "NOTICE_CREATED", "NOTICE_UPDATED", "NOTICE_DELETED")))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].get.responses['200']")

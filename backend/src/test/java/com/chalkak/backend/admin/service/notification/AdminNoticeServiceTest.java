@@ -29,6 +29,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -329,6 +331,139 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 "점검합니다.", Instant.now()))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 식별자가 필요합니다.");
+    }
+
+    @Test
+    @DisplayName("예약 상태의 공지를 삭제하면 발송을 취소하고 사유와 함께 감사 로그를 남긴다")
+    void deleteNotice_scheduledNotice_cancelsWithAuditLog() throws Exception {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+
+        // When
+        noticeService.deleteNotice(noticeId, ADMIN_ID, " 점검 일정 취소 ");
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        AdminNoticeResult result = noticeService.getNotice(noticeId);
+        assertThat(result.deletedAt()).isNotNull();
+        assertThat(result.status()).isEqualTo(NoticeStatus.SCHEDULED);
+        AdminAuditLog auditLog = findAuditLog(noticeId, AdminAction.NOTICE_DELETED);
+        assertThat(auditLog.getReason()).isEqualTo("점검 일정 취소");
+        assertThat(auditLog.getBeforeState()).containsEntry("title", "서비스 점검 안내")
+                .containsEntry("bodySha256", sha256("점검합니다."))
+                .containsEntry("deletedAt", null);
+        assertThat(auditLog.getAfterState())
+                .containsEntry("deletedAt", result.deletedAt().toString());
+    }
+
+    @Test
+    @DisplayName("배포된 공지를 삭제하면 배포 시각을 유지한 채 삭제 시각을 기록한다")
+    void deleteNotice_distributedNotice_recordsDeletedAt() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET distributed_at = scheduled_at WHERE id = ?",
+                noticeId);
+
+        // When
+        noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지");
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        AdminNoticeResult result = noticeService.getNotice(noticeId);
+        assertThat(result.deletedAt()).isNotNull();
+        assertThat(result.status()).isEqualTo(NoticeStatus.DISTRIBUTED);
+        assertThat(result.distributedAt()).isEqualTo(Instant.parse("2026-10-19T09:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("이미 삭제한 공지를 다시 삭제하면 최초 삭제 시각을 유지하고 감사 로그를 추가하지 않는다")
+    void deleteNotice_deletedNotice_keepsFirstResultWithoutAuditLog() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant deletedAt = Instant.parse("2026-10-13T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(deletedAt), noticeId);
+
+        // When
+        noticeService.deleteNotice(noticeId, ADMIN_ID, "다시 삭제");
+
+        // Then
+        assertThat(noticeService.getNotice(noticeId).deletedAt()).isEqualTo(deletedAt);
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("삭제 사유가 없거나 공백뿐이면 거절하고 공지를 삭제하지 않는다")
+    void deleteNotice_blankReason_throwsWithoutDeleting(String reason) {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.deleteNotice(noticeId, ADMIN_ID, reason))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("공지 삭제 사유는 1자 이상 500자 이하여야 합니다.");
+        assertThat(noticeService.getNotice(noticeId).deletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("삭제 사유는 앞뒤 공백을 제거한 뒤 500자까지 허용하고 501자는 거절한다")
+    void deleteNotice_reasonLengthBoundary_acceptsUpToFiveHundred() {
+        // Given
+        UUID rejected = insertNotice("거절할 공지", "2026-10-12T00:00:00Z");
+        UUID accepted = insertNotice("삭제할 공지", "2026-10-12T00:00:00Z");
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.deleteNotice(rejected, ADMIN_ID, "가".repeat(501)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("공지 삭제 사유는 1자 이상 500자 이하여야 합니다.");
+        noticeService.deleteNotice(accepted, ADMIN_ID, " " + "가".repeat(500) + " ");
+        assertThat(noticeService.getNotice(accepted).deletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("없는 공지를 삭제하면 찾을 수 없음 예외를 던진다")
+    void deleteNotice_unknownNotice_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> noticeService.deleteNotice(UUID.randomUUID(), ADMIN_ID,
+                "점검 일정 취소"))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("공지를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("삭제된 공지는 수정을 거절한다")
+    void updateNotice_deletedNotice_throwsBusinessException() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                noticeId);
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경",
+                "점검합니다.", Instant.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("삭제된 공지는 수정할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("공지 목록은 삭제된 공지도 삭제 시각과 함께 보여준다")
+    void getNotices_deletedNotice_includesDeletedAt() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant deletedAt = Instant.parse("2026-10-13T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(deletedAt), noticeId);
+
+        // When
+        AdminNoticeListResult result = noticeService.getNotices(1, 20);
+
+        // Then
+        assertThat(result.notices()).singleElement()
+                .satisfies(notice -> assertThat(notice.deletedAt()).isEqualTo(deletedAt));
     }
 
     private AdminAuditLog findAuditLog(UUID noticeId, AdminAction action) {

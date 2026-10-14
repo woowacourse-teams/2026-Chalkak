@@ -60,7 +60,7 @@ class AdminNoticeOpenApiTest extends IntegrationTestSupport {
                         .value("date-time"))
                 .andExpect(jsonPath("$.components.schemas.AdminNoticeResponse.properties.keys()")
                         .value(containsInAnyOrder("noticeId", "title", "body", "scheduledAt",
-                                "status", "distributedAt", "createdAt", "updatedAt")))
+                                "status", "distributedAt", "deletedAt", "createdAt", "updatedAt")))
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminNoticeResponse.properties.status.enum")
                         .value(containsInAnyOrder("SCHEDULED", "DISTRIBUTED")));
@@ -85,5 +85,23 @@ class AdminNoticeOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(NOTICE
                         + ".put.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/AdminNoticeResponse"));
+    }
+
+    @Test
+    @DisplayName("공지 삭제 API는 관리자 보안·UUID 경로·사유 본문·응답 코드 계약을 노출한다")
+    void adminApiDocs_deleteNotice_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(NOTICE + ".delete.responses.keys()")
+                        .value(containsInAnyOrder("204", "400", "401", "403", "404")))
+                .andExpect(jsonPath(NOTICE + ".delete.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(NOTICE + ".delete.parameters[0].schema.format")
+                        .value("uuid"))
+                .andExpect(jsonPath(NOTICE
+                        + ".delete.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminNoticeDeletionRequest"))
+                .andExpect(jsonPath("$.components.schemas.AdminNoticeDeletionRequest.required")
+                        .value(containsInAnyOrder("reason")));
     }
 }
