@@ -56,12 +56,21 @@ final class FeedZoomRenderingTests: XCTestCase {
 
     private func pixel(_ image: UIImage, x: Int, y: Int) throws -> [UInt8] {
         let cgImage = try XCTUnwrap(image.cgImage)
-        var bytes = [UInt8](repeating: 0, count: cgImage.width * cgImage.height * 4)
-        try bytes.withUnsafeMutableBytes { buffer in
-            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: cgImage.width, height: cgImage.height, bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        // Keep bitmap storage owned by Core Graphics for the context's entire lifetime.
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: cgImage.width,
+            height: cgImage.height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        let data = try XCTUnwrap(context.data)
+        let index = y * context.bytesPerRow + x * 4
+        return withExtendedLifetime(context) {
+            Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self).advanced(by: index), count: 4))
         }
-        let index = (y * cgImage.width + x) * 4
-        return Array(bytes[index..<(index + 4)])
     }
 }
