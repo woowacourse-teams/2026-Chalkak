@@ -32,6 +32,7 @@ import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
 @Composable
 fun LoginRoute(
+    onLoginSuccess: () -> Unit,
     onGuestAccessGranted: () -> Unit,
     onSignUpRequired: () -> Unit,
     modifier: Modifier = Modifier,
@@ -58,6 +59,8 @@ fun LoginRoute(
 
     LaunchedEffect(uiState.status) {
         when (uiState.status) {
+            LoginStatus.Authenticated -> onLoginSuccess()
+
             LoginStatus.GuestAccessGranted -> onGuestAccessGranted()
 
             LoginStatus.SignUpRequired -> {

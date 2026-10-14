@@ -21,13 +21,13 @@ data object OnboardingSignaturePreview
 data object ChangeSignaturePreview
 
 @Serializable
-data class ReminderTime(val returnToSettings: Boolean = false)
-
-@Serializable
 data object Home
 
 @Serializable
 data object Notifications
+
+@Serializable
+data class NotificationDetail(val notificationId: String)
 
 @Serializable
 data class Display(

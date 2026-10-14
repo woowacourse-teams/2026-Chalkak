@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- A vector lets Android tint the small icon for the notification surface. -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M8.2,2.8H5.5C3.5,2.8 2.8,4.1 2.8,5.5V8.2M15.8,2.8H18.5C20.5,2.8 21.2,4.1 21.2,5.5V8.2M2.8,15.8V18.5C2.8,20.5 4.1,21.2 5.5,21.2H8.2M15,20.8C16.2,18.6 18.5,17.5 18.8,18.9C19,19.9 18.5,20.4 19.7,20.5C20.4,20.6 21,20.1 21.2,19.9M16,12A4,4 0,1 1,8 12A4,4 0,1 1,16 12" />
+</vector>

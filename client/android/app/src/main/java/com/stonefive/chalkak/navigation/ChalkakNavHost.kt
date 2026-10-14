@@ -1,5 +1,11 @@
 package com.stonefive.chalkak.navigation
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
@@ -13,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination
@@ -34,6 +41,8 @@ import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.domain.model.NotificationFailure
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
@@ -44,9 +53,10 @@ import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.login.LoginRoute
+import com.stonefive.chalkak.feature.notification.NotificationDetailRoute
+import com.stonefive.chalkak.feature.notification.NotificationItemUiState
 import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
-import com.stonefive.chalkak.feature.reminder.ReminderTimeRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -72,10 +82,13 @@ fun ChalkakNavHost(
     signUpViewModel: SignUpViewModel? = null,
 ) {
     val photoTransitionCoordinator = rememberPhotoTransitionCoordinator()
-    val application = LocalContext.current.applicationContext as ChalkakApplication
+    val context = LocalContext.current
+    val application = context.applicationContext as ChalkakApplication
     val sessionState by application.appContainer.authRepository.sessionState
         .collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val pendingNotificationPush by application.appContainer.pendingNotificationNavigation.pending
+        .collectAsStateWithLifecycle()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
     var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
@@ -84,6 +97,9 @@ fun ChalkakNavHost(
         viewModel(factory = PhotoUploadEntryGateViewModel.Factory)
     val photoUploadEntryGateUiState by photoUploadEntryGateViewModel.uiState
         .collectAsStateWithLifecycle()
+    val pushNotificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {}
 
     UiMessageEffect(
         message = pendingMessage,
@@ -153,6 +169,69 @@ fun ChalkakNavHost(
         }
     }
 
+    LaunchedEffect(sessionState) {
+        if (sessionState is UserSessionState.Authenticated &&
+            context.shouldRequestPushNotificationPermissionOnce()
+        ) {
+            context.markPushNotificationPermissionRequested()
+            pushNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    LaunchedEffect(
+        pendingNotificationPush,
+        sessionState,
+        currentBackStackEntry?.destination,
+    ) {
+        val push = pendingNotificationPush ?: return@LaunchedEffect
+        if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
+        if (currentBackStackEntry == null) return@LaunchedEffect
+
+        if (push.type == TOPIC) {
+            application.appContainer.pendingNotificationNavigation
+                .consume(push)
+            navController.openNotificationTarget(
+                type = push.type,
+                sourceType = push.sourceType,
+                sourceId = push.sourceId,
+                notificationId = push.notificationId,
+            )
+            return@LaunchedEffect
+        }
+
+        if (currentBackStackEntry?.destination?.hasRoute<Home>() != true) return@LaunchedEffect
+
+        val notificationId = push.notificationId?.takeIf(String::isNotBlank)
+        if (notificationId == null) {
+            application.appContainer.pendingNotificationNavigation
+                .consume(push)
+            showToast("알림 정보를 확인할 수 없어요.")
+            return@LaunchedEffect
+        }
+
+        when (val result = application.appContainer.markNotificationRead(notificationId)) {
+            is NotificationResult.Success -> {
+                application.appContainer.pendingNotificationNavigation
+                    .consume(push)
+                navController.openNotificationTarget(
+                    type = push.type,
+                    sourceType = push.sourceType,
+                    sourceId = push.sourceId,
+                    notificationId = notificationId,
+                )
+            }
+
+            is NotificationResult.Failure -> {
+                application.appContainer.pendingNotificationNavigation
+                    .consume(push)
+                showToast("알림이 만료되었거나 현재 계정에서 확인할 수 없어요.")
+                if ((result.reason as? NotificationFailure.Http)?.statusCode == 404) {
+                    navController.navigate(Notifications) { launchSingleTop = true }
+                }
+            }
+        }
+    }
+
     selectedLegalDocument?.let { document ->
         LegalDocumentDialog(
             document = document,
@@ -172,6 +251,12 @@ fun ChalkakNavHost(
         ) {
             composable<Login> {
                 LoginRoute(
+                    onLoginSuccess = {
+                        navController.navigate(Home) {
+                            popUpTo<Login> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                     onGuestAccessGranted = {
                         navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
@@ -230,7 +315,7 @@ fun ChalkakNavHost(
                             signaturePreviewPng = null
                         },
                         onSignUpSuccess = {
-                            navController.navigate(ReminderTime()) {
+                            navController.navigate(Home) {
                                 popUpTo<Terms> { inclusive = true }
                                 launchSingleTop = true
                             }
@@ -245,26 +330,6 @@ fun ChalkakNavHost(
                         viewModel = previewSignUpViewModel,
                     )
                 }
-            }
-
-            composable<ReminderTime> { backStackEntry ->
-                val reminderTime = backStackEntry.toRoute<ReminderTime>()
-
-                ReminderTimeRoute(
-                    onBackClick = { navController.popBackStack() },
-                    onConfigured = {
-                        if (reminderTime.returnToSettings) {
-                            navController.popBackStack()
-                        } else {
-                            navController.navigate(Home) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    inclusive = true
-                                }
-                                launchSingleTop = true
-                            }
-                        }
-                    },
-                )
             }
 
             composable<ChangeSignaturePreview> {
@@ -329,7 +394,23 @@ fun ChalkakNavHost(
             }
 
             composable<Notifications> {
-                NotificationRoute(onBackClick = { navController.popBackStack() })
+                NotificationRoute(
+                    onBackClick = { navController.popBackStack() },
+                    onNotificationClick = { item -> navController.openNotificationTarget(item) },
+                )
+            }
+
+            composable<NotificationDetail> { backStackEntry ->
+                val detail = backStackEntry.toRoute<NotificationDetail>()
+                NotificationDetailRoute(
+                    notificationId = detail.notificationId,
+                    onBackClick = { navController.popBackStack() },
+                    onOpenNotificationList = {
+                        if (!navController.popBackStack<Notifications>(inclusive = false)) {
+                            navController.navigate(Notifications) { launchSingleTop = true }
+                        }
+                    },
+                )
             }
 
             composable<Display> { backStackEntry ->
@@ -503,9 +584,6 @@ fun ChalkakNavHost(
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
                     },
-                    onOpenReminder = {
-                        navController.navigate(ReminderTime(returnToSettings = true))
-                    },
                     onNavigateToBottomBar = navigateToBottomBar,
                     onOpenPhotoUpload = openPhotoUpload,
                 )
@@ -573,6 +651,51 @@ fun ChalkakNavHost(
     }
 }
 
+private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {
+    openNotificationTarget(
+        type = item.type,
+        sourceType = item.sourceType,
+        sourceId = item.sourceId,
+        notificationId = item.id,
+    )
+}
+
+internal fun NavHostController.openNotificationTarget(
+    type: String?,
+    sourceType: String?,
+    sourceId: String?,
+    notificationId: String?,
+) {
+    when {
+        type == TOPIC -> {
+            navigate(Home) {
+                popUpTo<Home>()
+                launchSingleTop = true
+            }
+        }
+
+        type == POST_APPROVED && sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+            navigate(
+                FeedById(
+                    postId = sourceId,
+                    isOwnedByCurrentUser = true,
+                ),
+            ) { launchSingleTop = true }
+        }
+
+        type == POST_REJECTED && !notificationId.isNullOrBlank() -> {
+            navigate(NotificationDetail(notificationId)) { launchSingleTop = true }
+        }
+
+        else -> navigate(Notifications) { launchSingleTop = true }
+    }
+}
+
+private const val POST_APPROVED = "POST_APPROVED"
+private const val POST_REJECTED = "POST_REJECTED"
+private const val POST_SOURCE_TYPE = "POST"
+private const val TOPIC = "TOPIC"
+
 private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
     analyticsTracker: AnalyticsTracker,
@@ -638,6 +761,24 @@ private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 private const val FEEDBACK_LOGIN_REQUIRED_MESSAGE = "피드백을 보내려면 로그인이 필요해요"
 private const val FEEDBACK_SUBMITTED_MESSAGE = "피드백을 보내주셔서 감사해요."
+private const val PUSH_PERMISSION_PROMPT_PREFS = "push_notification_permission_prompt"
+private const val PUSH_PERMISSION_REQUESTED_KEY = "requested"
+
+private fun Context.shouldRequestPushNotificationPermissionOnce(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) != PackageManager.PERMISSION_GRANTED &&
+        !getSharedPreferences(PUSH_PERMISSION_PROMPT_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(PUSH_PERMISSION_REQUESTED_KEY, false)
+
+private fun Context.markPushNotificationPermissionRequested() {
+    getSharedPreferences(PUSH_PERMISSION_PROMPT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(PUSH_PERMISSION_REQUESTED_KEY, true)
+        .apply()
+}
 
 private fun NavHostController.navigateToDisplay(date: LocalDate) {
     navigate(Display(date = date.toString())) {
