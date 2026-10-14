@@ -160,9 +160,11 @@ private enum Metrics {
     static let pendingBadgeVerticalPadding: CGFloat = 1
 }
 
-private extension Date {
+extension Date {
     var homeWeekdayText: String {
-        formatted(.dateTime.locale(Locale(identifier: "ko_KR")).weekday(.abbreviated))
+        let calendar = RecordMonth.calendar
+        let weekday = calendar.component(.weekday, from: self)
+        return calendar.shortWeekdaySymbols[weekday - 1]
     }
 }
 

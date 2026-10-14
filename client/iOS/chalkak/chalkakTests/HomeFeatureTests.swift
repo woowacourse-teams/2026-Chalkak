@@ -17,6 +17,19 @@ struct HomeViewStateTests {
             "2027-01-01",
             "2027-01-02"
         ])
+        #expect(dates.map(\.homeWeekdayText) == ["일", "월", "화", "수", "목", "금", "토"])
+    }
+
+    @Test("서울 자정의 요일은 UTC 전날이 아닌 주제 날짜와 일치한다")
+    func weekdayLabelUsesKSTAtMidnight() {
+        let friday = Self.date(year: 2027, month: 1, day: 1)
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        #expect(utcCalendar.component(.weekday, from: friday) == 5)
+        #expect(friday.homeWeekdayText == "금")
+        #expect(friday.homeFullDateText == "2027년 1월 1일")
+        #expect(friday.addingTimeInterval(-1).homeWeekdayText == "목")
     }
 
     @Test("Asia Seoul 기준 날짜 변경은 홈 상태 날짜를 바꾼다")
