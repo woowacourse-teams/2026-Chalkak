@@ -43,8 +43,7 @@ public class AdminNoticeService {
     @Transactional(readOnly = true)
     public AdminNoticeResult getNotice(UUID noticeId) {
         Notice notice = noticeRepository.findById(noticeId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
-                        "공지를 찾을 수 없습니다."));
+                .orElseThrow(this::noticeNotFoundException);
         return AdminNoticeResult.from(notice);
     }
 
@@ -61,6 +60,31 @@ public class AdminNoticeService {
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId, AdminAction.NOTICE_CREATED, AdminTargetType.NOTICE, saved.getId(), null,
                 AdminAuditSnapshot.from(Map.of()), createNoticeState(saved)));
+        return AdminNoticeResult.from(saved);
+    }
+
+    @Transactional
+    public AdminNoticeResult updateNotice(
+            UUID noticeId,
+            UUID adminId,
+            String title,
+            String body,
+            Instant scheduledAt
+    ) {
+        validateAdminId(adminId);
+        Notice notice = noticeRepository.findByIdForUpdate(noticeId)
+                .orElseThrow(this::noticeNotFoundException);
+        AdminAuditSnapshot beforeState = createNoticeState(notice);
+        notice.update(title, body, scheduledAt, clock.instant());
+        AdminAuditSnapshot afterState = createNoticeState(notice);
+        // 같은 내용으로 수정하면 바뀐 것이 없으므로 감사 로그를 남기지 않는다.
+        if (beforeState.values().equals(afterState.values())) {
+            return AdminNoticeResult.from(notice);
+        }
+        Notice saved = noticeRepository.saveAndFlush(notice);
+        adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId, AdminAction.NOTICE_UPDATED, AdminTargetType.NOTICE, saved.getId(), null,
+                beforeState, afterState));
         return AdminNoticeResult.from(saved);
     }
 
@@ -96,5 +120,9 @@ public class AdminNoticeService {
         if (adminId == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "관리자 식별자가 필요합니다.");
         }
+    }
+
+    private NotFoundException noticeNotFoundException() {
+        return new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다.");
     }
 }

@@ -9,6 +9,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -198,6 +199,73 @@ class NoticeTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("예약 상태의 공지만 배포할 수 있습니다.");
         assertThat(notice.getDistributedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("예약 시각은 DB 저장 정밀도인 마이크로초까지만 남긴다")
+    void create_nanosecondScheduledAt_truncatesToMicros() {
+        // Given
+        Instant scheduledAt = NOW.plusNanos(1_234_567);
+
+        // When
+        Notice notice = Notice.create(TITLE, BODY, scheduledAt, NOW);
+
+        // Then
+        assertThat(notice.getScheduledAt()).isEqualTo(NOW.plusNanos(1_234_000));
+    }
+
+    @Test
+    @DisplayName("예약 상태의 공지는 제목·본문의 앞뒤 공백을 제거해 수정하고 예약 시각을 바꾼다")
+    void update_scheduledNotice_updatesNormalizedContent() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Instant scheduledAt = NOW.plus(Duration.ofDays(1));
+
+        // When
+        notice.update(" 수정한 안내 ", "\n수정한 본문 ", scheduledAt, NOW);
+
+        // Then
+        assertThat(notice.getTitle()).isEqualTo("수정한 안내");
+        assertThat(notice.getBody()).isEqualTo("수정한 본문");
+        assertThat(notice.getScheduledAt()).isEqualTo(scheduledAt);
+    }
+
+    @Test
+    @DisplayName("배포된 공지는 수정할 수 없고 내용을 유지한다")
+    void update_distributedNotice_throwsBusinessException() {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        notice.distribute(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.update("수정한 안내", BODY, NOW, NOW))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("배포된 공지는 수정할 수 없습니다.");
+        assertThat(notice.getTitle()).isEqualTo(TITLE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "' ', 본문, 0, 공지 제목은 1자 이상 50자 이하여야 합니다.",
+            "제목, ' ', 0, 공지 본문은 1자 이상 500자 이하여야 합니다.",
+            "제목, 본문, 301, 공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다."})
+    @DisplayName("수정 입력은 작성과 같은 기준으로 검증하고 실패하면 기존 내용을 유지한다")
+    void update_invalidContent_keepsOriginalContent(
+            String title,
+            String body,
+            long secondsAgo,
+            String message
+    ) {
+        // Given
+        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> notice.update(title, body, NOW.minusSeconds(secondsAgo), NOW))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(message);
+        assertThat(notice.getTitle()).isEqualTo(TITLE);
+        assertThat(notice.getBody()).isEqualTo(BODY);
+        assertThat(notice.getScheduledAt()).isEqualTo(NOW);
     }
 
     private boolean canCreateWithTitle(String title) {

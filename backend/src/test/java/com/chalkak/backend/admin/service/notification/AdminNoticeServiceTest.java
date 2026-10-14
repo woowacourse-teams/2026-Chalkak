@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -214,6 +215,130 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> noticeService.getNotice(UUID.randomUUID()))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("공지를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("예약 상태의 공지를 수정하면 정규화한 내용을 저장하고 변경 전후를 감사 로그에 남긴다")
+    void updateNotice_scheduledNotice_persistsChangeAndAuditLog() throws Exception {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant scheduledAt = Instant.now().plus(Duration.ofDays(2))
+                .truncatedTo(ChronoUnit.MICROS);
+
+        // When
+        AdminNoticeResult result = noticeService.updateNotice(noticeId, ADMIN_ID,
+                " 점검 일정 변경 ", "10월 21일로 변경합니다.", scheduledAt);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Notice stored = entityManager.find(Notice.class, noticeId);
+        assertThat(stored.getTitle()).isEqualTo("점검 일정 변경");
+        assertThat(stored.getBody()).isEqualTo("10월 21일로 변경합니다.");
+        assertThat(stored.getScheduledAt()).isEqualTo(scheduledAt);
+        assertThat(result.title()).isEqualTo("점검 일정 변경");
+        assertThat(result.status()).isEqualTo(NoticeStatus.SCHEDULED);
+        assertThat(result.updatedAt()).isAfter(Instant.parse("2026-10-12T00:00:00Z"));
+        assertThat(result.updatedAt()).isEqualTo(stored.getUpdatedAt());
+        AdminAuditLog auditLog = findAuditLog(noticeId, AdminAction.NOTICE_UPDATED);
+        assertThat(auditLog.getActorAdminId()).isEqualTo(ADMIN_ID);
+        assertThat(auditLog.getReason()).isNull();
+        assertThat(auditLog.getBeforeState()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "title", "서비스 점검 안내",
+                "scheduledAt", "2026-10-19T09:00:00Z",
+                "bodySha256", sha256("점검합니다.")));
+        assertThat(auditLog.getAfterState()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "title", "점검 일정 변경",
+                "scheduledAt", scheduledAt.toString(),
+                "bodySha256", sha256("10월 21일로 변경합니다.")));
+    }
+
+    @Test
+    @DisplayName("같은 내용으로 수정하면 바뀌지 않은 공지를 그대로 응답하고 감사 로그를 남기지 않는다")
+    void updateNotice_sameContent_returnsNoticeWithoutAuditLog() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant scheduledAt = Instant.parse("2099-01-01T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET scheduled_at = ? WHERE id = ?",
+                Timestamp.from(scheduledAt), noticeId);
+
+        // When
+        AdminNoticeResult result = noticeService.updateNotice(noticeId, ADMIN_ID,
+                " 서비스 점검 안내 ", "점검합니다.", scheduledAt);
+
+        // Then
+        assertThat(result.title()).isEqualTo("서비스 점검 안내");
+        assertThat(result.updatedAt()).isEqualTo(Instant.parse("2026-10-12T00:00:00Z"));
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("나노초만 다른 같은 예약 시각으로 수정하면 변경으로 보지 않고 감사 로그를 남기지 않는다")
+    void updateNotice_sameContentWithNanoseconds_returnsNoticeWithoutAuditLog() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        Instant scheduledAt = Instant.parse("2099-01-01T00:00:00.123456Z");
+        jdbcTemplate.update("UPDATE notices SET scheduled_at = ? WHERE id = ?",
+                Timestamp.from(scheduledAt), noticeId);
+
+        // When
+        noticeService.updateNotice(noticeId, ADMIN_ID, "서비스 점검 안내", "점검합니다.",
+                scheduledAt.plusNanos(789));
+
+        // Then
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("배포된 공지는 수정을 거절하고 내용과 감사 로그를 바꾸지 않는다")
+    void updateNotice_distributedNotice_throwsWithoutChange() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+        jdbcTemplate.update("UPDATE notices SET distributed_at = scheduled_at WHERE id = ?",
+                noticeId);
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경",
+                "점검합니다.", Instant.parse("2026-10-19T09:00:00Z")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("배포된 공지는 수정할 수 없습니다.");
+        entityManager.clear();
+        assertThat(entityManager.find(Notice.class, noticeId).getTitle())
+                .isEqualTo("서비스 점검 안내");
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("없는 공지를 수정하면 찾을 수 없음 예외를 던진다")
+    void updateNotice_unknownNotice_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> noticeService.updateNotice(UUID.randomUUID(), ADMIN_ID,
+                "점검 일정 변경", "점검합니다.", Instant.now()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("공지를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("관리자 식별자가 없으면 공지 수정을 거절한다")
+    void updateNotice_nullAdminId_throwsBusinessException() {
+        // Given
+        UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, null, "점검 일정 변경",
+                "점검합니다.", Instant.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("관리자 식별자가 필요합니다.");
+    }
+
+    private AdminAuditLog findAuditLog(UUID noticeId, AdminAction action) {
+        return entityManager.createQuery("""
+                SELECT auditLog FROM AdminAuditLog auditLog
+                WHERE auditLog.targetId = :targetId AND auditLog.action = :action
+                """, AdminAuditLog.class)
+                .setParameter("targetId", noticeId)
+                .setParameter("action", action)
+                .getSingleResult();
     }
 
     private UUID insertNotice(String title, String createdAt) {

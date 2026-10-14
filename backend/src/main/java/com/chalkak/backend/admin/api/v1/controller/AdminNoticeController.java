@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,5 +61,18 @@ public class AdminNoticeController implements AdminNoticeApiDocs {
         AdminNoticeResult result = noticeService.createNotice(authenticatedAdmin.adminId(),
                 request.title(), request.body(), request.scheduledAt());
         return ResponseEntity.status(HttpStatus.CREATED).body(AdminNoticeResponse.from(result));
+    }
+
+    @Override
+    @PutMapping("/{noticeId}")
+    public ResponseEntity<AdminNoticeResponse> updateNotice(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String noticeId,
+            @Valid @RequestBody AdminNoticeRequest request
+    ) {
+        AdminNoticeResult result = noticeService.updateNotice(
+                CanonicalUuidParser.parse(noticeId), authenticatedAdmin.adminId(),
+                request.title(), request.body(), request.scheduledAt());
+        return ResponseEntity.ok(AdminNoticeResponse.from(result));
     }
 }

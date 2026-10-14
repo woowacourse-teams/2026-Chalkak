@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -60,11 +61,21 @@ public class Notice {
             Instant now
     ) {
         Notice notice = new Notice();
-        notice.title = normalizeText(title, MAX_TITLE_LENGTH, "공지 제목은 1자 이상 50자 이하여야 합니다.");
-        notice.body = normalizeText(body, MAX_BODY_LENGTH, "공지 본문은 1자 이상 500자 이하여야 합니다.");
-        validateScheduledAt(scheduledAt, now);
-        notice.scheduledAt = scheduledAt;
+        notice.applyContent(title, body, scheduledAt, now);
         return notice;
+    }
+
+    // 배포된 공지는 회원에게 이미 전달되어 내용을 바꿀 수 없다.
+    public void update(
+            String title,
+            String body,
+            Instant scheduledAt,
+            Instant now
+    ) {
+        if (distributedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "배포된 공지는 수정할 수 없습니다.");
+        }
+        applyContent(title, body, scheduledAt, now);
     }
 
     public void distribute(Instant distributedAt) {
@@ -84,6 +95,23 @@ public class Notice {
 
     public static boolean isValidTitle(String title) {
         return title != null && isValidNormalizedText(title.trim(), MAX_TITLE_LENGTH);
+    }
+
+    private void applyContent(
+            String title,
+            String body,
+            Instant scheduledAt,
+            Instant now
+    ) {
+        String normalizedTitle = normalizeText(title, MAX_TITLE_LENGTH,
+                "공지 제목은 1자 이상 50자 이하여야 합니다.");
+        String normalizedBody = normalizeText(body, MAX_BODY_LENGTH,
+                "공지 본문은 1자 이상 500자 이하여야 합니다.");
+        validateScheduledAt(scheduledAt, now);
+        this.title = normalizedTitle;
+        this.body = normalizedBody;
+        // DB는 마이크로초까지 저장하므로 저장값·감사 기록·변경 비교가 같은 값을 쓰도록 맞춘다.
+        this.scheduledAt = scheduledAt.truncatedTo(ChronoUnit.MICROS);
     }
 
     private static String normalizeText(
