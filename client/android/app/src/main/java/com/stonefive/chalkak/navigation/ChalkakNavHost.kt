@@ -447,8 +447,10 @@ fun ChalkakNavHost(
                                         isOwnedByCurrentUser = post.isOwnedByCurrentUser,
                                     ),
                                 )
+                                true
                             } else {
                                 showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                                false
                             }
                         },
                     )

@@ -422,6 +422,177 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `랜덤 피드 복귀는 시드와 페이지를 유지하고 상세 변경만 갱신한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "tail-photo")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = true,
+                    randomSeed = "seed-1",
+                ),
+            )
+            detailResult = HomeResult.Success(
+                PostDetail(
+                    post = post.copy(title = "수정한 제목", likeCount = 20, isLiked = true),
+                    topic = "바다",
+                    topicDate = LATEST_DATE,
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.updateEndThreshold(true)
+        randomViewModel.onFeedOpened(post.id)
+        randomRepository.firstPageRandomSeed = "seed-2"
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        val photos = (state.content as DisplayContentState.Latest).photos
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(2, state.currentPage)
+        assertTrue(state.hasNext)
+        assertEquals(listOf(post.id, "tail-photo"), photos.map(Post::id))
+        assertEquals("수정한 제목", photos.first().title)
+        assertEquals(20, photos.first().likeCount)
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals(listOf(post.id), randomRepository.detailRequests)
+        assertEquals(1, randomRepository.requests.size)
+
+        randomViewModel.updateEndThreshold(false)
+        randomViewModel.updateEndThreshold(true)
+        assertEquals(
+            HomeQuery(date = LATEST_DATE, sort = PostSort.RANDOM, page = 3, randomSeed = "seed-1"),
+            randomRepository.pageRequests.last(),
+        )
+    }
+
+    @Test
+    fun `랜덤 피드 복귀의 상세 갱신 실패는 기존 세션을 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            detailResult = HomeResult.Failure(HomeFailure.Network)
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        val previousState = randomViewModel.uiState.value
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        assertEquals(previousState.content, state.content)
+        assertEquals(previousState.randomSeed, state.randomSeed)
+        assertEquals(previousState.currentPage, state.currentPage)
+        assertEquals(previousState.hasNext, state.hasNext)
+        assertTrue(state.pendingMessage is UiMessage.Toast)
+        assertEquals(1, randomRepository.requests.size)
+    }
+
+    @Test
+    fun `랜덤 피드에서 삭제한 사진은 복귀 시 제거하고 시드는 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            detailResult = HomeResult.Failure(HomeFailure.Http(404))
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        assertTrue((state.content as DisplayContentState.Latest).photos.isEmpty())
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(1, state.currentPage)
+        assertTrue(state.hasNext)
+        assertEquals(1, randomRepository.requests.size)
+    }
+
+    @Test
+    fun `랜덤 피드에서 날짜가 바뀌면 과거 전시로 재검증한다`() = runTest {
+        var today = LATEST_DATE
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+        }
+        val randomViewModel = DisplayViewModel(
+            repository = randomRepository,
+            initialSort = PostSort.RANDOM,
+            dateProvider = { today },
+        )
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        today = today.plusDays(1)
+
+        randomViewModel.onResume()
+
+        assertTrue(randomViewModel.uiState.value.content is DisplayContentState.Archive)
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.POPULAR), randomRepository.requests.last())
+        assertTrue(randomRepository.detailRequests.isEmpty())
+    }
+
+    @Test
+    fun `피드 복귀 상세 응답은 요청 이후 성공한 좋아요를 덮어쓰지 않는다`() = runTest {
+        val pendingDetail = CompletableDeferred<HomeResult<PostDetail>>()
+        val randomRepository = FakePostRepository().apply {
+            firstPageRandomSeed = "seed-1"
+            pendingDetailResult = pendingDetail
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        randomViewModel.updateLike(post.id)
+        pendingDetail.complete(
+            HomeResult.Success(PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE)),
+        )
+        advanceUntilIdle()
+
+        val state = randomViewModel.uiState.value
+        val photo = (state.content as DisplayContentState.Latest).photos.single()
+        assertTrue(photo.isLiked)
+        assertEquals(18, photo.likeCount)
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals("seed-1", state.randomSeed)
+    }
+
+    @Test
+    fun `피드 복귀를 반복하면 이전 상세 요청을 취소하고 최근 결과를 유지한다`() = runTest {
+        val oldDetail = CompletableDeferred<HomeResult<PostDetail>>()
+        val randomRepository = FakePostRepository().apply {
+            firstPageRandomSeed = "seed-1"
+            pendingDetailResult = oldDetail
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        randomRepository.pendingDetailResult = null
+        randomRepository.detailResult = HomeResult.Success(
+            PostDetail(post = post.copy(title = "최근 제목"), topic = "바다", topicDate = LATEST_DATE),
+        )
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        oldDetail.complete(
+            HomeResult.Success(PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE)),
+        )
+        advanceUntilIdle()
+
+        val state = randomViewModel.uiState.value
+        val photo = (state.content as DisplayContentState.Latest).photos.single()
+        assertEquals("최근 제목", photo.title)
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(listOf(post.id, post.id), randomRepository.detailRequests)
+    }
+
+    @Test
     fun `랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다`() = runTest {
         val randomRepository = FakePostRepository().apply {
             firstPageHasNext = true
@@ -692,6 +863,11 @@ private val EARLIEST_DATE: LocalDate = LocalDate.of(2026, 8, 1)
 private class FakePostRepository : PostRepository {
     val requests = mutableListOf<HomeQuery>()
     val pageRequests = mutableListOf<HomeQuery>()
+    val detailRequests = mutableListOf<String>()
+    var pendingDetailResult: CompletableDeferred<HomeResult<PostDetail>>? = null
+    var detailResult: HomeResult<PostDetail> = HomeResult.Success(
+        PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE),
+    )
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
@@ -718,7 +894,10 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> {
+        detailRequests += postId
+        return pendingDetailResult?.await() ?: detailResult
+    }
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
