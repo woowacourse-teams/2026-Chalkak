@@ -17,6 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,9 +53,12 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     private UUID noticeId;
+    // 공용 스레드 풀은 CPU가 적으면 스레드가 하나뿐이라, 잠금을 쥔 작업과 기다리는 작업이 동시에 실행되도록 전용 풀을 쓴다.
+    private ExecutorService executor;
 
     @BeforeEach
     void setUp() {
+        executor = Executors.newFixedThreadPool(2);
         clean();
         noticeId = jdbcTemplate.queryForObject("""
                 INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
@@ -63,7 +68,9 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws InterruptedException {
+        executor.shutdownNow();
+        executor.awaitTermination(2, TimeUnit.SECONDS);
         clean();
     }
 
@@ -82,13 +89,14 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
                     await(distributionCanCommit);
                     notificationRepository.createNoticeNotifications(notice, now);
                     notice.distribute(now);
-                }));
+                }), executor);
         await(distributionLocked);
 
         // When
         CompletableFuture<AdminNoticeResult> update = CompletableFuture.supplyAsync(
                 () -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경", "점검합니다.",
-                        Instant.now()));
+                        Instant.now()),
+                executor);
         try {
             awaitLockWaiting();
             assertThat(update.isDone()).isFalse();
@@ -119,7 +127,7 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
                     noticeRepository.findByIdForUpdate(noticeId).orElseThrow();
                     updateLocked.countDown();
                     await(updateCanCommit);
-                }));
+                }), executor);
         await(updateLocked);
 
         // When
@@ -158,12 +166,12 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
                     await(distributionCanCommit);
                     notificationRepository.createNoticeNotifications(notice, now);
                     notice.distribute(now);
-                }));
+                }), executor);
         await(distributionLocked);
 
         // When
         CompletableFuture<Void> deletion = CompletableFuture.runAsync(
-                () -> noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지"));
+                () -> noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지"), executor);
         try {
             awaitLockWaiting();
             assertThat(deletion.isDone()).isFalse();
@@ -192,7 +200,7 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
                             .delete(Instant.now());
                     deletionLocked.countDown();
                     await(deletionCanCommit);
-                }));
+                }), executor);
         await(deletionLocked);
 
         // When
