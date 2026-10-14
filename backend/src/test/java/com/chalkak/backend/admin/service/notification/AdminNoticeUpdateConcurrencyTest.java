@@ -107,6 +107,7 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
                 .isEqualTo("서비스 점검 안내");
     }
 
+    // 수정 서비스 대신 수정이 쓰는 잠금 조회만 호출해, 수정이 잡는 공지 행 잠금을 재현한다.
     @Test
     @DisplayName("수정이 공지를 잠그고 있으면 배포는 그 공지를 건너뛰고 다음 확인 때 배포한다")
     void distributeNotices_updateLocksFirst_skipsLockedNotice() throws Exception {
@@ -144,6 +145,7 @@ class AdminNoticeUpdateConcurrencyTest extends IntegrationTestSupport {
             Integer waiting = jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM pg_stat_activity
                     WHERE datname = current_database() AND wait_event_type = 'Lock'
+                        AND query ILIKE '%notices%'
                     """, Integer.class);
             if (waiting != null && waiting > 0) {
                 return;
