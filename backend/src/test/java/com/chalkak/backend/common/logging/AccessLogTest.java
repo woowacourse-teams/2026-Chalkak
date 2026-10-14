@@ -8,7 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -106,7 +107,8 @@ class AccessLogTest extends IntegrationTestSupport {
     void accessLog_memberRequest_logsUserId() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        String token = accessTokenProvider.issue(userId).value();
+        UUID sessionId = UUID.randomUUID();
+        String token = accessTokenProvider.issueForSession(userId, sessionId).value();
 
         // When
         mockMvc.perform(get("/api/v1/topics")
@@ -165,7 +167,7 @@ class AccessLogTest extends IntegrationTestSupport {
         UUID userId = UUID.randomUUID();
         insertUser(userId);
         insertTopic("2026-08-12");
-        String token = accessTokenProvider.issue(userId).value();
+        String token = accessTokenProvider.issue(userId, AccessTokenScope.USER).value();
 
         // When
         MvcResult result = mockMvc.perform(get("/api/v1/posts")

@@ -17,14 +17,13 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * 필터가 인증보다 먼저 도는지 확인한다. 서명 헤더가 전혀 없는 요청이 401이 아니라 413을 받아야, 본문이
- * 인증 이전에 메모리로 올라오지 않았다는 뜻이다.
+ * 필터가 인증보다 먼저 도는지 확인한다. 서명 헤더가 전혀 없는 요청이 401이 아니라 413을 받아야, 본문이 인증 이전에 메모리로
+ * 올라오지 않았다는 뜻이다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CallbackBodySizeLimitFilterTest extends IntegrationTestSupport {
 
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
     @LocalServerPort
     private int port;

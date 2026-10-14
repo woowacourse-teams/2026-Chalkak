@@ -1,0 +1,204 @@
+package com.chalkak.backend.auth.service.signup;
+
+import com.chalkak.backend.auth.domain.identity.SocialAccount;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.auth.domain.identity.VerifiedSocialIdentity;
+import com.chalkak.backend.auth.domain.signup.ConsumedSignupToken;
+import com.chalkak.backend.auth.domain.signup.IssuedSocialSignupToken;
+import com.chalkak.backend.auth.domain.signup.VerifiedSocialSignupToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
+import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.auth.service.identity.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.identity.SocialIdentityVerifier;
+import com.chalkak.backend.auth.service.token.AccessTokenIssuer;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
+import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.user.domain.SignatureImagePolicy;
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
+import com.chalkak.backend.user.domain.StoredImageMetadata;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserStatus;
+import com.chalkak.backend.user.repository.SignatureImageStorage;
+import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.user.repository.SignatureImageUploadIssuer;
+import com.chalkak.backend.user.repository.UserRepository;
+import java.util.Optional;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class SocialSignupService {
+
+    private final SocialIdentityVerifier socialIdentityVerifier;
+    private final SocialAccountRepository socialAccountRepository;
+    private final ConsumedSignupTokenRepository consumedSignupTokenRepository;
+    private final AppleSignupAuthorizationService appleSignupAuthorizationService;
+    private final SocialIdentityFingerprintEncoder fingerprintEncoder;
+    private final SignatureImageUploadIssuer signatureImageUploadIssuer;
+    private final SocialSignupTokenIssuer socialSignupTokenIssuer;
+    private final AccessTokenIssuer accessTokenIssuer;
+    private final SocialSignupTokenVerifier socialSignupTokenVerifier;
+    private final SignatureImageStorage signatureImageStorage;
+    private final SignatureImagePolicy signatureImagePolicy;
+    private final UserRepository userRepository;
+    private final UserRefreshTokenService userRefreshTokenService;
+
+    /**
+     * Apple 보관분 확인을 업로드 URL 발급보다 앞에 둔다. 회원가입 토큰을 먼저 발급해야 보관분 만료를 맞출 수 있고, 거절되는 요청이
+     * 저장소에 업로드 URL을 요청하지 않게 된다. 발급만 하고 버려지는 회원가입 토큰은 상태가 없는 JWT라 남는 것이 없다.
+     */
+    public SocialSignupSignatureUploadResult createSignatureUpload(
+            SocialProvider provider,
+            String idToken,
+            String rawNonce
+    ) {
+        VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
+                provider,
+                idToken,
+                rawNonce);
+        validateNewSocialAccount(identity);
+
+        UUID uploadId = UUID.randomUUID();
+        IssuedSocialSignupToken signupToken = socialSignupTokenIssuer.issue(
+                identity,
+                uploadId);
+        appleSignupAuthorizationService.extendIfApple(
+                identity,
+                signupToken.expiresAt());
+
+        SignatureImageUpload upload = signatureImageUploadIssuer.issue(uploadId);
+        return new SocialSignupSignatureUploadResult(upload, signupToken);
+    }
+
+    @Transactional
+    public SocialSignupResult signup(String signupToken) {
+        VerifiedSocialSignupToken verifiedToken = socialSignupTokenVerifier.verify(signupToken);
+        String subjectHmac = fingerprintEncoder.encode(
+                verifiedToken.provider(),
+                verifiedToken.subject());
+        Optional<SocialAccount> existingSocialAccount = socialAccountRepository
+                .findByProviderAndSubjectHmac(
+                        verifiedToken.provider(),
+                        subjectHmac);
+        if (existingSocialAccount.isPresent()) {
+            return toSignupResult(getExistingUser(existingSocialAccount.get()));
+        }
+        consumeSignupToken(verifiedToken);
+
+        SignatureStorageKeys storageKeys = signatureImageStorage
+                .toStorageKeys(verifiedToken.uploadId());
+        validateUnusedSignature(storageKeys);
+
+        StoredImageMetadata image = signatureImageStorage
+                .findUploadedImage(verifiedToken.uploadId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "업로드한 사인 이미지를 찾을 수 없습니다."));
+        if (!signatureImageStorage.isProcessingCompleted(
+                verifiedToken.uploadId())) {
+            // TODO: HTTP 예외 컨벤션이 확장되면 409 Conflict로 매핑할지 검토한다.
+            throw new BusinessException(
+                    ErrorCode.SIGNATURE_PROCESSING_PENDING,
+                    "사인 이미지 처리 중입니다.");
+        }
+        signatureImagePolicy.validate(image);
+
+        User user = userRepository.save(User.create(
+                verifiedToken.email(),
+                storageKeys));
+        SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
+                user,
+                verifiedToken.provider(),
+                subjectHmac));
+        appleSignupAuthorizationService.saveIfApple(verifiedToken, socialAccount);
+
+        return toSignupResult(user);
+    }
+
+    /**
+     * 리프레시 토큰 계보는 회원 엔티티에 FK로 매달리므로 식별자만으로는 만들 수 없다. 가입 직후 바로 재발급할 수 있도록 액세스 토큰과 같은
+     * 자리에서 함께 발급한다.
+     */
+    private SocialSignupResult toSignupResult(User user) {
+        IssuedRefreshToken refreshToken = userRefreshTokenService.issue(user);
+        return new SocialSignupResult(
+                user.getId(),
+                accessTokenIssuer.issueForSession(user.getId(), refreshToken.sessionId()),
+                refreshToken);
+    }
+
+    private User getExistingUser(SocialAccount socialAccount) {
+        User user = socialAccount.getUser();
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "차단된 소셜 계정입니다.");
+        }
+        if (user.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미 가입된 소셜 계정입니다.");
+        }
+        return user;
+    }
+
+    /**
+     * signupToken은 발급 후 만료 전까지 몇 번이든 검증에 통과하는 stateless JWT라, 이미 가입을 완료시킨 토큰이라도
+     * 재전송하면 다시 여기까지 온다. 탈퇴로 소셜 계정이 삭제되면 subject가 다시 "미가입"으로 보여, 같은 토큰으로 새 계정과 Apple
+     * 인증 정보(이미 폐기된 RT 포함)가 재구성될 수 있다. 이 토큰의 jti를 최초 가입 성공 시점에 소진 처리해, 같은 토큰의 두 번째
+     * 가입 완료를 막는다.
+     *
+     * <p>
+     * 검증이 아니라 jti를 기록하는 쓰기 작업이다. 이후 단계가 실패하면 가입 트랜잭션과 함께 기록도 롤백되어, 같은 토큰으로 다시 시도할 수
+     * 있다.
+     */
+    private void consumeSignupToken(VerifiedSocialSignupToken verifiedToken) {
+        boolean firstUse = consumedSignupTokenRepository.consumeIfAbsent(
+                ConsumedSignupToken.create(
+                        verifiedToken.tokenId(),
+                        verifiedToken.expiresAt()));
+        if (!firstUse) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "이미 사용된 회원가입 토큰입니다.");
+        }
+    }
+
+    private void validateUnusedSignature(SignatureStorageKeys storageKeys) {
+        if (userRepository.existsBySignatureOriginalStorageKey(
+                storageKeys.originalStorageKey())) {
+            throw new NotFoundException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "업로드한 사인 이미지를 찾을 수 없습니다.");
+        }
+    }
+
+    private void validateNewSocialAccount(VerifiedSocialIdentity identity) {
+        String subjectHmac = fingerprintEncoder.encode(
+                identity.provider(),
+                identity.subject());
+        socialAccountRepository.findByProviderAndSubjectHmac(
+                identity.provider(),
+                subjectHmac)
+                .ifPresent(this::validateAvailableForSignup);
+    }
+
+    private void validateAvailableForSignup(SocialAccount socialAccount) {
+        User user = socialAccount.getUser();
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException(
+                    ErrorCode.FORBIDDEN,
+                    "차단된 소셜 계정입니다.");
+        }
+        throw new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "이미 가입된 소셜 계정입니다.");
+    }
+}

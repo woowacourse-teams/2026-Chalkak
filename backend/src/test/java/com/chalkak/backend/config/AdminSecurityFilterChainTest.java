@@ -1,8 +1,11 @@
 package com.chalkak.backend.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.then;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,12 +14,16 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.analytics.service.UserMetricsAggregationRunner;
-import com.chalkak.backend.auth.domain.AccessTokenScope;
-import com.chalkak.backend.auth.infrastructure.infra.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +37,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -48,6 +56,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
@@ -94,7 +105,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @Test
     @DisplayName("일반 사용자 액세스 토큰으로 관리자 API를 호출하면 403을 반환한다")
     void adminApi_userToken_returnsForbidden() throws Exception {
-        String token = accessTokenProvider.issue(UUID.randomUUID()).value();
+        String token = accessTokenProvider.issueForSession(UUID.randomUUID(), UUID.randomUUID())
+                .value();
 
         mockMvc.perform(get("/api/v1/admin/security-test")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -128,11 +140,12 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @MethodSource("protectedAdminEndpoints")
-    @DisplayName("로그인 외 모든 실제 관리자 API는 회원 토큰을 403으로 거부한다")
-    void adminEndpoints_userToken_returnsForbidden(String method, String path) throws Exception {
+    @MethodSource("protectedAdminMemberEndpoints")
+    @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정·공지는 정상·정지·탈퇴 회원을 거절한다")
+    void adminEndpoints_memberState_returnsForbidden(String method, String path, String state)
+            throws Exception {
         // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID()).value();
+        String token = createMemberToken(state);
 
         // When & Then
         mockMvc.perform(request(HttpMethod.valueOf(method), path)
@@ -227,6 +240,67 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("REAUTHENTICATION_REQUIRED"));
     }
 
+    @Test
+    @DisplayName("관리자 토큰으로 주제 푸시 설정 목록을 조회할 수 있다")
+    void getTopicPushSchedules_adminToken_returnsOk() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedules").isArray());
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 생성할 수 있다")
+    void createTopicPushSchedule_adminToken_returnsCreated() throws Exception {
+        // Given
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/topic-push-schedules")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"14:35:00\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sendTime").value("14:35:00"))
+                .andExpect(jsonPath("$.enabled").doesNotExist());
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_CREATED");
+    }
+
+    private String createMemberToken(String state) {
+        UUID userId = UUID.randomUUID();
+        String userStatus = state;
+        if (state.equals("WITHDRAWN")) {
+            userStatus = "ACTIVE";
+        }
+        jdbcTemplate.update("""
+                INSERT INTO users (id, email, status, signature_original_storage_key,
+                    created_at, updated_at, deleted_at)
+                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
+                """, userId, userId + "@security.test", userStatus, userId + "/signature.png",
+                state);
+        return accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+    }
+
+    private Admin createScheduleAdmin() {
+        Admin admin = adminRepository.save(Admin.create("push-schedule-security-manager",
+                passwordEncoder.encode("test-password")));
+        entityManager.flush();
+        return admin;
+    }
+
+    private void assertScheduleAuditActor(UUID adminId, String action) {
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT actor_admin_id FROM admin_audit_logs WHERE action = CAST(? AS admin_action)
+                """, UUID.class, action)).isEqualTo(adminId);
+    }
+
     private IssuedTokens login(UUID adminId, String username) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -262,11 +336,35 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PATCH", "/api/v1/admin/users/" + id + "/status"),
                 Arguments.of("GET", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topics"),
+                Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
+                Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
+                Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),
+                Arguments.of("DELETE", "/api/v1/admin/topic-push-schedules/" + id),
                 Arguments.of("GET", "/api/v1/admin/topics/" + id),
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
                 Arguments.of("GET", "/api/v1/admin/audit-logs"),
-                Arguments.of("POST", "/api/v1/admin/analytics/aggregations"));
+                Arguments.of("POST", "/api/v1/admin/analytics/aggregations"),
+                Arguments.of("POST", "/api/v1/admin/notices"),
+                Arguments.of("GET", "/api/v1/admin/notices"),
+                Arguments.of("GET", "/api/v1/admin/notices/" + id));
+    }
+
+    private static List<Arguments> protectedAdminMemberEndpoints() {
+        List<Arguments> cases = new ArrayList<>();
+        for (Arguments endpoint : protectedAdminEndpoints().toList()) {
+            Object[] values = endpoint.get();
+            List<String> states = List.of("ACTIVE");
+            String path = (String) values[1];
+            if (path.startsWith("/api/v1/admin/topic-push-schedules")
+                    || path.startsWith("/api/v1/admin/notices")) {
+                states = List.of("ACTIVE", "BANNED", "WITHDRAWN");
+            }
+            for (String state : states) {
+                cases.add(Arguments.of(values[0], values[1], state));
+            }
+        }
+        return cases;
     }
 
     @RestController
@@ -279,4 +377,51 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             return authenticatedAdmin;
         }
     }
+
+    @Test
+    @DisplayName("관리자 토큰으로 실제 설정 시각을 수정할 수 있다")
+    void updateTopicPushSchedule_adminToken_returnsUpdatedSchedule() throws Exception {
+        // Given
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        entityManager.persist(schedule);
+        entityManager.flush();
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/admin/topic-push-schedules/" + schedule.getId())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sendTime\":\"18:30:00\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleId").value(schedule.getId().toString()))
+                .andExpect(jsonPath("$.sendTime").value("18:30:00"));
+        entityManager.clear();
+        assertThat(
+                entityManager.find(TopicPushSchedule.class, schedule.getId()).getSendTime())
+                .isEqualTo(LocalTime.of(18, 30));
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_UPDATED");
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 실제 주제 푸시 설정을 삭제할 수 있다")
+    void deleteTopicPushSchedule_adminToken_deletesSchedule() throws Exception {
+        // Given
+        TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
+        entityManager.persist(schedule);
+        entityManager.flush();
+        UUID scheduleId = schedule.getId();
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/topic-push-schedules/" + scheduleId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(entityManager.find(TopicPushSchedule.class, scheduleId)).isNull();
+        assertScheduleAuditActor(admin.getId(), "TOPIC_PUSH_SCHEDULE_DELETED");
+    }
+
 }

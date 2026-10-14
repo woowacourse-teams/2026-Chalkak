@@ -1,8 +1,8 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.TokenRefreshResult;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.TokenRefreshResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public record AdminTokenRefreshResponse(

@@ -20,8 +20,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 실제 logback-spring.xml을 dev 프로필로 읽어 파일 경로 설정과 JSON 출력 계약을 확인한다. 설정이 깨지면 애플리케이션은
- * 정상 기동하고 파일 로그만 조용히 사라지므로 여기서 잡는다. 로깅 시스템은 JVM 전체가 공유하므로 끝나면 프로필 없는 기본
+ * 실제 logback-spring.xml을 dev 프로필로 읽어 파일 경로 설정과 JSON 출력 계약을 확인한다. 설정이 깨지면
+ * 애플리케이션은 정상 기동하고 파일 로그만 조용히 사라지므로 여기서 잡는다. 로깅 시스템은 JVM 전체가 공유하므로 끝나면 프로필 없는 기본
  * 설정으로 되돌린다.
  */
 class JsonFileLogTest {
@@ -31,8 +31,8 @@ class JsonFileLogTest {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .build();
 
-    private final LogbackLoggingSystem loggingSystem =
-            new LogbackLoggingSystem(getClass().getClassLoader());
+    private final LogbackLoggingSystem loggingSystem = new LogbackLoggingSystem(
+            getClass().getClassLoader());
 
     @TempDir
     private Path tempDir;

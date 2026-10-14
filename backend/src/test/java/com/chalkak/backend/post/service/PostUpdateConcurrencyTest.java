@@ -308,7 +308,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void cleanUp() {
-        jdbcTemplate.update("DELETE FROM notifications WHERE post_id = ?", POST_ID);
+        jdbcTemplate.update(
+                "DELETE FROM notifications WHERE source_type = 'POST' AND source_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);

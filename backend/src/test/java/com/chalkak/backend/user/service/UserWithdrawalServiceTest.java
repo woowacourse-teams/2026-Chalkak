@@ -8,17 +8,21 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.auth.domain.AppleAuthorization;
-import com.chalkak.backend.auth.domain.SocialAccount;
-import com.chalkak.backend.auth.domain.SocialProvider;
+import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
+import com.chalkak.backend.auth.domain.identity.SocialAccount;
+import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.AppleAuthorizationCipher;
-import com.chalkak.backend.auth.service.AppleTokenClient;
-import com.chalkak.backend.auth.service.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.apple.AppleAuthorizationCipher;
+import com.chalkak.backend.auth.service.apple.AppleTokenClient;
+import com.chalkak.backend.auth.service.identity.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.notification.service.PushDeviceService;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
@@ -41,6 +45,15 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private UserWithdrawalService userWithdrawalService;
+
+    @Autowired
+    private UserRefreshTokenService userRefreshTokenService;
+
+    @Autowired
+    private PushDeviceService pushDeviceService;
+
+    @Autowired
+    private PushDeviceRepository pushDeviceRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -137,6 +150,8 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
     void withdraw_revocationFailure_preservesUserAndAuthorization() {
         // Given
         User user = userRepository.save(UserFixture.create());
+        IssuedRefreshToken issued = userRefreshTokenService.issue(user);
+        pushDeviceService.register(user.getId(), issued.sessionId(), "apple-device-token");
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, ENCRYPTED_REFRESH_TOKEN);
@@ -155,6 +170,9 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         assertThat(userRepository.findActiveById(user.getId())).isPresent();
         assertThat(appleAuthorizationRepository.findAllBySocialAccountId(socialAccountId))
                 .hasSize(1);
+        assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
+                .getFcmToken()).isEqualTo("apple-device-token");
+        assertThat(userRefreshTokenService.refresh(issued.value()).refreshToken()).isNotNull();
     }
 
     @Test

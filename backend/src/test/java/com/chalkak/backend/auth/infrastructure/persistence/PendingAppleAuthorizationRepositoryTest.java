@@ -2,7 +2,7 @@ package com.chalkak.backend.auth.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.auth.domain.PendingAppleAuthorization;
+import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;

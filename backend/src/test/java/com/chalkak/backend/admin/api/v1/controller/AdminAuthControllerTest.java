@@ -16,9 +16,9 @@ import com.chalkak.backend.admin.service.auth.AdminAuthenticationService;
 import com.chalkak.backend.admin.service.auth.AdminLoginResult;
 import com.chalkak.backend.admin.service.auth.AdminRefreshTokenService;
 import com.chalkak.backend.admin.service.auth.CurrentAdminResult;
-import com.chalkak.backend.auth.domain.IssuedAccessToken;
-import com.chalkak.backend.auth.domain.IssuedRefreshToken;
-import com.chalkak.backend.auth.service.TokenRefreshResult;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.TokenRefreshResult;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.UnauthorizedException;
@@ -69,7 +69,8 @@ class AdminAuthControllerTest {
                         ADMIN_ID,
                         USERNAME,
                         new IssuedAccessToken("admin-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30))));
+                        new IssuedRefreshToken("admin-refresh-token", Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/login")
@@ -130,7 +131,8 @@ class AdminAuthControllerTest {
                         new IssuedAccessToken("rotated-admin-token", Duration.ofMinutes(15)),
                         new IssuedRefreshToken(
                                 "rotated-admin-refresh-token",
-                                Duration.ofDays(30))));
+                                Duration.ofDays(30),
+                                UUID.randomUUID())));
 
         // When & Then
         mockMvc.perform(post("/api/v1/admin/auth/refresh")

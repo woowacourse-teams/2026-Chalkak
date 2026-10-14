@@ -1,0 +1,3 @@
+ALTER TABLE users
+    ADD COLUMN topic_push_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN moderation_push_enabled BOOLEAN NOT NULL DEFAULT TRUE;

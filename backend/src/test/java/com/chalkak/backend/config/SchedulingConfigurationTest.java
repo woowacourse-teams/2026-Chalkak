@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.admin.repository.auth.AdminRefreshTokenRepository;
-import com.chalkak.backend.auth.infrastructure.infra.refresh.RefreshTokenCleanupScheduler;
+import com.chalkak.backend.auth.infrastructure.infra.token.refresh.RefreshTokenCleanupScheduler;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import java.time.Clock;
 import org.junit.jupiter.api.DisplayName;

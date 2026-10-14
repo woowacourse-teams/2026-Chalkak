@@ -24,7 +24,8 @@ public class AdminAuditLogService {
      * 감사 로그에는 현재 요청의 requestId를 직접 붙인다. 호출하는 업무 서비스가 값을 넘기지 않아도 접근·에러 로그와 같은 값으로
      * 이어진다.
      *
-     * <p>관리자 업무 변경과 같은 트랜잭션에서만 감사 로그를 생성한다. 독립 트랜잭션을 열지 않아 이후 업무가 실패하거나 감사 INSERT가
+     * <p>
+     * 관리자 업무 변경과 같은 트랜잭션에서만 감사 로그를 생성한다. 독립 트랜잭션을 열지 않아 이후 업무가 실패하거나 감사 INSERT가
      * 실패하면 둘 다 함께 롤백된다.
      */
     @Transactional(propagation = Propagation.MANDATORY)

@@ -26,13 +26,15 @@ import tomllib
 import uuid
 
 try:
-    from . import claude_adapter
+    from . import claude_adapter, context_adapter, java_fixture
 except ImportError:
     import claude_adapter
+    import context_adapter
+    import java_fixture
 
 HERE = Path(__file__).resolve().parent
 BACKEND = HERE.parents[1]
-COPY_PATHS = ("backend/AGENTS.md", "backend/CLAUDE.md", "backend/.agents/skills",
+COPY_PATHS = ("backend/AGENTS.md", "backend/CLAUDE.md", "backend/.gitignore", "backend/.agents/skills",
               "backend/.claude/skills", "backend/.claude/rules", "backend/.claude/settings.json",
               ".github/ISSUE_TEMPLATE", ".github/pull_request_template.md")
 DISABLED = ("apps", "plugins", "remote_plugin", "hooks", "browser_use", "computer_use",
@@ -83,6 +85,10 @@ def snapshot(repo):
         if path.is_symlink():
             raise ValueError(f"실행 결과에 심볼릭 링크가 있습니다: {relative}")
         if path.is_file():
+            if (relative.startswith(".eval/runtime/jars/") and path.suffix == ".jar") or (
+                    relative.startswith("backend/build/fixture-classes/") and path.suffix == ".class"):
+                files[relative] = "binary-sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+                continue
             if path.stat().st_size > 1_000_000:
                 raise ValueError(f"작은 문서 사례의 파일 크기 초과: {relative}")
             files[relative] = path.read_bytes().decode("utf-8")
@@ -96,6 +102,8 @@ def prepare(case, output, repo, source=BACKEND.parent):
     copy_files(case / "fixture", repo)
     criteria = json.loads((case / "criteria.json").read_text())
     setup = criteria["setup"]
+    if setup.get("java_fixture"):
+        java_fixture.prepare(repo)
     for relative in setup.get("copy_source_paths", []):
         copy_files(within(source, relative), within(repo, relative))
     if setup.get("mock_github"):
@@ -122,10 +130,12 @@ def prepare(case, output, repo, source=BACKEND.parent):
             fingerprint = json.loads(snapshot_result.stdout)["fingerprint"]
         except (ValueError, KeyError, TypeError):
             raise ValueError("작업 기록 평가용 지문을 만들지 못했습니다") from None
-        payload = json.dumps({"work": work, "checks": checks}, ensure_ascii=False)
-        saved = subprocess.run([sys.executable, str(executable), "save", "--issue", str(issue),
-                                "--expected-revision", "missing", "--input", "-", "--record-checks",
-                                "--checked-fingerprint", fingerprint], cwd=repo / "backend", input=payload,
+        payload = json.dumps({"work": work, **({"checks": checks} if checks else {})}, ensure_ascii=False)
+        command = [sys.executable, str(executable), "save", "--issue", str(issue),
+                   "--expected-revision", "missing", "--input", "-"]
+        if checks:
+            command += ["--record-checks", "--checked-fingerprint", fingerprint]
+        saved = subprocess.run(command, cwd=repo / "backend", input=payload,
                                capture_output=True, text=True, timeout=20)
         if saved.returncode:
             raise ValueError("작업 기록 평가 자료를 만들지 못했습니다: " + saved.stdout[:500])
@@ -136,6 +146,10 @@ def prepare(case, output, repo, source=BACKEND.parent):
     write_json(output / "before.json", before)
     write_json(output / "criteria.json", criteria)
     shutil.copyfile(case / "prompt.md", output / "prompt.md")
+    if setup.get("conversation"):
+        for index, prompt in enumerate(conversation_inputs(case, criteria)):
+            if isinstance(prompt, str):
+                (output / f"input-{index}.md").write_text(prompt)
     digest = hashlib.sha256(json.dumps(before["files"], sort_keys=True).encode()).hexdigest()
     write_json(output / "manifest.json", {"case": criteria["id"], "input_sha256": digest,
                                          "source_revision": git(source, "rev-parse", "HEAD").strip()})
@@ -151,6 +165,11 @@ def compare(before, after, criteria):
         new_markdown = (path not in old and Path(path).suffix == ".md"
                         and Path(path).parent.as_posix() in checks.get("allowed_new_markdown_dirs", []))
         if new_markdown:
+            continue
+        new_class = (path not in old and Path(path).suffix == ".class"
+                     and any(Path(path).is_relative_to(Path(directory))
+                             for directory in checks.get("allowed_new_binary_dirs", [])))
+        if new_class:
             continue
         errors.append(f"범위 밖 변경: {path}")
     for path in set(checks["required_changed_paths"]) - set(changed):
@@ -177,6 +196,19 @@ def overrides(values):
     return result
 
 
+def disabled_server_definitions(names, app_server=False):
+    config = []
+    for name in names:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            raise ValueError("지원하지 않는 MCP 이름")
+        config.extend(overrides({f"mcp_servers.{name}.enabled": False}))
+        if not app_server:
+            # exec는 개인 설정을 제외하므로 URL 없는 비활성 정의가 필요하다.
+            # app-server는 개인 transport를 보존하고 enabled만 끈다.
+            config.extend(overrides({f"mcp_servers.{name}.command": "/usr/bin/false"}))
+    return config
+
+
 def codex_config(repo, protected):
     values = {"default_permissions": "harness-eval", "approval_policy": "never",
               "web_search": "disabled", "allow_login_shell": False,
@@ -187,6 +219,11 @@ def codex_config(repo, protected):
               str(repo): "write", str(protected): "deny"}
     grants[str(Path(tempfile.gettempdir()).resolve())] = "deny"
     grants[str(Path("/tmp").resolve())] = "deny"
+    java_config = repo / ".eval/runtime/config.json"
+    if java_config.is_file():
+        java = json.loads(java_config.read_text())
+        if java.get("available"):
+            grants[str(Path(java["java_home"]).resolve())] = "read"
     # macOS의 /usr/bin/python3·git은 개발 도구를 호출하는 shim일 수 있다.
     # 실행 중인 Python과 설치된 명령의 런타임만 읽도록 추가한다.
     for runtime in (Path(sys.base_prefix), Path("/opt/homebrew"), Path("/usr/local"),
@@ -218,7 +255,7 @@ def execute(command, cwd, output, prompt=None, timeout=180):
             raise
 
 
-def preflight(binary, repo, output, config):
+def preflight(binary, repo, output, config, app_server=False):
     """모델을 호출하지 않고 실제 sandbox와 비활성 MCP를 확인한다."""
     if sys.platform != "darwin":
         return "현재 실행기는 macOS의 Codex sandbox만 검증합니다"
@@ -295,8 +332,7 @@ print(json.dumps([can_read_write, *read_blocked, *write_blocked, network_blocked
         if result.returncode == 0 and json.loads(result.stdout) == [True] * 8:
             # mcp list는 사용자 설정을 읽지만 exec는 제외한다. 비활성 서버도
             # transport가 필수이므로 실제 실행에는 인증 없는 비활성 정의를 준다.
-            config.extend(disabled)
-            config.extend(overrides({f"mcp_servers.{name}.command": "/usr/bin/false" for name in names}))
+            config.extend(disabled_server_definitions(names, app_server))
             return None
     except ValueError:
         pass
@@ -346,6 +382,38 @@ def result_status(errors, complete, code, reviews=()):
     return "PASS" if reviews else "REVIEW_REQUIRED"
 
 
+def conversation_inputs(case, criteria):
+    steps = criteria["setup"]["conversation"]
+    if not isinstance(steps, list) or not 3 <= len(steps) <= 5 or steps.count({"compact": True}) != 1:
+        raise ValueError("대화 검사는 3~5단계와 실제 압축 한 단계가 필요합니다")
+    compact_index = steps.index({"compact": True})
+    if compact_index < 1 or compact_index == len(steps) - 1:
+        raise ValueError("압축 전 대화와 압축 후 재개가 필요합니다")
+    prompts = []
+    for step in steps:
+        if step == {"compact": True}:
+            prompts.append(step)
+        elif isinstance(step, dict) and set(step) == {"prompt"}:
+            path = within(case, step["prompt"])
+            if path.suffix != ".md" or path.stat().st_size > 200_000:
+                raise ValueError("대화 입력은 200KB 이내 Markdown이어야 합니다")
+            prompts.append(path.read_text())
+        else:
+            raise ValueError("지원하지 않는 대화 검사 단계")
+    return prompts
+
+
+def valid_context_evidence(destination, criteria):
+    try:
+        evidence = context_adapter.evidence(destination)
+        expected = len(criteria["setup"]["conversation"]) - 1
+        # 압축 자체도 완료 턴을 보낼 수 있으므로 정확한 수 대신 최소 수를 확인한다.
+        return (evidence["same_thread"] and evidence["completed_compactions"] >= 1
+                and evidence["completed_turns"] >= expected and evidence["resumed_turns"] >= 1)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def run_case(case, platform, action, timeout, destination, actor_parent=None):
     destination.mkdir(parents=True)
     report = {"case": case.name, "platform": platform, "status": "NOT_RUN", "reason": "준비만 수행",
@@ -362,6 +430,8 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                 reason = f"{platform} CLI가 설치되어 있지 않습니다"
             elif platform == "claude" and criteria["setup"].get("mock_github"):
                 reason = "모의 GitHub 사례는 현재 Codex의 격리된 shell에서만 지원합니다"
+            elif platform == "claude" and (criteria["setup"].get("conversation") or criteria["setup"].get("java_fixture")):
+                reason = "다중 턴 실제 압축·Java 개발 사례는 현재 Codex 네이티브 격리에서만 지원합니다"
             elif platform == "claude":
                 command, metadata = claude_adapter.build_command(binary, repo, destination)
                 report.update(metadata)
@@ -375,10 +445,25 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                 settings = model_settings()
                 report["model_settings"] = settings or {"model": "CLI 기본값 (사용량 기록과 별도)"}
                 report["mode"] = "native exec; 개인 설정 제외, 전역 지침/관리자 정책은 유지"
-                reason = preflight(binary, repo, destination, config)
+                if criteria["setup"].get("conversation"):
+                    reason = preflight(binary, repo, destination, config, app_server=True)
+                else:
+                    reason = preflight(binary, repo, destination, config)
+                if reason is None and criteria["setup"].get("java_fixture"):
+                    java = json.loads((repo / ".eval/runtime/config.json").read_text())
+                    if not java["available"]:
+                        reason = "오프라인 Java 실행 의존성 없음: " + ", ".join(java["missing"])
                 if reason is None:
                     command = [binary, "exec", "--ignore-user-config", "--strict-config", "--ephemeral",
                                "--json", "-C", str(repo / "backend"), *config, *overrides(settings), "-"]
+                    if criteria["setup"].get("conversation"):
+                        # app-server에는 ignore-user-config가 없다. 실행 설정을 제한하고
+                        # 같은 권한 프로필·네이티브 사전 검사로만 실행한다.
+                        command = [binary, "app-server", "--strict-config", "--stdio", *config, *overrides(settings),
+                                   *overrides({"notify": [], "hooks": {}, "skills.config": [],
+                                               "sqlite_home": str(destination / "runtime-state"),
+                                               "log_dir": str(destination / "runtime-log")})]
+                        report["mode"] = "native app-server; 동일 격리 프로필, 실행 기능 제한, 전역 지침/인증 유지"
             if reason:
                 report.update(status="BLOCKED", reason=reason)
             else:
@@ -387,8 +472,16 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                 report.update(status="INCONCLUSIVE", reason="실행 시작; 결과 수집 전")
                 write_json(destination / "report.json", report)
                 try:
-                    code, elapsed = execute(command, repo / "backend", destination,
-                                            (case / "prompt.md").read_text(), timeout)
+                    if criteria["setup"].get("conversation"):
+                        prompts = conversation_inputs(case, criteria)
+                        def stage(index):
+                            write_json(destination / f"stage-{index}.json", snapshot(repo))
+                        code, elapsed = context_adapter.execute(command, repo / "backend", destination,
+                                                               prompts, timeout, stage)
+                        report["context_evidence"] = context_adapter.evidence(destination)
+                    else:
+                        code, elapsed = execute(command, repo / "backend", destination,
+                                                (case / "prompt.md").read_text(), timeout)
                 except KeyboardInterrupt:
                     report.update(reason="사용자가 실행을 중단함; 후속 사례도 실행하지 않음")
                     write_json(destination / "report.json", report)
@@ -404,6 +497,8 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                     errors = [f"문서 사례의 작업 결과 수집 실패: {exc}"]
                     (destination / "collection-error.txt").write_text(errors[0])
                 complete, parse_errors, usage = collect_events(destination, platform)
+                if criteria["setup"].get("conversation"):
+                    complete = complete and valid_context_evidence(destination, criteria)
                 report.update(mechanical_errors=errors, event_errors=parse_errors, usage=usage)
                 report["status"] = result_status(errors, complete, code)
                 report["reason"] = "기록·답변·diff의 의미 및 금지된 시도를 별도 판정해야 합니다"
@@ -426,6 +521,8 @@ def grade(destination):
         raise ValueError("모든 판정 항목에 상태와 실제 기록의 근거를 작성해야 합니다")
     statuses = {item["status"] for item in review.values()}
     complete, event_errors, usage = collect_events(destination, report["platform"])
+    if criteria["setup"].get("conversation"):
+        complete = complete and valid_context_evidence(destination, criteria)
     report.update(event_errors=event_errors, usage=usage)
     # 캐시한 성공 여부를 신뢰하지 않고 필수 결과 자료로 다시 계산한다.
     try:

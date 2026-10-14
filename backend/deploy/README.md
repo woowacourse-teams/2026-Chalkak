@@ -25,6 +25,7 @@ Pull Request
 | [CI/CD 파이프라인 구축](docs/pipeline-setup.md) | AWS 파이프라인을 처음 만들거나 재구성할 때 | CodeBuild, CodeDeploy application·group, 개발·운영 CodePipeline |
 | [배포 운영 런북](docs/operations.md) | PR 병합, 배포 확인, 장애 대응 시 | GitHub Ruleset, 개발·운영 배포, Flyway 규칙, 장애 확인 |
 | [CloudWatch 모니터링 구축](docs/monitoring.md) | 로그·지표·알람·대시보드를 처음 만들거나 알람에 대응할 때 | CloudWatch Agent, 로그 그룹·메트릭 필터·알람·SNS·알림 Lambda 콘솔 구축, 대시보드, 알람 대응, 비용 점검 |
+| [알림 SQS 준비](docs/notification-sqs-setup.md) | 승인·반려 발행 연동을 준비할 때 | 환경별 큐·DLQ, EC2 권한, Relay 설정과 실제 발행 검증 |
 | [이미지 처리 Lambda](../lambda/image-processor/README.md) | 이미지 처리 Lambda를 구축·배포할 때 | Lambda, SQS, 빌드와 배포 절차 |
 
 ## 환경별 구성
