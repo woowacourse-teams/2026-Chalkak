@@ -3,7 +3,6 @@ package com.chalkak.backend.notification.service;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
@@ -168,7 +167,7 @@ public class PushWorkerService {
         if (message.type() == NotificationType.TOPIC) {
             return findTopicRequest(message, device, user);
         }
-        return findModerationRequest(message, device, user);
+        return findNotificationRequest(message, device, user);
     }
 
     private DevicePushRequest findTopicRequest(
@@ -179,7 +178,7 @@ public class PushWorkerService {
         if (!user.isActive()) {
             return skipRequest(message, device.getId(), "USER_INACTIVE");
         }
-        if (!user.isTopicPushEnabled()) {
+        if (!message.type().isPushEnabledFor(user)) {
             return skipRequest(message, device.getId(), "PUSH_DISABLED");
         }
         LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
@@ -196,12 +195,12 @@ public class PushWorkerService {
                 message.expiresAt());
     }
 
-    private DevicePushRequest findModerationRequest(
+    private DevicePushRequest findNotificationRequest(
             PushMessage message,
             PushDevice device,
             User user
     ) {
-        if (!user.isModerationPushEnabled()) {
+        if (!message.type().isPushEnabledFor(user)) {
             return skipRequest(message, device.getId(), "PUSH_DISABLED");
         }
         Notification notification = notificationRepository
@@ -242,15 +241,16 @@ public class PushWorkerService {
                 || message.occurredAt() == null || message.expiresAt() == null) {
             return false;
         }
+        if (!message.type().isSourceOf(message.sourceType())) {
+            return false;
+        }
         if (message.type() == NotificationType.TOPIC) {
             return message.notificationId() == null
-                    && message.sourceType() == NotificationSourceType.TOPIC
                     && !message.occurredAt().isAfter(clock.instant())
                     && PushDeadlinePolicy.isValidLifetime(message.occurredAt(),
                             message.expiresAt());
         }
-        return message.notificationId() != null
-                && message.sourceType() == NotificationSourceType.POST;
+        return message.notificationId() != null;
     }
 
     private boolean matches(PushMessage message, Notification notification) {
