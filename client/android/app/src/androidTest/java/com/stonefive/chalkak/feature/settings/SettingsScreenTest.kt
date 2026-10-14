@@ -90,9 +90,11 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("로그인").performClick()
 
         assertTrue(loginClicked)
+        composeRule.onAllNodesWithText("매일 알림 시간").assertCountEquals(0)
         composeRule.onAllNodesWithText("사인 재설정").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그아웃").assertCountEquals(0)
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)
+        composeRule.onAllNodesWithText("기기 알림 설정").assertCountEquals(0)
     }
 
     @Test
@@ -119,19 +121,6 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("이용약관").performClick()
 
         assertEquals(1, termsClickCount)
-    }
-
-    @Test
-    fun tappingReminderRowInvokesReminderCallback() {
-        var reminderClickCount = 0
-        setSettingsContent(
-            uiState = SettingsUiState(versionName = "1.0"),
-            onReminderClick = { reminderClickCount++ },
-        )
-
-        composeRule.onNodeWithText("알림 설정").performClick()
-
-        assertEquals(1, reminderClickCount)
     }
 
     @Test
@@ -176,9 +165,10 @@ class SettingsScreenTest {
         onChangeSignatureClick: () -> Unit = {},
         onPrivacyPolicyClick: () -> Unit = {},
         onTermsClick: () -> Unit = {},
-        onReminderClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
+        onTopicPushChanged: (Boolean) -> Unit = {},
+        onModerationPushChanged: (Boolean) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -189,13 +179,14 @@ class SettingsScreenTest {
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
                     onFeedbackClick = {},
-                    onReminderClick = onReminderClick,
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,
                     onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
                 )
             }
         }

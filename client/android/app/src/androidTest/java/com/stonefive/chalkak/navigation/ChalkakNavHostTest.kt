@@ -22,6 +22,7 @@ import com.stonefive.chalkak.feature.home.HomeViewModel
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -231,6 +232,92 @@ class ChalkakNavHostTest {
                     ?.destination
                     ?.hasRoute<Home>() == true,
             )
+        }
+    }
+
+    @Test
+    fun topicNotificationWithoutNotificationIdOpensHomeFromOtherTab() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("설정").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Settings>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "TOPIC",
+                sourceType = "TOPIC",
+                sourceId = "old-topic-id",
+                notificationId = null,
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+        composeRule.runOnIdle {
+            assertFalse(navController.currentDestination?.hasRoute<Notifications>() == true)
+            assertEquals(null, navController.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun topicNotificationFromHomeDoesNotAddDuplicateHome() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "TOPIC",
+                sourceType = "TOPIC",
+                sourceId = "old-topic-id",
+                notificationId = null,
+            )
+            navController.openNotificationTarget(
+                type = "TOPIC",
+                sourceType = "TOPIC",
+                sourceId = "old-topic-id",
+                notificationId = null,
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+        composeRule.runOnIdle {
+            assertEquals(null, navController.previousBackStackEntry)
         }
     }
 }
