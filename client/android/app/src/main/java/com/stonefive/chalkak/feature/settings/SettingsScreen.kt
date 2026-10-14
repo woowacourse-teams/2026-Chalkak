@@ -26,6 +26,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
@@ -84,6 +85,7 @@ fun SettingsRoute(
                 context.openDeviceNotificationSettings()
             }
         },
+        buildVariantContent = { BuildVariantSettingsEntry(modifier = Modifier.fillMaxWidth()) },
     )
 }
 
@@ -104,6 +106,7 @@ fun SettingsScreen(
     onTopicPushChanged: (Boolean) -> Unit,
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    buildVariantContent: @Composable () -> Unit = {},
 ) {
     uiState.accountDialog?.let { accountDialog ->
         ChalkakConfirmDialog(
@@ -211,6 +214,8 @@ fun SettingsScreen(
                 onTermsClick = onTermsClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            buildVariantContent()
 
             Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
         }
