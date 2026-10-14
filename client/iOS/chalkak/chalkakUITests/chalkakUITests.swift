@@ -28,7 +28,7 @@ final class chalkakUITests: XCTestCase {
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
 
-        let today = app.buttons["오늘"]
+        let today = app.buttons["홈"]
         let display = app.buttons["전시"]
         let settings = app.buttons["설정"]
         XCTAssertTrue(today.waitForExistence(timeout: 5))
@@ -59,8 +59,8 @@ final class chalkakUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
-        XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["오늘"].value as? String, "선택됨")
+        XCTAssertTrue(app.buttons["홈"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["홈"].value as? String, "선택됨")
 
         app.buttons["설정"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 0.4, thenDragTo: app.buttons["전시"].coordinate(
@@ -76,7 +76,7 @@ final class chalkakUITests: XCTestCase {
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
 
-        let today = app.buttons["오늘"]
+        let today = app.buttons["홈"]
         XCTAssertTrue(today.waitForExistence(timeout: 5))
         let start = today.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 14, dy: 0)))
@@ -97,7 +97,7 @@ final class chalkakUITests: XCTestCase {
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
 
-        let today = app.buttons["오늘"]
+        let today = app.buttons["홈"]
         let settings = app.buttons["설정"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
         settings.tap()
@@ -397,7 +397,7 @@ final class chalkakUITests: XCTestCase {
 
         app.buttons["notificationSetup.skip"].tap()
 
-        XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["홈"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
     }
 
@@ -414,7 +414,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
 
         app.buttons["전시"].tap()
-        app.buttons["오늘"].tap()
+        app.buttons["홈"].tap()
         XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
         XCTAssertFalse(title.exists)
     }
@@ -433,7 +433,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["9월 22일 오늘의 주제를 확인해보세요."].exists)
         XCTAssertTrue(app.staticTexts["9월 21일 오늘의 주제를 확인해보세요."].exists)
         XCTAssertTrue(app.staticTexts["어제 21:10"].exists)
-        XCTAssertFalse(app.buttons["오늘"].exists)
+        XCTAssertFalse(app.buttons["홈"].exists)
 
         app.buttons["notification.back"].tap()
         XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))

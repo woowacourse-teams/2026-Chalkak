@@ -9,6 +9,8 @@ struct FeedPhoto: View {
     let zoom: FeedPhotoZoom
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
+    @State private var resolvedImageRatio: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var imageFrame: CGRect?
     @State private var signatureFrame: CGRect?
     @State private var isOriginalLoaded = false
@@ -34,36 +36,14 @@ struct FeedPhoto: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
                 .overlay {
-                    if let placeholder {
-                        FeedPlaceholderImage(
-                            preloaded: placeholder.preloadedImage,
-                            source: placeholder.imageSource,
-                            contentMode: .fill
+                    photoImage
+                        .feedZoomEffect(
+                            progress: zoom.photoProgress,
+                            source: zoom.source,
+                            destinationFrame: imageFrame,
+                            morphsAspectRatio: zoom.morphsAspectRatio
                         )
-                    }
                 }
-                .overlay {
-                    if let post {
-                        // placeholder가 있으면 원본은 로드된 뒤 그 위로 페이드되므로 스켈레톤은 띄우지 않는다.
-                        ChalkakSignedImage(
-                            imageSource: post.originalImageSource,
-                            signatureSource: post.signatureImageSource,
-                            contentDescription: post.contentDescription,
-                            contentMode: .fill,
-                            signatureSize: Metrics.signatureSize,
-                            showsLoadingSkeleton: placeholder == nil,
-                            onImageLoad: { isOriginalLoaded = true }
-                        )
-                        .opacity(isOriginalRevealed ? 1 : 0)
-                        .animation(Metrics.originalRevealAnimation, value: isOriginalRevealed)
-                    }
-                }
-                .clipped()
-                .feedZoomEffect(
-                    progress: zoom.photoProgress,
-                    source: zoom.source,
-                    destinationFrame: imageFrame
-                )
                 // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
                 .overlay(alignment: .bottomTrailing) {
                     if let placeholder, let signatureSource = placeholder.signatureImageSource {
@@ -87,6 +67,7 @@ struct FeedPhoto: View {
                         .padding(theme.spacing.sm)
                     }
                 }
+                .feedZoomViewportClip(progress: zoom.photoProgress, source: zoom.source, destination: zoom.viewport, canvas: imageFrame)
                 .opacity(photoOpacity)
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: .global)
@@ -96,12 +77,17 @@ struct FeedPhoto: View {
                 .zIndex(1)
                 .task(id: post?.originalImageSource) {
                     if imageRatio == nil, let placeholder {
-                        imageRatio = await ImageRatioLoader.ratio(for: placeholder.imageSource)
+                        if let ratio = await ImageRatioLoader.ratio(for: placeholder.imageSource) {
+                            resolveImageRatio(ratio)
+                        }
                     }
                     guard let post,
                           let ratio = await ImageRatioLoader.ratio(for: post.originalImageSource)
                     else { return }
-                    imageRatio = ratio
+                    resolveImageRatio(ratio)
+                }
+                .onChange(of: zoom.isSettled) { _, isSettled in
+                    if isSettled, let resolvedImageRatio { applyImageRatio(resolvedImageRatio) }
                 }
 
             if let post {
@@ -113,6 +99,48 @@ struct FeedPhoto: View {
                 )
                 .opacity(zoom.contentProgress)
             }
+        }
+    }
+
+    private var photoImage: some View {
+        ZStack {
+            if let placeholder {
+                FeedPlaceholderImage(
+                    preloaded: placeholder.preloadedImage,
+                    source: placeholder.imageSource,
+                    contentMode: .fill
+                )
+            }
+            if let post {
+                ChalkakSignedImage(
+                    imageSource: post.originalImageSource,
+                    signatureSource: post.signatureImageSource,
+                    contentDescription: post.contentDescription,
+                    contentMode: .fill,
+                    signatureSize: Metrics.signatureSize,
+                    showsLoadingSkeleton: placeholder == nil,
+                    onImageLoad: { isOriginalLoaded = true }
+                )
+                .opacity(isOriginalRevealed ? 1 : 0)
+                .animation(Metrics.originalRevealAnimation, value: isOriginalRevealed)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private func resolveImageRatio(_ ratio: CGFloat) {
+        resolvedImageRatio = ratio
+        // 이동 중 도착 프레임이 바뀌면 사진 위치도 튀므로 비율 변경을 미룬다.
+        if !zoom.morphsAspectRatio || zoom.isSettled { applyImageRatio(ratio) }
+    }
+
+    private func applyImageRatio(_ ratio: CGFloat) {
+        guard imageRatio != ratio else { return }
+        if zoom.morphsAspectRatio, !reduceMotion {
+            withAnimation(Metrics.ratioAnimation) { imageRatio = ratio }
+        } else {
+            imageRatio = ratio
         }
     }
 
@@ -199,6 +227,7 @@ private struct FeedLikeRow: View {
 
 private enum Metrics {
     static let defaultImageRatio: CGFloat = 1
+    static let ratioAnimation: Animation = .smooth(duration: 0.3)
     // Android PHOTO_CROSSFADE_DURATION_MILLIS(180) + tween 기본 FastOutSlowInEasing.
     static let originalRevealAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.18)
     static let signatureSize = CGSize(width: 70, height: 52)

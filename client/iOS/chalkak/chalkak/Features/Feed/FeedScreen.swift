@@ -11,6 +11,8 @@ struct FeedScreen: View {
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
     @State private var isClosing = false
+    @State private var transitionSource: FeedZoomRegistry.Source?
+    @State private var transitionViewport: CGRect?
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
@@ -68,6 +70,7 @@ struct FeedScreen: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
         .simultaneousGesture(backSwipeGesture)
         .onAppear(perform: open)
@@ -163,7 +166,9 @@ struct FeedScreen: View {
                         photoProgress: photoProgress,
                         contentProgress: contentProgress,
                         source: movingSource,
-                        isSettled: !isPhotoMoving
+                        isSettled: !isPhotoMoving,
+                        morphsAspectRatio: morphsPhotoAspectRatio,
+                        viewport: transitionViewport
                     ),
                     onLike: { viewModel.toggleLike() }
                 )
@@ -195,12 +200,21 @@ struct FeedScreen: View {
     // 사진이 날아갈 출발 뷰. 동작 줄이기 설정이면 사진도 이동 없이 페이드된다.
     private var movingSource: FeedZoomRegistry.Source? {
         guard !reduceMotion, let zoomSource else { return nil }
-        return zoomRegistry?.source(for: zoomSource)
+        return transitionSource ?? zoomRegistry?.source(for: zoomSource)
+    }
+
+    private var morphsPhotoAspectRatio: Bool {
+        switch zoomSource {
+        case .homeYesterday, .homeTrending, .displayGrid, .displayFeatured: true
+        default: false
+        }
     }
 
     private func open() {
+        captureTransitionSource()
         isPhotoMoving = true
-        hideSourceWhilePhotoMoves()
+        // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
+        zoomRegistry?.activeSource = nil
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 1
         } completion: {
@@ -209,34 +223,30 @@ struct FeedScreen: View {
         }
         withAnimation(Metrics.contentAnimation) {
             contentProgress = 1
-        } completion: {
-            // 피드 배경이 아직 반투명할 때 출발 뷰가 다시 보이면 피드 너머로 비쳐 깜빡여 보인다.
-            guard !isClosing else { return }
-            zoomRegistry?.activeSource = nil
         }
     }
 
     private func close() {
         guard !isClosing else { return }
+        captureTransitionSource()
         isClosing = true
         isPhotoMoving = true
-        hideSourceWhilePhotoMoves()
+        // 돌아갈 카드는 유지한다. 가려진 사진을 숨기면 반투명 하단바 아래 검은 바탕이 드러난다.
+        zoomRegistry?.activeSource = nil
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 0
         }
         withAnimation(Metrics.contentAnimation) {
             contentProgress = 0
         } completion: {
-            // 사진이 먼저 도착해도 피드 배경이 반투명한 동안은 출발 뷰가 배경 아래에 깔려 흐려 보인다.
-            // 피드 사진을 출발 뷰 위에 유지했다가, 피드가 사라지는 순간 출발 뷰와 교대한다.
             zoomRegistry?.activeSource = nil
             onBack()
         }
     }
 
-    private func hideSourceWhilePhotoMoves() {
-        guard movingSource != nil else { return }
-        zoomRegistry?.activeSource = zoomSource
+    private func captureTransitionSource() {
+        guard let zoomSource else { return }
+        transitionSource = zoomRegistry?.source(for: zoomSource) ?? transitionSource
     }
 
     // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 사진이 출발 뷰 쪽으로 따라간다.
@@ -244,8 +254,9 @@ struct FeedScreen: View {
         DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
             .onChanged { value in
                 guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                if !isPhotoMoving { captureTransitionSource() }
                 isPhotoMoving = true
-                hideSourceWhilePhotoMoves()
+                zoomRegistry?.activeSource = nil
                 let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
                 photoProgress = 1 - min(dragged, 1)
                 contentProgress = photoProgress

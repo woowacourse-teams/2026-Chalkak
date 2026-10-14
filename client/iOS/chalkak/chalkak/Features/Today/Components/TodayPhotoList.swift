@@ -1,21 +1,21 @@
 import SwiftUI
 
-struct HomePhotoList: View {
+struct TodayPhotoList: View {
     @Environment(\.chalkakTheme) private var theme
     @State private var imageRatios: [ChalkakImageSource: CGFloat] = [:]
-    let photos: [HomePhoto]
-    let likedPhotoIDs: Set<HomePhoto.ID>
+    let photos: [TodayPhoto]
+    let likedPhotoIDs: Set<TodayPhoto.ID>
     let areLikesEnabled: Bool
     let imageReloadGeneration: Int
     var topContentPadding: CGFloat = 0
     var bottomContentPadding: CGFloat = 0
-    let onLike: (HomePhoto.ID) -> Void
+    let onLike: (TodayPhoto.ID) -> Void
     let onEndThreshold: (Bool) -> Void
 
     var body: some View {
         LazyVStack(spacing: theme.spacing.xxl) {
             ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                HomePhotoCard(
+                TodayPhotoCard(
                     photo: photo,
                     isLiked: likedPhotoIDs.contains(photo.id),
                     isLikeEnabled: areLikesEnabled,
@@ -45,7 +45,7 @@ struct HomePhotoList: View {
     }
 
     private var endThresholdIndex: Int {
-        max(photos.count - HomePhotoListMetrics.endThreshold, 0)
+        max(photos.count - TodayPhotoListMetrics.endThreshold, 0)
     }
 
     private func updateImageRatio(_ ratio: CGFloat?, for source: ChalkakImageSource) {
@@ -58,15 +58,15 @@ struct HomePhotoList: View {
     }
 }
 
-private enum HomePhotoListMetrics {
+private enum TodayPhotoListMetrics {
     static let endThreshold = 3
 }
 
-#Preview("Home Photo List") {
+#Preview("Today Photo List") {
     ScrollView {
-        HomePhotoList(
-            photos: HomePreviewData.contentState.photos,
-            likedPhotoIDs: HomePreviewData.contentState.likedPhotoIDs,
+        TodayPhotoList(
+            photos: TodayPreviewData.contentState.photos,
+            likedPhotoIDs: TodayPreviewData.contentState.likedPhotoIDs,
             areLikesEnabled: true,
             imageReloadGeneration: 0,
             onLike: { _ in },

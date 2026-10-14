@@ -5,38 +5,39 @@ struct HomeTopBar: View {
     var onOpenNotifications: () -> Void = {}
 
     var body: some View {
-        HStack(spacing: theme.spacing.none) {
+        HStack(spacing: 0) {
             ChalkakLogo()
-            Spacer(minLength: theme.spacing.none)
+                .offset(y: Metrics.logoOpticalCenterOffset)
+
+            Spacer(minLength: 0)
+
             Button(action: onOpenNotifications) {
                 Image("ic_notification")
+                    .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
+                    .frame(width: Metrics.notificationIconSize, height: Metrics.notificationIconSize)
                     .foregroundStyle(theme.colors.iconPrimary)
-                    .frame(width: Metrics.iconSize, height: Metrics.iconSize)
-                    .frame(width: Metrics.touchTarget, height: Metrics.touchTarget)
+                    .frame(width: Metrics.notificationTouchSize, height: Metrics.notificationTouchSize)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("알림")
             .accessibilityIdentifier("home.notifications")
         }
-        .frame(height: HomeTopBarMetrics.height, alignment: .center)
-        .accessibilityElement(children: .contain)
+        .frame(height: Metrics.height)
     }
 }
 
-enum HomeTopBarMetrics {
-    static let height: CGFloat = 55
-}
-
 private enum Metrics {
-    static let iconSize: CGFloat = 24
-    static let touchTarget: CGFloat = 48
+    static let height: CGFloat = 55
+    static let notificationTouchSize: CGFloat = 44
+    static let notificationIconSize: CGFloat = 24
+    static let logoOpticalCenterOffset: CGFloat = 5
 }
 
 #Preview("Home Top Bar", traits: .sizeThatFitsLayout) {
     HomeTopBar()
-        .padding(.horizontal, ChalkakTheme.light.spacing.screenHorizontal)
-        .background(ChalkakTheme.light.colors.background)
+        .padding(.horizontal, ChalkakSpacing.screenHorizontal)
         .chalkakTheme(.light)
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
-    case today
+    case home
     case display
     case record
     case settings
@@ -10,8 +10,8 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .today:
-            "오늘"
+        case .home:
+            "홈"
         case .display:
             "전시"
         case .record:
@@ -23,7 +23,7 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
-        case .today:
+        case .home:
             "ic_bottom_today"
         case .display:
             "ic_bottom_display"
@@ -97,7 +97,7 @@ private struct LiquidGlassBottomBar: View {
 
     var body: some View {
         HStack(spacing: theme.spacing.none) {
-            itemButton(.today)
+            itemButton(.home)
             itemButton(.display)
             addButton
             itemButton(.record)
@@ -278,7 +278,7 @@ private struct LiquidGlassBottomBar: View {
 
     private static func lensSlot(for item: ChalkakBottomBarItem) -> CGFloat {
         switch item {
-        case .today: 0
+        case .home: 0
         case .display: 1
         case .record: 3
         case .settings: 4
@@ -301,7 +301,7 @@ private struct LiquidGlassBottomBar: View {
 
     private func item(at x: CGFloat) -> ChalkakBottomBarItem? {
         switch slot(at: x) {
-        case 0: return .today
+        case 0: return .home
         case 1: return .display
         case 3: return .record
         case 4: return .settings
@@ -373,7 +373,7 @@ private struct FlatBottomBar: View {
 
     var body: some View {
         HStack(spacing: theme.spacing.none) {
-            itemButton(.today)
+            itemButton(.home)
             itemButton(.display)
             addButton
             itemButton(.record)
@@ -440,7 +440,7 @@ private enum PreviewMetrics {
 }
 
 #Preview("Bottom Bar") {
-    @Previewable @State var selection = ChalkakBottomBarItem.today
+    @Previewable @State var selection = ChalkakBottomBarItem.home
 
     ZStack(alignment: .bottom) {
         ChalkakTheme.light.colors.background

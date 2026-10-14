@@ -1,332 +1,441 @@
-import CoreGraphics
 import Foundation
-import SwiftUI
 import Testing
-import UIKit
 @testable import chalkak
 
 @MainActor
 struct HomeViewStateTests {
-    @Test("기본 홈 상태는 로딩으로 시작한다")
-    func defaultsToLoadingStatus() {
-        let state = HomeViewState()
+    @Test("주는 일요일부터 토요일까지 계산하며 연말 경계를 넘는다")
+    func weekDatesCrossYearBoundaryFromSunday() {
+        let dates = HomeViewState.weekDates(Self.date(year: 2027, month: 1, day: 1))
 
-        #expect(state.contentStatus == .loading)
-        #expect(state.photos.isEmpty)
-        #expect(state.selectedSort == .latest)
+        #expect(dates.map(Self.dayKey) == [
+            "2026-12-27",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31",
+            "2027-01-01",
+            "2027-01-02"
+        ])
     }
 
-    @Test("초기 에러는 사용자에게 보여줄 문구를 제공한다")
-    func exposesInitialErrorMessage() {
-        #expect(HomeInitialError.network.message == "네트워크 연결을 확인해 주세요")
-        #expect(HomeInitialError.topicNotFound.message == "오늘의 주제가 아직 준비되지 않았어요")
+    @Test("Asia Seoul 기준 날짜 변경은 홈 상태 날짜를 바꾼다")
+    func usesKSTStartOfDayForStateDate() {
+        let beforeMidnightKST = RecordMonth.calendar.date(
+            from: DateComponents(
+                year: 2026,
+                month: 12,
+                day: 16,
+                hour: 23,
+                minute: 59,
+                second: 59
+            )
+        )!
+        let afterMidnightKST = RecordMonth.calendar.date(byAdding: .second, value: 1, to: beforeMidnightKST)!
+
+        #expect(Self.dayKey(HomeViewState(date: beforeMidnightKST).date) == "2026-12-16")
+        #expect(Self.dayKey(HomeViewState(date: afterMidnightKST).date) == "2026-12-17")
     }
 
-    @Test("좋아요 가능 여부의 기본값은 활성화 상태다")
-    func enablesLikesByDefault() {
-        let state = HomeViewState()
+    private static func date(year: Int, month: Int, day: Int) -> Date {
+        RecordMonth.calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
 
-        #expect(state.areLikesEnabled)
+    private static func dayKey(_ date: Date) -> String {
+        let components = RecordMonth.calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year!, components.month!, components.day!)
     }
 }
 
-struct HomeScreenTests {
-    @MainActor
-    @Test("콘텐츠 홈 화면은 iPhone 폭에서 렌더링된다")
-    func rendersContentAtIPhoneWidth() {
-        let viewModel = HomeViewModel(initialState: HomePreviewData.contentState)
-        let view = HomeScreen(
-            viewModel: viewModel
+@MainActor
+struct HomeViewModelTests {
+    @Test("인기 섹션은 서버 순서를 유지하며 상위 5개만 노출한다")
+    func keepsServerOrderAndLimitsPopularSections() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today, photoIDs: ["t1", "t2", "t3", "t4", "t5", "t6"])),
+            rankingResult: .success(["y1", "y2", "y3", "y4", "y5", "y6"].map(Self.displayPhoto))
         )
-        .chalkakTheme(.light)
-        let hostingController = UIHostingController(
-            rootView: view.frame(width: 402, height: 874)
-        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
 
-        let size = hostingController.sizeThatFits(
-            in: CGSize(width: 402, height: 874)
-        )
+        await viewModel.resume()
 
-        #expect(size.width == 402)
-        #expect(size.height == 874)
+        #expect(viewModel.viewState.trending.status == .ready)
+        #expect(viewModel.viewState.trending.photos.map(\.id) == ["t1", "t2", "t3", "t4", "t5"])
+        #expect(viewModel.viewState.yesterday.status == .ready)
+        #expect(viewModel.viewState.yesterday.photos.map(\.id) == ["y1", "y2", "y3", "y4", "y5"])
     }
 
-    @MainActor
-    @Test("새로고침은 실패한 사진 이미지를 다시 요청한다")
-    func refreshRetriesFailedPhotoImage() async {
-        let imageURL = URL(string: "https://example.com/photo.webp")!
-        let photo = HomePhoto(
-            id: "remote-photo",
-            imageSource: .remote(imageURL),
-            signatureSource: .asset("preview_signature"),
-            contentDescription: "테스트 사진",
-            title: "테스트 제목",
-            likeCount: 1
+    @Test("비로그인 사용자는 개인 기록 API를 호출하지 않는다")
+    func guestDoesNotCallPrivateAPIs() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([])
         )
-        let initialState = HomeViewState(
-            contentStatus: .content,
-            photos: [photo],
-            hasNext: false
-        )
-        let imageLoader = FailingThenSucceedingHomeImageLoader()
-        let viewModel = HomeViewModel(
-            initialState: initialState,
-            refreshHandler: { _ in .success(initialState) }
-        )
-        let view = HomeScreen(viewModel: viewModel)
-            .frame(width: 402, height: 874)
-            .chalkakTheme(.light)
-            .environment(\.homeImageLoader) { url, targetPixelWidth in
-                try await imageLoader.load(url, targetPixelWidth: targetPixelWidth)
-            }
-        let hostingController = UIHostingController(rootView: view)
+        let viewModel = Self.viewModel(date: today, isAuthenticated: false, loader: loader.loader)
 
-        guard let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first
-        else {
-            Issue.record("윈도우 씬을 찾지 못했습니다")
+        await viewModel.resume()
+
+        #expect(viewModel.viewState.isAuthenticated == false)
+        #expect(viewModel.viewState.hero == .empty)
+        #expect(viewModel.viewState.recordsStatus == .ready)
+        #expect(loader.calendarRequests.isEmpty)
+        #expect(loader.detailRequests.isEmpty)
+        #expect(loader.postStatusCallCount == 0)
+    }
+
+    @Test("PENDING 기록은 상세 API 없이 썸네일과 대기 상태로 표시한다")
+    func pendingRecordSkipsDetail() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "pending-post", date: today, status: .pending)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])]
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+
+        await viewModel.resume()
+
+        guard case let .photo(photo) = viewModel.viewState.hero else {
+            Issue.record("PENDING 기록이 사진 히어로로 표시되지 않았습니다")
             return
         }
-        let window = UIWindow(windowScene: windowScene)
-        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-        defer { window.isHidden = true }
-        window.rootViewController = hostingController
-        window.makeKeyAndVisible()
-        hostingController.view.frame = window.bounds
-        hostingController.view.layoutIfNeeded()
-
-        let firstRequestStarted = await imageLoader.waitForCallCount(1)
-        #expect(firstRequestStarted)
-        #expect(imageLoader.callCount == 1)
-        #expect(imageLoader.failedCallCount == 1)
-
-        await viewModel.refresh()
-
-        let retryStarted = await imageLoader.waitForCallCount(2)
-        #expect(retryStarted)
-        #expect(viewModel.imageReloadGeneration == 1)
-        #expect(imageLoader.requestedURLs == [imageURL, imageURL])
-        #expect(imageLoader.successfulCallCount == 1)
+        #expect(photo.isPending)
+        #expect(photo.imageSource == record.thumbnailImageSource)
+        #expect(photo.signatureSource == nil)
+        #expect(loader.detailRequests.isEmpty)
     }
 
-    @MainActor
-    @Test("바텀바 선택 액션은 선택한 항목을 보존한다")
-    func preservesSelectedBottomBarActionItem() async {
-        let viewModel = HomeViewModel(initialState: HomePreviewData.contentState)
-
-        await viewModel.selectBottomBarItem(.display)
-
-        #expect(viewModel.event == .navigateToBottomBar(.display))
-    }
-
-    @MainActor
-    @Test("오늘 탭 재선택은 최상단 이동 요청을 발생시킨다")
-    func requestsScrollToTopWhenTodayIsSelected() async {
-        let viewModel = HomeViewModel(
-            initialState: HomePreviewData.contentState,
-            refreshHandler: { _ in .success(HomePreviewData.contentState) }
+    @Test("APPROVED 상세 조회 실패는 달력 썸네일로 폴백한다")
+    func approvedDetailFailureFallsBackToCalendarThumbnail() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "approved-post", date: today, status: .approved)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])],
+            detailResult: .failure(TestError.expected)
         )
-        let initialRequestID = viewModel.scrollToTopRequestID
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
 
-        await viewModel.selectBottomBarItem(.today)
+        await viewModel.resume()
 
-        #expect(viewModel.scrollToTopRequestID == initialRequestID + 1)
-    }
-}
-
-@MainActor
-private final class FailingThenSucceedingHomeImageLoader {
-    private(set) var requestedURLs: [URL] = []
-    private(set) var failedCallCount = 0
-    private(set) var successfulCallCount = 0
-
-    var callCount: Int { requestedURLs.count }
-
-    func load(_ url: URL, targetPixelWidth: Int) async throws -> HomeLoadedImage {
-        requestedURLs.append(url)
-        guard callCount > 1 else {
-            failedCallCount += 1
-            throw HomeImagePipelineError.invalidResponse
+        guard case let .photo(photo) = viewModel.viewState.hero else {
+            Issue.record("APPROVED 기록이 사진 히어로로 표시되지 않았습니다")
+            return
         }
-
-        successfulCallCount += 1
-        let size = CGSize(width: 8, height: 6)
-        let image = UIGraphicsImageRenderer(size: size).image { context in
-            context.cgContext.setFillColor(UIColor.white.cgColor)
-            context.cgContext.fill(CGRect(origin: .zero, size: size))
-        }
-        return HomeLoadedImage(image: image, heightToWidthRatio: 0.75)
+        #expect(photo.isPending == false)
+        #expect(photo.imageSource == record.thumbnailImageSource)
+        #expect(photo.signatureSource == nil)
+        #expect(loader.detailRequests == ["approved-post"])
     }
 
-    func waitForCallCount(_ expectedCount: Int) async -> Bool {
-        for _ in 0..<200 {
-            if callCount >= expectedCount { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return callCount >= expectedCount
-    }
-}
-
-struct HomeViewModelBehaviorTests {
-    @MainActor
-    @Test("비로그인 사용자가 좋아요를 누르면 게스트 안내 이벤트를 발행한다")
-    func publishesGuestLikeEventWhenUnauthenticatedUserLikesPhoto() async {
-        let viewModel = HomeViewModel(
-            initialState: HomeViewState(
-                contentStatus: .content,
-                photos: [Self.photo(id: "photo-1")],
-                areLikesEnabled: true
-            ),
-            isAuthenticated: { false }
-        )
-
-        await viewModel.toggleLike(photoID: "photo-1")
-
-        #expect(viewModel.event == .showGuestLikeMessage)
-        #expect(viewModel.viewState.likedPhotoIDs.isEmpty)
-    }
-
-    @MainActor
-    @Test("같은 사진의 좋아요 요청은 진행 중에 중복 실행하지 않는다")
-    func preventsConcurrentLikeRequestsForSamePhoto() async {
-        let request = SuspendedLikeRequest()
-        let viewModel = HomeViewModel(
-            initialState: HomeViewState(
-                contentStatus: .content,
-                photos: [Self.photo(id: "photo-1")],
-                areLikesEnabled: true
-            ),
-            isAuthenticated: { true },
-            likeHandler: { photoID, isLiked in
-                await request.handle(photoID: photoID, isLiked: isLiked)
-            }
-        )
-
-        let firstTap = Task { await viewModel.toggleLike(photoID: "photo-1") }
-        await request.waitUntilStarted()
-        let secondTap = Task { await viewModel.toggleLike(photoID: "photo-1") }
-        await secondTap.value
-
-        #expect(request.callCount == 1)
-
-        request.complete()
-        await firstTap.value
-
-        #expect(viewModel.viewState.likedPhotoIDs == ["photo-1"])
-        #expect(viewModel.viewState.photos.first?.likeCount == 2)
-    }
-
-    @MainActor
-    @Test("새로고침은 랜덤 정렬 결과로 콘텐츠를 교체한다")
-    func refreshReplacesContentWithRandomSortResult() async {
-        let viewModel = HomeViewModel(
-            initialState: HomePreviewData.contentState,
-            refreshHandler: { _ in
-                .success(
-                    HomeViewState(
-                        contentStatus: .content,
-                        topic: "새 주제",
-                        photos: [Self.photo(id: "new-photo")]
-                    )
+    @Test("달력에 없지만 오늘 업로드가 VALIDATING이면 처리 중으로 표시한다")
+    func validatingTodayPostStatusShowsProcessing() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [])],
+            postStatusResult: .success(
+                PhotoUploadTodayPostStatus(
+                    topicDate: today,
+                    isPosted: true,
+                    postID: "validating-post",
+                    moderationStatus: .validating
                 )
-            }
+            )
         )
-        let initialImageReloadGeneration = viewModel.imageReloadGeneration
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
 
-        await viewModel.refresh()
+        await viewModel.resume()
 
-        #expect(viewModel.viewState.selectedSort == .random)
-        #expect(viewModel.viewState.topic == "새 주제")
-        #expect(viewModel.viewState.photos.map(\.id) == ["new-photo"])
-        #expect(viewModel.imageReloadGeneration == initialImageReloadGeneration + 1)
+        #expect(viewModel.viewState.hero == .processing)
+        #expect(loader.postStatusCallCount == 1)
     }
 
-    @MainActor
-    @Test("취소된 새로고침은 기존 콘텐츠를 유지하고 오류 토스트를 표시하지 않는다")
-    func cancelledRefreshKeepsContentWithoutErrorEvent() async {
-        let initialState = HomePreviewData.contentState
-        let viewModel = HomeViewModel(
-            initialState: initialState,
-            refreshHandler: { _ in .failure(.cancelled) }
+    @Test("오늘 주제가 없다는 404는 참여 불가 상태로 표시하고 일반 오류와 구분한다")
+    func postStatus404ShowsNoOpenTopic() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [])],
+            postStatusResult: .failure(PhotoUploadAPIError.http(statusCode: 404, message: nil))
         )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
 
-        await viewModel.refresh()
+        await viewModel.resume()
 
-        #expect(viewModel.event == nil)
-        #expect(viewModel.viewState.contentStatus == .content)
-        #expect(viewModel.viewState.photos == initialState.photos)
-        #expect(!viewModel.viewState.isRefreshing)
-        #expect(viewModel.viewState.areLikesEnabled)
+        #expect(viewModel.viewState.hero == .noOpenTopic)
     }
 
-    @MainActor
-    @Test("취소된 재시도는 이전 오류 상태를 복원한다")
-    func cancelledRetryRestoresPreviousErrorState() async {
-        let initialState = HomeViewState(
-            contentStatus: .error(.network),
-            selectedSort: .popular,
-            areLikesEnabled: false
+    @Test("오늘 주제 조회 404는 주제와 오늘 인기 섹션을 빈 ready 상태로 둔다")
+    func todayTopic404KeepsPublicSectionsReady() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .failure(DisplayAPIError.http(404)),
+            rankingResult: .success([])
         )
-        let viewModel = HomeViewModel(
-            initialState: initialState,
-            refreshHandler: { _ in .failure(.cancelled) }
-        )
+        let viewModel = Self.viewModel(date: today, isAuthenticated: false, loader: loader.loader)
 
-        await viewModel.retry()
+        await viewModel.resume()
 
-        #expect(viewModel.event == nil)
-        #expect(viewModel.viewState == initialState)
+        #expect(viewModel.viewState.topic == "")
+        #expect(viewModel.viewState.topicStatus == .ready)
+        #expect(viewModel.viewState.trending.status == .ready)
+        #expect(viewModel.viewState.trending.photos.isEmpty)
     }
 
-    @MainActor
-    @Test("끝 임계값 도달 시 다음 페이지를 한 번 추가한다")
-    func appendsNextPageWhenEndThresholdIsReached() async {
-        let viewModel = HomeViewModel(
-            initialState: HomeViewState(
-                contentStatus: .content,
-                photos: [Self.photo(id: "photo-1")],
-                currentPage: 0,
-                hasNext: true
-            ),
-            nextPageHandler: { _ in
-                .success(
-                    HomePage(
-                        photos: [Self.photo(id: "photo-2")],
-                        likedPhotoIDs: ["photo-2"],
-                        currentPage: 1,
-                        hasNext: false,
-                        randomSeed: nil
-                    )
-                )
-            }
+    @Test("랭킹 실패는 다른 섹션 로딩 결과를 유지한다")
+    func rankingFailureDoesNotClearOtherSections() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today, photoIDs: ["today-popular"])),
+            rankingResult: .failure(TestError.expected)
         )
+        let viewModel = Self.viewModel(date: today, isAuthenticated: false, loader: loader.loader)
 
-        await viewModel.didReachEndThreshold(true)
+        await viewModel.resume()
 
-        #expect(viewModel.viewState.photos.map(\.id) == ["photo-1", "photo-2"])
-        #expect(viewModel.viewState.likedPhotoIDs == ["photo-2"])
-        #expect(!viewModel.viewState.hasNext)
+        #expect(viewModel.viewState.topic == "오늘의 주제")
+        #expect(viewModel.viewState.topicStatus == .ready)
+        #expect(viewModel.viewState.trending.photos.map(\.id) == ["today-popular"])
+        #expect(viewModel.viewState.yesterday.status == .error)
     }
 
-    private static func photo(id: String) -> HomePhoto {
-        HomePhoto(
+    @Test("취소된 로딩 결과는 현재 상태를 덮어쓰지 않는다")
+    func cancelledLoadDoesNotApplyStaleResult() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let gate = SuspendedTodayResult()
+        let loader = HomeLoaderProbe(
+            todayHandler: { _ in try await gate.load() },
+            rankingResult: .success([])
+        )
+        let initialState = HomeViewState(date: today)
+        let viewModel = Self.viewModel(date: today, initialState: initialState, isAuthenticated: false, loader: loader.loader)
+
+        let loadTask = Task { await viewModel.resume() }
+        await gate.waitUntilStarted()
+        viewModel.cancel()
+        await gate.complete(with: .success(Self.displayContent(date: today, topic: "늦은 주제", photoIDs: ["late"])))
+        await loadTask.value
+
+        #expect(viewModel.viewState.topic == "")
+        #expect(viewModel.viewState.trending.photos.isEmpty)
+        #expect(viewModel.viewState.isRefreshing == false)
+    }
+
+    private static func viewModel(
+        date: Date,
+        initialState: HomeViewState? = nil,
+        isAuthenticated: Bool = true,
+        loader: HomeDataLoader
+    ) -> HomeViewModel {
+        HomeViewModel(
+            initialState: initialState ?? HomeViewState(),
+            loader: loader,
+            dateProvider: { date },
+            isAuthenticated: { isAuthenticated }
+        )
+    }
+
+    private static func date(year: Int, month: Int, day: Int) -> Date {
+        RecordMonth.calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+
+    fileprivate static func displayContent(
+        date: Date,
+        topic: String = "오늘의 주제",
+        photoIDs: [String] = []
+    ) -> DisplayContent {
+        DisplayContent(
+            topicDate: date,
+            topic: topic,
+            page: DisplayPage(
+                photos: photoIDs.map(displayPhoto),
+                currentPage: 1,
+                hasNext: false,
+                randomSeed: nil
+            )
+        )
+    }
+
+    private static func displayPhoto(id: String) -> DisplayPhoto {
+        DisplayPhoto(
             id: id,
-            imageSource: .asset("preview_photo"),
-            signatureSource: .asset("preview_signature"),
-            contentDescription: "테스트 사진",
-            title: "테스트 제목",
-            likeCount: 1
+            originalImageSource: .remote(URL(string: "https://example.com/\(id).webp")!),
+            thumbnailImageSource: .remote(URL(string: "https://example.com/\(id)-thumb.webp")!),
+            signatureOriginalImageSource: .remote(URL(string: "https://example.com/\(id)-signature.png")!),
+            signatureThumbnailImageSource: .remote(URL(string: "https://example.com/\(id)-signature-thumb.png")!),
+            contentDescription: "테스트 사진 \(id)",
+            title: id,
+            likeCount: 1,
+            isLiked: false,
+            isOwnedByCurrentUser: false
+        )
+    }
+
+    private static func record(id: String, date: Date, status: RecordPostStatus) -> RecordPost {
+        RecordPost(
+            postId: id,
+            topicDate: date,
+            thumbnailImageSource: .remote(URL(string: "https://example.com/\(id)-thumb.webp")!),
+            status: status
         )
     }
 }
 
 @MainActor
-private final class SuspendedLikeRequest {
-    private(set) var callCount = 0
+struct DisplayViewModelHomeRoutingTests {
+    @Test("홈에서 인기 더보기로 진입하면 첫 페이지를 popular 정렬로 요청한다")
+    func initialPopularSortIsUsedForFirstPageLoad() async {
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let recorder = DisplayFirstPageRecorder(content: HomeViewModelTests.displayContent(date: today))
+        let viewModel = DisplayViewModel(
+            initialDate: today,
+            initialSort: .popular,
+            dateProvider: { today },
+            firstPageHandler: { date, sort, _ in
+                await recorder.load(date: date, sort: sort)
+            }
+        )
+
+        await viewModel.load()
+
+        #expect(await recorder.requests == [
+            DisplayFirstPageRequest(date: today, sort: "popular")
+        ])
+        #expect(Self.sortKey(viewModel.viewState.selectedSort) == "popular")
+    }
+
+    private static func date(year: Int, month: Int, day: Int) -> Date {
+        RecordMonth.calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+
+    nonisolated fileprivate static func sortKey(_ sort: DisplaySort) -> String {
+        switch sort {
+        case .latest:
+            "latest"
+        case .popular:
+            "popular"
+        case .random:
+            "random"
+        }
+    }
+}
+
+private enum TestError: Error {
+    case expected
+}
+
+private struct DisplayFirstPageRequest: Equatable, Sendable {
+    let date: Date
+    let sort: String
+}
+
+private actor DisplayFirstPageRecorder {
+    private(set) var requests: [DisplayFirstPageRequest] = []
+    private let content: DisplayContent
+
+    init(content: DisplayContent) {
+        self.content = content
+    }
+
+    func load(date: Date, sort: DisplaySort) -> Result<DisplayContent, DisplayError> {
+        requests.append(DisplayFirstPageRequest(date: date, sort: DisplayViewModelHomeRoutingTests.sortKey(sort)))
+        return .success(content)
+    }
+}
+
+@MainActor
+private final class HomeLoaderProbe {
+    private var todayHandler: @Sendable (Date) async throws -> DisplayContent
+    private var rankingResult: Result<[DisplayPhoto], Error>
+    private var calendars: [RecordMonth: RecordCalendar]
+    private var detailResult: Result<FeedContent, Error>
+    private var postStatusResult: Result<PhotoUploadTodayPostStatus, Error>
+    private(set) var calendarRequests: [RecordMonth] = []
+    private(set) var detailRequests: [String] = []
+    private(set) var postStatusCallCount = 0
+
+    init(
+        todayHandler: @escaping @Sendable (Date) async throws -> DisplayContent,
+        rankingResult: Result<[DisplayPhoto], Error>,
+        calendars: [RecordMonth: RecordCalendar]? = nil,
+        detailResult: Result<FeedContent, Error> = .failure(TestError.expected),
+        postStatusResult: Result<PhotoUploadTodayPostStatus, Error> = .failure(TestError.expected)
+    ) {
+        self.todayHandler = todayHandler
+        self.rankingResult = rankingResult
+        self.calendars = calendars ?? [:]
+        self.detailResult = detailResult
+        self.postStatusResult = postStatusResult
+    }
+
+    convenience init(
+        todayResult: Result<DisplayContent, Error>,
+        rankingResult: Result<[DisplayPhoto], Error>,
+        calendars: [RecordMonth: RecordCalendar]? = nil,
+        detailResult: Result<FeedContent, Error> = .failure(TestError.expected),
+        postStatusResult: Result<PhotoUploadTodayPostStatus, Error> = .failure(TestError.expected)
+    ) {
+        self.init(
+            todayHandler: { _ in try todayResult.get() },
+            rankingResult: rankingResult,
+            calendars: calendars,
+            detailResult: detailResult,
+            postStatusResult: postStatusResult
+        )
+    }
+
+    nonisolated var loader: HomeDataLoader {
+        HomeDataLoader(
+            today: { date in try await self.loadToday(date) },
+            ranking: { _ in try await self.loadRanking() },
+            calendar: { month in
+                try await self.loadCalendar(month)
+            },
+            detail: { postID in
+                try await self.loadDetail(postID)
+            },
+            postStatus: {
+                try await self.loadPostStatus()
+            }
+        )
+    }
+
+    private func loadToday(_ date: Date) async throws -> DisplayContent {
+        try await todayHandler(date)
+    }
+
+    private func loadRanking() throws -> [DisplayPhoto] {
+        try rankingResult.get()
+    }
+
+    private func loadCalendar(_ month: RecordMonth) throws -> RecordCalendar {
+        calendarRequests.append(month)
+        guard let calendar = calendars[month] else { throw TestError.expected }
+        return calendar
+    }
+
+    private func loadDetail(_ postID: String) throws -> FeedContent {
+        detailRequests.append(postID)
+        return try detailResult.get()
+    }
+
+    private func loadPostStatus() throws -> PhotoUploadTodayPostStatus {
+        postStatusCallCount += 1
+        return try postStatusResult.get()
+    }
+}
+
+private actor SuspendedTodayResult {
     private var didStart = false
     private var startWaiters: [CheckedContinuation<Void, Never>] = []
-    private var requestContinuation: CheckedContinuation<Void, Never>?
+    private var resultContinuation: CheckedContinuation<DisplayContent, Error>?
 
     func waitUntilStarted() async {
         guard !didStart else { return }
@@ -335,160 +444,17 @@ private final class SuspendedLikeRequest {
         }
     }
 
-    func handle(photoID: HomePhoto.ID, isLiked: Bool) async -> Result<HomeLikeUpdate, HomeInitialError> {
-        callCount += 1
+    func load() async throws -> DisplayContent {
         didStart = true
         startWaiters.forEach { $0.resume() }
         startWaiters.removeAll()
-
-        await withCheckedContinuation { continuation in
-            requestContinuation = continuation
-        }
-        return .success(
-            HomeLikeUpdate(
-                photoID: photoID,
-                isLiked: isLiked,
-                likeCount: 2
-            )
-        )
-    }
-
-    func complete() {
-        requestContinuation?.resume()
-        requestContinuation = nil
-    }
-}
-
-@MainActor
-@Suite(.serialized)
-struct HomeAPIClientTests {
-    @Test("홈 API는 주제의 기준 날짜로 게시물을 조회하고 응답을 화면 상태로 변환한다")
-    func fetchesTopicThenPosts() async throws {
-        let recorder = RequestRecorder()
-        let client = makeClient { request in
-            await recorder.append(request)
-            switch request.url?.path {
-            case "/api/v1/topics":
-                return Self.response(
-                    for: request,
-                    body: #"{"id":"topic-id","title":"반짝임","topicDate":"2026-09-01"}"#
-                )
-            case "/api/v1/posts":
-                return Self.response(
-                    for: request,
-                    body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"randomSeed":null,"posts":[{"id":"post-1","originalImageUrl":"https://example.com/photo.webp","thumbnailImageUrl":"https://example.com/thumb.webp","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumb.png","title":"빛","submittedAt":"2026-09-01T00:00:00Z","likeCount":2,"isLiked":true,"isMine":false}]}"#
-                )
-            default:
-                return Self.response(for: request, statusCode: 404, body: "{}")
-            }
-        }
-
-        let state = try await client.fetchHome(
-            date: Self.date(year: 2026, month: 9, day: 1),
-            sort: .latest
-        )
-
-        #expect(state.topic == "반짝임")
-        #expect(state.photos.map(\.id) == ["post-1"])
-        #expect(state.likedPhotoIDs == ["post-1"])
-        #expect(state.photos.first?.isOwnedByCurrentUser == false)
-        let requests = await recorder.requests
-        #expect(requests.count == 2)
-        #expect(requests[0].url?.query?.contains("date=2026-09-01") == true)
-        #expect(requests[1].url?.query?.contains("sort=recent") == true)
-        #expect(requests[1].url?.query?.contains("pageSize=20") == true)
-    }
-
-    @Test("좋아요 API는 토큰과 HTTP 메서드를 전달한다")
-    func sendsAuthenticatedLikeRequest() async throws {
-        let recorder = RequestRecorder()
-        let client = makeClient(accessToken: "access-token") { request in
-            await recorder.append(request)
-            return Self.response(
-                for: request,
-                body: #"{"postId":"post-1","likeCount":3,"isLiked":true}"#
-            )
-        }
-
-        let update = try await client.updateLike(photoID: "post-1", isLiked: true)
-
-        #expect(update.likeCount == 3)
-        let request = try #require(await recorder.requests.first)
-        #expect(request.httpMethod == "PUT")
-        #expect(request.url?.path == "/api/v1/posts/post-1/likes")
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
-    }
-
-    private func makeClient(
-        accessToken: String? = nil,
-        handler: @escaping MockURLProtocol.Handler
-    ) -> HomeAPIClient {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
-        MockURLProtocol.handler = handler
-        return HomeAPIClient(
-            configuration: HomeAPIConfiguration(
-                baseURL: URL(string: "https://example.com/api/v1/")!
-            ),
-            session: URLSession(configuration: configuration),
-            accessTokenProvider: { accessToken }
-        )
-    }
-
-    nonisolated private static func response(
-        for request: URLRequest,
-        statusCode: Int = 200,
-        body: String
-    ) -> (HTTPURLResponse, Data) {
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: statusCode,
-            httpVersion: nil,
-            headerFields: ["Content-Type": "application/json"]
-        )!
-        return (response, Data(body.utf8))
-    }
-
-    private static func date(year: Int, month: Int, day: Int) -> Date {
-        Calendar(identifier: .gregorian).date(
-            from: DateComponents(year: year, month: month, day: day)
-        )!
-    }
-}
-
-private actor RequestRecorder {
-    private(set) var requests: [URLRequest] = []
-
-    func append(_ request: URLRequest) {
-        requests.append(request)
-    }
-}
-
-private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-    typealias Handler = @Sendable (URLRequest) async throws -> (HTTPURLResponse, Data)
-
-    nonisolated(unsafe) static var handler: Handler?
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        guard let handler = Self.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        Task {
-            do {
-                let (response, data) = try await handler(request)
-                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-                client?.urlProtocol(self, didLoad: data)
-                client?.urlProtocolDidFinishLoading(self)
-            } catch {
-                client?.urlProtocol(self, didFailWithError: error)
-            }
+        return try await withCheckedThrowingContinuation { continuation in
+            resultContinuation = continuation
         }
     }
 
-    override func stopLoading() {}
+    func complete(with result: Result<DisplayContent, Error>) {
+        resultContinuation?.resume(with: result)
+        resultContinuation = nil
+    }
 }
