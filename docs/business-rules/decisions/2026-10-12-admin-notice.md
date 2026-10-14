@@ -7,7 +7,7 @@
 - 변경 이유: 공지는 푸시를 놓쳐도 다시 확인할 수 있어야 하므로 주제 푸시와 달리 알림함에 남긴다. 이미 일반화된 알림함 구조와 발행 상태·재시도·30일 보관 정책을 재사용할 수 있다. 회원별 알림 생성과 공지의 발송 완료를 한 트랜잭션으로 묶어 재시작에도 중복·누락 없이 한 번만 생성한다. 즉시 발송은 예약 시각을 현재로 보내는 방식으로 통일해 별도 API를 두지 않는다. 날짜 입력 실수로 전체 회원에게 즉시 발송되는 사고를 막기 위해 5분 넘게 과거인 예약 시각은 거절하고, 요청 지연과 관리자 기기의 시계 차이만 허용한다. 잘못 입력한 미래 시각은 발송 전에 수정·취소할 수 있어 상한을 두지 않는다.
 - 영향 범위: 관리자 공지 API와 감사 로그, 예약 시각의 알림함 생성, 알림함 조회의 삭제 공지 제외, 공통 Worker의 공지 처리, Android·iOS 푸시 계약. 공지별 발송 결과는 관리자 API로 제공하지 않고, 기기별 결과를 DB에 저장하지 않는 기존 정책을 유지해 공지 ID(`eventId`)로 CloudWatch Logs Insights에서 조회한다.
 - 관련 규칙: NOTIFICATION-012, NOTIFICATION-013, ADMIN-006, ADMIN-007. #594에서 NOTIFICATION-001·006에 공지 예외를 더했고, #595에서 NOTIFICATION-006·013에 공지 푸시 발송을 더했다. #593에서 NOTIFICATION-012에 수정을 더했고, 삭제 단계(#612)에서 NOTIFICATION-002·003을 함께 갱신한다.
-- 관련 이슈·PR: [#587](https://github.com/woowacourse-teams/2026-Chalkak/issues/587), [#592](https://github.com/woowacourse-teams/2026-Chalkak/issues/592). PR은 아직 등록하지 않았다.
+- 관련 이슈·PR: [#587](https://github.com/woowacourse-teams/2026-Chalkak/issues/587), [#592](https://github.com/woowacourse-teams/2026-Chalkak/issues/592), [#594](https://github.com/woowacourse-teams/2026-Chalkak/issues/594), [#595](https://github.com/woowacourse-teams/2026-Chalkak/issues/595), [#593](https://github.com/woowacourse-teams/2026-Chalkak/issues/593), [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612). PR: [#598](https://github.com/woowacourse-teams/2026-Chalkak/pull/598), [#602](https://github.com/woowacourse-teams/2026-Chalkak/pull/602), [#611](https://github.com/woowacourse-teams/2026-Chalkak/pull/611), [#615](https://github.com/woowacourse-teams/2026-Chalkak/pull/615). 삭제(#612)의 PR은 아직 등록하지 않았다.
 
 ## 단계별 구현
 
@@ -37,7 +37,7 @@
 
 - 결정일: 2026-10-13
 - 결정: 공지 한 건을 회원별 알림으로 나눠 넣는 단계를 SQS 발행(publish)과 구분해 배포(distribute)라고 부르고, 배포 시각(`distributed_at`)만 기록한다. 관리자에게 보여 주는 상태(`SCHEDULED`·`DISTRIBUTED`)는 배포 시각 유무로 계산하며 따로 저장하지 않는다. KST 매 분 0초에 전용 스레드에서 확인하며 전용 설정(`NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED`, 기본 꺼짐)으로 켠다. 서버가 멈춰 예약 시각을 지나친 공지도 다시 켜지면 배포한다.
-- 이유: 상태가 둘뿐이고 전환이 배포 시각 하나로 완전히 설명되므로, 상태를 따로 저장하면 같은 사실을 두 번 적고 둘을 맞추는 제약이 필요해진다. 배포를 나눠 처리하는 등 시각만으로 구분되지 않는 상태가 생기면 그때 상태 컬럼을 둔다. 공지는 초 단위 정밀도가 필요 없고 관리자는 분 단위로 예약하므로 매 분 확인으로 충분하다. 전용 설정을 두면 승인·반려 Relay는 유지한 채 공지 배포만 멈출 수 있고, 수정·삭제(#593) 전에는 잘못 예약한 공지를 막는 수단이 된다. 늦더라도 공지는 전달되는 편이 낫다고 보고, 푸시는 기존 30분 기한 정책을 그대로 따른다.
+- 이유: 상태가 둘뿐이고 전환이 배포 시각 하나로 완전히 설명되므로, 상태를 따로 저장하면 같은 사실을 두 번 적고 둘을 맞추는 제약이 필요해진다. 배포를 나눠 처리하는 등 시각만으로 구분되지 않는 상태가 생기면 그때 상태 컬럼을 둔다. 공지는 초 단위 정밀도가 필요 없고 관리자는 분 단위로 예약하므로 매 분 확인으로 충분하다. 전용 설정을 두면 승인·반려 Relay는 유지한 채 공지 배포만 멈출 수 있고, 삭제(#612) 전에는 잘못 예약한 공지를 막는 수단이 된다. 늦더라도 공지는 전달되는 편이 낫다고 보고, 푸시는 기존 30분 기한 정책을 그대로 따른다.
 - 관련 규칙·이슈: NOTIFICATION-013, [#594](https://github.com/woowacourse-teams/2026-Chalkak/issues/594)
 
 ## 공지 수정의 처리 방식
