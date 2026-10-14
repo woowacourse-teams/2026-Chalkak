@@ -6,7 +6,7 @@
 - 변경 후: 관리자가 제목·본문·예약 시각으로 공지를 등록한다. 예약 시각이 되면 탈퇴하지 않은 전체 회원(정지 회원 포함)의 알림함에 공지를 저장하고 기존 Relay → SQS → 공통 PushWorker 경로로 푸시를 보낸다. 공지 전용 수신 설정은 두지 않는다. 발송 전에는 수정·취소할 수 있고, 발송 후 삭제하면 회원 알림함에서 숨긴다.
 - 변경 이유: 공지는 푸시를 놓쳐도 다시 확인할 수 있어야 하므로 주제 푸시와 달리 알림함에 남긴다. 이미 일반화된 알림함 구조와 발행 상태·재시도·30일 보관 정책을 재사용할 수 있다. 회원별 알림 생성과 공지의 발송 완료를 한 트랜잭션으로 묶어 재시작에도 중복·누락 없이 한 번만 생성한다. 즉시 발송은 예약 시각을 현재로 보내는 방식으로 통일해 별도 API를 두지 않는다. 날짜 입력 실수로 전체 회원에게 즉시 발송되는 사고를 막기 위해 5분 넘게 과거인 예약 시각은 거절하고, 요청 지연과 관리자 기기의 시계 차이만 허용한다. 잘못 입력한 미래 시각은 발송 전에 수정·취소할 수 있어 상한을 두지 않는다.
 - 영향 범위: 관리자 공지 API와 감사 로그, 예약 시각의 알림함 생성, 알림함 조회의 삭제 공지 제외, 공통 Worker의 공지 처리, Android·iOS 푸시 계약. 공지별 발송 결과는 관리자 API로 제공하지 않고, 기기별 결과를 DB에 저장하지 않는 기존 정책을 유지해 공지 ID(`eventId`)로 CloudWatch Logs Insights에서 조회한다.
-- 관련 규칙: NOTIFICATION-012, NOTIFICATION-013, ADMIN-006, ADMIN-007. #594에서 NOTIFICATION-001·006에 공지 예외를 더했고, #595에서 NOTIFICATION-006·013에 공지 푸시 발송을 더했다. #593에서 NOTIFICATION-012에 수정을 더했고, 삭제 단계(#612)에서 NOTIFICATION-002·003을 함께 갱신한다.
+- 관련 규칙: NOTIFICATION-012, NOTIFICATION-013, ADMIN-006, ADMIN-007. #594에서 NOTIFICATION-001·006에 공지 예외를 더했고, #595에서 NOTIFICATION-006·013에 공지 푸시 발송을 더했다. #593에서 NOTIFICATION-012에 수정을 더했고, #612에서 NOTIFICATION-002·003·012·013과 ADMIN-006에 삭제를 더했다.
 - 관련 이슈·PR: [#587](https://github.com/woowacourse-teams/2026-Chalkak/issues/587), [#592](https://github.com/woowacourse-teams/2026-Chalkak/issues/592), [#594](https://github.com/woowacourse-teams/2026-Chalkak/issues/594), [#595](https://github.com/woowacourse-teams/2026-Chalkak/issues/595), [#593](https://github.com/woowacourse-teams/2026-Chalkak/issues/593), [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612). PR: [#598](https://github.com/woowacourse-teams/2026-Chalkak/pull/598), [#602](https://github.com/woowacourse-teams/2026-Chalkak/pull/602), [#611](https://github.com/woowacourse-teams/2026-Chalkak/pull/611), [#615](https://github.com/woowacourse-teams/2026-Chalkak/pull/615). 삭제(#612)의 PR은 아직 등록하지 않았다.
 
 ## 단계별 구현
@@ -46,3 +46,11 @@
 - 결정: 수정은 제목·본문·예약 시각을 함께 받는 전체 교체(PUT)로 하고 등록과 같은 검증을 쓴다. 공지 행을 일반 행 잠금으로 잠근 뒤 배포 여부를 확인한다. 같은 내용으로 수정하면 변경 없이 현재 공지를 반환하고 감사 로그를 남기지 않는다.
 - 이유: 수정할 수 있는 세 필드가 모두 필수이고 관리자 화면은 폼 전체를 제출하므로, 생략과 null을 구분해야 하는 부분 수정(PATCH)은 규칙만 늘린다. 배포는 잠긴 공지를 건너뛰고(`SKIP LOCKED`) 수정은 잠금을 기다리므로, 배포가 먼저면 수정이 배포 결과를 보고 거절하고 수정이 먼저면 다음 확인 때 수정된 내용으로 배포한다. 바꾸지 않고 저장하는 것은 관리자 화면에서 흔한 정상 동작이라 오류로 막지 않으며, 감사 로그는 실제 변경만 기록한다.
 - 관련 규칙·이슈: NOTIFICATION-012, ADMIN-006, [#593](https://github.com/woowacourse-teams/2026-Chalkak/issues/593)
+
+## 공지 삭제의 처리 방식
+
+- 결정일: 2026-10-14
+- 결정: 삭제는 `deleted_at`을 기록하는 논리 삭제이며 배포 전후를 하나의 API로 처리한다. 배포 전이면 배포 대상에서 빠져 발송 취소가 되고, 배포 후면 회원 알림함의 모든 조회·읽음과 Worker 발송 조회에서 그 공지의 알림을 제외한다. 관리자 응답의 `status`는 배포 기준(예약·배포 완료)을 유지하고 삭제 여부는 `deletedAt`으로 따로 보여 준다. 삭제된 공지의 수정은 찾을 수 없음(404)이 아니라 상태상 불가(400)로 거절한다. 삭제와 배포의 경합은 수정과 같은 공지 행 잠금으로 정한다.
+- 이유: 관리자에게는 "지웠다"가 한 동작이고 배포 여부는 서버가 판단하면 되므로 취소·숨김 API를 나누지 않는다. 알림 행을 지우지 않고 조회에서 빼면 감사·조사 기록이 남고 30일 보관 정책을 그대로 쓸 수 있다. 관리자는 삭제된 공지도 목록·상세에서 계속 보므로 수정 요청에는 "없음"보다 "삭제되어 수정 불가"가 정확하다. 발행 단계(Relay)에서 거르지 않아도 Worker가 발송 직전에 다시 확인하므로 결과는 같고 변경 범위가 작다.
+- 한계: Worker가 확인을 통과한 직후 FCM 요청이 나가는 사이에 삭제되면 그 기기에는 푸시가 갈 수 있고, 이미 기기에 표시된 푸시는 회수할 수 없다. 이 경우 푸시를 눌러도 상세는 찾을 수 없음으로 처리된다.
+- 관련 규칙·이슈: NOTIFICATION-002, NOTIFICATION-003, NOTIFICATION-012, NOTIFICATION-013, ADMIN-006, [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612)
