@@ -160,7 +160,13 @@ class DisplayViewModel(
                         } else {
                             _uiState.value.likedPhotoIds - photoId
                         },
-                    ) { updatedPhoto }
+                    ) { previousPhoto ->
+                        updatedPhoto.copy(
+                            signatureThumbnailImageUrl = updatedPhoto.signatureThumbnailImageUrl
+                                ?: previousPhoto.signatureThumbnailImageUrl,
+                            submittedAt = updatedPhoto.submittedAt ?: previousPhoto.submittedAt,
+                        )
+                    }
                 }
 
                 is HomeResult.Failure -> {

@@ -13,6 +13,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
@@ -472,6 +473,52 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `랜덤 피드 복귀 시 상세 응답에 없는 사인 썸네일과 제출 시각을 캐시에도 보존한다`() = runTest {
+        val randomRepository = FakePostRepository()
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val refreshedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val refreshedPhoto = refreshedContent.photos.single()
+        assertEquals(post.signatureThumbnailImageUrl, refreshedPhoto.signatureThumbnailImageUrl)
+        assertEquals(post.submittedAt, refreshedPhoto.submittedAt)
+
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomRepository.pendingContentResult = CompletableDeferred()
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        val cachedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val cachedPhoto = cachedContent.photos.single()
+        assertEquals(post.signatureThumbnailImageUrl, cachedPhoto.signatureThumbnailImageUrl)
+        assertEquals(post.submittedAt, cachedPhoto.submittedAt)
+    }
+
+    @Test
+    fun `랜덤 피드 복귀 시 상세 응답에 있는 사인 썸네일과 제출 시각은 갱신한다`() = runTest {
+        val updatedPost = post.copy(
+            signatureThumbnailImageUrl = "https://example.com/new-signature-thumbnail.png",
+            submittedAt = requireNotNull(post.submittedAt).plusSeconds(60),
+        )
+        val randomRepository = FakePostRepository().apply {
+            detailResult = HomeResult.Success(
+                PostDetail(post = updatedPost, topic = "바다", topicDate = LATEST_DATE),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val refreshedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val refreshedPhoto = refreshedContent.photos.single()
+        assertEquals(updatedPost, refreshedPhoto)
+    }
+
+    @Test
     fun `랜덤 피드 복귀의 상세 갱신 실패는 기존 세션을 유지한다`() = runTest {
         val randomRepository = FakePostRepository().apply {
             firstPageHasNext = true
@@ -866,7 +913,11 @@ private class FakePostRepository : PostRepository {
     val detailRequests = mutableListOf<String>()
     var pendingDetailResult: CompletableDeferred<HomeResult<PostDetail>>? = null
     var detailResult: HomeResult<PostDetail> = HomeResult.Success(
-        PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE),
+        PostDetail(
+            post = post.copy(signatureThumbnailImageUrl = null, submittedAt = null),
+            topic = "바다",
+            topicDate = LATEST_DATE,
+        ),
     )
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
@@ -972,6 +1023,7 @@ private val post = Post(
     signatureOriginalImageUrl = "https://example.com/signature.png",
     signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
     contentDescription = "사진",
+    submittedAt = Instant.parse("2026-08-05T03:00:00Z"),
     title = "한낮의 다리",
     likeCount = 17,
 )
