@@ -14,6 +14,9 @@ import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
+import java.util.Map;
+import java.util.HashMap;
+import org.junit.jupiter.params.provider.CsvSource;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -306,6 +309,35 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThat(repository.findDuePublicationIds(NOW.plusSeconds(2), 2)).containsExactly(earlier,
                 later);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,SQS_FAILED", "true,SQS_UNKNOWN"})
+    @DisplayName("발행 거절과 수락 불명을 구분하고 DB 재시도 상태와 식별자를 함께 기록한다")
+    void publishPendingNotifications_retryableResult_distinguishesAcceptance(boolean unknown,
+            String result) {
+        // Given
+        UUID id = saveNotification(NOW, true);
+        PushPublicationResult publication = PushPublicationResult.retry("RequestThrottled");
+        if (unknown) {
+            publication = PushPublicationResult.unknown("SQS_CLIENT_ERROR");
+        }
+        given(publisher.publish(any())).willReturn(publication);
+        // When
+        relay(NOW).publishPendingNotifications();
+        // Then
+        assertThat(getStatus(id)).isEqualTo("PENDING");
+        assertThat(appender.list.stream().map(event -> {
+            Map<String, Object> values = new HashMap<>();
+            event.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+            return values;
+        }).filter(values -> result.equals(values.get("result"))).toList()).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("notificationId", id)
+                        .containsEntry("userId", USER_ID)
+                        .containsEntry("publishStatus",
+                                com.chalkak.backend.notification.domain.PublishStatus.PENDING)
+                        .containsEntry("nextAttemptAt", NOW.plusSeconds(60))
+                        .containsKey("eventId"));
     }
 
     private NotificationRelayService relay(Instant now) {

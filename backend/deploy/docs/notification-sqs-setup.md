@@ -75,13 +75,55 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 
 ## 로그 조회
 
-기존 CloudWatch 수집 로그에서 다음처럼 조회할 수 있다. 별도 운영 조회 API는 만들지 않는다.
+알림 로그는 `type=notification`으로 찾는다. 공통 필드는 다음과 같다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `eventId` | 사건 ID. 주제 발행은 한 회차가 같은 값을 사용한다. |
+| `userId` | 대상 회원 ID. 주제 회차 안에서 회원을 구분한다. |
+| `notificationId` | 승인·반려 알림함 ID. 주제에는 없다. |
+| `sqsMessageId` | SQS가 부여한 메시지 ID. 발행 수락 전에는 알 수 없다. |
+| `receiveCount` | 최초 수신을 포함한 SQS 수신 횟수. Worker 로그에서는 MDC로 함께 기록한다. SDK 내부 HTTP 요청 횟수가 아니다. |
+| `deviceId` | 처리한 등록 기기 ID. 기기별 결과·생략·오류에 기록한다. |
+
+승인·반려는 `notificationId`, 주제는 `eventId + userId`로 `worker_received`를 찾은 뒤,
+같은 `sqsMessageId`로 삭제·처리 실패·숨김 연장 오류까지 연결한다. 잘못된 JSON은 사건 ID를
+해석할 수 없어도 큐 메시지 ID로 조사한다. 재수신별 결과는 `receiveCount`를 함께 본다.
+주제의 정상 SQS 발행은 기존 회차 집계만 남기며 회원별 성공 로그를 추가하지 않는다.
 
 ```sql
-fields @timestamp, stage, eventId, notificationId, sqsMessageId, result, errorCode, nextAttemptAt
+fields @timestamp, stage, eventId, userId, notificationId, sqsMessageId, receiveCount, deviceId, result, reason, errorCode
 | filter type = "notification" and notificationId = "확인할 알림 UUID"
 | sort @timestamp asc
 ```
+
+수신 로그에서 확인한 큐 메시지 하나의 전체 처리는 다음처럼 조회한다.
+
+```sql
+fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, retryable
+| filter type = "notification" and sqsMessageId = "확인할 SQS 메시지 ID"
+| sort @timestamp asc
+```
+
+- `stage=relay`: `result=SQS_ACCEPTED`는 수락, `SQS_FAILED`는 재시도 가능한 발행 거절,
+  `SQS_UNKNOWN`은 수락 여부 불명이다. `FAILED`는 영구 발행 실패, `EXPIRED`는 호출 전 만료다.
+  `publishStatus`는 해당 트랜잭션 안의 DB 상태이며, `nextAttemptAt`은 다음 발행 가능 시각이다.
+  `SQS_UNKNOWN`이어도 기한이 지나면 `publishStatus=EXPIRED`일 수 있다.
+- `stage=fcm_result`: 한 기기에 대한 발송 어댑터 호출 결과다. `ACCEPTED`는 FCM 접수 성공이며
+  기기 도착·클릭을 보장하지 않는다. SDK 내부 재요청 하나마다 별도 로그를 남기지 않는다.
+- `stage=worker_skipped`: `INVALID_MESSAGE`, `EXPIRED`, `NO_DEVICES`, `DEVICE_MISSING`,
+  `LOGIN_UNUSABLE`, `USER_INACTIVE`, `PUSH_DISABLED`, `TOPIC_UNAVAILABLE`,
+  `ALREADY_PARTICIPATED`, `NOTIFICATION_UNAVAILABLE`, `ALREADY_READ`, `MESSAGE_MISMATCH`,
+  `PUBLICATION_INACTIVE` 등 실제 발송 생략 사유를 기록한다. 어댑터 직전 만료는 어댑터의 사유를 사용한다.
+- `stage=worker_summary`: 이번 수신의 `targetCount`, `acceptedCount`, `retryableCount`,
+  `permanentFailureCount`, `invalidTokenCount`, `skippedCount`를 기록한다.
+  이는 기기 처리 결과의 건수이며 SDK HTTP 요청 횟수가 아니다. `retryableCount`에는 DB 조회 등
+  기기 처리 예외도 포함하므로 실제 FCM 결과는 `fcm_result`와 구분한다.
+  한 기기라도 수락되면 다른 기기가 실패해도 최종 `retryable=false`다.
+- `stage=worker_retry_pending`: 현재 처리를 마치고 SQS 재전달을 기다린다. `retryAfterSeconds`는
+  발송 어댑터가 요청한 대기 값이며, 다음 수신이 정확히 그 시각에 발생한다는 뜻은 아니다.
+
+토큰·수신 핸들·메시지 원문·제목·본문·반려 사유·사진 URL·예외 원문은 기록하지 않는다.
 
 `SQS_ACCEPTED`만 있고 DB 트랜잭션이 실패하면 다음 실행에서 같은 사건이 중복 발행될 수 있다. `PUBLISHED`는 SQS 수락 상태이지 FCM 요청 수락·기기 수신·클릭을 뜻하지 않는다. DB 발행 횟수·오류 이력 컬럼이나 별도 Outbox·push_attempts는 추가하지 않는다. 경보와 로그 보관 설정 완성은 #494 범위다.
 

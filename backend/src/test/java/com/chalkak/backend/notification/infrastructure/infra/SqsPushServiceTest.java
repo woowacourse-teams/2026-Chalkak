@@ -7,6 +7,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import java.util.HashMap;
+import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.service.PushMessage;
@@ -67,12 +74,24 @@ class SqsPushServiceTest {
     private ScheduledFuture<?> future;
     private PushMessage push;
     private Message message;
+    private final Logger logger = (Logger) LoggerFactory
+            .getLogger("com.chalkak.backend.notification");
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
+    private boolean failVisibility;
     private boolean failDelete;
     private boolean holdVisibilityResponse;
     private String receiveResponse = "{\"Messages\":[]}";
 
     @BeforeEach
     void setUp() throws Exception {
+        appender.start();
+        logger.addAppender(appender);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         serverExecutor = Executors.newCachedThreadPool();
         server.setExecutor(serverExecutor);
@@ -89,6 +108,10 @@ class SqsPushServiceTest {
             if (operation.endsWith("ReceiveMessage"))
                 body = receiveResponse;
             if (operation.endsWith("DeleteMessage") && failDelete) {
+                status = 500;
+                body = "{\"__type\":\"InternalError\"}";
+            }
+            if (operation.endsWith("ChangeMessageVisibility") && failVisibility) {
                 status = 500;
                 body = "{\"__type\":\"InternalError\"}";
             }
@@ -122,15 +145,100 @@ class SqsPushServiceTest {
                 NotificationType.POST_APPROVED, NotificationSourceType.POST, UUID.randomUUID(), NOW,
                 NOW.plusSeconds(1800));
         message = Message.builder().messageId("sqs-id").receiptHandle("receipt-handle")
+                .attributes(Map.of(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT, "1"))
                 .body(mapper.writeValueAsString(push)).build();
     }
 
     @AfterEach
     void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
+        MDC.clear();
         allowVisibilityResponse.countDown();
         client.close();
         server.stop(0);
         serverExecutor.shutdownNow();
+    }
+
+    @Test
+    @DisplayName("재수신마다 SQS 식별자와 횟수를 발송 로그에 연결하고 기존 로그 문맥을 복원한다")
+    void process_redeliveredMessage_correlatesSenderLogsAndRestoresContext() {
+        // Given
+        MDC.put("requestId", "previous-request");
+        MDC.put("sqsMessageId", "previous-message");
+        given(service.process(any())).willAnswer(call -> {
+            LoggerFactory.getLogger(PushWorkerService.class).atInfo()
+                    .addKeyValue("stage", "fcm_result").log("테스트 발송 결과");
+            return PushProcessingResult.completed();
+        });
+        // When
+        worker.process(message);
+        worker.process(message.toBuilder().attributes(
+                Map.of(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT, "2")).build());
+        // Then
+        assertThat(logsAtStage("fcm_result")).hasSize(2);
+        assertThat(logsAtStage("fcm_result").getFirst())
+                .containsEntry("sqsMessageId", "sqs-id").containsEntry("receiveCount", "1");
+        assertThat(logsAtStage("fcm_result").getLast())
+                .containsEntry("sqsMessageId", "sqs-id").containsEntry("receiveCount", "2");
+        assertThat(logsAtStage("worker_received").getFirst())
+                .containsEntry("eventId", push.eventId()).containsEntry("userId", push.userId());
+        assertThat(MDC.getCopyOfContextMap()).containsExactlyInAnyOrderEntriesOf(
+                Map.of("requestId", "previous-request", "sqsMessageId", "previous-message"));
+    }
+
+    @Test
+    @DisplayName("메시지 파싱·처리 오류도 큐 식별자로 조사하고 원문·수신 핸들·예외 내용을 기록하지 않는다")
+    void process_invalidAndFailedMessages_recordsSafeCorrelatedFailures() {
+        // Given
+        given(service.process(any()))
+                .willThrow(new IllegalStateException("private-exception-secret"));
+        // When
+        worker.process(message.toBuilder().body("private-json-token-secret").build());
+        worker.process(message);
+        // Then
+        assertThat(logsAtStage("worker_invalid_message")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("receiveCount", "1"));
+        assertThat(logsAtStage("worker_processing_failed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("receiveCount", "1"));
+        assertThat(MDC.get("sqsMessageId")).isNull();
+        assertThat(MDC.get("receiveCount")).isNull();
+        assertThat(appender.list).allSatisfy(event -> {
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs()
+                    + event.getMDCPropertyMap())
+                    .doesNotContain("private-json-token-secret", "private-exception-secret",
+                            "receipt-handle");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("전용 스레드의 숨김 연장 오류도 원래 큐 메시지와 연결한다")
+    void process_visibilityFailureOnAnotherThread_recordsMessageId() {
+        // Given
+        failVisibility = true;
+        given(service.process(any())).willAnswer(call -> {
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                executor.submit(heartbeatAction.get()).get(5, TimeUnit.SECONDS);
+            }
+            return PushProcessingResult.completed();
+        });
+        // When
+        worker.process(message);
+        // Then
+        assertThat(logsAtStage("worker_visibility_failed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("receiveCount", "1"));
+    }
+
+    private List<Map<String, Object>> logsAtStage(String stage) {
+        return appender.list.stream().map(event -> {
+            Map<String, Object> values = new HashMap<>(event.getMDCPropertyMap());
+            event.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+            return values;
+        }).filter(values -> stage.equals(values.get("stage"))).toList();
     }
 
     private void waitForVisibilityRelease() throws IOException {
@@ -280,6 +388,9 @@ class SqsPushServiceTest {
         // Then
         assertThat(operations).containsExactly("AmazonSQS.ChangeMessageVisibility");
         assertThat(bodies.getFirst().get("VisibilityTimeout").asInt()).isEqualTo(121);
+        assertThat(logsAtStage("worker_retry_pending")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("retryAfterSeconds", 120L));
     }
 
     @Test
