@@ -61,7 +61,7 @@
   padding: 24px;
 }
 .dialog h2 { margin: 0; color: #252631; font-size: 20px; line-height: 1.4; overflow-wrap: anywhere; outline: none; }
-.dialogDescription { margin: 10px 0 0; color: #656776; font-size: 13px; line-height: 1.65; }
+.dialogDescription { margin: 10px 0 0; color: #656776; font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .dialogError { margin: 16px 0 0; border-left: 3px solid #b44236; padding-left: 10px; color: #963e32; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; outline: none; }
 .reasonField { display: grid; min-width: 0; gap: 8px; margin-top: 20px; }
 .reasonField span { color: #41434f; font-size: 13px; font-weight: 600; }

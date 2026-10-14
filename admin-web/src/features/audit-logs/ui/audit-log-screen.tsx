@@ -16,13 +16,14 @@ import { fetchAdminAuditLogs } from "../api/audit-log-api";
 import styles from "./audit-logs.module.css";
 
 const actions: Record<string, string> = {
+  NOTICE_CREATED: "공지 등록", NOTICE_UPDATED: "공지 수정", NOTICE_DELETED: "공지 삭제",
   POST_APPROVED: "게시물 승인", POST_REJECTED: "게시물 거절", POST_DELETED: "게시물 삭제",
   USER_BANNED: "사용자 차단", USER_UNBANNED: "사용자 차단 해제",
   TOPIC_CREATED: "주제 등록", TOPIC_UPDATED: "주제 수정", TOPIC_DELETED: "주제 삭제",
   TOPIC_PUSH_SCHEDULE_CREATED: "알림 시간 등록", TOPIC_PUSH_SCHEDULE_UPDATED: "알림 시간 수정", TOPIC_PUSH_SCHEDULE_DELETED: "알림 시간 삭제",
 };
-const targetTypes = { POST: "게시물", USER: "사용자", TOPIC: "주제", TOPIC_PUSH_SCHEDULE: "주제 알림 설정" };
-const targetPaths = { POST: "posts", USER: "users", TOPIC: "topics" };
+const targetTypes = { POST: "게시물", USER: "사용자", TOPIC: "주제", TOPIC_PUSH_SCHEDULE: "주제 알림 설정", NOTICE: "공지" };
+const targetPaths = { POST: "posts", USER: "users", TOPIC: "topics", NOTICE: "notices" };
 
 function targetHref(log: AdminAuditLogResponse, returnTo: string) {
   if (log.targetType === "TOPIC_PUSH_SCHEDULE") return "/pushes";

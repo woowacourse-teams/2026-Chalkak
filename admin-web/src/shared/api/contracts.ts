@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;
@@ -240,3 +240,24 @@ export interface TopicPushSchedule {
 export interface TopicPushScheduleListResponse {
   schedules: TopicPushSchedule[];
 }
+
+export interface AdminNotice {
+  noticeId: string;
+  title: string;
+  body: string;
+  scheduledAt: Instant;
+  status: "SCHEDULED" | "DISTRIBUTED";
+  distributedAt: Instant | null;
+  deletedAt: Instant | null;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface AdminNoticeListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  notices: AdminNotice[];
+}
+
+export type AdminNoticeInput = Pick<AdminNotice, "title" | "body" | "scheduledAt">;
