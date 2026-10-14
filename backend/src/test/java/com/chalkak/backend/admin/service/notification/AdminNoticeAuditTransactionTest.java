@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -60,6 +61,27 @@ class AdminNoticeAuditTransactionTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
         assertThat(countRows("notices")).isZero();
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("감사 로그가 민감 정보로 판정하는 형식을 수정 제목에 포함하면 공지 수정도 함께 롤백한다")
+    void updateNotice_sensitiveTitle_rollsBackUpdate() {
+        // Given
+        insertAdmin();
+        UUID noticeId = jdbcTemplate.queryForObject("""
+                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+                """, UUID.class, Timestamp.from(Instant.now().plusSeconds(3600)));
+
+        // When & Then
+        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, ADMIN_ID,
+                "password: 8자 이상", "비밀번호 정책이 변경됩니다.", Instant.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
+        assertThat(jdbcTemplate.queryForObject("SELECT title FROM notices", String.class))
+                .isEqualTo("서비스 점검 안내");
         assertThat(countRows("admin_audit_logs")).isZero();
     }
 

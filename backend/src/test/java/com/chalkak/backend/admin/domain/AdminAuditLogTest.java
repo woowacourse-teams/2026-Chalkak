@@ -153,9 +153,54 @@ class AdminAuditLogTest {
         return Map.of("title", title, "scheduledAt", scheduledAt, "bodySha256", bodySha256);
     }
 
+    @Test
+    @DisplayName("공지 수정은 변경 전후의 제목·예약 시각·본문 해시를 기록한다")
+    void create_validNoticeUpdate_createsAuditLog() {
+        // Given
+        Map<String, Object> before = noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                VALID_BODY_SHA256);
+        Map<String, Object> after = noticeState("서비스 점검 일정 변경", "2026-10-20T09:00:00Z",
+                VALID_BODY_SHA256);
+
+        // When
+        AdminAuditLog audit = createNoticeAudit(AdminAction.NOTICE_UPDATED, before, after);
+
+        // Then
+        assertThat(audit.getBeforeState()).containsExactlyInAnyOrderEntriesOf(before);
+        assertThat(audit.getAfterState()).containsExactlyInAnyOrderEntriesOf(after);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidNoticeUpdates")
+    @DisplayName("공지 수정의 빈 변경 전 상태, 바뀌지 않은 상태, 잘못된 변경 후 상태를 거절한다")
+    void create_invalidNoticeUpdate_throwsBusinessException(
+            Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createNoticeAudit(AdminAction.NOTICE_UPDATED, before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidNoticeUpdates() {
+        Map<String, Object> valid = noticeState("서비스 점검 안내", "2026-10-19T09:00:00Z",
+                VALID_BODY_SHA256);
+        return Stream.of(
+                Arguments.of(Map.of(), valid),
+                Arguments.of(valid, valid),
+                Arguments.of(valid, noticeState("가".repeat(51), "2026-10-19T09:00:00Z",
+                        VALID_BODY_SHA256)));
+    }
+
     private AdminAuditLog createNoticeAudit(Map<String, Object> before, Map<String, Object> after) {
+        return createNoticeAudit(AdminAction.NOTICE_CREATED, before, after);
+    }
+
+    private AdminAuditLog createNoticeAudit(
+            AdminAction action,
+            Map<String, Object> before,
+            Map<String, Object> after
+    ) {
         return AdminAuditLog.create(
-                ACTOR_ADMIN_ID, AdminAction.NOTICE_CREATED, AdminTargetType.NOTICE, TARGET_ID, null,
+                ACTOR_ADMIN_ID, action, AdminTargetType.NOTICE, TARGET_ID, null,
                 AdminAuditSnapshot.from(before), AdminAuditSnapshot.from(after), OCCURRED_AT,
                 REQUEST_ID);
     }

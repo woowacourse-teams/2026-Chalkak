@@ -321,7 +321,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/audit-logs"),
                 Arguments.of("POST", "/api/v1/admin/notices"),
                 Arguments.of("GET", "/api/v1/admin/notices"),
-                Arguments.of("GET", "/api/v1/admin/notices/" + id));
+                Arguments.of("GET", "/api/v1/admin/notices/" + id),
+                Arguments.of("PUT", "/api/v1/admin/notices/" + id));
     }
 
     private static List<Arguments> protectedAdminMemberEndpoints() {

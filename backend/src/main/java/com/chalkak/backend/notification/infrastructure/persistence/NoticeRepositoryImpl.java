@@ -34,6 +34,11 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     }
 
     @Override
+    public Optional<Notice> findByIdForUpdate(UUID noticeId) {
+        return noticeJpaRepository.findByIdForUpdate(noticeId);
+    }
+
+    @Override
     public NoticeSlice findNotices(int page, int pageSize) {
         Slice<Notice> slice = noticeJpaRepository.findSliceBy(
                 PageRequest.of(page - 1, pageSize, LATEST_CREATED_FIRST));

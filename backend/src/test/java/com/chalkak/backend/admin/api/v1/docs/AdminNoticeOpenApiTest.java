@@ -68,4 +68,22 @@ class AdminNoticeOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(NOTICES).doesNotExist());
     }
+
+    @Test
+    @DisplayName("공지 수정 API는 관리자 보안·UUID 경로·요청 본문·응답 코드 계약을 노출한다")
+    void adminApiDocs_updateNotice_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(NOTICE + ".put.responses.keys()")
+                        .value(containsInAnyOrder("200", "400", "401", "403", "404")))
+                .andExpect(jsonPath(NOTICE + ".put.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(NOTICE + ".put.parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(NOTICE
+                        + ".put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminNoticeRequest"))
+                .andExpect(jsonPath(NOTICE
+                        + ".put.responses['200'].content['*/*'].schema['$ref']")
+                        .value("#/components/schemas/AdminNoticeResponse"));
+    }
 }
