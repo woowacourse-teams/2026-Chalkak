@@ -20,9 +20,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -128,13 +130,15 @@ fun ChalkakNavHost(
         photoUploadEntryGateViewModel.openPhotoUpload()
     }
 
-    val navigateToBottomBar: (ChalkakBottomBarItem) -> Unit = { item ->
-        if (item == ChalkakBottomBarItem.RECORD &&
-            sessionState !is UserSessionState.Authenticated
-        ) {
-            showToast(RECORD_LOGIN_REQUIRED_MESSAGE)
-        } else {
-            navController.navigateToBottomBar(item, analyticsTracker)
+    val navigateToBottomBar: (NavBackStackEntry, ChalkakBottomBarItem) -> Unit = { entry, item ->
+        if (entry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+            if (item == ChalkakBottomBarItem.RECORD &&
+                sessionState !is UserSessionState.Authenticated
+            ) {
+                showToast(RECORD_LOGIN_REQUIRED_MESSAGE)
+            } else {
+                navController.navigateToBottomBar(item, analyticsTracker)
+            }
         }
     }
 
@@ -270,25 +274,27 @@ fun ChalkakNavHost(
                 )
             }
 
-            composable<Terms> {
+            composable<Terms> { backStackEntry ->
                 TermsRoute(
-                    onNextClick = {
+                    onNextClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(OnboardingSignature)
                     },
-                    onServiceTermsViewClick = {
+                    onServiceTermsViewClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                     },
-                    onPrivacyPolicyViewClick = {
+                    onPrivacyPolicyViewClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
                     },
                 )
             }
 
-            composable<OnboardingSignature> {
+            composable<OnboardingSignature> { backStackEntry ->
                 OnboardingSignatureRoute(
                     onPreviewRequested = { signaturePng ->
-                        signaturePreviewPng = signaturePng
-                        navController.navigate(OnboardingSignaturePreview)
+                        if (navController.currentBackStackEntry?.id == backStackEntry.id) {
+                            signaturePreviewPng = signaturePng
+                            navController.navigate(OnboardingSignaturePreview)
+                        }
                     },
                 )
             }
@@ -299,8 +305,10 @@ fun ChalkakNavHost(
                         navController.popBackStack()
                     },
                     onPreviewRequested = { signaturePng ->
-                        signaturePreviewPng = signaturePng
-                        navController.navigate(ChangeSignaturePreview)
+                        if (navController.currentBackStackEntry?.id == backStackEntry.id) {
+                            signaturePreviewPng = signaturePng
+                            navController.navigate(ChangeSignaturePreview)
+                        }
                     },
                 )
             }
@@ -354,40 +362,46 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Home> {
+            composable<Home> { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
                     coordinator = photoTransitionCoordinator,
                 ) {
                     HomeRoute(
-                        onOpenPhotoUpload = openPhotoUpload,
-                        onNavigateToBottomBar = navigateToBottomBar,
-                        onOpenRecord = { navigateToBottomBar(ChalkakBottomBarItem.RECORD) },
+                        onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                        onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
+                        onOpenRecord = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                            navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)
+                        },
                         onOpenDisplay = { date ->
-                            navController.navigate(
-                                Display(
-                                    date = date.toString(),
-                                    sort = PostSort.POPULAR.name,
-                                ),
-                            ) {
-                                launchSingleTop = true
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(
+                                    Display(
+                                        date = date.toString(),
+                                        sort = PostSort.POPULAR.name,
+                                    ),
+                                ) {
+                                    launchSingleTop = true
+                                }
                             }
                         },
                         onOpenFeed = { post ->
-                            if (sessionState is UserSessionState.Authenticated) {
-                                navController.navigate(
-                                    FeedById(
-                                        postId = post.id,
-                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                                        thumbnailImageUrl = post.thumbnailImageUrl,
-                                    ),
-                                )
-                            } else {
-                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                if (sessionState is UserSessionState.Authenticated) {
+                                    navController.navigate(
+                                        FeedById(
+                                            postId = post.id,
+                                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                            thumbnailImageUrl = post.thumbnailImageUrl,
+                                        ),
+                                    )
+                                } else {
+                                    showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                                }
                             }
                         },
-                        onNotificationClick = {
+                        onNotificationClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },
                         onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
@@ -401,7 +415,11 @@ fun ChalkakNavHost(
                     onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.popBackStack()
                     },
-                    onNotificationClick = { item -> navController.openNotificationTarget(item) },
+                    onNotificationClick = { item ->
+                        if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                            navController.openNotificationTarget(item)
+                        }
+                    },
                 )
             }
 
@@ -429,33 +447,35 @@ fun ChalkakNavHost(
                     val display = backStackEntry.toRoute<Display>()
 
                     DisplayRoute(
-                        onOpenPhotoUpload = openPhotoUpload,
-                        onNavigateToBottomBar = navigateToBottomBar,
+                        onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                        onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         initialDate = display.date.toLocalDateOrNull(),
                         initialSort = PostSort.entries.firstOrNull {
                             it.name == display.sort
                         } ?: PostSort.LATEST,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
-                            if (sessionState is UserSessionState.Authenticated) {
-                                navController.navigate(
-                                    Feed(
-                                        postId = post.id,
-                                        originalImageUrl = post.originalImageUrl,
-                                        thumbnailImageUrl = post.thumbnailImageUrl,
-                                        signatureOriginalImageUrl = post.signatureOriginalImageUrl,
-                                        signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
-                                        contentDescription = post.contentDescription,
-                                        title = post.title,
-                                        likeCount = post.likeCount,
-                                        isLiked = post.isLiked,
-                                        dateLabel = dateLabel,
-                                        topic = topic,
-                                        topicDate = topicDate?.toString(),
-                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                                    ),
-                                )
-                            } else {
-                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                if (sessionState is UserSessionState.Authenticated) {
+                                    navController.navigate(
+                                        Feed(
+                                            postId = post.id,
+                                            originalImageUrl = post.originalImageUrl,
+                                            thumbnailImageUrl = post.thumbnailImageUrl,
+                                            signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                                            signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
+                                            contentDescription = post.contentDescription,
+                                            title = post.title,
+                                            likeCount = post.likeCount,
+                                            isLiked = post.isLiked,
+                                            dateLabel = dateLabel,
+                                            topic = topic,
+                                            topicDate = topicDate?.toString(),
+                                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                        ),
+                                    )
+                                } else {
+                                    showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                                }
                             }
                         },
                     )
@@ -549,21 +569,25 @@ fun ChalkakNavHost(
                         .collectAsStateWithLifecycle()
 
                     RecordRoute(
-                        onOpenPhotoUpload = openPhotoUpload,
-                        onNavigateToBottomBar = navigateToBottomBar,
+                        onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                        onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         onOpenFeed = { postId, thumbnailImageUrl ->
-                            navController.navigate(
-                                FeedById(
-                                    postId = postId,
-                                    isOwnedByCurrentUser = true,
-                                    thumbnailImageUrl = thumbnailImageUrl,
-                                ),
-                            )
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(
+                                    FeedById(
+                                        postId = postId,
+                                        isOwnedByCurrentUser = true,
+                                        thumbnailImageUrl = thumbnailImageUrl,
+                                    ),
+                                )
+                            }
                         },
                         onOpenDisplay = { date ->
-                            navController.navigateToDisplay(date)
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigateToDisplay(date)
+                            }
                         },
-                        onNavigateToLogin = navigateToLogin,
+                        onNavigateToLogin = dropUnlessResumed(lifecycleOwner = backStackEntry, block = navigateToLogin),
                         deletedPostId = deletedPostId,
                         onDeletedPostConsumed = {
                             backStackEntry.savedStateHandle[POST_DELETED_KEY] = null
@@ -579,24 +603,24 @@ fun ChalkakNavHost(
 
                 SettingsRoute(
                     signatureUpdateUrl = updatedSignatureUrl,
-                    onNavigateToSignature = {
+                    onNavigateToSignature = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(ChangeSignature)
                     },
-                    onOpenPrivacyPolicy = {
+                    onOpenPrivacyPolicy = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         legalDocumentLauncher.open(LegalDocument.PRIVACY_POLICY)
                     },
-                    onOpenTerms = {
+                    onOpenTerms = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         legalDocumentLauncher.open(LegalDocument.TERMS_OF_SERVICE)
                     },
-                    onOpenFeedback = {
+                    onOpenFeedback = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         if (sessionState is UserSessionState.Authenticated) {
                             navController.navigate(Feedback)
                         } else {
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
                     },
-                    onNavigateToBottomBar = navigateToBottomBar,
-                    onOpenPhotoUpload = openPhotoUpload,
+                    onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
+                    onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                 )
             }
 
@@ -654,7 +678,7 @@ fun ChalkakNavHost(
                         topic = success.topic,
                         moderationStatus = success.moderationStatus,
                     ),
-                    onConfirmClick = {
+                    onConfirmClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(Display(date = success.date)) {
                             popUpTo<Home> { inclusive = false }
                             launchSingleTop = true
@@ -802,7 +826,9 @@ private fun NavHostController.navigateToDisplay(date: LocalDate) {
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
-    navigate(PhotoUpload(topicDate = topicDate.toString()))
+    navigate(PhotoUpload(topicDate = topicDate.toString())) {
+        launchSingleTop = true
+    }
 }
 
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {

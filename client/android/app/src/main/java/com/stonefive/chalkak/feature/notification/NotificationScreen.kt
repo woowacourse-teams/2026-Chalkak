@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -161,7 +162,7 @@ fun NotificationScreen(
                 ) { notification ->
                     NotificationListItem(
                         item = notification,
-                        onClick = { onNotificationClick(notification) },
+                        onClick = dropUnlessResumed { onNotificationClick(notification) },
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.screenHorizontal),
                     )
