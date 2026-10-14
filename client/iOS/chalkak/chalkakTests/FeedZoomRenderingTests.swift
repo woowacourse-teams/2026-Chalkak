@@ -4,7 +4,8 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
-    func testReturningPhotoStaysBehindHeaderAndBottomBar() throws {
+    // Async XCTest methods provide a Swift task for MainActor-isolated teardown.
+    func testReturningPhotoStaysBehindHeaderAndBottomBar() async throws {
         for sourceY in [CGFloat(100), CGFloat(700)] {
             let destination = CGRect(x: 0, y: 160, width: 402, height: 400)
             let source = FeedZoomRegistry.Source(
@@ -36,7 +37,7 @@ final class FeedZoomRenderingTests: XCTestCase {
         }
     }
 
-    func testSourceViewportExcludesBarsWithoutChangingPhotoBounds() {
+    func testSourceViewportExcludesBarsWithoutChangingPhotoBounds() async {
         let registry = FeedZoomRegistry()
         let photo = CGRect(x: 25, y: 100, width: 82, height: 250)
         registry.update(.init(frame: photo, cornerRadius: 8), for: .displayGrid("photo"))
