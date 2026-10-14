@@ -596,3 +596,26 @@ describe("topic push schedule relay", () => {
     expectClearedCookie(response);
   });
 });
+
+describe("notice relay", () => {
+  it.each([
+    ["notices?page=2&pageSize=20", "GET", undefined],
+    ["notices", "POST", { title: "공지", body: "본문", scheduledAt: "2099-10-20T00:00:00Z" }],
+    [`notices/${resourceId}`, "GET", undefined],
+    [`notices/${resourceId}`, "PUT", { title: "수정", body: "본문", scheduledAt: "2099-10-21T00:00:00Z" }],
+    [`notices/${resourceId}`, "DELETE", { reason: "일정 취소" }],
+  ])("forwards %s %s using the server session", async (path, method, body) => {
+    fetchMock.mockResolvedValue(method === "DELETE" ? new Response(null, { status: 204 }) : Response.json({ noticeId: resourceId }));
+    const response = await relay(path as string, { method: method as string, body, cookie: token });
+    expect(response.status).toBe(method === "DELETE" ? 204 : 200);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/${path}`, expect.objectContaining({ method, body: body ? JSON.stringify(body) : undefined }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+  it("requires authentication, same-origin mutations, and a reason body for delete", async () => {
+    expect((await relay("notices")).status).toBe(401);
+    expect((await relay("notices", { method: "POST", cookie: token, omitOrigin: true })).status).toBe(403);
+    expect((await relay(`notices/${resourceId}`, { method: "DELETE", cookie: token })).status).toBe(415);
+    expect((await relay(`notices/${resourceId}`, { method: "PATCH", cookie: token })).status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

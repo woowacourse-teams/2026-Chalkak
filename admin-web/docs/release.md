@@ -94,3 +94,19 @@
 - 각 환경에서 `/pushes` 조회·추가·수정·삭제와 처리 이력을 확인한다. 삭제 요청은 본문 없는 DELETE이며 기존 게시물·주제 삭제의 사유 본문은 유지한다.
 - 시간 설정 API의 서버 배포와 #572 정시 발송의 배포·활성화는 별도다. 화면 저장 성공을 실제 푸시 발송·기기 수신 성공으로 표시하지 않는다.
 - 운영 환경의 설정 변경은 실제 발송에 영향을 준다. 운영 데이터 변경이나 전체 사용자 대상 발송을 검증용으로 실행하지 않는다.
+
+## 2026-10-14 공지 관리 개발 배포
+
+- 작업 브랜치: `codex/admin-notices`, 기준 관리자 웹 커밋: `ee4767fa01bc59c38bd7aa3d3773bfaf47f2b493`.
+- 최초 개발 검증은 미커밋 소스를 CLI로 업로드했다. 이후 이 변경을 GitHub PR로 개발 브랜치에 통합하고, `main` 기준 운영 릴리스 PR에 같은 변경을 반영한다. 정식 배포의 기준은 각 PR 병합 커밋으로 한다.
+- 대상: `chalkak/chalkak-admin-web`, Root Directory `admin-web`, 연결 API `https://chalkak-dev.pysun.kr/api/v1/admin`.
+- 개발 고정 주소: https://chalkak-admin-web.vercel.app/notices
+- 새 배포: `dpl_5jaJaes7cMtzKEMrkQhTjGaaCdNp`, https://chalkak-admin-3lg50ckqt-chalkak.vercel.app
+- 복구 대상: `dpl_EwJau4btcAann3CL5rUasB5QwzWu`, https://chalkak-admin-edhpe8uu2-chalkak.vercel.app
+- Vercel의 Production 환경을 사용하지만 연결 데이터는 개발 환경이다. 운영 관리자 프로젝트에는 배포하지 않았다.
+- 업로드한 관리자 소스 167개 경로·내용 SHA-256: `9cd613aa85f10b8743f9acfef62015ad206d8a78da440d13a9ee94eec80e1bc4` (이 배포 기록 추가 전).
+- 검증: 최종 lint·typecheck·전체 421개 테스트·실제 API 모드 빌드 통과. 고정 버전 Gitleaks 8.30.1의 소스·기존 Git 이력·브라우저 번들 검사 통과. Vercel 원격 빌드 Ready 및 개발 고정 주소에서 새 공지 화면 확인.
+- 개발 서버 확인: 실제 관리자 로그인, 공지 목록의 빈 응답, 공지 대상 처리 이력 조회 성공. 비로그인 `/api/admin/notices`는 `401 ADMIN_UNAUTHORIZED`. 개발 API OpenAPI에 등록·조회·수정·삭제 계약 존재를 확인했다.
+- 자동 테스트: KST/UTC 날짜 경계, Unicode code point 길이, 예약 과거 5분 경계, 삭제 사유 전달, 수정과 배포의 충돌 후 상태 재조회, 등록 결과 불명 시 중복 재등록 방지, 인증·동일 출처 검증, 상태별 표시 및 페이지 이동.
+- 모바일의 목록·작성·확인창을 확인했다. 실제 서버의 공지 생성·수정·삭제와 전체 회원 대상 푸시 발송·기기 수신은 아직 실행하지 않았다. 다음 실서버 검증에서 테스트 공지와 대상 기기를 정한 뒤 확인한다.
+- 운영 배포 전 운영 백엔드 공지 API·스케줄러·Relay·Worker 적용 상태를 확인하고 같은 변경을 운영 설정으로 새로 빌드한다.

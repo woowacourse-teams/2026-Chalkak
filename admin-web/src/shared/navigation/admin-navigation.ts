@@ -16,6 +16,9 @@ export const adminNavigation: AdminNavigationItem[] = [
 ];
 
 export function getCurrentNavigation(pathname: string): AdminNavigationItem {
+  if (pathname === "/notices" || pathname.startsWith("/notices/")) {
+    return { href: "/pushes", label: "알림", icon: "clock" };
+  }
   if (pathname === "/pushes" || pathname.startsWith("/pushes/")) {
     return { href: "/pushes", label: "알림", icon: "clock" };
   }

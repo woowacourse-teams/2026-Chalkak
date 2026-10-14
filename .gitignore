@@ -8,3 +8,5 @@ out/
 
 # Private keys
 *.pem
+.vercel/
+.env.local

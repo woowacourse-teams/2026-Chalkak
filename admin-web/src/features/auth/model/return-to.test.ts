@@ -26,4 +26,10 @@ describe("admin return path", () => {
     expect(getSafeReturnTo(null)).toBe("/");
     expect(getLoginUrl("/")).toBe("/login");
   });
+
+  it("keeps notice deep links after login", () => {
+    const path = "/notices/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01/edit";
+    expect(getSafeReturnTo(path)).toBe(path);
+    expect(getLoginUrl(path)).toBe("/login?" + new URLSearchParams({ returnTo: path }));
+  });
 });
