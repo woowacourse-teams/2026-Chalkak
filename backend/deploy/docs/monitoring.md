@@ -29,6 +29,8 @@ notification.log → 로그 그룹 /chalkak/{env}/notification (모두 30일)
 
 공유 계정에는 CloudFormation과 AWS Chatbot이 허용되지 않고, IAM role도 새로 만들지 않는다. 그래서 스택이나 템플릿은 없고, 모든 리소스를 CloudWatch·SNS·Lambda 콘솔(리전 `ap-northeast-2`)에서 직접 만든다. 리소스 정의는 이 문서의 표와 `dashboard.json`이다. 공유 계정에는 CLI나 access key도 사용하지 않는다.
 
+알림 발행·발송 전용 지표와 경보는 [알림 모니터링 구성](notification-monitoring.md)을 따른다. 아래 일반 모니터링 경보 목록과 별도로 적용한다.
+
 ## 사전 확인
 
 다음을 모두 끝낸 뒤에 구축을 시작한다.
