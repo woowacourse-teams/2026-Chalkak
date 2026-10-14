@@ -51,10 +51,12 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 개발·운영 서버 `/etc/chalkak/application.env`에 다음 키를 추가한다. 값은 해당 환경의 실제 큐를 사용한다.
 
 - `NOTIFICATION_RELAY_ENABLED`: 준비 전 `false`. PushWorker·FCM 준비 후 개발 연동 시험에서 `true`.
+- `NOTIFICATION_TOPIC_PUSH_ENABLED`: 관리자가 설정한 KST 시각에 주제 푸시를 회원별 SQS 메시지로 직접 발행한다. Relay와 별도로 켠다. 기본 `false`. 큐·Worker 준비 후 개발 연동 시험에서 `true`. 켜면 `NOTIFICATION_SQS_QUEUE_URL`이 필요하다.
 - `NOTIFICATION_SQS_QUEUE_URL`: 해당 환경 원본 Standard 큐 URL.
 - `NOTIFICATION_WORKER_ENABLED`: Firebase 서버 인증·앱 등록 준비 전 `false`, 개발 전체 연동 시험 시 `true`.
 - `NOTIFICATION_FCM_PROJECT_ID`: 기기 토큰을 발급한 Firebase 프로젝트 ID.
 - `NOTIFICATION_FCM_CREDENTIALS_PATH`: 서버에 별도로 배치한 서비스 계정 JSON의 절대 경로. 서비스 실행 계정에만 읽기 권한을 주고 Git에 넣지 않는다.
+- `NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED`: 예약 시각이 된 관리자 공지를 회원 알림함에 배포하는 작업(KST 매 분 0초). 기본 `false`. 개발 연동 시험에서 `true`. 공지 푸시까지 보내려면 Relay·Worker도 켜야 한다. 잘못 예약한 공지는 `false`로 바꾸고 재시작해 배포를 멈출 수 있다.
 - 기존 `AWS_REGION`: `ap-northeast-2` 유지.
 
 예제는 [dev](../examples/application.dev.env.example)·[prod](../examples/application.prod.env.example)에 있다. CD는 파일 내용을 자동 수정하지 않는다. 사람이 반영한 뒤 `sudo systemctl restart chalkak-backend.service`를 실행한다.

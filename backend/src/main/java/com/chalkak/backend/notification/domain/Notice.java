@@ -42,6 +42,9 @@ public class Notice {
     @Column(name = "scheduled_at", nullable = false)
     private Instant scheduledAt;
 
+    @Column(name = "distributed_at")
+    private Instant distributedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -62,6 +65,21 @@ public class Notice {
         validateScheduledAt(scheduledAt, now);
         notice.scheduledAt = scheduledAt;
         return notice;
+    }
+
+    public void distribute(Instant distributedAt) {
+        if (this.distributedAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "예약 상태의 공지만 배포할 수 있습니다.");
+        }
+        this.distributedAt = distributedAt;
+    }
+
+    // 상태는 배포 시각으로 정해지므로 따로 저장하지 않고 계산한다.
+    public NoticeStatus getStatus() {
+        if (distributedAt == null) {
+            return NoticeStatus.SCHEDULED;
+        }
+        return NoticeStatus.DISTRIBUTED;
     }
 
     public static boolean isValidTitle(String title) {

@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.repository;
 
+import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Notification;
 import java.time.Instant;
 import java.util.Optional;
@@ -17,6 +18,8 @@ public interface NotificationRepository {
     Optional<Notification> findForPushByIdAndUserId(UUID notificationId, UUID userId);
 
     Notification save(Notification notification);
+
+    int createNoticeNotifications(Notice notice, Instant createdAt);
 
     NotificationSlice findByUserId(
             UUID userId,

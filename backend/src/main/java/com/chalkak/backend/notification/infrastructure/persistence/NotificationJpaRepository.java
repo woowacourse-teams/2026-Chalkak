@@ -38,6 +38,23 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             @Param("excludedStatus") ModerationStatus excludedStatus
     );
 
+    // 탈퇴하지 않은 회원 전체(정지 회원 포함)에게 공지 알림을 한 번에 만든다. 공지 ID를 사건 키로 써서 회원당 하나만 생긴다.
+    @Modifying
+    @Query(value = """
+            INSERT INTO notifications (user_id, source_type, source_id, event_key, type, title,
+                body, created_at, sqs_publish_status, next_attempt_at)
+            SELECT u.id, 'NOTICE', :noticeId, :noticeId, 'NOTICE', :title, :body, :createdAt,
+                'PENDING', :createdAt
+            FROM users u
+            WHERE u.deleted_at IS NULL
+            """, nativeQuery = true)
+    int insertNoticeNotifications(
+            @Param("noticeId") UUID noticeId,
+            @Param("title") String title,
+            @Param("body") String body,
+            @Param("createdAt") Instant createdAt
+    );
+
     @Query(value = """
             SELECT id FROM notifications
             WHERE sqs_publish_status = 'PENDING' AND next_attempt_at <= :now

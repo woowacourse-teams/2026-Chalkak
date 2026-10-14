@@ -18,6 +18,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.NoticeStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -66,7 +67,7 @@ class AdminNoticeControllerTest {
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.getNotices(2, 10)).willReturn(new AdminNoticeListResult(2, 10, true,
                 List.of(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, createdAt, createdAt))));
+                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt, createdAt))));
 
         // When & Then
         mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "10"))
@@ -77,7 +78,9 @@ class AdminNoticeControllerTest {
                 .andExpect(jsonPath("$.notices.length()").value(1))
                 .andExpect(jsonPath("$.notices[0].noticeId").value(NOTICE_ID.toString()))
                 .andExpect(jsonPath("$.notices[0].title").value("서비스 점검 안내"))
-                .andExpect(jsonPath("$.notices[0].scheduledAt").value("2026-10-19T09:00:00Z"));
+                .andExpect(jsonPath("$.notices[0].scheduledAt").value("2026-10-19T09:00:00Z"))
+                .andExpect(jsonPath("$.notices[0].status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.notices[0].distributedAt").isEmpty());
     }
 
     @Test
@@ -112,13 +115,16 @@ class AdminNoticeControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.getNotice(NOTICE_ID)).willReturn(new AdminNoticeResult(NOTICE_ID,
-                "서비스 점검 안내", "점검합니다.", SCHEDULED_AT, createdAt, createdAt));
+                "서비스 점검 안내", "점검합니다.", SCHEDULED_AT, NoticeStatus.DISTRIBUTED,
+                SCHEDULED_AT, createdAt, createdAt));
 
         // When & Then
         mockMvc.perform(get(PATH + "/" + NOTICE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.noticeId").value(NOTICE_ID.toString()))
-                .andExpect(jsonPath("$.body").value("점검합니다."));
+                .andExpect(jsonPath("$.body").value("점검합니다."))
+                .andExpect(jsonPath("$.status").value("DISTRIBUTED"))
+                .andExpect(jsonPath("$.distributedAt").value("2026-10-19T09:00:00Z"));
     }
 
     @Test
@@ -151,7 +157,7 @@ class AdminNoticeControllerTest {
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         given(noticeService.createNotice(ADMIN_ID, "서비스 점검 안내", "점검합니다.", SCHEDULED_AT))
                 .willReturn(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, createdAt, createdAt));
+                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, createdAt, createdAt));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
