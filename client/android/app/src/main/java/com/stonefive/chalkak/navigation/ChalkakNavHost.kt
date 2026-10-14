@@ -454,28 +454,30 @@ fun ChalkakNavHost(
                             it.name == display.sort
                         } ?: PostSort.LATEST,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
-                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
-                                if (sessionState is UserSessionState.Authenticated) {
-                                    navController.navigate(
-                                        Feed(
-                                            postId = post.id,
-                                            originalImageUrl = post.originalImageUrl,
-                                            thumbnailImageUrl = post.thumbnailImageUrl,
-                                            signatureOriginalImageUrl = post.signatureOriginalImageUrl,
-                                            signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
-                                            contentDescription = post.contentDescription,
-                                            title = post.title,
-                                            likeCount = post.likeCount,
-                                            isLiked = post.isLiked,
-                                            dateLabel = dateLabel,
-                                            topic = topic,
-                                            topicDate = topicDate?.toString(),
-                                            isOwnedByCurrentUser = post.isOwnedByCurrentUser,
-                                        ),
-                                    )
-                                } else {
-                                    showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
-                                }
+                            if (backStackEntry.lifecycle.currentState != Lifecycle.State.RESUMED) {
+                                false
+                            } else if (sessionState is UserSessionState.Authenticated) {
+                                navController.navigate(
+                                    Feed(
+                                        postId = post.id,
+                                        originalImageUrl = post.originalImageUrl,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                        signatureOriginalImageUrl = post.signatureOriginalImageUrl,
+                                        signatureThumbnailImageUrl = post.signatureThumbnailImageUrl,
+                                        contentDescription = post.contentDescription,
+                                        title = post.title,
+                                        likeCount = post.likeCount,
+                                        isLiked = post.isLiked,
+                                        dateLabel = dateLabel,
+                                        topic = topic,
+                                        topicDate = topicDate?.toString(),
+                                        isOwnedByCurrentUser = post.isOwnedByCurrentUser,
+                                    ),
+                                )
+                                true
+                            } else {
+                                showToast(DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE)
+                                false
                             }
                         },
                     )
