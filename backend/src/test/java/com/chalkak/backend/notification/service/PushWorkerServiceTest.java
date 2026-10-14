@@ -8,6 +8,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import org.junit.jupiter.params.provider.CsvSource;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
@@ -56,12 +64,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PlatformTransactionManager manager;
     @Autowired
     private JdbcTemplate jdbc;
+    private final Logger logger = (Logger) LoggerFactory.getLogger(PushWorkerService.class);
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
     private PushMessage message;
     private DevicePushSender sender;
     private UUID deviceId;
 
     @BeforeEach
     void setUp() {
+        appender.start();
+        logger.addAppender(appender);
         new DatabaseCleaner(jdbc).clean();
         jdbc.update(
                 "INSERT INTO users(id,email,status,signature_original_storage_key) VALUES (?, 'worker@example.com', 'ACTIVE', 'worker/signature')",
@@ -91,6 +103,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
         jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
         jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
         new DatabaseCleaner(jdbc).clean();
@@ -121,10 +135,12 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"read", "postDeleted", "withdrawn", "disabled", "revoked", "expired",
-            "missingDevice", "missingNotification", "missingPost"})
+    @CsvSource({"read,ALREADY_READ", "postDeleted,NOTIFICATION_UNAVAILABLE",
+            "withdrawn,LOGIN_UNUSABLE", "disabled,PUSH_DISABLED", "revoked,LOGIN_UNUSABLE",
+            "expired,LOGIN_UNUSABLE", "missingDevice,NO_DEVICES",
+            "missingNotification,NOTIFICATION_UNAVAILABLE", "missingPost,NOTIFICATION_UNAVAILABLE"})
     @DisplayName("발송 직전 읽음·삭제·탈퇴·설정·로그인·기기 상태를 확인하여 발송을 생략한다")
-    void process_ineligibleLatestState_completesWithoutSending(String state) {
+    void process_ineligibleLatestState_completesWithoutSending(String state, String reason) {
         // Given
         if (state.equals("read"))
             jdbc.update("UPDATE notifications SET read_at=?", Timestamp.from(NOW));
@@ -147,6 +163,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThat(worker(NOW).process(message).retryable()).isFalse();
         verifyNoInteractions(sender);
+        assertThat(logsAtStage("worker_skipped")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("reason", reason));
     }
 
     @Test
@@ -189,6 +207,9 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThat(worker(NOW).process(message).retryable()).isFalse();
         verify(sender, times(2)).send(any());
+        assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
+                .containsEntry("targetCount", 2).containsEntry("acceptedCount", 1)
+                .containsEntry("retryableCount", 1).containsEntry("retryable", false));
     }
 
     @Test
@@ -338,6 +359,54 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         verifyNoInteractions(sender);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACCEPTED", "RETRYABLE", "PERMANENT_FAILURE", "INVALID_TOKEN",
+            "SKIPPED"})
+    @DisplayName("기기 처리 결과를 종류별 집계하고 식별 정보만 로그에 남긴다")
+    void process_deviceResult_recordsCountsWithoutPrivateData(String status) {
+        // Given
+        DevicePushResult deviceResult = switch (status) {
+            case "RETRYABLE" -> DevicePushResult.retryable("UNAVAILABLE");
+            case "PERMANENT_FAILURE" -> DevicePushResult.permanentFailure("SENDER_ID_MISMATCH");
+            case "INVALID_TOKEN" -> DevicePushResult.invalidToken("UNREGISTERED");
+            case "SKIPPED" -> DevicePushResult.skipped("PUSH_EXPIRED");
+            default -> DevicePushResult.accepted();
+        };
+        given(sender.send(any())).willReturn(deviceResult);
+        // When
+        worker(NOW).process(message);
+        // Then
+        Map<String, Object> summary = logsAtStage("worker_summary").getFirst();
+        assertThat(summary).containsEntry("eventId", message.eventId())
+                .containsEntry("notificationId", message.notificationId())
+                .containsEntry("userId", USER_ID).containsEntry("targetCount", 1);
+        assertThat(summary.get("acceptedCount")).isEqualTo(status.equals("ACCEPTED") ? 1 : 0);
+        assertThat(summary.get("retryableCount")).isEqualTo(status.equals("RETRYABLE") ? 1 : 0);
+        assertThat(summary.get("permanentFailureCount"))
+                .isEqualTo(status.equals("PERMANENT_FAILURE") ? 1 : 0);
+        assertThat(summary.get("invalidTokenCount"))
+                .isEqualTo(status.equals("INVALID_TOKEN") ? 1 : 0);
+        assertThat(summary.get("skippedCount")).isEqualTo(status.equals("SKIPPED") ? 1 : 0);
+        assertThat(logsAtStage("fcm_result")).hasSize(status.equals("SKIPPED") ? 0 : 1);
+        var request = org.mockito.ArgumentCaptor.forClass(DevicePushRequest.class);
+        verify(sender).send(request.capture());
+        assertThat(appender.list).allSatisfy(event -> {
+            String logged = event.getFormattedMessage() + event.getKeyValuePairs();
+            assertThat(logged).doesNotContain(request.getValue().token(),
+                    request.getValue().title(),
+                    request.getValue().body(), "worker@example.com", "worker/original");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    private List<Map<String, Object>> logsAtStage(String stage) {
+        return appender.list.stream().map(event -> {
+            Map<String, Object> values = new HashMap<>();
+            event.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+            return values;
+        }).filter(values -> stage.equals(values.get("stage"))).toList();
     }
 
     private PushWorkerService worker(Instant now) {

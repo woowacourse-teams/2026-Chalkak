@@ -97,8 +97,11 @@ public class NotificationRelayService {
         }
         if (result.retryable()) {
             notification.retryPublication(attemptedAt);
-            logResult(notification, notification.getPublishStatus().name(), null,
-                    result.errorCode());
+            String publicationResult = "SQS_FAILED";
+            if (result.isAcceptanceUnknown()) {
+                publicationResult = "SQS_UNKNOWN";
+            }
+            logResult(notification, publicationResult, null, result.errorCode());
             return;
         }
         notification.failPublication();
@@ -119,6 +122,12 @@ public class NotificationRelayService {
                 .addKeyValue("stage", "relay")
                 .addKeyValue("eventId", notification.getEventKey())
                 .addKeyValue("notificationId", notification.getId())
+                .addKeyValue("userId", notification.getUserId())
+                .addKeyValue("notificationType", notification.getType())
+                .addKeyValue("sourceId", notification.getSourceId())
+                .addKeyValue("occurredAt", notification.getCreatedAt())
+                .addKeyValue("expiresAt", notification.getPushExpiresAt())
+                .addKeyValue("publishStatus", notification.getPublishStatus())
                 .addKeyValue("sqsMessageId", messageId)
                 .addKeyValue("result", result)
                 .addKeyValue("errorCode", errorCode)

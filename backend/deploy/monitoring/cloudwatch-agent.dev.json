@@ -11,6 +11,11 @@
             "file_path": "/opt/chalkak/logs/application.log",
             "log_group_name": "/chalkak/dev/application",
             "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/opt/chalkak/logs/notification.log",
+            "log_group_name": "/chalkak/dev/notification",
+            "log_stream_name": "{instance_id}"
           }
         ]
       }

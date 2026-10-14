@@ -19,6 +19,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -59,22 +61,31 @@ public class PushWorkerService {
     }
 
     public PushProcessingResult process(PushMessage message) {
-        if (!isValidMessage(message)
-                || PushDeadlinePolicy.isExpiredAt(message.expiresAt(), clock.instant())) {
-            logSkipped(message, null, "INVALID_OR_EXPIRED");
+        if (!isValidMessage(message)) {
+            logSkipped(message, null, "INVALID_MESSAGE");
+            return PushProcessingResult.completed();
+        }
+        if (PushDeadlinePolicy.isExpiredAt(message.expiresAt(), clock.instant())) {
+            logSkipped(message, null, "EXPIRED");
             return PushProcessingResult.completed();
         }
         List<UUID> deviceIds = transactionTemplate
                 .execute(status -> deviceRepository.findIdsByUserId(message.userId()));
+        if (deviceIds.isEmpty()) {
+            logSkipped(message, null, "NO_DEVICES");
+        }
+        Map<DevicePushResult.Status, Integer> counts = new EnumMap<>(DevicePushResult.Status.class);
         boolean accepted = false;
         boolean retryable = false;
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
             DevicePushResult result = sendToDevice(message, deviceId);
+            counts.merge(result.status(), 1, Integer::sum);
             accepted = accepted || result.isAccepted();
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
         }
+        logSummary(message, deviceIds.size(), counts, !accepted && retryable);
         if (accepted) {
             return PushProcessingResult.completed();
         }
@@ -110,10 +121,13 @@ public class PushWorkerService {
     ) {
         DevicePushRequest request = findCurrentRequest(message, deviceId);
         if (request == null) {
-            logSkipped(message, deviceId, "LATEST_CONDITIONS");
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
         DevicePushResult result = sender.send(request);
+        if (result.status() == DevicePushResult.Status.SKIPPED) {
+            logSkipped(message, deviceId, result.errorCode());
+            return result;
+        }
         logResult(message, deviceId, result);
         if (result.isInvalidToken()) {
             deleteInvalidToken(message, deviceId, request);
@@ -143,13 +157,13 @@ public class PushWorkerService {
         PushDevice device = deviceRepository.findByIdAndUserId(deviceId, message.userId())
                 .orElse(null);
         if (device == null) {
-            return null;
+            return skipRequest(message, deviceId, "DEVICE_MISSING");
         }
         User user = loginSessionService
                 .findUsableUser(message.userId(), device.getSessionId(), clock.instant())
                 .orElse(null);
         if (user == null) {
-            return null;
+            return skipRequest(message, deviceId, "LOGIN_UNUSABLE");
         }
         if (message.type() == NotificationType.TOPIC) {
             return findTopicRequest(message, device, user);
@@ -162,17 +176,20 @@ public class PushWorkerService {
             PushDevice device,
             User user
     ) {
-        if (!user.isActive() || !user.isTopicPushEnabled()) {
-            return null;
+        if (!user.isActive()) {
+            return skipRequest(message, device.getId(), "USER_INACTIVE");
+        }
+        if (!user.isTopicPushEnabled()) {
+            return skipRequest(message, device.getId(), "PUSH_DISABLED");
         }
         LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
         Topic topic = topicRepository.findActiveByTopicDate(today).orElse(null);
         if (topic == null || !topic.getId().equals(message.sourceId())) {
-            return null;
+            return skipRequest(message, device.getId(), "TOPIC_UNAVAILABLE");
         }
         if (postRepository.findActiveByAuthorIdAndTopicId(user.getId(), topic.getId())
                 .isPresent()) {
-            return null;
+            return skipRequest(message, device.getId(), "ALREADY_PARTICIPATED");
         }
         return new DevicePushRequest(message, device.getFcmToken(), TOPIC_PUSH_TITLE,
                 topic.getTitle(),
@@ -185,26 +202,37 @@ public class PushWorkerService {
             User user
     ) {
         if (!user.isModerationPushEnabled()) {
-            return null;
+            return skipRequest(message, device.getId(), "PUSH_DISABLED");
         }
         Notification notification = notificationRepository
                 .findForPushByIdAndUserId(message.notificationId(), message.userId()).orElse(null);
-        if (!isSendableNotification(notification, message)) {
-            return null;
+        if (notification == null) {
+            return skipRequest(message, device.getId(), "NOTIFICATION_UNAVAILABLE");
+        }
+        if (notification.getReadAt() != null) {
+            return skipRequest(message, device.getId(), "ALREADY_READ");
+        }
+        if (notification.isPushExpired(clock.instant())) {
+            return skipRequest(message, device.getId(), "EXPIRED");
+        }
+        if (!matches(message, notification)) {
+            return skipRequest(message, device.getId(), "MESSAGE_MISMATCH");
+        }
+        PublishStatus status = notification.getPublishStatus();
+        if (status != PublishStatus.PENDING && status != PublishStatus.PUBLISHED) {
+            return skipRequest(message, device.getId(), "PUBLICATION_INACTIVE");
         }
         return new DevicePushRequest(message, device.getFcmToken(), notification.getTitle(),
                 notification.getBody(), notification.getPushExpiresAt());
     }
 
-    private boolean isSendableNotification(Notification notification, PushMessage message) {
-        if (notification == null || notification.getReadAt() != null) {
-            return false;
-        }
-        if (notification.isPushExpired(clock.instant()) || !matches(message, notification)) {
-            return false;
-        }
-        PublishStatus status = notification.getPublishStatus();
-        return status == PublishStatus.PENDING || status == PublishStatus.PUBLISHED;
+    private DevicePushRequest skipRequest(
+            PushMessage message,
+            UUID deviceId,
+            String reason
+    ) {
+        logSkipped(message, deviceId, reason);
+        return null;
     }
 
     private boolean isValidMessage(PushMessage message) {
@@ -243,7 +271,10 @@ public class PushWorkerService {
                 .addKeyValue("stage", "worker_skipped").addKeyValue("deviceId", deviceId)
                 .addKeyValue("reason", reason);
         if (message != null) {
-            event.addKeyValue("eventId", message.eventId())
+            event.addKeyValue("userId", message.userId())
+                    .addKeyValue("notificationType", message.type())
+                    .addKeyValue("sourceId", message.sourceId())
+                    .addKeyValue("eventId", message.eventId())
                     .addKeyValue("notificationId", message.notificationId());
         }
         event.log("푸시 발송 조건 미충족");
@@ -255,16 +286,47 @@ public class PushWorkerService {
             DevicePushResult result
     ) {
         var event = log.atInfo();
+        if (result.isRetryable() || result.isInvalidToken()) {
+            event = log.atWarn();
+        }
         if (result.isPermanentFailure()) {
             event = log.atError();
         }
         event.addKeyValue("type", "notification").addKeyValue("stage", "fcm_result")
+                .addKeyValue("userId", message.userId())
                 .addKeyValue("notificationType", message.type())
                 .addKeyValue("sourceId", message.sourceId())
                 .addKeyValue("eventId", message.eventId())
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId).addKeyValue("result", result.status())
                 .addKeyValue("errorCode", result.errorCode()).log("FCM 발송 요청 결과");
+    }
+
+    private void logSummary(
+            PushMessage message,
+            int targetCount,
+            Map<DevicePushResult.Status, Integer> counts,
+            boolean retryable
+    ) {
+        log.atInfo().addKeyValue("type", "notification")
+                .addKeyValue("stage", "worker_summary")
+                .addKeyValue("eventId", message.eventId())
+                .addKeyValue("notificationId", message.notificationId())
+                .addKeyValue("userId", message.userId())
+                .addKeyValue("notificationType", message.type())
+                .addKeyValue("targetCount", targetCount)
+                .addKeyValue("acceptedCount",
+                        counts.getOrDefault(DevicePushResult.Status.ACCEPTED, 0))
+                .addKeyValue("retryableCount",
+                        counts.getOrDefault(DevicePushResult.Status.RETRYABLE, 0))
+                .addKeyValue("permanentFailureCount",
+                        counts.getOrDefault(DevicePushResult.Status.PERMANENT_FAILURE, 0))
+                .addKeyValue("invalidTokenCount",
+                        counts.getOrDefault(DevicePushResult.Status.INVALID_TOKEN, 0))
+                .addKeyValue("skippedCount",
+                        counts.getOrDefault(DevicePushResult.Status.SKIPPED, 0))
+                .addKeyValue("retryable", retryable)
+                .log("푸시 기기 처리 결과 집계");
     }
 
     private void logDeviceFailure(
@@ -274,6 +336,9 @@ public class PushWorkerService {
             RuntimeException exception
     ) {
         log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
+                .addKeyValue("userId", message.userId())
+                .addKeyValue("notificationType", message.type())
+                .addKeyValue("sourceId", message.sourceId())
                 .addKeyValue("eventId", message.eventId())
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId)
