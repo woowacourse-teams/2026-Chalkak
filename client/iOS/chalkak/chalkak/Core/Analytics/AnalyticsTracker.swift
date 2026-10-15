@@ -1,5 +1,10 @@
 import FirebaseAnalytics
 
+struct AnalyticsScreen: Equatable {
+    let name: String
+    let screenClass: String
+}
+
 protocol AnalyticsTracking {
     func trackScreenView(screenName: String, screenClass: String)
     func trackBottomNavigationSelection(destination: String)

@@ -19,6 +19,8 @@ struct ContentView: View {
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
     @State private var isIssuePresented = false
+    @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
+    @State private var signatureAnalyticsScreen: AnalyticsScreen?
     @State private var notificationPath: [NotificationRoute] = []
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
@@ -78,7 +80,8 @@ struct ContentView: View {
                     onFinish: showMainAfterAuthentication,
                     onReauthenticationRequired: showLogin,
                     onServiceTermsView: showServiceTerms,
-                    onPrivacyPolicyView: showPrivacyPolicy
+                    onPrivacyPolicyView: showPrivacyPolicy,
+                    onScreenChange: { onboardingAnalyticsScreen = $0 }
                 )
             case .main:
                 NavigationStack(path: $notificationPath) {
@@ -444,6 +447,7 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
+                onSignatureScreenChange: { signatureAnalyticsScreen = $0 },
                 bottomBarCompact: $isBottomBarCompact
             )
         case .record:
@@ -670,6 +674,7 @@ struct ContentView: View {
     }
 
     private func showOnboarding() {
+        onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
         route = .onboarding
     }
 
@@ -807,6 +812,7 @@ struct ContentView: View {
         selectedTab = .home
         selectedFeed = nil
         isIssuePresented = false
+        signatureAnalyticsScreen = nil
         isNotificationInboxPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
@@ -1057,9 +1063,48 @@ struct ContentView: View {
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
-        guard route == .main, !isPhotoUploadPresented else { return nil }
+        if let selectedLegalDocument {
+            return switch selectedLegalDocument {
+            case .privacyPolicy: AnalyticsScreen(name: "privacy_policy", screenClass: "PrivacyPolicy")
+            case .termsOfService: AnalyticsScreen(name: "terms_of_service", screenClass: "TermsOfService")
+            }
+        }
+        if isFeedbackPresented {
+            return AnalyticsScreen(name: "feedback", screenClass: "Feedback")
+        }
+        if isPhotoUploadPresented {
+            return AnalyticsScreen(name: "photo_upload", screenClass: "PhotoUpload")
+        }
+        switch route {
+        case .login:
+            return AnalyticsScreen(name: "login", screenClass: "Login")
+        case .onboarding:
+            return onboardingAnalyticsScreen
+        case .photoUploadSuccess:
+            return successSubmission == nil
+                ? selectedTab.analyticsScreen
+                : AnalyticsScreen(name: "photo_upload_success", screenClass: "PhotoUploadSuccess")
+        case .main:
+            break
+        }
+        if let signatureAnalyticsScreen {
+            return signatureAnalyticsScreen
+        }
         if selectedFeed != nil {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")
+        }
+        if let notificationDestination = notificationPath.last {
+            switch notificationDestination {
+            case .inbox:
+                return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
+            case .approved:
+                return AnalyticsScreen(name: "feed", screenClass: "Feed")
+            case .rejected:
+                return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
+            }
+        }
+        if isIssuePresented {
+            return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
         return selectedTab.analyticsScreen
     }
@@ -1078,11 +1123,6 @@ enum AppRoute: Equatable {
     case onboarding
     case main
     case photoUploadSuccess
-}
-
-private struct AnalyticsScreen: Equatable {
-    let name: String
-    let screenClass: String
 }
 
 private extension ChalkakBottomBarItem {

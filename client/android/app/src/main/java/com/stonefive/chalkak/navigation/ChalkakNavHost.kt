@@ -152,16 +152,15 @@ fun ChalkakNavHost(
         )
     }
 
-    LaunchedEffect(currentBackStackEntry) {
-        currentBackStackEntry
-            ?.destination
-            ?.analyticsScreen()
-            ?.let { screen ->
-                analyticsTracker.trackScreenView(
-                    screenName = screen.name,
-                    screenClass = screen.screenClass,
-                )
-            }
+    LaunchedEffect(currentBackStackEntry, selectedLegalDocument) {
+        val screen = selectedLegalDocument?.analyticsScreen()
+            ?: currentBackStackEntry?.destination?.analyticsScreen()
+        screen?.let {
+            analyticsTracker.trackScreenView(
+                screenName = it.name,
+                screenClass = it.screenClass,
+            )
+        }
     }
 
     LaunchedEffect(photoUploadEntryGateViewModel) {
@@ -813,17 +812,47 @@ private val ChalkakBottomBarItem.analyticsName: String
     }
 
 private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
+    hasRoute<Login>() -> AnalyticsScreen(name = "login", screenClass = "Login")
+    hasRoute<Terms>() -> AnalyticsScreen(name = "terms", screenClass = "Terms")
+    hasRoute<OnboardingSignature>() -> OnboardingSignatureAnalyticsScreen
+    hasRoute<ChangeSignature>() -> AnalyticsScreen(name = "change_signature", screenClass = "ChangeSignature")
+    hasRoute<OnboardingSignaturePreview>() -> OnboardingSignaturePreviewAnalyticsScreen
+    hasRoute<ChangeSignaturePreview>() -> ChangeSignaturePreviewAnalyticsScreen
     hasRoute<Home>() -> AnalyticsScreen(name = "home", screenClass = "Home")
+    hasRoute<WebPage>() -> AnalyticsScreen(name = "issue", screenClass = "IssueWeb")
+    hasRoute<Notifications>() -> AnalyticsScreen(name = "notifications", screenClass = "Notifications")
+    hasRoute<NotificationDetail>() -> AnalyticsScreen(name = "notification_detail", screenClass = "NotificationDetail")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
+    hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
+    hasRoute<PhotoUploadSuccess>() -> AnalyticsScreen(name = "photo_upload_success", screenClass = "PhotoUploadSuccess")
     else -> null
+}
+
+private fun LegalDocument.analyticsScreen(): AnalyticsScreen = when (this) {
+    LegalDocument.PRIVACY_POLICY -> AnalyticsScreen(name = "privacy_policy", screenClass = "PrivacyPolicy")
+    LegalDocument.TERMS_OF_SERVICE -> AnalyticsScreen(name = "terms_of_service", screenClass = "TermsOfService")
 }
 
 private data class AnalyticsScreen(
     val name: String,
     val screenClass: String,
+)
+
+private val OnboardingSignatureAnalyticsScreen = AnalyticsScreen(
+    name = "onboarding_signature",
+    screenClass = "OnboardingSignature",
+)
+private val OnboardingSignaturePreviewAnalyticsScreen = AnalyticsScreen(
+    name = "onboarding_signature_preview",
+    screenClass = "OnboardingSignaturePreview",
+)
+private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
+    name = "change_signature_preview",
+    screenClass = "ChangeSignaturePreview",
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"

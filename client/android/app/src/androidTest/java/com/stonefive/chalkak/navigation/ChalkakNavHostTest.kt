@@ -39,6 +39,47 @@ class ChalkakNavHostTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
+    fun issueWebPageTracksOneScreenViewOnEntry() {
+        lateinit var navController: NavHostController
+        val screenViews = mutableListOf<Pair<String, String>>()
+        val analyticsTracker = object : AnalyticsTracker {
+            override fun trackScreenView(
+                screenName: String,
+                screenClass: String,
+            ) {
+                screenViews += screenName to screenClass
+            }
+
+            override fun trackBottomNavigationSelection(destination: String) = Unit
+        }
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = analyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            navController.navigate(WebPage(title = "ISSUE", url = "about:blank"))
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            screenViews.count { it == ("issue" to "IssueWeb") } == 1
+        }
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<WebPage>() == true)
+            assertEquals(1, screenViews.count { it == ("issue" to "IssueWeb") })
+        }
+    }
+
+    @Test
     fun notificationsOpenFromHomeAndBackReturnsToHome() {
         lateinit var navController: NavHostController
         composeRule.activity.setContent {
