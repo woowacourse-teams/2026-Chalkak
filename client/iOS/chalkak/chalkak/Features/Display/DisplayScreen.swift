@@ -42,7 +42,7 @@ struct DisplayScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            dateHeader
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -60,40 +60,33 @@ struct DisplayScreen: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            DisplayDateHeader(
-                date: viewModel.viewState.selectedDate,
-                canGoPrevious: viewModel.viewState.canGoPrevious,
-                canGoNext: viewModel.viewState.canGoNext,
-                onPrevious: { Task { await viewModel.moveToPreviousDate() } },
-                onNext: { Task { await viewModel.moveToNextDate() } }
-            )
+    private var dateHeader: some View {
+        DisplayDateHeader(
+            date: viewModel.viewState.selectedDate,
+            canGoPrevious: viewModel.viewState.canGoPrevious,
+            canGoNext: viewModel.viewState.canGoNext,
+            onPrevious: { Task { await viewModel.moveToPreviousDate() } },
+            onNext: { Task { await viewModel.moveToNextDate() } }
+        )
+        .padding(.horizontal, theme.spacing.screenHorizontal)
+        .background(theme.colors.background)
+    }
 
-            if isLoaded {
-                DisplayTopic(
-                    topic: viewModel.viewState.topic,
-                    description: topicDescription
-                )
-                .padding(.top, Metrics.dateToTopicSpacing)
-                .padding(.bottom, Metrics.topicToDividerSpacing)
-            }
-        }
+    private var topicHeader: some View {
+        DisplayTopic(
+            topic: viewModel.viewState.topic,
+            description: topicDescription
+        )
+        .padding(.top, Metrics.dateToTopicSpacing)
+        .padding(.bottom, Metrics.topicToDividerSpacing)
         .padding(.horizontal, theme.spacing.screenHorizontal)
         .background(theme.colors.background)
         .overlay(alignment: .bottom) {
-            if isLoaded {
-                Rectangle()
-                    .fill(theme.colors.border)
-                    .frame(height: Metrics.dividerHeight)
-                    .accessibilityHidden(true)
-            }
+            Rectangle()
+                .fill(theme.colors.border)
+                .frame(height: Metrics.dividerHeight)
+                .accessibilityHidden(true)
         }
-    }
-
-    private var isLoaded: Bool {
-        viewModel.viewState.contentStatus == .latest
-            || viewModel.viewState.contentStatus == .archive
     }
 
     @ViewBuilder
@@ -136,6 +129,9 @@ struct DisplayScreen: View {
     private var loadedContent: some View {
         ScrollView {
             VStack(spacing: 0) {
+                topicHeader
+                    .padding(.horizontal, -theme.spacing.screenHorizontal)
+
                 if viewModel.viewState.contentStatus == .archive,
                    !viewModel.viewState.featuredPhotos.isEmpty {
                     DisplayFeaturedCarousel(
