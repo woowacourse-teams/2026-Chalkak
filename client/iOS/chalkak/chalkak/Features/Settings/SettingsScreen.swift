@@ -43,6 +43,7 @@ struct SettingsScreen: View {
     var onSignedOut: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenPhotoUpload: () -> Void = {}
+    var onSignatureScreenChange: (AnalyticsScreen?) -> Void = { _ in }
 
     @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
@@ -178,8 +179,13 @@ struct SettingsScreen: View {
         .onDisappear {
             messageDismissTask?.cancel()
         }
-        .fullScreenCover(isPresented: $isSignatureChangePresented) {
-            SignatureChangeFlow(onUpdate: viewModel.updateSignature)
+        .fullScreenCover(isPresented: $isSignatureChangePresented, onDismiss: {
+            onSignatureScreenChange(nil)
+        }) {
+            SignatureChangeFlow(
+                onUpdate: viewModel.updateSignature,
+                onScreenChange: { onSignatureScreenChange($0) }
+            )
         }
     }
 

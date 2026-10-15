@@ -9,13 +9,15 @@ struct OnboardingRoute: View {
     let onReauthenticationRequired: () -> Void
     let onServiceTermsView: () -> Void
     let onPrivacyPolicyView: () -> Void
+    let onScreenChange: (AnalyticsScreen) -> Void
 
     init(
         authRepository: AuthRepository,
         onFinish: @escaping () -> Void,
         onReauthenticationRequired: @escaping () -> Void = {},
         onServiceTermsView: @escaping () -> Void,
-        onPrivacyPolicyView: @escaping () -> Void
+        onPrivacyPolicyView: @escaping () -> Void,
+        onScreenChange: @escaping (AnalyticsScreen) -> Void = { _ in }
     ) {
         _signUpViewModel = StateObject(
             wrappedValue: SignUpViewModel(authRepository: authRepository)
@@ -24,6 +26,7 @@ struct OnboardingRoute: View {
         self.onReauthenticationRequired = onReauthenticationRequired
         self.onServiceTermsView = onServiceTermsView
         self.onPrivacyPolicyView = onPrivacyPolicyView
+        self.onScreenChange = onScreenChange
 
         var initialStep = OnboardingStep.terms
         var initialStrokes: [OnboardingSignatureStroke] = []
@@ -66,6 +69,9 @@ struct OnboardingRoute: View {
             }
         }
         .animation(.default, value: step)
+        .onChange(of: step, initial: true) { _, step in
+            onScreenChange(step.analyticsScreen)
+        }
         .alert(
             "회원가입",
             isPresented: Binding(
@@ -105,6 +111,14 @@ private enum OnboardingStep: Equatable {
     case terms
     case signature
     case preview
+
+    var analyticsScreen: AnalyticsScreen {
+        switch self {
+        case .terms: AnalyticsScreen(name: "terms", screenClass: "Terms")
+        case .signature: AnalyticsScreen(name: "onboarding_signature", screenClass: "OnboardingSignature")
+        case .preview: AnalyticsScreen(name: "onboarding_signature_preview", screenClass: "OnboardingSignaturePreview")
+        }
+    }
 }
 
 #Preview("Onboarding route") {
