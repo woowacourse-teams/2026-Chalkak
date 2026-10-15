@@ -16,6 +16,20 @@
             "file_path": "/opt/chalkak/logs/notification.log",
             "log_group_name": "/chalkak/prod/notification",
             "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/opt/chalkak/logs/gc.log",
+            "log_group_name": "/chalkak/prod/gc",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "[%Y-%m-%dT%H:%M:%S.%f%z]",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/chalkak-memwatch.log",
+            "log_group_name": "/chalkak/prod/memwatch",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%dT%H:%M:%SZ",
+            "timezone": "UTC"
           }
         ]
       }
