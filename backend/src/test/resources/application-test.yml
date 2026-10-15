@@ -80,6 +80,10 @@ chalkak:
   user:
     signature-processing-timeout: 7m
 
+  analytics:
+    # 테스트에서 실제 CloudWatch를 조회하지 않도록 관측 시작일을 먼 미래로 둔다.
+    log-metrics-start-date: 2099-01-01
+
   scheduling:
     # 애플리케이션 전체의 주기 작업을 끈다. 테스트는 자기 시계를 고정하므로, 실제 시각으로 도는
     # 작업이 같은 테스트 DB의 행을 건드리면 원인을 찾기 어려운 실패가 된다. 주기 작업이 늘어나도

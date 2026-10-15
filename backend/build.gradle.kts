@@ -37,6 +37,7 @@ dependencies {
 
     implementation(platform("software.amazon.awssdk:bom:2.54.1"))
     implementation("software.amazon.awssdk:s3")
+    implementation("software.amazon.awssdk:cloudwatchlogs")
     implementation("software.amazon.awssdk:sqs")
     implementation("com.google.firebase:firebase-admin:9.11.0")
 
