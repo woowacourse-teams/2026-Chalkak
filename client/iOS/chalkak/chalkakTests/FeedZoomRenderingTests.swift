@@ -6,11 +6,7 @@ import XCTest
 final class FeedZoomRenderingTests: XCTestCase {
     func testFirstPinchKeepsTouchSurfaceAliveWhenViewportClipIsRemoved() async throws {
         let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
-        let host = UIHostingController(rootView: FeedPhoto(
-            post: nil,
-            zoom: FeedPhotoZoom(source: .init(frame: frame, cornerRadius: 0, visibleBounds: frame), viewport: frame),
-            onLike: {}
-        ))
+        let host = UIHostingController(rootView: ScrollLockPhotoHarness(frame: frame))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         window.frame = frame
@@ -21,6 +17,10 @@ final class FeedZoomRenderingTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
 
         let surface = try XCTUnwrap(touchSurface(in: host.view))
+        var ancestor = surface.superview
+        while ancestor != nil && !(ancestor is UIScrollView) { ancestor = ancestor?.superview }
+        let scrollView = try XCTUnwrap(ancestor as? UIScrollView)
+        XCTAssertTrue(scrollView.isScrollEnabled)
         let first = NSObject()
         let second = NSObject()
         surface.tracker.onTouchesChanged?([
@@ -31,7 +31,17 @@ final class FeedZoomRenderingTests: XCTestCase {
         host.view.layoutIfNeeded()
 
         XCTAssertTrue(touchSurface(in: host.view) === surface, "Starting the first pinch must not replace its active touch recognizer")
+        XCTAssertFalse(scrollView.isScrollEnabled)
+        // One remaining finger continues panning the enlarged photo, not the feed.
+        surface.tracker.onTouchesChanged?([
+            FeedPhotoTouch(id: ObjectIdentifier(first), location: CGPoint(x: 120, y: 100))
+        ], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(scrollView.isScrollEnabled)
         surface.tracker.onTouchesChanged?([], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(scrollView.isScrollEnabled)
+        XCTAssertTrue(touchSurface(in: host.view) === surface)
     }
 
     private func touchSurface(in view: UIView) -> FeedPhotoTouchView? {
@@ -120,5 +130,24 @@ final class FeedZoomRenderingTests: XCTestCase {
         return withExtendedLifetime(context) {
             Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self).advanced(by: index), count: 4))
         }
+    }
+}
+
+private struct ScrollLockPhotoHarness: View {
+    let frame: CGRect
+    @State private var isPhotoInteracting = false
+
+    var body: some View {
+        ScrollView {
+            FeedPhoto(
+                post: nil,
+                zoom: FeedPhotoZoom(source: .init(frame: frame, cornerRadius: 0, visibleBounds: frame), viewport: frame),
+                onPhotoInteractionChanged: { isPhotoInteracting = $0 },
+                onLike: {}
+            )
+            Color.clear.frame(height: 800)
+        }
+        .scrollClipDisabled(isPhotoInteracting)
+        .scrollDisabled(isPhotoInteracting)
     }
 }

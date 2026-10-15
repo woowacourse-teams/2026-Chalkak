@@ -18,10 +18,6 @@ struct FeedPhotoTouchSurface: UIViewRepresentable {
         view.tracker.onTouchesChanged = onTouchesChanged
         if view.tracker.isEnabled != isEnabled { view.tracker.isEnabled = isEnabled }
     }
-
-    static func dismantleUIView(_ view: FeedPhotoTouchView, coordinator: ()) {
-        view.tracker.releaseScrollLock()
-    }
 }
 
 final class FeedPhotoTouchView: UIView {
@@ -43,8 +39,6 @@ final class FeedPhotoTouchRecognizer: UIGestureRecognizer, UIGestureRecognizerDe
     var onTouchesChanged: (([FeedPhotoTouch], CGPoint) -> Void)?
     private var activeTouches: [UITouch] = []
     private var origin: CGPoint = .zero
-    private weak var lockedScrollView: UIScrollView?
-    private var wasScrollEnabled = false
 
     override init(target: Any?, action: Selector?) {
         super.init(target: target, action: action)
@@ -61,7 +55,6 @@ final class FeedPhotoTouchRecognizer: UIGestureRecognizer, UIGestureRecognizerDe
             if state == .possible {
                 origin = view?.convert(.zero, to: nil) ?? .zero
                 state = .began
-                lockScroll()
             }
             reportTouches()
         }
@@ -88,7 +81,6 @@ final class FeedPhotoTouchRecognizer: UIGestureRecognizer, UIGestureRecognizerDe
     override func reset() {
         super.reset()
         if !activeTouches.isEmpty { onTouchesChanged?([], origin) }
-        releaseScrollLock()
         activeTouches.removeAll()
         origin = .zero
     }
@@ -100,17 +92,11 @@ final class FeedPhotoTouchRecognizer: UIGestureRecognizer, UIGestureRecognizerDe
         true
     }
 
-    func releaseScrollLock() {
-        if let lockedScrollView { lockedScrollView.isScrollEnabled = wasScrollEnabled }
-        lockedScrollView = nil
-    }
-
     private func finishTouches(_ touches: Set<UITouch>, cancelled: Bool = false) {
         activeTouches.removeAll { active in touches.contains(where: { $0 === active }) }
         if state == .began || state == .changed {
             reportTouches()
             if activeTouches.isEmpty {
-                releaseScrollLock()
                 state = cancelled ? .cancelled : .ended
             }
         } else if activeTouches.isEmpty {
@@ -125,18 +111,4 @@ final class FeedPhotoTouchRecognizer: UIGestureRecognizer, UIGestureRecognizerDe
         )
     }
 
-    private func lockScroll() {
-        // SwiftUI의 scrollDisabled를 바꾸면 진행 중인 첫 핀치가 끊길 수 있어 스크롤만 직접 멈춘다.
-        var ancestor = view?.superview
-        while let current = ancestor {
-            if let scrollView = current as? UIScrollView {
-                lockedScrollView = scrollView
-                wasScrollEnabled = scrollView.isScrollEnabled
-                scrollView.isScrollEnabled = false
-                return
-            }
-            ancestor = current.superview
-        }
-    }
 }
-
