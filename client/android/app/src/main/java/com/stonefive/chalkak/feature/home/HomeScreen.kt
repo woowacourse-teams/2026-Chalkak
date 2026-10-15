@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -70,7 +71,7 @@ fun HomeScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onRetry: () -> Unit,
     onNotificationClick: () -> Unit,
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -146,6 +147,7 @@ fun HomeScreen(
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
                     listState = listState,
+                    bottomBarHeight = bottomBarHeight,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -193,8 +195,9 @@ private fun HomeContent(
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
     listState: LazyListState,
+    bottomBarHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
@@ -217,7 +220,7 @@ private fun HomeContent(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(HOME_CONTENT_TEST_TAG),
-            contentPadding = PaddingValues(bottom = ChalkakTheme.spacing.xxl),
+            contentPadding = PaddingValues(bottom = bottomBarHeight + ChalkakTheme.spacing.xxl),
         ) {
             item {
                 HomeTopicHeader(
@@ -375,7 +378,7 @@ private fun HomeScreenPreview() {
             onNavigateToBottomBar = {},
             onRetry = {},
             onNotificationClick = {},
-            onIssueClick = {},
+            onIssueClick = { _, _ -> },
         )
     }
 }
