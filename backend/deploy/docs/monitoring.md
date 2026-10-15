@@ -339,7 +339,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 - `chalkak-prod-rds-free-storage`: `RDS 여유 스토리지가 2GiB 미만입니다. 먼저 RDS 콘솔에서 스토리지 사용량과 자동 확장 설정을 확인하고 빠르게 늘어난 테이블이 있는지 점검하세요.`
 - `chalkak-prod-no-open-topic`: `요청한 날짜의 주제가 없다는 404(GET /api/v1/topics)가 10분 연속 5분마다 3건 이상 발생했습니다. 오늘(KST) 주제가 등록되지 않았거나 삭제됐을 가능성이 큽니다. 먼저 관리자 페이지에서 오늘(KST) 날짜의 주제가 있는지 확인하세요. 주제가 있어도 BEFORE_OPEN 상태인 경우는 이 알람이 감지하지 못합니다.`
 - `chalkak-prod-app-heartbeat`: `prod 런타임 로그(1분마다 1줄)가 10분 동안 들어오지 않았습니다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제 중 하나입니다. 먼저 서버에서 systemctl status chalkak-backend, journalctl -u chalkak-backend -n 100 으로 앱 상태를, amazon-cloudwatch-agent-ctl -m ec2 -a status 로 Agent 상태를 확인하세요. 배포 직후 잠깐의 재시작은 10분 조건으로 걸러집니다.`
-- `chalkak-prod-gc-pause`: `2초 이상 GC 정지가 관측됐습니다. prod GC 로그에서 원인·단계·CPU 시간을 확인하고 같은 구간 memwatch와 API·Lambda 로그를 대조하세요. 스왑 원인으로 자동 확정하지 마세요.`
+- `chalkak-prod-gc-pause`: `2초 이상 GC 정지가 관측됐습니다. CloudWatch의 prod GC 로그에서 원인·단계·CPU 시간을 확인하고 같은 구간 memwatch와 API·Lambda 로그를 대조하세요. 스왑 원인으로 자동 확정하지 마세요.`
 - `chalkak-prod-user-metrics-missing`: `사용자 지표 집계 성공 로그가 26시간 동안 들어오지 않았습니다. 먼저 prod 애플리케이션 로그 그룹에서 "사용자 지표 집계 실패"(type=error) 로그의 metricDate와 원인을 확인하고, 원인을 고친 뒤 관리자 API POST /api/v1/admin/analytics/aggregations 로 빠진 날짜를 다시 집계하세요.`
 - `chalkak-shared-image-queue-age`: `이미지 처리 대기열에서 가장 오래된 메시지가 10분 넘게 처리되지 않았습니다. 먼저 이미지 처리 Lambda의 Errors·Throttles 지표와 로그 그룹을 확인하세요.`
 - `chalkak-shared-image-lambda-errors`: `이미지 처리 Lambda 오류가 5분 안에 5건 이상 발생했습니다. 먼저 Lambda 로그 그룹에서 [ERROR] 로그와 실패한 S3 key를 확인하세요.`

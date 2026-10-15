@@ -21,9 +21,10 @@ GC 로그는 dev/prod 앱 시작 옵션으로 활성화한다. 운영 memwatch�
 
    ```text
    /var/log/chalkak-memwatch.log {
+       su root root
        daily
        rotate 7
-       size 10M
+       maxsize 10M
        missingok
        notifempty
        compress
@@ -32,7 +33,7 @@ GC 로그는 dev/prod 앱 시작 옵션으로 활성화한다. 운영 memwatch�
    }
    ```
 
-   `sudo logrotate --debug /etc/logrotate.d/chalkak-memwatch`로 문법·파일 권한을 확인한다. size는 logrotate 실행 시 검사하는 기준으로 실시간 용량 상한은 아니다.
+   `sudo logrotate --debug /etc/logrotate.d/chalkak-memwatch`로 문법·파일 권한을 확인한다. `su root root`는 부모 디렉터리의 그룹 쓰기 권한이 있는 환경에서도 회전 계정을 명시한다. `maxsize`는 일 단위 회전과 함께 적용되며 logrotate 실행 시 검사하므로 실시간 용량 상한은 아니다. debug 검사는 상태 파일을 갱신하거나 실제로 회전하지 않는다.
 5. dev/prod Agent의 기존 설정을 백업하고 해당 환경의 `cloudwatch-agent.*.json`을 서버 `/opt/aws/amazon-cloudwatch-agent/etc/chalkak.json`에 적용한다. 기존 수집 항목과 서버별 추가 설정이 있다면 보존한다. [기존 Agent 적용 절차](monitoring.md#5-cloudwatch-agent-설치-dev-prod-ec2-각각)의 fetch-config·상태 확인을 따른다. 앱 배포는 Agent 설정을 자동 적용하지 않는다.
 6. GC 옵션은 다음 일반 앱 배포·서비스 재시작부터 적용된다. EC2 재부팅은 필요 없다. 기존 `jcmd` 로그 파일이 있다면 chalkak이 쓸 수 있는지 확인한다. JVM은 `/opt/chalkak/logs/gc.log` 및 회전 이력 최대 5개를 10MB 기준으로 관리한다. GC와 safepoint는 서로 별도 행으로 수집하며 줄을 합치지 않는다.
 7. 배포 후 아래와 CloudWatch 실제 유입·UTC 시각을 확인한다. 일반·알림 로그도 계속 들어와야 한다. GC를 강제로 실행하거나 테스트 문구를 운영 파일에 쓰지 않는다.
@@ -56,7 +57,7 @@ GC 비동기 로깅은 쓰기 대기를 줄이는 목적이며 무손실을 보�
 
 - 네임스페이스 `Chalkak/prod`, 지표 `GcPauseOver2s`, 값 `1`, 기본값 `0`, 단위 `Count`, 디멘션 없음.
 - 경보 `chalkak-prod-gc-pause`: Sum, 60초, `>= 1`, 1 of 1, 누락 `notBreaching`. ALARM/OK는 기존 `chalkak-prod-alarms` 토픽으로 전달한다.
-- 설명: `2초 이상 GC 정지가 관측됐습니다. prod GC 로그에서 원인·단계·CPU 시간을 확인하고 같은 구간 memwatch와 API·Lambda 로그를 대조하세요. 스왑 원인으로 자동 확정하지 마세요.`
+- 설명: `2초 이상 GC 정지가 관측됐습니다. CloudWatch의 prod GC 로그에서 원인·단계·CPU 시간을 확인하고 같은 구간 memwatch와 API·Lambda 로그를 대조하세요. 스왑 원인으로 자동 확정하지 마세요.`
 - 발생 종료 후 전송·평가하는 사후 경보다. ALARM 유지 중 매 GC마다 새 Slack 메시지가 오는 것은 아니다. 무로그와 정상 상태는 구분하지 못하므로 수집 유입도 확인한다.
 - 콘솔의 필터 테스트에 실제 형식 샘플을 붙여 검증한다: `Pause Full ... 1999.999ms` 불일치, `2000.000ms`·`7605.158ms`·`10000.000ms` 일치. `Pause Young ...`도 동일하다. 시작 행·`Phase 1: Mark live objects 6932.118ms`·CPU 행·safepoint 행은 불일치여야 한다.
 - 콘솔 필터 테스트는 지표를 발행하지 않는다. 필터 생성 후 일반 GC 로그로 기본값 지표가 생긴 뒤 경보를 만든다. 운영에서 긴 GC를 일부러 유발하지 않는다. AWS 측 패턴 승인·실제 알람 전달은 수동 검증 대상이다.
