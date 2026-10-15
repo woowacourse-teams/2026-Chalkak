@@ -314,6 +314,12 @@ window.betaData = {
       "title": "",
       "likes": 7,
       "url": "https://chalkak-image.pysun.kr/posts/prod/original/01a1388e-37e0-7cfa-ab13-35ff1f47ae4b.webp"
+    },
+    {
+      "date": "2026-10-15",
+      "topic": "좋아하는 음식",
+      "title": "",
+      "url": "https://chalkak-image.pysun.kr/posts/prod/original/01a13ce6-1342-78be-ab54-47d08b4965ba.webp"
     }
   ],
   "signatures": [
@@ -410,7 +416,6 @@ window.betaData = {
     "https://chalkak-image.pysun.kr/signatures/prod/original/92e5cc10-6080-4cd6-b132-ce5cf6b3762f.png",
     "https://chalkak-image.pysun.kr/signatures/prod/original/c134b7d4-268b-46a0-abce-53c16e940a79.png",
     "https://chalkak-image.pysun.kr/signatures/prod/original/b6c469be-54eb-458c-81dd-54f3e968e62c.png",
-    "https://chalkak-image.pysun.kr/signatures/prod/original/6d1e7f75-f79a-4a1e-a7d0-9306da444f12.png",
     "https://chalkak-image.pysun.kr/signatures/prod/original/192e6afb-768c-4d30-bc58-0910291b6eb9.png",
     "https://chalkak-image.pysun.kr/signatures/prod/original/a53900d8-683b-4102-9f93-085f6f755fdb.png",
     "https://chalkak-image.pysun.kr/signatures/prod/original/8fecd448-d1e5-4fd8-937f-ac5a38135389.png",
