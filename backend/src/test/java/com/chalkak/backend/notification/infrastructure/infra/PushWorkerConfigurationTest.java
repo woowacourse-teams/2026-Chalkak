@@ -28,6 +28,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
@@ -35,7 +36,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.context.SmartLifecycle;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.scheduling.config.FixedDelayTask;
 import java.time.Duration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -58,7 +62,7 @@ class PushWorkerConfigurationTest {
                         .doesNotHaveBean(PushWorkerService.class)
                         .doesNotHaveBean(DevicePushSender.class)
                         .doesNotHaveBean("notificationPollingScheduler")
-                        .doesNotHaveBean("notificationPollingTasks"));
+                        .doesNotHaveBean(SqsPollingScheduler.class));
     }
 
     @ParameterizedTest
@@ -139,12 +143,13 @@ class PushWorkerConfigurationTest {
                     assertThat(polling.getScheduledThreadPoolExecutor().getCorePoolSize())
                             .isEqualTo(2);
                     assertThat(executor.isShutdown()).isFalse();
-                    assertThat(context
-                            .getBean("notificationPollingTasks", ScheduledTaskRegistrar.class)
-                            .getScheduledTasks()).hasSize(2).extracting(task -> task.getTask())
+                    assertThat(context.getBeansOfType(SqsPollingScheduler.class)).hasSize(2);
+                    assertThat(context.getBean(ScheduledAnnotationBeanPostProcessor.class)
+                            .getScheduledTasks()).hasSize(3).extracting(task -> task.getTask())
                             .allSatisfy(task -> assertThat(task).isInstanceOf(FixedDelayTask.class))
                             .extracting(task -> ((FixedDelayTask) task).getIntervalDuration())
-                            .containsExactly(Duration.ofMillis(1), Duration.ofMillis(1));
+                            .containsExactlyInAnyOrder(Duration.ofMillis(1), Duration.ofMillis(1),
+                                    Duration.ofMillis(10));
                     try {
                         assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
@@ -178,10 +183,79 @@ class PushWorkerConfigurationTest {
         // When & Then
         createPollingContext(probe).withPropertyValues("chalkak.scheduling.enabled=false")
                 .run(context -> {
-                    assertThat(context).hasNotFailed().doesNotHaveBean("notificationPollingTasks");
+                    assertThat(context).hasNotFailed().doesNotHaveBean(SqsPollingScheduler.class);
                     assertThat(probe.pollThreads).isEmpty();
                     org.mockito.Mockito.verifyNoInteractions(context.getBean(SqsClient.class));
                 });
+    }
+
+    @Test
+    @DisplayName("컨텍스트 초기화가 실패하면 SQS 폴링을 시작하지 않는다")
+    void configuration_initializationFails_doesNotPoll() {
+        // Given
+        FakePollingProbe probe = new FakePollingProbe();
+        // When & Then
+        createPollingContext(probe)
+                .withBean("failingInitializer", SmartInitializingSingleton.class, () -> () -> {
+                    try {
+                        probe.pollStarted.await(200, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(exception);
+                    }
+                    throw new IllegalStateException("초기화 실패 테스트");
+                })
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasMessage("초기화 실패 테스트");
+                    assertThat(probe.pollThreads).isEmpty();
+                });
+    }
+
+    @Test
+    @DisplayName("컨텍스트 초기화 중에는 폴링하지 않고 초기화 후 두 Worker가 시작한다")
+    void configuration_initializationCompletes_startsPollingAfterInitialization() {
+        // Given
+        FakePollingProbe probe = new FakePollingProbe();
+        AtomicBoolean startedDuringInitialization = new AtomicBoolean();
+        // When & Then
+        createPollingContext(probe)
+                .withBean("initializationProbe", SmartInitializingSingleton.class, () -> () -> {
+                    try {
+                        startedDuringInitialization
+                                .set(probe.pollStarted.await(200, TimeUnit.MILLISECONDS));
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(exception);
+                    }
+                })
+                .run(context -> {
+                    try {
+                        assertThat(context).hasNotFailed();
+                        assertThat(startedDuringInitialization).isFalse();
+                        assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                    } finally {
+                        probe.releasePoll.countDown();
+                    }
+                });
+    }
+
+    @Test
+    @DisplayName("컨텍스트 종료 단계에서 진행 중인 수신이 끝나도 다음 폴링을 시작하지 않는다")
+    void configuration_contextClosing_doesNotPollAgain() {
+        // Given
+        FakePollingProbe probe = new FakePollingProbe();
+        FakeShutdownProbe shutdown = new FakeShutdownProbe(probe);
+        // When
+        createPollingContext(probe).withBean(FakeShutdownProbe.class, () -> shutdown)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                });
+        // Then
+        assertThat(shutdown.stopped).isTrue();
+        assertThat(shutdown.polledDuringStop).isFalse();
+        assertThat(probe.pollCount).hasValue(2);
     }
 
     private ApplicationContextRunner createPollingContext(FakePollingProbe probe) {
@@ -239,6 +313,9 @@ class PushWorkerConfigurationTest {
                     org.mockito.ArgumentMatchers.<Consumer<ReceiveMessageRequest.Builder>>any()))
                     .willAnswer(call -> {
                         probe.pollThreads.add(Thread.currentThread().getName());
+                        if (probe.pollCount.incrementAndGet() > 2) {
+                            probe.additionalPoll.countDown();
+                        }
                         probe.pollStarted.countDown();
                         probe.releasePoll.await(10, TimeUnit.SECONDS);
                         return ReceiveMessageResponse.builder().build();
@@ -247,7 +324,49 @@ class PushWorkerConfigurationTest {
         }
     }
 
+    static class FakeShutdownProbe implements SmartLifecycle {
+        private final FakePollingProbe probe;
+        private boolean running;
+        private boolean stopped;
+        private boolean polledDuringStop;
+
+        FakeShutdownProbe(FakePollingProbe probe) {
+            this.probe = probe;
+        }
+
+        @Override
+        public void start() {
+            running = true;
+        }
+
+        @Override
+        public void stop() {
+            probe.releasePoll.countDown();
+            try {
+                polledDuringStop = probe.additionalPoll.await(200, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            } finally {
+                running = false;
+                stopped = true;
+            }
+        }
+
+        @Override
+        public boolean isRunning() {
+            return running;
+        }
+
+        @Override
+        public int getPhase() {
+            return Integer.MAX_VALUE;
+        }
+    }
+
     static class FakePollingProbe {
+        private final AtomicInteger pollCount = new AtomicInteger();
+        private final CountDownLatch additionalPoll = new CountDownLatch(1);
         private final CountDownLatch pollStarted = new CountDownLatch(2);
         private final CountDownLatch releasePoll = new CountDownLatch(1);
         private final CountDownLatch commonTaskRan = new CountDownLatch(1);
