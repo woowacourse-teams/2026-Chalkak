@@ -1,6 +1,9 @@
 *
 !admin-web
 !admin-web/**
+!client
+!client/web
+!client/web/**
 admin-web/node_modules
 admin-web/.next
 admin-web/.vercel
