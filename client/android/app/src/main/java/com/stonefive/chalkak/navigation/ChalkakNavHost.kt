@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
@@ -495,7 +496,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Feed> { backStackEntry ->
+            composable<Feed>(
+                enterTransition = { EnterTransition.None },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
@@ -541,7 +544,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<FeedById> { backStackEntry ->
+            composable<FeedById>(
+                enterTransition = { EnterTransition.None },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,

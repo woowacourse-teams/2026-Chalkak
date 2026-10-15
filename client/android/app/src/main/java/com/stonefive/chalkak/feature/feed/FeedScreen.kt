@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.feed
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -159,6 +161,8 @@ fun FeedScreen(
                         uiState.isTitleEditable,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .photoTransitionChrome()
+                    .background(ChalkakBackground)
                     .statusBarsPadding()
                     .padding(
                         start = 8.dp,

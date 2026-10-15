@@ -8,6 +8,7 @@ import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
@@ -69,6 +70,25 @@ fun Modifier.sharedPhotoElement(
     }
 }
 
+/** Keeps screen controls above the photo while both are drawn outside their parent layers. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.photoTransitionChrome(): Modifier {
+    val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    return with(sharedTransitionScope) {
+        renderInSharedTransitionScopeOverlay(zIndexInOverlay = PHOTO_CHROME_OVERLAY_Z_INDEX)
+    }.then(
+        with(animatedVisibilityScope) {
+            Modifier.animateEnterExit(
+                enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                label = "photo-transition-chrome",
+            )
+        },
+    )
+}
+
 fun PhotoTransitionKey.signatureKey() = copy(sourceId = "$sourceId:signature")
 
 private class AnimatedPhotoShape(
@@ -114,3 +134,5 @@ fun rememberPhotoTransitionEnterFinished(): Boolean {
 
 private const val PHOTO_SOURCE_HIDE_DURATION_MILLIS = 0
 private const val PHOTO_TRANSITION_DURATION_MILLIS = 300
+
+private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f

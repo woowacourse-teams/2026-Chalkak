@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
@@ -196,6 +197,7 @@ fun DisplayScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .photoTransitionChrome()
                 .fillMaxWidth(),
         ) {
             Spacer(
@@ -264,6 +266,7 @@ fun DisplayScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .photoTransitionChrome()
                     .padding(
                         end = 24.dp,
                         bottom = bottomBarHeight + 18.dp,
@@ -276,6 +279,7 @@ fun DisplayScreen(
             onAddClick = onOpenPhotoUpload,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .photoTransitionChrome()
                 .fillMaxWidth()
                 .onSizeChanged { scrollState.bottomBarState.height = it.height }
                 .graphicsLayer { translationY = scrollState.bottomBarState.offset },
