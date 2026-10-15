@@ -45,6 +45,7 @@ class PhotoUploadViewModel(
     private val _uiState = MutableStateFlow(
         PhotoUploadUiState(
             caption = savedStateHandle[KEY_CAPTION] ?: "",
+            selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
         ),
     )
@@ -55,6 +56,8 @@ class PhotoUploadViewModel(
 
     init {
         loadCreationTopic()
+        _uiState.value.selectedImage
+            ?.let(::replaceSelectedImage)
     }
 
     fun onAction(action: PhotoUploadUiAction) {
@@ -125,6 +128,7 @@ class PhotoUploadViewModel(
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
+        savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
     }
 
@@ -164,6 +168,7 @@ class PhotoUploadViewModel(
     }
 
     private fun replaceSelectedImage(image: String) {
+        savedStateHandle[KEY_SELECTED_IMAGE] = image
         imageGeneration++
         preparationJob?.cancel()
         discardPreparedImage()
@@ -383,6 +388,7 @@ class PhotoUploadViewModel(
 
     companion object {
         private const val KEY_CAPTION = "upload_caption"
+        private const val KEY_SELECTED_IMAGE = "upload_selected_image"
 
         fun factory(topicDate: LocalDate) = viewModelFactory {
             initializer {
