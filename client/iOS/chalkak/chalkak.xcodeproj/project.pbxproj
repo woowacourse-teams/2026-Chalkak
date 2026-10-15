@@ -12,6 +12,7 @@
 		64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAA23028544800ECB6E1 /* KakaoSDKUser */; };
 		64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */; };
 		64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */; };
+		64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB63028544800ECB6E1 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */,
+				64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */,
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
@@ -126,6 +128,7 @@
 			name = chalkak;
 			packageProductDependencies = (
 				64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */,
+				64DDEAB63028544800ECB6E1 /* FirebaseMessaging */,
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
@@ -713,6 +716,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalytics;
+		};
+		64DDEAB63028544800ECB6E1 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

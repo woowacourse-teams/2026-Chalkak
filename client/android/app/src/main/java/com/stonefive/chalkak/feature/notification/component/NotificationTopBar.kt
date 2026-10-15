@@ -4,10 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun NotificationTopBar(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = "알림",
 ) {
     Row(
         modifier = modifier.height(notificationTopBarHeight),
@@ -33,10 +35,10 @@ fun NotificationTopBar(
     ) {
         Box(
             modifier = Modifier
-                .size(notificationTopBarActionSize)
+                .width(notificationTopBarActionSize)
+                .fillMaxHeight()
                 .semantics { contentDescription = "뒤로 가기" }
-                .clickable(onClick = onBackClick)
-                .padding(ChalkakTheme.spacing.sm),
+                .clickable(onClick = onBackClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -48,7 +50,7 @@ fun NotificationTopBar(
         }
 
         Text(
-            text = "알림",
+            text = title,
             modifier = Modifier.weight(1f),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.headline,

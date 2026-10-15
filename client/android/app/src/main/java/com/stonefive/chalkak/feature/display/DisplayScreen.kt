@@ -59,11 +59,15 @@ fun DisplayRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
     viewModel: DisplayViewModel = viewModel(
-        key = "display-${initialDate ?: "latest"}",
-        factory = DisplayViewModel.factory(initialDate),
+        key = "display-${initialDate ?: "latest"}-$initialSort",
+        factory = DisplayViewModel.factory(
+            initialDate = initialDate,
+            initialSort = initialSort,
+        ),
     ),
-    onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
+    onOpenFeed: (Post, String, String, LocalDate?) -> Boolean = { _, _, _, _ -> false },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -87,7 +91,11 @@ fun DisplayRoute(
         onRetryClick = viewModel::retry,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
-        onOpenFeed = onOpenFeed,
+        onOpenFeed = { post, dateLabel, topic, topicDate ->
+            if (onOpenFeed(post, dateLabel, topic, topicDate)) {
+                viewModel.onFeedOpened(post.id)
+            }
+        },
         onLikeClick = viewModel::updateLike,
         modifier = modifier,
     )

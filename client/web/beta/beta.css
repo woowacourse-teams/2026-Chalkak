@@ -1,0 +1,74 @@
+:root {
+  color-scheme: light;
+  --paper: #f7f6f3;
+  --ink: #2b2724;
+  --muted: #79736b;
+  --accent: #b0563b;
+  --line: #dedbd4;
+  --soft: #eeece6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+}
+* { box-sizing: border-box; }
+body { margin: 0; overflow-wrap: anywhere; }
+button { color: inherit; font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+::selection { background: #dbc8b7; }
+figcaption { color: var(--muted); }
+
+.beta-page { padding: 0 0 max(60px, env(safe-area-inset-bottom)); }
+.thanks-heading { padding: 88px 24px 36px; text-align: center; }
+.thanks-heading h1 { margin: 0; font-size: clamp(28px, 4.6vw, 48px); line-height: 1.45; letter-spacing: -.055em; word-break: keep-all; }
+.thanks-heading p { margin: 26px 0 0; font-size: 15px; line-height: 1.95; color: var(--muted); }
+.signatures { margin: 12px auto 70px; text-align: center; }
+.signature-row { overflow: hidden; padding: 12px 0; mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent); }
+.signature-track { display: flex; width: max-content; animation: signature-drift var(--duration) linear infinite; will-change: transform; }
+.signature-group { display: flex; flex: none; align-items: center; }
+.signature-tile { width: 154px; height: 76px; margin: 0 16px; display: flex; align-items: center; justify-content: center; }
+.signature-tile img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; filter: brightness(0); opacity: .74; }
+.signature-row:nth-child(2) .signature-track { animation-delay: -38s; }
+.signatures.paused .signature-track { animation-play-state: paused; }
+#motion-toggle { background: transparent; border: 0; padding: 12px 16px; margin-top: 10px; min-height: 44px; font-size: 11px; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+@keyframes signature-drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.memories { max-width: 1120px; margin: auto; padding: 0 32px; }
+.memories-heading { margin-bottom: 30px; text-align: center; }
+.memories-heading h2 { font-size: 25px; letter-spacing: -.04em; margin: 0 0 10px; }
+.memories-heading p { font-size: 13px; line-height: 1.8; color: var(--muted); margin: 0; }
+.beta-gallery { columns: 3; column-gap: 16px; }
+.beta-photo { break-inside: avoid; margin: 0 0 24px; }
+.beta-photo img { display: block; width: 100%; height: auto; min-height: 80px; background: var(--soft); border-radius: 3px; }
+.beta-photo figcaption { text-align: left; margin-top: 10px; font-size: 11px; line-height: 1.7; }
+.photo-unavailable { padding: 36px 16px; background: var(--soft); color: var(--muted); text-align: center; font-size: 12px; }
+.thanks-ending { margin: 64px 24px 0; text-align: center; font-size: 15px; line-height: 2; color: var(--muted); }
+@media (max-width: 600px) {
+  .thanks-heading { padding-top: 52px; }
+  .thanks-heading p { font-size: 13px; }
+  .signature-tile { width: 116px; height: 60px; margin: 0 12px; }
+  .signatures { margin-bottom: 48px; }
+  .memories { padding: 0 20px; }
+  .memories-heading h2 { font-size: 22px; }
+  .beta-gallery { columns: 2; column-gap: 12px; }
+  .beta-photo { margin-bottom: 20px; }
+  .beta-photo figcaption { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signature-track { animation: none; transform: none; will-change: auto; }
+  .signature-row { overflow-x: auto; mask-image: none; }
+  .signature-group[aria-hidden="true"] { display: none; }
+  #motion-toggle { display: none; }
+}
+
+.beta-stats { max-width: 760px; margin: 8px auto 38px; padding: 0 24px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin: 0; padding: 28px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; }
+.stats-grid dt { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+.stats-grid dd { margin: 0; font-size: 32px; font-weight: 750; letter-spacing: -.04em; line-height: 1.4; }
+.stats-grid dd span { margin-left: 4px; font-size: 13px; font-weight: 400; color: var(--muted); }
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 26px 16px; padding: 24px 0; }
+  .stats-grid dd { font-size: 30px; }
+  .stats-grid dt { font-size: 11px; margin-bottom: 6px; }
+}

@@ -1,5 +1,10 @@
 package com.stonefive.chalkak.feature.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,8 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -30,6 +37,7 @@ import com.stonefive.chalkak.feature.settings.component.SettingsAppCard
 import com.stonefive.chalkak.feature.settings.component.SettingsFeedbackCard
 import com.stonefive.chalkak.feature.settings.component.SettingsInformationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsLoginButton
+import com.stonefive.chalkak.feature.settings.component.SettingsPushNotificationCard
 import com.stonefive.chalkak.feature.settings.component.SettingsSectionLabel
 
 @Composable
@@ -38,13 +46,13 @@ fun SettingsRoute(
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
     onOpenFeedback: () -> Unit,
-    onOpenReminder: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
     LaunchedEffect(signatureUpdateUrl) {
@@ -58,13 +66,24 @@ fun SettingsRoute(
         onPrivacyPolicyClick = onOpenPrivacyPolicy,
         onTermsClick = onOpenTerms,
         onFeedbackClick = onOpenFeedback,
-        onReminderClick = onOpenReminder,
         onLogoutClick = viewModel::showLogoutDialog,
         onWithdrawClick = viewModel::showWithdrawDialog,
         onAccountDialogConfirm = viewModel::confirmAccountAction,
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onAddClick = onOpenPhotoUpload,
+        onTopicPushChanged = { enabled ->
+            viewModel.updateTopicPushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
+        },
+        onModerationPushChanged = { enabled ->
+            viewModel.updateModerationPushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
+        },
     )
 }
 
@@ -76,13 +95,14 @@ fun SettingsScreen(
     onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
     onFeedbackClick: () -> Unit,
-    onReminderClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onWithdrawClick: () -> Unit,
     onAccountDialogConfirm: () -> Unit,
     onAccountDialogDismiss: () -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onAddClick: () -> Unit,
+    onTopicPushChanged: (Boolean) -> Unit,
+    onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     uiState.accountDialog?.let { accountDialog ->
@@ -118,19 +138,35 @@ fun SettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            SettingsSectionLabel(text = "앱 설정")
+            if (uiState.isLoggedIn) {
+                SettingsSectionLabel(text = "앱 설정")
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            SettingsAppCard(
-                showSignature = uiState.isLoggedIn,
-                signatureUrl = uiState.signatureUrl,
-                onReminderClick = onReminderClick,
-                onChangeSignatureClick = onChangeSignatureClick,
-                modifier = Modifier.fillMaxWidth(),
-            )
+                SettingsAppCard(
+                    showSignature = true,
+                    signatureUrl = uiState.signatureUrl,
+                    onChangeSignatureClick = onChangeSignatureClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
-            Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(36.dp))
+
+                SettingsSectionLabel(text = "푸시 알림")
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsPushNotificationCard(
+                    settings = uiState.pushSettings,
+                    isTopicSaving = uiState.isTopicPushSaving,
+                    isModerationSaving = uiState.isModerationPushSaving,
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(modifier = Modifier.height(36.dp))
+            }
 
             SettingsSectionLabel(text = "계정")
 
@@ -181,6 +217,22 @@ fun SettingsScreen(
     }
 }
 
+private fun Context.areDeviceNotificationsEnabled(): Boolean =
+    NotificationManagerCompat.from(this).areNotificationsEnabled()
+
+private fun Context.openDeviceNotificationSettings() {
+    val appNotificationsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+    val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:$packageName"))
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        appNotificationsIntent
+    } else {
+        appDetailsIntent
+    }
+    startActivity(intent)
+}
+
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
 private fun AuthenticatedSettingsScreenPreview() {
@@ -216,13 +268,14 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onPrivacyPolicyClick = {},
         onTermsClick = {},
         onFeedbackClick = {},
-        onReminderClick = {},
         onLogoutClick = {},
         onWithdrawClick = {},
         onAccountDialogConfirm = {},
         onAccountDialogDismiss = {},
         onNavigateToBottomBar = {},
         onAddClick = {},
+        onTopicPushChanged = {},
+        onModerationPushChanged = {},
     )
 }
 

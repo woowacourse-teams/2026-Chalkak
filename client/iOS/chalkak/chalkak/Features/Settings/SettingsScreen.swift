@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import UIKit
+import UserNotifications
 
 enum SettingsAccountDialog: Equatable {
     case logout
@@ -29,8 +31,11 @@ enum SettingsAccountDialog: Equatable {
 
 struct SettingsScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
 
     @Bindable var viewModel: SettingsViewModel
+    @Bindable var notificationSettingsViewModel = NotificationSettingsViewModel()
     var onLogin: () -> Void = {}
     var onPrivacyPolicy: () -> Void = {}
     var onTerms: () -> Void = {}
@@ -38,7 +43,6 @@ struct SettingsScreen: View {
     var onSignedOut: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenPhotoUpload: () -> Void = {}
-    var onOpenNotificationSetup: () -> Void = {}
 
     @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
@@ -61,7 +65,28 @@ struct SettingsScreen: View {
                             )
 
                             SettingsNotificationCard(
-                                onOpenNotificationSetup: onOpenNotificationSetup
+                                topicPushEnabled: notificationSettingsViewModel.viewState.settings?.topicPushEnabled ?? false,
+                                moderationPushEnabled: notificationSettingsViewModel.viewState.settings?.moderationPushEnabled ?? false,
+                                isTopicDisabled: notificationSettingsViewModel.viewState.isTopicDisabled,
+                                isModerationDisabled: notificationSettingsViewModel.viewState.isModerationDisabled,
+                                errorMessage: notificationSettingsViewModel.viewState.errorMessage,
+                                onTopicToggle: { enabled in
+                                    Task {
+                                        async let save: Void = notificationSettingsViewModel.setTopicPushEnabled(enabled)
+                                        await openNotificationSettingsIfNeeded(enabled: enabled)
+                                        await save
+                                    }
+                                },
+                                onModerationToggle: { enabled in
+                                    Task {
+                                        async let save: Void = notificationSettingsViewModel.setModerationPushEnabled(enabled)
+                                        await openNotificationSettingsIfNeeded(enabled: enabled)
+                                        await save
+                                    }
+                                },
+                                onRetry: {
+                                    Task { await notificationSettingsViewModel.retry() }
+                                }
                             )
                             .padding(.top, theme.spacing.lg)
                         }
@@ -129,6 +154,23 @@ struct SettingsScreen: View {
         .animation(.easeOut(duration: 0.16), value: viewModel.viewState.accountDialog)
         .task {
             await viewModel.load()
+            if viewModel.viewState.isLoggedIn {
+                await notificationSettingsViewModel.load()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task {
+                    if viewModel.viewState.isLoggedIn {
+                        await notificationSettingsViewModel.load()
+                    }
+                }
+            }
+        }
+        .onChange(of: notificationSettingsViewModel.saveErrorMessage) { _, error in
+            guard let error else { return }
+            showMessage(error)
+            notificationSettingsViewModel.consumeSaveError()
         }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
@@ -156,12 +198,24 @@ struct SettingsScreen: View {
         }
     }
 
+    @MainActor
+    private func openNotificationSettingsIfNeeded(enabled: Bool) async {
+        guard enabled else { return }
+        let model = notificationSettingsViewModel
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        guard model === notificationSettingsViewModel, viewModel.viewState.isLoggedIn,
+              NotificationTogglePermissionAction.shouldOpenSettings(enabled: enabled, status: status),
+              let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+        openURL(url)
+    }
+
     private func handle(_ event: SettingsEvent?) {
         guard let event else { return }
         switch event {
         case let .showMessage(text):
             showMessage(text)
         case .signedOut:
+            notificationSettingsViewModel.reset()
             onSignedOut()
         }
         viewModel.consumeEvent()
@@ -200,7 +254,8 @@ private enum Metrics {
                 version: "1.0"
             ),
             isAuthenticated: { true }
-        )
+        ),
+        notificationSettingsViewModel: NotificationSettingsViewModel()
     )
         .chalkakTheme(.light)
 }
@@ -209,7 +264,8 @@ private enum Metrics {
     SettingsScreen(
         viewModel: SettingsViewModel(
             initialState: SettingsViewState(isLoading: false, version: "1.0")
-        )
+        ),
+        notificationSettingsViewModel: NotificationSettingsViewModel()
     )
         .chalkakTheme(.light)
 }
