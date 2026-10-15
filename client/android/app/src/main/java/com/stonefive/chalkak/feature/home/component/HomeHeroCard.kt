@@ -46,7 +46,6 @@ fun HomeHeroCard(
     hero: HomeHeroState,
     topic: String,
     onOpenPhotoUpload: () -> Unit,
-    onOpenRecord: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,7 +85,6 @@ fun HomeHeroCard(
 
             is HomeHeroState.Photo -> PhotoHeroContent(
                 hero = hero,
-                onOpenRecord = onOpenRecord,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -96,7 +94,6 @@ fun HomeHeroCard(
 @Composable
 private fun PhotoHeroContent(
     hero: HomeHeroState.Photo,
-    onOpenRecord: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -104,12 +101,7 @@ private fun PhotoHeroContent(
             .background(ChalkakTheme.colors.surfaceElevated)
             .semantics(mergeDescendants = true) {
                 contentDescription = if (hero.isPending) "오늘 제출한 사진, 검수 대기" else "오늘 제출한 사진"
-            }.clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Button,
-                onClick = onOpenRecord,
-            ),
+            },
     ) {
         ChalkakSignedImage(
             imageModel = hero.imageUrl,
@@ -234,7 +226,6 @@ private fun HomeHeroCardPreview() {
             hero = HomeHeroState.Empty,
             topic = "하늘",
             onOpenPhotoUpload = {},
-            onOpenRecord = {},
             onRetry = {},
             modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
         )

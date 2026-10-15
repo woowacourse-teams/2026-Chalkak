@@ -247,7 +247,6 @@ private fun HomeContent(
                     hero = uiState.hero,
                     topic = uiState.topic,
                     onOpenPhotoUpload = onOpenPhotoUpload,
-                    onOpenRecord = onOpenRecord,
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
