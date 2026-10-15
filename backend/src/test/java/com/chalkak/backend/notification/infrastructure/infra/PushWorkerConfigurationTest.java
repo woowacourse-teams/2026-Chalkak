@@ -33,6 +33,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.scheduling.config.FixedDelayTask;
+import java.time.Duration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -152,6 +155,11 @@ class PushWorkerConfigurationTest {
                     assertThat(polling.getScheduledThreadPoolExecutor().getCorePoolSize())
                             .isEqualTo(1);
                     assertThat(executor.isShutdown()).isFalse();
+                    assertThat(context.getBean(ScheduledAnnotationBeanPostProcessor.class)
+                            .getScheduledTasks()).extracting(task -> task.getTask())
+                            .filteredOn(task -> task instanceof FixedDelayTask)
+                            .extracting(task -> ((FixedDelayTask) task).getIntervalDuration())
+                            .contains(Duration.ofMillis(1));
                     try {
                         assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();

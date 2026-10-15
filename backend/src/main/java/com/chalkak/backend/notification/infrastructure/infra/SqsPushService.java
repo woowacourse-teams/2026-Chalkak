@@ -46,13 +46,14 @@ public class SqsPushService {
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
     }
 
-    @Scheduled(fixedDelay = 1000, scheduler = "notificationPollingScheduler")
+    @Scheduled(fixedDelay = 1, scheduler = "notificationPollingScheduler")
     public void poll() {
         try {
             Optional<Message> message = findMessage();
             message.ifPresent(this::process);
         } catch (RuntimeException exception) {
             logFailure("worker_poll_failed", exception);
+            waitAfterPollingFailure();
         }
     }
 
@@ -71,6 +72,14 @@ public class SqsPushService {
             if (previousContext != null) {
                 MDC.setContextMap(previousContext);
             }
+        }
+    }
+
+    private void waitAfterPollingFailure() {
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 

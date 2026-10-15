@@ -30,6 +30,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.function.Consumer;
+import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.HexFormat;
@@ -83,6 +85,7 @@ class SqsPushServiceTest {
             super.append(event);
         }
     };
+    private boolean failReceive;
     private boolean failVisibility;
     private boolean failDelete;
     private boolean holdVisibilityResponse;
@@ -105,8 +108,13 @@ class SqsPushServiceTest {
             }
             int status = 200;
             String body = "{}";
-            if (operation.endsWith("ReceiveMessage"))
+            if (operation.endsWith("ReceiveMessage")) {
                 body = receiveResponse;
+                if (failReceive) {
+                    status = 500;
+                    body = "{\"__type\":\"InternalError\"}";
+                }
+            }
             if (operation.endsWith("DeleteMessage") && failDelete) {
                 status = 500;
                 body = "{\"__type\":\"InternalError\"}";
@@ -278,6 +286,49 @@ class SqsPushServiceTest {
         assertThat(bodies.getFirst().get("WaitTimeSeconds").asInt()).isEqualTo(20);
         assertThat(bodies.getFirst().get("VisibilityTimeout").asInt()).isEqualTo(60);
         assertThat(bodies.getFirst().get("MaxNumberOfMessages").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("수신 오류가 나면 최소 1초 대기하고 다음 폴링을 계속할 수 있다")
+    void poll_receiveFailure_waitsBeforeNextPoll() {
+        // Given
+        failReceive = true;
+        long started = System.nanoTime();
+        // When
+        worker.poll();
+        long elapsed = System.nanoTime() - started;
+        failReceive = false;
+        worker.poll();
+        // Then
+        assertThat(elapsed).isGreaterThanOrEqualTo(TimeUnit.SECONDS.toNanos(1));
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
+                "AmazonSQS.ReceiveMessage");
+        assertThat(logsAtStage("worker_poll_failed")).hasSize(1);
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("수신 오류 대기에 종료 신호가 들어오면 인터럽트 상태를 유지한다")
+    void poll_interruptedFailureWait_preservesInterrupt() throws Exception {
+        // Given
+        SqsClient failingClient = mock(SqsClient.class);
+        given(failingClient.receiveMessage(
+                org.mockito.ArgumentMatchers.<Consumer<ReceiveMessageRequest.Builder>>any()))
+                .willAnswer(call -> {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("receive interrupted");
+                });
+        SqsPushService interruptedWorker = new SqsPushService(failingClient, "test", mapper,
+                service, Clock.fixed(NOW, ZoneOffset.UTC), mock(ScheduledExecutorService.class));
+        FutureTask<Boolean> polling = new FutureTask<>(() -> {
+            interruptedWorker.poll();
+            return Thread.currentThread().isInterrupted();
+        });
+        // When
+        Thread.ofPlatform().start(polling);
+        // Then
+        assertThat(polling.get(3, TimeUnit.SECONDS)).isTrue();
+        org.mockito.Mockito.verifyNoInteractions(service);
     }
 
     @Test
