@@ -22,18 +22,20 @@ final class HomeScreenUITests: XCTestCase {
     }
 
     @MainActor
-    func testIssueUsesPreparationMessageAndHomeReselectionScrollsToTop() {
+    func testIssueOpensWebScreenAndBackReturnsHome() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview"]
         app.launch()
 
         XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
-        let issue = app.buttons["바다에서 구도를 잘 잡는 방법"]
+        let issue = app.buttons["함께 만들어주신 찰캌"]
         for _ in 0..<6 where !issue.isHittable { app.swipeUp() }
         XCTAssertTrue(issue.isHittable)
         captureScreenshot(app, named: "Issue cards")
         issue.tap()
-        XCTAssertTrue(app.staticTexts["콘텐츠는 준비 중이에요"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 5))
+        app.buttons["issue.back"].tap()
+        XCTAssertTrue(issue.waitForExistence(timeout: 3))
 
         app.buttons["홈"].tap()
         XCTAssertTrue(app.staticTexts["하늘"].waitForExistence(timeout: 5))

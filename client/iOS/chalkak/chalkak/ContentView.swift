@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
+    @State private var isIssuePresented = false
     @State private var notificationPath: [NotificationRoute] = []
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
@@ -82,6 +83,10 @@ struct ContentView: View {
             case .main:
                 NavigationStack(path: $notificationPath) {
                     mainTab
+                        .navigationDestination(isPresented: $isIssuePresented) {
+                            IssueWebScreen(onBack: { isIssuePresented = false })
+                                .background(InteractivePopGestureEnabler())
+                        }
                         .navigationDestination(for: NotificationRoute.self) { destination in
                             switch destination {
                             case .inbox:
@@ -473,7 +478,7 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                onIssueClick: { showMessage("콘텐츠는 준비 중이에요") },
+                onIssueClick: { isIssuePresented = true },
                 bottomBarCompact: $isBottomBarCompact
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
@@ -801,6 +806,7 @@ struct ContentView: View {
         homeViewModel.cancel()
         selectedTab = .home
         selectedFeed = nil
+        isIssuePresented = false
         isNotificationInboxPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
