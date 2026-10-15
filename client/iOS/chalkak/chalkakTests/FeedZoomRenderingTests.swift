@@ -4,6 +4,53 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFirstPinchKeepsTouchSurfaceAliveWhenViewportClipIsRemoved() async throws {
+        let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let host = UIHostingController(rootView: FeedPhoto(
+            post: nil,
+            zoom: FeedPhotoZoom(source: .init(frame: frame, cornerRadius: 0, visibleBounds: frame), viewport: frame),
+            onLike: {}
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = frame
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+
+        let surface = try XCTUnwrap(touchSurface(in: host.view))
+        let first = NSObject()
+        let second = NSObject()
+        surface.tracker.onTouchesChanged?([
+            FeedPhotoTouch(id: ObjectIdentifier(first), location: CGPoint(x: 100, y: 100)),
+            FeedPhotoTouch(id: ObjectIdentifier(second), location: CGPoint(x: 200, y: 100))
+        ], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        host.view.layoutIfNeeded()
+
+        XCTAssertTrue(touchSurface(in: host.view) === surface, "Starting the first pinch must not replace its active touch recognizer")
+        surface.tracker.onTouchesChanged?([], .zero)
+    }
+
+    private func touchSurface(in view: UIView) -> FeedPhotoTouchView? {
+        if let surface = view as? FeedPhotoTouchView { return surface }
+        return view.subviews.lazy.compactMap { self.touchSurface(in: $0) }.first
+    }
+
+    func testPinchKeepsTouchedPhotoPointUnderMovingFingers() {
+        let offset = feedPhotoPinchOffset(
+            offset: .zero,
+            previousScale: 1,
+            nextScale: 2,
+            previousCenter: CGPoint(x: 100, y: 100),
+            currentCenter: CGPoint(x: 120, y: 100),
+            photoSize: CGSize(width: 400, height: 300)
+        )
+        XCTAssertEqual(offset, CGSize(width: 120, height: 50))
+    }
+
     // Async XCTest methods provide a Swift task for MainActor-isolated teardown.
     func testReturningPhotoStaysBehindHeaderAndBottomBar() async throws {
         for sourceY in [CGFloat(100), CGFloat(700)] {
