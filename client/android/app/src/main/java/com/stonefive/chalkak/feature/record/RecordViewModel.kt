@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.record
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -26,10 +28,14 @@ class RecordViewModel(
     private val currentMonthProvider: () -> YearMonth = {
         YearMonth.now(ZoneId.of("Asia/Seoul"))
     },
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         RecordUiState(
-            month = initialMonth,
+            month = savedStateHandle
+                .get<String>(KEY_MONTH)
+                ?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+                ?: initialMonth,
             latestMonth = latestMonth,
         ),
     )
@@ -42,7 +48,7 @@ class RecordViewModel(
     private var nextMessageId = 0L
 
     init {
-        loadAvailableMonths(initialMonth)
+        loadAvailableMonths(_uiState.value.month)
     }
 
     fun moveToPreviousMonth() {
@@ -194,6 +200,7 @@ class RecordViewModel(
         previousState: RecordUiState? = null,
         keepsContentVisible: Boolean = false,
     ) {
+        savedStateHandle[KEY_MONTH] = month.toString()
         val generation = ++latestLoadGeneration
         isRevalidating = keepsContentVisible
         if (keepsContentVisible) {
@@ -217,17 +224,21 @@ class RecordViewModel(
                     if (generation != latestLoadGeneration) return@onSuccess
 
                     when (content) {
-                        is HomeResult.Success -> _uiState.update {
-                            it.copy(
-                                month = content.value.month,
-                                posts = content.value.posts,
-                                selectedDate = content.value.posts
-                                    .maxByOrNull { it.topicDate }
-                                    ?.topicDate,
-                                isLoading = false,
-                                errorMessage = null,
-                                isLoginRequired = false,
-                            )
+                        is HomeResult.Success -> {
+                            savedStateHandle[KEY_MONTH] = content.value.month
+                                .toString()
+                            _uiState.update {
+                                it.copy(
+                                    month = content.value.month,
+                                    posts = content.value.posts,
+                                    selectedDate = content.value.posts
+                                        .maxByOrNull { it.topicDate }
+                                        ?.topicDate,
+                                    isLoading = false,
+                                    errorMessage = null,
+                                    isLoginRequired = false,
+                                )
+                            }
                         }
 
                         is HomeResult.Failure -> if (previousState != null) {
@@ -316,11 +327,14 @@ class RecordViewModel(
         .sortedDescending()
 
     companion object {
+        private const val KEY_MONTH = "record_month"
+
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 RecordViewModel(
                     repository = application.appContainer.postRepository,
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }

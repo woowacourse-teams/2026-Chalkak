@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.record
 
+import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -40,6 +41,82 @@ class RecordViewModelTest {
             latestMonth = RecordLatestMonth,
             currentMonthProvider = { RecordLatestMonth },
         )
+    }
+
+    @Test
+    fun `저장된 월을 초기 월보다 우선해서 조회한다`() = runTest {
+        val restoredRepository = FakePostRepository()
+        val handle = SavedStateHandle(mapOf("record_month" to RecordTestMonth.toString()))
+        val restored = RecordViewModel(
+            restoredRepository,
+            initialMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth, restored.uiState.value.month)
+        assertEquals(listOf(RecordTestMonth), restoredRepository.requests)
+    }
+
+    @Test
+    fun `월 이동을 저장하고 새 ViewModel에서 복원한다`() = runTest {
+        val handle = SavedStateHandle()
+        val original = RecordViewModel(
+            FakePostRepository(),
+            initialMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        original.moveToPreviousMonth()
+        advanceUntilIdle()
+
+        val restoredRepository = FakePostRepository()
+        val restored = RecordViewModel(
+            restoredRepository,
+            initialMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = SavedStateHandle(mapOf("record_month" to handle.get<String>("record_month"))),
+        )
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.toString(), handle.get<String>("record_month"))
+        assertEquals(RecordTestMonth, restored.uiState.value.month)
+        assertEquals(listOf(RecordTestMonth), restoredRepository.requests)
+    }
+
+    @Test
+    fun `잘못된 저장 월은 기존 초기 월로 조회한다`() = runTest {
+        val restoredRepository = FakePostRepository()
+        val restored = RecordViewModel(
+            restoredRepository,
+            initialMonth = RecordTestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = SavedStateHandle(mapOf("record_month" to "invalid")),
+        )
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth, restored.uiState.value.month)
+        assertEquals(listOf(RecordTestMonth), restoredRepository.requests)
+    }
+
+    @Test
+    fun `월 조회가 실패해도 선택한 월은 저장한다`() = runTest {
+        val restoredRepository = FakePostRepository().apply { failureMonth = RecordTestMonth }
+        val handle = SavedStateHandle()
+        val original = RecordViewModel(
+            restoredRepository,
+            initialMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        original.moveToPreviousMonth()
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.toString(), handle.get<String>("record_month"))
+        assertEquals("조회할 수 없는 연월이에요", original.uiState.value.errorMessage)
     }
 
     @Test
