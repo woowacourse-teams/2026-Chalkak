@@ -7,6 +7,7 @@ struct FeedPhoto: View {
     let placeholder: FeedPhotoPlaceholder?
     let isLikeEnabled: Bool
     let zoom: FeedPhotoZoom
+    let onTransitionReady: () -> Void
     let onPhotoInteractionChanged: (Bool) -> Void
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
@@ -26,6 +27,7 @@ struct FeedPhoto: View {
         placeholder: FeedPhotoPlaceholder? = nil,
         isLikeEnabled: Bool = true,
         zoom: FeedPhotoZoom = FeedPhotoZoom(),
+        onTransitionReady: @escaping () -> Void = {},
         onPhotoInteractionChanged: @escaping (Bool) -> Void = { _ in },
         onLike: @escaping () -> Void
     ) {
@@ -33,6 +35,7 @@ struct FeedPhoto: View {
         self.placeholder = placeholder
         self.isLikeEnabled = isLikeEnabled
         self.zoom = zoom
+        self.onTransitionReady = onTransitionReady
         self.onPhotoInteractionChanged = onPhotoInteractionChanged
         self.onLike = onLike
         _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
@@ -83,7 +86,9 @@ struct FeedPhoto: View {
                         progress: zoom.photoProgress,
                         source: isPhotoInteracting ? nil : zoom.source,
                         destination: zoom.viewport,
-                        canvas: imageFrame
+                        canvas: imageFrame,
+                        contentScale: gestureScale,
+                        contentOffset: gestureOffset
                     )
                     .opacity(photoOpacity)
                     .onGeometryChange(for: CGRect.self) { proxy in
@@ -99,6 +104,10 @@ struct FeedPhoto: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .zIndex(1)
+            .task(id: imageFrame != nil) {
+                guard imageFrame != nil else { return }
+                onTransitionReady()
+            }
             .task(id: post?.originalImageSource) {
                 if imageRatio == nil, let placeholder {
                     if let ratio = await ImageRatioLoader.ratio(for: placeholder.imageSource) {

@@ -3,13 +3,18 @@ package com.stonefive.chalkak.core.designsystem.component.image
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.toPixelMap
@@ -34,6 +39,77 @@ import org.junit.Test
 class PhotoTransitionUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun photoKeepsRoundedCornerOnFirstTransitionFrame() {
+        val coordinator = PhotoTransitionCoordinator()
+        val key = PhotoTransitionKey("post", "rounded:post")
+        val shape = RoundedCornerShape(12.dp)
+        var showDestination by mutableStateOf(false)
+        coordinator.register(
+            SharedPhotoSnapshot(
+                key = key,
+                imageModel = null,
+                signatureModel = null,
+                painter = ColorPainter(Color.Red),
+                image = null,
+                memoryCacheKey = null,
+                aspectRatio = 1f,
+                sourceShape = shape,
+            ),
+        )
+
+        composeRule.setContent {
+            SharedTransitionLayout(
+                modifier = Modifier
+                    .size(240.dp)
+                    .background(Color.White)
+                    .testTag("root"),
+            ) {
+                val sharedScope = this
+                AnimatedContent(targetState = showDestination, label = "rounded-photo") { destination ->
+                    PhotoTransitionProvider(sharedScope, this, coordinator) {
+                        if (destination) {
+                            Box(
+                                Modifier
+                                    .sharedPhotoElement(key)
+                                    .size(240.dp)
+                                    .background(Color.Red),
+                            )
+                        } else {
+                            Box(
+                                Modifier
+                                    .size(100.dp)
+                                    .clip(shape)
+                                    .testTag("source")
+                                    .clickable {
+                                        coordinator.select(key)
+                                        showDestination = true
+                                    },
+                            ) {
+                                Box(
+                                    Modifier
+                                        .sharedPhotoElement(key, shape)
+                                        .fillMaxSize()
+                                        .background(Color.Red),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("source").performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        val pixels = composeRule
+            .onNodeWithTag("root")
+            .captureToImage()
+            .toPixelMap()
+        assertEquals(Color.White, pixels[2, 2])
+        assertEquals(Color.Red, pixels[30, 30])
+    }
 
     @Test
     fun failedOriginalKeepsLoadedSourceVisible() {

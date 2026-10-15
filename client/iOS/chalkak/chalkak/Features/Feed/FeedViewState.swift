@@ -144,6 +144,8 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
     let zoomSource: FeedZoomSource?
     // 원본 이미지가 로드되기 전까지 보여줄, 출발 화면에 이미 표시된 이미지.
     let placeholder: FeedPhotoPlaceholder?
+    // 탭 순간의 출발 좌표. LazyVStack 셀의 수명과 독립적으로 열림 전환 동안 보존한다.
+    var transitionSource: FeedZoomRegistry.Source?
 
     init(
         seed: FeedContent,

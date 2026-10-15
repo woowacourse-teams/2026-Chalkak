@@ -130,6 +130,7 @@ struct ContentView: View {
                             viewModel: makeFeedViewModel(target),
                             placeholder: target.placeholder,
                             zoomSource: target.zoomSource,
+                            transitionSource: target.transitionSource,
                             onBack: { selectedFeed = nil },
                             onDeleted: handleDeletedPost
                         )

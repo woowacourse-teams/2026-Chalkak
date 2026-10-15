@@ -8,12 +8,14 @@ import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
@@ -21,7 +23,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -56,7 +57,8 @@ fun Modifier.sharedPhotoElement(
             animatedVisibilityScope = animatedVisibilityScope,
             enter = EnterTransition.None,
             exit = fadeOut(tween(durationMillis = PHOTO_SOURCE_HIDE_DURATION_MILLIS)),
-            resizeMode = ResizeMode.scaleToBounds(ContentScale.FillBounds),
+            // Let each image preserve its aspect ratio as the crop bounds change.
+            resizeMode = ResizeMode.RemeasureToBounds,
             placeholderSize = SharedTransitionScope.PlaceholderSize.ContentSize,
             clipInOverlayDuringTransition = OverlayClip(overlayShape),
             boundsTransform = { _, _ ->
@@ -65,8 +67,29 @@ fun Modifier.sharedPhotoElement(
                     easing = FastOutSlowInEasing,
                 )
             },
-        )
+        ).then(if (roundedShape != null) Modifier.clip(overlayShape) else Modifier)
     }
+}
+
+/** Keeps screen controls above the photo while both are drawn outside their parent layers. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.photoTransitionChrome(animateVisibility: Boolean = true): Modifier {
+    val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    val overlayModifier = with(sharedTransitionScope) {
+        renderInSharedTransitionScopeOverlay(zIndexInOverlay = PHOTO_CHROME_OVERLAY_Z_INDEX)
+    }
+    if (!animateVisibility) return overlayModifier
+    return overlayModifier.then(
+        with(animatedVisibilityScope) {
+            Modifier.animateEnterExit(
+                enter = fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
+                exit = fadeOut(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
+                label = "photo-transition-chrome",
+            )
+        },
+    )
 }
 
 fun PhotoTransitionKey.signatureKey() = copy(sourceId = "$sourceId:signature")
@@ -114,3 +137,8 @@ fun rememberPhotoTransitionEnterFinished(): Boolean {
 
 private const val PHOTO_SOURCE_HIDE_DURATION_MILLIS = 0
 private const val PHOTO_TRANSITION_DURATION_MILLIS = 300
+
+private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f
+
+// Match iOS: the photo moves first while the surrounding screen fades more gradually.
+internal const val PHOTO_CONTENT_FADE_DURATION_MILLIS = 700

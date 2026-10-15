@@ -49,10 +49,11 @@ fun SharedPhotoImage(
         ?: DEFAULT_PHOTO_ASPECT_RATIO
     val sourceContentScale = selectedSnapshot?.contentScale ?: contentScale
     val revealState = rememberSharedPhotoImageRevealState(originalImageModel)
+    // Fade in detail over an opaque source, without fading the whole photo to the background.
     val originalAlpha by animateFloatAsState(
         targetValue = if (revealState.shouldShowOriginal) 1f else 0f,
-        animationSpec = tween(durationMillis = PHOTO_CROSSFADE_DURATION_MILLIS),
-        label = "shared-photo-alpha",
+        animationSpec = tween(PHOTO_IMAGE_REVEAL_DURATION_MILLIS),
+        label = "shared-photo-original",
     )
     val resolvedModifier = modifier
         .fillMaxWidth()
@@ -96,11 +97,8 @@ fun SharedPhotoImage(
 
         if (sourceSignatureModel != null || signatureModel != null) {
             var originalSignatureLoaded by remember(signatureModel) { mutableStateOf(false) }
-            val signatureAlpha by animateFloatAsState(
-                targetValue = if (originalSignatureLoaded && revealState.shouldShowOriginal) 1f else 0f,
-                animationSpec = tween(PHOTO_CROSSFADE_DURATION_MILLIS),
-                label = "shared-photo-signature-alpha",
-            )
+            // Signature readiness is independent of the photo and navigation animation.
+            val signatureAlpha = if (originalSignatureLoaded) 1f else 0f
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -114,7 +112,10 @@ fun SharedPhotoImage(
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         loadedPainter = selectedSnapshot?.signaturePainter,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // Transparent signature strokes must not be drawn twice.
+                            .graphicsLayer { alpha = 1f - signatureAlpha },
                     )
                 }
                 if (signatureModel != null) {
@@ -135,7 +136,7 @@ fun SharedPhotoImage(
 }
 
 private const val DEFAULT_PHOTO_ASPECT_RATIO = 1f
-private const val PHOTO_CROSSFADE_DURATION_MILLIS = 180
+private const val PHOTO_IMAGE_REVEAL_DURATION_MILLIS = 180
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable

@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,7 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
 import com.stonefive.chalkak.core.designsystem.component.image.rememberPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.legal.LegalDocument
@@ -513,7 +516,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Feed> { backStackEntry ->
+            composable<Feed>(
+                enterTransition = { fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)) },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
@@ -559,7 +564,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<FeedById> { backStackEntry ->
+            composable<FeedById>(
+                enterTransition = { fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)) },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
