@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.core.designsystem.component.image
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,8 +49,12 @@ fun SharedPhotoImage(
         ?: DEFAULT_PHOTO_ASPECT_RATIO
     val sourceContentScale = selectedSnapshot?.contentScale ?: contentScale
     val revealState = rememberSharedPhotoImageRevealState(originalImageModel)
-    // Keep the source opaque until the original can replace it in one frame.
-    val originalAlpha = if (revealState.shouldShowOriginal) 1f else 0f
+    // Fade in detail over an opaque source, without fading the whole photo to the background.
+    val originalAlpha by animateFloatAsState(
+        targetValue = if (revealState.shouldShowOriginal) 1f else 0f,
+        animationSpec = tween(PHOTO_IMAGE_REVEAL_DURATION_MILLIS),
+        label = "shared-photo-original",
+    )
     val resolvedModifier = modifier
         .fillMaxWidth()
         .aspectRatio(aspectRatio)
@@ -130,6 +136,7 @@ fun SharedPhotoImage(
 }
 
 private const val DEFAULT_PHOTO_ASPECT_RATIO = 1f
+private const val PHOTO_IMAGE_REVEAL_DURATION_MILLIS = 180
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable

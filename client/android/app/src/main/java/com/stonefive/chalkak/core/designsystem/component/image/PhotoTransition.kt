@@ -22,7 +22,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -57,7 +56,8 @@ fun Modifier.sharedPhotoElement(
             animatedVisibilityScope = animatedVisibilityScope,
             enter = EnterTransition.None,
             exit = fadeOut(tween(durationMillis = PHOTO_SOURCE_HIDE_DURATION_MILLIS)),
-            resizeMode = ResizeMode.scaleToBounds(ContentScale.FillBounds),
+            // Let each image preserve its aspect ratio as the crop bounds change.
+            resizeMode = ResizeMode.RemeasureToBounds,
             placeholderSize = SharedTransitionScope.PlaceholderSize.ContentSize,
             clipInOverlayDuringTransition = OverlayClip(overlayShape),
             boundsTransform = { _, _ ->
@@ -81,8 +81,8 @@ fun Modifier.photoTransitionChrome(): Modifier {
     }.then(
         with(animatedVisibilityScope) {
             Modifier.animateEnterExit(
-                enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
-                exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                enter = fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
+                exit = fadeOut(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
                 label = "photo-transition-chrome",
             )
         },
@@ -136,3 +136,6 @@ private const val PHOTO_SOURCE_HIDE_DURATION_MILLIS = 0
 private const val PHOTO_TRANSITION_DURATION_MILLIS = 300
 
 private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f
+
+// Match iOS: the photo moves first while the surrounding screen fades more gradually.
+internal const val PHOTO_CONTENT_FADE_DURATION_MILLIS = 700
