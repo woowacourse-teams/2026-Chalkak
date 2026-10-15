@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
@@ -66,7 +67,7 @@ fun Modifier.sharedPhotoElement(
                     easing = FastOutSlowInEasing,
                 )
             },
-        )
+        ).then(if (roundedShape != null) Modifier.clip(overlayShape) else Modifier)
     }
 }
 
