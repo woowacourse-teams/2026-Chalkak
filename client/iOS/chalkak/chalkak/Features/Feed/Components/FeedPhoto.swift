@@ -7,6 +7,7 @@ struct FeedPhoto: View {
     let placeholder: FeedPhotoPlaceholder?
     let isLikeEnabled: Bool
     let zoom: FeedPhotoZoom
+    let onPhotoInteractionChanged: (Bool) -> Void
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
     @State private var resolvedImageRatio: CGFloat?
@@ -14,81 +15,107 @@ struct FeedPhoto: View {
     @State private var imageFrame: CGRect?
     @State private var signatureFrame: CGRect?
     @State private var isOriginalLoaded = false
+    @State private var gestureScale: CGFloat = 1
+    @State private var gestureOffset: CGSize = .zero
+    @State private var isGestureActive = false
+    @State private var photoSize: CGSize = .zero
+    @State private var touchPositions: [ObjectIdentifier: CGPoint] = [:]
 
     init(
         post: FeedPost?,
         placeholder: FeedPhotoPlaceholder? = nil,
         isLikeEnabled: Bool = true,
         zoom: FeedPhotoZoom = FeedPhotoZoom(),
+        onPhotoInteractionChanged: @escaping (Bool) -> Void = { _ in },
         onLike: @escaping () -> Void
     ) {
         self.post = post
         self.placeholder = placeholder
         self.isLikeEnabled = isLikeEnabled
         self.zoom = zoom
+        self.onPhotoInteractionChanged = onPhotoInteractionChanged
         self.onLike = onLike
         _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
-                .overlay {
-                    photoImage
-                        .feedZoomEffect(
-                            progress: zoom.photoProgress,
-                            source: zoom.source,
-                            destinationFrame: imageFrame,
-                            morphsAspectRatio: zoom.morphsAspectRatio
-                        )
-                }
-                // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
-                .overlay(alignment: .bottomTrailing) {
-                    if let placeholder, let signatureSource = placeholder.signatureImageSource {
-                        FeedPlaceholderImage(
-                            preloaded: placeholder.preloadedSignatureImage,
-                            source: signatureSource,
-                            contentMode: .fit
-                        )
-                        .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
-                        .feedZoomEffect(
-                            progress: zoom.photoProgress,
-                            source: signatureZoomSource,
-                            destinationFrame: signatureFrame
-                        )
-                        .onGeometryChange(for: CGRect.self) { proxy in
-                            proxy.frame(in: .global)
-                        } action: { frame in
-                            signatureFrame = frame
-                        }
-                        .opacity(signatureOpacity)
-                        .padding(theme.spacing.sm)
+            ZStack {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1 / (imageRatio ?? Metrics.defaultImageRatio), contentMode: .fit)
+                    .overlay {
+                        photoImage
+                            .feedZoomEffect(
+                                progress: zoom.photoProgress,
+                                source: zoom.source,
+                                destinationFrame: imageFrame,
+                                morphsAspectRatio: zoom.morphsAspectRatio
+                            )
                     }
-                }
-                .feedZoomViewportClip(progress: zoom.photoProgress, source: zoom.source, destination: zoom.viewport, canvas: imageFrame)
-                .opacity(photoOpacity)
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .global)
-                } action: { frame in
-                    imageFrame = frame
-                }
-                .zIndex(1)
-                .task(id: post?.originalImageSource) {
-                    if imageRatio == nil, let placeholder {
-                        if let ratio = await ImageRatioLoader.ratio(for: placeholder.imageSource) {
-                            resolveImageRatio(ratio)
+                    // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
+                    .overlay(alignment: .bottomTrailing) {
+                        if let placeholder, let signatureSource = placeholder.signatureImageSource {
+                            FeedPlaceholderImage(
+                                preloaded: placeholder.preloadedSignatureImage,
+                                source: signatureSource,
+                                contentMode: .fit
+                            )
+                            .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
+                            .feedZoomEffect(
+                                progress: zoom.photoProgress,
+                                source: signatureZoomSource,
+                                destinationFrame: signatureFrame
+                            )
+                            .onGeometryChange(for: CGRect.self) { proxy in
+                                proxy.frame(in: .global)
+                            } action: { frame in
+                                if !isGestureActive { signatureFrame = frame }
+                            }
+                            .opacity(signatureOpacity)
+                            .padding(theme.spacing.sm)
                         }
                     }
-                    guard let post,
-                          let ratio = await ImageRatioLoader.ratio(for: post.originalImageSource)
-                    else { return }
-                    resolveImageRatio(ratio)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
+                    .scaleEffect(gestureScale)
+                    .offset(gestureOffset)
+                    .feedZoomViewportClip(
+                        progress: zoom.photoProgress,
+                        source: isPhotoInteracting ? nil : zoom.source,
+                        destination: zoom.viewport,
+                        canvas: imageFrame
+                    )
+                    .opacity(photoOpacity)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .global)
+                    } action: { frame in
+                        // 핀치 중 전환용 프레임을 다시 적용하면 확대 크기가 다음 프레임에 되먹임된다.
+                        if !isGestureActive { imageFrame = frame }
+                    }
+            }
+            // clip 분기가 바뀌어도 ZStack 바깥의 터치 뷰는 유지한다.
+            .overlay {
+                FeedPhotoTouchSurface(isEnabled: zoom.isSettled, onTouchesChanged: updateTouches)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .zIndex(1)
+            .task(id: post?.originalImageSource) {
+                if imageRatio == nil, let placeholder {
+                    if let ratio = await ImageRatioLoader.ratio(for: placeholder.imageSource) {
+                        resolveImageRatio(ratio)
+                    }
                 }
-                .onChange(of: zoom.isSettled) { _, isSettled in
-                    if isSettled, let resolvedImageRatio { applyImageRatio(resolvedImageRatio) }
-                }
+                guard let post,
+                      let ratio = await ImageRatioLoader.ratio(for: post.originalImageSource)
+                else { return }
+                resolveImageRatio(ratio)
+            }
+            .onChange(of: zoom.isSettled) { _, isSettled in
+                if isSettled, let resolvedImageRatio { applyImageRatio(resolvedImageRatio) }
+            }
+            .onChange(of: isPhotoInteracting) { _, isInteracting in
+                onPhotoInteractionChanged(isInteracting)
+            }
 
             if let post {
                 FeedLikeRow(
@@ -100,6 +127,87 @@ struct FeedPhoto: View {
                 .opacity(zoom.contentProgress)
             }
         }
+    }
+
+    private func updateTouches(_ touches: [FeedPhotoTouch], origin: CGPoint) {
+        if touches.isEmpty {
+            resetGesture()
+            return
+        }
+        guard zoom.isSettled else { return }
+        let positions = Dictionary(uniqueKeysWithValues: touches.map {
+            ($0.id, CGPoint(x: $0.location.x - origin.x, y: $0.location.y - origin.y))
+        })
+
+        if touches.count >= 2 {
+            isGestureActive = true
+            let first = touches[0]
+            let second = touches[1]
+            if touchPositions.count >= 2,
+               let previousFirst = touchPositions[first.id],
+               let previousSecond = touchPositions[second.id],
+               let currentFirst = positions[first.id],
+               let currentSecond = positions[second.id] {
+                let previousDistance = hypot(previousFirst.x - previousSecond.x, previousFirst.y - previousSecond.y)
+                let currentDistance = hypot(currentFirst.x - currentSecond.x, currentFirst.y - currentSecond.y)
+                let previousScale = gestureScale
+                if previousDistance > 0 {
+                    gestureScale = min(max(gestureScale * currentDistance / previousDistance, 1), Metrics.maximumPinchScale)
+                }
+                let previousCenter = CGPoint(
+                    x: (previousFirst.x + previousSecond.x) / 2,
+                    y: (previousFirst.y + previousSecond.y) / 2
+                )
+                let currentCenter = CGPoint(
+                    x: (currentFirst.x + currentSecond.x) / 2,
+                    y: (currentFirst.y + currentSecond.y) / 2
+                )
+                gestureOffset = limitedOffset(
+                    feedPhotoPinchOffset(
+                        offset: gestureOffset,
+                        previousScale: previousScale,
+                        nextScale: gestureScale,
+                        previousCenter: previousCenter,
+                        currentCenter: currentCenter,
+                        photoSize: photoSize
+                    ),
+                    scale: gestureScale
+                )
+            }
+        } else if let touch = touches.first,
+                  isPhotoInteracting,
+                  let previous = touchPositions[touch.id],
+                  let current = positions[touch.id] {
+            gestureOffset = limitedOffset(
+                CGSize(
+                    width: gestureOffset.width + current.x - previous.x,
+                    height: gestureOffset.height + current.y - previous.y
+                ),
+                scale: gestureScale
+            )
+        }
+
+        touchPositions = positions
+    }
+
+    private func resetGesture() {
+        isGestureActive = false
+        gestureScale = 1
+        gestureOffset = .zero
+        touchPositions = [:]
+    }
+
+    private func limitedOffset(_ offset: CGSize, scale: CGFloat) -> CGSize {
+        let limitX = photoSize.width * scale / 2
+        let limitY = photoSize.height * scale / 2
+        return CGSize(
+            width: min(max(offset.width, -limitX), limitX),
+            height: min(max(offset.height, -limitY), limitY)
+        )
+    }
+
+    private var isPhotoInteracting: Bool {
+        isGestureActive || gestureScale > 1 || gestureOffset != .zero
     }
 
     private var photoImage: some View {
@@ -161,6 +269,22 @@ struct FeedPhoto: View {
     private var signatureOpacity: CGFloat {
         zoom.source != nil && signatureZoomSource == nil ? zoom.contentProgress : 1
     }
+}
+
+func feedPhotoPinchOffset(
+    offset: CGSize,
+    previousScale: CGFloat,
+    nextScale: CGFloat,
+    previousCenter: CGPoint,
+    currentCenter: CGPoint,
+    photoSize: CGSize
+) -> CGSize {
+    let center = CGPoint(x: photoSize.width / 2, y: photoSize.height / 2)
+    let scaleChange = nextScale / previousScale
+    return CGSize(
+        width: currentCenter.x - center.x - (previousCenter.x - center.x - offset.width) * scaleChange,
+        height: currentCenter.y - center.y - (previousCenter.y - center.y - offset.height) * scaleChange
+    )
 }
 
 /// 출발 화면에 떠 있던 이미지. 미리 받아 둔 이미지가 있으면 로딩 없이 바로 그린다.
@@ -227,6 +351,7 @@ private struct FeedLikeRow: View {
 
 private enum Metrics {
     static let defaultImageRatio: CGFloat = 1
+    static let maximumPinchScale: CGFloat = 4
     static let ratioAnimation: Animation = .smooth(duration: 0.3)
     // Android PHOTO_CROSSFADE_DURATION_MILLIS(180) + tween 기본 FastOutSlowInEasing.
     static let originalRevealAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.18)

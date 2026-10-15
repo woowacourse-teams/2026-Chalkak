@@ -10,6 +10,7 @@ struct FeedScreen: View {
     @State private var photoProgress: CGFloat = 0
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
+    @State private var isPhotoInteracting = false
     @State private var isClosing = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
@@ -173,6 +174,7 @@ struct FeedScreen: View {
                         morphsAspectRatio: morphsPhotoAspectRatio,
                         viewport: transitionViewport
                     ),
+                    onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onLike: { viewModel.toggleLike() }
                 )
                 // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
@@ -194,8 +196,9 @@ struct FeedScreen: View {
             }
             .padding(.bottom, Metrics.contentBottom)
         }
-        // 전환 중에는 사진이 스크롤 영역 밖(출발 뷰 위치)에서도 보여야 한다.
-        .scrollClipDisabled(isPhotoMoving)
+        // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
+        .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
+        .scrollDisabled(isPhotoInteracting)
     }
 
     // MARK: - 줌 전환
@@ -266,7 +269,7 @@ struct FeedScreen: View {
     private var backSwipeGesture: some Gesture {
         DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
             .onChanged { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
                 if !isPhotoMoving { captureTransitionSource() }
                 isPhotoMoving = true
                 zoomRegistry?.activeSource = nil
@@ -275,7 +278,7 @@ struct FeedScreen: View {
                 contentProgress = photoProgress
             }
             .onEnded { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing else { return }
+                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
                 if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
                     close()
                 } else {
