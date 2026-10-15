@@ -48,7 +48,7 @@ object ReminderNotificationManager {
         )
         val notification = NotificationCompat
             .Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_chalkak)
             .setContentTitle("오늘의 주제를 확인하세요!")
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
