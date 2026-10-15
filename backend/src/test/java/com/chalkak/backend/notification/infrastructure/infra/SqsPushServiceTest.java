@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HexFormat;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -70,6 +71,7 @@ class SqsPushServiceTest {
     private final CountDownLatch allowVisibilityResponse = new CountDownLatch(1);
     private HttpServer server;
     private ExecutorService serverExecutor;
+    private ScheduledExecutorService visibilityExecutor;
     private SqsClient client;
     private SqsPushService worker;
     private PushWorkerService service;
@@ -137,18 +139,19 @@ class SqsPushServiceTest {
                 .overrideConfiguration(config -> config
                         .retryStrategy(StandardRetryStrategy.builder().maxAttempts(1).build()))
                 .build();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        visibilityExecutor = mock(ScheduledExecutorService.class);
         future = mock(ScheduledFuture.class);
         org.mockito.Mockito.doAnswer(call -> {
             heartbeatAction.set(call.getArgument(0));
             return future;
         })
-                .when(executor).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(),
+                .when(visibilityExecutor).scheduleAtFixedRate(any(Runnable.class), anyLong(),
+                        anyLong(),
                         any(TimeUnit.class));
         service = mock(PushWorkerService.class);
         given(service.process(any())).willReturn(PushProcessingResult.completed());
         worker = new SqsPushService(client, endpoint + "/000000000000/test", mapper, service,
-                Clock.fixed(NOW, ZoneOffset.UTC), executor);
+                Clock.fixed(NOW, ZoneOffset.UTC), visibilityExecutor);
         push = new PushMessage(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 NotificationType.POST_APPROVED, NotificationSourceType.POST, UUID.randomUUID(), NOW,
                 NOW.plusSeconds(1800));
@@ -239,6 +242,95 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_visibility_failed")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
                         .containsEntry("receiveCount", "1"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("동시 처리에서 메시지별 삭제·숨김 연장·로그 문맥을 분리하고 한쪽 오류가 다른 쪽에 영향을 주지 않는다")
+    void process_concurrentMessages_isolatesCompletionVisibilityAndContext(boolean secondFails)
+            throws Exception {
+        // Given
+        PushMessage secondPush = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), NotificationType.POST_REJECTED, NotificationSourceType.POST,
+                UUID.randomUUID(), NOW, NOW.plusSeconds(1800));
+        Message secondMessage = message.toBuilder().messageId("second-sqs-id")
+                .receiptHandle("second-receipt").body(mapper.writeValueAsString(secondPush))
+                .build();
+        Map<String, Runnable> extensions = new ConcurrentHashMap<>();
+        Map<String, ScheduledFuture<?>> extensionTasks = new ConcurrentHashMap<>();
+        org.mockito.Mockito.doAnswer(call -> {
+            String id = MDC.get("sqsMessageId");
+            ScheduledFuture<?> task = mock(ScheduledFuture.class);
+            extensions.put(id, call.getArgument(0));
+            extensionTasks.put(id, task);
+            return task;
+        }).when(visibilityExecutor).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(),
+                any(TimeUnit.class));
+        CountDownLatch bothProcessing = new CountDownLatch(2);
+        CountDownLatch releaseSecond = new CountDownLatch(1);
+        given(service.process(any())).willAnswer(call -> {
+            PushMessage current = call.getArgument(0);
+            bothProcessing.countDown();
+            assertThat(bothProcessing.await(5, TimeUnit.SECONDS)).isTrue();
+            LoggerFactory.getLogger(PushWorkerService.class).atInfo()
+                    .addKeyValue("stage", "fcm_result").addKeyValue("eventId", current.eventId())
+                    .log("동시 처리 테스트");
+            if (current.eventId().equals(secondPush.eventId())) {
+                assertThat(releaseSecond.await(5, TimeUnit.SECONDS)).isTrue();
+                if (secondFails) {
+                    throw new IllegalStateException("second message failed");
+                }
+            }
+            return PushProcessingResult.completed();
+        });
+        FutureTask<Map<String, String>> first = new FutureTask<>(() -> {
+            worker.process(message);
+            return MDC.getCopyOfContextMap();
+        });
+        FutureTask<Map<String, String>> second = new FutureTask<>(() -> {
+            worker.process(secondMessage);
+            return MDC.getCopyOfContextMap();
+        });
+        // When & Then
+        try {
+            Thread.ofPlatform().start(first);
+            Thread.ofPlatform().start(second);
+            assertThat(first.get(5, TimeUnit.SECONDS)).isNullOrEmpty();
+            assertThat(second.isDone()).isFalse();
+            extensions.get("sqs-id").run();
+            extensions.get("second-sqs-id").run();
+            assertThat(operations).containsExactly("AmazonSQS.DeleteMessage",
+                    "AmazonSQS.ChangeMessageVisibility");
+            assertThat(bodies.getFirst().get("ReceiptHandle").asText()).isEqualTo("receipt-handle");
+            assertThat(bodies.getLast().get("ReceiptHandle").asText()).isEqualTo("second-receipt");
+            releaseSecond.countDown();
+            assertThat(second.get(5, TimeUnit.SECONDS)).isNullOrEmpty();
+            extensions.values().forEach(Runnable::run);
+            verify(extensionTasks.get("sqs-id"), org.mockito.Mockito.atLeastOnce()).cancel(false);
+            verify(extensionTasks.get("second-sqs-id"), org.mockito.Mockito.atLeastOnce())
+                    .cancel(false);
+            assertThat(logsAtStage("fcm_result")).hasSize(2).anySatisfy(log -> assertThat(log)
+                    .containsEntry("sqsMessageId", "sqs-id")
+                    .containsEntry("eventId", push.eventId()))
+                    .anySatisfy(
+                            log -> assertThat(log).containsEntry("sqsMessageId", "second-sqs-id")
+                                    .containsEntry("eventId", secondPush.eventId()));
+            if (secondFails) {
+                assertThat(operations).hasSize(2);
+                assertThat(logsAtStage("worker_processing_failed")).singleElement()
+                        .satisfies(log -> assertThat(log).containsEntry("sqsMessageId",
+                                "second-sqs-id"));
+            } else {
+                assertThat(operations).containsExactly("AmazonSQS.DeleteMessage",
+                        "AmazonSQS.ChangeMessageVisibility", "AmazonSQS.DeleteMessage");
+                assertThat(bodies.getLast().get("ReceiptHandle").asText())
+                        .isEqualTo("second-receipt");
+            }
+        } finally {
+            releaseSecond.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+        }
     }
 
     private List<Map<String, Object>> logsAtStage(String stage) {

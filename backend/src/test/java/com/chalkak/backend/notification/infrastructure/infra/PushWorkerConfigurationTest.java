@@ -15,6 +15,8 @@ import com.chalkak.backend.notification.service.PushWorkerService;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.google.firebase.FirebaseApp;
 import java.time.Clock;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +35,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.config.FixedDelayTask;
 import java.time.Duration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -55,7 +57,8 @@ class PushWorkerConfigurationTest {
                         .doesNotHaveBean(SqsPushService.class)
                         .doesNotHaveBean(PushWorkerService.class)
                         .doesNotHaveBean(DevicePushSender.class)
-                        .doesNotHaveBean("notificationPollingScheduler"));
+                        .doesNotHaveBean("notificationPollingScheduler")
+                        .doesNotHaveBean("notificationPollingTasks"));
     }
 
     @ParameterizedTest
@@ -101,34 +104,15 @@ class PushWorkerConfigurationTest {
     }
 
     @Test
-    @DisplayName("폴링 대기 중에도 공용 작업이 실행되며 전용 실행기는 컨텍스트 종료 시 종료된다")
-    void configuration_pollingBlocked_keepsCommonSchedulerFreeAndClosesExecutors() {
+    @DisplayName("두 폴링이 동시에 대기해도 공용 작업이 실행되고 컨텍스트 종료 시 실행기가 종료된다")
+    void configuration_twoPollsBlocked_keepsCommonSchedulerFreeAndClosesExecutors() {
         // Given
         FakePollingProbe probe = new FakePollingProbe();
         AtomicReference<ScheduledExecutorService> visibilityExtensionExecutor = new AtomicReference<>();
         AtomicReference<ScheduledExecutorService> pollingExecutor = new AtomicReference<>();
         AtomicReference<ScheduledExecutorService> commonExecutor = new AtomicReference<>();
         // When
-        new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
-                .withUserConfiguration(SchedulingTestConfiguration.class, SchedulingConfig.class)
-                .withPropertyValues("spring.task.scheduling.pool.size=4",
-                        "chalkak.notification.fcm.worker-enabled=true",
-                        "chalkak.notification.fcm.project-id=test",
-                        "chalkak.notification.fcm.credentials-path=test.json")
-                .withBean(Clock.class, Clock::systemUTC)
-                .withBean(FakePollingProbe.class, () -> probe)
-                .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
-                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false, false,
-                        "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
-                        "ap-northeast-2"))
-                .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
-                .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
-                .withBean(PostRepository.class, () -> mock(PostRepository.class))
-                .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
-                .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
-                .withBean(PlatformTransactionManager.class,
-                        () -> mock(PlatformTransactionManager.class))
+        createPollingContext(probe)
                 .run(context -> {
                     assertThat(context).hasNotFailed()
                             .hasBean("taskScheduler").hasBean("notificationPollingScheduler")
@@ -153,18 +137,21 @@ class PushWorkerConfigurationTest {
                     assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
                             .isEqualTo(4);
                     assertThat(polling.getScheduledThreadPoolExecutor().getCorePoolSize())
-                            .isEqualTo(1);
+                            .isEqualTo(2);
                     assertThat(executor.isShutdown()).isFalse();
-                    assertThat(context.getBean(ScheduledAnnotationBeanPostProcessor.class)
-                            .getScheduledTasks()).extracting(task -> task.getTask())
-                            .filteredOn(task -> task instanceof FixedDelayTask)
+                    assertThat(context
+                            .getBean("notificationPollingTasks", ScheduledTaskRegistrar.class)
+                            .getScheduledTasks()).hasSize(2).extracting(task -> task.getTask())
+                            .allSatisfy(task -> assertThat(task).isInstanceOf(FixedDelayTask.class))
                             .extracting(task -> ((FixedDelayTask) task).getIntervalDuration())
-                            .contains(Duration.ofMillis(1));
+                            .containsExactly(Duration.ofMillis(1), Duration.ofMillis(1));
                     try {
                         assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
-                        assertThat(probe.pollThread.get()).startsWith("notification-poll-");
-                        assertThat(probe.commonThread.get()).isNotEqualTo(probe.pollThread.get())
+                        assertThat(probe.pollThreads).hasSize(2)
+                                .allSatisfy(
+                                        name -> assertThat(name).startsWith("notification-poll-"));
+                        assertThat(probe.commonThread.get()).isNotIn(probe.pollThreads)
                                 .doesNotStartWith("notification-poll-");
                     } finally {
                         probe.releasePoll.countDown();
@@ -173,6 +160,51 @@ class PushWorkerConfigurationTest {
         assertThat(visibilityExtensionExecutor.get().isShutdown()).isTrue();
         assertThat(pollingExecutor.get().isShutdown()).isTrue();
         assertThat(commonExecutor.get().isShutdown()).isTrue();
+        try {
+            assertThat(pollingExecutor.get().awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(visibilityExtensionExecutor.get().awaitTermination(5, TimeUnit.SECONDS))
+                    .isTrue();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("실행기 종료 확인 중 인터럽트", exception);
+        }
+    }
+
+    @Test
+    @DisplayName("공용 스케줄링을 끄면 Worker의 폴링 작업도 등록하지 않는다")
+    void configuration_schedulingDisabled_doesNotRegisterPolling() {
+        // Given
+        FakePollingProbe probe = new FakePollingProbe();
+        // When & Then
+        createPollingContext(probe).withPropertyValues("chalkak.scheduling.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed().doesNotHaveBean("notificationPollingTasks");
+                    assertThat(probe.pollThreads).isEmpty();
+                    org.mockito.Mockito.verifyNoInteractions(context.getBean(SqsClient.class));
+                });
+    }
+
+    private ApplicationContextRunner createPollingContext(FakePollingProbe probe) {
+        return new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
+                .withUserConfiguration(SchedulingTestConfiguration.class, SchedulingConfig.class)
+                .withPropertyValues("spring.task.scheduling.pool.size=4",
+                        "chalkak.notification.fcm.worker-enabled=true",
+                        "chalkak.notification.fcm.project-id=test",
+                        "chalkak.notification.fcm.credentials-path=test.json")
+                .withBean(Clock.class, Clock::systemUTC)
+                .withBean(FakePollingProbe.class, () -> probe)
+                .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
+                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false, false,
+                        "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
+                        "ap-northeast-2"))
+                .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
+                .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
+                .withBean(PostRepository.class, () -> mock(PostRepository.class))
+                .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
+                .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
+                .withBean(PlatformTransactionManager.class,
+                        () -> mock(PlatformTransactionManager.class));
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -206,7 +238,7 @@ class PushWorkerConfigurationTest {
             given(client.receiveMessage(
                     org.mockito.ArgumentMatchers.<Consumer<ReceiveMessageRequest.Builder>>any()))
                     .willAnswer(call -> {
-                        probe.pollThread.set(Thread.currentThread().getName());
+                        probe.pollThreads.add(Thread.currentThread().getName());
                         probe.pollStarted.countDown();
                         probe.releasePoll.await(10, TimeUnit.SECONDS);
                         return ReceiveMessageResponse.builder().build();
@@ -216,10 +248,10 @@ class PushWorkerConfigurationTest {
     }
 
     static class FakePollingProbe {
-        private final CountDownLatch pollStarted = new CountDownLatch(1);
+        private final CountDownLatch pollStarted = new CountDownLatch(2);
         private final CountDownLatch releasePoll = new CountDownLatch(1);
         private final CountDownLatch commonTaskRan = new CountDownLatch(1);
-        private final AtomicReference<String> pollThread = new AtomicReference<>();
+        private final Set<String> pollThreads = ConcurrentHashMap.newKeySet();
         private final AtomicReference<String> commonThread = new AtomicReference<>();
 
         @Scheduled(fixedDelay = 10)

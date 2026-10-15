@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.transaction.PlatformTransactionManager;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -34,6 +35,8 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "chalkak.notification.fcm", name = "worker-enabled", havingValue = "true")
 public class PushWorkerConfiguration {
+    private static final int POLLING_WORKER_COUNT = 2;
+    private static final Duration POLLING_DELAY = Duration.ofMillis(1);
     private final String projectId;
     private final String credentialsPath;
 
@@ -102,9 +105,24 @@ public class PushWorkerConfiguration {
     @Bean(defaultCandidate = false)
     public ThreadPoolTaskScheduler notificationPollingScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
+        scheduler.setPoolSize(POLLING_WORKER_COUNT);
         scheduler.setThreadNamePrefix("notification-poll-");
         return scheduler;
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "chalkak.scheduling", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public ScheduledTaskRegistrar notificationPollingTasks(
+            @Qualifier("notificationPollingScheduler") ThreadPoolTaskScheduler scheduler,
+            SqsPushService service
+    ) {
+        ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
+        registrar.setTaskScheduler(scheduler);
+        // 풀 크기만 늘려서는 병렬 실행되지 않으므로 독립된 폴링 작업을 각각 등록한다.
+        for (int workerIndex = 0; workerIndex < POLLING_WORKER_COUNT; workerIndex++) {
+            registrar.addFixedDelayTask(service::poll, POLLING_DELAY);
+        }
+        return registrar;
     }
 
     // 자동 연장 전용 실행기가 애플리케이션 공용 스케줄러를 대체하지 않게 한다.
