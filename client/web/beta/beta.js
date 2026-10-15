@@ -17,6 +17,7 @@
         const tile = document.createElement('div');
         tile.className = 'signature-tile';
         const image = new Image();
+        image.draggable = false;
         image.src = url;
         image.alt = copy ? '' : `베타테스터 사인 ${index * 2 + row + 1}`;
         image.decoding = 'async';
@@ -30,6 +31,53 @@
     }
     viewport.append(track);
     rows.append(viewport);
+    let drag = null;
+    viewport.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary || event.button !== 0 || drag) return;
+      if (rows.querySelector('.dragging')) return;
+      const targets = Array.from(rows.children, (row) => {
+        const rowTrack = row.firstElementChild;
+        const animation = rowTrack.getAnimations()[0];
+        return {
+          row,
+          animation,
+          time: animation?.currentTime ?? 0,
+          width: rowTrack.firstElementChild.getBoundingClientRect().width,
+          scroll: row.scrollLeft,
+        };
+      });
+      if (targets.some((target) => !target.width)) return;
+      drag = {
+        id: event.pointerId,
+        x: event.clientX,
+        targets,
+      };
+      targets.forEach(({ row }) => row.classList.add('dragging'));
+      viewport.setPointerCapture(event.pointerId);
+    });
+    viewport.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const distance = event.clientX - drag.x;
+      drag.targets.forEach(({ row, animation, time: startTime, width, scroll }) => {
+        if (animation) {
+          const { duration, delay } = animation.effect.getTiming();
+          const time = startTime - delay - distance * duration / width;
+          // Wrap within one duplicated group so dragging never reaches an empty end.
+          animation.currentTime = delay + ((time % duration) + duration) % duration;
+        } else {
+          row.scrollLeft = scroll - distance;
+        }
+      });
+    });
+    const endDrag = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag.targets.forEach(({ row }) => row.classList.remove('dragging'));
+      drag = null;
+      if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    };
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
+    viewport.addEventListener('lostpointercapture', endDrag);
   }
   const toggle = document.getElementById('motion-toggle');
   toggle.addEventListener('click', () => {
