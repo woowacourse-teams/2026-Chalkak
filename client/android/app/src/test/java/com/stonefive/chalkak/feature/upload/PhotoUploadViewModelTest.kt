@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.upload
 
+import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.PostCreation
@@ -29,6 +30,42 @@ class PhotoUploadViewModelTest {
     private val postCreationRepository = FakePostCreationRepository()
     private val uploadTopicDate = LocalDate.of(2026, 8, 29)
     private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
+
+    @Test
+    fun `저장된 제목을 복원하되 자동 제출하지 않는다`() {
+        val handle = SavedStateHandle(mapOf("upload_caption" to "작성 중"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        assertEquals("작성 중", restored.uiState.value.caption)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `변경한 제목을 저장하고 새 ViewModel에서 복원한다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        original.onAction(PhotoUploadUiAction.CaptionChanged("바다"))
+
+        val restoredHandle = SavedStateHandle(mapOf("upload_caption" to handle.get<String>("upload_caption")))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = restoredHandle)
+
+        assertEquals("바다", restored.uiState.value.caption)
+        original.onAction(PhotoUploadUiAction.CaptionChanged(""))
+        assertEquals("", handle.get<String>("upload_caption"))
+    }
+
+    @Test
+    fun `초기화하면 저장한 제목도 제거한다`() {
+        val handle = SavedStateHandle(mapOf("upload_caption" to "작성 중"))
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        original.reset()
+
+        assertFalse(handle.contains("upload_caption"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        assertEquals("", restored.uiState.value.caption)
+    }
 
     @Test
     fun `업로드 화면을 열면 고정한 날짜의 주제를 미리 조회한다`() {

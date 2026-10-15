@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.upload
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -32,6 +34,7 @@ class PhotoUploadViewModel(
     private val postCreationRepository: PostCreationRepository,
     private val topicDate: LocalDate,
     private val saveCaptureToGallery: (File) -> Boolean = { false },
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
@@ -41,6 +44,7 @@ class PhotoUploadViewModel(
     private var nextMessageId = 0L
     private val _uiState = MutableStateFlow(
         PhotoUploadUiState(
+            caption = savedStateHandle[KEY_CAPTION] ?: "",
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
         ),
     )
@@ -64,6 +68,7 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
+                savedStateHandle[KEY_CAPTION] = action.caption
                 _uiState.update { it.copy(caption = action.caption) }
             }
 
@@ -119,6 +124,7 @@ class PhotoUploadViewModel(
     fun reset() {
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
+        savedStateHandle.remove<String>(KEY_CAPTION)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
     }
 
@@ -376,12 +382,15 @@ class PhotoUploadViewModel(
     }
 
     companion object {
+        private const val KEY_CAPTION = "upload_caption"
+
         fun factory(topicDate: LocalDate) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 PhotoUploadViewModel(
                     postCreationRepository = application.appContainer.postCreationRepository,
                     topicDate = topicDate,
+                    savedStateHandle = createSavedStateHandle(),
                     saveCaptureToGallery = { file -> saveCameraCaptureToGallery(application, file) },
                 )
             }
