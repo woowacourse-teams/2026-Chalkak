@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
@@ -132,6 +133,8 @@ fun HomeScreen(
                     onNotificationClick = onNotificationClick,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .photoTransitionChrome()
+                        .background(ChalkakTheme.colors.background)
                         .statusBarsPadding()
                         .height(HomeTopBarHeight)
                         .homeBottomDivider()
@@ -159,6 +162,7 @@ fun HomeScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
+                        .photoTransitionChrome()
                         .padding(
                             end = 24.dp,
                             bottom = bottomBarHeight + 18.dp,
@@ -171,6 +175,7 @@ fun HomeScreen(
                 onAddClick = onOpenPhotoUpload,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .photoTransitionChrome()
                     .fillMaxWidth()
                     .onSizeChanged { bottomBarState.height = it.height }
                     .graphicsLayer { translationY = bottomBarState.offset },
