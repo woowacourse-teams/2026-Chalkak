@@ -74,12 +74,14 @@ fun Modifier.sharedPhotoElement(
 /** Keeps screen controls above the photo while both are drawn outside their parent layers. */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun Modifier.photoTransitionChrome(): Modifier {
+fun Modifier.photoTransitionChrome(animateVisibility: Boolean = true): Modifier {
     val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
-    return with(sharedTransitionScope) {
+    val overlayModifier = with(sharedTransitionScope) {
         renderInSharedTransitionScopeOverlay(zIndexInOverlay = PHOTO_CHROME_OVERLAY_Z_INDEX)
-    }.then(
+    }
+    if (!animateVisibility) return overlayModifier
+    return overlayModifier.then(
         with(animatedVisibilityScope) {
             Modifier.animateEnterExit(
                 enter = fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),

@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -138,6 +138,15 @@ fun FeedScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                    .photoTransitionChrome(animateVisibility = false)
+                    .background(ChalkakBackground),
+            )
+        },
         topBar = {
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
@@ -165,7 +174,7 @@ fun FeedScreen(
                     .fillMaxWidth()
                     .photoTransitionChrome()
                     .background(ChalkakBackground)
-                    .systemBarsPadding()
+                    .statusBarsPadding()
                     .padding(
                         start = 8.dp,
                         end = 12.dp,
