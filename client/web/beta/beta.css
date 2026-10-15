@@ -25,7 +25,9 @@ figcaption { color: var(--muted); }
 .thanks-heading h1 { margin: 0; font-size: clamp(28px, 4.6vw, 48px); line-height: 1.45; letter-spacing: -.055em; word-break: keep-all; }
 .thanks-heading p { margin: 26px 0 0; font-size: 15px; line-height: 1.95; color: var(--muted); }
 .signatures { margin: 12px auto 70px; text-align: center; }
-.signature-row { overflow: hidden; padding: 12px 0; mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent); }
+.signature-row { overflow: hidden; padding: 12px 0; mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent); cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.signature-row.dragging { cursor: grabbing; }
+.signature-row.dragging .signature-track { animation-play-state: paused; }
 .signature-track { display: flex; width: max-content; animation: signature-drift var(--duration) linear infinite; will-change: transform; }
 .signature-group { display: flex; flex: none; align-items: center; }
 .signature-tile { width: 154px; height: 76px; margin: 0 16px; display: flex; align-items: center; justify-content: center; }
@@ -57,7 +59,7 @@ figcaption { color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) {
   .signature-track { animation: none; transform: none; will-change: auto; }
-  .signature-row { overflow-x: auto; mask-image: none; }
+  .signature-row { overflow-x: auto; mask-image: none; touch-action: pan-x pan-y; }
   .signature-group[aria-hidden="true"] { display: none; }
   #motion-toggle { display: none; }
 }
