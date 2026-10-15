@@ -21,7 +21,7 @@ fun HomeRoute(
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
     onNotificationClick: () -> Unit,
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {

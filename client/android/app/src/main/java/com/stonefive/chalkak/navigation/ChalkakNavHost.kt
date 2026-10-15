@@ -72,6 +72,7 @@ import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateViewModel
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
+import com.stonefive.chalkak.feature.web.WebPageRoute
 import java.time.LocalDate
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -414,10 +415,27 @@ fun ChalkakNavHost(
                         onNotificationClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },
-                        onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
+                        onIssueClick = { title, url ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(WebPage(title = title, url = url)) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
                         viewModel = homeViewModel,
                     )
                 }
+            }
+
+            composable<WebPage> { backStackEntry ->
+                val page = backStackEntry.toRoute<WebPage>()
+                WebPageRoute(
+                    title = page.title,
+                    url = page.url,
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
+                )
             }
 
             composable<Notifications> { backStackEntry ->

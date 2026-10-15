@@ -28,7 +28,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 @Composable
 fun HomeIssueSection(
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -41,10 +41,11 @@ fun HomeIssueSection(
             fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
-        HomeIssueSamples.forEachIndexed { index, issue ->
-            if (index > 0) Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
-            HomeIssueCard(issue = issue, onClick = onIssueClick, modifier = Modifier.fillMaxWidth())
-        }
+        HomeIssueCard(
+            issue = HomeIssueSample,
+            onClick = { onIssueClick(HomeIssueSample.pageTitle, HomeIssueSample.url) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -74,7 +75,7 @@ private fun HomeIssueCard(
             ChalkakImage(
                 model = issue.imageRes,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -99,29 +100,26 @@ private data class HomeIssue(
     val title: String,
     val description: String,
     @param:DrawableRes val imageRes: Int,
+    val pageTitle: String,
+    val url: String,
 )
 
-private val HomeIssueSamples = listOf(
-    HomeIssue(
-        title = "바다에서 구도를 잘 잡는 방법",
-        description = "수평선을 활용해 바다를 담는 작은 팁",
-        imageRes = R.drawable.record_landscape_photo,
-    ),
-    HomeIssue(
-        title = "지난 주 가장 인기있었던 사진",
-        description = "좋아요를 많이 받은 전시 사진 모아보기",
-        imageRes = R.drawable.home_feed_photo,
-    ),
+private val HomeIssueSample = HomeIssue(
+    title = "함께 만들어주신 찰캌",
+    description = "베타테스트에 함께해주셔서 감사합니다",
+    imageRes = R.drawable.home_issue_beta,
+    pageTitle = "ISSUE",
+    url = "https://2026-chalkak-web.vercel.app/beta/beta.html",
 )
 
-private const val ISSUE_IMAGE_ASPECT_RATIO = 2.35f
+private const val ISSUE_IMAGE_ASPECT_RATIO = 1672f / 941f
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
 private fun HomeIssueSectionPreview() {
     ChalkakTheme {
         HomeIssueSection(
-            onIssueClick = {},
+            onIssueClick = { _, _ -> },
             modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
         )
     }

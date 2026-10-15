@@ -155,20 +155,19 @@ class HomeScreenTest {
     }
 
     @Test
-    fun issuesShowTwoExampleCardsAndInvokePlaceholderAction() {
-        var clicks = 0
-        showHome(readyState(), onIssue = { clicks++ })
+    fun issueShowsOneBetaCardAndInvokesOpenAction() {
+        var openedPage: Pair<String, String>? = null
+        showHome(readyState(), onIssue = { title, url -> openedPage = title to url })
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(5)
         composeRule.onNodeWithText("ISSUE").assertIsDisplayed()
         composeRule
-            .onNodeWithContentDescription("바다에서 구도를 잘 잡는 방법")
+            .onNodeWithContentDescription("함께 만들어주신 찰캌")
             .assertIsDisplayed()
             .performClick()
         composeRule
             .onNodeWithContentDescription("지난 주 가장 인기있었던 사진")
-            .assertIsDisplayed()
-            .performClick()
-        assertEquals(2, clicks)
+            .assertDoesNotExist()
+        assertEquals("ISSUE" to "https://2026-chalkak-web.vercel.app/beta/beta.html", openedPage)
         screenshot("home-issues")
     }
 
@@ -179,7 +178,7 @@ class HomeScreenTest {
         onDisplay: (LocalDate) -> Unit = {},
         onFeed: (Post) -> Unit = {},
         onTab: (ChalkakBottomBarItem) -> Unit = {},
-        onIssue: () -> Unit = {},
+        onIssue: (String, String) -> Unit = { _, _ -> },
     ) {
         composeRule.setContent {
             ChalkakTheme {

@@ -24,6 +24,12 @@ data object ChangeSignaturePreview
 data object Home
 
 @Serializable
+data class WebPage(
+    val title: String,
+    val url: String,
+)
+
+@Serializable
 data object Notifications
 
 @Serializable
