@@ -44,6 +44,176 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `재조회 실패로 이전 화면을 복구해도 새로 선택한 날짜와 저장값을 유지한다`() = runTest {
+        for (throws in listOf(false, true)) {
+            val handle = SavedStateHandle()
+            val restoredRepository = FakePostRepository()
+            val original = RecordViewModel(
+                restoredRepository,
+                initialMonth = RecordTestMonth,
+                currentMonthProvider = { RecordLatestMonth },
+                savedStateHandle = handle,
+            )
+            advanceUntilIdle()
+            val gate = CompletableDeferred<HomeResult<PostCalendar>>()
+            restoredRepository.pendingCalendarResult = gate
+            original.revalidate()
+            advanceUntilIdle()
+            original.selectDate(RecordTestMonth.atDay(2))
+
+            if (throws) {
+                gate.completeExceptionally(IllegalStateException("network"))
+            } else {
+                gate.complete(HomeResult.Failure(HomeFailure.Network))
+            }
+            advanceUntilIdle()
+
+            assertEquals(RecordTestMonth.atDay(2), original.uiState.value.selectedDate)
+            assertEquals(RecordTestMonth.atDay(2).toString(), handle.get<String>("record_selected_date"))
+        }
+    }
+
+    @Test
+    fun `재조회 중 선택한 날짜는 응답 후에도 유지한다`() = runTest {
+        advanceUntilIdle()
+        val response = repository.getPostCalendar(RecordTestMonth)
+        val gate = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = gate
+        viewModel.revalidate()
+        advanceUntilIdle()
+
+        viewModel.selectDate(RecordTestMonth.atDay(2))
+        gate.complete(response)
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun `복원한 선택 날짜가 게시물에 있으면 최신 날짜보다 우선한다`() = runTest {
+        val handle = SavedStateHandle(
+            mapOf(
+                "record_month" to RecordTestMonth.toString(),
+                "record_selected_date" to RecordTestMonth.atDay(2).toString(),
+            ),
+        )
+        val restored = RecordViewModel(
+            FakePostRepository(),
+            initialMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2), restored.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun `선택 날짜를 저장하고 새 ViewModel에서 복원한다`() = runTest {
+        val handle = SavedStateHandle()
+        val original = RecordViewModel(
+            FakePostRepository(),
+            initialMonth = RecordTestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        original.selectDate(RecordTestMonth.atDay(2))
+
+        val snapshot = handle.keys().associateWith { handle.get<Any?>(it) }
+        val restored = RecordViewModel(
+            FakePostRepository(),
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = SavedStateHandle(snapshot),
+        )
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2).toString(), handle.get<String>("record_selected_date"))
+        assertEquals(RecordTestMonth.atDay(2), restored.uiState.value.selectedDate)
+        original.revalidate()
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(2), original.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun `복원 날짜가 없거나 다른 달이거나 잘못된 값이면 기존 날짜를 선택한다`() = runTest {
+        for (savedDate in listOf(
+            "invalid",
+            RecordTestMonth.atDay(3).toString(),
+            RecordLatestMonth.atDay(1).toString(),
+        )) {
+            val handle = SavedStateHandle(mapOf("record_selected_date" to savedDate))
+            val restored = RecordViewModel(
+                FakePostRepository(),
+                initialMonth = RecordTestMonth,
+                currentMonthProvider = { RecordLatestMonth },
+                savedStateHandle = handle,
+            )
+            advanceUntilIdle()
+
+            assertEquals(RecordTestMonth.atDay(5), restored.uiState.value.selectedDate)
+            assertEquals(RecordTestMonth.atDay(5).toString(), handle.get<String>("record_selected_date"))
+        }
+    }
+
+    @Test
+    fun `조회 중과 실패 후 재시도에도 복원 날짜를 잃지 않는다`() = runTest {
+        val gate = CompletableDeferred<HomeResult<PostCalendar>>()
+        val restoredRepository = FakePostRepository().apply { pendingCalendarResult = gate }
+        val savedDate = RecordTestMonth.atDay(2).toString()
+        val handle = SavedStateHandle(mapOf("record_selected_date" to savedDate))
+        val restored = RecordViewModel(
+            restoredRepository,
+            initialMonth = RecordTestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        assertEquals(savedDate, handle.get<String>("record_selected_date"))
+
+        gate.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+        assertEquals(savedDate, handle.get<String>("record_selected_date"))
+        restoredRepository.pendingCalendarResult = null
+        restored.retryCurrentMonth()
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2), restored.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun `빈 달 응답은 저장된 선택 날짜를 제거한다`() = runTest {
+        val emptyMonth = RecordTestMonth.minusMonths(1)
+        val handle = SavedStateHandle(mapOf("record_selected_date" to emptyMonth.atDay(2).toString()))
+        val restored = RecordViewModel(
+            FakePostRepository(),
+            initialMonth = emptyMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+
+        assertEquals(null, restored.uiState.value.selectedDate)
+        assertEquals(null, handle.get<String>("record_selected_date"))
+    }
+
+    @Test
+    fun `선택한 게시물을 삭제하면 저장 날짜도 다음 게시물로 바뀐다`() = runTest {
+        val handle = SavedStateHandle()
+        val original = RecordViewModel(
+            FakePostRepository(),
+            initialMonth = RecordTestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            savedStateHandle = handle,
+        )
+        advanceUntilIdle()
+        original.selectDate(RecordTestMonth.atDay(2))
+        original.removeDeletedPost("post-2")
+
+        assertEquals(RecordTestMonth.atDay(5).toString(), handle.get<String>("record_selected_date"))
+    }
+
+    @Test
     fun `저장된 월을 초기 월보다 우선해서 조회한다`() = runTest {
         val restoredRepository = FakePostRepository()
         val handle = SavedStateHandle(mapOf("record_month" to RecordTestMonth.toString()))

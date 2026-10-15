@@ -37,6 +37,7 @@ class RecordViewModel(
                 ?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
                 ?: initialMonth,
             latestMonth = latestMonth,
+            selectedDate = savedSelectedDate(),
         ),
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
@@ -78,6 +79,7 @@ class RecordViewModel(
         if (date !in state.posts.map { it.topicDate }) return
 
         _uiState.update { it.copy(selectedDate = date) }
+        saveSelectedDate()
     }
 
     fun retryCurrentMonth() {
@@ -168,6 +170,7 @@ class RecordViewModel(
                     ?: updatedPosts.maxByOrNull { it.topicDate }?.topicDate,
             )
         }
+        saveSelectedDate()
     }
 
     fun onMessageShown(messageId: Long) {
@@ -200,6 +203,8 @@ class RecordViewModel(
         previousState: RecordUiState? = null,
         keepsContentVisible: Boolean = false,
     ) {
+        val selectedDate = (_uiState.value.selectedDate ?: savedSelectedDate())
+            ?.takeIf { YearMonth.from(it) == month }
         savedStateHandle[KEY_MONTH] = month.toString()
         val generation = ++latestLoadGeneration
         isRevalidating = keepsContentVisible
@@ -231,20 +236,30 @@ class RecordViewModel(
                                 it.copy(
                                     month = content.value.month,
                                     posts = content.value.posts,
-                                    selectedDate = content.value.posts
-                                        .maxByOrNull { it.topicDate }
-                                        ?.topicDate,
+                                    selectedDate = (it.selectedDate ?: selectedDate)
+                                        ?.takeIf { date ->
+                                            content.value.posts
+                                                .any { post -> post.topicDate == date }
+                                        }
+                                        ?: content.value.posts
+                                            .maxByOrNull { post -> post.topicDate }
+                                            ?.topicDate,
                                     isLoading = false,
                                     errorMessage = null,
                                     isLoginRequired = false,
                                 )
                             }
+                            saveSelectedDate()
                         }
 
                         is HomeResult.Failure -> if (previousState != null) {
                             _uiState.value = previousState.copy(
+                                selectedDate = _uiState.value.selectedDate
+                                    ?.takeIf { date -> previousState.posts.any { it.topicDate == date } }
+                                    ?: previousState.selectedDate,
                                 pendingMessage = nextToast(content.reason.toRecordMessage()),
                             )
+                            saveSelectedDate()
                         } else {
                             _uiState.update {
                                 it.copy(
@@ -260,8 +275,12 @@ class RecordViewModel(
 
                     if (previousState != null) {
                         _uiState.value = previousState.copy(
+                            selectedDate = _uiState.value.selectedDate
+                                ?.takeIf { date -> previousState.posts.any { it.topicDate == date } }
+                                ?: previousState.selectedDate,
                             pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"),
                         )
+                        saveSelectedDate()
                     } else {
                         _uiState.update {
                             it.copy(
@@ -317,6 +336,15 @@ class RecordViewModel(
         }
     }
 
+    private fun savedSelectedDate(): LocalDate? = savedStateHandle
+        .get<String>(KEY_SELECTED_DATE)
+        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    private fun saveSelectedDate() {
+        savedStateHandle[KEY_SELECTED_DATE] = _uiState.value.selectedDate
+            ?.toString()
+    }
+
     private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
         id = nextMessageId++,
         text = text,
@@ -328,6 +356,7 @@ class RecordViewModel(
 
     companion object {
         private const val KEY_MONTH = "record_month"
+        private const val KEY_SELECTED_DATE = "record_selected_date"
 
         val Factory = viewModelFactory {
             initializer {
