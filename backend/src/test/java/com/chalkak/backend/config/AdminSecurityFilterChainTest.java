@@ -1,6 +1,7 @@
 package com.chalkak.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,12 +13,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
+import com.chalkak.backend.analytics.service.UserMetricsAggregationRunner;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,6 +71,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private UserMetricsAggregationRunner aggregationRunner;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -147,6 +154,24 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("관리자 액세스 토큰으로 사용자 지표 수동 집계를 요청하면 202를 반환한다")
+    void startUserMetricsAggregation_adminToken_returnsAccepted() throws Exception {
+        // Given
+        UUID adminId = UUID.randomUUID();
+        String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/analytics/aggregations")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"metricDate":"2030-01-02"}
+                        """))
+                .andExpect(status().isAccepted());
+        then(aggregationRunner).should().start(adminId, LocalDate.of(2030, 1, 2));
     }
 
     @Test
@@ -319,6 +344,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
                 Arguments.of("GET", "/api/v1/admin/audit-logs"),
+                Arguments.of("POST", "/api/v1/admin/analytics/aggregations"),
                 Arguments.of("POST", "/api/v1/admin/notices"),
                 Arguments.of("GET", "/api/v1/admin/notices"),
                 Arguments.of("GET", "/api/v1/admin/notices/" + id),

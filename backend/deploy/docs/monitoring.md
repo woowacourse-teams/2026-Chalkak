@@ -88,7 +88,8 @@ ProjectTeam=chalkak
 | 공유 메트릭 필터, 공유 알람, 대시보드 | 이 PR 병합 직후 (dev 단계) | 이미지 파이프라인은 dev·prod가 같이 쓴다. 공유 알람은 dev에서 이미지를 한 장 처리해 지표가 생긴 뒤에 만든다 |
 | prod 로그 그룹 | 언제든 | 보존 기간만 정해 두면 되므로 릴리스 전에 만들어도 된다 |
 | prod 메트릭 필터, prod Agent, prod 알람 | 릴리스 당일, 릴리스 뒤 Agent가 실행 중일 때 | prod 로그는 백엔드 릴리스 뒤에야 들어온다. 그 전에는 지표가 없어 알람을 만들 수 없다 |
-| #504 항목 | 이후 | 아래 [다음 단계](#다음-단계-504) 참고 |
+| 사용자 지표 메트릭 필터 9개 | #504가 prod에 릴리스된 뒤 아무 때나 | 필터는 만든 뒤에 들어오는 로그만 센다. 첫 01:00(KST) 집계 전에 만들거나, 관리자 API로 전날을 한 번 다시 집계한다 |
+| `chalkak-prod-user-metrics-missing` 알람 | `Dau` 지표가 생긴 뒤 | 첫 예약 집계 뒤, 또는 prod에서 관리자 API로 전날을 집계한 뒤에 지표가 생긴다 |
 
 prod 백엔드는 [배포 운영 런북](operations.md)의 일반 릴리스로 반영된다.
 
@@ -151,6 +152,15 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 | `/chalkak/prod/application` | `LatencyMs` | `{ $.type = "access" }` | `Chalkak/prod` | `LatencyMs` | `$.durationMs` | 없음 | Milliseconds |
 | `/chalkak/prod/application` | `TopicNotFound` | `{ $.type = "access" && $.method = "GET" && $.route = "/api/v1/topics" && $.status = 404 }` | `Chalkak/prod` | `TopicNotFound` | `1` | `0` | Count |
 | `/chalkak/prod/application` | `RuntimeHeartbeat` | `{ $.type = "runtime" }` | `Chalkak/prod` | `RuntimeHeartbeat` | `1` | `0` | Count |
+| `/chalkak/prod/application` | `Dau` | `{ $.type = "aggregation" && $.dau >= 0 }` | `Chalkak/prod` | `Dau` | `$.dau` | 없음 | Count |
+| `/chalkak/prod/application` | `Visitors` | `{ $.type = "aggregation" && $.visitors >= 0 }` | `Chalkak/prod` | `Visitors` | `$.visitors` | 없음 | Count |
+| `/chalkak/prod/application` | `Wau` | `{ $.type = "aggregation" && $.wau >= 0 }` | `Chalkak/prod` | `Wau` | `$.wau` | 없음 | Count |
+| `/chalkak/prod/application` | `Posts` | `{ $.type = "aggregation" && $.posts >= 0 }` | `Chalkak/prod` | `Posts` | `$.posts` | 없음 | Count |
+| `/chalkak/prod/application` | `EligibleUsers` | `{ $.type = "aggregation" && $.eligibleUsers >= 0 }` | `Chalkak/prod` | `EligibleUsers` | `$.eligibleUsers` | 없음 | Count |
+| `/chalkak/prod/application` | `RetentionW1Rate` | `{ $.type = "aggregation" && $.retentionW1Rate >= 0 }` | `Chalkak/prod` | `RetentionW1Rate` | `$.retentionW1Rate` | 없음 | Percent |
+| `/chalkak/prod/application` | `RetentionW2Rate` | `{ $.type = "aggregation" && $.retentionW2Rate >= 0 }` | `Chalkak/prod` | `RetentionW2Rate` | `$.retentionW2Rate` | 없음 | Percent |
+| `/chalkak/prod/application` | `RetentionW3Rate` | `{ $.type = "aggregation" && $.retentionW3Rate >= 0 }` | `Chalkak/prod` | `RetentionW3Rate` | `$.retentionW3Rate` | 없음 | Percent |
+| `/chalkak/prod/application` | `RetentionW4Rate` | `{ $.type = "aggregation" && $.retentionW4Rate >= 0 }` | `Chalkak/prod` | `RetentionW4Rate` | `$.retentionW4Rate` | 없음 | Percent |
 | `/aws/lambda/chalkak-image-processor` | `ImageProcessingAbandoned` | `"image_processing_abandoned"` | `Chalkak/shared` | `ImageProcessingAbandoned` | `1` | `0` | Count |
 
 - `LatencyMs`에는 기본값을 넣지 않는다. 기본값 0을 두면 요청이 없는 구간에도 0ms 샘플이 가짜로 발행되어 p95·p99가 왜곡된다.
@@ -159,6 +169,30 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 - `RuntimeHeartbeat`는 앱이 1분마다 남기는 `type=runtime` 로그를 센다. prod는 로드밸런서가 없어 ALB 상태 신호가 없으므로 이 지표로 앱 중단, Agent 중지, 로그 전송 문제를 잡는다. 기본값 0이 있어 다른 로그는 들어오는데 runtime 로그만 끊기면 0이 발행되어 알람이 울린다. 로그가 전혀 들어오지 않으면 지표 자체가 없어지고, 알람의 누락 데이터 처리(`breaching`)가 이를 잡는다. 비용 때문에 dev에는 두지 않는다.
 - `ImageProcessingAbandoned`의 패턴은 따옴표를 포함한 텍스트 검색어다. Lambda가 Python logging으로 `[ERROR]<TAB><시각><TAB><요청 ID><TAB>{json}` 형태의 줄을 남기므로 순수 JSON이 아니어서 JSON 패턴으로 매칭할 수 없다. 따옴표로 묶은 검색어는 정확히 그 문구만 매칭하므로 `image_processing_abandon_failed`는 매칭되지 않는다.
 - 필터는 만든 뒤에 들어오는 로그만 지표로 만든다.
+- 사용자 지표 필터 9개(`Dau`부터 `RetentionW4Rate`까지)는 기본값을 넣지 않는다. 기본값을 두면 로그 그룹의 다른 모든 로그 줄마다 0이 발행되어 하루 값이 오염되고 SampleCount도 깨진다.
+- 패턴의 `>= 0`은 해당 값을 가진 줄만 매칭하려는 조건이다. 같은 `type=aggregation`인 `posts_mismatch` WARN 줄에는 이 값들이 없어 매칭되지 않는다. 리텐션 값은 월요일 집계 줄에만 있으므로 `RetentionW{k}Rate`는 월요일에만 발행되고, 코호트가 비어 있는 W+k는 키가 빠져 그 주에는 발행되지 않는다.
+- 집계 로그 한 줄 예시는 `{"type":"aggregation","metricDate":"2026-10-12","dau":12,"posts":15,"wau":30,"eligibleUsers":120,"likesTotal":340,"visitors":45,"topicViewers":40,"requests":5200,"server5xx":0,"latencyAvgMs":38,"latencyP95Ms":120,"message":"사용자 지표 집계"}`다. 월요일 집계 줄에는 `retentionW1Cohort`, `retentionW1Retained`, `retentionW1Rate` 같은 키가 W2~W4까지 더해진다.
+- 메트릭의 데이터 포인트 시각은 로그가 수집된 시각이다. 집계는 `metricDate`의 다음 날 01:0x(KST)에 실행되므로 점이 찍힌 날짜와 `metricDate`는 하루 차이가 난다. 정확한 날짜가 필요하면 로그의 `metricDate`를 읽는다.
+- `topicViewers`, `likesTotal`, `requests`, `latencyAvgMs` 같은 나머지 값은 비용 때문에 메트릭으로 만들지 않는다. 필요하면 prod 로그 보존 기간(60일) 안에서 Logs Insights로 조회한다.
+- 내부 계정 제외 목록은 집계에만 적용된다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, 리텐션)과 로그 기반 `visitors`, `topicViewers`는 제외 후 값이고, `requests`, `server5xx`, 지연 시간은 제외하지 않는다.
+
+#### CLI로 만들기 (선택)
+
+dev EC2에는 AWS CLI가 있고 같은 role을 쓰므로 거기서 아래 반복문으로 사용자 지표 필터 9개를 한 번에 만들 수 있다. prod EC2에는 디스크 때문에 AWS CLI가 없다. 권한이 없으면 콘솔로 만든다.
+
+```bash
+for f in Dau:dau:Count Visitors:visitors:Count Wau:wau:Count Posts:posts:Count \
+         EligibleUsers:eligibleUsers:Count \
+         RetentionW1Rate:retentionW1Rate:Percent RetentionW2Rate:retentionW2Rate:Percent \
+         RetentionW3Rate:retentionW3Rate:Percent RetentionW4Rate:retentionW4Rate:Percent; do
+  IFS=: read -r name field unit <<< "$f"
+  aws logs put-metric-filter --region ap-northeast-2 \
+    --log-group-name /chalkak/prod/application \
+    --filter-name "$name" \
+    --filter-pattern "{ \$.type = \"aggregation\" && \$.$field >= 0 }" \
+    --metric-transformations "metricName=$name,metricNamespace=Chalkak/prod,metricValue=\$.$field,unit=$unit"
+done
+```
 
 ### 5. CloudWatch Agent 설치 (dev, prod EC2 각각)
 
@@ -222,6 +256,8 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 | `Chalkak/{env}` `RequestCount`, `Server5xx`, `TopicNotFound` | 기본값 0이 있어 로그가 한 줄이라도 들어오면 발행된다 | Agent가 로그를 보낸 뒤 기다린다 |
 | `Chalkak/prod` `RuntimeHeartbeat` | 기본값 0이 있어 prod 로그가 한 줄이라도 들어오면 발행된다 | prod Agent가 로그를 보낸 뒤 기다린다 |
 | `Chalkak/prod` `LatencyMs` | 기본값이 없어 첫 접근 로그가 들어와야 생긴다 | 접근 로그가 들어온 뒤 기다린다 |
+| `Chalkak/prod` `Dau`, `Visitors`, `Wau`, `Posts`, `EligibleUsers` | 기본값이 없어 #504 릴리스 뒤 첫 집계 로그가 들어와야 생긴다 | 01:00(KST) 예약 집계를 기다리거나, prod에서 관리자 API로 전날을 집계한다 |
+| `Chalkak/prod` `RetentionW1Rate`~`RetentionW4Rate` | 첫 월요일 01:00(KST) 집계 뒤에 생긴다. W+k 값은 그 코호트가 비어 있지 않을 때만 발행된다 | 월요일 집계를 기다린다 |
 | `CWAgent` `disk_used_percent`, `mem_used_percent` | Agent가 실행되면 약 5분 뒤 | 5단계와 6단계 이후 확인한다 |
 | `Chalkak/shared` `ImageProcessingAbandoned` | 기본값 0이 있지만 이미지 Lambda가 로그를 한 줄이라도 남겨야 발행된다 | dev 앱에서 사인이나 포스트 이미지를 한 장 업로드해 처리시킨 뒤 확인한다 |
 | `AWS/SQS` `ApproximateAgeOfOldestMessage` | 유휴 큐에는 없을 수 있다 | 이미지를 한 장 처리한 뒤 확인한다 |
@@ -231,7 +267,7 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 
 ### 8. 알람
 
-알람은 dev 3개, prod 7개, 공유 3개다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
+알람은 dev 3개, prod 8개, 공유 3개다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
 
 1. **지표 선택**에서 표의 네임스페이스, 지표 이름, 디멘션을 고르고 통계와 기간을 입력한다.
 2. 조건에서 정적 임계값과 비교 연산자, 임계값을 입력한다. **추가 구성**을 펼쳐 "경보를 발생시킬 데이터 포인트"(표의 N of M)를 입력하고 **누락된 데이터 처리**를 표의 값으로 바꾼다. 콘솔의 기본값은 `missing`에 해당하는 "누락으로 처리"다.
@@ -267,8 +303,11 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 | `chalkak-prod-rds-free-storage` | `AWS/RDS` / `FreeStorageSpace` / `DBInstanceIdentifier=`prod RDS 식별자 | Minimum | 300초 | `< 2147483648` (2 GiB) | 1 of 1 | `missing` |
 | `chalkak-prod-no-open-topic` | `Chalkak/prod` / `TopicNotFound` / 없음 | Sum | 300초 | `>= 3` | 2 of 2 | `notBreaching` |
 | `chalkak-prod-app-heartbeat` | `Chalkak/prod` / `RuntimeHeartbeat` / 없음 | Sum | 300초 | `< 1` | 2 of 2 | `breaching` |
+| `chalkak-prod-user-metrics-missing` | `Chalkak/prod` / `Dau` / 없음 | SampleCount | 3600초 | `< 1` | 26 of 26 | `breaching` |
 
 `chalkak-prod-app-heartbeat`는 누락 데이터를 `breaching`으로 처리하므로 prod에 로그가 아직 없으면(prod 릴리스 전) 바로 `ALARM`이 된다. 콘솔에서는 prod 릴리스 뒤 prod 로그가 흐르기 시작한 다음에 만든다. CLI로 미리 만들었다면 prod 로그가 흐를 때까지 prod 채널에 ALARM 메시지가 오는 것이 예상된 동작이다. 이 알람은 로드밸런서가 없는 prod에서 앱 생존 신호를 대신한다.
+
+`chalkak-prod-user-metrics-missing`은 하루 한 번(01:00 KST) 실행되는 사용자 지표 집계가 빠졌는지 본다. 집계가 성공하면 `Dau` 데이터 포인트가 하루에 하나 생기므로, 1시간 기간 26개에 데이터 포인트가 하나도 없으면 ALARM이 된다. 즉 하루치 실행이 빠졌을 때 2시간 여유를 두고 알린다. 기간이 1시간 이상이면 알람 평가 범위를 최대 7일까지 잡을 수 있어 26×3600초 설정이 가능하다([알람 평가 문서](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)). 누락 데이터를 `breaching`으로 처리하므로 첫 집계 전에는 바로 ALARM이 된다. 그래서 `Dau` 지표가 생긴 뒤에 만든다. 관리자 API로 빠진 날을 다시 집계하면 데이터 포인트가 발행되어 OK로 돌아온다.
 
 #### 공유 알람 (토픽 `chalkak-prod-alarms`)
 
@@ -292,6 +331,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 - `chalkak-prod-rds-free-storage`: `RDS 여유 스토리지가 2GiB 미만입니다. 먼저 RDS 콘솔에서 스토리지 사용량과 자동 확장 설정을 확인하고 빠르게 늘어난 테이블이 있는지 점검하세요.`
 - `chalkak-prod-no-open-topic`: `요청한 날짜의 주제가 없다는 404(GET /api/v1/topics)가 10분 연속 5분마다 3건 이상 발생했습니다. 오늘(KST) 주제가 등록되지 않았거나 삭제됐을 가능성이 큽니다. 먼저 관리자 페이지에서 오늘(KST) 날짜의 주제가 있는지 확인하세요. 주제가 있어도 BEFORE_OPEN 상태인 경우는 이 알람이 감지하지 못합니다.`
 - `chalkak-prod-app-heartbeat`: `prod 런타임 로그(1분마다 1줄)가 10분 동안 들어오지 않았습니다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제 중 하나입니다. 먼저 서버에서 systemctl status chalkak-backend, journalctl -u chalkak-backend -n 100 으로 앱 상태를, amazon-cloudwatch-agent-ctl -m ec2 -a status 로 Agent 상태를 확인하세요. 배포 직후 잠깐의 재시작은 10분 조건으로 걸러집니다.`
+- `chalkak-prod-user-metrics-missing`: `사용자 지표 집계 성공 로그가 26시간 동안 들어오지 않았습니다. 먼저 prod 애플리케이션 로그 그룹에서 "사용자 지표 집계 실패"(type=error) 로그의 metricDate와 원인을 확인하고, 원인을 고친 뒤 관리자 API POST /api/v1/admin/analytics/aggregations 로 빠진 날짜를 다시 집계하세요.`
 - `chalkak-shared-image-queue-age`: `이미지 처리 대기열에서 가장 오래된 메시지가 10분 넘게 처리되지 않았습니다. 먼저 이미지 처리 Lambda의 Errors·Throttles 지표와 로그 그룹을 확인하세요.`
 - `chalkak-shared-image-lambda-errors`: `이미지 처리 Lambda 오류가 5분 안에 5건 이상 발생했습니다. 먼저 Lambda 로그 그룹에서 [ERROR] 로그와 실패한 S3 key를 확인하세요.`
 - `chalkak-shared-image-processing-abandoned`: `재시도 한도를 넘어 이미지 처리를 포기한 메시지가 있습니다. 먼저 Lambda 로그 그룹에서 image_processing_abandoned 를 검색해 대상 S3 key를 확인하세요.`
@@ -328,7 +368,11 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 - [ ] 일반 로그 그룹 `/chalkak/dev/application`, `/chalkak/prod/application`에 로그 이벤트가 들어오고, Logs Insights에서 JSON 필드(`type`, `route`, `status`, `userId`)가 자동 인식된다.
 - [ ] `type=runtime` 로그가 1분마다 들어온다.
-- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 5, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
+- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 14, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
+- [ ] prod에서 집계 로그가 매일 들어온다(아래 `type = "aggregation"` 쿼리). `metricDate`가 전날이고 필드(`dau`, `posts`, `wau`, `eligibleUsers`, `visitors` 등)가 채워져 있다.
+- [ ] dev에서 관리자 API `POST /api/v1/admin/analytics/aggregations`를 호출하면 `/chalkak/dev/application`에 집계 로그가 남고 필드가 맞다. dev에는 스케줄러와 사용자 지표 메트릭 필터가 없으므로 메트릭은 생기지 않는다.
+- [ ] `event=posts_mismatch` WARN 로그가 없거나, 있으면 `dbPosts`와 `logPosts`가 다른 이유를 설명할 수 있다.
+- [ ] `chalkak-prod-user-metrics-missing`이 첫 집계 뒤 `OK`다.
 - [ ] 알람이 `OK` 또는 예상한 `INSUFFICIENT_DATA` 상태다. `chalkak-*-ec2-status-check`, `chalkak-*-5xx`가 `ALARM`이면 즉시 확인한다.
 - [ ] 대시보드 `DASHBOARD-chalkak`의 위젯에 데이터가 표시된다.
 - [ ] 알림 패키지의 INFO·WARN·ERROR 로그가 `/chalkak/{env}/notification`으로 들어오고 보존 기간이 30일이다. 동일한 새 알림 로그가 `application` 그룹에 중복되지 않으며, 일반 access·runtime 로그는 계속 기존 그룹에 들어온다.
@@ -336,6 +380,7 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 - [ ] `image_processing_abandoned` 로그가 실제로 발생했을 때 `Chalkak/shared`의 `ImageProcessingAbandoned`가 1 이상이 된다. 평소에는 발생하지 않으므로 처음 발생할 때 확인한다.
 - [ ] 에이전트 시작 후에도 로그 그룹 보존 기간이 유지된다(prod 60일, dev 7일).
 - [ ] Slack 메시지의 CloudWatch 콘솔 링크를 한 번 눌러 알람 화면이 열린다(링크 형식이 공식 문서에 명시돼 있지 않다).
+- [ ] 5xx 알람 메시지의 "API별 5xx 집계 보기" 링크를 눌러 쿼리와 로그 그룹이 채워진 Logs Insights 화면이 열린다.
 
 Logs Insights(`CloudWatch > 로그 > Logs Insights`) 확인용 쿼리 예시다. 로그 그룹을 선택하고 조회 기간을 짧게(예: 1시간) 잡는다.
 
@@ -351,6 +396,18 @@ filter type = "runtime"
 ```
 
 ```text
+filter type = "aggregation"
+| sort @timestamp desc
+| limit 20
+```
+
+```text
+filter type = "access" and status >= 500
+| stats count(*) as n by method, route
+| sort n desc
+```
+
+```text
 filter type = "access"
 | stats count(*) as requests, pct(durationMs, 95) as p95 by route
 | sort requests desc
@@ -363,14 +420,17 @@ filter type = "access"
 
 - 콘솔에서 알람이나 메트릭 필터를 바꾸면 같은 PR에서 이 문서의 표와 설명을 함께 수정한다.
 - 콘솔에서 대시보드를 수정하면 **작업 > 소스 보기/편집**의 JSON을 복사해 `dashboard.json`에 반영한다. 이때 실제 인스턴스 ID와 RDS 식별자는 다시 플레이스홀더로 바꿔 커밋한다.
+- 집계에서 제외할 내부 계정 목록은 `backend/src/main/resources/application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 있고, 바꾸면 일반 릴리스로 반영한다. 대시보드의 실시간 Logs Insights 위젯(DAU, 접속 사용자)에는 이 목록이 적용되지 않는다.
 - 알람 상태 위젯은 알람을 직접 지정하므로 알람을 추가하면 위젯에도 수동으로 추가한다. Logs Insights 위젯은 대시보드 기간(기본 24시간)을 따른다.
+- 저장소에서 `dashboard.json`을 바꾸면 병합 후 콘솔의 **작업 > 소스 보기/편집**에 붙여 넣어 반영한다. 플레이스홀더는 실제 인스턴스 ID와 RDS 식별자로 바꿔 넣는다.
+- 알람 전달 Lambda(`backend/lambda/alarm-notifier/`)는 파이프라인에 연결하지 않았다. 코드를 바꾸면 병합 후 Lambda 콘솔에 `handler.py`를 다시 붙여 넣고 README의 테스트 이벤트로 Slack 도착을 확인한다. 이 함수는 dev·prod 알람을 모두 전달하므로, `be/develop` 병합만으로 prod 알람 경로가 바뀌지 않도록 dev 파이프라인에 연결하지 않았다.
 - 콘솔 변경과 문서가 어긋나면 문서가 아니라 콘솔이 실제 상태다. 어긋난 것을 발견하면 문서를 콘솔에 맞춘다.
 
 ## 알람 대응
 
 | 알람 | 먼저 확인할 것 |
 | --- | --- |
-| `chalkak-{env}-5xx` | 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
+| `chalkak-{env}-5xx` | Slack 메시지의 "API별 5xx 집계 보기" 링크(또는 대시보드 "API별 5xx 건수")로 실패한 API를 확인한 뒤, 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
 | `chalkak-{env}-ec2-status-check` | EC2 콘솔의 상태 검사, 재부팅·중지 여부 |
 | `chalkak-dev-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage`, `docker system df`(Docker 이미지·볼륨·로그) |
 | `chalkak-prod-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage` |
@@ -378,6 +438,7 @@ filter type = "access"
 | `chalkak-prod-rds-free-storage` | RDS 콘솔의 스토리지 사용량과 자동 확장 설정, 빠르게 커진 테이블 |
 | `chalkak-prod-no-open-topic` | 관리자 페이지에 오늘(KST) 날짜의 주제가 있는지(등록 누락·삭제). BEFORE_OPEN 상태인 주제는 이 알람이 잡지 못한다 |
 | `chalkak-prod-app-heartbeat` | 서버 `systemctl status chalkak-backend`, `journalctl -u chalkak-backend -n 100`, `amazon-cloudwatch-agent-ctl -m ec2 -a status` (앱 중단, Agent 중지, 로그 전송 문제) |
+| `chalkak-prod-user-metrics-missing` | prod 로그 그룹에서 "사용자 지표 집계 실패"(`type=error`) 로그의 `metricDate`와 원인, CloudWatch Logs 권한 오류(`logs:StartQuery` 등), DB 연결. 원인을 고친 뒤 관리자 API `POST /api/v1/admin/analytics/aggregations`(본문 `{"metricDate":"yyyy-MM-dd"}`)로 빠진 날짜를 다시 집계한다. 400 `USER_METRICS_AGGREGATION_IN_PROGRESS`는 집계가 이미 실행 중이라는 뜻이므로 끝날 때까지 기다린 뒤 다시 시도한다 |
 | `chalkak-shared-image-queue-age` | Lambda `Errors`·`Throttles` 지표와 Lambda 로그 그룹 |
 | `chalkak-shared-image-lambda-errors` | Lambda 로그의 `[ERROR]`와 실패한 S3 key |
 | `chalkak-shared-image-processing-abandoned` | Lambda 로그에서 `image_processing_abandoned` 검색, 대상 S3 key |
@@ -390,14 +451,14 @@ CloudWatch 요금은 [공식 가격표](https://aws.amazon.com/cloudwatch/pricin
 
 | 항목 | 수량 | 비고 |
 | --- | --- | --- |
-| 커스텀 메트릭 | 11개 | dev 2 + prod 5 + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
-| 알람 | 13개 | dev 3 + prod 7 + shared 3. 테스트 알람을 켜 둔 동안 1개씩 추가 |
+| 커스텀 메트릭 | 20개 | dev 2 + prod 14(5 + 사용자 지표 9) + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
+| 알람 | 14개 | dev 3 + prod 8 + shared 3. 테스트 알람을 켜 둔 동안 1개씩 추가 |
 | 대시보드 | 1개 | 무료 한도는 가격표에서 확인한다 |
 | 로그 수집·저장 | 트래픽 비례 | 수집량(GB)에 과금, 보존은 prod 60일·dev 7일. 접근 로그 트래픽이 늘면 가장 크게 변한다 |
 | Logs Insights 조회 | 조회한 로그 양(GB) 비례 | 대시보드의 Logs Insights 위젯이 열릴 때마다 조회한다 |
 | Lambda·SNS | 알람 횟수 비례 | 알람 메시지 수가 적어 이 규모에서는 무시할 수 있다. [Lambda 요금](https://aws.amazon.com/lambda/pricing/), [SNS 요금](https://aws.amazon.com/sns/pricing/) |
 
-월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504 계획(메트릭 3개, 알람 1개 추가, 이후 메트릭 14개·알람 14개)까지 포함해 잡은 값이다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
+월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504에서 추가한 메트릭 9개와 알람 1개는 위 수량에 포함돼 있다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
 
 점검 방법은 다음과 같다.
 
@@ -405,7 +466,7 @@ CloudWatch 요금은 [공식 가격표](https://aws.amazon.com/cloudwatch/pricin
 - `CloudWatch > 지표 > 모든 지표`에서 네임스페이스별 메트릭 수가 체크리스트의 수와 같은지 확인한다. 예상보다 많으면 에이전트 설정이나 디멘션이 의도와 다르게 늘어난 것이다.
 - `CloudWatch > 로그 > 로그 그룹`에서 저장된 바이트와 보존 기간을 확인한다.
 
-Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24시간으로 두어 조회량을 줄였다. DAU 추이나 검수 소요 시간 추이를 보려고 기간을 8주로 늘리면 조회할 로그가 크게 늘고, 위젯마다 그만큼 조회하므로 비용이 함께 늘어난다. 확인이 끝나면 기간을 24시간으로 되돌린다.
+Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24시간으로 두어 조회량을 줄였다. 검수 소요 시간 추이를 보려고 기간을 8주로 늘리면 조회할 로그가 크게 늘고, 위젯마다 그만큼 조회하므로 비용이 함께 늘어난다. 확인이 끝나면 기간을 24시간으로 되돌린다. DAU·접속 사용자·WAU·리텐션 추이는 집계 메트릭 위젯이 로그를 조회하지 않으므로 기간을 늘려도 이 위젯들의 비용은 늘지 않는다.
 
 ## 되돌리기
 
@@ -433,14 +494,13 @@ Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24
 6. `ec2-project` role에 붙인 `CloudWatchAgentServerPolicy`의 분리는 `#8기-기술-검토`와 조율한다.
 7. 로그 그룹 `/chalkak/{env}/application`은 로그가 들어 있으므로 합의한 경우에만 삭제한다. 삭제하지 않아도 보존 기간이 지나면 데이터가 만료된다.
 
-## 다음 단계 (#504)
+## 사용자 지표 집계 (#504)
 
-#504에서 다음을 이 문서에 추가할 계획이다.
-
-- prod EC2 role의 Logs Insights 조회 권한(`logs:StartQuery`, `logs:GetQueryResults`, `logs:StopQuery`). `#8기-기술-검토`를 통해 요청한다.
-- 집계용 메트릭 필터와 알람. 이 문서의 4단계와 8단계 표에 추가한다.
-- WAU, W+4 리텐션 위젯. `dashboard.json`에 추가한다.
-- 내부 계정 제외 목록과 `topicDate` 필드. 이슈 #504에 이미 기록돼 있다.
+- 집계는 앱이 매일 01:00(KST)에 계산해 로그 한 줄로 남기고, 메트릭 필터가 그 줄을 메트릭으로 바꾼다. 집계 테이블은 없다.
+- 로그 기반 값(접속 사용자 등)을 위한 CloudWatch Logs Insights 조회 권한(`logs:StartQuery`, `logs:GetQueryResults`, `logs:StopQuery`)은 2026-10-01에 공유 role에서 확인했다.
+- 빠진 날은 관리자 API(`POST /api/v1/admin/analytics/aggregations`, 관리자 토큰 필요)로 다시 집계한다. 메트릭 필터는 수집 시각을 쓰므로 다시 집계하면 원래 날짜가 아니라 다시 집계한 시각에 데이터 포인트가 생긴다. 빠진 구간을 채우고 누락 알람을 해소할 뿐 과거 그래프를 고치지는 않는다.
+- 하루 전체가 로그 보존 기간(prod 60일, dev 7일) 안에 들지 않는 날짜는 원본 로그가 모자라 DB 지표만 남기고 `visitors` 같은 로그 지표 키는 남기지 않는다.
+- 이미 집계된 날을 다시 집계하면 같은 날에 데이터 포인트가 두 개 생긴다. 대시보드 위젯은 하루 단위 Maximum으로 보므로 영향이 없지만, Sum으로 보면 두 배가 된다.
 
 ## 공식 문서
 
@@ -450,6 +510,7 @@ Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24
 - [SNS 메시지 게시](https://docs.aws.amazon.com/sns/latest/dg/sns-publishing.html)
 - [CloudWatch Logs 메트릭 필터 패턴](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html)
 - [CloudWatch 알람 생성](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ConsoleAlarms.html)
+- [CloudWatch 알람 평가](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)
 - [Lambda와 SNS 연동](https://docs.aws.amazon.com/lambda/latest/dg/with-sns.html)
 - [Lambda 요금](https://aws.amazon.com/lambda/pricing/)
 - [SNS 요금](https://aws.amazon.com/sns/pricing/)

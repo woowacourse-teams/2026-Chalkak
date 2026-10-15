@@ -31,6 +31,19 @@ def alarm_message(**overrides) -> dict:
     return message
 
 
+def server_5xx_message(**overrides) -> dict:
+    return alarm_message(
+        AlarmName="chalkak-prod-api-5xx",
+        Trigger={"MetricName": "Server5xx", "Namespace": "Chalkak/prod"},
+        **overrides,
+    )
+
+
+def insights_url(text: str) -> str:
+    # 마지막 줄 "<url|라벨>"에서 url만 꺼낸다.
+    return text.splitlines()[-1][1:].split("|", 1)[0]
+
+
 def sns_event(topic_arn: str, message: str, subject: str = "subject") -> dict:
     return {
         "Records": [
@@ -164,6 +177,55 @@ class LambdaHandlerTest(unittest.TestCase):
         self.assertLess(len(text), 3000)
         self.assertIn("…", text)
         self.assertIn("CloudWatch 콘솔에서 보기", text)
+
+    @patch("handler.urllib.request.urlopen")
+    def test_server_5xx_alarm_on_prod_adds_logs_insights_link(self, urlopen) -> None:
+        urlopen.return_value = ok_response()
+
+        handler.lambda_handler(sns_event(PROD_TOPIC, json.dumps(server_5xx_message())), None)
+
+        text = posted(urlopen)[1]["blocks"][0]["text"]["text"]
+        self.assertIn("API별 5xx 집계 보기 (Logs Insights)", text)
+        url = insights_url(text)
+        self.assertIn("region=ap-northeast-2", url)
+        self.assertIn("*2fchalkak*2fprod*2fapplication", url)
+        self.assertIn("status*20*3e*3d*20500", url)
+        for forbidden in (" ", "\n", "<", ">", "|", "&"):
+            self.assertNotIn(forbidden, url)
+
+    @patch("handler.urllib.request.urlopen")
+    def test_server_5xx_alarm_on_dev_uses_dev_log_group(self, urlopen) -> None:
+        urlopen.return_value = ok_response()
+
+        handler.lambda_handler(sns_event(DEV_TOPIC, json.dumps(server_5xx_message())), None)
+
+        url = insights_url(posted(urlopen)[1]["blocks"][0]["text"]["text"])
+        self.assertIn("*2fchalkak*2fdev*2fapplication", url)
+
+    @patch("handler.urllib.request.urlopen")
+    def test_non_5xx_alarm_has_no_logs_insights_link(self, urlopen) -> None:
+        urlopen.return_value = ok_response()
+
+        handler.lambda_handler(sns_event(PROD_TOPIC, json.dumps(alarm_message())), None)
+
+        text = posted(urlopen)[1]["blocks"][0]["text"]["text"]
+        self.assertNotIn("Logs Insights", text)
+        self.assertTrue(text.endswith("CloudWatch 콘솔에서 보기>"))
+
+    @patch("handler.urllib.request.urlopen")
+    def test_long_description_on_5xx_alarm_keeps_both_links_within_section_limit(
+        self, urlopen
+    ) -> None:
+        urlopen.return_value = ok_response()
+        message = server_5xx_message(AlarmDescription="가" * 10000)
+
+        handler.lambda_handler(sns_event(PROD_TOPIC, json.dumps(message)), None)
+
+        text = posted(urlopen)[1]["blocks"][0]["text"]["text"]
+        self.assertLessEqual(len(text), 3000)
+        self.assertIn("…", text)
+        self.assertIn("CloudWatch 콘솔에서 보기>\n<", text)
+        self.assertTrue(text.endswith("API별 5xx 집계 보기 (Logs Insights)>"))
 
     @patch("handler.urllib.request.urlopen")
     def test_slack_http_error_raises_and_logs_never_contain_url(self, urlopen) -> None:

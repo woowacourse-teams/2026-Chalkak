@@ -27,12 +27,19 @@ import org.springframework.web.servlet.HandlerMapping;
  * <p>
  * 이 필터는 인증보다 먼저 실행되어 접근 로그를 쓸 때는 SecurityContext가 이미 비어 있다. 그래서 체인 안쪽에서 요청 속성에
  * 담아 둔 회원 식별자가 있을 때만 userId로 남긴다.
+ *
+ * <p>
+ * 피드 조회의 topicDate는 주제 날짜별 조회 수를 집계하기 위해 남긴다. 상태가 200이면 Spring이 ISO 날짜로 검증을
+ * 마친 값이므로 파라미터 원문을 그대로 쓰고, 그 밖의 경로·메서드·상태에서는 검증되지 않은 입력이므로 남기지 않는다.
  */
 public class RequestIdFilter extends OncePerRequestFilter {
 
     private static final Logger ACCESS_LOG = LoggerFactory.getLogger("chalkak.access");
     private static final String ACTUATOR_PATH = "/actuator";
     private static final String ACTUATOR_PATH_PREFIX = ACTUATOR_PATH + "/";
+    private static final String FEED_METHOD = "GET";
+    private static final String FEED_ROUTE = "/api/v1/posts";
+    private static final String TOPIC_DATE_PARAMETER = "topicDate";
 
     @Override
     protected void doFilterInternal(
@@ -66,20 +73,36 @@ public class RequestIdFilter extends OncePerRequestFilter {
         }
 
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        String route = resolveRoute(request);
         LoggingEventBuilder event = ACCESS_LOG.atInfo()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_ACCESS)
                 .addKeyValue(LogFields.METHOD, request.getMethod())
-                .addKeyValue(LogFields.ROUTE, resolveRoute(request))
+                .addKeyValue(LogFields.ROUTE, route)
                 .addKeyValue(LogFields.STATUS, status)
                 .addKeyValue(LogFields.DURATION_MS, durationMs);
         if (request.getAttribute(LogFields.USER_ID_REQUEST_ATTRIBUTE) instanceof String userId) {
             event = event.addKeyValue(LogFields.USER_ID, userId);
+        }
+        if (isSuccessfulFeedQuery(request, route, status)) {
+            event = event.addKeyValue(
+                    LogFields.TOPIC_DATE,
+                    request.getParameter(TOPIC_DATE_PARAMETER));
         }
         event.log("access");
     }
 
     private boolean isActuatorPath(String requestUri) {
         return requestUri.equals(ACTUATOR_PATH) || requestUri.startsWith(ACTUATOR_PATH_PREFIX);
+    }
+
+    private boolean isSuccessfulFeedQuery(
+            HttpServletRequest request,
+            String route,
+            int status
+    ) {
+        return FEED_METHOD.equals(request.getMethod())
+                && FEED_ROUTE.equals(route)
+                && status == HttpServletResponse.SC_OK;
     }
 
     /** DispatcherServlet에 닿기 전에 거절된 요청은 매칭 결과가 없으므로 고정 값으로 묶는다. */
