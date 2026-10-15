@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -163,7 +165,7 @@ fun FeedScreen(
                     .fillMaxWidth()
                     .photoTransitionChrome()
                     .background(ChalkakBackground)
-                    .statusBarsPadding()
+                    .systemBarsPadding()
                     .padding(
                         start = 8.dp,
                         end = 12.dp,
