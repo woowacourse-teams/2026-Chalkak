@@ -4,6 +4,63 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFirstPinchKeepsTouchSurfaceAliveWhenViewportClipIsRemoved() async throws {
+        let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let host = UIHostingController(rootView: ScrollLockPhotoHarness(frame: frame))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = frame
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+
+        let surface = try XCTUnwrap(touchSurface(in: host.view))
+        var ancestor = surface.superview
+        while ancestor != nil && !(ancestor is UIScrollView) { ancestor = ancestor?.superview }
+        let scrollView = try XCTUnwrap(ancestor as? UIScrollView)
+        XCTAssertTrue(scrollView.isScrollEnabled)
+        let first = NSObject()
+        let second = NSObject()
+        surface.tracker.onTouchesChanged?([
+            FeedPhotoTouch(id: ObjectIdentifier(first), location: CGPoint(x: 100, y: 100)),
+            FeedPhotoTouch(id: ObjectIdentifier(second), location: CGPoint(x: 200, y: 100))
+        ], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        host.view.layoutIfNeeded()
+
+        XCTAssertTrue(touchSurface(in: host.view) === surface, "Starting the first pinch must not replace its active touch recognizer")
+        XCTAssertFalse(scrollView.isScrollEnabled)
+        // One remaining finger continues panning the enlarged photo, not the feed.
+        surface.tracker.onTouchesChanged?([
+            FeedPhotoTouch(id: ObjectIdentifier(first), location: CGPoint(x: 120, y: 100))
+        ], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(scrollView.isScrollEnabled)
+        surface.tracker.onTouchesChanged?([], .zero)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(scrollView.isScrollEnabled)
+        XCTAssertTrue(touchSurface(in: host.view) === surface)
+    }
+
+    private func touchSurface(in view: UIView) -> FeedPhotoTouchView? {
+        if let surface = view as? FeedPhotoTouchView { return surface }
+        return view.subviews.lazy.compactMap { self.touchSurface(in: $0) }.first
+    }
+
+    func testPinchKeepsTouchedPhotoPointUnderMovingFingers() {
+        let offset = feedPhotoPinchOffset(
+            offset: .zero,
+            previousScale: 1,
+            nextScale: 2,
+            previousCenter: CGPoint(x: 100, y: 100),
+            currentCenter: CGPoint(x: 120, y: 100),
+            photoSize: CGSize(width: 400, height: 300)
+        )
+        XCTAssertEqual(offset, CGSize(width: 120, height: 50))
+    }
+
     // Async XCTest methods provide a Swift task for MainActor-isolated teardown.
     func testReturningPhotoStaysBehindHeaderAndBottomBar() async throws {
         for sourceY in [CGFloat(100), CGFloat(700)] {
@@ -73,5 +130,24 @@ final class FeedZoomRenderingTests: XCTestCase {
         return withExtendedLifetime(context) {
             Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self).advanced(by: index), count: 4))
         }
+    }
+}
+
+private struct ScrollLockPhotoHarness: View {
+    let frame: CGRect
+    @State private var isPhotoInteracting = false
+
+    var body: some View {
+        ScrollView {
+            FeedPhoto(
+                post: nil,
+                zoom: FeedPhotoZoom(source: .init(frame: frame, cornerRadius: 0, visibleBounds: frame), viewport: frame),
+                onPhotoInteractionChanged: { isPhotoInteracting = $0 },
+                onLike: {}
+            )
+            Color.clear.frame(height: 800)
+        }
+        .scrollClipDisabled(isPhotoInteracting)
+        .scrollDisabled(isPhotoInteracting)
     }
 }
