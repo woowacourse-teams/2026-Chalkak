@@ -20,7 +20,8 @@ struct HomeIssueSection: View {
                             GeometryReader { geometry in
                                 ChalkakImage(
                                     source: .asset("issue_beta_thanks"),
-                                    contentDescription: nil
+                                    contentDescription: nil,
+                                    contentMode: .fill
                                 )
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                                 .clipped()
