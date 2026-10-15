@@ -8,7 +8,7 @@ struct DisplayPhotoGrid: View {
     var likingPhotoIDs: Set<String> = []
     var onLike: (DisplayPhoto) -> Void = { _ in }
     // 선택한 사진과, 이미 측정된 세로/가로 비율(없으면 nil)을 전달한다.
-    var onSelect: (DisplayPhoto, CGFloat?) -> Void = { _, _ in }
+    var onSelect: (DisplayPhoto, CGFloat?, FeedZoomRegistry.Source) -> Void = { _, _, _ in }
 
     // 로드되며 측정된 사진별 세로/가로 비율(height / width). 미측정 사진은 기본 비율로 배치한다.
     @State private var ratioByID: [DisplayPhoto.ID: CGFloat] = [:]
@@ -39,7 +39,7 @@ struct DisplayPhotoGrid: View {
                     photo: item.photo,
                     ratio: ratioByID[item.photo.id],
                     isLiking: likingPhotoIDs.contains(item.photo.id),
-                    onSelect: { onSelect(item.photo, ratioByID[item.photo.id]) },
+                    onSelect: { onSelect(item.photo, ratioByID[item.photo.id], $0) },
                     onLike: { onLike(item.photo) },
                     onMeasured: { ratio in
                         guard ratioByID[item.photo.id] == nil else { return }
@@ -91,7 +91,7 @@ private struct DisplayMasonryCell: View {
     let photo: DisplayPhoto
     let ratio: CGFloat?
     let isLiking: Bool
-    let onSelect: () -> Void
+    let onSelect: (FeedZoomRegistry.Source) -> Void
     let onLike: () -> Void
     let onMeasured: (CGFloat) -> Void
 
@@ -110,16 +110,15 @@ private struct DisplayMasonryCell: View {
                     contentMode: .fill,
                     signatureSize: Metrics.signatureSize
                 )
-                // Android처럼 사진만 숨겨 검은 바탕·좋아요 수는 남긴다.
-                .feedZoomSource(
-                    .displayGrid(photo.id),
-                    cornerRadius: theme.shapes.photoCard,
-                    signatureSize: Metrics.signatureSize
-                )
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
             .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
+            .feedZoomSource(
+                .displayGrid(photo.id),
+                cornerRadius: theme.shapes.photoCard,
+                signatureSize: Metrics.signatureSize,
+                onSelect: onSelect
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(photo.contentDescription)
             .accessibilityAddTraits(.isButton)

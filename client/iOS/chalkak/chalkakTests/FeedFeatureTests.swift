@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 import CoreGraphics
 import Testing
@@ -319,6 +320,79 @@ private final class AsyncGate {
 
 @MainActor
 struct FeedZoomCropTests {
+    @Test("등록이 누락된 그리드 사진도 탭 좌표와 가림 영역을 즉시 전달한다")
+    func tappedPhotoSuppliesSourceWithoutPriorRegistration() {
+        let registry = FeedZoomRegistry()
+        let sourceID = FeedZoomSource.displayGrid("selected-photo")
+        let viewport = CGRect(x: 0, y: 200, width: 400, height: 600)
+        registry.updateViewport(viewport, for: .display)
+        registry.bottomBarFrame = CGRect(x: 20, y: 720, width: 360, height: 60)
+        #expect(registry.source(for: sourceID) == nil)
+        let frame = CGRect(x: 20, y: 600, width: 180, height: 240)
+        let selected = registry.update(.init(frame: frame, cornerRadius: 8), for: sourceID)
+        registry.remove(sourceID)
+        #expect(selected.frame == frame)
+        #expect(selected.visibleBounds == CGRect(x: 0, y: 200, width: 400, height: 520))
+    }
+
+    @Test("출발 viewport가 없는 기록 사진도 이동 경로에서 잘리지 않는다")
+    func viewportFallbackIncludesSourcePhoto() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let canvas = CGRect(x: 0, y: 200, width: 400, height: 300)
+        let source = CGRect(x: 20, y: 700, width: 100, height: 100)
+        let clip = FeedZoomViewportClip(
+            progress: 0, source: nil, destination: canvas, canvas: canvas, sourcePhotoFrame: source
+        )
+        #expect(clip.path(in: rect).boundingRect == rect.union(source.offsetBy(dx: 0, dy: -200)))
+    }
+
+    @Test("출발 셀이 사라져도 선택 순간의 전환 좌표가 유지된다")
+    func selectedTargetKeepsSourceAfterCellDisappears() {
+        let registry = FeedZoomRegistry()
+        let sourceID = FeedZoomSource.displayGrid("photo-4")
+        let frame = CGRect(x: 220, y: 450, width: 180, height: 240)
+        registry.update(.init(frame: frame, cornerRadius: 8), for: sourceID)
+        var target = FeedTarget(seed: FeedPreviewData.content, isLikeConfirmed: true, zoomSource: sourceID)
+        target.transitionSource = registry.source(for: sourceID)
+        registry.remove(sourceID)
+        #expect(registry.source(for: sourceID) == nil)
+        #expect(target.transitionSource?.frame == frame)
+    }
+
+    @Test("화면 영역 측정 전에도 클립 구조를 유지하며 사진 전체를 포함한다")
+    func viewportClipBeforeMeasurementIncludesPhoto() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let clip = FeedZoomViewportClip(progress: 0, source: rect, destination: nil, canvas: rect)
+        #expect(clip.path(in: rect).boundingRect == rect)
+    }
+
+    @Test("전환 클립을 해제한 핀치 사진이 잘리지 않는다")
+    func viewportClipIncludesScaledAndPannedPhoto() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let clip = FeedZoomViewportClip(
+            progress: 1, source: nil, destination: rect, canvas: rect,
+            contentScale: 4, contentOffset: CGSize(width: 800, height: -600)
+        )
+        let photo = CGRect(x: 200, y: -1050, width: 1600, height: 1200)
+        #expect(clip.path(in: rect).boundingRect == rect.union(photo))
+    }
+
+    @Test("그리드 재배치 중 이전 셀이 사라져도 새 출발 위치를 유지한다")
+    func replacedSourceKeepsRegistration() {
+        let registry = FeedZoomRegistry()
+        let oldID = UUID()
+        let newID = UUID()
+        let source = FeedZoomSource.displayGrid("photo")
+        let oldFrame = CGRect(x: 20, y: 300, width: 180, height: 240)
+        let newFrame = CGRect(x: 220, y: 300, width: 180, height: 240)
+        registry.update(.init(frame: oldFrame, cornerRadius: 8, registrationID: oldID), for: source)
+        registry.update(.init(frame: newFrame, cornerRadius: 8, registrationID: newID), for: source)
+        registry.remove(source, registrationID: oldID)
+        #expect(registry.source(for: source)?.frame == newFrame)
+        registry.remove(source, registrationID: newID)
+        #expect(registry.source(for: source) == nil)
+    }
+
     @Test("정사각형에서 세로·가로 사진까지 크롭 경계가 연속적으로 이동한다", arguments: [CGFloat(536), CGFloat(268), CGFloat(50)])
     func cropBoundsMoveContinuously(destinationHeight: CGFloat) {
         let source = FeedZoomRegistry.Source(frame: CGRect(x: 25, y: 600, width: 82, height: 82), cornerRadius: 8)

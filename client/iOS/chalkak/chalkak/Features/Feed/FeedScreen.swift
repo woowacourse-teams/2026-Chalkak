@@ -12,6 +12,7 @@ struct FeedScreen: View {
     @State private var isPhotoMoving = true
     @State private var isPhotoInteracting = false
     @State private var isClosing = false
+    @State private var hasStartedOpening = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
     private let usesPhotoTransition: Bool
@@ -31,11 +32,13 @@ struct FeedScreen: View {
         viewModel: FeedViewModel,
         placeholder: FeedPhotoPlaceholder? = nil,
         zoomSource: FeedZoomSource? = nil,
+        transitionSource: FeedZoomRegistry.Source? = nil,
         usesPhotoTransition: Bool = true,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
+        _transitionSource = State(initialValue: transitionSource)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
         self.usesPhotoTransition = usesPhotoTransition
@@ -77,7 +80,12 @@ struct FeedScreen: View {
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
         .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
-        .onAppear(perform: open)
+        .onAppear {
+            // 전달받은 탭 순간의 좌표를 우선한다. 닫을 때는 현재 셀 위치를 다시 읽는다.
+            if transitionSource == nil { captureTransitionSource() }
+            // 공유 사진은 도착 프레임이 준비된 뒤 첫 프레임부터 이동한다.
+            if movingSource == nil || !usesPhotoTransition { startOpening() }
+        }
         .onDisappear {
             if zoomRegistry?.activeSource == zoomSource {
                 zoomRegistry?.activeSource = nil
@@ -85,6 +93,9 @@ struct FeedScreen: View {
         }
         .task {
             await viewModel.load()
+        }
+        .onChange(of: viewModel.viewState.contentStatus) { _, status in
+            if case .error = status { startOpening() }
         }
         .onChange(of: viewModel.viewState.deletedPostID) { _, postID in
             if let postID {
@@ -174,6 +185,7 @@ struct FeedScreen: View {
                         morphsAspectRatio: morphsPhotoAspectRatio,
                         viewport: transitionViewport
                     ),
+                    onTransitionReady: startOpening,
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onLike: { viewModel.toggleLike() }
                 )
@@ -216,6 +228,12 @@ struct FeedScreen: View {
         }
     }
 
+    private func startOpening() {
+        guard !hasStartedOpening, !isClosing else { return }
+        hasStartedOpening = true
+        open()
+    }
+
     private func open() {
         guard usesPhotoTransition else {
             photoProgress = 1
@@ -223,7 +241,7 @@ struct FeedScreen: View {
             isPhotoMoving = false
             return
         }
-        captureTransitionSource()
+        if transitionSource == nil { captureTransitionSource() }
         isPhotoMoving = true
         // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
         zoomRegistry?.activeSource = nil

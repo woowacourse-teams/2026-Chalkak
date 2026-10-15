@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DisplayScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Bindable var viewModel: DisplayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
@@ -15,10 +16,11 @@ struct DisplayScreen: View {
     private func feedTarget(
         for photo: DisplayPhoto,
         zoomSource: FeedZoomSource,
-        placeholder: FeedPhotoPlaceholder
+        placeholder: FeedPhotoPlaceholder,
+        transitionSource: FeedZoomRegistry.Source? = nil
     ) -> FeedTarget {
         let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
-        return FeedTarget(
+        var target = FeedTarget(
             seed: FeedContent(
                 dateLabel: dateLabel,
                 topicDate: viewModel.viewState.selectedDate ?? Date(),
@@ -38,6 +40,8 @@ struct DisplayScreen: View {
             zoomSource: zoomSource,
             placeholder: placeholder
         )
+        target.transitionSource = transitionSource ?? zoomRegistry?.source(for: zoomSource)
+        return target
     }
 
     var body: some View {
@@ -188,7 +192,7 @@ struct DisplayScreen: View {
                         },
                         likingPhotoIDs: viewModel.likingPhotoIDs,
                         onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
-                        onSelect: { photo, ratio in
+                        onSelect: { photo, ratio, source in
                             onSelectPhoto(
                                 feedTarget(
                                     for: photo,
@@ -197,7 +201,8 @@ struct DisplayScreen: View {
                                         imageSource: photo.thumbnailImageSource,
                                         signatureImageSource: photo.signatureThumbnailImageSource,
                                         heightToWidthRatio: ratio
-                                    )
+                                    ),
+                                    transitionSource: source
                                 )
                             )
                         }
