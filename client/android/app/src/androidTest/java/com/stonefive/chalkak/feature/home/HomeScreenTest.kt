@@ -63,7 +63,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun ownedHeroShowsPhotoAndWeeklyCountIncludesPending() {
+    fun ownedHeroHasNoClickActionAndWeeklyCountIncludesPending() {
         var records = 0
         val state = readyState().copy(
             hero = HomeHeroState.Photo(
@@ -87,8 +87,8 @@ class HomeScreenTest {
         composeRule
             .onNodeWithContentDescription("오늘 제출한 사진")
             .assertIsDisplayed()
-            .performClick()
-        assertEquals(1, records)
+            .assertHasNoClickAction()
+        composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertHasNoClickAction()
         screenshot("home-owned")
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
         composeRule.onNodeWithText("5/7").assertIsDisplayed()
@@ -97,7 +97,7 @@ class HomeScreenTest {
         composeRule.onNodeWithText("일", useUnmergedTree = true).assertDoesNotExist()
         screenshot("home-weekly")
         composeRule.onNodeWithContentDescription("이번 주 기록 더보기").performClick()
-        assertEquals(2, records)
+        assertEquals(1, records)
     }
 
     @Test
