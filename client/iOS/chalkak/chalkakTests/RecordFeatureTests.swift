@@ -60,6 +60,51 @@ struct RecordViewModelTests {
         #expect(viewModel.event == .showToast(RecordError.network.message))
     }
 
+    @Test("현재 달은 월 목록 응답에 없어도 활성 연월에 포함한다")
+    func includesCurrentMonthWhenMonthListOmitsIt() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -2)
+        let viewModel = RecordViewModel(
+            monthProvider: { currentMonth },
+            monthListHandler: { .success([previousMonth]) },
+            calendarHandler: { month in .success(RecordCalendar(month: month, posts: [])) }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.availableMonths == [currentMonth, previousMonth])
+        #expect(viewModel.viewState.canGoPrevious)
+
+        await viewModel.moveToPreviousMonth()
+        #expect(viewModel.viewState.month == previousMonth)
+        #expect(viewModel.viewState.canGoNext)
+
+        await viewModel.moveToNextMonth()
+        #expect(viewModel.viewState.month == currentMonth)
+    }
+
+    @Test("현재 달의 마지막 게시물을 지워도 현재 달은 활성 연월에 남는다")
+    func deletingLastPostKeepsCurrentMonthActive() {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let currentPost = Self.post(id: "current-post", day: 1, month: currentMonth)
+        let viewModel = RecordViewModel(
+            initialState: RecordViewState(
+                contentStatus: .loaded,
+                month: currentMonth,
+                latestMonth: currentMonth,
+                availableMonths: [currentMonth],
+                posts: [currentPost],
+                selectedDate: currentPost.topicDate
+            ),
+            monthProvider: { currentMonth }
+        )
+
+        viewModel.removeDeletedPost(currentPost.postId)
+
+        #expect(viewModel.viewState.availableMonths == [currentMonth])
+        #expect(viewModel.viewState.posts.isEmpty)
+    }
+
     private static func post(id: String, day: Int, month: RecordMonth) -> RecordPost {
         RecordPost(
             postId: id,

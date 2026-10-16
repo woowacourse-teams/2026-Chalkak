@@ -1,41 +1,68 @@
 package com.stonefive.chalkak.feature.home
 
-import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.Post
-import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 data class HomeUiState(
-    val contentStatus: HomeContentStatus = HomeContentStatus.Loading,
-    val topicDate: LocalDate? = null,
+    val date: LocalDate,
     val topic: String = "",
-    val photos: List<Post> = emptyList(),
-    val contentRevision: Int = 0,
-    val selectedSort: PostSort = PostSort.LATEST,
-    val likedPhotoIds: Set<String> = emptySet(),
-    val currentPage: Int = 0,
-    val hasNext: Boolean = false,
-    val randomSeed: String? = null,
-    val isLoadingNext: Boolean = false,
+    val topicStatus: HomeSectionStatus = HomeSectionStatus.Loading,
+    val hero: HomeHeroState = HomeHeroState.Loading,
+    val week: List<HomeWeekDay> = homeWeekDates(date).map(::HomeWeekDay),
+    val recordsStatus: HomeSectionStatus = HomeSectionStatus.Loading,
+    val yesterday: HomeRankingState = HomeRankingState(),
+    val trending: HomeRankingState = HomeRankingState(),
     val isRefreshing: Boolean = false,
-    val areLikesEnabled: Boolean = true,
-    val pendingMessage: UiMessage? = null,
+    val isAuthenticated: Boolean = false,
 )
 
-sealed interface HomeContentStatus {
-    data object Loading : HomeContentStatus
+val HomeUiState.isInitialLoadComplete: Boolean
+    get() = topicStatus != HomeSectionStatus.Loading &&
+        hero != HomeHeroState.Loading &&
+        recordsStatus != HomeSectionStatus.Loading &&
+        yesterday.status != HomeSectionStatus.Loading &&
+        trending.status != HomeSectionStatus.Loading
 
-    data class Error(val reason: HomeInitialError) : HomeContentStatus
-
-    data object Content : HomeContentStatus
+enum class HomeSectionStatus {
+    Loading,
+    Ready,
+    Error,
 }
 
-enum class HomeInitialError {
-    TopicNotFound,
-    Unauthorized,
-    Network,
-    InvalidResponse,
-    Client,
-    Server,
-    Generic,
+sealed interface HomeHeroState {
+    data object Loading : HomeHeroState
+
+    data object Empty : HomeHeroState
+
+    data object NoOpenTopic : HomeHeroState
+
+    data object Processing : HomeHeroState
+
+    data object Error : HomeHeroState
+
+    data class Photo(
+        val imageUrl: String,
+        val thumbnailUrl: String = imageUrl,
+        val signatureUrl: String? = null,
+        val signatureThumbnailUrl: String? = null,
+        val isPending: Boolean = false,
+    ) : HomeHeroState
+}
+
+data class HomeWeekDay(
+    val date: LocalDate,
+    val post: PostCalendarItem? = null,
+)
+
+data class HomeRankingState(
+    val status: HomeSectionStatus = HomeSectionStatus.Loading,
+    val photos: List<Post> = emptyList(),
+)
+
+fun homeWeekDates(date: LocalDate): List<LocalDate> {
+    val sunday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    return List(7) { sunday.plusDays(it.toLong()) }
 }

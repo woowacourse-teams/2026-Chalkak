@@ -19,20 +19,14 @@ struct LegalDocumentSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Button(action: dismiss.callAsFunction) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: Metrics.closeIconSize, weight: .medium))
-                        .foregroundStyle(theme.colors.textSecondary)
-                        .frame(
-                            width: Metrics.closeButtonSize,
-                            height: Metrics.closeButtonSize
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("닫기")
+                ChalkakNavigationButton(
+                    kind: .close,
+                    controlSize: .regular,
+                    action: dismiss.callAsFunction
+                )
             }
-            .padding(.trailing, theme.spacing.sm)
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
 
             Rectangle()
                 .fill(theme.colors.border)
@@ -90,7 +84,5 @@ struct LegalDocumentSheet: View {
 }
 
 private enum Metrics {
-    static let closeIconSize: CGFloat = 16
-    static let closeButtonSize: CGFloat = 48
     static let dividerHeight: CGFloat = 1
 }

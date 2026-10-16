@@ -47,7 +47,7 @@ enum class ChalkakBottomBarItem(
     @param:StringRes val labelRes: Int,
     @param:DrawableRes val iconRes: Int,
 ) {
-    TODAY(R.string.bottom_bar_today, R.drawable.ic_bottom_today),
+    HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_today),
     DISPLAY(R.string.bottom_bar_display, R.drawable.ic_bottom_display),
     RECORD(R.string.bottom_bar_record, R.drawable.ic_bottom_record),
     SETTINGS(R.string.bottom_bar_settings, R.drawable.ic_bottom_setting),
@@ -72,9 +72,9 @@ fun ChalkakBottomBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BottomBarItem(
-            item = ChalkakBottomBarItem.TODAY,
-            selected = selectedItem == ChalkakBottomBarItem.TODAY,
-            onClick = { onItemSelected(ChalkakBottomBarItem.TODAY) },
+            item = ChalkakBottomBarItem.HOME,
+            selected = selectedItem == ChalkakBottomBarItem.HOME,
+            onClick = { onItemSelected(ChalkakBottomBarItem.HOME) },
         )
         BottomBarItem(
             item = ChalkakBottomBarItem.DISPLAY,
@@ -176,7 +176,7 @@ private fun RowScope.ChalkakAddButton(
 private fun ChalkakBottomBarPreview() {
     ChalkakTheme {
         var selectedItem by remember {
-            mutableStateOf(ChalkakBottomBarItem.TODAY)
+            mutableStateOf(ChalkakBottomBarItem.HOME)
         }
 
         ChalkakBottomBar(

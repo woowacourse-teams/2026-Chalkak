@@ -1,4 +1,3 @@
-import Photos
 import SwiftUI
 import UIKit
 
@@ -53,7 +52,7 @@ struct RecordCalendarSnapshot: View {
                 onDateClick: { _ in },
                 thumbnailImages: thumbnailImages
             )
-                .padding(.horizontal, Metrics.horizontalPadding)
+            .padding(.horizontal, Metrics.horizontalPadding)
 
             Spacer().frame(height: Metrics.bottomPadding)
         }
@@ -66,38 +65,5 @@ struct RecordCalendarSnapshot: View {
         static let topBarToWeekday: CGFloat = 8
         static let weekdayToGrid: CGFloat = 14
         static let bottomPadding: CGFloat = 20
-    }
-}
-
-enum RecordImageSaveResult {
-    case saved
-    case failed
-    case permissionDenied
-}
-
-/// 렌더링된 달력 이미지를 사진 앱에 저장한다.
-/// Android의 갤러리 저장 + 권한 거부 흐름에 대응한다(추가 전용 권한).
-enum RecordCalendarImageSaver {
-    static func save(_ image: UIImage) async -> RecordImageSaveResult {
-        let status = await requestAddOnlyAuthorization()
-        guard status == .authorized || status == .limited else {
-            return .permissionDenied
-        }
-
-        return await withCheckedContinuation { continuation in
-            PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            } completionHandler: { success, _ in
-                continuation.resume(returning: success ? .saved : .failed)
-            }
-        }
-    }
-
-    private static func requestAddOnlyAuthorization() async -> PHAuthorizationStatus {
-        await withCheckedContinuation { continuation in
-            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-                continuation.resume(returning: status)
-            }
-        }
     }
 }

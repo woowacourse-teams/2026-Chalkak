@@ -1,0 +1,355 @@
+import SwiftUI
+
+/// Feed로 줌 전환할 때 출발 뷰를 구분하는 식별자.
+/// 같은 게시물이 여러 카드와 랭킹에 함께 보일 수 있어 위치별로 나눈다.
+enum FeedZoomSource: Hashable, Sendable {
+    case displayFeatured(FeedPost.ID)
+    case displayGrid(FeedPost.ID)
+    case homeYesterday(FeedPost.ID)
+    case homeTrending(FeedPost.ID)
+    case record(FeedPost.ID)
+
+    var viewport: FeedZoomViewport? {
+        switch self {
+        case .displayFeatured, .displayGrid: .display
+        case .homeYesterday, .homeTrending: .home
+        case .record: nil
+        }
+    }
+}
+
+enum FeedZoomViewport: Hashable {
+    case home, display
+}
+
+/// 줌 전환 출발 뷰들의 현재 화면상 위치를 모아 둔다.
+/// Feed는 열리고 닫힐 때 이 위치와 자신의 사진 위치 사이를 보간해 사진만 확대·축소한다.
+@MainActor
+@Observable
+final class FeedZoomRegistry {
+    struct Source: Sendable {
+        let frame: CGRect
+        let cornerRadius: CGFloat
+        // 출발 뷰의 서명 위치. Android처럼 서명은 사진과 따로 이 위치에서 출발한다.
+        var signatureFrame: CGRect?
+        var visibleBounds: CGRect?
+        var registrationID: UUID?
+    }
+
+    // 사진이 이동하는 동안 숨길 출발 뷰. 이동 중인 사진과 겹쳐 두 장으로 보이지 않게 한다.
+    var activeSource: FeedZoomSource?
+    @ObservationIgnored private var sources: [FeedZoomSource: Source] = [:]
+    @ObservationIgnored private var viewports: [FeedZoomViewport: CGRect] = [:]
+    @ObservationIgnored var bottomBarFrame: CGRect?
+
+    func source(for id: FeedZoomSource) -> Source? {
+        guard var source = sources[id] else { return nil }
+        if let viewport = id.viewport, let bounds = viewports[viewport] {
+            let bottom = bottomBarFrame.map { min(bounds.maxY, $0.minY) } ?? bounds.maxY
+            source.visibleBounds = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: max(0, bottom - bounds.minY))
+        }
+        return source
+    }
+
+    func updateViewport(_ frame: CGRect, for viewport: FeedZoomViewport) {
+        viewports[viewport] = frame
+    }
+
+    @discardableResult
+    func update(_ source: Source, for id: FeedZoomSource) -> Source {
+        sources[id] = source
+        return self.source(for: id) ?? source
+    }
+
+    func remove(_ id: FeedZoomSource, registrationID: UUID? = nil) {
+        // 그리드 재배치로 같은 사진의 새 셀이 먼저 등록돼도 이전 셀이 지우지 않게 한다.
+        guard sources[id]?.registrationID == registrationID else { return }
+        sources[id] = nil
+    }
+}
+
+/// Feed 사진의 줌 전환 상태.
+struct FeedPhotoZoom {
+    // 사진 이동 진행도(0: 출발 뷰 위치, 1: 제자리).
+    var photoProgress: CGFloat = 1
+    // 사진 외 콘텐츠의 페이드 진행도(0: 투명, 1: 불투명).
+    var contentProgress: CGFloat = 1
+    // 사진이 출발할 위치. 없으면 사진도 다른 콘텐츠와 함께 페이드된다.
+    var source: FeedZoomRegistry.Source?
+    // 열림 전환이 끝나 멈춘 상태. 이때만 원본 이미지를 드러낸다.
+    var isSettled = true
+    var morphsAspectRatio = false
+    var viewport: CGRect?
+}
+
+extension EnvironmentValues {
+    /// 없으면 줌 전환 없이 Feed가 페이드로만 열린다.
+    @Entry var feedZoomRegistry: FeedZoomRegistry?
+}
+
+extension View {
+    /// 이 뷰를 Feed 줌 전환의 출발 뷰로 등록한다. 사진이 이동하는 동안 이 뷰만 숨긴다.
+    /// 서명이 `ChalkakSignedImage` 규칙(우하단, sm 여백)으로 올라가 있으면 그 크기를 함께 넘긴다.
+    func feedZoomSource(
+        _ source: FeedZoomSource,
+        cornerRadius: CGFloat = 0,
+        signatureSize: CGSize? = nil,
+        fittedImageAspectRatio: CGFloat? = nil,
+        onSelect: ((FeedZoomRegistry.Source) -> Void)? = nil
+    ) -> some View {
+        modifier(
+            FeedZoomSourceModifier(
+                source: source, cornerRadius: cornerRadius, signatureSize: signatureSize,
+                fittedImageAspectRatio: fittedImageAspectRatio, onSelect: onSelect
+            )
+        )
+    }
+
+    func feedZoomViewport(_ viewport: FeedZoomViewport) -> some View {
+        modifier(FeedZoomViewportModifier(viewport: viewport))
+    }
+
+    func feedZoomViewportClip(
+        progress: CGFloat,
+        source: FeedZoomRegistry.Source?,
+        destination: CGRect?,
+        canvas: CGRect?,
+        contentScale: CGFloat = 1,
+        contentOffset: CGSize = .zero
+    ) -> some View {
+        clipShape(FeedZoomViewportClip(
+            progress: progress,
+            source: source?.visibleBounds,
+            destination: destination,
+            canvas: canvas,
+            sourcePhotoFrame: source?.frame,
+            contentScale: contentScale,
+            contentOffset: contentOffset
+        ))
+    }
+
+    /// 전환 진행도(0: 출발 뷰 위치, 1: 제자리)에 맞춰 이 뷰를 출발 뷰 위치에서 제자리로 옮긴다.
+    func feedZoomEffect(
+        progress: CGFloat,
+        source: FeedZoomRegistry.Source?,
+        destinationFrame: CGRect?,
+        morphsAspectRatio: Bool = false
+    ) -> some View {
+        modifier(
+            FeedZoomEffect(progress: progress, source: source, destinationFrame: destinationFrame, morphsAspectRatio: morphsAspectRatio)
+        )
+    }
+}
+
+private struct FeedZoomSourceModifier: ViewModifier {
+    @Environment(\.feedZoomRegistry) private var registry
+    @Environment(\.chalkakTheme) private var theme
+    let source: FeedZoomSource
+    let cornerRadius: CGFloat
+    let signatureSize: CGSize?
+    let fittedImageAspectRatio: CGFloat?
+    let onSelect: ((FeedZoomRegistry.Source) -> Void)?
+    @State private var frame: CGRect?
+    @State private var registrationID = UUID()
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let onSelect {
+            registeredContent(content)
+                .overlay {
+                    GeometryReader { proxy in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                // Lazy 셀의 이전 등록 여부와 무관하게 실제 탭한 위치를 전달한다.
+                                onSelect(register(proxy.frame(in: .global)))
+                            }
+                    }
+                    .accessibilityHidden(true)
+                }
+                .accessibilityAction {
+                    guard let frame else { return }
+                    onSelect(register(frame))
+                }
+        } else {
+            registeredContent(content)
+        }
+    }
+
+    private func registeredContent(_ content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { newFrame in
+                frame = newFrame
+                register(newFrame)
+            }
+            // 기록처럼 같은 뷰에서 게시물만 바뀌면 위치가 그대로라 위치 변경으로는 다시 등록되지 않는다.
+            .onChange(of: source) { oldSource, _ in
+                registry?.remove(oldSource, registrationID: registrationID)
+                if let frame {
+                    register(frame)
+                }
+            }
+            .onChange(of: fittedImageAspectRatio) { _, _ in
+                if let frame { register(frame) }
+            }
+            .opacity(registry?.activeSource == source ? 0 : 1)
+            .onAppear { if let frame { register(frame) } }
+            .onDisappear { registry?.remove(source, registrationID: registrationID) }
+    }
+
+    @discardableResult
+    private func register(_ frame: CGRect) -> FeedZoomRegistry.Source {
+        let measured = FeedZoomRegistry.Source(
+            frame: FeedZoomCropGeometry.fittedFrame(in: frame, heightToWidthRatio: fittedImageAspectRatio),
+            cornerRadius: cornerRadius,
+            signatureFrame: signatureSize.map { size in
+                CGRect(
+                    x: frame.maxX - theme.spacing.sm - size.width,
+                    y: frame.maxY - theme.spacing.sm - size.height,
+                    width: size.width,
+                    height: size.height
+                )
+            },
+            registrationID: registrationID
+        )
+        return registry?.update(measured, for: source) ?? measured
+    }
+}
+
+private struct FeedZoomViewportModifier: ViewModifier {
+    @Environment(\.feedZoomRegistry) private var registry
+    let viewport: FeedZoomViewport
+
+    func body(content: Content) -> some View {
+        content.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            registry?.updateViewport($0, for: viewport)
+        }
+    }
+}
+
+struct FeedZoomViewportClip: Shape {
+    var progress: CGFloat
+    let source: CGRect?
+    let destination: CGRect?
+    let canvas: CGRect?
+    var sourcePhotoFrame: CGRect?
+    var contentScale: CGFloat = 1
+    var contentOffset: CGSize = .zero
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard let source, let destination, let canvas else {
+            // 측정 전이나 핀치 중에도 같은 뷰 구조를 유지한다. 확대·이동한 사진 전체를 포함한다.
+            let contentBounds = CGRect(
+                x: rect.midX - rect.width * contentScale / 2 + contentOffset.width,
+                y: rect.midY - rect.height * contentScale / 2 + contentOffset.height,
+                width: rect.width * contentScale,
+                height: rect.height * contentScale
+            )
+            var bounds = rect.union(contentBounds)
+            // 기록은 출발 viewport가 없다. 사진이 이동하는 경로까지 클립 안에 둔다.
+            if let sourcePhotoFrame, let canvas {
+                bounds = bounds.union(sourcePhotoFrame.offsetBy(dx: -canvas.minX, dy: -canvas.minY))
+            }
+            return Path(bounds)
+        }
+        let progress = min(max(progress, 0), 1)
+        let bounds = CGRect(
+            x: source.minX + (destination.minX - source.minX) * progress,
+            y: source.minY + (destination.minY - source.minY) * progress,
+            width: source.width + (destination.width - source.width) * progress,
+            height: source.height + (destination.height - source.height) * progress
+        )
+        return Path(bounds.offsetBy(dx: -canvas.minX, dy: -canvas.minY))
+    }
+}
+
+private struct FeedZoomEffect: ViewModifier, Animatable {
+    var progress: CGFloat
+    let source: FeedZoomRegistry.Source?
+    let destinationFrame: CGRect?
+    let morphsAspectRatio: Bool
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let geometry = cropGeometry
+        let remaining = 1 - progress
+        let scale = geometry?.scale ?? (startScale + (1 - startScale) * progress)
+        let offset = geometry?.offset ?? CGSize(width: startOffset.width * remaining, height: startOffset.height * remaining)
+
+        // 도착 프레임 측정으로 분기가 바뀌어도 사진의 identity와 애니메이션을 보존한다.
+        return content
+            .frame(width: geometry?.size.width, height: geometry?.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: geometry?.cornerRadius ?? (source?.cornerRadius ?? 0) * remaining / scale))
+            .scaleEffect(scale)
+            .offset(offset)
+            .opacity(source != nil && destinationFrame == nil ? 0 : 1)
+    }
+
+    private var cropGeometry: FeedZoomCropGeometry? {
+        guard morphsAspectRatio, let source, let destinationFrame,
+              destinationFrame.width > 0, destinationFrame.height > 0, source.frame.width > 0
+        else { return nil }
+        return FeedZoomCropGeometry(progress: progress, source: source, destination: destinationFrame)
+    }
+
+    // 출발 뷰 안에 사진이 비율을 유지한 채 들어가는 배율.
+    private var startScale: CGFloat {
+        guard let source, let destinationFrame,
+              destinationFrame.width > 0, destinationFrame.height > 0
+        else { return 1 }
+        return min(
+            source.frame.width / destinationFrame.width,
+            source.frame.height / destinationFrame.height
+        )
+    }
+
+    private var startOffset: CGSize {
+        guard let source, let destinationFrame else { return .zero }
+        return CGSize(
+            width: source.frame.midX - destinationFrame.midX,
+            height: source.frame.midY - destinationFrame.midY
+        )
+    }
+}
+
+/// 크롭 영역을 바꾸며 사진 자체의 종횡비는 유지한다.
+struct FeedZoomCropGeometry {
+    let size: CGSize
+    let scale: CGFloat
+    let offset: CGSize
+    let cornerRadius: CGFloat
+
+    static func fittedFrame(in frame: CGRect, heightToWidthRatio: CGFloat?) -> CGRect {
+        guard let ratio = heightToWidthRatio, ratio > 0, frame.width > 0, frame.height > 0 else { return frame }
+        let width = min(frame.width, frame.height / ratio)
+        let height = width * ratio
+        return CGRect(x: frame.midX - width / 2, y: frame.midY - height / 2, width: width, height: height)
+    }
+
+    init(progress: CGFloat, source: FeedZoomRegistry.Source, destination: CGRect) {
+        let progress = min(max(progress, 0), 1)
+        let remaining = 1 - progress
+        let startScale = source.frame.width / destination.width
+        scale = startScale + (1 - startScale) * progress
+        size = CGSize(
+            width: destination.width,
+            height: (source.frame.height + (destination.height - source.frame.height) * progress) / scale
+        )
+        offset = CGSize(
+            width: (source.frame.midX - destination.midX) * remaining,
+            height: (source.frame.midY - destination.midY) * remaining
+        )
+        cornerRadius = source.cornerRadius * remaining / scale
+    }
+}

@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
@@ -58,11 +60,15 @@ fun DisplayRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
     viewModel: DisplayViewModel = viewModel(
-        key = "display-${initialDate ?: "latest"}",
-        factory = DisplayViewModel.factory(initialDate),
+        key = "display-${initialDate ?: "latest"}-$initialSort",
+        factory = DisplayViewModel.factory(
+            initialDate = initialDate,
+            initialSort = initialSort,
+        ),
     ),
-    onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
+    onOpenFeed: (Post, String, String, LocalDate?) -> Boolean = { _, _, _, _ -> false },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -86,7 +92,12 @@ fun DisplayRoute(
         onRetryClick = viewModel::retry,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
-        onOpenFeed = onOpenFeed,
+        onOpenFeed = { post, dateLabel, topic, topicDate ->
+            if (onOpenFeed(post, dateLabel, topic, topicDate)) {
+                viewModel.onFeedOpened(post.id)
+            }
+        },
+        onLikeClick = viewModel::updateLike,
         modifier = modifier,
     )
 }
@@ -103,10 +114,11 @@ fun DisplayScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
+    onLikeClick: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
 ) {
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
-    val gridState = remember(uiState.selectedDate) {
+    val gridState = rememberSaveable(uiState.selectedDate, saver = LazyStaggeredGridState.Saver) {
         LazyStaggeredGridState()
     }
     val settleScope = rememberCoroutineScope()
@@ -178,12 +190,14 @@ fun DisplayScreen(
                     uiState.selectedDate,
                 )
             },
+            onLikeClick = { photo -> onLikeClick(photo.id) },
             topContentPadding = bodyTopContentPadding,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .photoTransitionChrome()
                 .fillMaxWidth(),
         ) {
             Spacer(
@@ -252,6 +266,7 @@ fun DisplayScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .photoTransitionChrome()
                     .padding(
                         end = 24.dp,
                         bottom = bottomBarHeight + 18.dp,
@@ -264,6 +279,7 @@ fun DisplayScreen(
             onAddClick = onOpenPhotoUpload,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .photoTransitionChrome()
                 .fillMaxWidth()
                 .onSizeChanged { scrollState.bottomBarState.height = it.height }
                 .graphicsLayer { translationY = scrollState.bottomBarState.offset },

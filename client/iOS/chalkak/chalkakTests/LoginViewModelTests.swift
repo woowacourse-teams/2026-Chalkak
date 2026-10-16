@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct LoginViewModelTests {
     @Test("Google ID 토큰을 백엔드 로그인 요청으로 전달한다")
-    func loginForwardsProviderAndToken() async {
+    func loginForwardsProviderAndToken() async throws {
         let repository = MockAuthRepository(loginResult: .authenticated(userID: "user-1"))
         let viewModel = LoginViewModel(
             authRepository: repository,
@@ -14,7 +14,7 @@ struct LoginViewModelTests {
         )
 
         viewModel.login(provider: .google)
-        await waitUntil { repository.loginProvider != nil }
+        try await waitUntil { repository.loginProvider != nil }
 
         #expect(repository.loginProvider == .google)
         #expect(repository.loginToken == "google-token")
@@ -23,7 +23,7 @@ struct LoginViewModelTests {
     }
 
     @Test("신규 사용자는 회원가입 필요 상태가 된다")
-    func signupRequiredIsPublished() async {
+    func signupRequiredIsPublished() async throws {
         let repository = MockAuthRepository(loginResult: .signUpRequired)
         let viewModel = LoginViewModel(
             authRepository: repository,
@@ -32,7 +32,7 @@ struct LoginViewModelTests {
         )
 
         viewModel.login(provider: .kakao)
-        await waitUntil {
+        try await waitUntil {
             if case .signUpRequired = viewModel.state.status { return true }
             return false
         }
@@ -41,7 +41,7 @@ struct LoginViewModelTests {
     }
 
     @Test("게스트 계속하기가 게스트 접근 허용 상태가 된다")
-    func guestAccessIsPublished() async {
+    func guestAccessIsPublished() async throws {
         let repository = MockAuthRepository(loginResult: .authenticated(userID: "unused"))
         let viewModel = LoginViewModel(
             authRepository: repository,
@@ -50,14 +50,14 @@ struct LoginViewModelTests {
         )
 
         viewModel.continueAsGuest()
-        await waitUntil { repository.didContinueAsGuest }
+        try await waitUntil { repository.didContinueAsGuest }
 
         #expect(repository.didContinueAsGuest)
         #expect(viewModel.state.status == .guestAccessGranted)
     }
 
     @Test("navigation 완료 후 로그인 상태를 초기화하면 다시 제출할 수 있다")
-    func resetAfterNavigationRestoresIdleState() async {
+    func resetAfterNavigationRestoresIdleState() async throws {
         let repository = MockAuthRepository(loginResult: .authenticated(userID: "unused"))
         let viewModel = LoginViewModel(
             authRepository: repository,
@@ -66,22 +66,13 @@ struct LoginViewModelTests {
         )
 
         viewModel.continueAsGuest()
-        await waitUntil { viewModel.state.status == .guestAccessGranted }
+        try await waitUntil { viewModel.state.status == .guestAccessGranted }
         #expect(viewModel.state.status == .guestAccessGranted)
 
         viewModel.resetAfterNavigation()
 
         #expect(viewModel.state.status == .idle)
         #expect(viewModel.state.canSubmit)
-    }
-
-    private func waitUntil(
-        _ condition: @escaping @MainActor () -> Bool
-    ) async {
-        for _ in 0..<100 {
-            if condition() { return }
-            await Task.yield()
-        }
     }
 }
 

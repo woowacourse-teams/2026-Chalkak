@@ -16,8 +16,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.mapSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,6 +35,7 @@ fun DisplayPhotoGrid(
     modifier: Modifier = Modifier,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     onPhotoClick: (Post) -> Unit = {},
+    onLikeClick: (Post) -> Unit = {},
     onEndThresholdChanged: (Boolean) -> Unit = {},
     isLoadingNext: Boolean = false,
     topContentPadding: Dp = 0.dp,
@@ -40,7 +43,9 @@ fun DisplayPhotoGrid(
     verticalItemSpacing: Dp = 9.dp,
     header: (@Composable () -> Unit)? = null,
 ) {
-    val imageAspectRatios = remember { mutableStateMapOf<String, Float>() }
+    val imageAspectRatios = rememberSaveable(saver = ImageAspectRatiosSaver) {
+        mutableStateMapOf<String, Float>()
+    }
 
     LaunchedEffect(state, photos.size) {
         snapshotFlow { state.isNearEnd(photos.size) }
@@ -74,6 +79,7 @@ fun DisplayPhotoGrid(
             DisplayPhotoCard(
                 photo = photo,
                 onClick = { onPhotoClick(photo) },
+                onLikeClick = { onLikeClick(photo) },
                 imageAspectRatio = imageAspectRatios[photo.thumbnailImageUrl],
                 onImageAspectRatioAvailable = { aspectRatio ->
                     if (imageAspectRatios[photo.thumbnailImageUrl] != aspectRatio) {
@@ -129,6 +135,15 @@ private fun DisplayPhotoGridPreview() {
         )
     }
 }
+
+private val ImageAspectRatiosSaver = mapSaver<SnapshotStateMap<String, Float>>(
+    save = { it.toMap() },
+    restore = { saved ->
+        mutableStateMapOf<String, Float>().apply {
+            saved.forEach { (url, ratio) -> put(url, ratio as Float) }
+        }
+    },
+)
 
 private const val END_THRESHOLD = 2
 private const val NEXT_PAGE_LOADING_KEY = "display-next-page-loading"

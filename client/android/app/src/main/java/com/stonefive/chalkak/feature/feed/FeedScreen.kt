@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.feed
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -7,8 +8,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -45,6 +49,7 @@ fun FeedRoute(
     onPostDeleted: (String) -> Unit,
     modifier: Modifier = Modifier,
     postId: String? = null,
+    entryThumbnailImageUrl: String? = null,
     initialContent: FeedContentState.Success? = null,
     isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     viewModel: FeedViewModel = viewModel(
@@ -66,6 +71,8 @@ fun FeedRoute(
 
     FeedScreen(
         uiState = uiState,
+        entryPostId = postId,
+        entryThumbnailImageUrl = entryThumbnailImageUrl,
         onNavigateBack = onNavigateBack,
         onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
@@ -86,7 +93,10 @@ fun FeedScreen(
     modifier: Modifier = Modifier,
     onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    entryPostId: String? = null,
+    entryThumbnailImageUrl: String? = null,
 ) {
+    val hasEntryPhoto = entryPostId != null && entryThumbnailImageUrl != null
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showTitleEditDialog by rememberSaveable { mutableStateOf(false) }
     var titleDraft by rememberSaveable { mutableStateOf("") }
@@ -128,6 +138,15 @@ fun FeedScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                    .photoTransitionChrome(animateVisibility = false)
+                    .background(ChalkakBackground),
+            )
+        },
         topBar = {
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
@@ -153,6 +172,8 @@ fun FeedScreen(
                         uiState.isTitleEditable,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .photoTransitionChrome()
+                    .background(ChalkakBackground)
                     .statusBarsPadding()
                     .padding(
                         start = 8.dp,
@@ -170,10 +191,12 @@ fun FeedScreen(
             contentAlignment = Alignment.Center,
         ) {
             when {
-                uiState.content != null -> FeedContent(
-                    content = checkNotNull(uiState.content),
+                uiState.content != null || (hasEntryPhoto && uiState.isLoading) -> FeedContent(
+                    content = uiState.content,
                     onLikeClick = onLikeClick,
                     modifier = Modifier.fillMaxSize(),
+                    entryPostId = entryPostId,
+                    entryThumbnailImageUrl = entryThumbnailImageUrl,
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(
