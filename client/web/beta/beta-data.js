@@ -274,6 +274,12 @@ window.betaData = {
       "url": "https://chalkak-image.pysun.kr/posts/prod/original/01a12402-8167-7660-bb6b-fae93cf6066a.webp"
     },
     {
+      "date": "2026-10-10",
+      "topic": "주황",
+      "title": "홍시 아니고 연시",
+      "url": "https://chalkak-image.pysun.kr/posts/prod/thumbnail/01a123fe-206d-7ece-98cb-be9ea474f762.webp"
+    },
+    {
       "date": "2026-10-11",
       "topic": "하늘",
       "title": "",
@@ -314,6 +320,12 @@ window.betaData = {
       "title": "",
       "likes": 7,
       "url": "https://chalkak-image.pysun.kr/posts/prod/original/01a1388e-37e0-7cfa-ab13-35ff1f47ae4b.webp"
+    },
+    {
+      "date": "2026-10-14",
+      "topic": "취미",
+      "title": "우리가 누구",
+      "url": "https://chalkak-image.pysun.kr/posts/prod/thumbnail/01a138d1-580f-745b-88c5-a7d6d6c491c5.webp"
     },
     {
       "date": "2026-10-15",
