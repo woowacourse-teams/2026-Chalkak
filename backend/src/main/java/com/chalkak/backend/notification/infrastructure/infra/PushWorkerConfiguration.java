@@ -34,6 +34,7 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "chalkak.notification.fcm", name = "worker-enabled", havingValue = "true")
 public class PushWorkerConfiguration {
+    private static final int POLLING_WORKER_COUNT = 2;
     private final String projectId;
     private final String credentialsPath;
 
@@ -102,9 +103,22 @@ public class PushWorkerConfiguration {
     @Bean(defaultCandidate = false)
     public ThreadPoolTaskScheduler notificationPollingScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
+        scheduler.setPoolSize(POLLING_WORKER_COUNT);
         scheduler.setThreadNamePrefix("notification-poll-");
         return scheduler;
+    }
+
+    // 같은 클래스의 별도 빈 두 개를 등록해 @Scheduled 작업을 각각 실행한다.
+    @Bean
+    @ConditionalOnProperty(prefix = "chalkak.scheduling", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SqsPollingScheduler notificationFirstPollingScheduler(SqsPushService service) {
+        return new SqsPollingScheduler(service);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "chalkak.scheduling", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SqsPollingScheduler notificationSecondPollingScheduler(SqsPushService service) {
+        return new SqsPollingScheduler(service);
     }
 
     // 자동 연장 전용 실행기가 애플리케이션 공용 스케줄러를 대체하지 않게 한다.
