@@ -97,7 +97,7 @@ struct OnboardingLegalDocumentTests {
 @MainActor
 struct SignUpViewModelTests {
     @Test("회원가입 중 화면이 사라지면 작업을 취소하고 뷰 모델을 해제한다")
-    func cancelsSignUpWhenViewModelIsReleased() async {
+    func cancelsSignUpWhenViewModelIsReleased() async throws {
         let repository = SuspendingSignUpAuthRepository()
         weak var releasedViewModel: SignUpViewModel?
         var viewModel: SignUpViewModel? = SignUpViewModel(
@@ -111,20 +111,13 @@ struct SignUpViewModelTests {
                 points: [OnboardingSignaturePoint(xRatio: 0.5, yRatio: 0.5)]
             )
         ])
-        await waitUntil { repository.didStartSignUp }
+        try await waitUntil { repository.didStartSignUp }
 
         viewModel = nil
-        await waitUntil { releasedViewModel == nil && repository.wasCancelled }
+        try await waitUntil { releasedViewModel == nil && repository.wasCancelled }
 
         #expect(releasedViewModel == nil)
         #expect(repository.wasCancelled)
-    }
-
-    private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async {
-        for _ in 0..<100 {
-            if condition() { return }
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
     }
 }
 

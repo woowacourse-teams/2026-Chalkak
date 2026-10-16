@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
@@ -25,6 +26,10 @@ class PostRemoteDataSourceImpl(
             year = month.year,
             month = month.monthValue,
         )
+    }
+
+    override suspend fun getPostCalendarMonths(): ApiResult<PostCalendarMonthsResponse> = requestExecutor.execute {
+        postApi.getPostCalendarMonths()
     }
 
     override suspend fun getPostDetail(postId: String): ApiResult<PostDetailResponse> = requestExecutor.execute {

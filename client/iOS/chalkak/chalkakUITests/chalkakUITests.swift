@@ -23,6 +23,110 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
+    func testBottomBarScrubSelectsReleasePositionAndCanSkipTabs() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["홈"]
+        let display = app.buttons["전시"]
+        let settings = app.buttons["설정"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+
+        func drag(from startButton: XCUIElement, to endButton: XCUIElement) {
+            startButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: endButton.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ))
+        }
+
+        drag(from: today, to: display)
+        XCTAssertEqual(display.value as? String, "선택됨")
+        drag(from: display, to: settings)
+        XCTAssertEqual(settings.value as? String, "선택됨")
+        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        drag(from: settings, to: today)
+        XCTAssertEqual(today.value as? String, "선택됨")
+
+        display.tap()
+        XCTAssertEqual(display.value as? String, "선택됨")
+        today.tap()
+        XCTAssertEqual(today.value as? String, "선택됨")
+    }
+
+    @MainActor
+    func testBottomBarScrubCanStartOnUnselectedTab() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        XCTAssertTrue(app.buttons["홈"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["홈"].value as? String, "선택됨")
+
+        app.buttons["설정"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.4, thenDragTo: app.buttons["전시"].coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertEqual(app.buttons["전시"].value as? String, "선택됨")
+        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+    }
+
+    @MainActor
+    func testBottomBarScrubWithinSameTabKeepsSelectionAndAddOpensOnRelease() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["홈"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+        let start = today.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 14, dy: 0)))
+        XCTAssertEqual(today.value as? String, "선택됨")
+        start.press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ))
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertEqual(today.value as? String, "선택됨")
+        app.buttons["추가"].tap()
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testCompactBottomBarScrubSelectsReleasePositionAndExpands() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let today = app.buttons["홈"]
+        let settings = app.buttons["설정"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        let expandedWidth = today.frame.width
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertLessThan(today.frame.width, expandedWidth)
+
+        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: today.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertEqual(today.value as? String, "선택됨")
+        XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
+
+        settings.tap()
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertLessThan(today.frame.width, expandedWidth)
+        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ))
+        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertEqual(settings.value as? String, "선택됨")
+        XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
+    }
+
+    @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
@@ -152,33 +256,113 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
-    func testNotificationSetupSkipContinuesToHome() throws {
+    func testSettingsShowsSeparateServerNotificationTogglesWithoutPermissionRow() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-show-notification-setup"]
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        let settings = app.buttons["설정"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        let topicToggle = app.switches["오늘 주제 알림"]
+        let moderationToggle = app.switches["게시물 승인·반려 알림"]
+        XCTAssertTrue(topicToggle.waitForExistence(timeout: 5))
+        XCTAssertTrue(moderationToggle.exists)
+        XCTAssertFalse(app.staticTexts["이 계정의 모든 기기에 적용돼요"].exists)
+        XCTAssertFalse(app.switches["알림 받기"].exists)
+        let permission = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "알림 허용")).firstMatch
+        XCTAssertFalse(permission.exists, app.debugDescription)
+        XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
+        XCTAssertFalse(app.buttons["notificationTime.custom"].exists)
+    }
+
+    @MainActor
+    func testFeedbackFullScreenClosesWithButtonAndDownwardSwipe() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-feedback-entry", "-test-photo-upload-entry"]
         app.launch()
 
-        XCTAssertTrue(
-            app.staticTexts["notificationSetup.title"]
-                .waitForExistence(timeout: 5)
-        )
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+        let feedbackButton = app.buttons["피드백 보내기"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
 
-        app.buttons["notificationTime.custom"].tap()
-        let pickerDragHandle = app.otherElements["notificationTimePicker.dragHandle"]
-        XCTAssertTrue(pickerDragHandle.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["이 시간 선택하기"].exists)
-        pickerDragHandle.swipeDown()
-        XCTAssertTrue(pickerDragHandle.waitForNonExistence(timeout: 3))
+        let title = app.staticTexts["찰캌을 사용하며\n느낀 점을 알려주세요."]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["뒤로 가기"].exists)
+        let closeButton = app.buttons["feedback.close"]
+        XCTAssertTrue(closeButton.isHittable)
+        XCTAssertGreaterThan(closeButton.frame.midX, app.frame.midX)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Feedback full screen"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        closeButton.tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
 
-        app.buttons["notificationTime.custom"].tap()
-        app.buttons["이 시간 선택하기"].tap()
-        XCTAssertTrue(
-            app.buttons["notificationTime.custom"].label.contains("직접 설정 ·")
-        )
+        feedbackButton.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: title.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).withOffset(CGVector(dx: 0, dy: 300)))
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
+        XCTAssertEqual(settingsButton.value as? String, "선택됨")
+    }
 
-        app.buttons["notificationSetup.skip"].tap()
+    @MainActor
+    func testFeedbackInputDragPreservesDraft() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-feedback-entry", "-test-photo-upload-entry"]
+        app.launch()
 
-        XCTAssertTrue(app.buttons["오늘"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
+        let settingsButton = app.buttons["설정"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
+        settingsButton.tap()
+        let feedbackButton = app.buttons["피드백 보내기"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
+
+        let title = app.staticTexts["찰캌을 사용하며\n느낀 점을 알려주세요."]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        let input = app.textFields["피드백 내용"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("Draft to preserve")
+        let dragStart = input.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        dragStart.press(forDuration: 0.05, thenDragTo: dragStart.withOffset(CGVector(dx: 0, dy: 160)))
+
+        XCTAssertTrue(title.exists)
+        XCTAssertTrue((input.value as? String)?.contains("Draft to preserve") == true)
+
+        let headerDragStart = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        headerDragStart.press(forDuration: 0.05, thenDragTo: headerDragStart.withOffset(CGVector(dx: 0, dy: 300)))
+        XCTAssertTrue(title.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(feedbackButton.isHittable)
+    }
+
+    @MainActor
+    func testHomeNotificationOpensSampleListAndReturnsToHome() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+
+        let notificationButton = app.buttons["home.notifications"]
+        XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))
+        notificationButton.tap()
+
+        XCTAssertTrue(app.staticTexts["notification.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["9월 22일 오늘의 주제를 확인해보세요."].exists)
+        XCTAssertTrue(app.staticTexts["9월 21일 오늘의 주제를 확인해보세요."].exists)
+        XCTAssertTrue(app.staticTexts["어제 21:10"].exists)
+        XCTAssertFalse(app.buttons["홈"].exists)
+
+        app.buttons["notification.back"].tap()
+        XCTAssertTrue(notificationButton.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["notification.title"].exists)
     }
 
     @MainActor

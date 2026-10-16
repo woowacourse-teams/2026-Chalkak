@@ -5,7 +5,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -16,6 +18,24 @@ import org.junit.Test
 class SignatureScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun changeSignatureBackButtonInvokesCallback() {
+        var backClicked = false
+        composeRule.setContent {
+            ChalkakTheme {
+                SignatureScreen(
+                    uiState = SignatureUiState(),
+                    onAction = {},
+                    onBackClick = { backClicked = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+
+        assertTrue(backClicked)
+    }
 
     @Test
     fun submitButtonIsDisabledWithoutSignature() {

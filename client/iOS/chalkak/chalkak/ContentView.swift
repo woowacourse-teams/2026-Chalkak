@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct ContentView: View {
     @Environment(\.chalkakTheme) private var theme
@@ -13,13 +15,22 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var route: AppRoute = Self.initialRoute
-    @State private var selectedTab: ChalkakBottomBarItem = .today
+    @State private var selectedTab: ChalkakBottomBarItem = .home
+    @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
+    @State private var isIssuePresented = false
+    @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
+    @State private var signatureAnalyticsScreen: AnalyticsScreen?
+    @State private var notificationPath: [NotificationRoute] = []
+    @State private var notificationNavigationID: String?
+    @State private var notificationNavigationTask: Task<Void, Never>?
+    @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
+    @State private var feedZoomRegistry = FeedZoomRegistry()
     @State private var homeViewModel = Self.makeHomeViewModel()
     @State private var displayViewModel = Self.makeDisplayViewModel()
     @State private var settingsViewModel = Self.makeSettingsViewModel()
+    @State private var notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
-    @State private var notificationSetupViewModel = NotificationSetupViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -31,14 +42,26 @@ struct ContentView: View {
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
     @State private var successSubmission: PhotoUploadSubmission?
-    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .today
+    @State private var photoUploadReturnTab: ChalkakBottomBarItem = .home
     @State private var message: String?
     @State private var messageDismissTask: Task<Void, Never>?
     @State private var appVersionGate = AppVersionGateViewModel()
+    @AppStorage("notifications.permissionSettingsGuidanceShown")
+    private var hasShownNotificationPermissionPrompt = false
+    @State private var isNotificationSettingsGuidancePresented = false
+    @State private var hasHandledNotificationPermissionAtHomeEntry = false
     private let analyticsTracker: any AnalyticsTracking
+    private let pushTapRouter: PushTapRouter
+    private let pushDeviceRegistrar: PushDeviceRegistrar
 
-    init(analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker()) {
+    init(
+        analyticsTracker: any AnalyticsTracking = FirebaseAnalyticsTracker(),
+        pushTapRouter: PushTapRouter = .shared,
+        pushDeviceRegistrar: PushDeviceRegistrar = .shared
+    ) {
         self.analyticsTracker = analyticsTracker
+        self.pushTapRouter = pushTapRouter
+        self.pushDeviceRegistrar = pushDeviceRegistrar
     }
 
     var body: some View {
@@ -47,57 +70,78 @@ struct ContentView: View {
             case .login:
                 LoginView(
                     authRepository: authRepository,
-                    onAuthenticated: showNotificationSetupAfterAuthentication,
-                    onGuestAccessGranted: showHome,
+                    onAuthenticated: showMainAfterAuthentication,
+                    onGuestAccessGranted: showMain,
                     onSignUpRequired: showOnboarding
                 )
             case .onboarding:
                 OnboardingRoute(
                     authRepository: authRepository,
-                    onFinish: showNotificationSetupAfterAuthentication,
+                    onFinish: showMainAfterAuthentication,
                     onReauthenticationRequired: showLogin,
                     onServiceTermsView: showServiceTerms,
-                    onPrivacyPolicyView: showPrivacyPolicy
+                    onPrivacyPolicyView: showPrivacyPolicy,
+                    onScreenChange: { onboardingAnalyticsScreen = $0 }
                 )
-            case .notificationSetup:
-                NotificationSetupScreen(
-                    viewModel: notificationSetupViewModel,
-                    onFinish: finishNotificationSetup
-                )
-            case .home:
-                NavigationStack {
+            case .main:
+                NavigationStack(path: $notificationPath) {
                     mainTab
-                        .navigationDestination(item: $selectedFeed) { target in
-                            FeedScreen(
-                                viewModel: makeFeedViewModel(target),
-                                onDeleted: handleDeletedPost
-                            )
+                        .navigationDestination(isPresented: $isIssuePresented) {
+                            IssueWebScreen(onBack: { isIssuePresented = false })
+                                .background(InteractivePopGestureEnabler())
                         }
-                        .navigationDestination(isPresented: $isPhotoUploadPresented) {
-                            if let photoUploadViewModel {
-                                PhotoUploadRoute(
-                                    viewModel: photoUploadViewModel,
-                                    onBack: showPhotoUploadOrigin,
-                                    onSubmitted: showPhotoUploadSuccess,
-                                    onReauthenticationRequired: showLogin
+                        .navigationDestination(for: NotificationRoute.self) { destination in
+                            switch destination {
+                            case .inbox:
+                                NotificationScreen(
+                                    viewModel: notificationInboxViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onSelect: openInboxNotification
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            }
-                        }
-                        .navigationDestination(isPresented: $isFeedbackPresented) {
-                            if let feedbackViewModel {
-                                FeedbackScreen(
-                                    viewModel: feedbackViewModel,
-                                    onBack: closeFeedback,
-                                    onSubmitted: handleFeedbackSubmitted,
-                                    onReauthenticationRequired: showLogin
+                            case let .approved(postID):
+                                FeedScreen(
+                                    viewModel: makeFeedViewModel(FeedTarget(postID: postID)),
+                                    usesPhotoTransition: false,
+                                    onBack: { closeNotificationDestination(destination) },
+                                    onDeleted: { postID in
+                                        closeNotificationDestination(destination)
+                                        handleDeletedPost(postID)
+                                    }
                                 )
+                                .id(postID)
+                                .background(InteractivePopGestureEnabler())
+                            case let .rejected(target):
+                                NotificationDetailScreen(
+                                    viewModel: Self.makeNotificationDetailViewModel(target),
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onNotFound: {
+                                        Task { await notificationInboxViewModel.refresh() }
+                                    }
+                                )
+                                .id(target.id)
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
                             }
                         }
                 }
+                // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
+                .overlay {
+                    if let target = selectedFeed {
+                        FeedScreen(
+                            viewModel: makeFeedViewModel(target),
+                            placeholder: target.placeholder,
+                            zoomSource: target.zoomSource,
+                            transitionSource: target.transitionSource,
+                            onBack: { selectedFeed = nil },
+                            onDeleted: handleDeletedPost
+                        )
+                        .id(target.id)
+                        .accessibilityAddTraits(.isModal)
+                    }
+                }
+                .environment(\.feedZoomRegistry, feedZoomRegistry)
             case .photoUploadSuccess:
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
@@ -110,6 +154,45 @@ struct ContentView: View {
             }
         }
         .animation(.default, value: route)
+        .fullScreenCover(isPresented: $isPhotoUploadPresented, onDismiss: {
+            photoUploadViewModel = nil
+        }) { [photoUploadViewModel] in
+            if let photoUploadViewModel {
+                NavigationStack {
+                    PhotoUploadRoute(
+                        viewModel: photoUploadViewModel,
+                        onBack: showPhotoUploadOrigin,
+                        onSubmitted: showPhotoUploadSuccess,
+                        onReauthenticationRequired: showLogin
+                    )
+                }
+                .interactiveDismissDisabled()
+            }
+        }
+        .fullScreenCover(isPresented: $isFeedbackPresented, onDismiss: {
+            feedbackViewModel = nil
+        }) { [feedbackViewModel] in
+            if let feedbackViewModel {
+                NavigationStack {
+                    FeedbackScreen(
+                        viewModel: feedbackViewModel,
+                        onDismiss: closeFeedback,
+                        onSubmitted: handleFeedbackSubmitted,
+                        onReauthenticationRequired: showLogin
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            ChalkakCloseButton(action: closeFeedback)
+                                .disabled(feedbackViewModel.viewState.isSubmitting)
+                                .accessibilityLabel("닫기")
+                                .accessibilityIdentifier("feedback.close")
+                        }
+                        .chalkakNavigationBackground()
+                    }
+                }
+                .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
+            }
+        }
         .sheet(item: $selectedLegalDocument) { document in
             LegalDocumentSheet(document: document)
                 .presentationDetents([.large])
@@ -118,12 +201,18 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .authSessionDidRequireReauthentication)) { _ in
             showLogin()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dailyReminderNotificationTapped)) { _ in
-            showHome()
+        .onChange(of: pushTapRouter.pendingTap, initial: true) { _, _ in
+            handlePendingPushTap()
+        }
+        .onChange(of: canOpenPushDestination) { _, _ in
+            handlePendingPushTap()
         }
         .onChange(of: selectedFeed) { previousFeed, currentFeed in
             guard previousFeed != nil, currentFeed == nil else { return }
-            Task { await displayViewModel.revalidate() }
+            Task {
+                await displayViewModel.revalidate()
+                await homeViewModel.resume()
+            }
         }
         .overlay(alignment: .bottom) {
             if let message {
@@ -156,31 +245,202 @@ struct ContentView: View {
         .onAppear {
             trackCurrentScreen()
         }
+        .alert(
+            "알림을 허용하시겠어요?",
+            isPresented: $isNotificationSettingsGuidancePresented
+        ) {
+            Button("거부", role: .cancel) {
+                Task { await applyInitialNotificationChoice(enabled: false) }
+            }
+            Button("허용") {
+                Task { await applyInitialNotificationChoice(enabled: true) }
+            }
+            .keyboardShortcut(.defaultAction)
+            .tint(.blue)
+        } message: {
+            Text("오늘 주제와 게시물 승인 반려 소식을 알려드려요.")
+        }
         .onChange(of: currentAnalyticsScreen) { _, _ in
             trackCurrentScreen()
+        }
+        .onChange(of: selectedTab) { _, _ in
+            guard isBottomBarCompact else { return }
+            withAnimation(.smooth(duration: 0.75)) {
+                isBottomBarCompact = false
+            }
         }
         .task {
             await appVersionGate.checkForUpdate()
         }
+        .task(id: route) {
+            await handleNotificationPermissionAtHomeEntry()
+        }
+        .task(id: NotificationUnreadRefreshID(
+            modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .main
+        )) {
+            guard route == .main, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            await notificationInboxViewModel.refreshUnread()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await appVersionGate.checkForUpdate() }
+            Task {
+                await appVersionGate.checkForUpdate()
+                guard route == .main, KeychainSessionStore.hasAuthenticatedSession() else { return }
+                await notificationInboxViewModel.refreshUnread()
+                if isNotificationInboxPresented { await notificationInboxViewModel.refresh() }
+            }
+            if route == .main, selectedTab == .home {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
+                Task { await homeViewModel.resume() }
+            }
         }
     }
 
-    @ViewBuilder
+    private var isNotificationInboxPresented: Bool {
+        get { notificationPath.contains(.inbox) }
+        nonmutating set {
+            withAnimation {
+                notificationPath = newValue ? [.inbox] : []
+            }
+        }
+    }
+
+    @MainActor
+    private func handleNotificationPermissionAtHomeEntry() async {
+        guard route == .main,
+              KeychainSessionStore.hasAuthenticatedSession(),
+              !hasHandledNotificationPermissionAtHomeEntry else { return }
+
+        hasHandledNotificationPermissionAtHomeEntry = true
+        guard !hasShownNotificationPermissionPrompt else { return }
+
+        let model = notificationSettingsViewModel
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+
+        switch NotificationPermissionPromptAction.resolve(
+            status: status,
+            hasShownPrompt: hasShownNotificationPermissionPrompt
+        ) {
+        case .requestSystemPermission:
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                hasShownNotificationPermissionPrompt = true
+                guard model === notificationSettingsViewModel,
+                      route == .main,
+                      KeychainSessionStore.hasAuthenticatedSession() else { return }
+                await applyInitialNotificationChoice(enabled: granted)
+            } catch {
+                showMessage("알림 권한을 요청하지 못했어요. 기기 설정에서 확인해 주세요.")
+            }
+        case .showAppPrompt:
+            hasShownNotificationPermissionPrompt = true
+            isNotificationSettingsGuidancePresented = true
+        case .none:
+            break
+        }
+    }
+
+    @MainActor
+    private func applyInitialNotificationChoice(enabled: Bool) async {
+        let model = notificationSettingsViewModel
+        let saved = await model.setAllPushEnabled(enabled)
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+
+        guard saved else {
+            showMessage("알림 설정을 저장하지 못했어요. 앱 설정에서 다시 시도해 주세요.")
+            return
+        }
+        guard enabled else { return }
+
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard model === notificationSettingsViewModel,
+              route == .main,
+              KeychainSessionStore.hasAuthenticatedSession() else { return }
+        switch status {
+        case .notDetermined:
+            do {
+                _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            } catch {
+                showMessage("알림 권한을 요청하지 못했어요. 기기 설정에서 확인해 주세요.")
+            }
+        case .denied:
+            openNotificationSettings()
+        case .authorized, .provisional, .ephemeral:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+        openURL(url)
+    }
+
     private var mainTab: some View {
+        ZStack {
+            tabContent
+        }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ChalkakBottomBar(
+                    selectedItem: selectedTab,
+                    isCompact: $isBottomBarCompact,
+                    onSelect: selectBottomBarItem,
+                    onAdd: { openPhotoUpload(from: selectedTab) }
+                )
+                .padding(
+                    .horizontal,
+                    bottomBarHorizontalPadding
+                )
+                .padding(.bottom, bottomBarBottomPadding)
+                .background(bottomBarBackground)
+                .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    feedZoomRegistry.bottomBarFrame = $0
+                }
+            }
+    }
+
+    private var bottomBarHorizontalPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass {
+            (isBottomBarCompact ? theme.spacing.xxl : theme.spacing.lg) + theme.spacing.xs
+        } else {
+            0
+        }
+    }
+
+    private var bottomBarBottomPadding: CGFloat {
+        if ChalkakPlatformAppearance.usesLiquidGlass { theme.spacing.sm } else { 0 }
+    }
+
+    private var bottomBarBackground: Color {
+        if ChalkakPlatformAppearance.usesLiquidGlass { .clear } else { theme.colors.surfaceElevated }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
         switch selectedTab {
         case .display:
             DisplayScreen(
                 viewModel: displayViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .display) },
                 onSelectBottomBarItem: select,
-                onSelectPhoto: { selectedFeed = $0 }
+                onSelectPhoto: { selectedFeed = $0 },
+                bottomBarCompact: $isBottomBarCompact
             )
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
+                notificationSettingsViewModel: notificationSettingsViewModel,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
@@ -188,28 +448,73 @@ struct ContentView: View {
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onOpenNotificationSetup: openNotificationSetup
+                onSignatureScreenChange: { signatureAnalyticsScreen = $0 },
+                bottomBarCompact: $isBottomBarCompact
             )
         case .record:
             RecordScreen(
                 viewModel: recordViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
-                onOpenDisplay: openDisplay,
-                onOpenFeed: { selectedFeed = FeedTarget(postID: $0, isOwnedByCurrentUser: true) },
-                onNavigateToLogin: showLogin
+                onOpenDisplay: { openDisplay(at: $0) },
+                onOpenFeed: { post in
+                    selectedFeed = FeedTarget(
+                        postID: post.postId,
+                        isOwnedByCurrentUser: true,
+                        zoomSource: .record(post.postId),
+                        placeholder: FeedPhotoPlaceholder(imageSource: post.thumbnailImageSource)
+                    )
+                },
+                onNavigateToLogin: showLogin,
+                bottomBarCompact: $isBottomBarCompact
             )
         default:
             HomeScreen(
                 viewModel: homeViewModel,
-                onOpenPhotoUpload: { openPhotoUpload(from: .today) },
-                onNavigateToBottomBar: select
+                onOpenPhotoUpload: { openPhotoUpload(from: .home) },
+                onOpenRecord: { select(.record) },
+                onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
+                onOpenFeed: openHomeFeed,
+                onOpenNotifications: {
+                    guard KeychainSessionStore.hasAuthenticatedSession() else {
+                        showMessage("로그인 후 알림을 확인할 수 있어요")
+                        return
+                    }
+                    isNotificationInboxPresented = true
+                },
+                hasUnreadNotifications: notificationInboxViewModel.hasUnread,
+                onIssueClick: { isIssuePresented = true },
+                bottomBarCompact: $isBottomBarCompact
             )
-            .task {
-                guard homeViewModel.viewState.contentStatus == .loading else { return }
-                await homeViewModel.retry()
+            .task(id: ObjectIdentifier(homeViewModel)) {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+#endif
+                await homeViewModel.resume()
             }
         }
+    }
+
+    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
+        var isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            isAuthenticated = false
+        }
+#endif
+        guard isAuthenticated else {
+            showMessage("상세를 보려면 로그인이 필요해요")
+            return
+        }
+        selectedFeed = FeedTarget(
+            postID: photo.id,
+            isOwnedByCurrentUser: photo.isOwnedByCurrentUser,
+            zoomSource: zoomSource,
+            placeholder: FeedPhotoPlaceholder(
+                imageSource: photo.thumbnailImageSource,
+                signatureImageSource: nil
+            )
+        )
     }
 
     private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
@@ -223,8 +528,17 @@ struct ContentView: View {
         )
     }
 
+    private func selectBottomBarItem(_ item: ChalkakBottomBarItem) {
+        if selectedTab == .home, item == .home {
+            homeViewModel.scrollToTop()
+            Task { await homeViewModel.refresh() }
+        } else {
+            select(item)
+        }
+    }
+
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .today || item == .display || item == .record || item == .settings else { return }
+        guard item == .home || item == .display || item == .record || item == .settings else { return }
 
         if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
             showMessage("기록을 보려면 로그인이 필요해요")
@@ -247,8 +561,8 @@ struct ContentView: View {
         }
     }
 
-    private func openDisplay(at date: Date) {
-        displayViewModel = Self.makeDisplayViewModel(initialDate: date)
+    private func openDisplay(at date: Date, sort: DisplaySort = .latest) {
+        displayViewModel = Self.makeDisplayViewModel(initialDate: date, initialSort: sort)
         selectedTab = .display
     }
 
@@ -258,29 +572,110 @@ struct ContentView: View {
         recordViewModel.removeDeletedPost(postID)
     }
 
-    private func showHome() {
+    private func showMain() {
         resetMainState()
-        route = .home
+        route = .main
     }
 
-    private func showNotificationSetupAfterAuthentication() {
-        resetMainState()
-        route = AppRouteResolver.destinationAfterAuthentication(
-            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
-        )
+    private func showMainAfterAuthentication() {
+        pushDeviceRegistrar.registerCurrentDevice()
+        showMain()
     }
 
-    private func finishNotificationSetup() {
-        route = .home
+    // 작성 중인 화면을 닫지 않도록, 홈이 보이고 다른 전체 화면이 없을 때만 푸시의 화면으로 이동한다.
+    private var canOpenPushDestination: Bool {
+        route == .main
+            && !isPhotoUploadPresented
+            && !isFeedbackPresented
     }
 
-    private func openNotificationSetup() {
-        notificationSetupViewModel = NotificationSetupViewModel()
-        selectedTab = .settings
-        route = .notificationSetup
+    private func handlePendingPushTap() {
+        guard pushTapRouter.pendingTap != nil else { return }
+        // 로그아웃 상태의 클릭은 이동 정책이 정해지지 않아 화면을 바꾸지 않는다.
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            _ = pushTapRouter.consume()
+            return
+        }
+        guard canOpenPushDestination, let tap = pushTapRouter.consume() else { return }
+
+        if tap == .topic {
+            notificationNavigationTask?.cancel()
+            notificationNavigationTask = nil
+            notificationNavigationID = nil
+            openNotificationDestination(tap, fromInbox: false)
+            return
+        }
+        guard let notificationID = tap.notificationID,
+              notificationNavigationID != notificationID else { return }
+        notificationNavigationID = notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(notificationID)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
+                  KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else {
+                if let message = inbox.message { showMessage(message) }
+                return
+            }
+            openNotificationDestination(tap, fromInbox: false)
+            if let message = inbox.message { showMessage(message) }
+        }
+    }
+
+    private func openInboxNotification(_ item: NotificationItem) {
+        guard let tap = item.destination else {
+            showMessage("이 알림은 아직 열 수 없어요")
+            return
+        }
+        guard let notificationID = tap.notificationID,
+              notificationNavigationID != notificationID else { return }
+        notificationNavigationID = notificationID
+        let inbox = notificationInboxViewModel
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = Task {
+            defer {
+                if notificationNavigationID == notificationID { notificationNavigationID = nil }
+            }
+            let canNavigate = await inbox.readForNavigation(item.id)
+            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
+                  isNotificationInboxPresented, KeychainSessionStore.hasAuthenticatedSession() else { return }
+            guard canNavigate else { return }
+            openNotificationDestination(tap, fromInbox: true)
+        }
+    }
+
+    private func closeNotificationDestination(_ destination: NotificationRoute) {
+        guard notificationPath.last == destination else { return }
+        withAnimation {
+            notificationPath.removeLast()
+        }
+    }
+
+    private func openNotificationDestination(_ tap: PushNotificationTap, fromInbox: Bool) {
+        selectedFeed = nil
+        withAnimation {
+            notificationPath = fromInbox ? [.inbox] : []
+            switch tap {
+            case .topic:
+                // 주제 푸시는 클릭한 날의 오늘 주제가 보이는 홈으로 이동한다.
+                notificationPath = []
+                selectedTab = .home
+                homeViewModel.scrollToTop()
+                Task { await homeViewModel.refresh() }
+            case let .postApproved(postID, _):
+                notificationPath.append(.approved(postID))
+            case let .postRejected(notificationID):
+                notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
+            }
+        }
     }
 
     private func showOnboarding() {
+        onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
         route = .onboarding
     }
 
@@ -314,7 +709,9 @@ struct ContentView: View {
         switch outcome {
         case let .allowed(topicDate):
             photoUploadReturnTab = tab
-            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate)
+            photoUploadViewModel = Self.makePhotoUploadViewModel(topicDate: topicDate) { message in
+                showMessage(message)
+            }
             isPhotoUploadPresented = true
         case .reauthenticationRequired:
             showLogin()
@@ -357,17 +754,17 @@ struct ContentView: View {
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
         selectedTab = .display
-        route = .home
+        route = .main
     }
 
     private func showPhotoUploadOrigin() {
         isPhotoUploadPresented = false
-        route = .home
+        route = .main
         selectedTab = photoUploadReturnTab
     }
 
     private func openFeedback() {
-        guard KeychainSessionStore.hasAuthenticatedSession() else {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isFeedbackEntryUITest else {
             showMessage("피드백을 보내려면 로그인이 필요해요")
             return
         }
@@ -378,7 +775,6 @@ struct ContentView: View {
 
     private func closeFeedback() {
         isFeedbackPresented = false
-        feedbackViewModel = nil
     }
 
     private func handleFeedbackSubmitted() {
@@ -395,6 +791,7 @@ struct ContentView: View {
     }
 
     private func showLogin() {
+        hasHandledNotificationPermissionAtHomeEntry = false
         photoUploadEntryTask?.cancel()
         photoUploadEntryTask = nil
         photoUploadEntryTaskID = nil
@@ -409,47 +806,80 @@ struct ContentView: View {
     }
 
     private func resetMainState() {
-        selectedTab = .today
+        notificationNavigationTask?.cancel()
+        notificationNavigationTask = nil
+        notificationNavigationID = nil
+        homeViewModel.cancel()
+        selectedTab = .home
         selectedFeed = nil
+        isIssuePresented = false
+        signatureAnalyticsScreen = nil
+        isNotificationInboxPresented = false
         isPhotoUploadPresented = false
         feedbackViewModel = nil
         isFeedbackPresented = false
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
+        notificationSettingsViewModel.reset()
         settingsViewModel = Self.makeSettingsViewModel()
+        notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
+        notificationInboxViewModel = Self.makeNotificationInboxViewModel()
+    }
+
+    private static func makeNotificationSettingsViewModel() -> NotificationSettingsViewModel {
+        let client = NotificationSettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return NotificationSettingsViewModel(
+            loadSettings: { try await client.fetch() },
+            saveSettings: { topic, moderation in
+                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation)
+            },
+        )
     }
 
     private static func makeHomeViewModel() -> HomeViewModel {
-        let baseURL = resolvedAPIBaseURL
-        let apiClient = HomeAPIClient(
-            configuration: HomeAPIConfiguration(baseURL: baseURL),
-            accessTokenProvider: { KeychainSessionStore.accessToken() }
-        )
-        return HomeViewModel(
-            initialState: HomeViewState(),
-            isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
-            refreshHandler: { sort in
-                await apiResult {
-                    try await apiClient.fetchHome(date: Date(), sort: sort)
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            var state = HomePreviewData.contentState
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
+                switch arguments[index + 1] {
+                case "empty": state.hero = .empty
+                case "loading": state.hero = .loading
+                case "processing": state.hero = .processing
+                case "error": state.hero = .error
+                case "no-open-topic": state.hero = .noOpenTopic
+                case "rejected-open": state.hero = .rejected(canResubmit: true)
+                case "rejected-closed": state.hero = .rejected(canResubmit: false)
+                case "pending":
+                    let photo = HomePreviewData.heroPhoto
+                    state.hero = .photo(HomeHeroPhoto(imageSource: photo.imageSource, thumbnailSource: photo.thumbnailSource, signatureSource: nil, isPending: true))
+                default: break
                 }
-            },
-            nextPageHandler: { state in
-                await apiResult {
-                    try await apiClient.fetchNextPage(state: state)
-                }
-            },
-            likeHandler: { photoID, isLiked in
-                await apiResult {
-                    try await apiClient.updateLike(photoID: photoID, isLiked: isLiked)
+                switch state.hero {
+                case .photo:
+                    break
+                default:
+                    state.week = state.week.map { day in
+                        RecordMonth.calendar.isDate(day.date, inSameDayAs: state.date)
+                            ? HomeWeekDay(date: day.date)
+                            : day
+                    }
                 }
             }
-        )
+            return HomePreviewData.viewModel(state: state)
+        }
+#endif
+        return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
     }
 
-    private static func makeDisplayViewModel(initialDate: Date? = nil) -> DisplayViewModel {
+    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
         DisplayViewModel(
             initialDate: initialDate,
+            initialSort: initialSort,
             apiClient: DisplayAPIClient(
                 configuration: DisplayAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -499,7 +929,37 @@ struct ContentView: View {
         )
     }
 
+    private static func makeNotificationAPIClient() -> NotificationAPIClient {
+        NotificationAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+    }
+
+    private static func makeNotificationInboxViewModel() -> NotificationInboxViewModel {
+        let client = makeNotificationAPIClient()
+        return NotificationInboxViewModel(
+            loadPage: { try await client.fetchPage(page: $0) },
+            loadUnread: { try await client.fetchUnreadStatus() },
+            markRead: { try await client.markRead(notificationID: $0) }
+        )
+    }
+
+    private static func makeNotificationDetailViewModel(
+        _ target: NotificationDetailTarget
+    ) -> NotificationDetailViewModel {
+        let apiClient = makeNotificationAPIClient()
+        return NotificationDetailViewModel(
+            loadDetail: { try await apiClient.fetchDetail(notificationID: target.id) }
+        )
+    }
+
     private static func makeFeedbackViewModel() -> FeedbackViewModel {
+#if DEBUG
+        if isFeedbackEntryUITest {
+            return FeedbackViewModel(submitFeedback: { _ in })
+        }
+#endif
         let apiClient = FeedbackAPIClient(
             configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
             accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -511,7 +971,10 @@ struct ContentView: View {
         )
     }
 
-    private static func makePhotoUploadViewModel(topicDate: Date) -> PhotoUploadViewModel {
+    private static func makePhotoUploadViewModel(
+        topicDate: Date,
+        onCameraImageSaveFailure: @escaping PhotoUploadViewModel.CameraImageSaveFailureHandler
+    ) -> PhotoUploadViewModel {
 #if DEBUG
         if isPhotoUploadEntryUITest {
             return PhotoUploadViewModel(
@@ -520,7 +983,8 @@ struct ContentView: View {
                     getCreationTopic: { date in
                         .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
                     }
-                )
+                ),
+                onCameraImageSaveFailure: onCameraImageSaveFailure
             )
         }
 #endif
@@ -535,7 +999,8 @@ struct ContentView: View {
         )
         return PhotoUploadViewModel(
             topicDate: topicDate,
-            repository: .api(client: apiClient)
+            repository: .api(client: apiClient),
+            onCameraImageSaveFailure: onCameraImageSaveFailure
         )
     }
 
@@ -565,7 +1030,7 @@ struct ContentView: View {
     }
 
     private static var resolvedAPIBaseURL: URL {
-        AppConfiguration().apiBaseURL ?? HomeAPIConfiguration.development.baseURL
+        AppConfiguration().apiBaseURL ?? PhotoUploadAPIConfiguration.development.baseURL
     }
 
     private static var isPhotoUploadEntryUITest: Bool {
@@ -578,26 +1043,69 @@ struct ContentView: View {
 
     private static var initialRoute: AppRoute {
 #if DEBUG
-        if isPhotoUploadEntryUITest {
-            return .home
+        if isPhotoUploadEntryUITest || isFeedbackEntryUITest
+            || ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
+            return .main
         }
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-show-onboarding") }) {
             return .onboarding
         }
-        if ProcessInfo.processInfo.arguments.contains("-show-notification-setup") {
-            return .notificationSetup
-        }
 #endif
         guard KeychainSessionStore.hasActiveSession() else { return .login }
-        return AppRouteResolver.destinationAfterAuthentication(
-            hasCompletedNotificationSetup: NotificationSetupStore().hasCompletedSetup
-        )
+        return .main
+    }
+
+    private static var isFeedbackEntryUITest: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-test-feedback-entry")
+#else
+        false
+#endif
     }
 
     private var currentAnalyticsScreen: AnalyticsScreen? {
-        guard route == .home, !isPhotoUploadPresented else { return nil }
+        if let selectedLegalDocument {
+            return switch selectedLegalDocument {
+            case .privacyPolicy: AnalyticsScreen(name: "privacy_policy", screenClass: "PrivacyPolicy")
+            case .termsOfService: AnalyticsScreen(name: "terms_of_service", screenClass: "TermsOfService")
+            }
+        }
+        if isFeedbackPresented {
+            return AnalyticsScreen(name: "feedback", screenClass: "Feedback")
+        }
+        if isPhotoUploadPresented {
+            return AnalyticsScreen(name: "photo_upload", screenClass: "PhotoUpload")
+        }
+        switch route {
+        case .login:
+            return AnalyticsScreen(name: "login", screenClass: "Login")
+        case .onboarding:
+            return onboardingAnalyticsScreen
+        case .photoUploadSuccess:
+            return successSubmission == nil
+                ? selectedTab.analyticsScreen
+                : AnalyticsScreen(name: "photo_upload_success", screenClass: "PhotoUploadSuccess")
+        case .main:
+            break
+        }
+        if let signatureAnalyticsScreen {
+            return signatureAnalyticsScreen
+        }
         if selectedFeed != nil {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")
+        }
+        if let notificationDestination = notificationPath.last {
+            switch notificationDestination {
+            case .inbox:
+                return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
+            case .approved:
+                return AnalyticsScreen(name: "feed", screenClass: "Feed")
+            case .rejected:
+                return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
+            }
+        }
+        if isIssuePresented {
+            return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
         return selectedTab.analyticsScreen
     }
@@ -614,29 +1122,15 @@ struct ContentView: View {
 enum AppRoute: Equatable {
     case login
     case onboarding
-    case notificationSetup
-    case home
+    case main
     case photoUploadSuccess
-}
-
-enum AppRouteResolver {
-    static func destinationAfterAuthentication(
-        hasCompletedNotificationSetup: Bool
-    ) -> AppRoute {
-        hasCompletedNotificationSetup ? .home : .notificationSetup
-    }
-}
-
-private struct AnalyticsScreen: Equatable {
-    let name: String
-    let screenClass: String
 }
 
 private extension ChalkakBottomBarItem {
     var analyticsScreen: AnalyticsScreen {
         switch self {
-        case .today:
-            AnalyticsScreen(name: "today", screenClass: "Today")
+        case .home:
+            AnalyticsScreen(name: "home", screenClass: "Home")
         case .display:
             AnalyticsScreen(name: "display", screenClass: "Display")
         case .record:
@@ -656,17 +1150,36 @@ private enum ContentMetrics {
         .chalkakTheme(.light)
 }
 
-@MainActor
-private func apiResult<Value: Sendable>(
-    _ operation: () async throws -> Value
-) async -> Result<Value, HomeInitialError> {
-    do {
-        return .success(try await operation())
-    } catch let error as HomeAPIError {
-        return .failure(error.initialError)
-    } catch is CancellationError {
-        return .failure(.cancelled)
-    } catch {
-        return .failure(.generic)
+private struct NotificationUnreadRefreshID: Hashable {
+    let modelID: ObjectIdentifier
+    let isHome: Bool
+}
+
+private enum NotificationRoute: Hashable {
+    case inbox
+    case approved(String)
+    case rejected(NotificationDetailTarget)
+}
+
+
+enum NotificationPermissionPromptAction: Equatable {
+    case requestSystemPermission
+    case showAppPrompt
+    case none
+
+    static func resolve(
+        status: UNAuthorizationStatus,
+        hasShownPrompt: Bool
+    ) -> NotificationPermissionPromptAction {
+        guard !hasShownPrompt else { return .none }
+
+        return switch status {
+        case .notDetermined:
+            .requestSystemPermission
+        case .denied, .authorized, .provisional, .ephemeral:
+            .showAppPrompt
+        @unknown default:
+            .none
+        }
     }
 }

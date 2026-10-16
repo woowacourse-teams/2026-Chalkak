@@ -1,901 +1,516 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
+import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
+import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `초기 로드는 주입된 KST 날짜와 recent 첫 페이지를 사용한다`() = runTest {
-        val repository = RecordingPostRepository()
-        val viewModel = homeViewModel(repository)
-
+    fun `today and yesterday rankings request popular and preserve server order`() = runTest {
+        val repository = FakeHomeRepository()
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(listOf(HomeQuery(TODAY, PostSort.POPULAR, 1)), repository.contentQueries)
+        assertEquals(listOf(HomeQuery(TODAY.minusDays(1), PostSort.POPULAR, 1)), repository.pageQueries)
         assertEquals(
-            HomeQuery(
-                date = TEST_DATE,
-                sort = PostSort.LATEST,
-                page = 1,
-            ),
-            repository.homeQueries.single(),
+            listOf("rank-1", "rank-2"),
+            viewModel.uiState.value.trending.photos
+                .map { it.id },
         )
-        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.yesterday.status)
     }
 
     @Test
-    fun `최초 실패 원인을 구분된 오류 상태로 표현한다`() = runTest {
-        val cases = listOf(
-            HomeFailure.TopicNotFound to HomeInitialError.TopicNotFound,
-            HomeFailure.Unauthorized to HomeInitialError.Unauthorized,
-            HomeFailure.Network to HomeInitialError.Network,
-            HomeFailure.InvalidResponse to HomeInitialError.InvalidResponse,
-            HomeFailure.Http(400) to HomeInitialError.Client,
-            HomeFailure.Http(503) to HomeInitialError.Server,
-            HomeFailure.Http(302) to HomeInitialError.Generic,
-        )
-
-        cases.forEach { (failure, expected) ->
-            val repository = RecordingPostRepository(
-                homeResults = ArrayDeque(listOf(HomeResult.Failure(failure))),
-            )
-
-            assertEquals(
-                HomeContentStatus.Error(expected),
-                homeViewModel(repository)
-                    .uiState.value.contentStatus,
+    fun `Sunday to Saturday week crosses year boundary and includes pending records`() = runTest {
+        val date = LocalDate.of(2027, 1, 1)
+        val repository = FakeHomeRepository().apply {
+            records = listOf(
+                record(LocalDate.of(2026, 12, 27), PostStatus.APPROVED),
+                record(date, PostStatus.PENDING),
             )
         }
-    }
-
-    @Test
-    fun `빈 결과는 오류가 아닌 content 상태다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(photos = emptyList())))),
-        )
-
-        val state = homeViewModel(repository).uiState.value
-
-        assertEquals(HomeContentStatus.Content, state.contentStatus)
-        assertTrue(state.photos.isEmpty())
-    }
-
-    @Test
-    fun `응답 topicDate를 날짜 라벨과 페이지네이션 세션에 사용한다`() = runTest {
-        var currentDate = LocalDate.of(2026, 8, 28)
-        val canonicalDate = LocalDate.of(2026, 8, 29)
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(
-                        homeContent(
-                            topic = "새 주제",
-                            topicDate = canonicalDate,
-                        ),
-                    ),
-                    HomeResult.Success(
-                        homeContent(
-                            topic = "다음 주제",
-                            topicDate = LocalDate.of(2026, 8, 30),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository, dateProvider = { currentDate })
-
-        assertEquals(
-            LocalDate.of(2026, 8, 28),
-            repository.homeQueries
-                .single()
-                .date,
-        )
-        assertEquals("새 주제", viewModel.uiState.value.topic)
-        assertEquals(canonicalDate, viewModel.uiState.value.topicDate)
-
-        currentDate = LocalDate.of(2026, 8, 30)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        assertEquals(
-            canonicalDate,
-            repository.pageQueries
-                .single()
-                .date,
-        )
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        assertEquals(
-            LocalDate.of(2026, 8, 30),
-            repository.homeQueries
-                .last()
-                .date,
-        )
-        assertEquals("다음 주제", viewModel.uiState.value.topic)
-        assertEquals(LocalDate.of(2026, 8, 30), viewModel.uiState.value.topicDate)
-    }
-
-    @Test
-    fun `첫 페이지의 빈 성공은 이전 목록을 제거하고 새 주제를 적용한다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent(topic = "이전 주제")),
-                    HomeResult.Success(
-                        homeContent(
-                            topic = "새 주제",
-                            topicDate = LocalDate.of(2026, 8, 29),
-                            photos = emptyList(),
-                            hasNext = false,
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-
-        assertEquals("새 주제", viewModel.uiState.value.topic)
-        assertEquals(LocalDate.of(2026, 8, 29), viewModel.uiState.value.topicDate)
-        assertTrue(
-            viewModel.uiState.value.photos
-                .isEmpty(),
-        )
-        assertEquals(1, viewModel.uiState.value.currentPage)
-        assertFalse(viewModel.uiState.value.hasNext)
-    }
-
-    @Test
-    fun `재시도는 첫 페이지를 다시 요청하고 복구한다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Failure(HomeFailure.Network),
-                    HomeResult.Success(homeContent()),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RetryClicked)
-
-        assertEquals(2, repository.homeQueries.size)
-        assertTrue(
-            repository.homeQueries.all {
-                it.sort == PostSort.LATEST && it.page == 1 && it.randomSeed == null
-            },
-        )
-        assertEquals(HomeContentStatus.Content, viewModel.uiState.value.contentStatus)
-    }
-
-    @Test
-    fun `수동 새로고침은 매번 seed 없는 랜덤 첫 페이지 새 세션을 요청한다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(homeContent(randomSeed = "seed-1")),
-                    HomeResult.Success(homeContent(randomSeed = "seed-2")),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-
-        assertEquals(
-            listOf(PostSort.LATEST, PostSort.RANDOM, PostSort.RANDOM),
-            repository.homeQueries.map(HomeQuery::sort),
-        )
-        assertTrue(
-            repository.homeQueries
-                .drop(1)
-                .all { it.page == 1 && it.randomSeed == null },
-        )
-        assertEquals(PostSort.RANDOM, viewModel.uiState.value.selectedSort)
-    }
-
-    @Test
-    fun `수동 새로고침 중에는 콘텐츠를 유지하고 실패하면 원인 이벤트만 보낸다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "기존 주제"))
-        val viewModel = homeViewModel(repository)
-        val before = viewModel.uiState.value
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-
-        assertEquals("기존 주제", viewModel.uiState.value.topic)
-        assertEquals(before.photos, viewModel.uiState.value.photos)
-        assertTrue(viewModel.uiState.value.isRefreshing)
-        assertEquals(
-            PostSort.RANDOM,
-            repository.homeQueries
-                .last()
-                .sort,
-        )
-        assertEquals(
-            null,
-            repository.homeQueries
-                .last()
-                .randomSeed,
-        )
-
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
-
+        val viewModel = createViewModel(repository, dateProvider = { date })
+        advanceUntilIdle()
         val state = viewModel.uiState.value
-        assertEquals(before.copy(isRefreshing = false), state.copy(pendingMessage = null))
+        assertEquals(listOf(YearMonth.of(2026, 12), YearMonth.of(2027, 1)), repository.months)
         assertEquals(
-            HomeInitialError.Network.message,
-            (state.pendingMessage as UiMessage.Toast).text,
-        )
-    }
-
-    @Test
-    fun `연속 새로고침은 매번 새로운 랜덤 세션이라 이전 seed를 재사용하지 않는다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(homeContent(randomSeed = "first-seed")),
-                    HomeResult.Success(homeContent(randomSeed = "second-seed")),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-
-        val randomQueries = repository.homeQueries.filter { it.sort == PostSort.RANDOM }
-        assertEquals(2, randomQueries.size)
-        assertTrue(randomQueries.all { it.randomSeed == null })
-    }
-
-    @Test
-    fun `끝 임계값 false to true는 다음 페이지를 한 번만 요청한다`() = runTest {
-        val repository = RecordingPostRepository()
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertEquals(1, repository.pageQueries.size)
-        assertEquals(
-            2,
-            repository.pageQueries
-                .single()
-                .page,
-        )
-    }
-
-    @Test
-    fun `페이지 성공은 순서를 유지하고 중복 id를 제외하며 seed를 보존한다`() = runTest {
-        val repository = RecordingPostRepository(
-            pageResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(
-                        postPage(
-                            photos = listOf(post(PHOTO_ID), post("photo-2")),
-                            currentPage = 2,
-                            hasNext = false,
-                            randomSeed = "seed-1",
-                        ),
-                    ),
-                ),
-            ),
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(
-                        homeContent(
-                            randomSeed = "seed-1",
-                            sortPhotos = listOf(post(PHOTO_ID)),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertEquals(
-            listOf(PHOTO_ID, "photo-2"),
-            viewModel.uiState.value.photos
-                .map(Post::id),
+            LocalDate.of(2026, 12, 27),
+            state.week
+                .first()
+                .date,
         )
         assertEquals(
-            "seed-1",
-            repository.pageQueries
-                .single()
-                .randomSeed,
-        )
-        assertFalse(viewModel.uiState.value.hasNext)
-    }
-
-    @Test
-    fun `hasNext false면 추가 요청하지 않는다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(listOf(HomeResult.Success(homeContent(hasNext = false)))),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertTrue(repository.pageQueries.isEmpty())
-    }
-
-    @Test
-    fun `RANDOM seed가 없으면 크래시 또는 추가 요청 없이 pagination을 종료한다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(homeContent(hasNext = true, randomSeed = null)),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertTrue(repository.pageQueries.isEmpty())
-        assertFalse(viewModel.uiState.value.hasNext)
-        assertFalse(viewModel.uiState.value.isLoadingNext)
-        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
-    }
-
-    @Test
-    fun `페이지 실패는 콘텐츠와 cursor seed를 유지하고 재진입 때 같은 페이지를 재시도한다`() = runTest {
-        val repository = RecordingPostRepository(
-            pageResults = ArrayDeque(
-                listOf(
-                    HomeResult.Failure(HomeFailure.Network),
-                    HomeResult.Success(postPage(currentPage = 2, randomSeed = "seed-1")),
-                ),
-            ),
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(
-                        homeContent(
-                            randomSeed = "seed-1",
-                            sortPhotos = listOf(post(PHOTO_ID)),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertEquals(1, repository.pageQueries.size)
-        assertEquals(
-            listOf(PHOTO_ID),
-            viewModel.uiState.value.photos
-                .map(Post::id),
-        )
-        assertEquals(1, viewModel.uiState.value.currentPage)
-        assertEquals("seed-1", viewModel.uiState.value.randomSeed)
-        assertFalse(viewModel.uiState.value.isLoadingNext)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-
-        assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
-        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
-    }
-
-    @Test
-    fun `page 2 대기 중 refresh 성공은 새 첫 페이지만 표시한다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "이전 주제"))
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        assertTrue(viewModel.uiState.value.isLoadingNext)
-
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        assertFalse(viewModel.uiState.value.isLoadingNext)
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        assertEquals(1, repository.pageQueries.size)
-
-        repository.completeHome(
-            0,
-            HomeResult.Success(
-                homeContent(
-                    topic = "새 주제",
-                    photos = listOf(post("new-photo")),
-                    hasNext = false,
-                ),
-            ),
-        )
-        repository.completePage(0, HomeResult.Success(postPage(photos = listOf(post("stale-photo")))))
-
-        assertEquals("새 주제", viewModel.uiState.value.topic)
-        assertEquals(
-            listOf("new-photo"),
-            viewModel.uiState.value.photos
-                .map(Post::id),
-        )
-        assertFalse(viewModel.uiState.value.isLoadingNext)
-    }
-
-    @Test
-    fun `page 2 대기 중 refresh 실패는 콘텐츠를 유지하고 page 2 재시도를 허용한다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent(topic = "이전 주제"))
-        val viewModel = homeViewModel(repository)
-        val before = viewModel.uiState.value
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
-
-        val state = viewModel.uiState.value
-        assertEquals(before, state.copy(pendingMessage = null))
-        assertEquals(
-            HomeInitialError.Network.message,
-            (state.pendingMessage as UiMessage.Toast).text,
-        )
-        assertFalse(state.isLoadingNext)
-
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(false))
-        viewModel.onAction(HomeUiAction.EndThresholdChanged(true))
-        assertEquals(listOf(2, 2), repository.pageQueries.map(HomeQuery::page))
-
-        repository.completePage(1, HomeResult.Success(postPage(photos = listOf(post("retried-photo")))))
-        repository.completePage(0, HomeResult.Success(postPage(photos = listOf(post("stale-photo")))))
-
-        assertEquals(
-            listOf(PHOTO_ID, "retried-photo"),
-            viewModel.uiState.value.photos
-                .map(Post::id),
-        )
-        assertFalse(viewModel.uiState.value.isLoadingNext)
-    }
-
-    @Test
-    fun `인증 좋아요는 낙관 적용 후 서버 count state로 조정한다`() = runTest {
-        val repository = RecordingPostRepository(
-            likeResults = ArrayDeque(listOf(HomeResult.Success(HomeLike(likeCount = 30, isLiked = true)))),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertEquals(PHOTO_ID to true, repository.likeRequests.single())
-        assertEquals(
-            30,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
-    }
-
-    @Test
-    fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
-        val repository = RecordingPostRepository(
-            likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(
-                        homeContent(sortPhotos = listOf(post(PHOTO_ID), post("photo-2", likeCount = 10))),
-                    ),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertEquals(
-            listOf(24, 10),
-            viewModel.uiState.value.photos
-                .map(Post::likeCount),
-        )
-        assertTrue(
-            viewModel.uiState.value.likedPhotoIds
-                .isEmpty(),
-        )
-    }
-
-    @Test
-    fun `이전 좋아요 응답과 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent())
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
-        repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
-
-        assertEquals(
-            24,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertTrue(
-            viewModel.uiState.value.likedPhotoIds
-                .isEmpty(),
-        )
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        assertEquals(1, repository.homeQueries.size)
-        repository.completeLike(2, HomeResult.Failure(HomeFailure.Network))
-        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 40, liked = true)))
-
-        assertEquals(
-            40,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
-    }
-
-    @Test
-    fun `좋아요 성공을 기다린 뒤 refresh를 시작하고 대기 중 새 좋아요를 차단한다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent())
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertTrue(viewModel.uiState.value.isRefreshing)
-        assertFalse(viewModel.uiState.value.areLikesEnabled)
-        assertEquals(1, repository.likeRequests.size)
-        assertEquals(1, repository.homeQueries.size)
-
-        repository.completeLike(0, HomeResult.Success(HomeLike(likeCount = 30, isLiked = true)))
-
-        assertEquals(2, repository.homeQueries.size)
-        assertEquals(
-            30,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertEquals(setOf(PHOTO_ID), viewModel.uiState.value.likedPhotoIds)
-
-        repository.completeHome(0, HomeResult.Success(homeContent(likeCount = 31, liked = true)))
-        assertEquals(
-            31,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertTrue(viewModel.uiState.value.areLikesEnabled)
-    }
-
-    @Test
-    fun `좋아요 실패 rollback을 기다린 뒤 refresh를 시작한다`() = runTest {
-        val repository = ControlledPostRepository(autoInitial = homeContent())
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-        viewModel.onAction(HomeUiAction.RefreshRequested)
-        assertEquals(
-            25,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-
-        repository.completeLike(0, HomeResult.Failure(HomeFailure.Network))
-
-        assertEquals(
-            24,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertTrue(
-            viewModel.uiState.value.likedPhotoIds
-                .isEmpty(),
-        )
-        assertEquals(2, repository.homeQueries.size)
-
-        repository.completeHome(0, HomeResult.Failure(HomeFailure.Network))
-        assertEquals(
-            24,
-            viewModel.uiState.value.photos
-                .single()
-                .likeCount,
-        )
-        assertTrue(
-            viewModel.uiState.value.likedPhotoIds
-                .isEmpty(),
-        )
-        assertTrue(viewModel.uiState.value.areLikesEnabled)
-    }
-
-    @Test
-    fun `repository의 예상하지 못한 예외를 Network 초기 오류로 위장하지 않는다`() {
-        val uncaught = mutableListOf<Throwable>()
-        val viewModel = homeViewModel(
-            repository = object : PostRepository {
-                override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
-
-                override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
-
-                override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-
-                override suspend fun updatePostTitle(
-                    postId: String,
-                    title: String?,
-                ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
-
-                override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
-                    error("unexpected defect")
-                }
-
-                override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
-
-                override suspend fun updateLike(
-                    photoId: String,
-                    isLiked: Boolean,
-                ): HomeResult<HomeLike> = error("unused")
-            },
-            launchContext = CoroutineExceptionHandler { _, error -> uncaught += error },
-        )
-
-        assertTrue(uncaught.single() is IllegalStateException)
-        assertEquals(HomeContentStatus.Loading, viewModel.uiState.value.contentStatus)
-    }
-
-    @Test
-    fun `게스트 좋아요는 토스트 상태만 만들고 콘텐츠와 저장소를 바꾸지 않는다`() = runTest {
-        val repository = RecordingPostRepository()
-        val viewModel = homeViewModel(
-            repository = repository,
-            sessionState = UserSessionState.Guest,
-        )
-        val before = viewModel.uiState.value
-
-        viewModel.onAction(HomeUiAction.LikeClicked(PHOTO_ID))
-
-        assertEquals(before.photos, viewModel.uiState.value.photos)
-        assertEquals(before.likedPhotoIds, viewModel.uiState.value.likedPhotoIds)
-        assertTrue(repository.likeRequests.isEmpty())
-        assertEquals(
-            GUEST_LIKE_MESSAGE,
-            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
-        )
-    }
-
-    @Test
-    fun `오늘 탭 재선택은 랜덤 새로고침이고 다른 하단 탭과 추가 이벤트는 유지한다`() = runTest {
-        val repository = RecordingPostRepository(
-            homeResults = ArrayDeque(
-                listOf(
-                    HomeResult.Success(homeContent()),
-                    HomeResult.Success(homeContent(randomSeed = "seed-1")),
-                ),
-            ),
-        )
-        val viewModel = homeViewModel(repository)
-
-        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.TODAY))
-        assertEquals(
-            PostSort.RANDOM,
-            repository.homeQueries
+            LocalDate.of(2027, 1, 2),
+            state.week
                 .last()
-                .sort,
+                .date,
         )
-        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+        assertEquals(2, state.week.count { it.post != null })
+        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), state.hero)
+        assertTrue(repository.details.isEmpty())
+    }
 
-        viewModel.onAction(HomeUiAction.BottomBarSelected(ChalkakBottomBarItem.DISPLAY))
+    @Test
+    fun `Sunday starts new week`() {
+        val sunday = LocalDate.of(2026, 10, 4)
+        assertEquals(sunday, homeWeekDates(sunday).first())
+        assertEquals(sunday.plusDays(6), homeWeekDates(sunday).last())
+    }
+
+    @Test
+    fun `approved hero loads original and signature by calendar id outside ranking page`() = runTest {
+        val repository = FakeHomeRepository().apply { records = listOf(record(TODAY, PostStatus.APPROVED)) }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(listOf("own-$TODAY"), repository.details)
         assertEquals(
-            HomeUiEvent.NavigateToBottomBar(ChalkakBottomBarItem.DISPLAY),
-            viewModel.uiEvent.first(),
+            HomeHeroState.Photo("original-own-$TODAY", "thumb-$TODAY", "signature", "signature-thumb"),
+            viewModel.uiState.value.hero,
         )
+    }
 
-        viewModel.onAction(HomeUiAction.AddClicked)
-        assertEquals(HomeUiEvent.OpenPhotoUpload, viewModel.uiEvent.first())
+    @Test
+    fun `approved detail failure preserves calendar photo`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            records = listOf(record(TODAY, PostStatus.APPROVED))
+            detailFailure = true
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Photo("thumb-$TODAY"), viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `validating upload is processing rather than empty`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Success(
+                TodayPostStatus(TODAY, true, "validating", TodayPostModerationStatus.VALIDATING),
+            )
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Processing, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `no uploaded photo shows empty hero`() = runTest {
+        val viewModel = createViewModel(FakeHomeRepository())
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `missing today topic is ready for guest without private requests`() = runTest {
+        val repository = FakeHomeRepository().apply { todayFailure = HomeFailure.TopicNotFound }
+        val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
+        advanceUntilIdle()
+        val state = viewModel.uiState.value
+        assertEquals("", state.topic)
+        assertEquals(HomeSectionStatus.Ready, state.topicStatus)
+        assertEquals(HomeRankingState(HomeSectionStatus.Ready), state.trending)
+        assertTrue(state.isInitialLoadComplete)
+        assertEquals(0, repository.statusCalls)
+    }
+
+    @Test
+    fun `no open topic does not invite upload even when today topic exists`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Failure(TodayPostStatusFailure.NoOpenTopic)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals("하늘", viewModel.uiState.value.topic)
+        assertEquals(HomeHeroState.NoOpenTopic, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `today network failure remains an error`() = runTest {
+        val repository = FakeHomeRepository().apply { todayFailure = HomeFailure.Network }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.topicStatus)
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.trending.status)
+    }
+
+    @Test
+    fun `refresh after topic opens restores topic and empty upload slot`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            todayFailure = HomeFailure.TopicNotFound
+            uploadStatus = TodayPostStatusResult.Failure(TodayPostStatusFailure.NoOpenTopic)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.NoOpenTopic, viewModel.uiState.value.hero)
+        repository.todayFailure = null
+        repository.uploadStatus = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals("하늘", viewModel.uiState.value.topic)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.topicStatus)
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `calendar failure cannot masquerade as no upload or erase public rankings`() = runTest {
+        val repository = FakeHomeRepository().apply { calendarFailure = true }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.recordsStatus)
+        assertEquals(HomeHeroState.Error, viewModel.uiState.value.hero)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
+    }
+
+    @Test
+    fun `yesterday failure leaves personal photo and today ranking usable`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            records = listOf(record(TODAY, PostStatus.PENDING))
+            yesterdayFailure = HomeFailure.Network
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.yesterday.status)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
+        assertTrue(viewModel.uiState.value.hero is HomeHeroState.Photo)
+    }
+
+    @Test
+    fun `guest does not call private APIs and logout clears owned photo`() = runTest {
+        val repository = FakeHomeRepository().apply { records = listOf(record(TODAY, PostStatus.PENDING)) }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hero is HomeHeroState.Photo)
+        val calls = repository.months.size
+        session.value = UserSessionState.Guest
+        advanceUntilIdle()
+        assertEquals(calls, repository.months.size)
+        assertEquals(0, repository.statusCalls)
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertTrue(
+            viewModel.uiState.value.week
+                .all { it.post == null },
+        )
+        assertFalse(viewModel.uiState.value.isAuthenticated)
+    }
+
+    @Test
+    fun `signed out session waits before preloading home APIs`() = runTest {
+        val repository = FakeHomeRepository()
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+
+        assertTrue(repository.contentQueries.isEmpty())
+        assertTrue(repository.pageQueries.isEmpty())
+        assertTrue(repository.months.isEmpty())
+
+        session.value = UserSessionState.Guest
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeQuery(TODAY, PostSort.POPULAR, 1)), repository.contentQueries)
+        assertEquals(listOf(HomeQuery(TODAY.minusDays(1), PostSort.POPULAR, 1)), repository.pageQueries)
+        assertTrue(repository.months.isEmpty())
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `initial display waits for home preload to finish`() = runTest {
+        val repository = FakeHomeRepository().apply { calendarGate = CompletableDeferred() }
+        val viewModel = createViewModel(repository)
+        runCurrent()
+
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `initial display is released after deadline when session stays loading`() = runTest {
+        val repository = FakeHomeRepository()
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Loading)
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        advanceTimeBy(699)
+        runCurrent()
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertEquals(UserSessionState.Loading, session.value)
+        assertTrue(repository.contentQueries.isEmpty())
+        assertTrue(repository.months.isEmpty())
+
+        session.value = UserSessionState.Authenticated("user")
+        advanceUntilIdle()
+        assertEquals(listOf(HomeQuery(TODAY, PostSort.POPULAR, 1)), repository.contentQueries)
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+    }
+
+    @Test
+    fun `session and home loading share initial display deadline`() = runTest {
+        val repository = FakeHomeRepository().apply { calendarGate = CompletableDeferred() }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Loading)
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        advanceTimeBy(500)
+        session.value = UserSessionState.Authenticated("user")
+        runCurrent()
+        advanceTimeBy(199)
+        runCurrent()
+        assertFalse(viewModel.isReadyForInitialDisplay.value)
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertFalse(viewModel.uiState.value.isInitialLoadComplete)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+    }
+
+    @Test
+    fun `first presentation after KST midnight refreshes preloaded content`() = runTest {
+        var date = LocalDate.of(2026, 10, 10)
+        val repository = FakeHomeRepository()
+        val viewModel = createViewModel(repository, dateProvider = { date })
+        advanceUntilIdle()
+
+        date = date.plusDays(1)
+        repository.records = listOf(record(date, PostStatus.PENDING))
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(date, viewModel.uiState.value.date)
+        assertEquals(
+            date,
+            viewModel.uiState.value.week
+                .first()
+                .date,
+        )
+        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), viewModel.uiState.value.hero)
+        assertEquals(listOf(date.minusDays(1), date), repository.contentQueries.map { it.date })
+        assertEquals(listOf(date.minusDays(2), date.minusDays(1)), repository.pageQueries.map { it.date })
+    }
+
+    @Test
+    fun `returning from upload refreshes and crossing KST midnight moves week`() = runTest {
+        var date = LocalDate.of(2026, 10, 10)
+        val repository = FakeHomeRepository()
+        val viewModel = createViewModel(repository, dateProvider = { date })
+        advanceUntilIdle()
+        viewModel.onResume()
+        assertEquals(1, repository.contentQueries.size)
+        date = date.plusDays(1)
+        repository.records = listOf(record(date, PostStatus.PENDING))
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(date, viewModel.uiState.value.date)
+        assertEquals(
+            date,
+            viewModel.uiState.value.week
+                .first()
+                .date,
+        )
+        assertTrue((viewModel.uiState.value.hero as HomeHeroState.Photo).isPending)
+        assertEquals(2, repository.contentQueries.size)
+    }
+
+    @Test
+    fun `returning home keeps cached content without refresh indicator and updates silently`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            records = listOf(record(TODAY, PostStatus.PENDING))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        viewModel.onResume()
+        val cached = viewModel.uiState.value
+        repository.calendarGate = CompletableDeferred()
+        repository.records = emptyList()
+
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(cached.hero, viewModel.uiState.value.hero)
+        assertEquals(cached.week, viewModel.uiState.value.week)
+        assertEquals(cached.trending, viewModel.uiState.value.trending)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `manual refresh shows indicator while preserving cached content`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            records = listOf(record(TODAY, PostStatus.PENDING))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        val cached = viewModel.uiState.value
+        repository.calendarGate = CompletableDeferred()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(cached.hero, viewModel.uiState.value.hero)
+        assertEquals(cached.week, viewModel.uiState.value.week)
+        assertTrue(viewModel.uiState.value.isRefreshing)
+
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `late cancelled private request cannot repopulate guest state`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            records = listOf(record(TODAY, PostStatus.PENDING))
+            calendarGate = CompletableDeferred()
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        session.value = UserSessionState.Guest
+        repository.calendarGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertTrue(
+            viewModel.uiState.value.week
+                .all { it.post == null },
+        )
+    }
+
+    private fun createViewModel(
+        repository: FakeHomeRepository,
+        session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
+        dateProvider: () -> LocalDate = { TODAY },
+    ) = HomeViewModel(repository, repository, session, dateProvider).also {
+        it.startPreloading()
     }
 }
 
-private val TEST_DATE: LocalDate = LocalDate.of(2026, 8, 28)
-private const val PHOTO_ID = "photo-1"
+private class FakeHomeRepository :
+    PostRepository,
+    PhotoUploadEntryRepository {
+    val contentQueries = mutableListOf<HomeQuery>()
+    val pageQueries = mutableListOf<HomeQuery>()
+    val months = mutableListOf<YearMonth>()
+    val details = mutableListOf<String>()
+    var statusCalls = 0
+    var records = emptyList<PostCalendarItem>()
+    var calendarFailure = false
+    var detailFailure = false
+    var todayFailure: HomeFailure? = null
+    var yesterdayFailure: HomeFailure? = null
+    var calendarGate: CompletableDeferred<Unit>? = null
+    var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
 
-private fun homeViewModel(
-    repository: PostRepository,
-    sessionState: UserSessionState = UserSessionState.Authenticated("user-id"),
-    dateProvider: () -> LocalDate = { TEST_DATE },
-    launchContext: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
-) = HomeViewModel(
-    repository = repository,
-    sessionState = MutableStateFlow(sessionState),
-    dateProvider = dateProvider,
-    launchContext = launchContext,
-)
+    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
+        contentQueries += query
+        todayFailure?.let { return HomeResult.Failure(it) }
+        return HomeResult.Success(PostContent(query.date, "하늘", listOf(photo("rank-1"), photo("rank-2")), emptySet()))
+    }
 
-private fun homeContent(
-    topic: String = "바다",
-    topicDate: LocalDate = TEST_DATE,
-    photos: List<Post> = listOf(post(PHOTO_ID)),
-    sortPhotos: List<Post>? = null,
-    likeCount: Int = 24,
-    liked: Boolean = false,
-    hasNext: Boolean = true,
-    randomSeed: String? = null,
-) = PostContent(
-    topicDate = topicDate,
-    topic = topic,
-    photos = sortPhotos ?: photos.map { if (it.id == PHOTO_ID) it.copy(likeCount = likeCount) else it },
-    likedPhotoIds = if (liked) setOf(PHOTO_ID) else emptySet(),
-    currentPage = 1,
-    hasNext = hasNext,
-    randomSeed = randomSeed,
-)
+    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
+        pageQueries += query
+        return yesterdayFailure?.let { HomeResult.Failure(it) }
+            ?: HomeResult.Success(PostPage(listOf(photo("yesterday")), emptySet(), 1, false, null))
+    }
 
-private fun postPage(
-    photos: List<Post> = listOf(post("photo-2")),
-    currentPage: Int = 2,
-    hasNext: Boolean = true,
-    randomSeed: String? = null,
-) = PostPage(
-    photos = photos,
-    likedPhotoIds = emptySet(),
-    currentPage = currentPage,
-    hasNext = hasNext,
-    randomSeed = randomSeed,
-)
+    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> {
+        months += month
+        calendarGate?.let { gate -> withContext(NonCancellable) { gate.await() } }
+        return if (calendarFailure) {
+            HomeResult.Failure(HomeFailure.Network)
+        } else {
+            HomeResult.Success(PostCalendar(month, records.filter { YearMonth.from(it.topicDate) == month }))
+        }
+    }
 
-private fun post(
-    id: String,
-    likeCount: Int = 24,
-) = Post(
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> {
+        details += postId
+        return if (detailFailure) {
+            HomeResult.Failure(HomeFailure.Network)
+        } else {
+            HomeResult.Success(PostDetail(photo(postId), "하늘", TODAY))
+        }
+    }
+
+    override suspend fun getTodayPostStatus(): TodayPostStatusResult {
+        statusCalls++
+        return uploadStatus
+    }
+
+    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
+
+    override suspend fun updatePostTitle(
+        postId: String,
+        title: String?,
+    ): HomeResult<PostTitleUpdate> = error("unused")
+
+    override suspend fun updateLike(
+        photoId: String,
+        isLiked: Boolean,
+    ): HomeResult<HomeLike> = error("unused")
+}
+
+private val TODAY = LocalDate.of(2026, 10, 8)
+
+private fun record(
+    date: LocalDate,
+    status: PostStatus,
+) = PostCalendarItem("own-$date", date, "thumb-$date", status)
+
+private fun photo(id: String) = Post(
     id = id,
-    originalImageUrl = "https://example.com/$id.jpg",
-    thumbnailImageUrl = "https://example.com/$id-thumbnail.jpg",
-    signatureOriginalImageUrl = "https://example.com/$id-signature.png",
-    signatureThumbnailImageUrl = "https://example.com/$id-signature-thumbnail.png",
-    contentDescription = "작품 이미지: $id",
-    title = id,
-    likeCount = likeCount,
+    originalImageUrl = "original-$id",
+    thumbnailImageUrl = "thumbnail-$id",
+    signatureOriginalImageUrl = "signature",
+    signatureThumbnailImageUrl = "signature-thumb",
+    contentDescription = "사진 $id",
+    title = null,
+    likeCount = 10,
 )
-
-private class RecordingPostRepository(
-    val homeResults: ArrayDeque<HomeResult<PostContent>> = ArrayDeque(listOf(HomeResult.Success(homeContent()))),
-    val pageResults: ArrayDeque<HomeResult<PostPage>> = ArrayDeque(listOf(HomeResult.Success(postPage()))),
-    val likeResults: ArrayDeque<HomeResult<HomeLike>> = ArrayDeque(listOf(HomeResult.Success(HomeLike(25, true)))),
-) : PostRepository {
-    val homeQueries = mutableListOf<HomeQuery>()
-    val pageQueries = mutableListOf<HomeQuery>()
-    val likeRequests = mutableListOf<Pair<String, Boolean>>()
-
-    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
-
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
-
-    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-
-    override suspend fun updatePostTitle(
-        postId: String,
-        title: String?,
-    ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
-
-    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
-        homeQueries += query
-        return homeResults.removeFirst()
-    }
-
-    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
-        pageQueries += query
-        return pageResults.removeFirst()
-    }
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): HomeResult<HomeLike> {
-        likeRequests += photoId to isLiked
-        return likeResults.removeFirst()
-    }
-}
-
-private class ControlledPostRepository(autoInitial: PostContent? = null) : PostRepository {
-    private val homeResults = mutableListOf<CompletableDeferred<HomeResult<PostContent>>>()
-    private val pageResults = mutableListOf<CompletableDeferred<HomeResult<PostPage>>>()
-    private val likeResults = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
-    private val autoInitialResult = autoInitial
-    private var servedAutoInitial = false
-    val homeQueries = mutableListOf<HomeQuery>()
-    val pageQueries = mutableListOf<HomeQuery>()
-    val likeRequests = mutableListOf<Pair<String, Boolean>>()
-
-    override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
-
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
-
-    override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-
-    override suspend fun updatePostTitle(
-        postId: String,
-        title: String?,
-    ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
-
-    override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
-        homeQueries += query
-        if (autoInitialResult != null && !servedAutoInitial) {
-            servedAutoInitial = true
-            return HomeResult.Success(autoInitialResult)
-        }
-        return CompletableDeferred<HomeResult<PostContent>>()
-            .also(homeResults::add)
-            .await()
-    }
-
-    override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {
-        pageQueries += query
-        return CompletableDeferred<HomeResult<PostPage>>()
-            .also(pageResults::add)
-            .await()
-    }
-
-    override suspend fun updateLike(
-        photoId: String,
-        isLiked: Boolean,
-    ): HomeResult<HomeLike> {
-        likeRequests += photoId to isLiked
-        return CompletableDeferred<HomeResult<HomeLike>>()
-            .also(likeResults::add)
-            .await()
-    }
-
-    fun completeHome(
-        index: Int,
-        result: HomeResult<PostContent>,
-    ) {
-        homeResults[index].complete(result)
-    }
-
-    fun completeLike(
-        index: Int,
-        result: HomeResult<HomeLike>,
-    ) {
-        likeResults[index].complete(result)
-    }
-
-    fun completePage(
-        index: Int,
-        result: HomeResult<PostPage>,
-    ) {
-        pageResults[index].complete(result)
-    }
-}

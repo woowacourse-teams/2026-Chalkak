@@ -6,6 +6,30 @@ struct RecordCalendarResponse: Decodable {
     let posts: [RecordCalendarItemResponse]
 }
 
+struct RecordCalendarMonthsResponse: Decodable {
+    let months: [RecordCalendarMonthResponse]
+}
+
+struct RecordCalendarMonthResponse: Decodable {
+    let year: Int
+    let month: Int
+}
+
+extension RecordCalendarMonthsResponse {
+    func toDomain() throws -> [RecordMonth] {
+        let mapped = try months.map { item -> RecordMonth in
+            guard item.year > 0, (1...12).contains(item.month) else {
+                throw RecordError.invalidResponse
+            }
+            return RecordMonth(year: item.year, month: item.month)
+        }
+        guard Set(mapped).count == mapped.count else {
+            throw RecordError.invalidResponse
+        }
+        return mapped.sorted(by: >)
+    }
+}
+
 struct RecordCalendarItemResponse: Decodable {
     let topicDate: String
     let postId: String

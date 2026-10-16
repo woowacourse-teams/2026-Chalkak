@@ -40,6 +40,14 @@ struct RecordAPIClient: Sendable {
         return try response.toDomain(requestedMonth: month)
     }
 
+    func fetchCalendarMonths() async throws -> [RecordMonth] {
+        let response: RecordCalendarMonthsResponse = try await request(
+            path: "posts/calendar/months",
+            queryItems: []
+        )
+        return try response.toDomain()
+    }
+
     private func request<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem]

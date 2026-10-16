@@ -1,12 +1,17 @@
 package com.stonefive.chalkak.feature.settings
 
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.NotificationPushSettings
 
 data class SettingsUiState(
     val isLoading: Boolean = false,
     val isLoggedIn: Boolean = false,
     val isAccountActionInProgress: Boolean = false,
     val signatureUrl: String? = null,
+    val pushSettings: NotificationPushSettings? = null,
+    val isPushSettingsLoading: Boolean = false,
+    val isTopicPushSaving: Boolean = false,
+    val isModerationPushSaving: Boolean = false,
     val versionName: String,
     val accountDialog: SettingsAccountDialog? = null,
     val pendingMessage: UiMessage? = null,

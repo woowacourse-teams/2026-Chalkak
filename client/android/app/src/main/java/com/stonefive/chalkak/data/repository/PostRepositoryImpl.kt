@@ -4,6 +4,7 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
+import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
@@ -49,6 +50,12 @@ class PostRepositoryImpl(
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> =
         when (val result = remoteDataSource.getPostCalendar(month)) {
             is ApiResult.Success -> result.value.toDomain(month)
+            is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        }
+
+    override suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> =
+        when (val result = remoteDataSource.getPostCalendarMonths()) {
+            is ApiResult.Success -> result.value.toDomain()
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
@@ -192,6 +199,18 @@ class PostRepositoryImpl(
                 posts = mappedPosts.sortedBy(PostCalendarItem::topicDate),
             ),
         )
+    }
+
+    private fun PostCalendarMonthsResponse.toDomain(): HomeResult<List<YearMonth>> {
+        val mappedMonths = months.map { month ->
+            if (month.year < 1) return HomeResult.Failure(HomeFailure.InvalidResponse)
+            runCatching { YearMonth.of(month.year, month.month) }.getOrNull()
+                ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+        if (mappedMonths.distinct().size != mappedMonths.size) {
+            return HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+        return HomeResult.Success(mappedMonths.sortedDescending())
     }
 
     private fun PostCalendarItemResponse.toCalendarDomain(month: YearMonth): PostCalendarItem? {

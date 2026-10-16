@@ -1,12 +1,16 @@
 package com.stonefive.chalkak.feature.settings
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -53,6 +57,27 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun signatureLabelDoesNotInvokeChangeCallback() {
+        var changeClickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(isLoggedIn = true, versionName = "1.0"),
+            onChangeSignatureClick = { changeClickCount++ },
+        )
+
+        composeRule
+            .onNodeWithText("사인 재설정")
+            .assertHasNoClickAction()
+            .performTouchInput { click() }
+
+        assertEquals(0, changeClickCount)
+        composeRule
+            .onNodeWithText("변경하기")
+            .assertHasClickAction()
+            .performTouchInput { click() }
+        assertEquals(1, changeClickCount)
+    }
+
+    @Test
     fun guestSeesOnlyLoginButton() {
         var loginClicked = false
         setSettingsContent(
@@ -65,9 +90,11 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("로그인").performClick()
 
         assertTrue(loginClicked)
+        composeRule.onAllNodesWithText("매일 알림 시간").assertCountEquals(0)
         composeRule.onAllNodesWithText("사인 재설정").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그아웃").assertCountEquals(0)
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)
+        composeRule.onAllNodesWithText("기기 알림 설정").assertCountEquals(0)
     }
 
     @Test
@@ -94,19 +121,6 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("이용약관").performClick()
 
         assertEquals(1, termsClickCount)
-    }
-
-    @Test
-    fun tappingReminderRowInvokesReminderCallback() {
-        var reminderClickCount = 0
-        setSettingsContent(
-            uiState = SettingsUiState(versionName = "1.0"),
-            onReminderClick = { reminderClickCount++ },
-        )
-
-        composeRule.onNodeWithText("알림 설정").performClick()
-
-        assertEquals(1, reminderClickCount)
     }
 
     @Test
@@ -151,9 +165,10 @@ class SettingsScreenTest {
         onChangeSignatureClick: () -> Unit = {},
         onPrivacyPolicyClick: () -> Unit = {},
         onTermsClick: () -> Unit = {},
-        onReminderClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
+        onTopicPushChanged: (Boolean) -> Unit = {},
+        onModerationPushChanged: (Boolean) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -164,13 +179,14 @@ class SettingsScreenTest {
                     onPrivacyPolicyClick = onPrivacyPolicyClick,
                     onTermsClick = onTermsClick,
                     onFeedbackClick = {},
-                    onReminderClick = onReminderClick,
                     onLogoutClick = {},
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,
                     onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
+                    onTopicPushChanged = onTopicPushChanged,
+                    onModerationPushChanged = onModerationPushChanged,
                 )
             }
         }

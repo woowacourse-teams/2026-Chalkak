@@ -21,13 +21,25 @@ data object OnboardingSignaturePreview
 data object ChangeSignaturePreview
 
 @Serializable
-data class ReminderTime(val returnToSettings: Boolean = false)
+data object Home
 
 @Serializable
-data object Today
+data class WebPage(
+    val title: String,
+    val url: String,
+)
 
 @Serializable
-data class Display(val date: String)
+data object Notifications
+
+@Serializable
+data class NotificationDetail(val notificationId: String)
+
+@Serializable
+data class Display(
+    val date: String,
+    val sort: String = "LATEST",
+)
 
 @Serializable
 data class Feed(
@@ -51,6 +63,7 @@ data class Feed(
 data class FeedById(
     val postId: String,
     val isOwnedByCurrentUser: Boolean,
+    val thumbnailImageUrl: String? = null,
 )
 
 @Serializable

@@ -31,7 +31,7 @@ enum RecordPreviewData {
             month: month,
             latestMonth: month,
             posts: posts,
-            selectedDate: posts.first?.topicDate
+            selectedDate: posts.max { $0.topicDate < $1.topicDate }?.topicDate
         )
     }
 

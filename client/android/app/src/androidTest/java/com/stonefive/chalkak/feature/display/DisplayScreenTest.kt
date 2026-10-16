@@ -248,6 +248,22 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun tappingLikeAreaInvokesLikeCallback() {
+        var likedPhotoId: String? = null
+        setDisplayContent(
+            uiState = latestUiState(),
+            onLikeClick = { likedPhotoId = it },
+        )
+
+        composeRule
+            .onNodeWithContentDescription("좋아요 17")
+            .assertHasClickAction()
+            .performClick()
+
+        assertEquals(photo.id, likedPhotoId)
+    }
+
+    @Test
     fun pastDateShowsOnlyPopularPhotosWithoutSortingOptions() {
         setDisplayContent(archiveUiState())
 
@@ -305,6 +321,7 @@ class DisplayScreenTest {
         uiState: DisplayUiState,
         onSortSelected: (PostSort) -> Unit = {},
         onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
+        onLikeClick: (String) -> Unit = {},
         onPreviousDateClick: () -> Unit = {},
         onNextDateClick: () -> Unit = {},
     ) {
@@ -329,6 +346,7 @@ class DisplayScreenTest {
                     onOpenPhotoUpload = {},
                     onNavigateToBottomBar = {},
                     onOpenFeed = onOpenFeed,
+                    onLikeClick = onLikeClick,
                 )
             }
         }

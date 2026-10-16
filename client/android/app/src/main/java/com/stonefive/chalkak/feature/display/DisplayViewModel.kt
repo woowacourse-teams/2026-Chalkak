@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
@@ -28,20 +29,26 @@ import kotlinx.coroutines.launch
 class DisplayViewModel(
     private val repository: PostRepository,
     private val initialDate: LocalDate? = null,
+    initialSort: PostSort = PostSort.LATEST,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DisplayUiState())
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
-    private var selectedSort = PostSort.LATEST
+    private var selectedSort = initialSort
     private var loadedDate: LocalDate? = null
     private var isEndThresholdReached = false
     private var isRevalidating = false
     private var hasBeenPresented = false
+    private var openedPhotoId: String? = null
     private var nextPageJob: Job? = null
+    private var photoRefreshJob: Job? = null
     private var nextMessageId = 0L
+    private var likeRevision = 0
     private val displayCache = mutableMapOf<DisplayCacheKey, DisplayCacheEntry>()
+    private val pendingLikePhotoIds = mutableSetOf<String>()
+    private val likeUpdates = mutableMapOf<String, DisplayLikeUpdate>()
 
     init {
         loadDisplay(date = initialDate)
@@ -103,7 +110,77 @@ class DisplayViewModel(
             hasBeenPresented = true
             return
         }
-        revalidate()
+        val photoId = openedPhotoId
+        openedPhotoId = null
+        val state = _uiState.value
+        if (photoId != null &&
+            (state.content as? DisplayContentState.Latest)?.selectedSort == PostSort.RANDOM &&
+            state.selectedDate == dateProvider()
+        ) {
+            // 랜덤 첫 페이지 재요청은 새 시드를 발급하므로 복귀 시 상세 변경만 반영한다.
+            refreshOpenedPhoto(photoId)
+        } else {
+            revalidate()
+        }
+    }
+
+    fun onFeedOpened(photoId: String) {
+        openedPhotoId = photoId
+    }
+
+    private fun refreshOpenedPhoto(photoId: String) {
+        photoRefreshJob?.cancel()
+        val generation = latestLoadGeneration
+        val requestLikeRevision = likeRevision
+        photoRefreshJob = viewModelScope.launch {
+            val result = try {
+                repository.getPostDetail(photoId)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                HomeResult.Failure(HomeFailure.Network)
+            }
+            if (generation != latestLoadGeneration) return@launch
+
+            when (result) {
+                is HomeResult.Success -> {
+                    val photo = result.value.post
+                    val newerLike = likeUpdates[photoId]
+                        ?.takeIf { it.revision > requestLikeRevision }
+                        ?.value
+                    val updatedPhoto = if (newerLike == null) {
+                        photo
+                    } else {
+                        photo.copy(likeCount = newerLike.likeCount, isLiked = newerLike.isLiked)
+                    }
+                    applyLikeState(
+                        photoId = photoId,
+                        likedPhotoIds = if (updatedPhoto.isLiked) {
+                            _uiState.value.likedPhotoIds + photoId
+                        } else {
+                            _uiState.value.likedPhotoIds - photoId
+                        },
+                    ) { previousPhoto ->
+                        updatedPhoto.copy(
+                            signatureThumbnailImageUrl = updatedPhoto.signatureThumbnailImageUrl
+                                ?: previousPhoto.signatureThumbnailImageUrl,
+                            submittedAt = updatedPhoto.submittedAt ?: previousPhoto.submittedAt,
+                        )
+                    }
+                }
+
+                is HomeResult.Failure -> {
+                    if (result.reason == HomeFailure.Http(404)) {
+                        _uiState.update { it.withoutPhoto(photoId) }
+                        displayCache.replaceAll { _, entry ->
+                            entry.copy(state = entry.state.withoutPhoto(photoId))
+                        }
+                    } else {
+                        _uiState.update { it.copy(pendingMessage = nextToast(DISPLAY_ERROR_MESSAGE)) }
+                    }
+                }
+            }
+        }
     }
 
     fun revalidate() {
@@ -150,6 +227,71 @@ class DisplayViewModel(
         loadNextPage()
     }
 
+    fun updateLike(photoId: String) {
+        if (!pendingLikePhotoIds.add(photoId)) return
+
+        val previousState = _uiState.value
+        val previousPhoto = previousState.photos.find { it.id == photoId }
+        if (previousPhoto == null) {
+            pendingLikePhotoIds.remove(photoId)
+            return
+        }
+
+        val wasLiked = photoId in previousState.likedPhotoIds
+        val isLiked = !wasLiked
+        applyLikeState(
+            photoId = photoId,
+            likedPhotoIds = if (isLiked) {
+                previousState.likedPhotoIds + photoId
+            } else {
+                previousState.likedPhotoIds - photoId
+            },
+        ) { photo ->
+            photo.copy(
+                likeCount = (photo.likeCount + if (isLiked) 1 else -1).coerceAtLeast(0),
+                isLiked = isLiked,
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                val result = try {
+                    repository.updateLike(photoId, isLiked)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    HomeResult.Failure(HomeFailure.Network)
+                }
+
+                when (result) {
+                    is HomeResult.Success -> {
+                        likeUpdates[photoId] = DisplayLikeUpdate(
+                            revision = ++likeRevision,
+                            value = result.value,
+                        )
+                        applyLikeState(
+                            photoId = photoId,
+                            likedPhotoIds = if (result.value.isLiked) {
+                                _uiState.value.likedPhotoIds + photoId
+                            } else {
+                                _uiState.value.likedPhotoIds - photoId
+                            },
+                        ) { photo ->
+                            photo.copy(
+                                likeCount = result.value.likeCount,
+                                isLiked = result.value.isLiked,
+                            )
+                        }
+                    }
+
+                    is HomeResult.Failure -> restoreLike(photoId, previousPhoto, wasLiked)
+                }
+            } finally {
+                pendingLikePhotoIds.remove(photoId)
+            }
+        }
+    }
+
     private fun startDateChange(
         targetDate: LocalDate,
         previousState: DisplayUiState,
@@ -174,6 +316,8 @@ class DisplayViewModel(
         val requestedSort = if (requestedDate < latestDate) PostSort.POPULAR else sort
         val generation = ++latestLoadGeneration
         isRevalidating = keepsContentVisible
+        photoRefreshJob?.cancel()
+        photoRefreshJob = null
         nextPageJob?.cancel()
         nextPageJob = null
         isEndThresholdReached = false
@@ -190,6 +334,7 @@ class DisplayViewModel(
                     )
                 }
             }
+            val requestLikeRevision = likeRevision
             val result = try {
                 repository.getPostContent(
                     HomeQuery(
@@ -210,6 +355,7 @@ class DisplayViewModel(
                     postContent = result.value,
                     latestDate = latestDate,
                     requestedSort = requestedSort,
+                    requestLikeRevision = requestLikeRevision,
                 )
 
                 is HomeResult.Failure -> if (previousState != null) {
@@ -219,24 +365,23 @@ class DisplayViewModel(
                         ?.selectedSort
                         ?: selectedSort
                     val pendingMessage = nextToast(DISPLAY_ERROR_MESSAGE)
-                    _uiState.update {
-                        it.copy(
-                            selectedDate = previousState.selectedDate,
-                            topic = previousState.topic,
-                            content = previousState.content,
-                            likedPhotoIds = previousState.likedPhotoIds,
-                            currentPage = previousState.currentPage,
-                            hasNext = previousState.hasNext,
-                            randomSeed = previousState.randomSeed,
-                            isLoadingNext = false,
-                            earliestDate = if (isPreviousDateRequest) {
-                                previousState.selectedDate
-                            } else {
-                                previousState.earliestDate
-                            },
-                            pendingMessage = pendingMessage,
-                        )
-                    }
+                    val restoredState = previousState.copy(
+                        selectedDate = previousState.selectedDate,
+                        topic = previousState.topic,
+                        content = previousState.content,
+                        likedPhotoIds = previousState.likedPhotoIds,
+                        currentPage = previousState.currentPage,
+                        hasNext = previousState.hasNext,
+                        randomSeed = previousState.randomSeed,
+                        isLoadingNext = false,
+                        earliestDate = if (isPreviousDateRequest) {
+                            previousState.selectedDate
+                        } else {
+                            previousState.earliestDate
+                        },
+                        pendingMessage = pendingMessage,
+                    )
+                    _uiState.update { restoredState.withAppliedLikeUpdatesAfter(requestLikeRevision) }
                 } else {
                     _uiState.update {
                         it.copy(
@@ -255,6 +400,7 @@ class DisplayViewModel(
         postContent: PostContent,
         latestDate: LocalDate,
         requestedSort: PostSort,
+        requestLikeRevision: Int,
     ) {
         val earliestDate = _uiState.value.earliestDate
         loadedDate = postContent.topicDate
@@ -289,9 +435,17 @@ class DisplayViewModel(
                 .orEmpty()
                 .intersect(cachedTailIds)
         val content = if (postContent.topicDate < latestDate) {
+            val featuredPhotos = mergedPhotos.take(FEATURED_PHOTO_COUNT)
+            val previousArchive = _uiState.value
+                .takeIf { it.selectedDate == postContent.topicDate }
+                ?.content as? DisplayContentState.Archive
             DisplayContentState.Archive(
                 photos = mergedPhotos,
-                featuredPhotos = mergedPhotos.take(FEATURED_PHOTO_COUNT),
+                featuredPhotos = featuredPhotos,
+                featuredPage = previousArchive
+                    ?.featuredPage
+                    ?.coerceIn(0, featuredPhotos.lastIndex.coerceAtLeast(0))
+                    ?: 0,
             )
         } else {
             DisplayContentState.Latest(
@@ -317,7 +471,7 @@ class DisplayViewModel(
                 ?.takeIf { cachedTail.isNotEmpty() }
                 ?: postContent.hasNext,
             randomSeed = postContent.randomSeed,
-        )
+        ).withAppliedLikeUpdatesAfter(requestLikeRevision)
         _uiState.value = newState
         displayCache[cacheKey] = DisplayCacheEntry(
             state = newState,
@@ -355,6 +509,7 @@ class DisplayViewModel(
         )
         _uiState.update { it.copy(isLoadingNext = true) }
         val job = viewModelScope.launch {
+            val requestLikeRevision = likeRevision
             val result = try {
                 repository.getPostPage(query)
             } catch (cancellation: CancellationException) {
@@ -365,7 +520,7 @@ class DisplayViewModel(
             if (generation != latestLoadGeneration) return@launch
 
             when (result) {
-                is HomeResult.Success -> appendPage(result.value)
+                is HomeResult.Success -> appendPage(result.value, requestLikeRevision)
                 is HomeResult.Failure -> _uiState.update { it.copy(isLoadingNext = false) }
             }
         }
@@ -375,7 +530,10 @@ class DisplayViewModel(
         }
     }
 
-    private fun appendPage(page: PostPage) {
+    private fun appendPage(
+        page: PostPage,
+        requestLikeRevision: Int,
+    ) {
         _uiState.update { state ->
             val content = state.content
             val existingIds = when (content) {
@@ -390,23 +548,108 @@ class DisplayViewModel(
                 is DisplayContentState.Archive -> content.copy(photos = content.photos + newPhotos)
                 else -> return@update state.copy(isLoadingNext = false)
             }
-            state.copy(
-                content = updatedContent,
-                likedPhotoIds = (state.likedPhotoIds - newPhotoIds) +
-                    page.likedPhotoIds.intersect(newPhotoIds),
-                currentPage = page.currentPage,
-                hasNext = page.hasNext,
-                randomSeed = if (state.content is DisplayContentState.Latest &&
-                    state.content.selectedSort == PostSort.RANDOM
-                ) {
-                    state.randomSeed ?: page.randomSeed
+            state
+                .copy(
+                    content = updatedContent,
+                    likedPhotoIds = (state.likedPhotoIds - newPhotoIds) +
+                        page.likedPhotoIds.intersect(newPhotoIds),
+                    currentPage = page.currentPage,
+                    hasNext = page.hasNext,
+                    randomSeed = if (state.content is DisplayContentState.Latest &&
+                        state.content.selectedSort == PostSort.RANDOM
+                    ) {
+                        state.randomSeed ?: page.randomSeed
+                    } else {
+                        null
+                    },
+                    isLoadingNext = false,
+                ).withAppliedLikeUpdatesAfter(requestLikeRevision)
+        }
+        cacheCurrentState()
+    }
+
+    private fun restoreLike(
+        photoId: String,
+        previousPhoto: Post,
+        wasLiked: Boolean,
+    ) {
+        likeUpdates[photoId] = DisplayLikeUpdate(
+            revision = ++likeRevision,
+            value = HomeLike(
+                likeCount = previousPhoto.likeCount,
+                isLiked = previousPhoto.isLiked,
+            ),
+        )
+        applyLikeState(
+            photoId = photoId,
+            likedPhotoIds = if (wasLiked) {
+                _uiState.value.likedPhotoIds + photoId
+            } else {
+                _uiState.value.likedPhotoIds - photoId
+            },
+        ) { photo ->
+            photo.copy(
+                likeCount = previousPhoto.likeCount,
+                isLiked = previousPhoto.isLiked,
+            )
+        }
+        _uiState.update { state ->
+            state.copy(pendingMessage = nextToast(LIKE_ERROR_MESSAGE))
+        }
+    }
+
+    private fun applyLikeState(
+        photoId: String,
+        likedPhotoIds: Set<String>,
+        updatePhoto: (Post) -> Post,
+    ) {
+        _uiState.update { state ->
+            state.withUpdatedPhoto(
+                photoId = photoId,
+                likedPhotoIds = likedPhotoIds,
+                updatePhoto = updatePhoto,
+            )
+        }
+        displayCache.replaceAll { _, entry ->
+            val cacheLikedPhotoIds = if (entry.state.hasPhoto(photoId)) {
+                if (photoId in likedPhotoIds) {
+                    entry.state.likedPhotoIds + photoId
                 } else {
-                    null
-                },
-                isLoadingNext = false,
+                    entry.state.likedPhotoIds - photoId
+                }
+            } else {
+                entry.state.likedPhotoIds
+            }
+            entry.copy(
+                state = entry.state.withUpdatedPhoto(
+                    photoId = photoId,
+                    likedPhotoIds = cacheLikedPhotoIds,
+                    updatePhoto = updatePhoto,
+                ),
             )
         }
         cacheCurrentState()
+    }
+
+    private fun DisplayUiState.withAppliedLikeUpdatesAfter(revision: Int): DisplayUiState {
+        val updates = likeUpdates.filterValues { it.revision > revision }
+        if (updates.isEmpty()) return this
+
+        return withUpdatedPhotos(
+            likedPhotoIds = updates.entries.fold(likedPhotoIds) { updatedIds, (photoId, update) ->
+                if (update.value.isLiked) {
+                    updatedIds + photoId
+                } else {
+                    updatedIds - photoId
+                }
+            },
+        ) { photo ->
+            val update = updates[photo.id]?.value ?: return@withUpdatedPhotos photo
+            photo.copy(
+                likeCount = update.likeCount,
+                isLiked = update.isLiked,
+            )
+        }
     }
 
     private fun cacheCurrentState() {
@@ -426,12 +669,16 @@ class DisplayViewModel(
     }
 
     companion object {
-        fun factory(initialDate: LocalDate? = null) = viewModelFactory {
+        fun factory(
+            initialDate: LocalDate? = null,
+            initialSort: PostSort = PostSort.LATEST,
+        ) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 DisplayViewModel(
                     repository = application.appContainer.postRepository,
                     initialDate = initialDate,
+                    initialSort = initialSort,
                 )
             }
         }
@@ -448,6 +695,73 @@ class DisplayViewModel(
     )
 }
 
+private val DisplayUiState.photos: List<Post>
+    get() = when (val content = content) {
+        is DisplayContentState.Latest -> content.photos
+        is DisplayContentState.Archive -> content.photos
+        else -> emptyList()
+    }
+
+private fun DisplayUiState.hasPhoto(photoId: String): Boolean = photos.any { it.id == photoId }
+
+private fun DisplayUiState.withUpdatedPhoto(
+    photoId: String,
+    likedPhotoIds: Set<String>,
+    updatePhoto: (Post) -> Post,
+): DisplayUiState {
+    if (photos.none { it.id == photoId }) return this
+
+    fun List<Post>.updated(): List<Post> = map { photo ->
+        if (photo.id == photoId) updatePhoto(photo) else photo
+    }
+
+    val updatedContent = when (val currentContent = content) {
+        is DisplayContentState.Latest -> currentContent.copy(
+            photos = currentContent.photos.updated(),
+        )
+
+        is DisplayContentState.Archive -> currentContent.copy(
+            photos = currentContent.photos.updated(),
+            featuredPhotos = currentContent.featuredPhotos.updated(),
+        )
+
+        else -> content
+    }
+    return copy(
+        content = updatedContent,
+        likedPhotoIds = likedPhotoIds,
+    )
+}
+
+private fun DisplayUiState.withUpdatedPhotos(
+    likedPhotoIds: Set<String>,
+    updatePhoto: (Post) -> Post,
+): DisplayUiState {
+    fun List<Post>.updated(): List<Post> = map(updatePhoto)
+
+    val updatedContent = when (val currentContent = content) {
+        is DisplayContentState.Latest -> currentContent.copy(
+            photos = currentContent.photos.updated(),
+        )
+
+        is DisplayContentState.Archive -> currentContent.copy(
+            photos = currentContent.photos.updated(),
+            featuredPhotos = currentContent.featuredPhotos.updated(),
+        )
+
+        else -> content
+    }
+    return copy(
+        content = updatedContent,
+        likedPhotoIds = likedPhotoIds,
+    )
+}
+
+private data class DisplayLikeUpdate(
+    val revision: Int,
+    val value: HomeLike,
+)
+
 private data class DisplayCacheKey(
     val date: LocalDate,
     val sort: PostSort,
@@ -458,11 +772,28 @@ private data class DisplayCacheEntry(
     val firstPagePhotoIds: Set<String>,
 )
 
-private val DisplayUiState.photos: List<Post>
-    get() = when (val content = content) {
-        is DisplayContentState.Latest -> content.photos
-        is DisplayContentState.Archive -> content.photos
-        else -> emptyList()
-    }
-
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"
+private const val LIKE_ERROR_MESSAGE = "좋아요를 반영하지 못했어요"
+
+private fun DisplayUiState.withoutPhoto(photoId: String): DisplayUiState = copy(
+    content = when (val currentContent = content) {
+        is DisplayContentState.Latest -> currentContent.copy(
+            photos = currentContent.photos.filterNot { it.id == photoId },
+        )
+
+        is DisplayContentState.Archive -> {
+            val featuredPhotos = currentContent.featuredPhotos.filterNot { it.id == photoId }
+            currentContent.copy(
+                photos = currentContent.photos.filterNot { it.id == photoId },
+                featuredPhotos = featuredPhotos,
+                featuredPage = currentContent.featuredPage.coerceIn(
+                    0,
+                    featuredPhotos.lastIndex.coerceAtLeast(0),
+                ),
+            )
+        }
+
+        else -> content
+    },
+    likedPhotoIds = likedPhotoIds - photoId,
+)

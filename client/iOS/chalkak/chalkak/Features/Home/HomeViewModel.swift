@@ -4,197 +4,171 @@ import Observation
 @MainActor
 @Observable
 final class HomeViewModel {
-    typealias RefreshHandler = @MainActor @Sendable (HomePostSort) async -> Result<HomeViewState, HomeInitialError>
-    typealias NextPageHandler = @MainActor @Sendable (HomeViewState) async -> Result<HomePage, HomeInitialError>
-    typealias LikeHandler = @MainActor @Sendable (HomePhoto.ID, Bool) async -> Result<HomeLikeUpdate, HomeInitialError>
-    typealias AuthenticationProvider = @MainActor @Sendable () -> Bool
-
     private(set) var viewState: HomeViewState
-    private(set) var event: HomeEvent?
-    private(set) var imageReloadGeneration = 0
     private(set) var scrollToTopRequestID = 0
-
-    private let refreshHandler: RefreshHandler
-    private let nextPageHandler: NextPageHandler
-    private let likeHandler: LikeHandler
-    private let isAuthenticated: AuthenticationProvider
-
-    private var isEndThresholdReached = false
-    private var likingPhotoIDs: Set<HomePhoto.ID> = []
+    private let loader: HomeDataLoader
+    private let dateProvider: @MainActor () -> Date
+    private let isAuthenticated: @MainActor () -> Bool
+    private var generation = 0
+    private var loadTask: Task<Void, Never>?
 
     init(
-        initialState: HomeViewState,
-        isAuthenticated: @escaping AuthenticationProvider = { false },
-        refreshHandler: @escaping RefreshHandler = { _ in .failure(.generic) },
-        nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
-        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
+        initialState: HomeViewState? = nil,
+        loader: HomeDataLoader,
+        dateProvider: @escaping @MainActor () -> Date = { Date() },
+        isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() }
     ) {
-        self.viewState = initialState
+        viewState = initialState ?? HomeViewState(date: dateProvider())
+        self.loader = loader
+        self.dateProvider = dateProvider
         self.isAuthenticated = isAuthenticated
-        self.refreshHandler = refreshHandler
-        self.nextPageHandler = nextPageHandler
-        self.likeHandler = likeHandler
     }
 
-    func retry() async {
-        await loadFirstPage(sort: viewState.selectedSort, preservesContent: false)
+    func resume() async {
+        await load(showRefreshIndicator: false)
     }
 
     func refresh() async {
-        guard viewState.contentStatus != .loading, !viewState.isRefreshing else { return }
-        await loadFirstPage(sort: .random, preservesContent: viewState.contentStatus == .content)
+        guard loadTask == nil else { return }
+        await load(showRefreshIndicator: true)
     }
 
-    func didReachEndThreshold(_ isReached: Bool) async {
-        guard isReached else {
-            isEndThresholdReached = false
+    func scrollToTop() {
+        scrollToTopRequestID += 1
+    }
+
+    func cancel() {
+        generation += 1
+        loadTask?.cancel()
+        loadTask = nil
+    }
+
+    private func load(showRefreshIndicator: Bool) async {
+        let date = RecordMonth.calendar.startOfDay(for: dateProvider())
+        let authenticated = isAuthenticated()
+        if loadTask != nil, date == viewState.date, authenticated == viewState.isAuthenticated { return }
+        cancel()
+        let request = generation
+        if date != viewState.date || authenticated != viewState.isAuthenticated {
+            viewState = HomeViewState(date: date)
+        }
+        viewState.isAuthenticated = authenticated
+        viewState.isRefreshing = showRefreshIndicator
+        let task = Task { [weak self] in
+            guard let self else { return }
+            async let today: Void = self.loadToday(date, request: request)
+            async let yesterday: Void = self.loadYesterday(date, request: request)
+            async let personal: Void = self.loadPersonal(date, authenticated: authenticated, request: request)
+            _ = await (today, yesterday, personal)
+            guard self.isCurrent(request) else { return }
+            self.viewState.isRefreshing = false
+            self.loadTask = nil
+        }
+        loadTask = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        if generation == request, task.isCancelled {
+            loadTask = nil
+            viewState.isRefreshing = false
+        }
+    }
+
+    private func isCurrent(_ request: Int) -> Bool {
+        request == generation && !Task.isCancelled
+    }
+
+    private func loadToday(_ date: Date, request: Int) async {
+        do {
+            let content = try await loader.today(date)
+            guard isCurrent(request) else { return }
+            viewState.topic = content.topic
+            viewState.topicStatus = .ready
+            viewState.trending = HomeRankingState(status: .ready, photos: Array(content.page.photos.prefix(5)))
+        } catch {
+            guard isCurrent(request) else { return }
+            let missing = (error as? DisplayAPIError)?.displayError == .topicNotFound
+            viewState.topic = ""
+            viewState.topicStatus = missing ? .ready : .error
+            viewState.trending = HomeRankingState(status: missing ? .ready : .error)
+        }
+    }
+
+    private func loadYesterday(_ date: Date, request: Int) async {
+        let yesterday = RecordMonth.calendar.date(byAdding: .day, value: -1, to: date)!
+        do {
+            let photos = try await loader.ranking(yesterday)
+            guard isCurrent(request) else { return }
+            viewState.yesterday = HomeRankingState(status: .ready, photos: Array(photos.prefix(5)))
+        } catch {
+            guard isCurrent(request) else { return }
+            let missing = (error as? DisplayAPIError)?.displayError == .topicNotFound
+            viewState.yesterday = HomeRankingState(status: missing ? .ready : .error)
+        }
+    }
+
+    private func loadPersonal(_ date: Date, authenticated: Bool, request: Int) async {
+        guard authenticated else {
+            guard isCurrent(request) else { return }
+            viewState.hero = .empty
+            viewState.recordsStatus = .ready
             return
         }
-        guard !isEndThresholdReached else { return }
-
-        isEndThresholdReached = true
-        await loadNextPage()
-    }
-
-    func toggleLike(photoID: HomePhoto.ID) async {
-        guard viewState.areLikesEnabled else { return }
-        guard isAuthenticated() else {
-            publish(.showGuestLikeMessage)
-            return
-        }
-        guard let photoIndex = viewState.photos.firstIndex(where: { $0.id == photoID }) else { return }
-        guard likingPhotoIDs.insert(photoID).inserted else { return }
-        defer { likingPhotoIDs.remove(photoID) }
-
-        let previousPhoto = viewState.photos[photoIndex]
-        let wasLiked = viewState.likedPhotoIDs.contains(photoID)
-        let isLiked = !wasLiked
-        let optimisticCount = max(0, previousPhoto.likeCount + (isLiked ? 1 : -1))
-
-        viewState.photos[photoIndex].likeCount = optimisticCount
-        setLiked(isLiked, photoID: photoID)
-
-        let result = await likeHandler(photoID, isLiked)
-        switch result {
-        case let .success(update):
-            guard let updatedIndex = viewState.photos.firstIndex(where: { $0.id == update.photoID }) else { return }
-            viewState.photos[updatedIndex].likeCount = update.likeCount
-            setLiked(update.isLiked, photoID: update.photoID)
-        case .failure:
-            guard let currentIndex = viewState.photos.firstIndex(where: { $0.id == photoID }) else { return }
-            viewState.photos[currentIndex] = previousPhoto
-            setLiked(wasLiked, photoID: photoID)
-        }
-    }
-
-    func selectBottomBarItem(_ item: ChalkakBottomBarItem) async {
-        if item == .today {
-            scrollToTopRequestID += 1
-            await refresh()
-        } else {
-            publish(.navigateToBottomBar(item))
-        }
-    }
-
-    func openPhotoUpload() {
-        publish(.openPhotoUpload)
-    }
-
-    func consumeEvent() {
-        event = nil
-    }
-
-    private func loadFirstPage(sort: HomePostSort, preservesContent: Bool) async {
-        isEndThresholdReached = false
-        let previousState = viewState
-
-        if preservesContent {
-            imageReloadGeneration += 1
-            viewState.isRefreshing = true
-            viewState.isLoadingNext = false
-            viewState.areLikesEnabled = false
-        } else {
-            viewState = HomeViewState(
-                contentStatus: .loading,
-                selectedSort: sort,
-                areLikesEnabled: false
-            )
-        }
-
-        let result = await refreshHandler(sort)
-        switch result {
-        case var .success(newState):
-            newState.contentStatus = .content
-            newState.selectedSort = sort
-            newState.isRefreshing = false
-            newState.isLoadingNext = false
-            newState.areLikesEnabled = true
-            viewState = newState
-        case let .failure(reason):
-            if reason == .cancelled {
-                viewState = previousState
-                return
+        let dates = HomeViewState.weekDates(date)
+        let months = Set(dates.map { RecordMonth.current(now: $0) })
+        let loader = loader
+        let results = await withTaskGroup(of: RecordCalendar?.self) { group in
+            for month in months {
+                group.addTask { try? await loader.calendar(month) }
             }
-
-            if preservesContent {
-                viewState.isRefreshing = false
-                viewState.isLoadingNext = false
-                viewState.areLikesEnabled = true
-                publish(.showRefreshFailure(reason))
-            } else {
-                viewState = HomeViewState(
-                    contentStatus: .error(reason),
-                    selectedSort: sort,
-                    areLikesEnabled: false
-                )
-            }
+            var results: [RecordCalendar?] = []
+            for await result in group { results.append(result) }
+            return results
         }
-    }
-
-    private func loadNextPage() async {
-        guard viewState.contentStatus == .content,
-              viewState.hasNext,
-              !viewState.isLoadingNext
-        else { return }
-
-        viewState.isLoadingNext = true
-
-        let result = await nextPageHandler(viewState)
-        switch result {
-        case let .success(page):
-            append(page)
-        case .failure:
-            viewState.isLoadingNext = false
-            isEndThresholdReached = false
+        guard isCurrent(request) else { return }
+        let posts = results.compactMap { $0 }.flatMap(\.posts)
+        let failed = results.contains { $0 == nil }
+        viewState.week = dates.map { day in
+            HomeWeekDay(date: day, post: posts.first { RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: day) })
         }
-    }
-
-    private func append(_ page: HomePage) {
-        let existingIDs = Set(viewState.photos.map(\.id))
-        let newPhotos = page.photos.filter { !existingIDs.contains($0.id) }
-        let newPhotoIDs = Set(newPhotos.map(\.id))
-
-        viewState.photos.append(contentsOf: newPhotos)
-        viewState.likedPhotoIDs.subtract(newPhotoIDs)
-        viewState.likedPhotoIDs.formUnion(page.likedPhotoIDs.intersection(newPhotoIDs))
-        viewState.currentPage = page.currentPage
-        viewState.hasNext = page.hasNext
-        viewState.randomSeed = viewState.selectedSort == .random
-            ? viewState.randomSeed ?? page.randomSeed
-            : nil
-        viewState.isLoadingNext = false
-        isEndThresholdReached = false
-    }
-
-    private func setLiked(_ isLiked: Bool, photoID: HomePhoto.ID) {
-        if isLiked {
-            viewState.likedPhotoIDs.insert(photoID)
+        viewState.recordsStatus = failed ? .error : .ready
+        let record = posts.first { RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: date) }
+        let hero: HomeHeroState
+        if let record {
+            hero = await loadHero(record)
+        } else if failed {
+            hero = .error
         } else {
-            viewState.likedPhotoIDs.remove(photoID)
+            hero = await loadMissingHero(date)
+        }
+        guard isCurrent(request) else { return }
+        viewState.hero = hero
+    }
+
+    private func loadHero(_ record: RecordPost) async -> HomeHeroState {
+        let fallback = HomeHeroPhoto(imageSource: record.thumbnailImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: nil, isPending: record.status == .pending)
+        if record.status == .pending { return .photo(fallback) }
+        guard record.status == .approved else { return .error }
+        do {
+            let detail = try await loader.detail(record.postId)
+            return .photo(HomeHeroPhoto(imageSource: detail.post.originalImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: detail.post.signatureImageSource, isPending: false))
+        } catch {
+            return .photo(fallback)
         }
     }
 
-    private func publish(_ event: HomeEvent) {
-        self.event = event
+    private func loadMissingHero(_ date: Date) async -> HomeHeroState {
+        do {
+            let status = try await loader.postStatus()
+            guard RecordMonth.calendar.isDate(status.topicDate, inSameDayAs: date), status.isPosted else { return .empty }
+            return status.moderationStatus == .validating ? .processing : .error
+        } catch let error as PhotoUploadAPIError {
+            if case .http(404, _) = error { return .noOpenTopic }
+            return .error
+        } catch {
+            return .error
+        }
     }
 }

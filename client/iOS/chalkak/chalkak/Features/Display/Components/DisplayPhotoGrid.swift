@@ -5,7 +5,10 @@ struct DisplayPhotoGrid: View {
     let photos: [DisplayPhoto]
     let isLoadingNext: Bool
     let onEndThreshold: (Bool) -> Void
-    var onSelect: (DisplayPhoto) -> Void = { _ in }
+    var likingPhotoIDs: Set<String> = []
+    var onLike: (DisplayPhoto) -> Void = { _ in }
+    // 선택한 사진과, 이미 측정된 세로/가로 비율(없으면 nil)을 전달한다.
+    var onSelect: (DisplayPhoto, CGFloat?, FeedZoomRegistry.Source) -> Void = { _, _, _ in }
 
     // 로드되며 측정된 사진별 세로/가로 비율(height / width). 미측정 사진은 기본 비율로 배치한다.
     @State private var ratioByID: [DisplayPhoto.ID: CGFloat] = [:]
@@ -35,16 +38,15 @@ struct DisplayPhotoGrid: View {
                 DisplayMasonryCell(
                     photo: item.photo,
                     ratio: ratioByID[item.photo.id],
+                    isLiking: likingPhotoIDs.contains(item.photo.id),
+                    onSelect: { onSelect(item.photo, ratioByID[item.photo.id], $0) },
+                    onLike: { onLike(item.photo) },
                     onMeasured: { ratio in
                         guard ratioByID[item.photo.id] == nil else { return }
                         ratioByID[item.photo.id] = ratio
                     }
                 )
-                .contentShape(Rectangle())
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                .onTapGesture { onSelect(item.photo) }
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("피드 열기")
                 .onAppear {
                     onEndThreshold(item.index >= photos.count - Metrics.endThreshold)
                 }
@@ -88,12 +90,16 @@ private struct DisplayMasonryCell: View {
     @Environment(\.chalkakTheme) private var theme
     let photo: DisplayPhoto
     let ratio: CGFloat?
+    let isLiking: Bool
+    let onSelect: (FeedZoomRegistry.Source) -> Void
+    let onLike: () -> Void
     let onMeasured: (CGFloat) -> Void
 
     var body: some View {
         // aspectRatio는 가로/세로(width / height)를 받으므로 저장한 세로/가로 비율을 뒤집는다.
         let widthOverHeight = 1 / (ratio ?? Metrics.defaultRatio)
 
+        // Android(indication = null)처럼 눌림 효과 없이 탭만 받는다.
         Color.black
             .aspectRatio(widthOverHeight, contentMode: .fit)
             .overlay {
@@ -106,9 +112,25 @@ private struct DisplayMasonryCell: View {
                 )
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
+            .contentShape(Rectangle())
+            .feedZoomSource(
+                .displayGrid(photo.id),
+                cornerRadius: theme.shapes.photoCard,
+                signatureSize: Metrics.signatureSize,
+                onSelect: onSelect
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(photo.contentDescription)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("피드 열기")
             .overlay(alignment: .bottomLeading) {
-                DisplayLikeBadge(likeCount: photo.likeCount, isLiked: photo.isLiked)
-                    .padding(Metrics.badgeInset)
+                DisplayLikeBadge(
+                    likeCount: photo.likeCount,
+                    isLiked: photo.isLiked,
+                    isEnabled: !isLiking,
+                    onLike: onLike
+                )
+                .padding(Metrics.badgeInset)
             }
             .task(id: photo.id) {
                 guard ratio == nil,
@@ -116,8 +138,6 @@ private struct DisplayMasonryCell: View {
                 else { return }
                 onMeasured(measured)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
     }
 }
 
@@ -125,25 +145,41 @@ struct DisplayLikeBadge: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
     let isLiked: Bool
+    var isEnabled = true
+    var onLike: () -> Void = {}
 
     var body: some View {
-        HStack(spacing: Metrics.spacing) {
-            Image(isLiked ? "ic_heart_filled" : "ic_heart")
-                .renderingMode(.template)
-                .resizable()
-                .frame(width: Metrics.heartSize, height: Metrics.heartSize)
-                .accessibilityHidden(true)
+        Button(action: onLike) {
+            HStack(spacing: Metrics.spacing) {
+                Image(isLiked ? "ic_heart_filled" : "ic_heart")
+                    .renderingMode(.template)
+                    .resizable()
+                    .frame(width: Metrics.heartSize, height: Metrics.heartSize)
+                    .accessibilityHidden(true)
 
-            Text("\(likeCount)")
-                .font(theme.typography.subheadline)
+                Text("\(likeCount)")
+                    .font(theme.typography.subheadline)
+            }
+            // 터치 영역은 위·오른쪽으로 넓히고, 하트는 Android처럼 카드 좌하단 여백에 맞춘다.
+            .frame(
+                minWidth: Metrics.minimumTouchSize,
+                minHeight: Metrics.minimumTouchSize,
+                alignment: .bottomLeading
+            )
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel("좋아요 \(likeCount)")
+        .accessibilityIdentifier("display-like")
         .foregroundStyle(theme.colors.textOnImage)
         .shadow(color: .black.opacity(Metrics.shadowOpacity), radius: Metrics.shadowRadius, y: 1)
         .accessibilityValue(isLiked ? "선택됨" : "선택 안 됨")
     }
 
     private enum Metrics {
-        static let spacing: CGFloat = 5
+        static let minimumTouchSize: CGFloat = 36
+        static let spacing: CGFloat = 4
         static let heartSize: CGFloat = 18
         static let shadowOpacity: CGFloat = 0.25
         static let shadowRadius: CGFloat = 2

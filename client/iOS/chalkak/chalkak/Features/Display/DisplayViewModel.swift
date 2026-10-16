@@ -7,11 +7,19 @@ final class DisplayViewModel {
     typealias DateProvider = @MainActor @Sendable () -> Date
     typealias FirstPageHandler = @MainActor @Sendable (
         Date,
-        DisplaySort
+        DisplaySort,
+        String?
     ) async -> Result<DisplayContent, DisplayError>
     typealias NextPageHandler = @MainActor @Sendable (
         DisplayPageRequest
     ) async -> Result<DisplayPage, DisplayError>
+
+    typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
+
+    private(set) var likingPhotoIDs: Set<String> = []
+    private var likeVersion = 0
+    private var likeUpdates: [String: (version: Int, update: FeedLikeUpdate)] = [:]
+    private let likeHandler: LikeHandler
 
     private(set) var viewState: DisplayViewState
     private(set) var event: DisplayEvent?
@@ -30,16 +38,21 @@ final class DisplayViewModel {
     init(
         initialState: DisplayViewState? = nil,
         initialDate: Date? = nil,
+        initialSort: DisplaySort = .latest,
         dateProvider: @escaping DateProvider = { Date() },
-        firstPageHandler: @escaping FirstPageHandler = { _, _ in .failure(.generic) },
-        nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) }
+        firstPageHandler: @escaping FirstPageHandler = { _, _, _ in .failure(.generic) },
+        nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
+        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
     ) {
-        let initialState = initialState ?? DisplayViewState()
+        var resolvedState = initialState ?? DisplayViewState()
+        if initialState == nil { resolvedState.selectedSort = initialSort }
+        let initialState = resolvedState
         self.viewState = initialState
         self.initialDate = initialDate
         self.dateProvider = dateProvider
         self.firstPageHandler = firstPageHandler
         self.nextPageHandler = nextPageHandler
+        self.likeHandler = likeHandler
         self.selectedLatestSort = initialState.selectedSort
         if initialState.hasLoadedContent, let selectedDate = initialState.selectedDate {
             let sort: DisplaySort = initialState.contentStatus == .archive ? .popular : initialState.selectedSort
@@ -52,15 +65,17 @@ final class DisplayViewModel {
 
     convenience init(
         initialDate: Date? = nil,
+        initialSort: DisplaySort = .latest,
         dateProvider: @escaping DateProvider = { Date() },
         apiClient: DisplayAPIClient
     ) {
         self.init(
             initialDate: initialDate,
+            initialSort: initialSort,
             dateProvider: dateProvider,
-            firstPageHandler: { date, sort in
+            firstPageHandler: { date, sort, randomSeed in
                 do {
-                    return .success(try await apiClient.fetchDisplay(date: date, sort: sort))
+                    return .success(try await apiClient.fetchDisplay(date: date, sort: sort, randomSeed: randomSeed))
                 } catch is CancellationError {
                     return .failure(.generic)
                 } catch let error as DisplayAPIError {
@@ -76,6 +91,13 @@ final class DisplayViewModel {
                     return .failure(.generic)
                 } catch let error as DisplayAPIError {
                     return .failure(error.displayError)
+                } catch {
+                    return .failure(.generic)
+                }
+            },
+            likeHandler: { postID, isLiked in
+                do {
+                    return .success(try await apiClient.updateLike(postID: postID, isLiked: isLiked))
                 } catch {
                     return .failure(.generic)
                 }
@@ -116,7 +138,8 @@ final class DisplayViewModel {
             date: requestedDate,
             latestDate: latestDate,
             preserves: previous,
-            keepsContentVisible: previous != nil
+            keepsContentVisible: previous != nil,
+            preservesRandomSeed: true
         )
     }
 
@@ -201,6 +224,46 @@ final class DisplayViewModel {
         await loadNextPage()
     }
 
+    func toggleLike(photoID: String) async {
+        guard viewState.hasLoadedContent,
+              !likingPhotoIDs.contains(photoID),
+              let photo = viewState.photos.first(where: { $0.id == photoID })
+        else { return }
+        likingPhotoIDs.insert(photoID)
+        defer { likingPhotoIDs.remove(photoID) }
+        switch await likeHandler(photoID, !photo.isLiked) {
+        case let .success(update):
+            guard update.postID == photoID, update.likeCount >= 0 else {
+                event = .likeFailed
+                return
+            }
+            likeVersion += 1
+            likeUpdates[photoID] = (likeVersion, update)
+            applyLikeUpdates(to: &viewState, after: likeVersion - 1)
+            for key in Array(displayCache.keys) {
+                guard var entry = displayCache[key] else { continue }
+                applyLikeUpdates(to: &entry.state, after: likeVersion - 1)
+                displayCache[key] = entry
+            }
+        case .failure:
+            event = .likeFailed
+        }
+    }
+
+    private func applyLikeUpdates(to state: inout DisplayViewState, after version: Int) {
+        func updated(_ photos: [DisplayPhoto]) -> [DisplayPhoto] {
+            photos.map { photo in
+                guard let record = likeUpdates[photo.id], record.version > version else { return photo }
+                var photo = photo
+                photo.isLiked = record.update.isLiked
+                photo.likeCount = record.update.likeCount
+                return photo
+            }
+        }
+        state.photos = updated(state.photos)
+        state.featuredPhotos = updated(state.featuredPhotos)
+    }
+
     func consumeEvent() {
         event = nil
     }
@@ -210,7 +273,8 @@ final class DisplayViewModel {
         latestDate: Date,
         preserves previousState: DisplayViewState?,
         isPreviousDateRequest: Bool = false,
-        keepsContentVisible: Bool = false
+        keepsContentVisible: Bool = false,
+        preservesRandomSeed: Bool = false
     ) async {
         generation += 1
         let requestGeneration = generation
@@ -238,12 +302,18 @@ final class DisplayViewModel {
             viewState.transientError = nil
         }
 
-        let result = await firstPageHandler(requestedDate, requestSort)
+        let randomSeed = preservesRandomSeed && requestSort == .random &&
+            previousState?.selectedSort == .random && previousState?.selectedDate == requestedDate
+            ? previousState?.randomSeed : nil
+        let requestLikeVersion = likeVersion
+        let result = await firstPageHandler(requestedDate, requestSort, randomSeed)
         guard requestGeneration == generation else { return }
 
         switch result {
         case let .success(content):
             apply(content, latestDate: latestDate)
+            applyLikeUpdates(to: &viewState, after: requestLikeVersion)
+            cacheCurrentState()
         case let .failure(error):
             loadedTopicDate = previousState.flatMap { _ in loadedTopicDate }
             if var restored = previousState {
@@ -256,6 +326,7 @@ final class DisplayViewModel {
                 restored.latestDate = latestDate
                 restored.isLoadingNext = false
                 restored.transientError = error
+                applyLikeUpdates(to: &restored, after: requestLikeVersion)
                 viewState = restored
                 event = .showFailure(error)
             } else {
@@ -288,6 +359,11 @@ final class DisplayViewModel {
             } ?? [])
             : []
         let mergedPhotos = content.page.photos + cachedTail
+        let featuredPhotos = isArchive ? Array(mergedPhotos.prefix(5)) : []
+        // Android DisplayViewModel과 같이, 같은 날짜의 지난 전시를 다시 불러오면 보던 추천 카드 페이지를 유지한다.
+        let featuredPage = viewState.contentStatus == .archive && viewState.selectedDate == canonicalDate
+            ? min(viewState.featuredPage, max(featuredPhotos.count - 1, 0))
+            : 0
         loadedTopicDate = canonicalDate
         viewState = DisplayViewState(
             contentStatus: isArchive ? .archive : .latest,
@@ -297,8 +373,8 @@ final class DisplayViewModel {
             topic: content.topic,
             selectedSort: isArchive ? .popular : selectedLatestSort,
             photos: mergedPhotos,
-            featuredPhotos: isArchive ? Array(mergedPhotos.prefix(5)) : [],
-            featuredPage: 0,
+            featuredPhotos: featuredPhotos,
+            featuredPage: featuredPage,
             currentPage: cachedTail.isEmpty
                 ? content.page.currentPage
                 : cachedEntry?.state.currentPage ?? content.page.currentPage,
@@ -341,12 +417,15 @@ final class DisplayViewModel {
             randomSeed: randomSeed
         )
         viewState.isLoadingNext = true
+        let requestLikeVersion = likeVersion
         let result = await nextPageHandler(request)
         guard requestGeneration == generation else { return }
 
         switch result {
         case let .success(page):
             append(page, sort: sort)
+            applyLikeUpdates(to: &viewState, after: requestLikeVersion)
+            cacheCurrentState()
         case let .failure(error):
             viewState.isLoadingNext = false
             viewState.transientError = error
@@ -396,7 +475,7 @@ private struct DisplayCacheKey: Hashable {
 }
 
 private struct DisplayCacheEntry {
-    let state: DisplayViewState
+    var state: DisplayViewState
     let firstPagePhotoIDs: Set<DisplayPhoto.ID>
 }
 

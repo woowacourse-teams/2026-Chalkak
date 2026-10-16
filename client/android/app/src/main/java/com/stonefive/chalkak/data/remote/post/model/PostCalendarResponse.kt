@@ -10,6 +10,15 @@ data class PostCalendarResponse(
 )
 
 @Serializable
+data class PostCalendarMonthsResponse(val months: List<PostCalendarMonthResponse>)
+
+@Serializable
+data class PostCalendarMonthResponse(
+    val year: Int,
+    val month: Int,
+)
+
+@Serializable
 data class PostCalendarItemResponse(
     val topicDate: String,
     val postId: String,

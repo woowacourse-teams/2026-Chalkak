@@ -2,7 +2,7 @@ import Foundation
 
 /// 연월을 표현하는 값 타입. Java `YearMonth`(Android)에 대응한다.
 /// 모든 날짜 계산은 Android와 동일하게 Asia/Seoul 그레고리력을 기준으로 한다.
-struct RecordMonth: Equatable, Comparable, Sendable {
+struct RecordMonth: Equatable, Hashable, Comparable, Sendable {
     let year: Int
     let month: Int
 

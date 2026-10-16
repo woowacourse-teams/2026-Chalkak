@@ -13,6 +13,7 @@ struct DisplayAPIClient: Sendable {
 
     private let configuration: DisplayAPIConfiguration
     private let authenticatedClient: AuthenticatedHTTPClient
+    private let likeClient: FeedAPIClient
     private let decoder: JSONDecoder
 
     init(
@@ -20,6 +21,11 @@ struct DisplayAPIClient: Sendable {
         session: URLSession = .shared,
         accessTokenProvider: @escaping AccessTokenProvider = { nil }
     ) {
+        self.likeClient = FeedAPIClient(
+            configuration: FeedAPIConfiguration(baseURL: configuration.baseURL),
+            session: session,
+            accessTokenProvider: accessTokenProvider
+        )
         self.configuration = configuration
         self.authenticatedClient = AuthenticatedHTTPClient(
             baseURL: configuration.baseURL,
@@ -29,7 +35,11 @@ struct DisplayAPIClient: Sendable {
         self.decoder = JSONDecoder()
     }
 
-    func fetchDisplay(date: Date, sort: DisplaySort) async throws -> DisplayContent {
+    func updateLike(postID: String, isLiked: Bool) async throws -> FeedLikeUpdate {
+        try await likeClient.updateLike(postID: postID, isLiked: isLiked)
+    }
+
+    func fetchDisplay(date: Date, sort: DisplaySort, randomSeed: String? = nil) async throws -> DisplayContent {
         let requestedDate = Self.apiDateFormatter.string(from: date)
         let topic: DisplayTopicResponse = try await request(
             path: "topics",
@@ -44,7 +54,7 @@ struct DisplayAPIClient: Sendable {
                 topicDate: canonicalDate,
                 sort: sort,
                 page: 1,
-                randomSeed: nil
+                randomSeed: sort == .random ? randomSeed : nil
             )
         )
         return DisplayContent(topicDate: canonicalDate, topic: topic.title, page: page)

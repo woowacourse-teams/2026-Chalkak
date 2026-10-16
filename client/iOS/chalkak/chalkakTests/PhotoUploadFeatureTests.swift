@@ -1,7 +1,9 @@
 import Foundation
+import SDWebImageWebPCoder
 import SwiftUI
 import Testing
 import UIKit
+
 @testable import chalkak
 
 struct PhotoUploadSuccessContentTests {
@@ -86,7 +88,7 @@ struct PhotoUploadViewStateTests {
 @Suite(.serialized)
 struct PhotoUploadViewModelTests {
     @Test("사진 선택부터 이미지 준비, 게시물 생성까지 전체 상태 흐름을 처리한다")
-    func completesSubmissionFlow() async {
+    func completesSubmissionFlow() async throws {
         let topic = Self.topic()
         let preparation = Self.preparation()
         let viewModel = PhotoUploadViewModel(
@@ -109,18 +111,136 @@ struct PhotoUploadViewModelTests {
 
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
         viewModel.handle(.captionChanged("작품 제목"))
-        await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
+        try await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
 
         viewModel.handle(.submitClicked)
-        await waitUntil { viewModel.viewState.completedSubmission != nil }
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
 
         #expect(viewModel.viewState.isSubmitting == false)
         #expect(viewModel.viewState.completedSubmission?.content.topic == topic.title)
         #expect(viewModel.viewState.completedSubmission?.content.moderationStatus == .validating)
     }
 
+    @Test("촬영 사진은 업로드 전에 한 번 저장하고 전시할 때 중복 저장하지 않는다")
+    func savesCapturedPhotoBeforeUpload() async throws {
+        var savedImages: [UIImage] = []
+        let topic = Self.topic()
+        let preparation = Self.preparation()
+        let viewModel = PhotoUploadViewModel(
+            topicDate: topic.date,
+            repository: PhotoUploadRepository(
+                getCreationTopic: { _ in .success(topic) },
+                prepareImage: { _ in .success(preparation) },
+                createPost: { _, _, _ in
+                    .success(PhotoUploadCreation(postID: "post", topic: topic, moderationStatus: .validating))
+                }
+            ),
+            saveCameraImage: { image in
+                savedImages.append(image)
+                return .saved
+            }
+        )
+        let image = Self.image()
+
+        await viewModel.selectCapturedImage(data: Data([0x01]), preview: image)
+        #expect(savedImages.count == 1)
+        #expect(savedImages.first === image)
+        #expect(viewModel.viewState.completedSubmission == nil)
+        try await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
+        viewModel.handle(.submitClicked)
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
+        #expect(savedImages.count == 1)
+    }
+
+    @Test("갤러리에서 선택한 사진은 다시 저장하지 않는다")
+    func doesNotSaveGallerySelection() async {
+        var saveCount = 0
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return .saved
+            }
+        )
+
+        viewModel.selectImage(data: Data([0x01]), preview: Self.image())
+        await Task.yield()
+        #expect(saveCount == 0)
+    }
+
+    @Test("사진 저장 권한 거부나 실패를 안내하고 업로드할 사진은 유지한다")
+    func keepsPhotoAfterGallerySaveFailure() async throws {
+        for result in [PhotoLibrarySaveResult.permissionDenied, .failed] {
+            let data = Data([0x01])
+            let topic = Self.topic()
+            let preparation = Self.preparation()
+            let viewModel = PhotoUploadViewModel(
+                topicDate: topic.date,
+                repository: PhotoUploadRepository(
+                    getCreationTopic: { _ in .success(topic) },
+                    prepareImage: { _ in .success(preparation) }
+                ),
+                saveCameraImage: { _ in result }
+            )
+
+            await viewModel.selectCapturedImage(data: data, preview: Self.image())
+            try await waitUntil { !viewModel.viewState.isTopicLoading }
+
+            #expect(viewModel.viewState.selectedImageData == data)
+            #expect(viewModel.viewState.canSubmit)
+            #expect(viewModel.viewState.pendingMessage?.text.contains("업로드는 계속할 수 있어요") == true)
+        }
+    }
+
+    @Test("업로드 화면 종료 뒤 늦게 끝난 저장 실패를 앱에 알린다")
+    func reportsSaveFailureAfterReset() async throws {
+        var continuation: CheckedContinuation<PhotoLibrarySaveResult, Never>?
+        var saveCount = 0
+        var reportedFailures: [String] = []
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return await withCheckedContinuation { continuation = $0 }
+            },
+            onCameraImageSaveFailure: { message in
+                reportedFailures.append(message)
+            }
+        )
+        let task = Task {
+            await viewModel.selectCapturedImage(data: Data([0x01]), preview: Self.image())
+        }
+        try await waitUntil { continuation != nil }
+
+        viewModel.reset()
+        continuation?.resume(returning: .permissionDenied)
+        await task.value
+
+        #expect(saveCount == 1)
+        #expect(reportedFailures.last?.contains("설정에서 사진 추가 권한") == true)
+        #expect(viewModel.viewState.pendingMessage == nil)
+        #expect(viewModel.viewState.selectedImage == nil)
+    }
+
+    @Test("빈 촬영 데이터는 사진 앱에 저장하지 않는다")
+    func doesNotSaveInvalidCapture() async {
+        var saveCount = 0
+        let viewModel = PhotoUploadViewModel(
+            topicDate: Self.topic().date,
+            saveCameraImage: { _ in
+                saveCount += 1
+                return .saved
+            }
+        )
+
+        await viewModel.selectCapturedImage(data: Data(), preview: Self.image())
+
+        #expect(saveCount == 0)
+        #expect(viewModel.viewState.selectedImage == nil)
+    }
+
     @Test("주제 API 인증 만료는 재인증 이벤트로 변환한다")
-    func publishesReauthenticationEventForTopicFailure() async {
+    func publishesReauthenticationEventForTopicFailure() async throws {
         let date = PhotoUploadDate.today()
         let viewModel = PhotoUploadViewModel(
             topicDate: date,
@@ -129,7 +249,7 @@ struct PhotoUploadViewModelTests {
             )
         )
 
-        await waitUntil { viewModel.event == .reauthenticationRequired }
+        try await waitUntil { viewModel.event == .reauthenticationRequired }
 
         #expect(viewModel.viewState.isTopicLoading == false)
         #expect(viewModel.viewState.topicErrorMessage == nil)
@@ -142,16 +262,6 @@ struct PhotoUploadViewModelTests {
         viewModel.handle(.captionChanged("12345678901"))
 
         #expect(viewModel.viewState.caption == "1234567890")
-    }
-
-    private func waitUntil(
-        _ condition: @escaping @MainActor () -> Bool
-    ) async {
-        for _ in 0..<100 {
-            if condition() { return }
-            await Task.yield()
-        }
-        Issue.record("조건이 제한 시간 안에 충족되지 않았습니다")
     }
 
     private static func topic() -> PhotoUploadTopic {
@@ -189,45 +299,67 @@ struct PhotoUploadViewModelTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadSelectionLoaderTests {
-    @Test("새 사진을 선택하면 이전 사진의 늦은 로딩 결과를 반영하지 않는다")
-    func ignoresStaleSelectionResult() async {
+    @Test(
+        "새 사진을 선택하면 이전 사진의 늦은 로딩 결과를 반영하지 않는다",
+        arguments: [Duration.zero, .milliseconds(150)]
+    )
+    func ignoresStaleSelectionResult(schedulingDelay: Duration) async throws {
         let firstGate = PhotoUploadSelectionGate()
         let secondGate = PhotoUploadSelectionGate()
         let loader = PhotoUploadSelectionLoader()
+        defer { loader.cancel() }
         var loadedData: [Data] = []
         var failureCount = 0
 
-        loader.start(
-            load: { try await firstGate.wait() },
-            onLoaded: { loadedData.append($0) },
-            onFailure: { failureCount += 1 }
-        )
-        await firstGate.waitUntilRequested()
+        do {
+            loader.start(
+                load: { try await firstGate.wait() },
+                onLoaded: { loadedData.append($0) },
+                onFailure: { failureCount += 1 }
+            )
+            try await firstGate.waitUntilRequested()
 
-        loader.start(
-            load: { try await secondGate.wait() },
-            onLoaded: { loadedData.append($0) },
-            onFailure: { failureCount += 1 }
-        )
-        await secondGate.waitUntilRequested()
+            loader.start(
+                load: {
+                    // 요청 등록과 결과 전달을 각각 늦춰 두 대기 경로의 회귀를 확인한다.
+                    try await Task.sleep(for: schedulingDelay)
+                    let data = try await secondGate.wait()
+                    try await Task.sleep(for: schedulingDelay)
+                    return data
+                },
+                onLoaded: { loadedData.append($0) },
+                onFailure: { failureCount += 1 }
+            )
+            try await secondGate.waitUntilRequested()
 
-        await firstGate.resume(with: Data([0x01]))
-        await secondGate.resume(with: Data([0x02]))
-        await waitUntil { loadedData == [Data([0x02])] }
+            await firstGate.resume(with: Data([0x01]))
+            await secondGate.resume(with: Data([0x02]))
+            try await waitUntil { loadedData == [Data([0x02])] }
 
-        #expect(loadedData == [Data([0x02])])
-        #expect(failureCount == 0)
-        loader.cancel()
+            #expect(loadedData == [Data([0x02])])
+            #expect(failureCount == 0)
+        } catch {
+            loader.cancel()
+            await firstGate.cancel()
+            await secondGate.cancel()
+            throw error
+        }
     }
 
-    private func waitUntil(
-        _ condition: @escaping @MainActor () -> Bool
-    ) async {
-        for _ in 0..<100 {
-            if condition() { return }
-            await Task.yield()
+    @Test("게이트 정리는 대기 중인 요청과 뒤늦게 시작한 요청을 모두 취소한다")
+    func cancelsPendingAndFutureGateRequests() async throws {
+        let gate = PhotoUploadSelectionGate()
+        let request = Task { try await gate.wait() }
+        do {
+            try await gate.waitUntilRequested()
+        } catch {
+            await gate.cancel()
+            throw error
         }
-        Issue.record("조건이 제한 시간 안에 충족되지 않았습니다")
+
+        await gate.cancel()
+        await #expect(throws: CancellationError.self) { try await request.value }
+        await #expect(throws: CancellationError.self) { try await gate.wait() }
     }
 }
 
@@ -308,7 +440,8 @@ struct PhotoUploadAPIClientTests {
             case ("POST", "/api/v1/posts/uploads"):
                 return Self.response(
                     for: request,
-                    body: #"{"uploadId":"upload-id","uploadUrl":"https://upload.example.com/file","expiresInSeconds":60,"contentType":"image/webp","maxBytes":1024}"#
+                    body:
+                        #"{"uploadId":"upload-id","uploadUrl":"https://upload.example.com/file","expiresInSeconds":60,"contentType":"image/webp","maxBytes":1024}"#
                 )
             case ("PUT", "/file"):
                 return Self.response(for: request, body: "")
@@ -573,6 +706,62 @@ struct PhotoUploadScreenTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadImageEncoderTests {
+    @Test("큰 사진은 Android와 같은 2의 거듭제곱 배수로 샘플링한다", arguments: [
+        [4032, 4032], [6000, 3000], [12000, 3000],
+    ])
+    func samplesLargePhotos(dimensions: [Int]) async throws {
+        let image = Self.sourceImage(width: dimensions[0], height: 80)
+        let data = try #require(image.pngData())
+        let encoded = try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: 1_024 * 1_024)
+        let decoded = try #require(SDImageWebPCoder.shared.decodedImage(with: encoded, options: nil))
+
+        #expect(decoded.cgImage?.width == dimensions[1])
+    }
+
+    @Test("용량 제한을 넘으면 실제 이미지 크기를 줄인다")
+    func rescalesToFitSizeLimit() async throws {
+        let image = Self.sourceImage(width: 256, height: 128)
+        let data = try #require(image.pngData())
+        let sizes = try [0.9, 0.8, 0.6, 0.4].map { quality in
+            try #require(SDImageWebPCoder.shared.encodedData(
+                with: image,
+                format: .webP,
+                options: [.encodeCompressionQuality: quality, .encodeWebPMethod: 0]
+            )).count
+        }
+        let maxBytes = Int64(try #require(sizes.min()) - 1)
+
+        let encoded = try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: maxBytes)
+        let decoded = try #require(SDImageWebPCoder.shared.decodedImage(with: encoded, options: nil))
+        let width = try #require(decoded.cgImage?.width)
+        let height = try #require(decoded.cgImage?.height)
+
+        #expect(Int64(encoded.count) <= maxBytes)
+        #expect(width <= 218)
+        #expect(height <= 109)
+    }
+
+    @Test("반복 압축 후에도 용량 제한을 충족하지 못하면 실패한다")
+    func rejectsImpossibleSizeLimit() async throws {
+        let data = try #require(Self.sourceImage(width: 120, height: 80).pngData())
+        await #expect(throws: PhotoUploadImageEncodingError.sizeLimitExceeded) {
+            try await PhotoUploadImageEncoder.encode(sourceData: data, maxBytes: 1)
+        }
+    }
+
+    private static func sourceImage(width: Int, height: Int) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: height), format: format
+        ).image { context in
+            for x in stride(from: 0, to: width, by: 4) {
+                UIColor(hue: CGFloat(x % 100) / 100, saturation: 1, brightness: 1, alpha: 1).setFill()
+                context.fill(CGRect(x: x, y: 0, width: 4, height: height))
+            }
+        }
+    }
+
     @Test("사진을 Android 업로드 계약과 같은 WebP 데이터로 인코딩한다")
     func encodesWebP() async throws {
         let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 80)).image { context in
@@ -615,6 +804,59 @@ struct PhotoUploadImageEncoderTests {
             Issue.record("예상하지 못한 오류: \(error)")
         }
     }
+
+    @Test("압축 도중 취소하면 결과와 관계없이 후속 압축을 중단한다", arguments: [
+        "oversized", "fits", "failed",
+    ])
+    func cancellationStopsFurtherCompression(result: String) async throws {
+        let sourceData = try #require(Self.sourceImage(width: 120, height: 80).pngData())
+        let gate = PhotoUploadCompressionGate()
+        defer { gate.release.signal() }
+        let task = Task {
+            try await PhotoUploadImageEncoder.encode(sourceData: sourceData, maxBytes: 12) { _, _ in
+                gate.recordAttempt()
+                gate.started.signal()
+                _ = gate.release.wait(timeout: .now() + 10)
+                switch result {
+                case "failed": return nil
+                case "fits": return Data("RIFF0000WEBP".utf8)
+                default: return Data("RIFF0000WEBPoversized".utf8)
+                }
+            }
+        }
+        defer { task.cancel() }
+        let started = await Task.detached {
+            gate.waitUntilStarted()
+        }.value
+        try #require(started, "첫 압축 시도가 시작되지 않았습니다")
+
+        task.cancel()
+        gate.release.signal()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(gate.attemptCount == 1)
+    }
+}
+
+private final class PhotoUploadCompressionGate: @unchecked Sendable {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var attempts = 0
+
+    var attemptCount: Int {
+        lock.withLock { attempts }
+    }
+
+    func recordAttempt() {
+        lock.withLock { attempts += 1 }
+    }
+
+    func waitUntilStarted() -> Bool {
+        started.wait(timeout: .now() + 5) == .success
+    }
 }
 
 private actor PhotoUploadRequestRecorder {
@@ -627,19 +869,39 @@ private actor PhotoUploadRequestRecorder {
 
 private actor PhotoUploadSelectionGate {
     private var continuations: [CheckedContinuation<Data?, Error>] = []
+    private var isCancelled = false
 
     func wait() async throws -> Data? {
-        try await withCheckedThrowingContinuation { continuation in
+        guard !isCancelled else { throw CancellationError() }
+        return try await withCheckedThrowingContinuation { continuation in
             continuations.append(continuation)
         }
     }
 
-    func waitUntilRequested() async {
-        for _ in 0..<100 {
-            if !continuations.isEmpty { return }
-            try? await Task.sleep(nanoseconds: 1_000_000)
+    func waitUntilRequested(
+        timeout: Duration = .seconds(2),
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while continuations.isEmpty && clock.now < deadline {
+            try await clock.sleep(until: min(clock.now.advanced(by: .milliseconds(1)), deadline))
         }
-        Issue.record("사진 로더가 대기 상태가 되지 않았습니다")
+        try Task.checkCancellation()
+        try #require(
+            !continuations.isEmpty,
+            "사진 로더가 \(timeout) 안에 대기 상태가 되지 않았습니다",
+            sourceLocation: sourceLocation
+        )
+    }
+
+    func cancel() {
+        isCancelled = true
+        let pending = continuations
+        continuations.removeAll()
+        for continuation in pending {
+            continuation.resume(throwing: CancellationError())
+        }
     }
 
     func resume(with data: Data?) {

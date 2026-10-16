@@ -1,7 +1,15 @@
 # Chalkak Android — 프로젝트 메모리
 
 > MUST: PR 차단 사유. DEFAULT: 기본값, 이유 있으면 벗어나도 됨. SMELL: 위반 아님, 분리 검토 신호.
-> 포맷·개행·줄길이는 `.editorconfig` + ktlint가 강제한다. 이 문서는 툴이 못 잡는 판단 규칙만 담는다.
+> 포맷·개행·줄길이는 `.editorconfig` + ktlint가 강제한다. 아래 MUST 중 일부는 Konsist 테스트가 검사하며, 나머지는 구현·리뷰에서 판단한다.
+
+## 자동 검사 — ktlint·Konsist
+- Android 코드를 수정한 뒤 `client/android`에서 `./gradlew ktlintCheck testDebugUnitTest`를 실행한다. CI에서도 두 작업을 실행한다.
+- Konsist는 `app/src/test/java/com/stonefive/chalkak/ArchitectureKonsistTest.kt`에서
+  feature → data, domain → feature/data/core, core.designsystem → feature 의존과 domain의 Android API 사용을 검사한다.
+- `app/src/test/java/com/stonefive/chalkak/ComposeKonsistTest.kt`는 `@Composable`인 `*Screen` 함수가
+  ViewModel·NavController를 파라미터나 본문에서 직접 사용하지 않는지 검사한다.
+- 테스트에 없는 Compose 동작·UI 상태·내비게이션 규칙까지 Konsist가 보장한다고 간주하지 않는다.
 
 ## MUST — 아키텍처
 - 의존 방향: `feature → domain ← data`, `feature/data → core`
