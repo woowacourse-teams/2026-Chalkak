@@ -31,7 +31,7 @@ notification.log → 로그 그룹 /chalkak/{env}/notification (모두 30일)
 
 알림 발행·발송 전용 지표와 경보는 [알림 모니터링 구성](notification-monitoring.md)을 따른다. 아래 일반 모니터링 경보 목록과 별도로 적용한다.
 
-GC·safepoint와 운영 memwatch 수집·2초 정지 알람의 적용, 검증, 조회, 복구 절차는 [GC 관측 런북](gc-monitoring.md)을 따른다. memwatch는 기존 임시 1분 타이머를 유지한다.
+GC·safepoint와 운영 memwatch 수집·2초 정지 알람의 적용, 검증, 조회, 복구 절차는 [GC 관측 런북](gc-monitoring.md)을 따른다. 기본 GC 로그는 조사 후에도 유지한다. memwatch는 조사·개선 검증 기간에 기존 임시 1분 타이머로 수집하고, 검증 후 자료 보관과 함께 정리한다.
 
 ## 사전 확인
 
