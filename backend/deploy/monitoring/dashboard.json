@@ -8,7 +8,7 @@
       "width": 24,
       "height": 1,
       "properties": {
-        "markdown": "# prod 상태"
+        "markdown": "# prod 알람"
       }
     },
     {
@@ -33,238 +33,35 @@
       }
     },
     {
-      "type": "metric",
+      "type": "alarm",
       "x": 12,
       "y": 1,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "prod 요청 수 / 5xx (5분)",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "metrics": [
-          [
-            "Chalkak/prod",
-            "RequestCount",
-            {
-              "stat": "Sum",
-              "label": "요청 수"
-            }
-          ],
-          [
-            "Chalkak/prod",
-            "Server5xx",
-            {
-              "stat": "Sum",
-              "label": "5xx",
-              "yAxis": "right"
-            }
-          ]
-        ]
-      }
-    },
-    {
-      "type": "metric",
-      "x": 0,
-      "y": 7,
-      "width": 8,
-      "height": 6,
-      "properties": {
-        "title": "prod 지연 시간 p95 / p99 (ms)",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "metrics": [
-          [
-            "Chalkak/prod",
-            "LatencyMs",
-            {
-              "stat": "p95",
-              "label": "p95"
-            }
-          ],
-          [
-            "Chalkak/prod",
-            "LatencyMs",
-            {
-              "stat": "p99",
-              "label": "p99"
-            }
-          ]
-        ]
-      }
-    },
-    {
-      "type": "metric",
-      "x": 8,
-      "y": 7,
-      "width": 8,
-      "height": 6,
-      "properties": {
-        "title": "prod EC2 CPU (%)",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "stat": "Average",
-        "metrics": [
-          [
-            "AWS/EC2",
-            "CPUUtilization",
-            "InstanceId",
-            "PROD_INSTANCE_ID"
-          ]
-        ]
-      }
-    },
-    {
-      "type": "metric",
-      "x": 16,
-      "y": 7,
-      "width": 8,
-      "height": 6,
-      "properties": {
-        "title": "prod 메모리 / 디스크 사용률 (%)",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "stat": "Average",
-        "metrics": [
-          [
-            "CWAgent",
-            "mem_used_percent",
-            "InstanceId",
-            "PROD_INSTANCE_ID",
-            {
-              "label": "메모리"
-            }
-          ],
-          [
-            "CWAgent",
-            "disk_used_percent",
-            "InstanceId",
-            "PROD_INSTANCE_ID",
-            "path",
-            "/",
-            "fstype",
-            "ext4",
-            {
-              "label": "디스크 /"
-            }
-          ]
-        ]
-      }
-    },
-    {
-      "type": "metric",
-      "x": 0,
-      "y": 13,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "prod RDS CPU (%) / 연결 수",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "stat": "Average",
-        "metrics": [
-          [
-            "AWS/RDS",
-            "CPUUtilization",
-            "DBInstanceIdentifier",
-            "PROD_RDS_INSTANCE_ID",
-            {
-              "label": "CPU (%)"
-            }
-          ],
-          [
-            "AWS/RDS",
-            "DatabaseConnections",
-            "DBInstanceIdentifier",
-            "PROD_RDS_INSTANCE_ID",
-            {
-              "label": "연결 수",
-              "yAxis": "right"
-            }
-          ]
-        ]
-      }
-    },
-    {
-      "type": "metric",
-      "x": 12,
-      "y": 13,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "prod RDS 여유 스토리지 (bytes)",
-        "view": "timeSeries",
-        "region": "ap-northeast-2",
-        "period": 300,
-        "stat": "Minimum",
-        "metrics": [
-          [
-            "AWS/RDS",
-            "FreeStorageSpace",
-            "DBInstanceIdentifier",
-            "PROD_RDS_INSTANCE_ID"
-          ]
+        "title": "이미지 파이프라인 알람",
+        "sortBy": "stateUpdatedTimestamp",
+        "alarms": [
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-queue-age",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-lambda-errors",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-processing-abandoned"
         ]
       }
     },
     {
       "type": "text",
       "x": 0,
-      "y": 19,
+      "y": 7,
       "width": 24,
       "height": 2,
       "properties": {
-        "markdown": "# prod 운영·사용자\nLogs Insights 위젯은 대시보드 기간(기본 24시간)을 따릅니다. 검수 소요 시간 추이는 대시보드 기간을 8주로 바꿔서 확인하세요. 기간이 길수록 조회 비용이 늘어납니다. DAU·접속 사용자의 장기 추세는 아래 \"prod 사용자 지표 (일별 집계)\" 섹션을 보세요. 일별 집계는 한국 시각(KST) 기준입니다. 검수 대기 목록은 조회 기간 안에 접수된 게시물만 보이므로, 정확한 대기 현황은 관리자 페이지에서 확인하세요."
+        "markdown": "# prod 검수 운영\n대기 목록은 조회 기간 안에 접수된 게시물만 보입니다. 정확한 현황은 관리자 페이지에서 확인하세요."
       }
     },
     {
       "type": "log",
       "x": 0,
-      "y": 21,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "JVM 힙 사용량 / 최대 (MB)",
-        "region": "ap-northeast-2",
-        "view": "timeSeries",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"runtime\"\n| stats max(heapUsedBytes/1048576) as heapUsedMB, max(heapMaxBytes/1048576) as heapMaxMB by bin(5m)"
-      }
-    },
-    {
-      "type": "log",
-      "x": 12,
-      "y": 21,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "스레드 수 / Hikari 활성·대기 커넥션",
-        "region": "ap-northeast-2",
-        "view": "timeSeries",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"runtime\"\n| stats max(threads) as threads, max(hikariActive) as hikariActive, max(hikariPending) as hikariPending by bin(5m)"
-      }
-    },
-    {
-      "type": "log",
-      "x": 0,
-      "y": 27,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "검수 소요 시간 (일별 평균 / p95, 초)",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"moderation\" and event in [\"approved\",\"rejected\"]\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats avg(waitSeconds) as avgWaitSec, pct(waitSeconds, 95) as p95WaitSec, count(*) as n by day\n| sort day desc"
-      }
-    },
-    {
-      "type": "log",
-      "x": 12,
-      "y": 27,
+      "y": 9,
       "width": 12,
       "height": 6,
       "properties": {
@@ -276,8 +73,31 @@
     },
     {
       "type": "log",
+      "x": 12,
+      "y": 9,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "검수 소요 시간 (일별 평균 / p95, 초)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"moderation\" and event in [\"approved\",\"rejected\"]\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats avg(waitSeconds) as avgWaitSec, pct(waitSeconds, 95) as p95WaitSec, count(*) as n by day\n| sort day desc"
+      }
+    },
+    {
+      "type": "text",
       "x": 0,
-      "y": 33,
+      "y": 15,
+      "width": 24,
+      "height": 2,
+      "properties": {
+        "markdown": "# prod 사용자 활동 (로그 실시간)\n로그 조회라 기간이 길수록 비용이 늘어납니다. 내부 계정을 포함하므로 아래 일별 집계와 다를 수 있습니다."
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 17,
       "width": 12,
       "height": 6,
       "properties": {
@@ -290,7 +110,7 @@
     {
       "type": "log",
       "x": 12,
-      "y": 33,
+      "y": 17,
       "width": 12,
       "height": 6,
       "properties": {
@@ -301,19 +121,32 @@
       }
     },
     {
+      "type": "log",
+      "x": 0,
+      "y": 23,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "title": "주제별 피드 조회 (topicDate별 요청 수 / 회원 수)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and method=\"GET\" and route=\"/api/v1/posts\" and status=200 and ispresent(topicDate)\n| stats count(*) as views, count_distinct(userId) as viewers by topicDate\n| sort topicDate desc\n| limit 30"
+      }
+    },
+    {
       "type": "text",
       "x": 0,
-      "y": 39,
+      "y": 29,
       "width": 24,
       "height": 2,
       "properties": {
-        "markdown": "# prod 사용자 지표 (일별 집계)\n값은 매일 01:00(KST)에 전날 기준으로 집계한 결과이며 내부 계정은 제외합니다. 하루에 점 하나만 찍히므로 대시보드 기간을 12주 등으로 늘려서 추이를 보세요. 이 위젯들은 로그를 조회하지 않고 메트릭은 15개월 보관되지만, 위의 Logs Insights 위젯도 같은 기간을 따르므로 확인 후 24시간으로 되돌리세요. 리텐션 점은 월요일에만 찍힙니다. 위쪽 실시간 DAU·접속 사용자 Logs Insights 위젯은 내부 계정을 포함하므로 값이 다를 수 있습니다."
+        "markdown": "# prod 사용자 성장 (일별 집계)\n매일 01:00(KST)에 전날 기준으로 집계하며 내부 계정은 제외합니다. 기간을 12주로 늘려 보고, 확인 후 24시간으로 되돌리세요."
       }
     },
     {
       "type": "metric",
       "x": 0,
-      "y": 41,
+      "y": 31,
       "width": 12,
       "height": 6,
       "properties": {
@@ -343,7 +176,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 41,
+      "y": 31,
       "width": 12,
       "height": 6,
       "properties": {
@@ -363,7 +196,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 47,
+      "y": 37,
       "width": 12,
       "height": 6,
       "properties": {
@@ -413,7 +246,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 47,
+      "y": 37,
       "width": 12,
       "height": 6,
       "properties": {
@@ -442,58 +275,29 @@
       }
     },
     {
-      "type": "log",
-      "x": 0,
-      "y": 53,
-      "width": 24,
-      "height": 6,
-      "properties": {
-        "title": "주제별 피드 조회 (topicDate별 요청 수 / 회원 수)",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and method=\"GET\" and route=\"/api/v1/posts\" and status=200 and ispresent(topicDate)\n| stats count(*) as views, count_distinct(userId) as viewers by topicDate\n| sort topicDate desc\n| limit 30"
-      }
-    },
-    {
       "type": "text",
       "x": 0,
-      "y": 59,
+      "y": 43,
       "width": 24,
       "height": 1,
       "properties": {
-        "markdown": "# dev 상태"
-      }
-    },
-    {
-      "type": "alarm",
-      "x": 0,
-      "y": 60,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "dev 알람",
-        "sortBy": "stateUpdatedTimestamp",
-        "alarms": [
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-5xx",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-ec2-status-check",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-disk-used"
-        ]
+        "markdown": "# prod API 품질"
       }
     },
     {
       "type": "metric",
-      "x": 12,
-      "y": 60,
+      "x": 0,
+      "y": 44,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "dev 요청 수 / 5xx (5분)",
+        "title": "prod 요청 수 / 5xx (5분)",
         "view": "timeSeries",
         "region": "ap-northeast-2",
         "period": 300,
         "metrics": [
           [
-            "Chalkak/dev",
+            "Chalkak/prod",
             "RequestCount",
             {
               "stat": "Sum",
@@ -501,7 +305,7 @@
             }
           ],
           [
-            "Chalkak/dev",
+            "Chalkak/prod",
             "Server5xx",
             {
               "stat": "Sum",
@@ -513,57 +317,92 @@
       }
     },
     {
-      "type": "metric",
-      "x": 0,
-      "y": 66,
+      "type": "log",
+      "x": 12,
+      "y": 44,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "dev EC2 CPU (%)",
+        "title": "API별 5xx 건수 (method·route)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status >= 500\n| stats count(*) as n by method, route\n| sort n desc\n| limit 20"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 50,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "prod 지연 시간 p95 / p99 (ms)",
         "view": "timeSeries",
         "region": "ap-northeast-2",
         "period": 300,
-        "stat": "Average",
         "metrics": [
           [
-            "AWS/EC2",
-            "CPUUtilization",
-            "InstanceId",
-            "DEV_INSTANCE_ID"
+            "Chalkak/prod",
+            "LatencyMs",
+            {
+              "stat": "p95",
+              "label": "p95"
+            }
+          ],
+          [
+            "Chalkak/prod",
+            "LatencyMs",
+            {
+              "stat": "p99",
+              "label": "p99"
+            }
           ]
         ]
       }
     },
     {
-      "type": "metric",
+      "type": "log",
       "x": 12,
-      "y": 66,
+      "y": 50,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "dev 디스크 사용률 (%)",
-        "view": "timeSeries",
+        "title": "라우트별 p95 지연 시간 상위 10 (ms)",
         "region": "ap-northeast-2",
-        "period": 300,
-        "stat": "Average",
-        "metrics": [
-          [
-            "CWAgent",
-            "disk_used_percent",
-            "InstanceId",
-            "DEV_INSTANCE_ID",
-            "path",
-            "/",
-            "fstype",
-            "ext4"
-          ]
-        ]
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\"\n| stats pct(durationMs,95) as p95, count(*) as n by route\n| sort p95 desc\n| limit 10"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 56,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "최근 5xx 20건",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"error\" and status >= 500\n| fields @timestamp, requestId, errorCode, stack_trace\n| sort @timestamp desc\n| limit 20"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 56,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "401/403 시간별 라우트 집계",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status in [401,403]\n| stats count(*) as n by bin(1h) as hour, route, status\n| sort hour desc\n| limit 50"
       }
     },
     {
       "type": "text",
       "x": 0,
-      "y": 72,
+      "y": 62,
       "width": 24,
       "height": 1,
       "properties": {
@@ -573,7 +412,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 73,
+      "y": 63,
       "width": 8,
       "height": 6,
       "properties": {
@@ -595,7 +434,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 73,
+      "y": 63,
       "width": 8,
       "height": 6,
       "properties": {
@@ -615,26 +454,30 @@
       }
     },
     {
-      "type": "alarm",
+      "type": "metric",
       "x": 16,
-      "y": 73,
+      "y": 63,
       "width": 8,
       "height": 6,
       "properties": {
-        "title": "이미지 파이프라인 알람",
-        "sortBy": "stateUpdatedTimestamp",
-        "alarms": [
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-queue-age",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-lambda-errors",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-shared-image-processing-abandoned"
+        "title": "이미지 처리 포기 (ImageProcessingAbandoned)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          [
+            "Chalkak/shared",
+            "ImageProcessingAbandoned"
+          ]
         ]
       }
     },
     {
       "type": "metric",
       "x": 0,
-      "y": 79,
-      "width": 8,
+      "y": 69,
+      "width": 12,
       "height": 6,
       "properties": {
         "title": "Lambda 호출 / 오류 / 스로틀",
@@ -666,9 +509,9 @@
     },
     {
       "type": "metric",
-      "x": 8,
-      "y": 79,
-      "width": 8,
+      "x": 12,
+      "y": 69,
+      "width": 12,
       "height": 6,
       "properties": {
         "title": "Lambda 실행 시간 p95 (ms)",
@@ -687,21 +530,154 @@
       }
     },
     {
+      "type": "text",
+      "x": 0,
+      "y": 75,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "# prod 서버·DB 리소스"
+      }
+    },
+    {
       "type": "metric",
-      "x": 16,
-      "y": 79,
-      "width": 8,
+      "x": 0,
+      "y": 76,
+      "width": 12,
       "height": 6,
       "properties": {
-        "title": "이미지 처리 포기 (ImageProcessingAbandoned)",
+        "title": "prod EC2 CPU (%)",
         "view": "timeSeries",
         "region": "ap-northeast-2",
         "period": 300,
-        "stat": "Sum",
+        "stat": "Average",
         "metrics": [
           [
-            "Chalkak/shared",
-            "ImageProcessingAbandoned"
+            "AWS/EC2",
+            "CPUUtilization",
+            "InstanceId",
+            "PROD_INSTANCE_ID"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 76,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "prod 메모리 / 디스크 사용률 (%)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Average",
+        "metrics": [
+          [
+            "CWAgent",
+            "mem_used_percent",
+            "InstanceId",
+            "PROD_INSTANCE_ID",
+            {
+              "label": "메모리"
+            }
+          ],
+          [
+            "CWAgent",
+            "disk_used_percent",
+            "InstanceId",
+            "PROD_INSTANCE_ID",
+            "path",
+            "/",
+            "fstype",
+            "ext4",
+            {
+              "label": "디스크 /"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 82,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "JVM 힙 사용량 / 최대 (MB)",
+        "region": "ap-northeast-2",
+        "view": "timeSeries",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"runtime\"\n| stats max(heapUsedBytes/1048576) as heapUsedMB, max(heapMaxBytes/1048576) as heapMaxMB by bin(5m)"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 82,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "스레드 수 / Hikari 활성·대기 커넥션",
+        "region": "ap-northeast-2",
+        "view": "timeSeries",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"runtime\"\n| stats max(threads) as threads, max(hikariActive) as hikariActive, max(hikariPending) as hikariPending by bin(5m)"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 88,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "prod RDS CPU (%) / 연결 수",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Average",
+        "metrics": [
+          [
+            "AWS/RDS",
+            "CPUUtilization",
+            "DBInstanceIdentifier",
+            "PROD_RDS_INSTANCE_ID",
+            {
+              "label": "CPU (%)"
+            }
+          ],
+          [
+            "AWS/RDS",
+            "DatabaseConnections",
+            "DBInstanceIdentifier",
+            "PROD_RDS_INSTANCE_ID",
+            {
+              "label": "연결 수",
+              "yAxis": "right"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 88,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "prod RDS 여유 스토리지 (bytes)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Minimum",
+        "metrics": [
+          [
+            "AWS/RDS",
+            "FreeStorageSpace",
+            "DBInstanceIdentifier",
+            "PROD_RDS_INSTANCE_ID"
           ]
         ]
       }
@@ -709,79 +685,123 @@
     {
       "type": "text",
       "x": 0,
-      "y": 85,
+      "y": 94,
       "width": 24,
       "height": 1,
       "properties": {
-        "markdown": "# 원인 분석 (prod 애플리케이션 로그)"
+        "markdown": "# dev 서버"
       }
     },
     {
-      "type": "log",
+      "type": "alarm",
       "x": 0,
-      "y": 86,
+      "y": 95,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "API별 5xx 건수 (method·route)",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status >= 500\n| stats count(*) as n by method, route\n| sort n desc\n| limit 20"
+        "title": "dev 알람",
+        "sortBy": "stateUpdatedTimestamp",
+        "alarms": [
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-5xx",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-ec2-status-check",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-dev-disk-used"
+        ]
       }
     },
     {
-      "type": "log",
-      "x": 0,
-      "y": 92,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "라우트별 p95 지연 시간 상위 10 (ms)",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\"\n| stats pct(durationMs,95) as p95, count(*) as n by route\n| sort p95 desc\n| limit 10"
-      }
-    },
-    {
-      "type": "log",
+      "type": "metric",
       "x": 12,
-      "y": 86,
+      "y": 95,
       "width": 12,
       "height": 6,
       "properties": {
-        "title": "최근 5xx 20건",
+        "title": "dev 요청 수 / 5xx (5분)",
+        "view": "timeSeries",
         "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"error\" and status >= 500\n| fields @timestamp, requestId, errorCode, stack_trace\n| sort @timestamp desc\n| limit 20"
-      }
-    },
-    {
-      "type": "log",
-      "x": 12,
-      "y": 92,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "401/403 시간별 라우트 집계",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status in [401,403]\n| stats count(*) as n by bin(1h) as hour, route, status\n| sort hour desc\n| limit 50"
-      }
-    },
-    {
-      "type": "text",
-      "x": 0,
-      "y": 98,
-      "width": 24,
-      "height": 3,
-      "properties": {
-        "markdown": "# 개발 서버 — 알림 파이프라인\nDB 발행 대기 → SQS → Worker → FCM\n\nSQS 수치는 근사치입니다. FCM ACCEPTED는 요청 수락이며 기기 수신 완료가 아닙니다. DB·ERROR 그래프는 Chalkak/dev/Notification 메트릭 필터 적용 후 표시됩니다."
+        "period": 300,
+        "metrics": [
+          [
+            "Chalkak/dev",
+            "RequestCount",
+            {
+              "stat": "Sum",
+              "label": "요청 수"
+            }
+          ],
+          [
+            "Chalkak/dev",
+            "Server5xx",
+            {
+              "stat": "Sum",
+              "label": "5xx",
+              "yAxis": "right"
+            }
+          ]
+        ]
       }
     },
     {
       "type": "metric",
       "x": 0,
       "y": 101,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "dev EC2 CPU (%)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Average",
+        "metrics": [
+          [
+            "AWS/EC2",
+            "CPUUtilization",
+            "InstanceId",
+            "DEV_INSTANCE_ID"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 101,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "dev 디스크 사용률 (%)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Average",
+        "metrics": [
+          [
+            "CWAgent",
+            "disk_used_percent",
+            "InstanceId",
+            "DEV_INSTANCE_ID",
+            "path",
+            "/",
+            "fstype",
+            "ext4"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 107,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "markdown": "# dev 알림 파이프라인\nDB 발행 대기 → SQS → Worker → FCM. SQS 수치는 근사치이고, FCM ACCEPTED는 기기 수신이 아닌 요청 수락입니다.\n\nDB·ERROR 그래프는 Chalkak/dev/Notification 메트릭 필터가 있어야 표시됩니다."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 110,
       "width": 8,
       "height": 6,
       "properties": {
@@ -820,7 +840,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 101,
+      "y": 110,
       "width": 8,
       "height": 6,
       "properties": {
@@ -847,7 +867,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 101,
+      "y": 110,
       "width": 8,
       "height": 6,
       "properties": {
@@ -874,7 +894,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 107,
+      "y": 116,
       "width": 8,
       "height": 6,
       "properties": {
@@ -899,7 +919,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 107,
+      "y": 116,
       "width": 8,
       "height": 6,
       "properties": {
@@ -924,7 +944,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 107,
+      "y": 116,
       "width": 8,
       "height": 6,
       "properties": {
@@ -952,7 +972,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 113,
+      "y": 122,
       "width": 12,
       "height": 6,
       "properties": {
@@ -996,7 +1016,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 113,
+      "y": 122,
       "width": 12,
       "height": 6,
       "properties": {
