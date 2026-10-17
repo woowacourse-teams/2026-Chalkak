@@ -1,10 +1,13 @@
-<!-- Custom home silhouette based on the Apple Music Home tab appearance. -->
+<!-- Custom home outline matching the Apple Music Home tab shape (no chimney, arched door). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="23dp"
     android:height="23dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
-        android:pathData="M11.116 2.604C11.623 2.165 12.377 2.165 12.884 2.604L20.384 9.104C20.775 9.443 21 9.935 21 10.452V19.5C21 20.881 19.881 22 18.5 22H14.5C13.948 22 13.5 21.552 13.5 21V15H10.5V21C10.5 21.552 10.052 22 9.5 22H5.5C4.119 22 3 20.881 3 19.5V10.452C3 9.935 3.225 9.443 3.616 9.104Z"
-        android:fillColor="#8C8479"/>
+        android:pathData="M14.586 14.586L14.586 20.05A0.6 0.6 0 0 0 15.186 20.65L19.85 20.65A0.8 0.8 0 0 0 20.65 19.85L20.65 12.05A0.8 0.8 0 0 0 20.416 11.484L12.424 3.493A0.6 0.6 0 0 0 11.576 3.493L3.584 11.484A0.8 0.8 0 0 0 3.35 12.05L3.35 19.85A0.8 0.8 0 0 0 4.15 20.65L8.814 20.65A0.6 0.6 0 0 0 9.414 20.05L9.414 14.586A2.586 2.586 0 0 1 14.586 14.586Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#8C8479"
+        android:strokeWidth="1.7"
+        android:strokeLineJoin="round"/>
 </vector>
