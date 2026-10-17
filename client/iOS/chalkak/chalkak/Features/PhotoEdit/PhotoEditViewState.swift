@@ -29,7 +29,10 @@ enum PhotoEditAspectRatio: CaseIterable, Identifiable, Sendable {
     case free
     case square
     case portrait4x5
+    case landscape5x4
     case portrait3x4
+    case landscape4x3
+    case portrait9x16
     case landscape16x9
 
     var id: Self { self }
@@ -40,7 +43,10 @@ enum PhotoEditAspectRatio: CaseIterable, Identifiable, Sendable {
         case .original: "원본"
         case .square: "1:1"
         case .portrait4x5: "4:5"
+        case .landscape5x4: "5:4"
         case .portrait3x4: "3:4"
+        case .landscape4x3: "4:3"
+        case .portrait9x16: "9:16"
         case .landscape16x9: "16:9"
         }
     }
@@ -56,8 +62,14 @@ enum PhotoEditAspectRatio: CaseIterable, Identifiable, Sendable {
             1
         case .portrait4x5:
             4.0 / 5.0
+        case .landscape5x4:
+            5.0 / 4.0
         case .portrait3x4:
             3.0 / 4.0
+        case .landscape4x3:
+            4.0 / 3.0
+        case .portrait9x16:
+            9.0 / 16.0
         case .landscape16x9:
             16.0 / 9.0
         }

@@ -298,6 +298,25 @@ struct PhotoEditViewModelTests {
         #expect(viewModel.event == nil)
     }
 
+    @Test("고정 비율은 세로·가로 짝을 모두 제공한다")
+    func providesBothOrientationsForFixedRatios() {
+        let size = CGSize(width: 3, height: 2)
+        let ratios = PhotoEditAspectRatio.allCases.map(\.title)
+        #expect(ratios == ["원본", "자유", "1:1", "4:5", "5:4", "3:4", "4:3", "9:16", "16:9"])
+
+        let pairs: [(PhotoEditAspectRatio, PhotoEditAspectRatio)] = [
+            (.portrait4x5, .landscape5x4), (.portrait3x4, .landscape4x3), (.portrait9x16, .landscape16x9),
+        ]
+        for (portrait, landscape) in pairs {
+            let portraitValue = portrait.widthToHeight(originalSize: size) ?? 0
+            let landscapeValue = landscape.widthToHeight(originalSize: size) ?? 0
+            #expect(portraitValue < 1)
+            #expect(abs(portraitValue * landscapeValue - 1) < 0.0001)
+        }
+        #expect(PhotoEditAspectRatio.free.widthToHeight(originalSize: size) == nil)
+        #expect(PhotoEditAspectRatio.original.widthToHeight(originalSize: size) == 1.5)
+    }
+
     @Test("반전한 상태에서 회전하면 원본 기준 회전 방향이 반대가 된다")
     func rotatesFlippedImageInDisplayedDirection() {
         var state = PhotoEditOrientation()
