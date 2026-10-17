@@ -28,7 +28,8 @@
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-rds-free-storage",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-no-open-topic",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-app-heartbeat",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing"
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-gc-pause"
         ]
       }
     },
