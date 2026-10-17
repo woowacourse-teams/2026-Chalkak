@@ -59,6 +59,13 @@ struct PhotoUploadRoute: View {
             )
             .ignoresSafeArea()
         }
+        .fullScreenCover(item: editRequest) { request in
+            PhotoEditScreen(
+                session: request.session,
+                onComplete: viewModel.completeEditing,
+                onCancel: viewModel.cancelEditing
+            )
+        }
         .alert("촬영 사진 저장 권한", isPresented: $isPhotoPermissionAlertPresented) {
             Button("설정 열기") {
                 guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
@@ -72,6 +79,17 @@ struct PhotoUploadRoute: View {
         } message: {
             Text("촬영한 사진을 자동으로 저장하려면 설정에서 사진 추가 권한을 허용해 주세요.")
         }
+    }
+
+    private var editRequest: Binding<PhotoUploadEditRequest?> {
+        Binding(
+            get: { viewModel.viewState.editRequest },
+            set: { request in
+                if request == nil {
+                    viewModel.cancelEditing()
+                }
+            }
+        )
     }
 
     private func openCamera() {
@@ -95,17 +113,16 @@ struct PhotoUploadRoute: View {
         shouldSaveCapturedImage = false
         guard let image = capturedImage else { return }
         capturedImage = nil
+        if shouldSave {
+            Task { @MainActor in
+                await viewModel.saveCapturedImage(image)
+            }
+        }
         guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
             viewModel.showImageSelectionFailure()
             return
         }
-        Task { @MainActor in
-            if shouldSave {
-                await viewModel.selectCapturedImage(data: data, preview: image)
-            } else {
-                viewModel.selectImage(data: data, preview: image)
-            }
-        }
+        viewModel.beginEditing(sourceData: data)
     }
 
     private func handle(_ event: PhotoUploadEvent?) {
@@ -136,13 +153,7 @@ struct PhotoUploadRoute: View {
 
         photoSelectionLoader.start(
             load: { try await item.loadTransferable(type: Data.self) },
-            onLoaded: { data in
-                guard let image = UIImage(data: data) else {
-                    viewModel.showImageSelectionFailure()
-                    return
-                }
-                viewModel.selectImage(data: data, preview: image)
-            },
+            onLoaded: viewModel.beginEditing(sourceData:),
             onFailure: viewModel.showImageSelectionFailure
         )
     }
