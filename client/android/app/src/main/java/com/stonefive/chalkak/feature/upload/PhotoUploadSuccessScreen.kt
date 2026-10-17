@@ -22,6 +22,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadSuccessCard
 import java.time.LocalDate
 
@@ -32,6 +33,7 @@ fun PhotoUploadSuccessScreen(
     content: PhotoUploadSuccessContent,
     onConfirmClick: () -> Unit,
     modifier: Modifier = Modifier,
+    edit: PhotoEdit = PhotoEdit(),
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -61,6 +63,7 @@ fun PhotoUploadSuccessScreen(
 
             PhotoUploadSuccessCard(
                 imageModel = imageModel,
+                edit = edit,
                 contentDescription = "전시한 사진",
                 date = content.date,
                 title = caption.takeIf(String::isNotBlank) ?: content.topic,

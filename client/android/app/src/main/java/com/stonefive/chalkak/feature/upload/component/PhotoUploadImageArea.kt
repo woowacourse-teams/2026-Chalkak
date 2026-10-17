@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.upload.component
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,13 +22,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
 
 @Composable
 fun PhotoUploadImageArea(
@@ -37,6 +41,9 @@ fun PhotoUploadImageArea(
     onGalleryClick: () -> Unit,
     onCameraClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selectedEdit: PhotoEdit = PhotoEdit(),
+    isPhotoEditable: Boolean = true,
+    onPhotoClick: () -> Unit = {},
 ) {
     val placeholderAspectRatio = if (selectedImage == null) {
         Modifier.aspectRatio(PHOTO_AREA_ASPECT_RATIO)
@@ -71,10 +78,18 @@ fun PhotoUploadImageArea(
                 )
             }
         } else {
-            ChalkakImage(
+            EditedPhotoImage(
                 model = selectedImage,
+                edit = selectedEdit,
                 contentDescription = "선택한 사진",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        enabled = isPhotoEditable,
+                        onClickLabel = "사진 편집",
+                        role = Role.Button,
+                        onClick = onPhotoClick,
+                    ),
                 contentScale = ContentScale.FillWidth,
             )
         }
@@ -123,6 +138,20 @@ private fun PhotoUploadImageAreaSelectedPreview() {
             topicTitle = "틈",
             onGalleryClick = {},
             onCameraClick = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun PhotoUploadImageAreaEditedPreview() {
+    ChalkakTheme {
+        PhotoUploadImageArea(
+            selectedImage = drawableResourceUrl(R.drawable.preview_photo),
+            topicTitle = "틈",
+            onGalleryClick = {},
+            onCameraClick = {},
+            selectedEdit = PhotoEdit(filter = PhotoFilter.Mono),
         )
     }
 }

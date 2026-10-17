@@ -85,4 +85,11 @@ data class PhotoUploadSuccess(
     val date: String,
     val topic: String,
     val moderationStatus: String,
+    val quarterTurns: Int = 0,
+    val straightenDegrees: Float = 0f,
+    val cropCenterX: Float = 0.5f,
+    val cropCenterY: Float = 0.5f,
+    val cropWidth: Float = 1f,
+    val cropHeight: Float = 1f,
+    val filter: String = "Original",
 )

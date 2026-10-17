@@ -2,7 +2,9 @@ package com.stonefive.chalkak.feature.upload
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -79,7 +81,7 @@ class PhotoUploadViewModelTest {
     fun `사진을 선택하면 제출할 수 있다`() {
         val image = "content://media/photo/1"
 
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
 
         assertSame(image, viewModel.uiState.value.selectedImage)
         assertEquals(1, postCreationRepository.prepareCount)
@@ -88,9 +90,154 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `사진을 고르면 편집 화면을 띄우고 편집을 완료해야 준비를 시작한다`() {
+        val image = "content://media/photo/1"
+
+        viewModel.onImageSelected(image)
+
+        assertEquals(
+            PhotoEditRequest(id = 0, imageUri = image, initialEdit = PhotoEdit()),
+            viewModel.uiState.value.editingPhoto,
+        )
+        assertEquals(null, viewModel.uiState.value.selectedImage)
+        assertEquals(0, postCreationRepository.prepareCount)
+
+        viewModel.onEditConfirmed(image, croppedMonoEdit)
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals(croppedMonoEdit, viewModel.uiState.value.selectedEdit)
+        assertEquals(listOf(croppedMonoEdit), postCreationRepository.preparedEdits)
+        assertEquals(ImagePreparationStatus.Ready, viewModel.uiState.value.imagePreparationStatus)
+    }
+
+    @Test
+    fun `카메라로 찍은 사진도 편집 화면을 먼저 띄운다`() {
+        val image = "content://media/capture/1"
+
+        viewModel.onCapturedImageCompleted(image, captureFilePath = null, saveToGallery = false)
+
+        assertEquals(
+            image,
+            viewModel.uiState.value.editingPhoto
+                ?.imageUri,
+        )
+        assertEquals(0, postCreationRepository.prepareCount)
+    }
+
+    @Test
+    fun `처음 고른 사진의 편집을 취소하면 선택하지 않는다`() {
+        viewModel.onImageSelected("content://media/photo/1")
+
+        viewModel.onEditCanceled()
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+        assertEquals(null, viewModel.uiState.value.selectedImage)
+        assertFalse(viewModel.uiState.value.canSubmit)
+        assertEquals(0, postCreationRepository.prepareCount)
+    }
+
+    @Test
+    fun `다른 사진을 고른 뒤 편집을 취소하면 기존 사진과 준비 결과를 유지한다`() {
+        viewModel.selectPhoto("content://media/photo/1", croppedMonoEdit)
+
+        viewModel.onImageSelected("content://media/photo/2")
+        viewModel.onEditCanceled()
+
+        assertEquals("content://media/photo/1", viewModel.uiState.value.selectedImage)
+        assertEquals(croppedMonoEdit, viewModel.uiState.value.selectedEdit)
+        assertTrue(postCreationRepository.discardedPreparations.isEmpty())
+        assertEquals(1, postCreationRepository.prepareCount)
+    }
+
+    @Test
+    fun `사진을 탭하면 현재 편집 값으로 다시 편집하고 취소하면 이전 편집을 유지한다`() {
+        val image = "content://media/photo/1"
+        viewModel.selectPhoto(image, croppedMonoEdit)
+
+        viewModel.onPhotoClick()
+
+        assertEquals(
+            PhotoEditRequest(id = 1, imageUri = image, initialEdit = croppedMonoEdit),
+            viewModel.uiState.value.editingPhoto,
+        )
+
+        viewModel.onEditCanceled()
+
+        assertEquals(croppedMonoEdit, viewModel.uiState.value.selectedEdit)
+        assertEquals(1, postCreationRepository.prepareCount)
+        assertTrue(postCreationRepository.discardedPreparations.isEmpty())
+    }
+
+    @Test
+    fun `다시 편집을 완료하면 이전 준비 결과를 폐기하고 새 편집으로 준비한다`() {
+        val image = "content://media/photo/1"
+        viewModel.selectPhoto(image)
+        val firstPreparation = postCreationRepository.preparations.single()
+
+        viewModel.onPhotoClick()
+        viewModel.onEditConfirmed(image, croppedMonoEdit)
+
+        assertEquals(listOf(firstPreparation), postCreationRepository.discardedPreparations)
+        assertEquals(listOf(PhotoEdit(), croppedMonoEdit), postCreationRepository.preparedEdits)
+        assertEquals(croppedMonoEdit, viewModel.uiState.value.selectedEdit)
+        assertEquals(ImagePreparationStatus.Ready, viewModel.uiState.value.imagePreparationStatus)
+    }
+
+    @Test
+    fun `준비 중에 다시 편집을 완료하면 이전 준비를 취소한다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        postCreationRepository.prepareAwait = gate
+        val image = "content://media/photo/1"
+        viewModel.selectPhoto(image)
+
+        viewModel.onPhotoClick()
+        viewModel.onEditConfirmed(image, croppedMonoEdit)
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(2, postCreationRepository.prepareCount)
+        assertEquals(1, postCreationRepository.preparations.size)
+        assertEquals(croppedMonoEdit, postCreationRepository.preparedEdits.last())
+        assertEquals(ImagePreparationStatus.Ready, viewModel.uiState.value.imagePreparationStatus)
+    }
+
+    @Test
+    fun `편집을 바꾸지 않고 완료하면 다시 준비하지 않는다`() {
+        val image = "content://media/photo/1"
+        viewModel.selectPhoto(image, croppedMonoEdit)
+
+        viewModel.onPhotoClick()
+        viewModel.onEditConfirmed(image, croppedMonoEdit)
+
+        assertEquals(1, postCreationRepository.prepareCount)
+        assertTrue(postCreationRepository.discardedPreparations.isEmpty())
+    }
+
+    @Test
+    fun `제출 결과에 편집 값을 함께 담는다`() = runTest {
+        postCreationRepository.result = PostCreationResult.Success(
+            PostCreation(
+                postId = "post-id",
+                topic = postCreationRepository.defaultTopic,
+                moderationStatus = PostModerationStatus.VALIDATING,
+            ),
+        )
+        viewModel.selectPhoto("content://media/photo/1", croppedMonoEdit)
+
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(
+            croppedMonoEdit,
+            viewModel.uiState.value.completedSubmission
+                ?.edit,
+        )
+    }
+
+    @Test
     fun `카메라 사진 갤러리 저장 실패는 업로드 선택 상태를 유지하고 토스트로 알린다`() {
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
 
         viewModel.onCapturedImageSaveFailed()
 
@@ -114,7 +261,7 @@ class PhotoUploadViewModelTest {
             ),
         )
 
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
         assertEquals(ImagePreparationStatus.Preparing, viewModel.uiState.value.imagePreparationStatus)
@@ -140,7 +287,7 @@ class PhotoUploadViewModelTest {
                 moderationStatus = PostModerationStatus.VALIDATING,
             ),
         )
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
 
         assertEquals(ImagePreparationStatus.Failed, viewModel.uiState.value.imagePreparationStatus)
         assertEquals(
@@ -158,10 +305,10 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `사진을 교체하면 이전 준비 결과를 폐기한다`() {
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
         val firstPreparation = postCreationRepository.preparations.single()
 
-        viewModel.onImageSelected("content://media/photo/2")
+        viewModel.selectPhoto("content://media/photo/2")
 
         assertEquals(listOf(firstPreparation), postCreationRepository.discardedPreparations)
         assertEquals("content://media/photo/2", viewModel.uiState.value.selectedImage)
@@ -197,7 +344,7 @@ class PhotoUploadViewModelTest {
             ),
         )
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
@@ -205,6 +352,7 @@ class PhotoUploadViewModelTest {
         assertEquals(
             PhotoUploadSubmission(
                 imageModel = image,
+                edit = PhotoEdit(),
                 caption = "한낮의 다리",
                 content = PhotoUploadSuccessContent(
                     date = LocalDate.of(2026, 8, 29),
@@ -230,7 +378,7 @@ class PhotoUploadViewModelTest {
                 moderationStatus = PostModerationStatus.PENDING,
             ),
         )
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
@@ -244,7 +392,7 @@ class PhotoUploadViewModelTest {
     fun `처리 중 반복 탭은 repository를 한 번만 호출한다`() = runTest {
         val gate = CompletableDeferred<Unit>()
         postCreationRepository.await = gate
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
@@ -266,7 +414,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `자정이 지나도 업로드 화면 진입 시 고정한 주제 날짜로 제출한다`() = runTest {
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -300,7 +448,7 @@ class PhotoUploadViewModelTest {
         assertEquals("네트워크 연결을 확인해 주세요.", retryViewModel.uiState.value.topicErrorMessage)
 
         retryViewModel.retryTopicLoad()
-        retryViewModel.onImageSelected("content://media/photo/1")
+        retryViewModel.selectPhoto("content://media/photo/1")
 
         retryViewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -326,7 +474,7 @@ class PhotoUploadViewModelTest {
             ),
         )
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -348,7 +496,7 @@ class PhotoUploadViewModelTest {
     fun `중복 제출 실패는 구체적인 메시지와 입력을 유지한다`() = runTest {
         postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted)
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -364,7 +512,7 @@ class PhotoUploadViewModelTest {
     fun `닫힌 주제 실패는 주제 변경 메시지와 입력을 유지한다`() = runTest {
         postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.TopicNotOpen)
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("제목"))
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -382,7 +530,7 @@ class PhotoUploadViewModelTest {
             PostCreationFailure.ReauthenticationRequired,
         )
         val image = "content://media/photo/1"
-        viewModel.onImageSelected(image)
+        viewModel.selectPhoto(image)
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -393,7 +541,7 @@ class PhotoUploadViewModelTest {
 
     @Test
     fun `초기화하면 사진과 캡션을 제거한다`() {
-        viewModel.onImageSelected("content://media/photo/1")
+        viewModel.selectPhoto("content://media/photo/1")
         val preparation = postCreationRepository.preparations.single()
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("오늘의 사진"))
 
@@ -414,7 +562,7 @@ class PhotoUploadViewModelTest {
             prepareResults += PostImagePreparationResult.Failure(PostCreationFailure.NetworkUnavailable)
         }
         val pendingViewModel = PhotoUploadViewModel(repository, uploadTopicDate)
-        pendingViewModel.onImageSelected("content://media/photo/1")
+        pendingViewModel.selectPhoto("content://media/photo/1")
 
         assertEquals(
             "네트워크 연결을 확인해 주세요.",
@@ -424,6 +572,20 @@ class PhotoUploadViewModelTest {
         assertFalse(pendingViewModel.uiState.value.canSubmit)
         assertEquals(listOf(uploadTopicDate), repository.requestedTopicDates)
     }
+}
+
+private val croppedMonoEdit = PhotoEdit(
+    quarterTurns = 1,
+    crop = CropWindow(centerX = 0.4f, centerY = 0.5f, width = 0.6f, height = 0.8f),
+    filter = PhotoFilter.Mono,
+)
+
+private fun PhotoUploadViewModel.selectPhoto(
+    image: String,
+    edit: PhotoEdit = PhotoEdit(),
+) {
+    onImageSelected(image)
+    onEditConfirmed(image, edit)
 }
 
 private class FakePostCreationRepository : PostCreationRepository {
@@ -448,6 +610,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     val requestedTopicDates = mutableListOf<LocalDate>()
     val requestedTopics = mutableListOf<Topic>()
     val preparations = mutableListOf<PostImagePreparation>()
+    val preparedEdits = mutableListOf<PhotoEdit>()
     val discardedPreparations = mutableListOf<PostImagePreparation>()
 
     override fun getCachedCreationTopic(topicDate: LocalDate): Topic? = cachedTopic?.takeIf { it.date == topicDate }
@@ -463,6 +626,7 @@ private class FakePostCreationRepository : PostCreationRepository {
         edit: PhotoEdit,
     ): PostImagePreparationResult {
         prepareCount++
+        preparedEdits += edit
         prepareAwait?.await()
         if (prepareResults.isNotEmpty()) return prepareResults.removeFirst()
         val preparation = PostImagePreparation("preparation-$prepareCount")

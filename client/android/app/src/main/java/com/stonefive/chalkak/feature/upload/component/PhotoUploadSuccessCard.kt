@@ -11,8 +11,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -26,6 +27,7 @@ fun PhotoUploadSuccessCard(
     date: LocalDate,
     title: String,
     modifier: Modifier = Modifier,
+    edit: PhotoEdit = PhotoEdit(),
 ) {
     Surface(
         modifier = modifier,
@@ -34,8 +36,9 @@ fun PhotoUploadSuccessCard(
         shadowElevation = 12.dp,
     ) {
         Column {
-            ChalkakImage(
+            EditedPhotoImage(
                 model = imageModel,
+                edit = edit,
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxWidth()
