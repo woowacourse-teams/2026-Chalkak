@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.feedback
 
+import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.FeedbackSubmissionException
@@ -131,6 +132,32 @@ class FeedbackViewModelTest {
         viewModel.onMessageShown(pendingMessage.id)
 
         assertNull(viewModel.uiState.value.pendingMessage)
+    }
+
+    @Test
+    fun `저장된 본문을 복원하되 자동 제출하지 않는다`() = runTest {
+        val handle = SavedStateHandle(mapOf("feedback_content" to "  작성 중인 본문  "))
+
+        val restored = FeedbackViewModel(feedbackRepository, handle)
+        advanceUntilIdle()
+
+        assertEquals("  작성 중인 본문  ", restored.uiState.value.content)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertNull(feedbackRepository.submittedContent)
+    }
+
+    @Test
+    fun `변경한 본문을 저장하고 새 ViewModel에서 복원한다`() {
+        val handle = SavedStateHandle()
+        val original = FeedbackViewModel(feedbackRepository, handle)
+        original.updateContent("작성 중인 피드백")
+
+        val restoredHandle = SavedStateHandle(mapOf("feedback_content" to handle.get<String>("feedback_content")))
+        val restored = FeedbackViewModel(feedbackRepository, restoredHandle)
+
+        assertEquals("작성 중인 피드백", restored.uiState.value.content)
+        original.updateContent("")
+        assertEquals("", handle.get<String>("feedback_content"))
     }
 
     private fun createViewModel() = FeedbackViewModel(
