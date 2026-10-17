@@ -30,6 +30,9 @@ struct PhotoEditCropper: UIViewControllerRepresentable {
         config.appearanceMode = .forceDark
         config.showAttachedCropToolbar = false
         config.cropViewConfig.showAttachedRotationControlView = false
+        // 기본 흐림 효과는 빈 영역을 회색으로 칠하므로, 배경색을 반투명하게 덮어 자르기 밖 사진만 어둡게 한다.
+        config.cropViewConfig.backgroundColor = UIColor(context.environment.chalkakTheme.colors.editorBackground)
+            .withAlphaComponent(Metrics.outsideCropDimming)
 
         if let transformation = source.state.transformation {
             config.cropViewConfig.presetTransformationType = .presetInfo(info: transformation)
@@ -74,4 +77,8 @@ struct PhotoEditCropper: UIViewControllerRepresentable {
 
         func cropViewControllerDidCancel(_ cropViewController: CropViewController, original: UIImage) {}
     }
+}
+
+private enum Metrics {
+    static let outsideCropDimming: CGFloat = 0.6
 }

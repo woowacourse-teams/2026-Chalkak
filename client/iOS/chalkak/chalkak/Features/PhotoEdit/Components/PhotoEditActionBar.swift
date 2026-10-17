@@ -1,26 +1,26 @@
 import SwiftUI
 
-/// 취소·완료 버튼 사이에 탭별 도구를 둔다.
-struct PhotoEditTopBar<Tools: View>: View {
+/// 도구 화면 하단의 취소·적용 버튼. 가운데에는 도구별 버튼을 둔다.
+struct PhotoEditActionBar<Tools: View>: View {
     @Environment(\.chalkakTheme) private var theme
 
-    var isDoneEnabled = true
+    var isApplyEnabled = true
     let onCancel: () -> Void
-    let onDone: () -> Void
+    let onApply: () -> Void
     @ViewBuilder let tools: () -> Tools
 
     var body: some View {
         HStack(spacing: 0) {
             circleButton("취소", systemImage: "xmark", isEnabled: true, action: onCancel)
-                .accessibilityIdentifier("photoEdit.cancel")
+                .accessibilityIdentifier("photoEdit.tool.cancel")
 
-            // 도구가 없어도 취소·완료 버튼이 양 끝에 머물도록 Spacer로 밀어 둔다.
+            // 도구가 없어도 취소·적용 버튼이 양 끝에 머물도록 Spacer로 밀어 둔다.
             Spacer(minLength: 0)
             tools()
             Spacer(minLength: 0)
 
-            circleButton("완료", systemImage: "checkmark", isEnabled: isDoneEnabled, action: onDone)
-                .accessibilityIdentifier("photoEdit.done")
+            circleButton("적용", systemImage: "checkmark", isEnabled: isApplyEnabled, action: onApply)
+                .accessibilityIdentifier("photoEdit.tool.apply")
         }
     }
 
@@ -44,13 +44,13 @@ struct PhotoEditTopBar<Tools: View>: View {
     }
 }
 
-extension PhotoEditTopBar where Tools == EmptyView {
-    init(isDoneEnabled: Bool = true, onCancel: @escaping () -> Void, onDone: @escaping () -> Void) {
-        self.init(isDoneEnabled: isDoneEnabled, onCancel: onCancel, onDone: onDone, tools: { EmptyView() })
+extension PhotoEditActionBar where Tools == EmptyView {
+    init(isApplyEnabled: Bool = true, onCancel: @escaping () -> Void, onApply: @escaping () -> Void) {
+        self.init(isApplyEnabled: isApplyEnabled, onCancel: onCancel, onApply: onApply, tools: { EmptyView() })
     }
 }
 
-/// 자르기 탭의 좌우반전·회전 버튼.
+/// 자르기 화면의 좌우반전·회전 버튼.
 struct PhotoEditCropTools: View {
     @Environment(\.chalkakTheme) private var theme
 
@@ -80,14 +80,14 @@ struct PhotoEditCropTools: View {
 }
 
 private enum Metrics {
-    static let buttonSize: CGFloat = 48
-    static let iconSize: CGFloat = 18
+    static let buttonSize: CGFloat = 52
+    static let iconSize: CGFloat = 20
 }
 
-#Preview("Photo Edit Top Bar") {
+#Preview("Photo Edit Action Bar") {
     VStack(spacing: ChalkakSpacing.lg) {
-        PhotoEditTopBar(onCancel: {}, onDone: {})
-        PhotoEditTopBar(isDoneEnabled: false, onCancel: {}, onDone: {}) {
+        PhotoEditActionBar(onCancel: {}, onApply: {})
+        PhotoEditActionBar(isApplyEnabled: false, onCancel: {}, onApply: {}) {
             PhotoEditCropTools(onFlip: {}, onRotate: {})
         }
     }

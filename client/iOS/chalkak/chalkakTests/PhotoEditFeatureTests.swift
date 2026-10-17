@@ -20,7 +20,9 @@ struct PhotoEditViewModelTests {
         )
         try await waitUntil { viewModel.viewState.previewImage != nil && !viewModel.viewState.thumbnails.isEmpty }
 
+        viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.mono))
+        viewModel.handle(.filterApplied)
         viewModel.handle(.doneClicked)
         #expect(viewModel.viewState.isCompleting)
         try await waitUntil { viewModel.event != nil }
@@ -46,7 +48,9 @@ struct PhotoEditViewModelTests {
             renderer: recorder.renderer
         )
 
+        viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.noir))
+        viewModel.handle(.filterApplied)
         viewModel.handle(.cancelClicked)
 
         #expect(viewModel.event == .cancelled)
@@ -62,16 +66,17 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.chrome))
+        viewModel.handle(.filterApplied)
         try await waitUntil { viewModel.viewState.previewImage != nil }
 
-        viewModel.handle(.modeSelected(.crop))
+        viewModel.handle(.toolSelected(.crop))
         try await waitUntil { viewModel.viewState.cropperSource != nil }
         let cropperState = PhotoEditCropperState(aspectRatio: .square)
         viewModel.handle(.cropCompleted(PhotoEditCrop(image: cropped, cropperState: cropperState)))
-        viewModel.handle(.modeSelected(.filter))
 
-        #expect(viewModel.viewState.mode == .filter)
+        #expect(viewModel.viewState.activeTool == nil)
         #expect(viewModel.viewState.cropperSource == nil)
         #expect(viewModel.viewState.previewImage == nil)
         try await waitUntil {
@@ -112,7 +117,7 @@ struct PhotoEditViewModelTests {
             renderer: recorder.renderer
         )
 
-        viewModel.handle(.modeSelected(.crop))
+        viewModel.handle(.toolSelected(.crop))
         try await waitUntil { viewModel.viewState.cropperSource != nil }
 
         let source = try #require(viewModel.viewState.cropperSource)
@@ -137,7 +142,7 @@ struct PhotoEditViewModelTests {
             ),
             renderer: recorder.renderer
         )
-        viewModel.handle(.modeSelected(.crop))
+        viewModel.handle(.toolSelected(.crop))
         try await waitUntil { viewModel.viewState.cropperSource != nil }
         let firstSource = try #require(viewModel.viewState.cropperSource)
 
@@ -163,7 +168,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
-        viewModel.handle(.modeSelected(.crop))
+        viewModel.handle(.toolSelected(.crop))
         try await waitUntil { viewModel.viewState.cropperSource != nil }
         viewModel.handle(.aspectRatioSelected(.portrait4x5))
 
@@ -178,6 +183,63 @@ struct PhotoEditViewModelTests {
         #expect(source.state.transformation == nil)
         #expect(recorder.orientCalls.map { [$0.quarterTurns, $0.isFlipped ? 1 : 0] } == [[0, 0], [1, 0], [1, 1]])
         #expect(recorder.orientCalls.allSatisfy { $0.image === original })
+    }
+
+    @Test("필터 화면에서 취소하면 들어가기 전 필터로 되돌린다")
+    func revertsFilterOnToolCancel() async throws {
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: Self.image(width: 40, height: 30), filter: .fade),
+            renderer: PhotoEditRenderRecorder().renderer
+        )
+
+        viewModel.handle(.toolSelected(.filter))
+        viewModel.handle(.filterSelected(.mono))
+        #expect(viewModel.viewState.selectedFilter == .mono)
+        viewModel.handle(.toolCancelled)
+
+        #expect(viewModel.viewState.activeTool == nil)
+        #expect(viewModel.viewState.selectedFilter == .fade)
+    }
+
+    @Test("자르기 화면에서 취소하면 회전·비율 변경을 버리고 이전 자르기를 유지한다")
+    func discardsCropDraftOnToolCancel() async throws {
+        let cropped = Self.image(width: 20, height: 20)
+        let cropperState = PhotoEditCropperState(aspectRatio: .square, transformation: Self.transformation)
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(
+                original: Self.image(width: 40, height: 30),
+                crop: PhotoEditCrop(image: cropped, cropperState: cropperState)
+            ),
+            renderer: PhotoEditRenderRecorder().renderer
+        )
+
+        viewModel.handle(.toolSelected(.crop))
+        viewModel.handle(.rotateClicked)
+        viewModel.handle(.aspectRatioSelected(.landscape16x9))
+        viewModel.handle(.toolCancelled)
+
+        #expect(viewModel.viewState.activeTool == nil)
+        #expect(viewModel.viewState.cropperSource == nil)
+        #expect(viewModel.viewState.session.croppedImage === cropped)
+        #expect(viewModel.viewState.session.crop?.cropperState == cropperState)
+
+        viewModel.handle(.toolSelected(.crop))
+        #expect(viewModel.viewState.cropDraft == cropperState)
+    }
+
+    @Test("도구 화면이 열려 있으면 편집 완료와 취소를 받지 않는다")
+    func ignoresDoneWhileToolIsOpen() {
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
+            renderer: PhotoEditRenderRecorder().renderer
+        )
+
+        viewModel.handle(.toolSelected(.filter))
+        viewModel.handle(.doneClicked)
+        viewModel.handle(.cancelClicked)
+
+        #expect(viewModel.viewState.isCompleting == false)
+        #expect(viewModel.event == nil)
     }
 
     @Test("반전한 상태에서 회전하면 원본 기준 회전 방향이 반대가 된다")
@@ -206,7 +268,9 @@ struct PhotoEditViewModelTests {
             }
         )
 
+        viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.mono))
+        viewModel.handle(.filterApplied)
         viewModel.handle(.doneClicked)
         try await waitUntil { viewModel.viewState.failureMessage != nil }
 

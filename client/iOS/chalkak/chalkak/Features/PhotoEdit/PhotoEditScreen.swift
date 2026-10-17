@@ -24,33 +24,15 @@ struct PhotoEditScreen: View {
     var body: some View {
         let viewState = viewModel.viewState
 
-        VStack(spacing: 0) {
-            PhotoEditTopBar(
-                isDoneEnabled: !viewState.isCompleting,
-                onCancel: { viewModel.handle(.cancelClicked) },
-                onDone: done
-            ) {
-                if viewState.mode == .crop {
-                    PhotoEditCropTools(
-                        onFlip: { viewModel.handle(.flipClicked) },
-                        onRotate: { viewModel.handle(.rotateClicked) }
-                    )
-                }
+        Group {
+            switch viewState.activeTool {
+            case nil:
+                overview(viewState)
+            case .filter:
+                filterTool(viewState)
+            case .crop:
+                cropTool(viewState)
             }
-            .padding(.horizontal, theme.spacing.lg)
-            .padding(.top, theme.spacing.sm)
-
-            content(viewState)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            tools(viewState)
-                .frame(height: Metrics.toolsHeight)
-                .disabled(viewState.isCompleting)
-
-            PhotoEditModeBar(selectedMode: viewState.mode, onSelect: selectMode)
-                .padding(.top, theme.spacing.md)
-                .padding(.bottom, theme.spacing.sm)
-                .disabled(viewState.isCompleting)
         }
         .background(theme.colors.editorBackground)
         .overlay {
@@ -71,50 +53,96 @@ struct PhotoEditScreen: View {
         }
     }
 
-    @ViewBuilder
-    private func content(_ viewState: PhotoEditViewState) -> some View {
-        switch viewState.mode {
-        case .filter:
-            Image(uiImage: viewState.displayedImage)
-                .resizable()
-                .scaledToFit()
-                .padding(theme.spacing.lg)
-                .accessibilityLabel("편집 중인 사진")
-        case .crop:
-            if let source = viewState.cropperSource {
-                PhotoEditCropper(
-                    source: source,
-                    controller: cropperController,
-                    onCropped: { viewModel.handle(.cropCompleted($0)) }
-                )
-                .id(source.id)
-                // Mantis 마스크가 영역 밖으로 커져 상단바를 덮지 않게 한다.
-                .clipped()
-            } else {
-                ProgressView()
-                    .tint(theme.colors.textOnEditor)
-            }
+    /// 편집 첫 화면. 사진을 보여 주고 도구를 고른다.
+    private func overview(_ viewState: PhotoEditViewState) -> some View {
+        VStack(spacing: 0) {
+            PhotoEditHeader(
+                isDoneEnabled: !viewState.isCompleting,
+                onBack: { viewModel.handle(.cancelClicked) },
+                onDone: { viewModel.handle(.doneClicked) }
+            )
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.top, theme.spacing.sm)
+
+            preview(viewState)
+
+            PhotoEditToolPicker(onSelect: { viewModel.handle(.toolSelected($0)) })
+                .disabled(viewState.isCompleting)
+                .padding(.vertical, theme.spacing.md)
         }
     }
 
-    @ViewBuilder
-    private func tools(_ viewState: PhotoEditViewState) -> some View {
-        switch viewState.mode {
-        case .filter:
+    private func filterTool(_ viewState: PhotoEditViewState) -> some View {
+        VStack(spacing: 0) {
+            preview(viewState)
+
             PhotoEditFilterStrip(
                 selectedFilter: viewState.selectedFilter,
                 thumbnails: viewState.thumbnails,
                 onSelect: { viewModel.handle(.filterSelected($0)) }
             )
             .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
-        case .crop:
+            .frame(height: Metrics.toolOptionsHeight)
+
+            PhotoEditActionBar(
+                onCancel: { viewModel.handle(.toolCancelled) },
+                onApply: { viewModel.handle(.filterApplied) }
+            )
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
+        }
+    }
+
+    private func cropTool(_ viewState: PhotoEditViewState) -> some View {
+        VStack(spacing: 0) {
+            Group {
+                if let source = viewState.cropperSource {
+                    PhotoEditCropper(
+                        source: source,
+                        controller: cropperController,
+                        onCropped: { viewModel.handle(.cropCompleted($0)) }
+                    )
+                    .id(source.id)
+                    // Mantis 마스크가 영역 밖으로 커져 다른 버튼을 덮지 않게 한다.
+                    .clipped()
+                } else {
+                    ProgressView()
+                        .tint(theme.colors.textOnEditor)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
             PhotoEditAspectRatioStrip(
                 selectedAspectRatio: viewState.cropDraft.aspectRatio,
                 originalSize: viewState.cropDraft.orientedSize(of: viewState.session.original.size),
                 onSelect: { viewModel.handle(.aspectRatioSelected($0)) }
             )
             .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
+            .frame(height: Metrics.toolOptionsHeight)
+
+            PhotoEditActionBar(
+                isApplyEnabled: viewState.cropperSource != nil,
+                onCancel: { viewModel.handle(.toolCancelled) },
+                // Mantis는 자른 결과를 `crop()` 안에서 바로 `onCropped`로 전달한다.
+                onApply: cropperController.crop
+            ) {
+                PhotoEditCropTools(
+                    onFlip: { viewModel.handle(.flipClicked) },
+                    onRotate: { viewModel.handle(.rotateClicked) }
+                )
+            }
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
         }
+    }
+
+    private func preview(_ viewState: PhotoEditViewState) -> some View {
+        Image(uiImage: viewState.displayedImage)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, theme.spacing.lg)
+            .accessibilityLabel("편집 중인 사진")
     }
 
     private var failureAlertPresented: Binding<Bool> {
@@ -126,24 +154,6 @@ struct PhotoEditScreen: View {
                 }
             }
         )
-    }
-
-    /// 자르기 탭을 떠나거나 완료하면 Mantis의 현재 자르기 영역을 확정한다.
-    /// Mantis는 자른 결과를 `crop()` 안에서 바로 전달하므로 다음 동작보다 먼저 반영된다.
-    private func commitCropIfNeeded() {
-        guard viewModel.viewState.mode == .crop, viewModel.viewState.cropperSource != nil else { return }
-        cropperController.crop()
-    }
-
-    private func selectMode(_ mode: PhotoEditMode) {
-        guard mode != viewModel.viewState.mode else { return }
-        commitCropIfNeeded()
-        viewModel.handle(.modeSelected(mode))
-    }
-
-    private func done() {
-        commitCropIfNeeded()
-        viewModel.handle(.doneClicked)
     }
 
     private func handle(_ event: PhotoEditEvent?) {
@@ -160,7 +170,7 @@ struct PhotoEditScreen: View {
 }
 
 private enum Metrics {
-    static let toolsHeight: CGFloat = 96
+    static let toolOptionsHeight: CGFloat = 96
 }
 
 #Preview("Photo Edit") {

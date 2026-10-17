@@ -12,6 +12,8 @@ final class PhotoEditViewModel {
 
     /// 필터를 바꿀 때마다 큰 이미지를 다시 줄이지 않도록 미리보기 크기 이미지를 보관한다.
     private var previewSource: UIImage?
+    /// 필터 화면에서 취소하면 되돌릴 필터.
+    private var filterBeforeTool: PhotoEditFilter = .original
     private var renderGeneration = 0
     private var previewTask: Task<Void, Never>?
     private var thumbnailTask: Task<Void, Never>?
@@ -28,33 +30,41 @@ final class PhotoEditViewModel {
         guard !viewState.isCompleting else { return }
 
         switch action {
-        case let .modeSelected(mode):
-            selectMode(mode)
+        case let .toolSelected(tool):
+            openTool(tool)
+        case .toolCancelled:
+            cancelTool()
+        case .filterApplied:
+            guard viewState.activeTool == .filter else { return }
+            viewState.activeTool = nil
         case let .filterSelected(filter):
-            guard viewState.mode == .filter, filter != viewState.session.filter else { return }
+            guard viewState.activeTool == .filter, filter != viewState.session.filter else { return }
             viewState.session.filter = filter
             renderPreview()
         case let .aspectRatioSelected(aspectRatio):
-            guard viewState.mode == .crop else { return }
+            guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.aspectRatio = aspectRatio
             // 비율을 고를 때마다 이전 자르기 영역이 아닌 전체 이미지에서 새로 시작한다.
             viewState.cropDraft.transformation = nil
             prepareCropperSource()
         case .rotateClicked:
-            guard viewState.mode == .crop else { return }
+            guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.rotateCounterclockwise()
             prepareCropperSource()
         case .flipClicked:
-            guard viewState.mode == .crop else { return }
+            guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.flipHorizontally()
             prepareCropperSource()
         case let .cropCompleted(crop):
+            guard viewState.activeTool == .crop else { return }
+            closeCropper()
             viewState.session.crop = crop
-            viewState.cropDraft = crop.cropperState
             prepareRenderSources()
         case .doneClicked:
+            guard viewState.activeTool == nil else { return }
             complete()
         case .cancelClicked:
+            guard viewState.activeTool == nil else { return }
             cancelRendering()
             event = .cancelled
         case .failureMessageDismissed:
@@ -66,19 +76,39 @@ final class PhotoEditViewModel {
         event = nil
     }
 
-    private func selectMode(_ mode: PhotoEditMode) {
-        guard mode != viewState.mode else { return }
-        viewState.mode = mode
+    private func openTool(_ tool: PhotoEditTool) {
+        guard viewState.activeTool == nil else { return }
+        viewState.activeTool = tool
 
-        switch mode {
+        switch tool {
         case .filter:
-            cropperTask?.cancel()
-            cropperTask = nil
-            viewState.cropperSource = nil
+            filterBeforeTool = viewState.session.filter
         case .crop:
             viewState.cropDraft = viewState.session.crop?.cropperState ?? PhotoEditCropperState()
             prepareCropperSource()
         }
+    }
+
+    /// 도구 화면에서 바꾼 것만 버리고 편집 첫 화면으로 돌아간다.
+    private func cancelTool() {
+        switch viewState.activeTool {
+        case .filter:
+            viewState.activeTool = nil
+            guard viewState.session.filter != filterBeforeTool else { return }
+            viewState.session.filter = filterBeforeTool
+            renderPreview()
+        case .crop:
+            closeCropper()
+        case nil:
+            return
+        }
+    }
+
+    private func closeCropper() {
+        cropperTask?.cancel()
+        cropperTask = nil
+        viewState.cropperSource = nil
+        viewState.activeTool = nil
     }
 
     /// 회전·반전을 원본에 적용하고, 화면에 보일 이미지에는 선택한 필터를 입힌다.

@@ -134,7 +134,8 @@ struct PhotoEditResult: Equatable {
     }
 }
 
-enum PhotoEditMode: CaseIterable, Identifiable, Sendable {
+/// 편집 첫 화면에서 골라 들어가는 도구. 도구 화면에서 취소하면 그 도구에서 바꾼 것만 되돌린다.
+enum PhotoEditTool: CaseIterable, Identifiable, Sendable {
     case filter
     case crop
 
@@ -143,7 +144,7 @@ enum PhotoEditMode: CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .filter: "필터"
-        case .crop: "자르기"
+        case .crop: "자르기·회전"
         }
     }
 
@@ -157,10 +158,10 @@ enum PhotoEditMode: CaseIterable, Identifiable, Sendable {
 
 struct PhotoEditViewState {
     var session: PhotoEditSession
-    var mode: PhotoEditMode = .filter
+    var activeTool: PhotoEditTool?
     var previewImage: UIImage?
     var thumbnails: [PhotoEditFilter: UIImage] = [:]
-    /// 자르기 탭에서 아직 확정하지 않은 비율·회전·반전.
+    /// 자르기 화면에서 아직 확정하지 않은 비율·회전·반전.
     var cropDraft = PhotoEditCropperState()
     var cropperSource: PhotoEditCropperSource?
     var isCompleting = false
@@ -181,7 +182,9 @@ enum PhotoEditEvent: Equatable {
 }
 
 enum PhotoEditAction {
-    case modeSelected(PhotoEditMode)
+    case toolSelected(PhotoEditTool)
+    case toolCancelled
+    case filterApplied
     case filterSelected(PhotoEditFilter)
     case aspectRatioSelected(PhotoEditAspectRatio)
     case rotateClicked
