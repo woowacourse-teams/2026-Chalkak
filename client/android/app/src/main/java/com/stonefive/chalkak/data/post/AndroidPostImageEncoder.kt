@@ -3,10 +3,14 @@ package com.stonefive.chalkak.data.post
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import androidx.exifinterface.media.ExifInterface
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -25,11 +29,12 @@ class AndroidPostImageEncoder(
     override suspend fun encode(
         contentUri: String,
         maxBytes: Long,
+        edit: PhotoEdit,
     ): PostImageEncodeResult {
         var resultFile: File? = null
         return try {
             withContext(Dispatchers.IO) {
-                val result = encodeBlocking(contentUri, maxBytes)
+                val result = encodeBlocking(contentUri, maxBytes, edit)
                 resultFile = (result as? PostImageEncodeResult.Success)?.file
                 coroutineContext.ensureActive()
                 result
@@ -43,6 +48,7 @@ class AndroidPostImageEncoder(
     private fun encodeBlocking(
         contentUri: String,
         maxBytes: Long,
+        edit: PhotoEdit,
     ): PostImageEncodeResult {
         if (maxBytes <= 0) return PostImageEncodeResult.SizeLimitExceeded
 
@@ -83,17 +89,30 @@ class AndroidPostImageEncoder(
             sampledBitmap.recycle()
         }
 
+        val editedBitmap = try {
+            if (edit.isIdentity) orientedBitmap else applyEdit(orientedBitmap, edit)
+        } catch (error: CancellationException) {
+            orientedBitmap.recycle()
+            throw error
+        } catch (_: RuntimeException) {
+            orientedBitmap.recycle()
+            return PostImageEncodeResult.EncodeFailed
+        }
+        if (editedBitmap !== orientedBitmap) {
+            orientedBitmap.recycle()
+        }
+
         val cacheReady = try {
             cacheDir.isDirectory || (cacheDir.mkdirs() && cacheDir.isDirectory)
         } catch (_: SecurityException) {
             false
         }
         if (!cacheReady) {
-            if (!orientedBitmap.isRecycled) orientedBitmap.recycle()
+            if (!editedBitmap.isRecycled) editedBitmap.recycle()
             return PostImageEncodeResult.EncodeFailed
         }
 
-        var candidate = orientedBitmap
+        var candidate = editedBitmap
         var activeOutput: File? = null
         try {
             repeat(MAX_RESCALE_ROUNDS + 1) { round ->
@@ -148,8 +167,8 @@ class AndroidPostImageEncoder(
         } finally {
             activeOutput?.delete()
             candidate.recycle()
-            if (candidate !== orientedBitmap && !orientedBitmap.isRecycled) {
-                orientedBitmap.recycle()
+            if (candidate !== editedBitmap && !editedBitmap.isRecycled) {
+                editedBitmap.recycle()
             }
         }
 
@@ -226,6 +245,32 @@ class AndroidPostImageEncoder(
             else -> return bitmap
         }
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    /** 자르기 중심을 결과 이미지 가운데로 옮기고 회전한 뒤, 필터와 함께 한 번에 그린다. */
+    private fun applyEdit(
+        bitmap: Bitmap,
+        edit: PhotoEdit,
+    ): Bitmap {
+        val isTurned = edit.quarterTurns.mod(2) == 1
+        val turnedWidth = if (isTurned) bitmap.height else bitmap.width
+        val turnedHeight = if (isTurned) bitmap.width else bitmap.height
+        val crop = edit.crop
+        val outputWidth = (crop.width * turnedWidth).roundToInt().coerceIn(1, turnedWidth)
+        val outputHeight = (crop.height * turnedHeight).roundToInt().coerceIn(1, turnedHeight)
+        val matrix = Matrix().apply {
+            setTranslate(-crop.centerX * bitmap.width, -crop.centerY * bitmap.height)
+            postRotate(edit.rotationDegrees)
+            postTranslate(outputWidth / 2f, outputHeight / 2f)
+        }
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+            colorFilter = edit.filter
+                .colorMatrix()
+                ?.let(::ColorMatrixColorFilter)
+        }
+        val output = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
+        Canvas(output).drawBitmap(bitmap, matrix, paint)
+        return output
     }
 
     private fun resize(bitmap: Bitmap): Bitmap? {

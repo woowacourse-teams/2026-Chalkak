@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.domain.repository
 
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
@@ -12,7 +13,10 @@ interface PostCreationRepository {
 
     suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult
 
-    suspend fun prepareImage(imageUri: String): PostImagePreparationResult
+    suspend fun prepareImage(
+        imageUri: String,
+        edit: PhotoEdit,
+    ): PostImagePreparationResult
 
     fun discardPreparedImage(preparation: PostImagePreparation)
 

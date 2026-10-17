@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.upload
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -457,7 +458,10 @@ private class FakePostCreationRepository : PostCreationRepository {
         return if (topicResults.isEmpty()) topicResult else topicResults.removeFirst()
     }
 
-    override suspend fun prepareImage(imageUri: String): PostImagePreparationResult {
+    override suspend fun prepareImage(
+        imageUri: String,
+        edit: PhotoEdit,
+    ): PostImagePreparationResult {
         prepareCount++
         prepareAwait?.await()
         if (prepareResults.isNotEmpty()) return prepareResults.removeFirst()

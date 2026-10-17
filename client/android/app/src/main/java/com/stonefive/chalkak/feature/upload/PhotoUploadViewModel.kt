@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
@@ -181,7 +182,7 @@ class PhotoUploadViewModel(
         }
         preparationJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.prepareImage(imageUri)) {
+                when (val result = postCreationRepository.prepareImage(imageUri, PhotoEdit())) {
                     is PostImagePreparationResult.Success -> {
                         if (generation != imageGeneration || _uiState.value.selectedImage != imageUri) {
                             postCreationRepository.discardPreparedImage(result.value)
