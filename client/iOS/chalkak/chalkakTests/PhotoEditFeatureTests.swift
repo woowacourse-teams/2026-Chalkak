@@ -1,5 +1,6 @@
 import Foundation
 import ImageIO
+import Mantis
 import Testing
 import UIKit
 import UniformTypeIdentifiers
@@ -64,12 +65,14 @@ struct PhotoEditViewModelTests {
         viewModel.handle(.filterSelected(.chrome))
         try await waitUntil { viewModel.viewState.previewImage != nil }
 
-        viewModel.handle(.cropClicked)
-        #expect(viewModel.viewState.isCropperPresented)
+        viewModel.handle(.modeSelected(.crop))
+        try await waitUntil { viewModel.viewState.cropperSource != nil }
         let cropperState = PhotoEditCropperState(aspectRatio: .square)
         viewModel.handle(.cropCompleted(PhotoEditCrop(image: cropped, cropperState: cropperState)))
+        viewModel.handle(.modeSelected(.filter))
 
-        #expect(viewModel.viewState.isCropperPresented == false)
+        #expect(viewModel.viewState.mode == .filter)
+        #expect(viewModel.viewState.cropperSource == nil)
         #expect(viewModel.viewState.previewImage == nil)
         try await waitUntil {
             viewModel.viewState.previewImage != nil && viewModel.viewState.thumbnails.count == PhotoEditFilter.allCases.count
@@ -90,27 +93,108 @@ struct PhotoEditViewModelTests {
         #expect(result.session.crop?.cropperState == cropperState)
     }
 
-    @Test("다시 자를 때는 필터를 적용하기 전 원본과 이전 자르기 상태를 사용한다")
-    func recropsFromOriginal() async throws {
+    @Test("자르기 탭은 필터를 적용한 원본을 보여 주고 이전 자르기 상태를 복원한다")
+    func restoresCropperFromOriginal() async throws {
+        let recorder = PhotoEditRenderRecorder()
         let original = Self.image(width: 40, height: 30)
         let cropped = Self.image(width: 20, height: 20)
-        let cropperState = PhotoEditCropperState(aspectRatio: .portrait4x5)
+        let cropperState = PhotoEditCropperState(
+            aspectRatio: .portrait4x5,
+            quarterTurns: 1,
+            transformation: Self.transformation
+        )
         let viewModel = PhotoEditViewModel(
             session: PhotoEditSession(
                 original: original,
                 crop: PhotoEditCrop(image: cropped, cropperState: cropperState),
                 filter: .fade
             ),
-            renderer: PhotoEditRenderRecorder().renderer
+            renderer: recorder.renderer
         )
 
-        viewModel.handle(.cropClicked)
-        viewModel.handle(.cropCancelled)
+        viewModel.handle(.modeSelected(.crop))
+        try await waitUntil { viewModel.viewState.cropperSource != nil }
 
-        #expect(viewModel.viewState.session.original === original)
-        #expect(viewModel.viewState.session.croppedImage === cropped)
-        #expect(viewModel.viewState.session.crop?.cropperState == cropperState)
-        #expect(viewModel.viewState.selectedFilter == .fade)
+        let source = try #require(viewModel.viewState.cropperSource)
+        #expect(source.state == cropperState)
+        #expect(recorder.orientCalls.map(\.image) == [original])
+        #expect(recorder.orientCalls.first?.quarterTurns == 1)
+        #expect(source.baseImage !== original)
+        #expect(recorder.calls.contains { $0.image === source.baseImage && $0.filter == .fade && $0.maxLongEdge == nil })
+    }
+
+    @Test("비율을 고를 때마다 이전 자르기 영역을 버리고 전체 이미지에서 다시 시작한다")
+    func restartsCropForEachAspectRatio() async throws {
+        let recorder = PhotoEditRenderRecorder()
+        let original = Self.image(width: 40, height: 30)
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(
+                original: original,
+                crop: PhotoEditCrop(
+                    image: Self.image(width: 20, height: 20),
+                    cropperState: PhotoEditCropperState(aspectRatio: .free, transformation: Self.transformation)
+                )
+            ),
+            renderer: recorder.renderer
+        )
+        viewModel.handle(.modeSelected(.crop))
+        try await waitUntil { viewModel.viewState.cropperSource != nil }
+        let firstSource = try #require(viewModel.viewState.cropperSource)
+
+        viewModel.handle(.aspectRatioSelected(.square))
+        let squareSource = try #require(viewModel.viewState.cropperSource)
+        viewModel.handle(.aspectRatioSelected(.landscape16x9))
+        let landscapeSource = try #require(viewModel.viewState.cropperSource)
+
+        #expect(squareSource.id != firstSource.id)
+        #expect(landscapeSource.id != squareSource.id)
+        #expect(squareSource.state.transformation == nil)
+        #expect(landscapeSource.state.aspectRatio == .landscape16x9)
+        #expect(landscapeSource.state.transformation == nil)
+        #expect(landscapeSource.baseImage === firstSource.baseImage)
+        #expect(recorder.orientCalls.count == 1)
+    }
+
+    @Test("회전·반전하면 원본에 방향을 다시 적용하고 자르기 영역을 초기화한다")
+    func reorientsOriginalOnRotateAndFlip() async throws {
+        let recorder = PhotoEditRenderRecorder()
+        let original = Self.image(width: 40, height: 30)
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: original),
+            renderer: recorder.renderer
+        )
+        viewModel.handle(.modeSelected(.crop))
+        try await waitUntil { viewModel.viewState.cropperSource != nil }
+        viewModel.handle(.aspectRatioSelected(.portrait4x5))
+
+        viewModel.handle(.rotateClicked)
+        #expect(viewModel.viewState.cropperSource == nil)
+        try await waitUntil { viewModel.viewState.cropperSource?.state.quarterTurns == 1 }
+        viewModel.handle(.flipClicked)
+        try await waitUntil { viewModel.viewState.cropperSource?.state.isFlipped == true }
+
+        let source = try #require(viewModel.viewState.cropperSource)
+        #expect(source.state.aspectRatio == .portrait4x5)
+        #expect(source.state.transformation == nil)
+        #expect(recorder.orientCalls.map { [$0.quarterTurns, $0.isFlipped ? 1 : 0] } == [[0, 0], [1, 0], [1, 1]])
+        #expect(recorder.orientCalls.allSatisfy { $0.image === original })
+    }
+
+    @Test("반전한 상태에서 회전하면 원본 기준 회전 방향이 반대가 된다")
+    func rotatesFlippedImageInDisplayedDirection() {
+        var state = PhotoEditCropperState()
+        state.rotateCounterclockwise()
+        #expect(state.quarterTurns == 1)
+
+        state.flipHorizontally()
+        state.rotateCounterclockwise()
+        #expect(state.quarterTurns == 0)
+        #expect(state.isFlipped)
+        #expect(state.orientedSize(of: CGSize(width: 4, height: 3)) == CGSize(width: 4, height: 3))
+
+        state.rotateCounterclockwise()
+        #expect(state.quarterTurns == 3)
+        #expect(state.orientedSize(of: CGSize(width: 4, height: 3)) == CGSize(width: 3, height: 4))
     }
 
     @Test("렌더링에 실패하면 화면을 닫지 않고 실패를 안내한다")
@@ -131,6 +215,18 @@ struct PhotoEditViewModelTests {
         viewModel.handle(.failureMessageDismissed)
         #expect(viewModel.viewState.failureMessage == nil)
     }
+
+    static let transformation = Transformation(
+        offset: CGPoint(x: 1, y: 2),
+        rotation: 0,
+        scale: 1.5,
+        isManuallyZoomed: true,
+        initialMaskFrame: CGRect(x: 0, y: 0, width: 100, height: 100),
+        maskFrame: CGRect(x: 10, y: 10, width: 50, height: 50),
+        cropWorkbenchViewBounds: CGRect(x: 0, y: 0, width: 100, height: 100),
+        horizontallyFlipped: false,
+        verticallyFlipped: false
+    )
 
     static func image(width: Int, height: Int) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
@@ -429,6 +525,44 @@ struct PhotoEditFilterRendererTests {
         }
     }
 
+    @Test("반시계 방향 회전과 좌우반전을 화면에 보이는 방향대로 적용한다")
+    func orientsImage() throws {
+        // 왼쪽 절반은 빨강, 오른쪽 절반은 파랑인 가로 이미지.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 10, height: 10))
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 10, y: 0, width: 10, height: 10))
+        }
+
+        let rotated = try #require(PhotoEditFilterRenderer.orient(image, quarterTurns: 1, isFlipped: false))
+        let rotatedPixels = try #require(Self.rgbaPixels(of: rotated))
+        #expect(rotated.cgImage?.width == 10)
+        #expect(rotated.cgImage?.height == 20)
+        // 반시계로 돌리면 오른쪽(파랑)이 위로 간다.
+        #expect(Self.isBlue(rotatedPixels, x: 5, y: 2, width: 10))
+        #expect(Self.isRed(rotatedPixels, x: 5, y: 17, width: 10))
+
+        let flipped = try #require(PhotoEditFilterRenderer.orient(image, quarterTurns: 0, isFlipped: true))
+        let flippedPixels = try #require(Self.rgbaPixels(of: flipped))
+        #expect(Self.isBlue(flippedPixels, x: 2, y: 5, width: 20))
+        #expect(Self.isRed(flippedPixels, x: 17, y: 5, width: 20))
+
+        #expect(PhotoEditFilterRenderer.orient(image, quarterTurns: 4, isFlipped: false) === image)
+    }
+
+    private static func isRed(_ pixels: [UInt8], x: Int, y: Int, width: Int) -> Bool {
+        let index = (y * width + x) * 4
+        return pixels[index] > 200 && pixels[index + 2] < 60
+    }
+
+    private static func isBlue(_ pixels: [UInt8], x: Int, y: Int, width: Int) -> Bool {
+        let index = (y * width + x) * 4
+        return pixels[index] < 60 && pixels[index + 2] > 200
+    }
+
     private static func colorfulImage(width: Int, height: Int) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -471,22 +605,45 @@ private final class PhotoEditRenderRecorder: @unchecked Sendable {
         let maxLongEdge: CGFloat?
     }
 
+    struct OrientCall {
+        let image: UIImage
+        let quarterTurns: Int
+        let isFlipped: Bool
+    }
+
     private let lock = NSLock()
     private var storedCalls: [Call] = []
+    private var storedOrientCalls: [OrientCall] = []
 
     var calls: [Call] {
         lock.withLock { storedCalls }
     }
 
-    /// 호출을 기록한다. 축소 요청이면 새 이미지를, 아니면 입력 이미지를 그대로 돌려준다.
+    var orientCalls: [OrientCall] {
+        lock.withLock { storedOrientCalls }
+    }
+
+    /// 호출을 기록한다. 축소·회전·반전 요청이면 새 이미지를, 아니면 입력 이미지를 그대로 돌려준다.
     var renderer: PhotoEditRenderer {
-        PhotoEditRenderer { [self] image, filter, maxLongEdge in
-            lock.withLock {
-                storedCalls.append(Call(image: image, filter: filter, maxLongEdge: maxLongEdge))
+        PhotoEditRenderer(
+            render: { [self] image, filter, maxLongEdge in
+                lock.withLock {
+                    storedCalls.append(Call(image: image, filter: filter, maxLongEdge: maxLongEdge))
+                }
+                return maxLongEdge == nil ? image : Self.copy(image)
+            },
+            orient: { [self] image, quarterTurns, isFlipped in
+                lock.withLock {
+                    storedOrientCalls.append(OrientCall(image: image, quarterTurns: quarterTurns, isFlipped: isFlipped))
+                }
+                return quarterTurns == 0 && !isFlipped ? image : Self.copy(image)
             }
-            guard maxLongEdge != nil, let cgImage = image.cgImage else { return image }
-            return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
-        }
+        )
+    }
+
+    private static func copy(_ image: UIImage) -> UIImage {
+        guard let cgImage = image.cgImage else { return image }
+        return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
     }
 }
 

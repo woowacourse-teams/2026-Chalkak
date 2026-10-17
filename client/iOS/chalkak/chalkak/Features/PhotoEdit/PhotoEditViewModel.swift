@@ -15,6 +15,7 @@ final class PhotoEditViewModel {
     private var renderGeneration = 0
     private var previewTask: Task<Void, Never>?
     private var thumbnailTask: Task<Void, Never>?
+    private var cropperTask: Task<Void, Never>?
     private var completionTask: Task<Void, Never>?
 
     init(session: PhotoEditSession, renderer: PhotoEditRenderer = .live) {
@@ -27,18 +28,30 @@ final class PhotoEditViewModel {
         guard !viewState.isCompleting else { return }
 
         switch action {
+        case let .modeSelected(mode):
+            selectMode(mode)
         case let .filterSelected(filter):
-            guard filter != viewState.session.filter else { return }
+            guard viewState.mode == .filter, filter != viewState.session.filter else { return }
             viewState.session.filter = filter
             renderPreview()
-        case .cropClicked:
-            viewState.isCropperPresented = true
+        case let .aspectRatioSelected(aspectRatio):
+            guard viewState.mode == .crop else { return }
+            viewState.cropDraft.aspectRatio = aspectRatio
+            // 비율을 고를 때마다 이전 자르기 영역이 아닌 전체 이미지에서 새로 시작한다.
+            viewState.cropDraft.transformation = nil
+            prepareCropperSource()
+        case .rotateClicked:
+            guard viewState.mode == .crop else { return }
+            viewState.cropDraft.rotateCounterclockwise()
+            prepareCropperSource()
+        case .flipClicked:
+            guard viewState.mode == .crop else { return }
+            viewState.cropDraft.flipHorizontally()
+            prepareCropperSource()
         case let .cropCompleted(crop):
-            viewState.isCropperPresented = false
             viewState.session.crop = crop
+            viewState.cropDraft = crop.cropperState
             prepareRenderSources()
-        case .cropCancelled:
-            viewState.isCropperPresented = false
         case .doneClicked:
             complete()
         case .cancelClicked:
@@ -53,9 +66,60 @@ final class PhotoEditViewModel {
         event = nil
     }
 
+    private func selectMode(_ mode: PhotoEditMode) {
+        guard mode != viewState.mode else { return }
+        viewState.mode = mode
+
+        switch mode {
+        case .filter:
+            cropperTask?.cancel()
+            cropperTask = nil
+            viewState.cropperSource = nil
+        case .crop:
+            viewState.cropDraft = viewState.session.crop?.cropperState ?? PhotoEditCropperState()
+            prepareCropperSource()
+        }
+    }
+
+    /// 회전·반전을 원본에 적용하고, 화면에 보일 이미지에는 선택한 필터를 입힌다.
+    private func prepareCropperSource() {
+        cropperTask?.cancel()
+        let draft = viewState.cropDraft
+
+        if let source = viewState.cropperSource,
+           source.state.quarterTurns == draft.quarterTurns,
+           source.state.isFlipped == draft.isFlipped {
+            viewState.cropperSource = PhotoEditCropperSource(
+                baseImage: source.baseImage,
+                displayImage: source.displayImage,
+                state: draft
+            )
+            return
+        }
+
+        viewState.cropperSource = nil
+        let original = viewState.session.original
+        let filter = viewState.session.filter
+        let renderer = renderer
+        cropperTask = Task { [weak self] in
+            let baseImage = await renderer.orient(original, draft.quarterTurns, draft.isFlipped) ?? original
+            let displayImage = filter == .original
+                ? baseImage
+                : await renderer.render(baseImage, filter, nil) ?? baseImage
+            guard !Task.isCancelled, let self, self.viewState.cropDraft == draft else { return }
+            self.cropperTask = nil
+            self.viewState.cropperSource = PhotoEditCropperSource(
+                baseImage: baseImage,
+                displayImage: displayImage,
+                state: draft
+            )
+        }
+    }
+
     /// 자르기 결과가 바뀌면 미리보기와 필터 썸네일의 원본을 새로 만든다.
     private func prepareRenderSources() {
-        cancelRendering()
+        previewTask?.cancel()
+        thumbnailTask?.cancel()
         renderGeneration += 1
         let generation = renderGeneration
         let source = viewState.session.croppedImage
@@ -128,6 +192,8 @@ final class PhotoEditViewModel {
         previewTask = nil
         thumbnailTask?.cancel()
         thumbnailTask = nil
+        cropperTask?.cancel()
+        cropperTask = nil
     }
 
     private enum Constants {

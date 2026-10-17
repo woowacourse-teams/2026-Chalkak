@@ -5,6 +5,7 @@ struct PhotoEditScreen: View {
     @Environment(\.chalkakTheme) private var theme
 
     @State private var viewModel: PhotoEditViewModel
+    @State private var cropperController = PhotoEditCropperController()
 
     let onComplete: (PhotoEditResult) -> Void
     let onCancel: () -> Void
@@ -25,43 +26,31 @@ struct PhotoEditScreen: View {
 
         VStack(spacing: 0) {
             PhotoEditTopBar(
-                title: "편집",
                 isDoneEnabled: !viewState.isCompleting,
                 onCancel: { viewModel.handle(.cancelClicked) },
-                onDone: { viewModel.handle(.doneClicked) }
-            )
-            .padding(.horizontal, theme.spacing.sm)
-
-            Image(uiImage: viewState.displayedImage)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(theme.spacing.lg)
-                .accessibilityLabel("편집 중인 사진")
-
-            Button {
-                viewModel.handle(.cropClicked)
-            } label: {
-                Label("자르기·회전", systemImage: "crop.rotate")
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.textOnEditor)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .frame(minHeight: Metrics.minimumTouchSize)
-                    .contentShape(Rectangle())
+                onDone: done
+            ) {
+                if viewState.mode == .crop {
+                    PhotoEditCropTools(
+                        onFlip: { viewModel.handle(.flipClicked) },
+                        onRotate: { viewModel.handle(.rotateClicked) }
+                    )
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(viewState.isCompleting)
-            .accessibilityIdentifier("photoEdit.crop")
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.top, theme.spacing.sm)
 
-            PhotoEditFilterStrip(
-                selectedFilter: viewState.selectedFilter,
-                thumbnails: viewState.thumbnails,
-                onSelect: { viewModel.handle(.filterSelected($0)) }
-            )
-            .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
-            .padding(.top, theme.spacing.md)
-            .padding(.bottom, theme.spacing.lg)
-            .disabled(viewState.isCompleting)
+            content(viewState)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            tools(viewState)
+                .frame(height: Metrics.toolsHeight)
+                .disabled(viewState.isCompleting)
+
+            PhotoEditModeBar(selectedMode: viewState.mode, onSelect: selectMode)
+                .padding(.top, theme.spacing.md)
+                .padding(.bottom, theme.spacing.sm)
+                .disabled(viewState.isCompleting)
         }
         .background(theme.colors.editorBackground)
         .overlay {
@@ -71,14 +60,6 @@ struct PhotoEditScreen: View {
             }
         }
         .preferredColorScheme(.dark)
-        .fullScreenCover(isPresented: cropperPresented) {
-            PhotoEditCropper(
-                image: viewState.session.original,
-                initialState: viewState.session.crop?.cropperState ?? PhotoEditCropperState(),
-                onCropped: { viewModel.handle(.cropCompleted($0)) },
-                onCancel: { viewModel.handle(.cropCancelled) }
-            )
-        }
         .alert(
             viewState.failureMessage ?? "",
             isPresented: failureAlertPresented
@@ -90,15 +71,50 @@ struct PhotoEditScreen: View {
         }
     }
 
-    private var cropperPresented: Binding<Bool> {
-        Binding(
-            get: { viewModel.viewState.isCropperPresented },
-            set: { isPresented in
-                if !isPresented {
-                    viewModel.handle(.cropCancelled)
-                }
+    @ViewBuilder
+    private func content(_ viewState: PhotoEditViewState) -> some View {
+        switch viewState.mode {
+        case .filter:
+            Image(uiImage: viewState.displayedImage)
+                .resizable()
+                .scaledToFit()
+                .padding(theme.spacing.lg)
+                .accessibilityLabel("편집 중인 사진")
+        case .crop:
+            if let source = viewState.cropperSource {
+                PhotoEditCropper(
+                    source: source,
+                    controller: cropperController,
+                    onCropped: { viewModel.handle(.cropCompleted($0)) }
+                )
+                .id(source.id)
+                // Mantis 마스크가 영역 밖으로 커져 상단바를 덮지 않게 한다.
+                .clipped()
+            } else {
+                ProgressView()
+                    .tint(theme.colors.textOnEditor)
             }
-        )
+        }
+    }
+
+    @ViewBuilder
+    private func tools(_ viewState: PhotoEditViewState) -> some View {
+        switch viewState.mode {
+        case .filter:
+            PhotoEditFilterStrip(
+                selectedFilter: viewState.selectedFilter,
+                thumbnails: viewState.thumbnails,
+                onSelect: { viewModel.handle(.filterSelected($0)) }
+            )
+            .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
+        case .crop:
+            PhotoEditAspectRatioStrip(
+                selectedAspectRatio: viewState.cropDraft.aspectRatio,
+                originalSize: viewState.cropDraft.orientedSize(of: viewState.session.original.size),
+                onSelect: { viewModel.handle(.aspectRatioSelected($0)) }
+            )
+            .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
+        }
     }
 
     private var failureAlertPresented: Binding<Bool> {
@@ -110,6 +126,24 @@ struct PhotoEditScreen: View {
                 }
             }
         )
+    }
+
+    /// 자르기 탭을 떠나거나 완료하면 Mantis의 현재 자르기 영역을 확정한다.
+    /// Mantis는 자른 결과를 `crop()` 안에서 바로 전달하므로 다음 동작보다 먼저 반영된다.
+    private func commitCropIfNeeded() {
+        guard viewModel.viewState.mode == .crop, viewModel.viewState.cropperSource != nil else { return }
+        cropperController.crop()
+    }
+
+    private func selectMode(_ mode: PhotoEditMode) {
+        guard mode != viewModel.viewState.mode else { return }
+        commitCropIfNeeded()
+        viewModel.handle(.modeSelected(mode))
+    }
+
+    private func done() {
+        commitCropIfNeeded()
+        viewModel.handle(.doneClicked)
     }
 
     private func handle(_ event: PhotoEditEvent?) {
@@ -126,7 +160,7 @@ struct PhotoEditScreen: View {
 }
 
 private enum Metrics {
-    static let minimumTouchSize: CGFloat = 44
+    static let toolsHeight: CGFloat = 96
 }
 
 #Preview("Photo Edit") {
