@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFeaturedPhotoClipPreservesContainerCornersAcrossAspectRatios() {
+        let card = CGRect(x: 50, y: 100, width: 300, height: 400)
+        for ratio: CGFloat in [4.0 / 3.0, 1.32, 0.75, 2] {
+            let fitted = FeedZoomCropGeometry.fittedFrame(in: card, heightToWidthRatio: ratio)
+            let source = FeedZoomRegistry.Source(frame: fitted, cornerRadius: 24, clipFrame: card)
+            let rect = CGRect(origin: .zero, size: fitted.size)
+            let clip = FeedZoomPhotoClip(source: source, remaining: 1, scale: 1, cornerRadius: 24).path(in: rect)
+            let expected = RoundedRectangle(cornerRadius: 24).path(in: card)
+            for x in stride(from: CGFloat(1), to: fitted.width, by: 3) {
+                for y in stride(from: CGFloat(1), to: fitted.height, by: 3) {
+                    XCTAssertEqual(clip.contains(CGPoint(x: x, y: y)), expected.contains(CGPoint(x: fitted.minX + x, y: fitted.minY + y)))
+                }
+            }
+            let arrived = FeedZoomPhotoClip(source: source, remaining: 0, scale: 1, cornerRadius: 0).path(in: rect)
+            XCTAssertTrue(arrived.contains(CGPoint(x: 0.1, y: 0.1)))
+            XCTAssertEqual(arrived.boundingRect, rect)
+        }
+    }
+
+    func testFeaturedPhotoClipScalesAndReleasesCardMask() {
+        let source = FeedZoomRegistry.Source(
+            frame: CGRect(x: 50, y: 150, width: 300, height: 300),
+            cornerRadius: 24,
+            clipFrame: CGRect(x: 50, y: 100, width: 300, height: 400)
+        )
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let departure = FeedZoomPhotoClip(source: source, remaining: 1, scale: 0.75, cornerRadius: 32).path(in: rect)
+        XCTAssertEqual(departure.boundingRect.minY, -50 / 0.75, accuracy: 0.001)
+        let middle = FeedZoomPhotoClip(source: source, remaining: 0.5, scale: 0.875, cornerRadius: 12 / 0.875).path(in: rect)
+        XCTAssertEqual(middle.boundingRect.minY, -25 / 0.875, accuracy: 0.001)
+        let ordinary = FeedZoomPhotoClip(source: .init(frame: source.frame, cornerRadius: 24), remaining: 1, scale: 1, cornerRadius: 24).path(in: rect)
+        XCTAssertEqual(ordinary.boundingRect, rect)
+        XCTAssertFalse(ordinary.contains(CGPoint(x: 1, y: 1)))
+    }
+
     func testFirstPinchKeepsTouchSurfaceAliveWhenViewportClipIsRemoved() async throws {
         let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
         let host = UIHostingController(rootView: ScrollLockPhotoHarness(frame: frame))
