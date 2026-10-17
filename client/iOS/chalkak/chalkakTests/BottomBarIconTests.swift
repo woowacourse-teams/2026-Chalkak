@@ -4,17 +4,20 @@ import UIKit
 @testable import chalkak
 
 struct BottomBarIconTests {
-    @Test("홈은 커스텀 에셋 대신 SF Symbols의 house를 사용한다")
-    func homeUsesSystemHouse() {
-        #expect(ChalkakBottomBarItem.home.icon == Image(systemName: "house"))
-        #expect(UIImage(systemName: "house") != nil)
-        #expect(ChalkakBottomBarItem.home.label == "홈")
-    }
-
-    @Test("다른 탭의 기존 아이콘은 유지한다")
-    func preservesOtherTabIcons() {
-        #expect(ChalkakBottomBarItem.display.icon == Image("ic_bottom_display"))
-        #expect(ChalkakBottomBarItem.record.icon == Image("ic_bottom_record"))
-        #expect(ChalkakBottomBarItem.settings.icon == Image("ic_bottom_setting"))
+    @Test("모든 탭은 선택 여부에 맞는 에셋을 사용한다")
+    func selectsMatchingAsset() {
+        let items: [(ChalkakBottomBarItem, String)] = [
+            (.home, "ic_bottom_home"),
+            (.display, "ic_bottom_display"),
+            (.record, "ic_bottom_record"),
+            (.settings, "ic_bottom_setting")
+        ]
+        for (item, name) in items {
+            #expect(item.icon(isSelected: false) == Image(name))
+            #expect(item.icon(isSelected: true) == Image("\(name)_selected"))
+            #expect(item.icon(isSelected: false) != item.icon(isSelected: true))
+            #expect(UIImage(named: name) != nil)
+            #expect(UIImage(named: "\(name)_selected") != nil)
+        }
     }
 }

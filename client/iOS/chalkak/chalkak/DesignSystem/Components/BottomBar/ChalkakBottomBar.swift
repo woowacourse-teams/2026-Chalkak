@@ -21,17 +21,19 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    var icon: Image {
+    func icon(isSelected: Bool) -> Image {
+        let name: String
         switch self {
         case .home:
-            Image(systemName: "house")
+            name = "ic_bottom_home"
         case .display:
-            Image("ic_bottom_display")
+            name = "ic_bottom_display"
         case .record:
-            Image("ic_bottom_record")
+            name = "ic_bottom_record"
         case .settings:
-            Image("ic_bottom_setting")
+            name = "ic_bottom_setting"
         }
+        return Image(isSelected ? "\(name)_selected" : name)
     }
 }
 
@@ -208,7 +210,7 @@ private struct LiquidGlassBottomBar: View {
         return Button {
             performAction { onSelect(item) }
         } label: {
-            item.icon
+            item.icon(isSelected: isSelected)
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()
@@ -392,7 +394,7 @@ private struct FlatBottomBar: View {
             onSelect(item)
         } label: {
             VStack(spacing: FlatBottomBarMetrics.itemSpacing) {
-                item.icon
+                item.icon(isSelected: isSelected)
                     .resizable()
                     .renderingMode(.template)
                     .scaledToFit()

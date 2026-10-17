@@ -47,7 +47,7 @@ enum class ChalkakBottomBarItem(
     @param:StringRes val labelRes: Int,
     @param:DrawableRes val iconRes: Int,
 ) {
-    HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_today),
+    HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_home),
     DISPLAY(R.string.bottom_bar_display, R.drawable.ic_bottom_display),
     RECORD(R.string.bottom_bar_record, R.drawable.ic_bottom_record),
     SETTINGS(R.string.bottom_bar_settings, R.drawable.ic_bottom_setting),
