@@ -114,7 +114,7 @@ struct PhotoEditScreen: View {
 
             PhotoEditAspectRatioStrip(
                 selectedAspectRatio: viewState.cropDraft.aspectRatio,
-                originalSize: viewState.cropDraft.orientedSize(of: viewState.session.original.size),
+                originalSize: viewState.cropDraft.orientation.orientedSize(of: viewState.session.original.size),
                 onSelect: { viewModel.handle(.aspectRatioSelected($0)) }
             )
             .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
@@ -127,8 +127,16 @@ struct PhotoEditScreen: View {
                 onApply: cropperController.crop
             ) {
                 PhotoEditCropTools(
-                    onFlip: { viewModel.handle(.flipClicked) },
-                    onRotate: { viewModel.handle(.rotateClicked) }
+                    onFlip: {
+                        if cropperController.flipHorizontally() {
+                            viewModel.handle(.flipClicked)
+                        }
+                    },
+                    onRotate: {
+                        if cropperController.rotateCounterclockwise() {
+                            viewModel.handle(.rotateClicked)
+                        }
+                    }
                 )
             }
             .padding(.horizontal, theme.spacing.lg)

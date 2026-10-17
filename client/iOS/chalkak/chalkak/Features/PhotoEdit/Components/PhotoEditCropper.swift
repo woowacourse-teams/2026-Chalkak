@@ -2,20 +2,44 @@ import Mantis
 import SwiftUI
 import UIKit
 
-/// SwiftUI 버튼에서 Mantis 자르기를 실행한다.
+/// SwiftUI 버튼에서 Mantis의 자르기·회전·반전을 실행한다.
 @MainActor
 final class PhotoEditCropperController {
     fileprivate weak var cropViewController: CropViewController?
+    /// Mantis는 회전 애니메이션 중에 들어온 회전을 무시하므로, 같은 동안 우리도 받지 않아 방향 기록이 어긋나지 않게 한다.
+    private var animationEnd = ContinuousClock.now
 
     /// 자르기 결과는 `PhotoEditCropper`의 `onCropped`로 바로 전달된다.
     func crop() {
         cropViewController?.crop()
     }
+
+    /// 실제로 돌렸으면 `true`를 돌려준다.
+    func rotateCounterclockwise() -> Bool {
+        guard let cropViewController, ContinuousClock.now >= animationEnd else { return false }
+        cropViewController.didSelectCounterClockwiseRotate()
+        animationEnd = .now + Animation.rotation
+        return true
+    }
+
+    /// 실제로 뒤집었으면 `true`를 돌려준다.
+    func flipHorizontally() -> Bool {
+        guard let cropViewController, ContinuousClock.now >= animationEnd else { return false }
+        cropViewController.didSelectHorizontallyFlip()
+        animationEnd = .now + Animation.flip
+        return true
+    }
+
+    /// Mantis 애니메이션 시간(회전 0.25초, 반전 0.5초)에 여유를 둔 값.
+    private enum Animation {
+        static let rotation: Duration = .milliseconds(300)
+        static let flip: Duration = .milliseconds(550)
+    }
 }
 
-/// 자르기 영역만 Mantis에 맡긴다. 회전·반전·비율 목록은 편집 화면이 직접 그린다.
+/// 자르기 영역·회전·반전을 Mantis에 맡긴다. 비율 목록과 버튼은 편집 화면이 직접 그린다.
 ///
-/// 비율이나 방향이 바뀌면 `source.id`가 바뀌므로 `.id(source.id)`로 새로 만들어 전체 이미지에서 다시 시작한다.
+/// 비율을 고르면 `source.id`가 바뀌므로 `.id(source.id)`로 새로 만들어 전체 이미지에서 다시 시작한다.
 struct PhotoEditCropper: UIViewControllerRepresentable {
     let source: PhotoEditCropperSource
     let controller: PhotoEditCropperController
