@@ -17,7 +17,6 @@ class PhotoEditViewModel(
     initialEdit: PhotoEdit,
 ) : ViewModel() {
     private var geometry: CropGeometry? = null
-    private var straightenBaseCrop: CropWindow? = null
     private val _uiState = MutableStateFlow(PhotoEditUiState(imageUri = imageUri, edit = initialEdit))
     val uiState: StateFlow<PhotoEditUiState> = _uiState.asStateFlow()
 
@@ -45,7 +44,6 @@ class PhotoEditViewModel(
         deltaY: Float,
     ) {
         val geometry = geometry ?: return
-        straightenBaseCrop = null
         _uiState.update { it.copy(edit = it.edit.copy(crop = geometry.move(it.edit, deltaX, deltaY))) }
     }
 
@@ -55,23 +53,14 @@ class PhotoEditViewModel(
         deltaY: Float,
     ) {
         val geometry = geometry ?: return
-        straightenBaseCrop = null
         _uiState.update {
             val crop = geometry.resize(it.edit, corner, deltaX, deltaY, it.lockedAspectRatio)
             it.copy(edit = it.edit.copy(crop = crop))
         }
     }
 
-    fun onStraightenChange(degrees: Float) {
-        val geometry = geometry ?: return
-        val baseCrop = straightenBaseCrop ?: _uiState.value.edit.crop
-        straightenBaseCrop = baseCrop
-        _uiState.update { it.copy(edit = geometry.straighten(it.edit, baseCrop, degrees)) }
-    }
-
     fun onRotateClick() {
         val geometry = geometry ?: return
-        straightenBaseCrop = null
         _uiState.update {
             it.copy(
                 edit = geometry.rotateQuarter(it.edit),
@@ -82,7 +71,6 @@ class PhotoEditViewModel(
 
     fun onAspectRatioSelect(aspectRatio: CropAspectRatio) {
         val geometry = geometry ?: return
-        straightenBaseCrop = null
         _uiState.update {
             val lockedAspectRatio = when (aspectRatio) {
                 CropAspectRatio.Free -> null
@@ -103,7 +91,6 @@ class PhotoEditViewModel(
     }
 
     fun onResetClick() {
-        straightenBaseCrop = null
         _uiState.update {
             it.copy(
                 edit = PhotoEdit(filter = it.edit.filter),
@@ -121,9 +108,8 @@ class PhotoEditViewModel(
         _uiState.update { it.copy(completedEdit = it.edit.normalized()) }
     }
 
-    // 끌기와 수평 보정을 되돌리며 생긴 부동소수점 오차 때문에 편집하지 않은 사진이 다시 인코딩되지 않게 한다.
+    // 끌기를 되돌리며 생긴 부동소수점 오차 때문에 편집하지 않은 사진이 다시 인코딩되지 않게 한다.
     private fun PhotoEdit.normalized(): PhotoEdit = copy(
-        straightenDegrees = if (abs(straightenDegrees) < NORMALIZE_EPSILON) 0f else straightenDegrees,
         crop = if (crop.isCloseTo(CropWindow.Full)) CropWindow.Full else crop,
     )
 

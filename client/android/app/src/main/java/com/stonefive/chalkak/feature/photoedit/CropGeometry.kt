@@ -112,22 +112,6 @@ class CropGeometry(
         return rotated.copy(crop = constrain(rotated))
     }
 
-    /** 수평 보정. 각도를 바꿀 때마다 [baseCrop]에서 다시 맞춰, 각도를 되돌리면 원래 영역으로 돌아온다. */
-    fun straighten(
-        edit: PhotoEdit,
-        baseCrop: CropWindow,
-        degrees: Float,
-    ): PhotoEdit {
-        val straightened = edit.copy(
-            straightenDegrees = degrees.coerceIn(
-                -PhotoEdit.MAX_STRAIGHTEN_DEGREES,
-                PhotoEdit.MAX_STRAIGHTEN_DEGREES,
-            ),
-            crop = baseCrop,
-        )
-        return straightened.copy(crop = constrain(straightened))
-    }
-
     /** 결과 좌표계 기준 이동. 원본 밖으로 나가면 경계에서 멈춘다. */
     fun move(
         edit: PhotoEdit,

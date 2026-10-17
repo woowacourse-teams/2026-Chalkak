@@ -43,24 +43,6 @@ class CropGeometryTest {
     }
 
     @Test
-    fun `수평 보정을 되돌리면 처음 영역으로 돌아온다`() {
-        val base = CropWindow.Full
-        val tilted = geometry.straighten(PhotoEdit(), base, 20f)
-        assertTrue(tilted.crop.width < 1f)
-
-        val restored = geometry.straighten(tilted, base, 0f)
-
-        assertEquals(0f, restored.straightenDegrees, TOLERANCE)
-        assertCrop(CropWindow.Full, restored.crop)
-    }
-
-    @Test
-    fun `수평 보정 각도는 -45도에서 45도로 제한한다`() {
-        assertEquals(45f, geometry.straighten(PhotoEdit(), CropWindow.Full, 60f).straightenDegrees, TOLERANCE)
-        assertEquals(-45f, geometry.straighten(PhotoEdit(), CropWindow.Full, -60f).straightenDegrees, TOLERANCE)
-    }
-
-    @Test
     fun `이동은 이미지 경계에서 멈추고 크기를 바꾸지 않는다`() {
         val edit = PhotoEdit(crop = CropWindow(0.5f, 0.5f, 0.5f, 0.5f))
 

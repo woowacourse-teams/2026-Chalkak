@@ -40,7 +40,6 @@ class PhotoEditViewModelTest {
         val viewModel = PhotoEditViewModel(imageUri, PhotoEdit())
 
         viewModel.onRotateClick()
-        viewModel.onStraightenChange(10f)
         viewModel.onAspectRatioSelect(CropAspectRatio.Square)
 
         assertEquals(PhotoEdit(), viewModel.uiState.value.edit)
@@ -66,16 +65,17 @@ class PhotoEditViewModelTest {
         viewModel.onAspectRatioSelect(CropAspectRatio.Original)
 
         assertEquals(3f / 4f, viewModel.uiState.value.lockedAspectRatio!!, TOLERANCE)
+        assertEquals(3f / 4f, viewModel.uiState.value.originalAspectRatio!!, TOLERANCE)
         assertEquals(CropWindow.Full, viewModel.uiState.value.edit.crop)
     }
 
     @Test
-    fun `수평 보정을 0도로 되돌리면 편집하지 않은 사진으로 완료한다`() {
+    fun `자르기를 원래 크기로 되돌리면 편집하지 않은 사진으로 완료한다`() {
         val viewModel = loadedViewModel()
 
-        viewModel.onStraightenChange(15f)
+        viewModel.onCropResize(CropCorner.BottomEnd, deltaX = -0.3f, deltaY = -0.3f)
         assertTrue(viewModel.uiState.value.edit.crop.width < 1f)
-        viewModel.onStraightenChange(0f)
+        viewModel.onCropResize(CropCorner.BottomEnd, deltaX = 0.3f, deltaY = 0.3f)
         viewModel.onDoneClick()
 
         assertEquals(PhotoEdit(), viewModel.uiState.value.completedEdit)
@@ -90,7 +90,6 @@ class PhotoEditViewModelTest {
         val viewModel = loadedViewModel()
         viewModel.onFilterSelect(PhotoFilter.Mono)
         viewModel.onRotateClick()
-        viewModel.onStraightenChange(-20f)
         viewModel.onAspectRatioSelect(CropAspectRatio.Square)
 
         viewModel.onResetClick()

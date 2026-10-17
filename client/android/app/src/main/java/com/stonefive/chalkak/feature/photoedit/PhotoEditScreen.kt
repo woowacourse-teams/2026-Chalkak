@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,13 +40,12 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
-import com.stonefive.chalkak.feature.photoedit.component.AspectRatioChips
+import com.stonefive.chalkak.feature.photoedit.component.AspectRatioFrames
 import com.stonefive.chalkak.feature.photoedit.component.CropCanvas
 import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
 import com.stonefive.chalkak.feature.photoedit.component.FilterStrip
 import com.stonefive.chalkak.feature.photoedit.component.PhotoEditTabBar
 import com.stonefive.chalkak.feature.photoedit.component.PhotoEditTopBar
-import com.stonefive.chalkak.feature.photoedit.component.StraightenRuler
 
 /**
  * 사진 편집 화면. 내비게이션 목적지가 아니라 업로드 화면 안에서 전체 화면으로 띄운다.
@@ -82,7 +82,6 @@ fun PhotoEditRoute(
         onImageLoaded = viewModel::onImageLoaded,
         onCropMove = viewModel::onCropMove,
         onCropResize = viewModel::onCropResize,
-        onStraightenChange = viewModel::onStraightenChange,
         onRotateClick = viewModel::onRotateClick,
         onAspectRatioSelect = viewModel::onAspectRatioSelect,
         onResetClick = viewModel::onResetClick,
@@ -100,7 +99,6 @@ fun PhotoEditScreen(
     onImageLoaded: (Int, Int) -> Unit,
     onCropMove: (Float, Float) -> Unit,
     onCropResize: (CropCorner, Float, Float) -> Unit,
-    onStraightenChange: (Float) -> Unit,
     onRotateClick: () -> Unit,
     onAspectRatioSelect: (CropAspectRatio) -> Unit,
     onResetClick: () -> Unit,
@@ -157,7 +155,6 @@ fun PhotoEditScreen(
             when (uiState.selectedTab) {
                 PhotoEditTab.Crop -> CropControls(
                     uiState = uiState,
-                    onStraightenChange = onStraightenChange,
                     onRotateClick = onRotateClick,
                     onAspectRatioSelect = onAspectRatioSelect,
                     onResetClick = onResetClick,
@@ -185,7 +182,6 @@ fun PhotoEditScreen(
 @Composable
 private fun CropControls(
     uiState: PhotoEditUiState,
-    onStraightenChange: (Float) -> Unit,
     onRotateClick: () -> Unit,
     onAspectRatioSelect: (CropAspectRatio) -> Unit,
     onResetClick: () -> Unit,
@@ -195,10 +191,13 @@ private fun CropControls(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.md),
     ) {
-        StraightenRuler(
-            degrees = uiState.edit.straightenDegrees,
-            onDegreesChange = onStraightenChange,
-            modifier = Modifier.fillMaxWidth(),
+        AspectRatioFrames(
+            selectedAspectRatio = uiState.aspectRatio,
+            originalAspectRatio = uiState.originalAspectRatio,
+            onAspectRatioSelect = onAspectRatioSelect,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ChalkakTheme.spacing.sm),
         )
 
         Row(
@@ -206,7 +205,6 @@ private fun CropControls(
                 .fillMaxWidth()
                 .padding(horizontal = ChalkakTheme.spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xs),
         ) {
             IconButton(onClick = onRotateClick) {
                 Icon(
@@ -216,11 +214,7 @@ private fun CropControls(
                 )
             }
 
-            AspectRatioChips(
-                selectedAspectRatio = uiState.aspectRatio,
-                onAspectRatioSelect = onAspectRatioSelect,
-                modifier = Modifier.weight(1f),
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
             Text(
                 text = "초기화",
@@ -279,10 +273,11 @@ private fun PhotoEditScreenCropPreview() {
             uiState = PhotoEditUiState(
                 imageUri = drawableResourceUrl(R.drawable.preview_photo),
                 edit = PhotoEdit(
-                    straightenDegrees = 6f,
                     crop = CropWindow(centerX = 0.5f, centerY = 0.5f, width = 0.8f, height = 0.8f),
                 ),
                 imageSize = PhotoImageSize(width = 4, height = 3),
+                aspectRatio = CropAspectRatio.Square,
+                lockedAspectRatio = 1f,
             ),
             onCancelClick = {},
             onDoneClick = {},
@@ -290,7 +285,6 @@ private fun PhotoEditScreenCropPreview() {
             onImageLoaded = { _, _ -> },
             onCropMove = { _, _ -> },
             onCropResize = { _, _, _ -> },
-            onStraightenChange = {},
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
@@ -316,7 +310,6 @@ private fun PhotoEditScreenFilterPreview() {
             onImageLoaded = { _, _ -> },
             onCropMove = { _, _ -> },
             onCropResize = { _, _, _ -> },
-            onStraightenChange = {},
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
