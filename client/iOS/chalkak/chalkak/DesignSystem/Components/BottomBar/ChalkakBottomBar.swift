@@ -106,52 +106,40 @@ private struct LiquidGlassBottomBar: View {
             itemButton(.settings)
         }
         .padding(barPadding)
+        // 드래그 중에는 렌즈에 걸친 부분을 선택 아이콘으로 보여 준다. 현재 탭은 렌즈가 떠나도 선택 아이콘을 유지한다.
+        .mask { lensMask(inverted: true) }
+        .overlay {
+            hoveredIcons
+                .mask { lensMask(inverted: false) }
+        }
         .background {
             GeometryReader { proxy in
-                let width = slotWidth(in: proxy.size.width) * (isDragging ? Metrics.dragLensWidthScale : 1)
-                Capsule()
-                    .fill(.clear)
-                    .frame(width: width, height: isDragging ? Metrics.dragLensHeight : touchSize)
-                    .glassEffect(
-                        .clear.interactive(),
-                        in: Capsule()
-                    )
-                    .overlay {
-                        Capsule()
-                            .fill(LinearGradient(
-                                colors: [.white.opacity(0.28), .clear, .white.opacity(0.08)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ))
-                    }
-                    .overlay {
-                        Capsule().strokeBorder(LinearGradient(
-                            colors: [.white.opacity(0.95), .white.opacity(0.2), .white.opacity(0.65)],
-                            startPoint: dragVelocity < 0 ? .topTrailing : .topLeading,
-                            endPoint: dragVelocity < 0 ? .bottomLeading : .bottomTrailing
-                        ), lineWidth: Metrics.dragLensBorderWidth)
-                        .opacity(isDragging ? 1 : 0)
-                    }
-                    .shadow(color: .white.opacity(isDragging ? 0.6 : 0), radius: 2, y: -1)
-                    .shadow(color: theme.colors.iconPrimary.opacity(0.18), radius: 5, y: 2)
-                    .scaleEffect(
-                        x: 1 + dragStretch * Metrics.dragStretchWidth,
-                        y: 1 - dragStretch * Metrics.dragStretchHeight
-                    )
-                    .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: isDragging)
-                    .position(
-                        x: min(max(dragLocation?.x ?? selectedLensX(in: proxy.size.width), barPadding + width / 2), proxy.size.width - barPadding - width / 2),
-                        y: proxy.size.height / 2
-                    )
-                    // 손가락 위치가 연속 갱신돼도 이동 중인 렌즈의 속도를 이어간다.
-                    .animation(
-                        reduceMotion ? nil : .interactiveSpring(
-                            response: Metrics.dragLensResponse,
-                            dampingFraction: Metrics.dragLensDamping,
-                            blendDuration: Metrics.dragLensBlendDuration
-                        ),
-                        value: dragLocation?.x
-                    )
-                    .animation(reduceMotion ? nil : .smooth(duration: Metrics.selectionDuration), value: lensSlot)
+                lensPlacement(in: proxy.size) { width in
+                    Capsule()
+                        .fill(.clear)
+                        .frame(width: width, height: lensHeight)
+                        .glassEffect(
+                            .clear.interactive(),
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .fill(LinearGradient(
+                                    colors: [.white.opacity(0.28), .clear, .white.opacity(0.08)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                ))
+                        }
+                        .overlay {
+                            Capsule().strokeBorder(LinearGradient(
+                                colors: [.white.opacity(0.95), .white.opacity(0.2), .white.opacity(0.65)],
+                                startPoint: dragVelocity < 0 ? .topTrailing : .topLeading,
+                                endPoint: dragVelocity < 0 ? .bottomLeading : .bottomTrailing
+                            ), lineWidth: Metrics.dragLensBorderWidth)
+                            .opacity(isDragging ? 1 : 0)
+                        }
+                        .shadow(color: .white.opacity(isDragging ? 0.6 : 0), radius: 2, y: -1)
+                        .shadow(color: theme.colors.iconPrimary.opacity(0.18), radius: 5, y: 2)
+                }
             }
             .allowsHitTesting(false)
         }
@@ -210,16 +198,7 @@ private struct LiquidGlassBottomBar: View {
         return Button {
             performAction { onSelect(item) }
         } label: {
-            item.icon(isSelected: isSelected)
-                .resizable()
-                .renderingMode(.template)
-                .scaledToFit()
-                .frame(width: Metrics.iconSize, height: Metrics.iconSize)
-                .scaleEffect(isCompact ? Metrics.compactIconSize / Metrics.iconSize : 1)
-                .scaleEffect(draggedItem == item ? Metrics.dragIconScale : 1)
-                .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: draggedItem)
-                .foregroundStyle(theme.colors.iconPrimary)
-                .frame(maxWidth: .infinity, minHeight: touchSize)
+            itemIcon(item, isSelected: isSelected)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -230,19 +209,96 @@ private struct LiquidGlassBottomBar: View {
 
     private var addButton: some View {
         Button(action: { performAction(onAdd) }) {
-            Image(systemName: "plus")
-                .font(.system(size: Metrics.addIconSize, weight: .regular))
-                .frame(width: Metrics.addIconSize, height: Metrics.addIconSize)
-                .scaleEffect(isCompact ? Metrics.compactAddIconSize / Metrics.addIconSize : 1)
-                .scaleEffect(draggedSlot == 2 ? Metrics.dragIconScale : 1)
-                .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: draggedSlot)
-                .foregroundStyle(theme.colors.iconPrimary)
-                .frame(maxWidth: .infinity, minHeight: touchSize)
+            addIcon
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("추가")
     }
+
+    private func itemIcon(_ item: ChalkakBottomBarItem, isSelected: Bool) -> some View {
+        item.icon(isSelected: isSelected)
+            .resizable()
+            .renderingMode(.template)
+            .scaledToFit()
+            .frame(width: Metrics.iconSize, height: Metrics.iconSize)
+            .scaleEffect(isCompact ? Metrics.compactIconSize / Metrics.iconSize : 1)
+            .scaleEffect(draggedItem == item ? Metrics.dragIconScale : 1)
+            .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: draggedItem)
+            .foregroundStyle(theme.colors.iconPrimary)
+            .frame(maxWidth: .infinity, minHeight: touchSize)
+    }
+
+    private var addIcon: some View {
+        Image(systemName: "plus")
+            .font(.system(size: Metrics.addIconSize, weight: .regular))
+            .frame(width: Metrics.addIconSize, height: Metrics.addIconSize)
+            .scaleEffect(isCompact ? Metrics.compactAddIconSize / Metrics.addIconSize : 1)
+            .scaleEffect(draggedSlot == 2 ? Metrics.dragIconScale : 1)
+            .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: draggedSlot)
+            .foregroundStyle(theme.colors.iconPrimary)
+            .frame(maxWidth: .infinity, minHeight: touchSize)
+    }
+
+    /// 탭 버튼과 같은 배치로 선택 아이콘만 그린 층. 렌즈 모양으로 잘라 위에 겹친다.
+    private var hoveredIcons: some View {
+        HStack(spacing: theme.spacing.none) {
+            itemIcon(.home, isSelected: true)
+            itemIcon(.display, isSelected: true)
+            addIcon
+            itemIcon(.record, isSelected: true)
+            itemIcon(.settings, isSelected: true)
+        }
+        .padding(barPadding)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 드래그 중인 렌즈 모양. `inverted`이면 렌즈 바깥만 남긴다.
+    @ViewBuilder
+    private func lensMask(inverted: Bool) -> some View {
+        let lens = GeometryReader { proxy in
+            lensPlacement(in: proxy.size) { width in
+                Capsule().frame(width: width, height: lensHeight)
+            }
+        }
+        .opacity(isDragging ? 1 : 0)
+
+        if inverted {
+            Rectangle()
+                .overlay { lens.blendMode(.destinationOut) }
+                .compositingGroup()
+        } else {
+            lens
+        }
+    }
+
+    /// 유리 렌즈와 아이콘 마스크가 같은 위치·크기·애니메이션으로 움직이도록 배치를 공유한다.
+    private func lensPlacement<Lens: View>(in size: CGSize, @ViewBuilder lens: (CGFloat) -> Lens) -> some View {
+        let width = slotWidth(in: size.width) * (isDragging ? Metrics.dragLensWidthScale : 1)
+        return lens(width)
+            .scaleEffect(
+                x: 1 + dragStretch * Metrics.dragStretchWidth,
+                y: 1 - dragStretch * Metrics.dragStretchHeight
+            )
+            .animation(reduceMotion ? nil : .smooth(duration: Metrics.dragAnimationDuration), value: isDragging)
+            .position(
+                x: min(max(dragLocation?.x ?? selectedLensX(in: size.width), barPadding + width / 2), size.width - barPadding - width / 2),
+                y: size.height / 2
+            )
+            // 손가락 위치가 연속 갱신돼도 이동 중인 렌즈의 속도를 이어간다.
+            .animation(
+                reduceMotion ? nil : .interactiveSpring(
+                    response: Metrics.dragLensResponse,
+                    dampingFraction: Metrics.dragLensDamping,
+                    blendDuration: Metrics.dragLensBlendDuration
+                ),
+                value: dragLocation?.x
+            )
+            .animation(reduceMotion ? nil : .smooth(duration: Metrics.selectionDuration), value: lensSlot)
+    }
+
+    private var lensHeight: CGFloat { isDragging ? Metrics.dragLensHeight : touchSize }
 
     private func performAction(_ action: @escaping () -> Void) {
         let duration = isCompact ? Metrics.expansionDuration : Metrics.selectionDuration
