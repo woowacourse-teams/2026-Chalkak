@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_commit": "cc0e640a0cc2791b52e74b3f7297eb3f264a948e",
+  "source_commit": "04b81502d0647d8d66da41d7bd176c4613217c4f",
   "version": "45a22715ae8560b85d043e494e7fcfd3e44586a7a4353e786805992e22332cb4",
   "files": {
     ".agents/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
