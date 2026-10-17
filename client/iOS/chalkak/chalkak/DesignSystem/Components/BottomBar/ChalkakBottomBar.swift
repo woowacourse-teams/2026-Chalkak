@@ -21,16 +21,16 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    var iconName: String {
+    var icon: Image {
         switch self {
         case .home:
-            "ic_bottom_today"
+            Image(systemName: "house")
         case .display:
-            "ic_bottom_display"
+            Image("ic_bottom_display")
         case .record:
-            "ic_bottom_record"
+            Image("ic_bottom_record")
         case .settings:
-            "ic_bottom_setting"
+            Image("ic_bottom_setting")
         }
     }
 }
@@ -208,7 +208,7 @@ private struct LiquidGlassBottomBar: View {
         return Button {
             performAction { onSelect(item) }
         } label: {
-            Image(item.iconName)
+            item.icon
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()
@@ -392,8 +392,10 @@ private struct FlatBottomBar: View {
             onSelect(item)
         } label: {
             VStack(spacing: FlatBottomBarMetrics.itemSpacing) {
-                Image(item.iconName)
+                item.icon
+                    .resizable()
                     .renderingMode(.template)
+                    .scaledToFit()
                     .frame(width: FlatBottomBarMetrics.iconSize, height: FlatBottomBarMetrics.iconSize)
                     .accessibilityHidden(true)
 
