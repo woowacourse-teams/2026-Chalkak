@@ -20,9 +20,7 @@ val localProperties = Properties().apply {
         localPropertiesFile.inputStream().use { input -> load(input) }
     }
 }
-val apiBaseUrl = localProperties.requiredProperty("API_BASE_URL")
 val googleServerClientId = localProperties.requiredProperty("GOOGLE_SERVER_CLIENT_ID")
-val kakaoNativeAppKey = localProperties.requiredProperty("KAKAO_NATIVE_APP_KEY")
 
 ktlint {
     version.set("1.8.0")
@@ -48,25 +46,60 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", apiBaseUrl.toBuildConfigString())
+        buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "true")
         buildConfigField(
             "String",
             "GOOGLE_SERVER_CLIENT_ID",
             googleServerClientId.toBuildConfigString(),
         )
-        buildConfigField(
-            "String",
-            "KAKAO_NATIVE_APP_KEY",
-            kakaoNativeAppKey.toBuildConfigString(),
-        )
-        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
+    }
+
+    val releaseSigningProperties = listOf(
+        "RELEASE_STORE_FILE",
+        "RELEASE_STORE_PASSWORD",
+        "RELEASE_KEY_ALIAS",
+        "RELEASE_KEY_PASSWORD",
+    )
+    val hasReleaseSigning = releaseSigningProperties.any { localProperties.containsKey(it) }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(localProperties.requiredProperty("RELEASE_STORE_FILE"))
+                storePassword = localProperties.requiredProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = localProperties.requiredProperty("RELEASE_KEY_ALIAS")
+                keyPassword = localProperties.requiredProperty("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "false")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            val apiBaseUrl = localProperties.requiredProperty("API_BASE_URL_DEV")
+            val kakaoNativeAppKey = localProperties.requiredProperty("KAKAO_DEBUG_NATIVE_APP_KEY")
+            buildConfigField("String", "API_BASE_URL", apiBaseUrl.toBuildConfigString())
+            buildConfigField("String", "KAKAO_NATIVE_APP_KEY", kakaoNativeAppKey.toBuildConfigString())
+            manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
+        }
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            val apiBaseUrl = localProperties.requiredProperty("API_BASE_URL")
+            val kakaoNativeAppKey = localProperties.requiredProperty("KAKAO_NATIVE_APP_KEY")
+            buildConfigField("String", "API_BASE_URL", apiBaseUrl.toBuildConfigString())
+            buildConfigField("String", "KAKAO_NATIVE_APP_KEY", kakaoNativeAppKey.toBuildConfigString())
+            manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
             optimization {
                 enable = false
             }
+        }
+        create("localRelease") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "false")
         }
     }
     compileOptions {

@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
@@ -229,10 +230,12 @@ private fun FeedPhotoPreview() {
         FeedPhoto(
             post = Post(
                 id = "preview",
-                originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+                thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+                signatureOriginalImageUrl =
+                    "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
+                signatureThumbnailImageUrl =
+                    "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 감사합니다.",
                 likeCount = 24,

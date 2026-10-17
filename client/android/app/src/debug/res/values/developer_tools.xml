@@ -1,0 +1,11 @@
+<resources>
+    <string name="developer_tools_section">개발</string>
+    <string name="developer_tools_title">개발자 도구</string>
+    <string name="developer_tools_back">뒤로</string>
+    <string name="developer_tools_version_name">앱 버전 (versionName)</string>
+    <string name="developer_tools_version_code">버전 코드 (versionCode)</string>
+    <string name="developer_tools_build_type">빌드 타입</string>
+    <string name="developer_tools_application_id">패키지 ID</string>
+    <string name="developer_tools_server_environment">서버 환경 (호스트)</string>
+    <string name="developer_tools_server_url">서버 주소</string>
+</resources>

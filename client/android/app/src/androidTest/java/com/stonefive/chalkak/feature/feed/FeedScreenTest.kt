@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
@@ -91,7 +92,8 @@ class FeedScreenTest {
                     onLikeClick = {},
                     snackbarHostState = SnackbarHostState(),
                     entryPostId = "record-post",
-                    entryThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                    entryThumbnailImageUrl =
+                        "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
                 )
             }
         }
@@ -202,10 +204,12 @@ private val feedUiState = FeedUiState(
         topic = "하늘하늘하늘",
         post = Post(
             id = "photo-1",
-            originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-            signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-            signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+            originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+            thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+            signatureOriginalImageUrl =
+                "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
+            signatureThumbnailImageUrl =
+                "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
             contentDescription = "사진",
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,
