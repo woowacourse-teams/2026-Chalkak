@@ -420,7 +420,7 @@ filter type = "access"
 
 - 콘솔에서 알람이나 메트릭 필터를 바꾸면 같은 PR에서 이 문서의 표와 설명을 함께 수정한다.
 - 콘솔에서 대시보드를 수정하면 **작업 > 소스 보기/편집**의 JSON을 복사해 `dashboard.json`에 반영한다. 이때 실제 인스턴스 ID와 RDS 식별자는 다시 플레이스홀더로 바꿔 커밋한다.
-- 집계에서 제외할 내부 계정 목록은 `backend/src/main/resources/application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 있고, 바꾸면 일반 릴리스로 반영한다. 대시보드의 실시간 Logs Insights 위젯(DAU, 접속 사용자)에는 이 목록이 적용되지 않는다.
+- 집계에서 제외할 내부 계정 목록은 `backend/src/main/resources/application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 있고, 바꾸면 일반 릴리스로 반영한다. 대시보드의 실시간 Logs Insights 위젯(DAU, 당일 접속 사용자)은 같은 ID를 쿼리 필터로 직접 가지고 있으므로, 목록을 바꾸면 `dashboard.json`의 두 위젯도 함께 고친 뒤 대시보드에 다시 반영한다. 주제별 피드 조회 등 나머지 위젯은 제외하지 않는다.
 - 알람 상태 위젯은 알람을 직접 지정하므로 알람을 추가하면 위젯에도 수동으로 추가한다. Logs Insights 위젯은 대시보드 기간(기본 24시간)을 따른다.
 - 저장소에서 `dashboard.json`을 바꾸면 병합 후 콘솔의 **작업 > 소스 보기/편집**에 붙여 넣어 반영한다. 플레이스홀더는 실제 인스턴스 ID와 RDS 식별자로 바꿔 넣는다.
 - 알람 전달 Lambda(`backend/lambda/alarm-notifier/`)는 파이프라인에 연결하지 않았다. 코드를 바꾸면 병합 후 Lambda 콘솔에 `handler.py`를 다시 붙여 넣고 README의 테스트 이벤트로 Slack 도착을 확인한다. 이 함수는 dev·prod 알람을 모두 전달하므로, `be/develop` 병합만으로 prod 알람 경로가 바뀌지 않도록 dev 파이프라인에 연결하지 않았다.
