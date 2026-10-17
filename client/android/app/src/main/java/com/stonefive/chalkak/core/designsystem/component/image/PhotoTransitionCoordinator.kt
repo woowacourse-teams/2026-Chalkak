@@ -4,13 +4,13 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import coil3.Image
@@ -32,7 +32,7 @@ data class SharedPhotoSnapshot(
     val memoryCacheKey: MemoryCache.Key?,
     val aspectRatio: Float?,
     val contentScale: ContentScale = ContentScale.FillWidth,
-    val sourceShape: CornerBasedShape? = null,
+    val sourceShape: Shape? = null,
     val signaturePainter: Painter? = null,
 )
 

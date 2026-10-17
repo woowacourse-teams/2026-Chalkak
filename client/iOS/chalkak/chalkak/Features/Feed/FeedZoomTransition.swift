@@ -30,6 +30,8 @@ final class FeedZoomRegistry {
     struct Source: Sendable {
         let frame: CGRect
         let cornerRadius: CGFloat
+        // Fit 사진보다 큰 카드의 마스크를 보존한다. 기본 출발 뷰는 사진 자체를 클립한다.
+        var clipFrame: CGRect?
         // 출발 뷰의 서명 위치. Android처럼 서명은 사진과 따로 이 위치에서 출발한다.
         var signatureFrame: CGRect?
         var visibleBounds: CGRect?
@@ -95,12 +97,13 @@ extension View {
         cornerRadius: CGFloat = 0,
         signatureSize: CGSize? = nil,
         fittedImageAspectRatio: CGFloat? = nil,
+        clipsToContainer: Bool = false,
         onSelect: ((FeedZoomRegistry.Source) -> Void)? = nil
     ) -> some View {
         modifier(
             FeedZoomSourceModifier(
                 source: source, cornerRadius: cornerRadius, signatureSize: signatureSize,
-                fittedImageAspectRatio: fittedImageAspectRatio, onSelect: onSelect
+                fittedImageAspectRatio: fittedImageAspectRatio, clipsToContainer: clipsToContainer, onSelect: onSelect
             )
         )
     }
@@ -148,6 +151,7 @@ private struct FeedZoomSourceModifier: ViewModifier {
     let cornerRadius: CGFloat
     let signatureSize: CGSize?
     let fittedImageAspectRatio: CGFloat?
+    let clipsToContainer: Bool
     let onSelect: ((FeedZoomRegistry.Source) -> Void)?
     @State private var frame: CGRect?
     @State private var registrationID = UUID()
@@ -204,6 +208,7 @@ private struct FeedZoomSourceModifier: ViewModifier {
         let measured = FeedZoomRegistry.Source(
             frame: FeedZoomCropGeometry.fittedFrame(in: frame, heightToWidthRatio: fittedImageAspectRatio),
             cornerRadius: cornerRadius,
+            clipFrame: clipsToContainer ? frame : nil,
             signatureFrame: signatureSize.map { size in
                 CGRect(
                     x: frame.maxX - theme.spacing.sm - size.width,
@@ -290,7 +295,13 @@ private struct FeedZoomEffect: ViewModifier, Animatable {
         // 도착 프레임 측정으로 분기가 바뀌어도 사진의 identity와 애니메이션을 보존한다.
         return content
             .frame(width: geometry?.size.width, height: geometry?.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: geometry?.cornerRadius ?? (source?.cornerRadius ?? 0) * remaining / scale))
+            .clipped()
+            .clipShape(FeedZoomPhotoClip(
+                source: source,
+                remaining: remaining,
+                scale: scale,
+                cornerRadius: geometry?.cornerRadius ?? (source?.cornerRadius ?? 0) * remaining / scale
+            ))
             .scaleEffect(scale)
             .offset(offset)
             .opacity(source != nil && destinationFrame == nil ? 0 : 1)
@@ -351,5 +362,27 @@ struct FeedZoomCropGeometry {
             height: (source.frame.midY - destination.midY) * remaining
         )
         cornerRadius = source.cornerRadius * remaining / scale
+    }
+}
+
+/// 카드의 둥근 마스크를 실제 fit 사진 좌표로 옮겨 여백을 사진 모서리로 오인하지 않는다.
+struct FeedZoomPhotoClip: Shape {
+    let source: FeedZoomRegistry.Source?
+    let remaining: CGFloat
+    let scale: CGFloat
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var bounds = rect
+        if let source, let clipFrame = source.clipFrame, scale > 0 {
+            let factor = remaining / scale
+            bounds = CGRect(
+                x: rect.minX + (clipFrame.minX - source.frame.minX) * factor,
+                y: rect.minY + (clipFrame.minY - source.frame.minY) * factor,
+                width: rect.width + (clipFrame.width - source.frame.width) * factor,
+                height: rect.height + (clipFrame.height - source.frame.height) * factor
+            )
+        }
+        return RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
     }
 }

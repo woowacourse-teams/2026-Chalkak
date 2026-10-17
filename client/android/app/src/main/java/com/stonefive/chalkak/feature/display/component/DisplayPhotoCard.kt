@@ -37,6 +37,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.FittedPhotoCardShape
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -63,7 +64,11 @@ fun DisplayPhotoCard(
         signatureModel = if (isFeatured) photo.signatureOriginalImageUrl else photo.signatureThumbnailImageUrl,
         aspectRatio = imageAspectRatio,
         contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
-        sourceShape = if (isFeatured) null else ChalkakTheme.shapes.photoCard,
+        sourceShape = if (isFeatured) {
+            FittedPhotoCardShape(ChalkakTheme.shapes.photoCard, FEATURED_PHOTO_ASPECT_RATIO)
+        } else {
+            ChalkakTheme.shapes.photoCard
+        },
     )
     val context = LocalPlatformContext.current
     val currentOnImageAspectRatioAvailable by rememberUpdatedState(onImageAspectRatioAvailable)
@@ -245,3 +250,5 @@ private fun DisplayLikeCountPreview() {
         }
     }
 }
+
+internal const val FEATURED_PHOTO_ASPECT_RATIO = 3f / 4f
