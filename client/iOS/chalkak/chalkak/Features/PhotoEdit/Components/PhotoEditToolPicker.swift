@@ -27,9 +27,7 @@ struct PhotoEditToolPicker: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(tool.title)
-                .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("photoEdit.tool.\(tool)")
             }
         }
