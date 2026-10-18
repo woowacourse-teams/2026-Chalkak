@@ -51,16 +51,18 @@ struct PhotoEditAdjustControls: View {
             onSelect(item)
         } label: {
             ZStack {
-                if isSelected {
+                // 자동은 숫자 대신 아이콘을 두고, 켜지면 강조색으로 바꿔 적용 여부를 보여 준다.
+                if isSelected, item != .auto {
                     Text("\(Self.percent(itemValue))")
                         .font(theme.typography.callout)
                         .monospacedDigit()
                 } else {
                     Image(systemName: item.systemImage)
                         .font(.system(size: Metrics.iconSize))
+                        .symbolRenderingMode(.monochrome)
                 }
             }
-            .foregroundStyle(theme.colors.textOnEditor)
+            .foregroundStyle(item == .auto && itemValue > 0 ? theme.colors.editorAccent : theme.colors.textOnEditor)
             .frame(width: Metrics.itemSize, height: Metrics.itemSize)
             .background(theme.colors.editorControl, in: Circle())
             .overlay {
