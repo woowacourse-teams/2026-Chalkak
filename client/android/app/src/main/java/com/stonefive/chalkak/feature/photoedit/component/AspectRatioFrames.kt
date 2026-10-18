@@ -2,12 +2,15 @@ package com.stonefive.chalkak.feature.photoedit.component
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Text
@@ -29,7 +32,7 @@ import com.stonefive.chalkak.feature.photoedit.CropAspectRatio
 import com.stonefive.chalkak.feature.photoedit.label
 
 /**
- * 자르기 비율 선택. 비율마다 그 모양의 프레임과 이름을 함께 보여 준다.
+ * 자르기 비율 선택. 비율마다 그 모양의 프레임과 이름을 함께 보여 주고, 화면보다 길면 가로로 넘긴다.
  * [originalAspectRatio]는 원본 프레임 모양에 쓰고, 모르면 가로 사진 모양으로 그린다.
  */
 @Composable
@@ -38,17 +41,21 @@ fun AspectRatioFrames(
     originalAspectRatio: Float?,
     onAspectRatioSelect: (CropAspectRatio) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     Row(
-        modifier = modifier.selectableGroup(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        modifier = modifier
+            .horizontalScroll(rememberScrollState())
+            .selectableGroup()
+            .padding(contentPadding),
+        horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
     ) {
         CropAspectRatio.entries.forEach { aspectRatio ->
             AspectRatioFrame(
                 aspectRatio = aspectRatio,
                 frameRatio = when (aspectRatio) {
-                    CropAspectRatio.Free -> null
                     CropAspectRatio.Original -> originalAspectRatio ?: FALLBACK_ORIGINAL_RATIO
+                    CropAspectRatio.Free -> null
                     else -> aspectRatio.ratio
                 },
                 selected = aspectRatio == selectedAspectRatio,
@@ -147,8 +154,8 @@ private fun AspectRatioFramesPreview() {
             onAspectRatioSelect = {},
             modifier = Modifier
                 .fillMaxWidth()
-                .background(ChalkakTheme.colors.photoEditBackground)
-                .padding(vertical = ChalkakTheme.spacing.sm),
+                .background(ChalkakTheme.colors.photoEditBackground),
+            contentPadding = PaddingValues(ChalkakTheme.spacing.sm),
         )
     }
 }

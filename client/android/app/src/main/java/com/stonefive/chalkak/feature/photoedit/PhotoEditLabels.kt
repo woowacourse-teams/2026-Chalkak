@@ -19,11 +19,14 @@ val PhotoFilter.label: String
 
 val CropAspectRatio.label: String
     get() = when (this) {
-        CropAspectRatio.Free -> "자유"
         CropAspectRatio.Original -> "원본"
+        CropAspectRatio.Free -> "자유"
         CropAspectRatio.Square -> "1:1"
         CropAspectRatio.Portrait4x5 -> "4:5"
+        CropAspectRatio.Landscape5x4 -> "5:4"
         CropAspectRatio.Portrait3x4 -> "3:4"
+        CropAspectRatio.Landscape4x3 -> "4:3"
+        CropAspectRatio.Portrait9x16 -> "9:16"
         CropAspectRatio.Landscape16x9 -> "16:9"
     }
 

@@ -46,7 +46,7 @@ class PhotoEditViewModelTest {
     }
 
     @Test
-    fun `90도 회전하면 고정한 비율도 함께 돌아간다`() {
+    fun `90도 회전하면 고정한 비율도 반대 비율로 바뀐다`() {
         val viewModel = loadedViewModel()
         viewModel.onAspectRatioSelect(CropAspectRatio.Portrait4x5)
 
@@ -54,7 +54,23 @@ class PhotoEditViewModelTest {
 
         assertEquals(1, viewModel.uiState.value.edit.quarterTurns)
         assertEquals(5f / 4f, viewModel.uiState.value.lockedAspectRatio!!, TOLERANCE)
+        assertEquals(CropAspectRatio.Landscape5x4, viewModel.uiState.value.aspectRatio)
+
+        viewModel.onRotateClick()
+
+        assertEquals(4f / 5f, viewModel.uiState.value.lockedAspectRatio!!, TOLERANCE)
         assertEquals(CropAspectRatio.Portrait4x5, viewModel.uiState.value.aspectRatio)
+    }
+
+    @Test
+    fun `반대 비율을 고르면 그 비율로 고정한다`() {
+        val viewModel = loadedViewModel()
+
+        viewModel.onAspectRatioSelect(CropAspectRatio.Portrait9x16)
+
+        val state = viewModel.uiState.value
+        assertEquals(9f / 16f, state.lockedAspectRatio!!, TOLERANCE)
+        assertEquals(9f / 16f, (state.edit.crop.width * 4000f) / (state.edit.crop.height * 3000f), TOLERANCE)
     }
 
     @Test

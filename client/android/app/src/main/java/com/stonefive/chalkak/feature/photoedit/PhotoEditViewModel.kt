@@ -64,6 +64,7 @@ class PhotoEditViewModel(
         _uiState.update {
             it.copy(
                 edit = geometry.rotateQuarter(it.edit),
+                aspectRatio = it.aspectRatio.turned,
                 lockedAspectRatio = it.lockedAspectRatio?.let { ratio -> 1f / ratio },
             )
         }

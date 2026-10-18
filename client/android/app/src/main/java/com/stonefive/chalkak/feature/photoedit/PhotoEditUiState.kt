@@ -42,12 +42,28 @@ enum class PhotoEditTab {
     Filter,
 }
 
-/** 고정할 결과 비율(가로/세로). [Free]와 [Original]은 이미지에 따라 정해진다. */
+/** 고정할 결과 비율(가로/세로). [Original]과 [Free]는 이미지에 따라 정해진다. 선언 순서가 화면 순서다. */
 enum class CropAspectRatio(val ratio: Float?) {
-    Free(null),
     Original(null),
+    Free(null),
     Square(1f),
     Portrait4x5(4f / 5f),
+    Landscape5x4(5f / 4f),
     Portrait3x4(3f / 4f),
+    Landscape4x3(4f / 3f),
+    Portrait9x16(9f / 16f),
     Landscape16x9(16f / 9f),
+    ;
+
+    /** 90° 회전한 뒤의 비율. 원본·자유·1:1은 그대로다. */
+    val turned: CropAspectRatio
+        get() = when (this) {
+            Original, Free, Square -> this
+            Portrait4x5 -> Landscape5x4
+            Landscape5x4 -> Portrait4x5
+            Portrait3x4 -> Landscape4x3
+            Landscape4x3 -> Portrait3x4
+            Portrait9x16 -> Landscape16x9
+            Landscape16x9 -> Portrait9x16
+        }
 }

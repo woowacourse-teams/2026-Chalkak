@@ -195,9 +195,8 @@ private fun CropControls(
             selectedAspectRatio = uiState.aspectRatio,
             originalAspectRatio = uiState.originalAspectRatio,
             onAspectRatioSelect = onAspectRatioSelect,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = ChalkakTheme.spacing.sm),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.sm),
         )
 
         Row(
