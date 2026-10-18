@@ -782,7 +782,7 @@ struct PhotoEditFilterRendererTests {
         #expect(rendered.cgImage?.width == 64 && rendered.cgImage?.height == 64)
     }
 
-    @Test("밝기가 고르게 퍼진 사진은 거의 건드리지 않고, 흑백 사진에는 채도를 올리지 않는다")
+    @Test("밝기가 고르게 퍼진 사진은 여러 항목을 조금씩만 바꾸고, 흑백 사진에는 채도를 올리지 않는다")
     func tempersAutoAdjustments() {
         let uniform = PhotoEditImageStatistics(
             luminanceHistogram: Array(repeating: 1.0 / 256, count: 256),
@@ -792,8 +792,11 @@ struct PhotoEditFilterRendererTests {
         let adjustments = PhotoEditAutoAdjuster.adjustments(for: uniform)
 
         for adjustment in PhotoEditAdjustment.allCases {
-            #expect(abs(adjustments[adjustment]) <= 0.1, "\(adjustment.title) \(adjustments[adjustment])")
+            #expect(abs(adjustments[adjustment]) <= 0.35, "\(adjustment.title) \(adjustments[adjustment])")
         }
+        // 문턱에 걸려 모두 0이 되지 않고, 자동 보정이 무엇을 바꿨는지 여러 항목에 보인다.
+        #expect(PhotoEditAdjustment.allCases.filter { adjustments[$0] != 0 }.count >= 3)
+        #expect(adjustments[.contrast] >= 0)
         let grayscale = PhotoEditImageStatistics(
             luminanceHistogram: Array(repeating: 1.0 / 256, count: 256),
             saturation90: 0.01

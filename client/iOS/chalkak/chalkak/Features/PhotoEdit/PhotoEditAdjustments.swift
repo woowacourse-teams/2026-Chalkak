@@ -81,6 +81,7 @@ nonisolated struct PhotoEditAdjustments: Equatable, Sendable {
 /// - 그림자 들어 올림은 0.45 정도에서 멈춘다.
 /// - 채도가 이미 높은 사진은 건드리지 않고, 파랑·초록을 두 배로 쳐서 피부색 위주 사진이 과하게 진해지지 않게 한다.
 /// - 단계마다 앞 단계를 적용한 결과를 보고 다음 값을 정한다(노출 → 블랙 포인트 → 그림자·하이라이트 → 대비).
+/// - 문턱 없이 사진 상태에 비례해 값을 정한다. 잘 찍힌 사진도 작은 값이 여러 항목에 채워진다.
 nonisolated enum PhotoEditAutoAdjuster {
     static func adjustments(for image: UIImage) -> PhotoEditAdjustments? {
         guard let statistics = PhotoEditImageStatistics(image: image) else { return nil }
@@ -110,24 +111,22 @@ nonisolated enum PhotoEditAutoAdjuster {
         let exposureGain = pow(2, adjustments[.exposure] * PhotoEditToneCurve.exposureRangeEV)
         transform = { PhotoEditToneCurve.gamma(min(1, PhotoEditToneCurve.linear(exposed($0)) * exposureGain)) }
 
-        // 블랙 포인트: 가장 어두운 쪽이 떠 있으면 일부만 끌어내린다.
+        // 블랙 포인트: 가장 어두운 쪽이 떠 있는 만큼 일부만 끌어내린다.
         let black = percentile(Constants.blackPercentile)
-        if black > Constants.minimumBlack {
-            let inputBlack = min((black - Constants.blackMargin) * Constants.blackTempering, Constants.maximumInputBlack)
-            adjustments[.blackPoint] = rounded(inputBlack / PhotoEditToneCurve.blackPointRange)
-        }
+        let inputBlackTarget = min(max(black - Constants.blackMargin, 0) * Constants.blackTempering, Constants.maximumInputBlack)
+        adjustments[.blackPoint] = rounded(inputBlackTarget / PhotoEditToneCurve.blackPointRange)
         let leveled = transform
         let inputBlack = max(adjustments[.blackPoint], 0) * PhotoEditToneCurve.blackPointRange
         transform = { max(0, leveled($0) - inputBlack) / (1 - inputBlack) }
 
-        // 그림자·하이라이트: 어두운 영역·거의 흰 영역이 넓은 만큼 살린다.
+        // 그림자·하이라이트: 어두운 영역·밝은 영역이 넓을수록 살린다. 좁은 영역에도 반응하도록 1보다 작은 지수로 올린다.
         let darkFraction = statistics.fraction { transform($0) < Constants.darkLuminance }
         adjustments[.shadows] = rounded(
-            min(max((darkFraction - Constants.darkAllowance) * Constants.shadowSlope, 0), Constants.maximumShadowLift)
+            Constants.maximumShadowLift * response(darkFraction / Constants.fullShadowFraction)
         )
         let brightFraction = statistics.fraction { transform($0) > Constants.brightLuminance }
         adjustments[.highlights] = rounded(
-            -min(max((brightFraction - Constants.brightAllowance) * Constants.highlightSlope, 0), Constants.maximumHighlightRecovery)
+            -Constants.maximumHighlightRecovery * response(brightFraction / Constants.fullHighlightFraction)
         )
 
         // 대비: 중간 50%가 좁게 몰려 있으면 넓힌다. 낮추지는 않는다.
@@ -146,6 +145,10 @@ nonisolated enum PhotoEditAutoAdjuster {
         return adjustments
     }
 
+    private static func response(_ ratio: Double) -> Double {
+        pow(min(max(ratio, 0), 1), Constants.responseExponent)
+    }
+
     private static func rounded(_ value: Double) -> Double {
         (value * 100).rounded() / 100
     }
@@ -160,26 +163,26 @@ nonisolated enum PhotoEditAutoAdjuster {
         static let minimumExposureEV = -0.5
         static let maximumExposureEV = 1.0
 
-        static let minimumBlack = 0.03
         static let blackMargin = 0.01
         static let blackTempering = 0.8
         static let maximumInputBlack = 0.25
 
-        static let darkLuminance = 0.18
-        static let darkAllowance = 0.2
-        static let shadowSlope = 1.5
+        static let responseExponent = 0.7
+        static let darkLuminance = 0.25
+        /// 어두운 영역이 이만큼이면 그림자를 최대로 들어 올린다.
+        static let fullShadowFraction = 0.8
         static let maximumShadowLift = 0.45
-        static let brightLuminance = 0.94
-        static let brightAllowance = 0.06
-        static let highlightSlope = 3.0
+        static let brightLuminance = 0.85
+        /// 밝은 영역이 이만큼이면 하이라이트를 최대로 누른다.
+        static let fullHighlightFraction = 0.3
         static let maximumHighlightRecovery = 0.5
 
-        static let targetMidSpread = 0.32
+        static let targetMidSpread = 0.42
         static let contrastSlope = 2.0
         static let maximumContrast = 0.4
 
         static let grayscaleSaturation = 0.05
-        static let targetSaturation = 0.55
+        static let targetSaturation = 0.7
         static let saturationSlope = 0.6
         static let maximumSaturation = 0.25
     }
