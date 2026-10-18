@@ -283,8 +283,8 @@ struct PhotoEditViewModelTests {
         #expect(viewModel.viewState.cropDraft == cropperState)
     }
 
-    @Test("자동 보정은 자른 사진을 한 번 분석하고 강도에 맞춰 미리보기와 완료 렌더링에 적용한다")
-    func appliesAutoAdjustment() async throws {
+    @Test("자동 보정을 켜면 분석한 값이 항목마다 강도만큼 채워지고 미리보기·썸네일·완료 렌더링에 적용된다")
+    func appliesAutoAdjustments() async throws {
         let recorder = PhotoEditRenderRecorder()
         let original = Self.image(width: 40, height: 30)
         let viewModel = PhotoEditViewModel(
@@ -293,24 +293,39 @@ struct PhotoEditViewModelTests {
         )
         try await waitUntil { viewModel.viewState.previewImage != nil && !viewModel.viewState.thumbnails.isEmpty }
         #expect(recorder.analyzeCount == 1)
+        #expect(viewModel.viewState.autoAdjustments == PhotoEditRenderRecorder.autoAdjustments)
 
         viewModel.handle(.toolSelected(.adjust))
-        viewModel.handle(.autoAdjustmentClicked)
+        viewModel.handle(.adjustItemSelected(.auto))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 1)
-        viewModel.handle(.autoAdjustmentIntensityChanged(0.4))
-        viewModel.handle(.autoAdjustmentIntensityChanged(1.5))
+        #expect(viewModel.viewState.value(of: .adjustment(.exposure)) == 0.2)
+        #expect(viewModel.viewState.value(of: .adjustment(.shadows)) == 0.3)
+
+        viewModel.handle(.adjustValueChanged(0.5))
+        #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) - 0.1) < 0.0001)
+
+        // 항목 값을 바꾸면 자동 보정 몫 위에 더한 값만 바뀐다.
+        viewModel.handle(.adjustItemSelected(.adjustment(.exposure)))
+        viewModel.handle(.adjustValueChanged(-0.2))
+        #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) + 0.2) < 0.0001)
+        viewModel.handle(.adjustItemSelected(.auto))
+        #expect(viewModel.viewState.autoAdjustmentIntensity == 0.5)
+        viewModel.handle(.adjustValueChanged(1.5))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 1)
-        viewModel.handle(.autoAdjustmentIntensityChanged(0.6))
+        #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) + 0.1) < 0.0001)
+        #expect(viewModel.viewState.value(of: .adjustment(.shadows)) == 0.3)
+
+        let expected = viewModel.viewState.adjustments
         try await waitUntil {
-            recorder.calls.last { $0.maxLongEdge == nil && $0.image !== original }?.look.autoAdjustmentIntensity == 0.6
+            recorder.calls.last { $0.maxLongEdge == nil && $0.image !== original }?.look.adjustments == expected
         }
 
         viewModel.handle(.toolApplied)
         #expect(viewModel.viewState.activeTool == nil)
-        // 필터 썸네일도 자동 보정 위에 다시 만든다.
+        // 필터 썸네일도 조정 위에 다시 만든다.
         try await waitUntil {
             PhotoEditFilter.allCases.allSatisfy { filter in
-                recorder.calls.contains { $0.filter == filter && $0.look.autoAdjustmentIntensity == 0.6 }
+                recorder.calls.contains { $0.filter == filter && $0.look.adjustments == expected }
             }
         }
 
@@ -321,30 +336,36 @@ struct PhotoEditViewModelTests {
             return
         }
         let fullSizeCall = try #require(recorder.calls.last { $0.image === original && $0.maxLongEdge == nil })
-        #expect(fullSizeCall.look.autoAdjustmentIntensity == 0.6)
-        #expect(fullSizeCall.look.autoAdjustment != nil)
-        #expect(result.session.autoAdjustmentIntensity == 0.6)
+        #expect(fullSizeCall.look.adjustments == expected)
+        #expect(result.session.autoAdjustmentIntensity == 1)
+        #expect(abs(result.session.manualAdjustments[.exposure] + 0.3) < 0.0001)
         #expect(recorder.analyzeCount == 1)
     }
 
-    @Test("조정 화면에서 취소하면 들어가기 전 자동 보정 강도로 되돌리고, 다시 누르면 자동 보정을 끈다")
-    func revertsAutoAdjustmentOnToolCancel() async throws {
+    @Test("조정 화면에서 취소하면 들어가기 전 강도와 항목 값으로 되돌리고, 고른 자동 보정을 다시 누르면 끈다")
+    func revertsAdjustmentsOnToolCancel() async throws {
         var session = PhotoEditSession(original: Self.image(width: 40, height: 30))
         session.autoAdjustmentIntensity = 0.3
+        session.manualAdjustments[.warmth] = 0.4
         let viewModel = PhotoEditViewModel(session: session, renderer: PhotoEditRenderRecorder().renderer)
 
         viewModel.handle(.toolSelected(.adjust))
-        viewModel.handle(.autoAdjustmentClicked)
+        #expect(viewModel.viewState.selectedAdjustItem == .auto)
+        viewModel.handle(.adjustItemSelected(.auto))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 0)
-        viewModel.handle(.autoAdjustmentClicked)
+        viewModel.handle(.adjustItemSelected(.auto))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 1)
+        viewModel.handle(.adjustItemSelected(.adjustment(.warmth)))
+        viewModel.handle(.adjustValueChanged(-0.9))
+        #expect(viewModel.viewState.value(of: .adjustment(.warmth)) == -0.9)
         viewModel.handle(.toolCancelled)
 
         #expect(viewModel.viewState.activeTool == nil)
         #expect(viewModel.viewState.autoAdjustmentIntensity == 0.3)
-        // 조정 화면 밖에서는 강도를 바꾸지 않는다.
-        viewModel.handle(.autoAdjustmentIntensityChanged(0.8))
-        #expect(viewModel.viewState.autoAdjustmentIntensity == 0.3)
+        #expect(viewModel.viewState.session.manualAdjustments == PhotoEditAdjustments([.warmth: 0.4]))
+        // 조정 화면 밖에서는 값을 바꾸지 않는다.
+        viewModel.handle(.adjustValueChanged(0.8))
+        #expect(viewModel.viewState.value(of: .adjustment(.warmth)) == 0.4)
     }
 
     @Test("자르기를 마치면 자른 사진으로 자동 보정값을 다시 구한다")
@@ -448,7 +469,7 @@ struct PhotoEditViewModelTests {
         verticallyFlipped: false
     )
 
-    static func image(width: Int, height: Int) -> UIImage {
+    nonisolated static func image(width: Int, height: Int) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { context in
@@ -641,7 +662,7 @@ struct PhotoUploadEditingTests {
         #expect(viewModel.viewState.editRequest == nil)
     }
 
-    private static func preparation(sourceData: Data) -> PhotoUploadPreparation {
+    private nonisolated static func preparation(sourceData: Data) -> PhotoUploadPreparation {
         PhotoUploadPreparation(
             id: UUID(),
             sourceData: sourceData,
@@ -745,31 +766,76 @@ struct PhotoEditFilterRendererTests {
         }
     }
 
-    @Test("자동 보정은 대비가 낮은 사진의 밝기 범위를 넓히고 강도만큼만 적용한다")
-    func appliesAutoAdjustmentByIntensity() throws {
+    @Test("자동 보정은 대비가 낮고 뜬 사진의 블랙 포인트·대비·노출을 올려 밝기 범위를 넓힌다")
+    func autoAdjustsLowContrastImage() throws {
         let image = Self.lowContrastImage(width: 64, height: 64)
-        let autoAdjustment = try #require(PhotoEditFilterRenderer.autoAdjustment(for: image))
 
-        let none = try #require(PhotoEditFilterRenderer.render(
-            image,
-            look: PhotoEditLook(autoAdjustment: autoAdjustment, autoAdjustmentIntensity: 0)
-        ))
-        let half = try #require(PhotoEditFilterRenderer.render(
-            image,
-            look: PhotoEditLook(autoAdjustment: autoAdjustment, autoAdjustmentIntensity: 0.5)
-        ))
-        let full = try #require(PhotoEditFilterRenderer.render(
-            image,
-            look: PhotoEditLook(autoAdjustment: autoAdjustment, autoAdjustmentIntensity: 1)
-        ))
+        let adjustments = try #require(PhotoEditAutoAdjuster.adjustments(for: image))
+        let rendered = try #require(PhotoEditFilterRenderer.render(image, look: PhotoEditLook(adjustments: adjustments)))
 
-        #expect(none === image)
+        #expect(adjustments[.blackPoint] > 0)
+        #expect(adjustments[.contrast] > 0)
+        #expect(adjustments[.exposure] > 0)
         let originalRange = try #require(Self.brightnessRange(of: image))
-        let halfRange = try #require(Self.brightnessRange(of: half))
-        let fullRange = try #require(Self.brightnessRange(of: full))
-        #expect(fullRange > originalRange + 10)
-        #expect(halfRange > originalRange && halfRange < fullRange)
-        #expect(full.cgImage?.width == 64 && full.cgImage?.height == 64)
+        let adjustedRange = try #require(Self.brightnessRange(of: rendered))
+        #expect(adjustedRange > originalRange + 30)
+        #expect(rendered.cgImage?.width == 64 && rendered.cgImage?.height == 64)
+    }
+
+    @Test("밝기가 고르게 퍼진 사진은 거의 건드리지 않고, 흑백 사진에는 채도를 올리지 않는다")
+    func tempersAutoAdjustments() {
+        let uniform = PhotoEditImageStatistics(
+            luminanceHistogram: Array(repeating: 1.0 / 256, count: 256),
+            saturation90: 0.6
+        )
+
+        let adjustments = PhotoEditAutoAdjuster.adjustments(for: uniform)
+
+        for adjustment in PhotoEditAdjustment.allCases {
+            #expect(abs(adjustments[adjustment]) <= 0.1, "\(adjustment.title) \(adjustments[adjustment])")
+        }
+        let grayscale = PhotoEditImageStatistics(
+            luminanceHistogram: Array(repeating: 1.0 / 256, count: 256),
+            saturation90: 0.01
+        )
+        #expect(PhotoEditAutoAdjuster.adjustments(for: grayscale)[.saturation] == 0)
+    }
+
+    @Test("톤 곡선은 어떤 조합에서도 0에서 시작해 1로 끝나고 줄어들지 않는다")
+    func keepsToneCurveMonotonic() {
+        let extremes: [Double] = [-1, 0, 1]
+        for blackPoint in extremes {
+            for shadows in extremes {
+                for highlights in extremes {
+                    for contrast in extremes {
+                        let samples = PhotoEditToneCurve.samples(for: PhotoEditAdjustments([
+                            .blackPoint: blackPoint, .shadows: shadows, .highlights: highlights, .contrast: contrast,
+                        ]))
+                        #expect(zip(samples, samples.dropFirst()).allSatisfy { $0 <= $1 })
+                        #expect(samples.last == 1)
+                        if blackPoint >= 0 {
+                            #expect(samples.first == 0)
+                        }
+                    }
+                }
+            }
+        }
+        #expect(PhotoEditToneCurve.isIdentity(PhotoEditAdjustments([.exposure: 0.5, .warmth: 0.2])))
+    }
+
+    @Test("따뜻함을 올리면 회색 사진의 빨강이 파랑보다 커진다")
+    func appliesWarmth() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let gray = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: format).image { context in
+            UIColor(white: 0.5, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+
+        let warm = try #require(PhotoEditFilterRenderer.render(gray, look: PhotoEditLook(adjustments: PhotoEditAdjustments([.warmth: 1]))))
+        let pixels = try #require(Self.rgbaPixels(of: warm))
+
+        #expect(Int(pixels[0]) - Int(pixels[2]) > 20)
     }
 
     @Test("반시계 방향 회전과 좌우반전을 화면에 보이는 방향대로 적용한다")
@@ -867,6 +933,8 @@ struct PhotoEditFilterRendererTests {
 }
 
 private final class PhotoEditRenderRecorder: @unchecked Sendable {
+    static let autoAdjustments = PhotoEditAdjustments([.exposure: 0.2, .shadows: 0.3])
+
     struct Call {
         let image: UIImage
         let look: PhotoEditLook
@@ -905,7 +973,7 @@ private final class PhotoEditRenderRecorder: @unchecked Sendable {
     }
 
     /// 호출을 기록한다. 축소·회전·반전 요청이면 새 이미지를, 아니면 입력 이미지를 그대로 돌려준다.
-    /// 자동 보정 분석은 실제 Core Image 분석 결과를 돌려준다.
+    /// 자동 보정 분석은 `autoAdjustments`를 돌려준다.
     var renderer: PhotoEditRenderer {
         PhotoEditRenderer(
             render: { [self] image, look, maxLongEdge in
@@ -922,7 +990,7 @@ private final class PhotoEditRenderRecorder: @unchecked Sendable {
             },
             analyze: { [self] image in
                 lock.withLock { storedAnalyzedImages.append(image) }
-                return PhotoEditFilterRenderer.autoAdjustment(for: image)
+                return Self.autoAdjustments
             }
         )
     }

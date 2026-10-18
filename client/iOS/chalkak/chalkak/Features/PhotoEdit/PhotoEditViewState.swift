@@ -132,8 +132,10 @@ struct PhotoEditSession {
     let original: UIImage
     var crop: PhotoEditCrop?
     var filter: PhotoEditFilter = .original
-    /// 자동 보정 강도(0...1). 보정값은 자른 사진을 분석해 다시 구하므로 강도만 보관한다.
+    /// 자동 보정 강도(0...1). 자동 보정값은 자른 사진을 분석해 다시 구하므로 강도만 보관한다.
     var autoAdjustmentIntensity: Double = 0
+    /// 자동 보정 위에 더한 항목별 조정값. 화면에 보이는 값은 `자동 보정값 × 강도 + 이 값`이다.
+    var manualAdjustments = PhotoEditAdjustments()
 
     var croppedImage: UIImage {
         crop?.image ?? original
@@ -153,6 +155,37 @@ struct PhotoEditResult: Equatable {
 
     static func == (lhs: PhotoEditResult, rhs: PhotoEditResult) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+/// 조정 화면에서 고른 항목. 자동 보정은 강도(0...1)를, 나머지는 항목 값(-1...1)을 눈금자로 바꾼다.
+enum PhotoEditAdjustItem: Hashable, Identifiable, Sendable {
+    case auto
+    case adjustment(PhotoEditAdjustment)
+
+    static let allCases: [PhotoEditAdjustItem] = [.auto] + PhotoEditAdjustment.allCases.map { .adjustment($0) }
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .auto: "자동"
+        case let .adjustment(adjustment): adjustment.title
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .auto: "wand.and.stars"
+        case let .adjustment(adjustment): adjustment.systemImage
+        }
+    }
+
+    var range: ClosedRange<Double> {
+        switch self {
+        case .auto: 0...1
+        case .adjustment: -1...1
+        }
     }
 }
 
@@ -188,6 +221,9 @@ struct PhotoEditViewState {
     var thumbnails: [PhotoEditFilter: UIImage] = [:]
     /// 자르기 화면에서 아직 확정하지 않은 비율·회전·반전.
     var cropDraft = PhotoEditCropperState()
+    /// 자른 사진을 분석한 자동 보정값. 분석 전에는 `nil`이다.
+    var autoAdjustments: PhotoEditAdjustments?
+    var selectedAdjustItem: PhotoEditAdjustItem = .auto
     var cropperSource: PhotoEditCropperSource?
     var isCompleting = false
     var failureMessage: String?
@@ -198,6 +234,19 @@ struct PhotoEditViewState {
 
     var autoAdjustmentIntensity: Double {
         session.autoAdjustmentIntensity
+    }
+
+    /// 실제로 적용하는 항목별 조정값.
+    var adjustments: PhotoEditAdjustments {
+        (autoAdjustments ?? PhotoEditAdjustments())
+            .scaled(by: session.autoAdjustmentIntensity, adding: session.manualAdjustments)
+    }
+
+    func value(of item: PhotoEditAdjustItem) -> Double {
+        switch item {
+        case .auto: autoAdjustmentIntensity
+        case let .adjustment(adjustment): adjustments[adjustment]
+        }
     }
 
     var displayedImage: UIImage {
@@ -214,8 +263,8 @@ enum PhotoEditAction {
     case toolSelected(PhotoEditTool)
     case toolCancelled
     case toolApplied
-    case autoAdjustmentClicked
-    case autoAdjustmentIntensityChanged(Double)
+    case adjustItemSelected(PhotoEditAdjustItem)
+    case adjustValueChanged(Double)
     case filterSelected(PhotoEditFilter)
     case aspectRatioSelected(PhotoEditAspectRatio)
     case rotateClicked

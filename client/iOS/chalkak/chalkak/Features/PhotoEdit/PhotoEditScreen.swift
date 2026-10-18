@@ -78,11 +78,13 @@ struct PhotoEditScreen: View {
         VStack(spacing: 0) {
             preview(viewState)
 
-            PhotoEditAutoAdjustmentControl(
-                intensity: viewState.autoAdjustmentIntensity,
-                onToggle: { viewModel.handle(.autoAdjustmentClicked) },
-                onIntensityChange: { viewModel.handle(.autoAdjustmentIntensityChanged($0)) }
+            PhotoEditAdjustControls(
+                selectedItem: viewState.selectedAdjustItem,
+                value: viewState.value(of:),
+                onSelect: { viewModel.handle(.adjustItemSelected($0)) },
+                onValueChange: { viewModel.handle(.adjustValueChanged($0)) }
             )
+            .contentMargins(.horizontal, theme.spacing.lg, for: .scrollContent)
             .padding(.vertical, theme.spacing.sm)
 
             PhotoEditActionBar(

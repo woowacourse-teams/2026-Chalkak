@@ -3,36 +3,15 @@ import CoreImage.CIFilterBuiltins
 import ImageIO
 import UIKit
 
-/// `CIImage.autoAdjustmentFilters`가 사진을 분석해 고른 보정.
-///
-/// 보정값이 사진 크기와 무관하므로 미리보기 크기에서 한 번 분석하고 원본 크기에도 그대로 적용한다.
-// 입력값은 변경되지 않는 NSNumber·CIVector뿐이라 여러 스레드에서 읽어도 안전하다.
-nonisolated struct PhotoEditAutoAdjustment: @unchecked Sendable {
-    // CIFilter는 상태를 가지므로 이름과 입력값만 보관하고 적용할 때마다 새로 만든다.
-    fileprivate let steps: [(name: String, parameters: [String: Any])]
-
-    fileprivate init(filters: [CIFilter]) {
-        steps = filters.map { filter in
-            let keys = filter.inputKeys.filter { $0 != kCIInputImageKey }
-            return (filter.name, filter.dictionaryWithValues(forKeys: keys))
-        }
-    }
-}
-
-/// 미리보기·썸네일·완료 렌더링에 함께 적용하는 보정과 필터. 자동 보정을 먼저 하고 그 위에 필터를 입힌다.
-nonisolated struct PhotoEditLook: Sendable {
+/// 미리보기·썸네일·완료 렌더링에 함께 적용하는 조정과 필터. 조정을 먼저 하고 그 위에 필터를 입힌다.
+nonisolated struct PhotoEditLook: Equatable, Sendable {
     var filter: PhotoEditFilter = .original
-    var autoAdjustment: PhotoEditAutoAdjustment?
-    var autoAdjustmentIntensity: Double = 0
+    var adjustments = PhotoEditAdjustments()
 
     static let original = PhotoEditLook()
 
     var isOriginal: Bool {
-        filter == .original && !hasAutoAdjustment
-    }
-
-    fileprivate var hasAutoAdjustment: Bool {
-        autoAdjustmentIntensity > 0 && autoAdjustment?.steps.isEmpty == false
+        filter == .original && adjustments.isNeutral
     }
 }
 
@@ -42,7 +21,7 @@ struct PhotoEditRenderer: Sendable {
     /// 반시계 방향 90° 회전 횟수와 좌우반전 여부를 적용한다.
     typealias Orient = @Sendable (UIImage, Int, Bool) async -> UIImage?
     /// 사진을 분석해 자동 보정값을 구한다.
-    typealias Analyze = @Sendable (UIImage) async -> PhotoEditAutoAdjustment?
+    typealias Analyze = @Sendable (UIImage) async -> PhotoEditAdjustments?
 
     let render: Render
     let orient: Orient
@@ -71,7 +50,7 @@ struct PhotoEditRenderer: Sendable {
         },
         analyze: { image in
             await Task.detached(priority: .userInitiated) {
-                PhotoEditFilterRenderer.autoAdjustment(for: image)
+                PhotoEditAutoAdjuster.adjustments(for: image)
             }.value
         }
     )
@@ -132,12 +111,6 @@ enum PhotoEditFilterRenderer {
         return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
     }
 
-    /// 적목 보정은 눈 위치에 묶여 다른 크기에 적용할 수 없으므로 뺀다.
-    nonisolated static func autoAdjustment(for image: UIImage) -> PhotoEditAutoAdjustment? {
-        guard let input = ciImage(from: image) else { return nil }
-        return PhotoEditAutoAdjustment(filters: input.autoAdjustmentFilters(options: [.redEye: false]))
-    }
-
     private nonisolated static func ciImage(from image: UIImage) -> CIImage? {
         let source: CIImage
         if let cgImage = image.cgImage {
@@ -154,25 +127,47 @@ enum PhotoEditFilterRenderer {
     }
 
     private nonisolated static func apply(_ look: PhotoEditLook, to image: CIImage) -> CIImage {
-        guard look.hasAutoAdjustment, let autoAdjustment = look.autoAdjustment else {
-            return apply(look.filter, to: image)
+        apply(look.filter, to: apply(look.adjustments, to: image))
+    }
+
+    /// 노출 → 따뜻함 → 채도 → 톤 곡선 순서로 적용한다. 노출과 따뜻함은 선형 공간에서 곱한다.
+    private nonisolated static func apply(_ adjustments: PhotoEditAdjustments, to image: CIImage) -> CIImage {
+        var output = image
+
+        if adjustments[.exposure] != 0 {
+            let exposure = CIFilter.exposureAdjust()
+            exposure.inputImage = output
+            exposure.ev = Float(adjustments[.exposure] * PhotoEditToneCurve.exposureRangeEV)
+            output = exposure.outputImage ?? output
         }
 
-        let adjusted = autoAdjustment.steps.reduce(image) { image, step in
-            guard let filter = CIFilter(name: step.name, parameters: step.parameters) else { return image }
-            filter.setValue(image, forKey: kCIInputImageKey)
-            return filter.outputImage ?? image
-        }
-        guard look.autoAdjustmentIntensity < 1 else {
-            return apply(look.filter, to: adjusted)
+        if adjustments[.warmth] != 0 {
+            let gain = adjustments[.warmth] * PhotoEditToneCurve.warmthGain
+            let matrix = CIFilter.colorMatrix()
+            matrix.inputImage = output
+            matrix.rVector = CIVector(x: 1 + gain, y: 0, z: 0, w: 0)
+            matrix.bVector = CIVector(x: 0, y: 0, z: 1 - gain, w: 0)
+            output = matrix.outputImage ?? output
         }
 
-        // 강도만큼 원본과 보정 결과를 섞는다.
-        let dissolve = CIFilter.dissolveTransition()
-        dissolve.inputImage = image
-        dissolve.targetImage = adjusted
-        dissolve.time = Float(look.autoAdjustmentIntensity)
-        return apply(look.filter, to: dissolve.outputImage ?? adjusted)
+        if adjustments[.saturation] != 0 {
+            let colorControls = CIFilter.colorControls()
+            colorControls.inputImage = output
+            colorControls.saturation = Float(1 + adjustments[.saturation])
+            output = colorControls.outputImage ?? output
+        }
+
+        if !PhotoEditToneCurve.isIdentity(adjustments) {
+            let samples = PhotoEditToneCurve.samples(for: adjustments)
+            let table = samples.flatMap { sample in Array(repeating: Float(sample), count: 3) }
+            let curves = CIFilter.colorCurves()
+            curves.inputImage = output
+            curves.curvesData = table.withUnsafeBufferPointer { Data(buffer: $0) }
+            curves.curvesDomain = CIVector(x: 0, y: 1)
+            curves.colorSpace = Constants.sRGB
+            output = curves.outputImage ?? output
+        }
+        return output
     }
 
     private nonisolated static func apply(_ filter: PhotoEditFilter, to image: CIImage) -> CIImage {
@@ -205,6 +200,7 @@ enum PhotoEditFilterRenderer {
     }
 
     private enum Constants {
+        nonisolated static let sRGB = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
         nonisolated static let vividSaturation: Float = 1.25
         nonisolated static let vividContrast: Float = 1.08
     }

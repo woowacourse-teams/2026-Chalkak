@@ -12,11 +12,9 @@ final class PhotoEditViewModel {
 
     /// 필터를 바꿀 때마다 큰 이미지를 다시 줄이지 않도록 미리보기 크기 이미지를 보관한다.
     private var previewSource: UIImage?
-    /// 자른 사진을 미리보기 크기에서 분석한 자동 보정값.
-    private var autoAdjustment: PhotoEditAutoAdjustment?
-    /// 도구 화면에서 취소하면 되돌릴 필터와 자동 보정 강도.
+    /// 도구 화면에서 취소하면 되돌릴 필터와 조정.
     private var filterBeforeTool: PhotoEditFilter = .original
-    private var autoAdjustmentIntensityBeforeTool: Double = 0
+    private var adjustmentsBeforeTool = AdjustmentSnapshot(autoIntensity: 0, manual: PhotoEditAdjustments())
     private var renderGeneration = 0
     private var sourceTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
@@ -47,12 +45,12 @@ final class PhotoEditViewModel {
             cancelTool()
         case .toolApplied:
             applyTool()
-        case .autoAdjustmentClicked:
+        case let .adjustItemSelected(item):
             guard viewState.activeTool == .adjust else { return }
-            setAutoAdjustmentIntensity(viewState.autoAdjustmentIntensity > 0 ? 0 : 1)
-        case let .autoAdjustmentIntensityChanged(intensity):
+            selectAdjustItem(item)
+        case let .adjustValueChanged(value):
             guard viewState.activeTool == .adjust else { return }
-            setAutoAdjustmentIntensity(intensity)
+            setValue(value, of: viewState.selectedAdjustItem)
         case let .filterSelected(filter):
             guard viewState.activeTool == .filter, filter != viewState.session.filter else { return }
             viewState.session.filter = filter
@@ -102,7 +100,7 @@ final class PhotoEditViewModel {
 
         switch tool {
         case .adjust:
-            autoAdjustmentIntensityBeforeTool = viewState.autoAdjustmentIntensity
+            adjustmentsBeforeTool = adjustmentSnapshot
         case .filter:
             filterBeforeTool = viewState.session.filter
         case .crop:
@@ -116,8 +114,8 @@ final class PhotoEditViewModel {
         switch viewState.activeTool {
         case .adjust:
             viewState.activeTool = nil
-            // 필터 썸네일은 자동 보정 위에 필터를 입힌 모습이므로 강도가 바뀌었으면 다시 만든다.
-            if viewState.autoAdjustmentIntensity != autoAdjustmentIntensityBeforeTool {
+            // 필터 썸네일은 조정 위에 필터를 입힌 모습이므로 조정이 바뀌었으면 다시 만든다.
+            if adjustmentSnapshot != adjustmentsBeforeTool {
                 renderThumbnails()
             }
         case .filter:
@@ -127,10 +125,36 @@ final class PhotoEditViewModel {
         }
     }
 
-    private func setAutoAdjustmentIntensity(_ intensity: Double) {
-        let intensity = min(max(intensity, 0), 1)
-        guard intensity != viewState.autoAdjustmentIntensity else { return }
-        viewState.session.autoAdjustmentIntensity = intensity
+    private var adjustmentSnapshot: AdjustmentSnapshot {
+        AdjustmentSnapshot(
+            autoIntensity: viewState.session.autoAdjustmentIntensity,
+            manual: viewState.session.manualAdjustments
+        )
+    }
+
+    /// 자동 보정은 처음 고를 때 켜고, 고른 상태에서 다시 누르면 껐다 켠다.
+    private func selectAdjustItem(_ item: PhotoEditAdjustItem) {
+        let wasSelected = viewState.selectedAdjustItem == item
+        viewState.selectedAdjustItem = item
+        guard item == .auto else { return }
+        if wasSelected {
+            setValue(viewState.autoAdjustmentIntensity > 0 ? 0 : 1, of: .auto)
+        } else if viewState.autoAdjustmentIntensity == 0 {
+            setValue(1, of: .auto)
+        }
+    }
+
+    /// 항목 값을 바꾸면 자동 보정이 더한 몫은 그대로 두고 그 위에 더한 값만 바꾼다.
+    private func setValue(_ value: Double, of item: PhotoEditAdjustItem) {
+        let value = min(max(value, item.range.lowerBound), item.range.upperBound)
+        guard value != viewState.value(of: item) else { return }
+        switch item {
+        case .auto:
+            viewState.session.autoAdjustmentIntensity = value
+        case let .adjustment(adjustment):
+            let automatic = (viewState.autoAdjustments?[adjustment] ?? 0) * viewState.autoAdjustmentIntensity
+            viewState.session.manualAdjustments[adjustment] = value - automatic
+        }
         renderPreview()
     }
 
@@ -139,8 +163,9 @@ final class PhotoEditViewModel {
         switch viewState.activeTool {
         case .adjust:
             viewState.activeTool = nil
-            guard viewState.autoAdjustmentIntensity != autoAdjustmentIntensityBeforeTool else { return }
-            viewState.session.autoAdjustmentIntensity = autoAdjustmentIntensityBeforeTool
+            guard adjustmentSnapshot != adjustmentsBeforeTool else { return }
+            viewState.session.autoAdjustmentIntensity = adjustmentsBeforeTool.autoIntensity
+            viewState.session.manualAdjustments = adjustmentsBeforeTool.manual
             renderPreview()
         case .filter:
             viewState.activeTool = nil
@@ -216,11 +241,7 @@ final class PhotoEditViewModel {
     }
 
     private var currentLook: PhotoEditLook {
-        PhotoEditLook(
-            filter: viewState.session.filter,
-            autoAdjustment: autoAdjustment,
-            autoAdjustmentIntensity: viewState.autoAdjustmentIntensity
-        )
+        PhotoEditLook(filter: viewState.session.filter, adjustments: viewState.adjustments)
     }
 
     /// 자르기 결과가 바뀌면 미리보기 원본과 자동 보정값을 새로 구하고 미리보기와 필터 썸네일을 다시 만든다.
@@ -235,17 +256,17 @@ final class PhotoEditViewModel {
         let source = viewState.session.croppedImage
         let renderer = renderer
         previewSource = nil
-        autoAdjustment = nil
+        viewState.autoAdjustments = nil
         viewState.previewImage = nil
         viewState.thumbnails = [:]
 
         sourceTask = Task { [weak self] in
             let previewSource = await renderer.render(source, .original, Constants.previewLongEdge) ?? source
-            let autoAdjustment = await renderer.analyze(previewSource)
+            let autoAdjustments = await renderer.analyze(previewSource)
             guard !Task.isCancelled, let self, generation == self.renderGeneration else { return }
             self.sourceTask = nil
             self.previewSource = previewSource
-            self.autoAdjustment = autoAdjustment
+            self.viewState.autoAdjustments = autoAdjustments
             self.renderPreview()
             self.renderThumbnails()
         }
@@ -302,13 +323,17 @@ final class PhotoEditViewModel {
     private func complete() {
         viewState.isCompleting = true
         let session = viewState.session
+        let needsAnalysis = viewState.autoAdjustments == nil && session.autoAdjustmentIntensity > 0
         var look = currentLook
         let renderer = renderer
 
         completionTask = Task { [weak self] in
             // 미리보기를 준비하기 전에 완료하면 자동 보정값을 여기서 구한다.
-            if look.autoAdjustment == nil, look.autoAdjustmentIntensity > 0 {
-                look.autoAdjustment = await renderer.analyze(session.croppedImage)
+            if needsAnalysis, let autoAdjustments = await renderer.analyze(session.croppedImage) {
+                look.adjustments = autoAdjustments.scaled(
+                    by: session.autoAdjustmentIntensity,
+                    adding: session.manualAdjustments
+                )
             }
             let image = await renderer.render(session.croppedImage, look, nil)
             guard !Task.isCancelled, let self else { return }
@@ -333,6 +358,11 @@ final class PhotoEditViewModel {
         thumbnailTask = nil
         cropperTask?.cancel()
         cropperTask = nil
+    }
+
+    private struct AdjustmentSnapshot: Equatable {
+        let autoIntensity: Double
+        let manual: PhotoEditAdjustments
     }
 
     private struct OrientedImages {
