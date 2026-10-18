@@ -59,14 +59,22 @@ class PhotoEditViewModel(
         }
     }
 
+    // 원본 비율이나 사진 전체를 덮는 자유 프레임은 사진 모양 자체라 사진과 함께 돈다. 그 밖의 프레임은 모양을 유지한다.
     fun onRotateClick() {
         val geometry = geometry ?: return
         _uiState.update {
-            it.copy(
-                edit = geometry.rotateQuarter(it.edit),
-                aspectRatio = it.aspectRatio.turned,
-                lockedAspectRatio = it.lockedAspectRatio?.let { ratio -> 1f / ratio },
-            )
+            val crop = it.edit.crop
+            val coversWholeImage = crop.isCloseTo(CropWindow.Full)
+            val followsImage = it.aspectRatio == CropAspectRatio.Original ||
+                (it.aspectRatio == CropAspectRatio.Free && coversWholeImage)
+            if (followsImage) {
+                it.copy(
+                    edit = geometry.rotateQuarter(it.edit),
+                    lockedAspectRatio = it.lockedAspectRatio?.let { ratio -> 1f / ratio },
+                )
+            } else {
+                it.copy(edit = geometry.rotateQuarterKeepingFrame(it.edit))
+            }
         }
     }
 

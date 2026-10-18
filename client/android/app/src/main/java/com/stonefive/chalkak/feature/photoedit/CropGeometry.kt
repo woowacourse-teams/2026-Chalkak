@@ -112,6 +112,20 @@ class CropGeometry(
         return rotated.copy(crop = constrain(rotated))
     }
 
+    /** 프레임 모양을 유지한 90° 회전. 사진만 돌리고 결과 사각형의 가로·세로는 그대로 두며, 원본을 벗어나면 비율을 유지한 채 줄인다. */
+    fun rotateQuarterKeepingFrame(edit: PhotoEdit): PhotoEdit {
+        val rect = outputRect(edit)
+        val quarterTurns = (edit.quarterTurns + 1).mod(QUARTER_TURNS)
+        val rotated = edit.copy(
+            quarterTurns = quarterTurns,
+            crop = edit.crop.copy(
+                width = rect.width / turnedWidth(quarterTurns),
+                height = rect.height / turnedHeight(quarterTurns),
+            ),
+        )
+        return rotated.copy(crop = constrain(rotated))
+    }
+
     /** 결과 좌표계 기준 이동. 원본 밖으로 나가면 경계에서 멈춘다. */
     fun move(
         edit: PhotoEdit,

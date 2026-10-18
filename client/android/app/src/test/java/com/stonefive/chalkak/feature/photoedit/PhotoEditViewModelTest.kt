@@ -46,20 +46,41 @@ class PhotoEditViewModelTest {
     }
 
     @Test
-    fun `90도 회전하면 고정한 비율도 반대 비율로 바뀐다`() {
+    fun `90도 회전해도 고른 비율의 프레임 모양은 그대로다`() {
         val viewModel = loadedViewModel()
         viewModel.onAspectRatioSelect(CropAspectRatio.Portrait4x5)
 
         viewModel.onRotateClick()
 
-        assertEquals(1, viewModel.uiState.value.edit.quarterTurns)
-        assertEquals(5f / 4f, viewModel.uiState.value.lockedAspectRatio!!, TOLERANCE)
-        assertEquals(CropAspectRatio.Landscape5x4, viewModel.uiState.value.aspectRatio)
+        val state = viewModel.uiState.value
+        assertEquals(1, state.edit.quarterTurns)
+        assertEquals(CropAspectRatio.Portrait4x5, state.aspectRatio)
+        assertEquals(4f / 5f, state.lockedAspectRatio!!, TOLERANCE)
+        assertEquals(4f / 5f, outputAspectRatio(state.edit), TOLERANCE)
+    }
+
+    @Test
+    fun `자른 프레임은 자유 비율에서도 회전 후 모양을 유지한다`() {
+        val viewModel = loadedViewModel()
+        viewModel.onCropResize(CropCorner.BottomEnd, deltaX = -0.5f, deltaY = 0f)
+        val before = outputAspectRatio(viewModel.uiState.value.edit)
 
         viewModel.onRotateClick()
 
-        assertEquals(4f / 5f, viewModel.uiState.value.lockedAspectRatio!!, TOLERANCE)
-        assertEquals(CropAspectRatio.Portrait4x5, viewModel.uiState.value.aspectRatio)
+        assertEquals(before, outputAspectRatio(viewModel.uiState.value.edit), TOLERANCE)
+    }
+
+    @Test
+    fun `자르지 않은 사진과 원본 비율은 사진과 함께 돈다`() {
+        val free = loadedViewModel()
+        free.onRotateClick()
+        assertEquals(PhotoEdit(quarterTurns = 1), free.uiState.value.edit)
+
+        val original = loadedViewModel()
+        original.onAspectRatioSelect(CropAspectRatio.Original)
+        original.onRotateClick()
+        assertEquals(CropWindow.Full, original.uiState.value.edit.crop)
+        assertEquals(3f / 4f, original.uiState.value.lockedAspectRatio!!, TOLERANCE)
     }
 
     @Test
@@ -70,7 +91,7 @@ class PhotoEditViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(9f / 16f, state.lockedAspectRatio!!, TOLERANCE)
-        assertEquals(9f / 16f, (state.edit.crop.width * 4000f) / (state.edit.crop.height * 3000f), TOLERANCE)
+        assertEquals(9f / 16f, outputAspectRatio(state.edit), TOLERANCE)
     }
 
     @Test
@@ -130,6 +151,11 @@ class PhotoEditViewModelTest {
         assertEquals(PhotoFilter.Vintage, completed.filter)
         assertEquals(0.55f, completed.crop.width, TOLERANCE)
         assertEquals(0.55f / 0.75f, completed.crop.height, TOLERANCE)
+    }
+
+    private fun outputAspectRatio(edit: PhotoEdit): Float {
+        val rect = CropGeometry(4000f, 3000f).outputRect(edit)
+        return rect.width / rect.height
     }
 
     private fun loadedViewModel(initialEdit: PhotoEdit = PhotoEdit()) =

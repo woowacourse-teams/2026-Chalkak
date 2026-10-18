@@ -155,6 +155,30 @@ class CropGeometryTest {
     }
 
     @Test
+    fun `프레임을 유지한 회전은 결과 사각형 크기를 그대로 둔다`() {
+        val edit = PhotoEdit(crop = CropWindow(0.5f, 0.5f, 0.4f, 0.4f))
+
+        val rotated = geometry.rotateQuarterKeepingFrame(edit)
+
+        assertEquals(1, rotated.quarterTurns)
+        val before = geometry.outputRect(edit)
+        val after = geometry.outputRect(rotated)
+        assertEquals(before.width, after.width, TOLERANCE)
+        assertEquals(before.height, after.height, TOLERANCE)
+        assertTrue(geometry.isInside(rotated))
+    }
+
+    @Test
+    fun `프레임을 유지한 회전에서 사진을 벗어나면 비율을 지키며 줄인다`() {
+        val rotated = geometry.rotateQuarterKeepingFrame(PhotoEdit())
+
+        val rect = geometry.outputRect(rotated)
+        assertEquals(0.75f, rect.width, TOLERANCE)
+        assertEquals(4f / 3f, rect.width / rect.height, TOLERANCE)
+        assertTrue(geometry.isInside(rotated))
+    }
+
+    @Test
     fun `네 번 회전하면 처음 상태로 돌아온다`() {
         val edit = PhotoEdit(straightenDegrees = 5f, crop = geometry.constrain(PhotoEdit(straightenDegrees = 5f)))
 
