@@ -73,7 +73,10 @@ class PhotoEditViewModel(
                     lockedAspectRatio = it.lockedAspectRatio?.let { ratio -> 1f / ratio },
                 )
             } else {
-                it.copy(edit = geometry.rotateQuarterKeepingFrame(it.edit))
+                // 고정 비율은 돌린 사진에서 다시 가장 크게 맞춰, 비율 버튼을 다시 누른 것과 같게 한다.
+                val rotated = geometry.rotateQuarterKeepingFrame(it.edit)
+                val rotatedCrop = it.lockedAspectRatio?.let { ratio -> geometry.largestCrop(rotated, ratio) }
+                it.copy(edit = rotatedCrop?.let { crop -> rotated.copy(crop = crop) } ?: rotated)
             }
         }
     }

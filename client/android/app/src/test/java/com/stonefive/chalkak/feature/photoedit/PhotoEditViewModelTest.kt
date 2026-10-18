@@ -60,6 +60,24 @@ class PhotoEditViewModelTest {
     }
 
     @Test
+    fun `고정 비율로 회전하면 비율을 다시 고른 것처럼 가장 크게 맞춘다`() {
+        val viewModel = loadedViewModel()
+        viewModel.onAspectRatioSelect(CropAspectRatio.Landscape5x4)
+
+        repeat(2) {
+            viewModel.onRotateClick()
+            val rotated = viewModel.uiState.value.edit
+
+            viewModel.onAspectRatioSelect(CropAspectRatio.Landscape5x4)
+
+            val reselected = viewModel.uiState.value.edit
+            assertEquals(reselected.crop.width, rotated.crop.width, TOLERANCE)
+            assertEquals(reselected.crop.height, rotated.crop.height, TOLERANCE)
+            assertEquals(5f / 4f, outputAspectRatio(rotated), TOLERANCE)
+        }
+    }
+
+    @Test
     fun `자른 프레임은 자유 비율에서도 회전 후 모양을 유지한다`() {
         val viewModel = loadedViewModel()
         viewModel.onCropResize(CropCorner.BottomEnd, deltaX = -0.5f, deltaY = 0f)
