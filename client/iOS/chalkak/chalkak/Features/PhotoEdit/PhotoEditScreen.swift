@@ -28,6 +28,8 @@ struct PhotoEditScreen: View {
             switch viewState.activeTool {
             case nil:
                 overview(viewState)
+            case .adjust:
+                adjustTool(viewState)
             case .filter:
                 filterTool(viewState)
             case .crop:
@@ -72,6 +74,26 @@ struct PhotoEditScreen: View {
         }
     }
 
+    private func adjustTool(_ viewState: PhotoEditViewState) -> some View {
+        VStack(spacing: 0) {
+            preview(viewState)
+
+            PhotoEditAutoAdjustmentControl(
+                intensity: viewState.autoAdjustmentIntensity,
+                onToggle: { viewModel.handle(.autoAdjustmentClicked) },
+                onIntensityChange: { viewModel.handle(.autoAdjustmentIntensityChanged($0)) }
+            )
+            .padding(.vertical, theme.spacing.sm)
+
+            PhotoEditActionBar(
+                onCancel: { viewModel.handle(.toolCancelled) },
+                onApply: { viewModel.handle(.toolApplied) }
+            )
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
+        }
+    }
+
     private func filterTool(_ viewState: PhotoEditViewState) -> some View {
         VStack(spacing: 0) {
             preview(viewState)
@@ -86,7 +108,7 @@ struct PhotoEditScreen: View {
 
             PhotoEditActionBar(
                 onCancel: { viewModel.handle(.toolCancelled) },
-                onApply: { viewModel.handle(.filterApplied) }
+                onApply: { viewModel.handle(.toolApplied) }
             )
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)

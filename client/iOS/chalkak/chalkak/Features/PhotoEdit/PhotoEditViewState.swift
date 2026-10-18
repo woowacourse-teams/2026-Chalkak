@@ -132,6 +132,8 @@ struct PhotoEditSession {
     let original: UIImage
     var crop: PhotoEditCrop?
     var filter: PhotoEditFilter = .original
+    /// 자동 보정 강도(0...1). 보정값은 자른 사진을 분석해 다시 구하므로 강도만 보관한다.
+    var autoAdjustmentIntensity: Double = 0
 
     var croppedImage: UIImage {
         crop?.image ?? original
@@ -156,6 +158,7 @@ struct PhotoEditResult: Equatable {
 
 /// 편집 첫 화면에서 골라 들어가는 도구. 도구 화면에서 취소하면 그 도구에서 바꾼 것만 되돌린다.
 enum PhotoEditTool: CaseIterable, Identifiable, Sendable {
+    case adjust
     case filter
     case crop
 
@@ -163,6 +166,7 @@ enum PhotoEditTool: CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .adjust: "조정"
         case .filter: "필터"
         case .crop: "자르기·회전"
         }
@@ -170,6 +174,7 @@ enum PhotoEditTool: CaseIterable, Identifiable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .adjust: "dial.medium"
         case .filter: "camera.filters"
         case .crop: "crop.rotate"
         }
@@ -191,6 +196,10 @@ struct PhotoEditViewState {
         session.filter
     }
 
+    var autoAdjustmentIntensity: Double {
+        session.autoAdjustmentIntensity
+    }
+
     var displayedImage: UIImage {
         previewImage ?? session.croppedImage
     }
@@ -204,7 +213,9 @@ enum PhotoEditEvent: Equatable {
 enum PhotoEditAction {
     case toolSelected(PhotoEditTool)
     case toolCancelled
-    case filterApplied
+    case toolApplied
+    case autoAdjustmentClicked
+    case autoAdjustmentIntensityChanged(Double)
     case filterSelected(PhotoEditFilter)
     case aspectRatioSelected(PhotoEditAspectRatio)
     case rotateClicked

@@ -3,29 +3,75 @@ import CoreImage.CIFilterBuiltins
 import ImageIO
 import UIKit
 
+/// `CIImage.autoAdjustmentFilters`가 사진을 분석해 고른 보정.
+///
+/// 보정값이 사진 크기와 무관하므로 미리보기 크기에서 한 번 분석하고 원본 크기에도 그대로 적용한다.
+// 입력값은 변경되지 않는 NSNumber·CIVector뿐이라 여러 스레드에서 읽어도 안전하다.
+nonisolated struct PhotoEditAutoAdjustment: @unchecked Sendable {
+    // CIFilter는 상태를 가지므로 이름과 입력값만 보관하고 적용할 때마다 새로 만든다.
+    fileprivate let steps: [(name: String, parameters: [String: Any])]
+
+    fileprivate init(filters: [CIFilter]) {
+        steps = filters.map { filter in
+            let keys = filter.inputKeys.filter { $0 != kCIInputImageKey }
+            return (filter.name, filter.dictionaryWithValues(forKeys: keys))
+        }
+    }
+}
+
+/// 미리보기·썸네일·완료 렌더링에 함께 적용하는 보정과 필터. 자동 보정을 먼저 하고 그 위에 필터를 입힌다.
+nonisolated struct PhotoEditLook: Sendable {
+    var filter: PhotoEditFilter = .original
+    var autoAdjustment: PhotoEditAutoAdjustment?
+    var autoAdjustmentIntensity: Double = 0
+
+    static let original = PhotoEditLook()
+
+    var isOriginal: Bool {
+        filter == .original && !hasAutoAdjustment
+    }
+
+    fileprivate var hasAutoAdjustment: Bool {
+        autoAdjustmentIntensity > 0 && autoAdjustment?.steps.isEmpty == false
+    }
+}
+
 struct PhotoEditRenderer: Sendable {
     /// `maxLongEdge`가 있으면 긴 변을 그 크기로 줄여 렌더링하고, 없으면 원래 크기를 유지한다.
-    typealias Render = @Sendable (UIImage, PhotoEditFilter, CGFloat?) async -> UIImage?
+    typealias Render = @Sendable (UIImage, PhotoEditLook, CGFloat?) async -> UIImage?
     /// 반시계 방향 90° 회전 횟수와 좌우반전 여부를 적용한다.
     typealias Orient = @Sendable (UIImage, Int, Bool) async -> UIImage?
+    /// 사진을 분석해 자동 보정값을 구한다.
+    typealias Analyze = @Sendable (UIImage) async -> PhotoEditAutoAdjustment?
 
     let render: Render
     let orient: Orient
+    let analyze: Analyze
 
-    init(render: @escaping Render, orient: @escaping Orient = { image, _, _ in image }) {
+    init(
+        render: @escaping Render,
+        orient: @escaping Orient = { image, _, _ in image },
+        analyze: @escaping Analyze = { _ in nil }
+    ) {
         self.render = render
         self.orient = orient
+        self.analyze = analyze
     }
 
     static let live = PhotoEditRenderer(
-        render: { image, filter, maxLongEdge in
+        render: { image, look, maxLongEdge in
             await Task.detached(priority: .userInitiated) {
-                PhotoEditFilterRenderer.render(image, filter: filter, maxLongEdge: maxLongEdge)
+                PhotoEditFilterRenderer.render(image, look: look, maxLongEdge: maxLongEdge)
             }.value
         },
         orient: { image, quarterTurns, isFlipped in
             await Task.detached(priority: .userInitiated) {
                 PhotoEditFilterRenderer.orient(image, quarterTurns: quarterTurns, isFlipped: isFlipped)
+            }.value
+        },
+        analyze: { image in
+            await Task.detached(priority: .userInitiated) {
+                PhotoEditFilterRenderer.autoAdjustment(for: image)
             }.value
         }
     )
@@ -37,7 +83,7 @@ enum PhotoEditFilterRenderer {
 
     nonisolated static func render(
         _ image: UIImage,
-        filter: PhotoEditFilter,
+        look: PhotoEditLook,
         maxLongEdge: CGFloat? = nil
     ) -> UIImage? {
         guard var input = ciImage(from: image) else { return nil }
@@ -49,7 +95,7 @@ enum PhotoEditFilterRenderer {
                 by: CGAffineTransform(scaleX: scale, y: scale),
                 highQualityDownsample: true
             )
-        } else if filter == .original, image.imageOrientation == .up {
+        } else if look.isOriginal, image.imageOrientation == .up {
             return image
         }
 
@@ -60,7 +106,7 @@ enum PhotoEditFilterRenderer {
                 height: max(1, input.extent.height.rounded())
             )
         )
-        let output = apply(filter, to: input).cropped(to: outputRect)
+        let output = apply(look, to: input).cropped(to: outputRect)
         guard let cgImage = context.createCGImage(output, from: outputRect) else { return nil }
         return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
     }
@@ -86,6 +132,12 @@ enum PhotoEditFilterRenderer {
         return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
     }
 
+    /// 적목 보정은 눈 위치에 묶여 다른 크기에 적용할 수 없으므로 뺀다.
+    nonisolated static func autoAdjustment(for image: UIImage) -> PhotoEditAutoAdjustment? {
+        guard let input = ciImage(from: image) else { return nil }
+        return PhotoEditAutoAdjustment(filters: input.autoAdjustmentFilters(options: [.redEye: false]))
+    }
+
     private nonisolated static func ciImage(from image: UIImage) -> CIImage? {
         let source: CIImage
         if let cgImage = image.cgImage {
@@ -99,6 +151,28 @@ enum PhotoEditFilterRenderer {
         return oriented.transformed(
             by: CGAffineTransform(translationX: -oriented.extent.minX, y: -oriented.extent.minY)
         )
+    }
+
+    private nonisolated static func apply(_ look: PhotoEditLook, to image: CIImage) -> CIImage {
+        guard look.hasAutoAdjustment, let autoAdjustment = look.autoAdjustment else {
+            return apply(look.filter, to: image)
+        }
+
+        let adjusted = autoAdjustment.steps.reduce(image) { image, step in
+            guard let filter = CIFilter(name: step.name, parameters: step.parameters) else { return image }
+            filter.setValue(image, forKey: kCIInputImageKey)
+            return filter.outputImage ?? image
+        }
+        guard look.autoAdjustmentIntensity < 1 else {
+            return apply(look.filter, to: adjusted)
+        }
+
+        // 강도만큼 원본과 보정 결과를 섞는다.
+        let dissolve = CIFilter.dissolveTransition()
+        dissolve.inputImage = image
+        dissolve.targetImage = adjusted
+        dissolve.time = Float(look.autoAdjustmentIntensity)
+        return apply(look.filter, to: dissolve.outputImage ?? adjusted)
     }
 
     private nonisolated static func apply(_ filter: PhotoEditFilter, to image: CIImage) -> CIImage {

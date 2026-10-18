@@ -12,10 +12,16 @@ final class PhotoEditViewModel {
 
     /// 필터를 바꿀 때마다 큰 이미지를 다시 줄이지 않도록 미리보기 크기 이미지를 보관한다.
     private var previewSource: UIImage?
-    /// 필터 화면에서 취소하면 되돌릴 필터.
+    /// 자른 사진을 미리보기 크기에서 분석한 자동 보정값.
+    private var autoAdjustment: PhotoEditAutoAdjustment?
+    /// 도구 화면에서 취소하면 되돌릴 필터와 자동 보정 강도.
     private var filterBeforeTool: PhotoEditFilter = .original
+    private var autoAdjustmentIntensityBeforeTool: Double = 0
     private var renderGeneration = 0
+    private var sourceTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
+    /// 미리보기를 그리는 동안 편집이 또 바뀌어서, 끝나면 다시 그려야 한다.
+    private var needsPreviewRender = false
     private var thumbnailTask: Task<Void, Never>?
     private var cropperTask: Task<Void, Never>?
     /// 지금 방향으로 돌린 원본과 필터 이미지. 비율을 고르면 바로 Mantis를 새로 시작할 수 있도록 미리 만든다.
@@ -39,9 +45,14 @@ final class PhotoEditViewModel {
             openTool(tool)
         case .toolCancelled:
             cancelTool()
-        case .filterApplied:
-            guard viewState.activeTool == .filter else { return }
-            viewState.activeTool = nil
+        case .toolApplied:
+            applyTool()
+        case .autoAdjustmentClicked:
+            guard viewState.activeTool == .adjust else { return }
+            setAutoAdjustmentIntensity(viewState.autoAdjustmentIntensity > 0 ? 0 : 1)
+        case let .autoAdjustmentIntensityChanged(intensity):
+            guard viewState.activeTool == .adjust else { return }
+            setAutoAdjustmentIntensity(intensity)
         case let .filterSelected(filter):
             guard viewState.activeTool == .filter, filter != viewState.session.filter else { return }
             viewState.session.filter = filter
@@ -90,6 +101,8 @@ final class PhotoEditViewModel {
         viewState.activeTool = tool
 
         switch tool {
+        case .adjust:
+            autoAdjustmentIntensityBeforeTool = viewState.autoAdjustmentIntensity
         case .filter:
             filterBeforeTool = viewState.session.filter
         case .crop:
@@ -98,9 +111,37 @@ final class PhotoEditViewModel {
         }
     }
 
+    /// 크롭은 Mantis가 자른 결과를 `cropCompleted`로 따로 보낸다.
+    private func applyTool() {
+        switch viewState.activeTool {
+        case .adjust:
+            viewState.activeTool = nil
+            // 필터 썸네일은 자동 보정 위에 필터를 입힌 모습이므로 강도가 바뀌었으면 다시 만든다.
+            if viewState.autoAdjustmentIntensity != autoAdjustmentIntensityBeforeTool {
+                renderThumbnails()
+            }
+        case .filter:
+            viewState.activeTool = nil
+        case .crop, nil:
+            return
+        }
+    }
+
+    private func setAutoAdjustmentIntensity(_ intensity: Double) {
+        let intensity = min(max(intensity, 0), 1)
+        guard intensity != viewState.autoAdjustmentIntensity else { return }
+        viewState.session.autoAdjustmentIntensity = intensity
+        renderPreview()
+    }
+
     /// 도구 화면에서 바꾼 것만 버리고 편집 첫 화면으로 돌아간다.
     private func cancelTool() {
         switch viewState.activeTool {
+        case .adjust:
+            viewState.activeTool = nil
+            guard viewState.autoAdjustmentIntensity != autoAdjustmentIntensityBeforeTool else { return }
+            viewState.session.autoAdjustmentIntensity = autoAdjustmentIntensityBeforeTool
+            renderPreview()
         case .filter:
             viewState.activeTool = nil
             guard viewState.session.filter != filterBeforeTool else { return }
@@ -152,8 +193,8 @@ final class PhotoEditViewModel {
 
         cropperTask?.cancel()
         let original = viewState.session.original
-        let filter = viewState.session.filter
-        if orientation.isIdentity, filter == .original {
+        let look = currentLook
+        if orientation.isIdentity, look.isOriginal {
             preparingOrientation = nil
             orientedImages = OrientedImages(orientation: orientation, base: original, display: original)
             return
@@ -163,7 +204,7 @@ final class PhotoEditViewModel {
         let renderer = renderer
         cropperTask = Task { [weak self] in
             let base = await renderer.orient(original, orientation.quarterTurns, orientation.isFlipped) ?? original
-            let display = filter == .original ? base : await renderer.render(base, filter, nil) ?? base
+            let display = look.isOriginal ? base : await renderer.render(base, look, nil) ?? base
             guard !Task.isCancelled, let self else { return }
             self.cropperTask = nil
             self.preparingOrientation = nil
@@ -174,54 +215,86 @@ final class PhotoEditViewModel {
         }
     }
 
-    /// 자르기 결과가 바뀌면 미리보기와 필터 썸네일의 원본을 새로 만든다.
+    private var currentLook: PhotoEditLook {
+        PhotoEditLook(
+            filter: viewState.session.filter,
+            autoAdjustment: autoAdjustment,
+            autoAdjustmentIntensity: viewState.autoAdjustmentIntensity
+        )
+    }
+
+    /// 자르기 결과가 바뀌면 미리보기 원본과 자동 보정값을 새로 구하고 미리보기와 필터 썸네일을 다시 만든다.
     private func prepareRenderSources() {
+        sourceTask?.cancel()
         previewTask?.cancel()
+        previewTask = nil
+        needsPreviewRender = false
         thumbnailTask?.cancel()
         renderGeneration += 1
         let generation = renderGeneration
         let source = viewState.session.croppedImage
         let renderer = renderer
         previewSource = nil
+        autoAdjustment = nil
         viewState.previewImage = nil
         viewState.thumbnails = [:]
 
-        previewTask = Task { [weak self] in
-            let previewSource = await renderer.render(source, .original, Constants.previewLongEdge)
+        sourceTask = Task { [weak self] in
+            let previewSource = await renderer.render(source, .original, Constants.previewLongEdge) ?? source
+            let autoAdjustment = await renderer.analyze(previewSource)
             guard !Task.isCancelled, let self, generation == self.renderGeneration else { return }
-            self.previewSource = previewSource ?? source
+            self.sourceTask = nil
+            self.previewSource = previewSource
+            self.autoAdjustment = autoAdjustment
             self.renderPreview()
+            self.renderThumbnails()
         }
+    }
+
+    private func renderThumbnails() {
+        guard let previewSource else { return }
+        thumbnailTask?.cancel()
+        let generation = renderGeneration
+        let look = currentLook
+        let renderer = renderer
 
         thumbnailTask = Task { [weak self] in
-            guard let thumbnailSource = await renderer.render(source, .original, Constants.thumbnailLongEdge)
+            guard let thumbnailSource = await renderer.render(previewSource, .original, Constants.thumbnailLongEdge)
             else { return }
             var thumbnails: [PhotoEditFilter: UIImage] = [:]
             for filter in PhotoEditFilter.allCases {
                 guard !Task.isCancelled else { return }
-                thumbnails[filter] = await renderer.render(thumbnailSource, filter, nil)
+                var filterLook = look
+                filterLook.filter = filter
+                thumbnails[filter] = await renderer.render(thumbnailSource, filterLook, nil)
             }
             guard !Task.isCancelled, let self, generation == self.renderGeneration else { return }
+            self.thumbnailTask = nil
             self.viewState.thumbnails = thumbnails
         }
     }
 
+    /// 슬라이더를 움직이는 동안 렌더링이 쌓이지 않도록, 그리는 중이면 끝난 뒤 마지막 편집으로 한 번 더 그린다.
     private func renderPreview() {
-        // 미리보기 원본이 준비되면 그때 선택된 필터로 다시 호출된다.
+        // 미리보기 원본이 준비되면 그때의 편집으로 다시 호출된다.
         guard let previewSource else { return }
-        previewTask?.cancel()
+        guard previewTask == nil else {
+            needsPreviewRender = true
+            return
+        }
+        needsPreviewRender = false
         let generation = renderGeneration
-        let filter = viewState.session.filter
+        let look = currentLook
         let renderer = renderer
 
         previewTask = Task { [weak self] in
-            let preview = await renderer.render(previewSource, filter, nil)
-            guard !Task.isCancelled,
-                  let self,
-                  generation == self.renderGeneration,
-                  filter == self.viewState.session.filter
-            else { return }
+            let preview = await renderer.render(previewSource, look, nil)
+            guard !Task.isCancelled, let self, generation == self.renderGeneration else { return }
+            self.previewTask = nil
             self.viewState.previewImage = preview
+            if self.needsPreviewRender {
+                self.renderPreview()
+            }
         }
     }
 
@@ -229,10 +302,15 @@ final class PhotoEditViewModel {
     private func complete() {
         viewState.isCompleting = true
         let session = viewState.session
+        var look = currentLook
         let renderer = renderer
 
         completionTask = Task { [weak self] in
-            let image = await renderer.render(session.croppedImage, session.filter, nil)
+            // 미리보기를 준비하기 전에 완료하면 자동 보정값을 여기서 구한다.
+            if look.autoAdjustment == nil, look.autoAdjustmentIntensity > 0 {
+                look.autoAdjustment = await renderer.analyze(session.croppedImage)
+            }
+            let image = await renderer.render(session.croppedImage, look, nil)
             guard !Task.isCancelled, let self else { return }
             self.completionTask = nil
             self.viewState.isCompleting = false
@@ -246,8 +324,11 @@ final class PhotoEditViewModel {
     }
 
     private func cancelRendering() {
+        sourceTask?.cancel()
+        sourceTask = nil
         previewTask?.cancel()
         previewTask = nil
+        needsPreviewRender = false
         thumbnailTask?.cancel()
         thumbnailTask = nil
         cropperTask?.cancel()
