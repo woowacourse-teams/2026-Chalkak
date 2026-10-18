@@ -123,10 +123,10 @@ struct PhotoEditViewModelTests {
 
         let source = try #require(viewModel.viewState.cropperSource)
         #expect(source.state == cropperState)
-        // Mantis에 넘길 방향을 먼저 만들고, 이어서 화면의 최종 방향을 미리 만든다.
+        // Mantis에 넘길 방향을 먼저 만들고, 이어서 다음 회전에 쓸 방향을 미리 만든다.
         try await waitUntil { recorder.orientCalls.count == 2 }
         #expect(recorder.orientCalls.allSatisfy { $0.image === original })
-        #expect(recorder.orientCalls.map(\.quarterTurns) == [1, 2])
+        #expect(recorder.orientCalls.map(\.quarterTurns) == [1, 3])
         #expect(source.baseImage !== original)
         #expect(recorder.calls.contains { $0.image === source.baseImage && $0.filter == .fade && $0.maxLongEdge == nil })
     }
@@ -160,11 +160,13 @@ struct PhotoEditViewModelTests {
         #expect(landscapeSource.state.transformation == nil)
         #expect(landscapeSource.baseImage === original)
         #expect(landscapeSource.baseImage === firstSource.baseImage)
-        #expect(recorder.orientCalls.isEmpty)
+        // 비율을 바꿀 때는 지금 이미지를 그대로 쓰고, 다음 회전에 쓸 이미지만 미리 만든다.
+        try await waitUntil { !recorder.orientCalls.isEmpty }
+        #expect(recorder.orientCalls.allSatisfy { $0.quarterTurns == 1 && !$0.isFlipped })
     }
 
-    @Test("회전·반전은 Mantis 화면을 다시 만들지 않고 방향만 기록하며 돌린 원본을 미리 만든다")
-    func recordsOrientationWithoutRestartingCropper() async throws {
+    @Test("반전은 Mantis 화면을 다시 만들지 않고 방향만 기록하며 반전한 원본을 미리 만든다")
+    func recordsFlipWithoutRestartingCropper() async throws {
         let recorder = PhotoEditRenderRecorder()
         let original = Self.image(width: 40, height: 30)
         let viewModel = PhotoEditViewModel(
@@ -174,51 +176,78 @@ struct PhotoEditViewModelTests {
         viewModel.handle(.toolSelected(.crop))
         let firstSource = try #require(viewModel.viewState.cropperSource)
 
-        viewModel.handle(.rotateClicked)
         viewModel.handle(.flipClicked)
 
         #expect(viewModel.viewState.cropperSource?.id == firstSource.id)
-        #expect(viewModel.viewState.cropDraft.orientation == PhotoEditOrientation(quarterTurns: 1, isFlipped: true))
+        #expect(viewModel.viewState.cropDraft.orientation == PhotoEditOrientation(isFlipped: true))
         #expect(viewModel.viewState.cropDraft.imageOrientation.isIdentity)
         try await waitUntil {
-            recorder.orientCalls.last.map { $0.quarterTurns == 1 && $0.isFlipped } == true
+            recorder.orientCalls.last.map { $0.quarterTurns == 0 && $0.isFlipped } == true
         }
         #expect(recorder.orientCalls.allSatisfy { $0.image === original })
     }
 
-    @Test("돌린 뒤 비율을 고르면 돌린 원본에서 Mantis를 새로 시작하고 준비되기 전에는 지금 화면을 유지한다")
-    func restartsFromOrientedOriginalAfterRotation() async throws {
+    @Test("회전하면 돌린 원본으로 새로 시작하고 비율도 함께 돌리며, 준비되기 전에는 지금 화면을 유지한다")
+    func restartsFromRotatedOriginal() async throws {
         let original = Self.image(width: 40, height: 30)
         let gate = PhotoEditLockedValue<CheckedContinuation<Void, Never>?>(nil)
         let viewModel = PhotoEditViewModel(
-            session: PhotoEditSession(original: original),
+            session: PhotoEditSession(
+                original: original,
+                crop: PhotoEditCrop(
+                    image: Self.image(width: 20, height: 25),
+                    cropperState: PhotoEditCropperState(aspectRatio: .portrait4x5, transformation: Self.transformation)
+                )
+            ),
             renderer: PhotoEditRenderer(
                 render: { image, _, _ in image },
-                orient: { image, _, _ in
+                orient: { image, quarterTurns, _ in
                     await withCheckedContinuation { continuation in
                         gate.update { $0 = continuation }
                     }
-                    return PhotoEditViewModelTests.image(width: 30, height: 40)
+                    return quarterTurns.isMultiple(of: 2) ? image : PhotoEditViewModelTests.image(width: 30, height: 40)
                 }
             )
         )
         viewModel.handle(.toolSelected(.crop))
         let firstSource = try #require(viewModel.viewState.cropperSource)
+        #expect(firstSource.animatesRotation == false)
 
         viewModel.handle(.rotateClicked)
-        viewModel.handle(.aspectRatioSelected(.portrait4x5))
         #expect(viewModel.viewState.cropperSource?.id == firstSource.id)
 
         try await waitUntil { gate.value != nil }
         gate.value?.resume()
+        gate.update { $0 = nil }
         try await waitUntil { viewModel.viewState.cropperSource?.id != firstSource.id }
 
         let source = try #require(viewModel.viewState.cropperSource)
         #expect(source.baseImage.size == CGSize(width: 30, height: 40))
-        #expect(source.state.aspectRatio == .portrait4x5)
+        #expect(source.animatesRotation)
+        #expect(source.state.aspectRatio == .landscape5x4)
         #expect(source.state.imageOrientation == PhotoEditOrientation(quarterTurns: 1))
         #expect(source.state.orientation == PhotoEditOrientation(quarterTurns: 1))
         #expect(source.state.transformation == nil)
+        // 다음 회전에 쓸 이미지를 만드는 중이라도 가볍게 끝낼 수 있게 풀어 둔다.
+        try await waitUntil { gate.value != nil }
+        gate.value?.resume()
+    }
+
+    @Test("비율을 고르면 반전까지 적용한 원본으로 새로 시작한다")
+    func restartsFromFlippedOriginalForAspectRatio() async throws {
+        let recorder = PhotoEditRenderRecorder()
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
+            renderer: recorder.renderer
+        )
+        viewModel.handle(.toolSelected(.crop))
+        viewModel.handle(.flipClicked)
+        viewModel.handle(.aspectRatioSelected(.square))
+        try await waitUntil { viewModel.viewState.cropperSource?.state.aspectRatio == .square }
+
+        let source = try #require(viewModel.viewState.cropperSource)
+        #expect(source.state.imageOrientation == PhotoEditOrientation(isFlipped: true))
+        #expect(source.animatesRotation == false)
     }
 
     @Test("자르기 결과에는 Mantis에 넘긴 이미지 방향과 화면의 최종 방향을 함께 남긴다")
@@ -229,14 +258,14 @@ struct PhotoEditViewModelTests {
         )
         viewModel.handle(.toolSelected(.crop))
         let source = try #require(viewModel.viewState.cropperSource)
-        viewModel.handle(.rotateClicked)
+        viewModel.handle(.flipClicked)
 
         var mantisState = source.state
         mantisState.transformation = Self.transformation
         viewModel.handle(.cropCompleted(PhotoEditCrop(image: Self.image(width: 10, height: 10), cropperState: mantisState)))
 
         let state = try #require(viewModel.viewState.session.crop?.cropperState)
-        #expect(state.orientation == PhotoEditOrientation(quarterTurns: 1))
+        #expect(state.orientation == PhotoEditOrientation(isFlipped: true))
         #expect(state.imageOrientation.isIdentity)
         #expect(state.transformation == Self.transformation)
     }
@@ -416,7 +445,22 @@ struct PhotoEditViewModelTests {
             #expect(abs(portraitValue * landscapeValue - 1) < 0.0001)
         }
         #expect(PhotoEditAspectRatio.free.widthToHeight(originalSize: size) == nil)
+        for ratio in PhotoEditAspectRatio.allCases {
+            #expect(ratio.rotated.rotated == ratio)
+        }
+        #expect(PhotoEditAspectRatio.portrait9x16.rotated == .landscape16x9)
+        #expect(PhotoEditAspectRatio.square.rotated == .square)
         #expect(PhotoEditAspectRatio.original.widthToHeight(originalSize: size) == 1.5)
+    }
+
+    @Test("자르기 화면은 사진이 보이는 크기에 손잡이 여백만 더한 크기다")
+    func sizesCropperToPhoto() {
+        let landscape = PhotoEditCropper.size(for: CGSize(width: 4_000, height: 3_000), in: CGSize(width: 402, height: 600))
+        #expect(landscape == CGSize(width: 402, height: 308.5))
+
+        let portrait = PhotoEditCropper.size(for: CGSize(width: 3_000, height: 4_000), in: CGSize(width: 402, height: 450))
+        #expect(portrait.height == 450)
+        #expect(abs(portrait.width - (422 * 0.75 + 28)) < 0.001)
     }
 
     @Test("반전한 상태에서 회전하면 원본 기준 회전 방향이 반대가 된다")

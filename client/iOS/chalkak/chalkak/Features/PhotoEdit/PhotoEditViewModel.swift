@@ -22,11 +22,13 @@ final class PhotoEditViewModel {
     private var needsPreviewRender = false
     private var thumbnailTask: Task<Void, Never>?
     private var cropperTask: Task<Void, Never>?
-    /// 지금 방향으로 돌린 원본과 필터 이미지. 비율을 고르면 바로 Mantis를 새로 시작할 수 있도록 미리 만든다.
+    /// 방향을 적용한 원본과 필터 이미지. 반전 뒤 비율을 고르거나 다음 회전을 누르면 바로 Mantis를 새로 시작할 수 있도록 미리 만든다.
     private var orientedImages: OrientedImages?
     private var preparingOrientation: PhotoEditOrientation?
     /// 이미지가 준비되면 `cropDraft`로 Mantis를 새로 시작해야 한다.
     private var needsCropperSource = false
+    /// 새로 시작할 Mantis를 회전 애니메이션과 함께 보여 준다.
+    private var pendingSourceAnimatesRotation = false
     private var completionTask: Task<Void, Never>?
 
     init(session: PhotoEditSession, renderer: PhotoEditRenderer = .live) {
@@ -63,17 +65,22 @@ final class PhotoEditViewModel {
             viewState.cropDraft.transformation = nil
             requestCropperSource()
         case .rotateClicked:
-            // 화면의 회전은 Mantis가 애니메이션으로 처리하고, 여기서는 방향만 기록해 둔다.
+            // 돌리면 사진 모양이 바뀌어 자르기 화면 크기도 바뀌므로, 돌린 원본으로 Mantis를 새로 시작한다.
+            // 사진 앱처럼 자르기 비율도 함께 돌린다.
             guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.orientation.rotateCounterclockwise()
-            prepareOrientedImages(for: viewState.cropDraft.orientation)
+            viewState.cropDraft.aspectRatio = viewState.cropDraft.aspectRatio.rotated
+            viewState.cropDraft.imageOrientation = viewState.cropDraft.orientation
+            viewState.cropDraft.transformation = nil
+            requestCropperSource(animatesRotation: true)
         case .flipClicked:
+            // 반전은 사진 모양이 그대로라 Mantis가 애니메이션으로 처리하고, 여기서는 방향만 기록해 둔다.
             guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.orientation.flipHorizontally()
             prepareOrientedImages(for: viewState.cropDraft.orientation)
         case var .cropCompleted(crop):
             guard viewState.activeTool == .crop else { return }
-            // Mantis가 돌린 만큼은 `transformation`에 들어 있고, 화면의 최종 방향은 여기서 기록해 둔 값이다.
+            // Mantis가 반전한 만큼은 `transformation`에 들어 있고, 화면의 최종 방향은 여기서 기록해 둔 값이다.
             crop.cropperState.orientation = viewState.cropDraft.orientation
             closeCropper()
             viewState.session.crop = crop
@@ -185,34 +192,50 @@ final class PhotoEditViewModel {
         orientedImages = nil
         preparingOrientation = nil
         needsCropperSource = false
+        pendingSourceAnimatesRotation = false
         viewState.cropperSource = nil
         viewState.activeTool = nil
     }
 
     /// `cropDraft`로 Mantis를 새로 시작한다. 이미지가 아직 없으면 준비되는 대로 바꾸고, 그동안 지금 화면을 유지한다.
-    private func requestCropperSource() {
+    private func requestCropperSource(animatesRotation: Bool = false) {
         needsCropperSource = true
+        pendingSourceAnimatesRotation = animatesRotation
         prepareOrientedImages(for: viewState.cropDraft.imageOrientation)
         applyCropperSourceIfReady()
     }
 
     private func applyCropperSourceIfReady() {
         let draft = viewState.cropDraft
-        guard needsCropperSource,
-              let orientedImages,
-              orientedImages.orientation == draft.imageOrientation
-        else { return }
+        guard needsCropperSource, let images = images(for: draft.imageOrientation) else { return }
         needsCropperSource = false
         viewState.cropperSource = PhotoEditCropperSource(
-            baseImage: orientedImages.base,
-            displayImage: orientedImages.display,
-            state: draft
+            baseImage: images.base,
+            displayImage: images.display,
+            state: draft,
+            animatesRotation: pendingSourceAnimatesRotation
         )
+        pendingSourceAnimatesRotation = false
+        // 다음 회전을 누르면 바로 돌아가도록 한 번 더 돌린 원본을 미리 만든다.
+        var nextOrientation = draft.orientation
+        nextOrientation.rotateCounterclockwise()
+        prepareOrientedImages(for: nextOrientation)
+    }
+
+    /// 지금 Mantis가 쓰는 이미지도 같은 방향이면 다시 만들지 않고 쓴다.
+    private func images(for orientation: PhotoEditOrientation) -> OrientedImages? {
+        if let orientedImages, orientedImages.orientation == orientation {
+            return orientedImages
+        }
+        if let source = viewState.cropperSource, source.state.imageOrientation == orientation {
+            return OrientedImages(orientation: orientation, base: source.baseImage, display: source.displayImage)
+        }
+        return nil
     }
 
     /// 방향을 적용한 원본과, 화면에 보일 필터 이미지를 만든다.
     private func prepareOrientedImages(for orientation: PhotoEditOrientation) {
-        guard orientedImages?.orientation != orientation, preparingOrientation != orientation else { return }
+        guard images(for: orientation) == nil, preparingOrientation != orientation else { return }
         // 띄워야 할 Mantis 이미지를 만드는 중이면 미리 만들기보다 그쪽을 먼저 끝낸다.
         if needsCropperSource, preparingOrientation == viewState.cropDraft.imageOrientation { return }
 
@@ -235,8 +258,10 @@ final class PhotoEditViewModel {
             self.preparingOrientation = nil
             self.orientedImages = OrientedImages(orientation: orientation, base: base, display: display)
             self.applyCropperSourceIfReady()
-            // 기다리는 동안 방향이 또 바뀌었으면 마지막 방향을 이어서 만든다.
-            self.prepareOrientedImages(for: self.viewState.cropDraft.orientation)
+            // 기다리는 동안 Mantis에 띄울 방향이 또 바뀌었으면 그 방향을 이어서 만든다.
+            if self.needsCropperSource {
+                self.prepareOrientedImages(for: self.viewState.cropDraft.imageOrientation)
+            }
         }
     }
 

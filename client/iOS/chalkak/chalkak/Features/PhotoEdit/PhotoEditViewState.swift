@@ -51,6 +51,19 @@ enum PhotoEditAspectRatio: CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// 사진을 90° 돌렸을 때의 비율. 세로·가로 짝을 서로 바꾼다.
+    var rotated: PhotoEditAspectRatio {
+        switch self {
+        case .original, .free, .square: self
+        case .portrait4x5: .landscape5x4
+        case .landscape5x4: .portrait4x5
+        case .portrait3x4: .landscape4x3
+        case .landscape4x3: .portrait3x4
+        case .portrait9x16: .landscape16x9
+        case .landscape16x9: .portrait9x16
+        }
+    }
+
     /// 자르기 영역의 가로÷세로 비율. 자유 비율이면 `nil`이다.
     func widthToHeight(originalSize: CGSize) -> Double? {
         switch self {
@@ -101,7 +114,7 @@ struct PhotoEditOrientation: Hashable, Sendable {
 
 /// 다시 자를 때 이전 자르기 화면을 복원하기 위한 상태.
 ///
-/// 회전·반전은 Mantis가 애니메이션과 함께 처리하고, 비율을 고르면 지금 방향으로 돌린 원본에서 Mantis를 새로 시작한다.
+/// 반전은 Mantis가 애니메이션과 함께 처리하고, 회전하거나 비율을 고르면 지금 방향으로 돌린 원본에서 Mantis를 새로 시작한다.
 struct PhotoEditCropperState: Equatable, Sendable {
     var aspectRatio: PhotoEditAspectRatio = .free
     /// 화면에 보이는 최종 방향.
@@ -119,6 +132,8 @@ struct PhotoEditCropperSource: Identifiable {
     /// `baseImage`에 선택한 필터를 적용한 이미지.
     let displayImage: UIImage
     let state: PhotoEditCropperState
+    /// 회전해서 새로 시작했으면 이전 방향에서 돌아 들어오는 애니메이션을 보여 준다.
+    var animatesRotation = false
 }
 
 struct PhotoEditCrop {

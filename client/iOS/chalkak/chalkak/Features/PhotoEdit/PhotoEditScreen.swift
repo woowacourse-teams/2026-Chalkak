@@ -119,22 +119,17 @@ struct PhotoEditScreen: View {
 
     private func cropTool(_ viewState: PhotoEditViewState) -> some View {
         VStack(spacing: 0) {
-            Group {
+            GeometryReader { proxy in
                 if let source = viewState.cropperSource {
-                    PhotoEditCropper(
-                        source: source,
-                        controller: cropperController,
-                        onCropped: { viewModel.handle(.cropCompleted($0)) }
-                    )
-                    .id(source.id)
-                    // Mantis 마스크가 영역 밖으로 커져 다른 버튼을 덮지 않게 한다.
-                    .clipped()
+                    cropper(source, in: proxy.size)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                 } else {
                     ProgressView()
                         .tint(theme.colors.textOnEditor)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: Metrics.rotationDuration), value: viewState.cropperSource?.id)
 
             PhotoEditAspectRatioStrip(
                 selectedAspectRatio: viewState.cropDraft.aspectRatio,
@@ -156,16 +151,44 @@ struct PhotoEditScreen: View {
                             viewModel.handle(.flipClicked)
                         }
                     },
-                    onRotate: {
-                        if cropperController.rotateCounterclockwise() {
-                            viewModel.handle(.rotateClicked)
-                        }
-                    }
+                    onRotate: { viewModel.handle(.rotateClicked) }
                 )
             }
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
         }
+    }
+
+    /// 사진이 보이는 크기에 맞춘 Mantis. 회전해서 새로 시작하면 돌리기 전 모습에서 반시계 방향으로 돌아 들어온다.
+    private func cropper(_ source: PhotoEditCropperSource, in availableSize: CGSize) -> some View {
+        let size = PhotoEditCropper.size(for: source.baseImage.size, in: availableSize)
+        let previousSize = PhotoEditCropper.size(
+            for: CGSize(width: source.baseImage.size.height, height: source.baseImage.size.width),
+            in: availableSize
+        )
+        // 90° 돌린 새 화면이 돌리기 전 화면과 같은 크기로 보이게 하는 배율.
+        let rotationStartScale = min(previousSize.width / size.height, previousSize.height / size.width)
+
+        return PhotoEditCropper(
+            source: source,
+            controller: cropperController,
+            onCropped: { viewModel.handle(.cropCompleted($0)) }
+        )
+        .frame(width: size.width, height: size.height)
+        // Mantis 마스크가 영역 밖으로 커져 다른 버튼을 덮지 않게 한다.
+        .clipped()
+        .id(source.id)
+        .transition(
+            source.animatesRotation
+                ? .asymmetric(
+                    insertion: .modifier(
+                        active: PhotoEditRotationEffect(degrees: Metrics.rotationStartDegrees, scale: rotationStartScale),
+                        identity: PhotoEditRotationEffect(degrees: 0, scale: 1)
+                    ),
+                    removal: .identity
+                )
+                : .identity
+        )
     }
 
     private func preview(_ viewState: PhotoEditViewState) -> some View {
@@ -201,8 +224,22 @@ struct PhotoEditScreen: View {
     }
 }
 
+private struct PhotoEditRotationEffect: ViewModifier {
+    let degrees: Double
+    let scale: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(degrees))
+            .scaleEffect(scale)
+    }
+}
+
 private enum Metrics {
     static let toolOptionsHeight: CGFloat = 96
+    /// 반시계 방향으로 돌린 사진을 시계 방향으로 90° 돌려 두면 돌리기 전 모습과 같다.
+    static let rotationStartDegrees: Double = 90
+    static let rotationDuration: Double = 0.3
 }
 
 #Preview("Photo Edit") {

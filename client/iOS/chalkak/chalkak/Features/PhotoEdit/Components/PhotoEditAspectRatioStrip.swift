@@ -10,10 +10,19 @@ struct PhotoEditAspectRatioStrip: View {
     let onSelect: (PhotoEditAspectRatio) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: theme.spacing.lg) {
-                ForEach(PhotoEditAspectRatio.allCases) { aspectRatio in
-                    item(aspectRatio)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: theme.spacing.lg) {
+                    ForEach(PhotoEditAspectRatio.allCases) { aspectRatio in
+                        item(aspectRatio)
+                            .id(aspectRatio)
+                    }
+                }
+            }
+            // 고른 비율을 가운데로 옮긴다. 회전으로 세로·가로 짝으로 바뀌어도 고른 비율이 보인다.
+            .onChange(of: selectedAspectRatio) { _, aspectRatio in
+                withAnimation {
+                    proxy.scrollTo(aspectRatio, anchor: .center)
                 }
             }
         }
