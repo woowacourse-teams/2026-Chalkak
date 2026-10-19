@@ -2,11 +2,10 @@ package com.stonefive.chalkak.feature.photoedit
 
 import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.PhotoRotation
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
  * 자르기 영역 계산.
@@ -34,7 +33,7 @@ class CropGeometry(
 
     /** 결과 이미지 좌표계에서 본 자르기 사각형. */
     fun outputRect(edit: PhotoEdit): CropRect {
-        val rotation = Rotation.of(edit.rotationDegrees)
+        val rotation = PhotoRotation.of(edit.rotationDegrees)
         val sourceX = edit.crop.centerX * width - width / 2f
         val sourceY = edit.crop.centerY * height - height / 2f
         return CropRect(
@@ -53,7 +52,7 @@ class CropGeometry(
         viewportWidth: Float,
         viewportHeight: Float,
     ): Float {
-        val rotation = Rotation.of(rotationDegrees)
+        val rotation = PhotoRotation.of(rotationDegrees)
         val boundsWidth = width * abs(rotation.cos) + height * abs(rotation.sin)
         val boundsHeight = width * abs(rotation.sin) + height * abs(rotation.cos)
         return min(viewportWidth / boundsWidth, viewportHeight / boundsHeight)
@@ -61,7 +60,7 @@ class CropGeometry(
 
     /** 원본을 벗어난 영역을 비율을 유지한 채 줄이고, 그래도 벗어나면 안쪽으로 옮긴다. */
     fun constrain(edit: PhotoEdit): CropWindow {
-        val rotation = Rotation.of(edit.rotationDegrees)
+        val rotation = PhotoRotation.of(edit.rotationDegrees)
         val rect = outputRect(edit)
         val halfExtentX = rect.halfExtentX(rotation)
         val halfExtentY = rect.halfExtentY(rotation)
@@ -238,7 +237,7 @@ class CropGeometry(
         rect: CropRect,
         edit: PhotoEdit,
     ): CropWindow {
-        val rotation = Rotation.of(edit.rotationDegrees)
+        val rotation = PhotoRotation.of(edit.rotationDegrees)
         val sourceX = rotation.cos * rect.centerX + rotation.sin * rect.centerY
         val sourceY = -rotation.sin * rect.centerX + rotation.cos * rect.centerY
         return CropWindow(
@@ -253,7 +252,7 @@ class CropGeometry(
         rect: CropRect,
         edit: PhotoEdit,
     ): Boolean {
-        val rotation = Rotation.of(edit.rotationDegrees)
+        val rotation = PhotoRotation.of(edit.rotationDegrees)
         val crop = cropWindowOf(rect, edit)
         val sourceX = crop.centerX * width
         val sourceY = crop.centerY * height
@@ -269,25 +268,11 @@ class CropGeometry(
 
     private fun turnedHeight(quarterTurns: Int): Float = if (quarterTurns.mod(2) == 0) height else width
 
-    private fun CropRect.halfExtentX(rotation: Rotation): Float =
+    private fun CropRect.halfExtentX(rotation: PhotoRotation): Float =
         (width * abs(rotation.cos) + height * abs(rotation.sin)) / 2f
 
-    private fun CropRect.halfExtentY(rotation: Rotation): Float =
+    private fun CropRect.halfExtentY(rotation: PhotoRotation): Float =
         (width * abs(rotation.sin) + height * abs(rotation.cos)) / 2f
-
-    private class Rotation(
-        val cos: Float,
-        val sin: Float,
-    ) {
-        companion object {
-            fun of(degrees: Float): Rotation {
-                val radians = Math.toRadians(degrees.toDouble())
-                return Rotation(cos = snap(cos(radians)), sin = snap(sin(radians)))
-            }
-
-            private fun snap(value: Double): Float = if (abs(value) < SNAP_EPSILON) 0f else value.toFloat()
-        }
-    }
 
     private companion object {
         const val QUARTER_TURNS = 4
@@ -295,7 +280,6 @@ class CropGeometry(
         const val MIN_CROP_FRACTION = 0.1f
         const val RESIZE_SEARCH_STEPS = 24
         const val TOLERANCE = 1e-4f
-        const val SNAP_EPSILON = 1e-6
     }
 }
 

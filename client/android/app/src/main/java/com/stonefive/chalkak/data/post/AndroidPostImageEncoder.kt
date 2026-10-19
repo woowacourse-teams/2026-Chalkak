@@ -12,6 +12,7 @@ import android.os.Build
 import androidx.exifinterface.media.ExifInterface
 import com.stonefive.chalkak.domain.model.PhotoColorTransform
 import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.PhotoEditTransform
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -214,25 +215,13 @@ class AndroidPostImageEncoder(
         }
     }
 
-    /**
-     * 자르기 중심을 결과 이미지 가운데로 옮기고 회전해 그린다. 조정이 없으면 필터 색을 그리면서 함께 입히고,
-     * 조정이 있으면 그린 뒤 픽셀마다 조정과 필터를 적용한다.
-     */
+    // 조정이 없으면 필터 색을 그리면서 함께 입히고, 조정이 있으면 그린 뒤 픽셀마다 조정과 필터를 적용한다.
     private fun applyEdit(
         bitmap: Bitmap,
         edit: PhotoEdit,
     ): Bitmap {
-        val isTurned = edit.quarterTurns.mod(2) == 1
-        val turnedWidth = if (isTurned) bitmap.height else bitmap.width
-        val turnedHeight = if (isTurned) bitmap.width else bitmap.height
-        val crop = edit.crop
-        val outputWidth = (crop.width * turnedWidth).roundToInt().coerceIn(1, turnedWidth)
-        val outputHeight = (crop.height * turnedHeight).roundToInt().coerceIn(1, turnedHeight)
-        val matrix = Matrix().apply {
-            setTranslate(-crop.centerX * bitmap.width, -crop.centerY * bitmap.height)
-            postRotate(edit.rotationDegrees)
-            postTranslate(outputWidth / 2f, outputHeight / 2f)
-        }
+        val transform = PhotoEditTransform(edit, bitmap.width, bitmap.height)
+        val matrix = Matrix().apply { setValues(transform.matrixValues()) }
         val hasAdjustments = !edit.adjustments.isIdentity
         val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
             if (!hasAdjustments) {
@@ -241,7 +230,7 @@ class AndroidPostImageEncoder(
                     ?.let(::ColorMatrixColorFilter)
             }
         }
-        val output = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
+        val output = Bitmap.createBitmap(transform.outputWidth, transform.outputHeight, Bitmap.Config.ARGB_8888)
         Canvas(output).drawBitmap(bitmap, matrix, paint)
         if (hasAdjustments) output.applyColorTransform(edit.colorTransform())
         return output
