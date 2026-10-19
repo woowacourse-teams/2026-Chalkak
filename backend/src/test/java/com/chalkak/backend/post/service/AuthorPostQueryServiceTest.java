@@ -10,6 +10,8 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +43,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -71,7 +73,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 """, postId);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -94,7 +96,8 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 LocalDate.of(2026, 4, 2), ModerationStatus.APPROVED);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, pageSize, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, pageSize,
+                viewerId);
 
         // Then
         assertThat(result.posts()).hasSize(pageSize);
@@ -109,7 +112,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 1), ModerationStatus.PENDING);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, authorId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, authorId);
 
         // Then
         assertThat(result.posts()).isEmpty();
@@ -128,7 +131,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         }
 
         // When & Then
-        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 20, viewerId))
+        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 1, 20, viewerId))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("작성자를 찾을 수 없습니다.");
     }
@@ -140,8 +143,146 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         UUID authorId = createUser(jdbcTemplate);
 
         // When & Then
-        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 20, UUID.randomUUID()))
+        assertThatThrownBy(
+                () -> postQueryService.getAuthorPosts(authorId, 1, 20, UUID.randomUUID()))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 20, 100})
+    @DisplayName("월과 연도를 넘어 21개 사진을 요청한 크기로 중복 없이 이어보고 종료한다")
+    void getAuthorPosts_twentyOnePhotosAcrossYear_returnsAllWithoutDuplicates(int pageSize) {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        List<UUID> expectedIds = new ArrayList<>();
+        for (int day = 20; day >= 0; day--) {
+            expectedIds.add(createPost(jdbcTemplate, authorId,
+                    LocalDate.of(2025, 12, 15).plusDays(day), ModerationStatus.APPROVED));
+        }
+        List<UUID> actualIds = new ArrayList<>();
+        int currentPage = 0;
+        boolean hasNext = true;
+
+        // When
+        for (int page = 1; page <= 21 && hasNext; page++) {
+            AuthorPostListResult result = postQueryService.getAuthorPosts(
+                    authorId, page, pageSize, viewerId);
+            assertThat(result.posts()).hasSizeLessThanOrEqualTo(pageSize);
+            actualIds.addAll(
+                    result.posts().stream().map(AuthorPostListResult.PostSummary::id).toList());
+            if (result.hasNext()) {
+                assertThat(result.posts()).hasSize(pageSize);
+            }
+            assertThat(result.currentPage()).isEqualTo(page);
+            assertThat(result.pageSize()).isEqualTo(pageSize);
+            currentPage = result.currentPage();
+            hasNext = result.hasNext();
+        }
+
+        // Then
+        assertThat(actualIds).containsExactlyElementsOf(expectedIds).doesNotHaveDuplicates();
+        assertThat(hasNext).isFalse();
+        assertThat(currentPage).isEqualTo((21 + pageSize - 1) / pageSize);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 20})
+    @DisplayName("빈 목록과 정확히 한 페이지인 목록은 요청한 페이지 정보와 함께 종료한다")
+    void getAuthorPosts_noExtraPhoto_returnsEndMetadata(int count) {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        for (int day = 0; day < count; day++) {
+            createPost(jdbcTemplate, authorId,
+                    LocalDate.of(2026, 4, 1).plusDays(day), ModerationStatus.APPROVED);
+        }
+
+        // When
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
+
+        // Then
+        assertThat(result.posts()).hasSize(count);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.pageSize()).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("조회 중 승인된 사진을 현재 순서에 반영하며 페이지 사이의 중복을 허용한다")
+    void getAuthorPosts_lateApproval_returnsCurrentPageOrder() {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        UUID newestId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 5), ModerationStatus.APPROVED);
+        UUID pastApprovalId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 4), ModerationStatus.PENDING);
+        UUID boundaryId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 3), ModerationStatus.APPROVED);
+        UUID nextApprovalId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 2), ModerationStatus.PENDING);
+        UUID oldestId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
+        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(newestId, boundaryId);
+        jdbcTemplate.update("UPDATE posts SET moderation_status = 'APPROVED' WHERE id IN (?, ?)",
+                pastApprovalId, nextApprovalId);
+
+        // When
+        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
+        AuthorPostListResult third = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+
+        // Then
+        assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(boundaryId, nextApprovalId);
+        assertThat(second.currentPage()).isEqualTo(2);
+        assertThat(second.hasNext()).isTrue();
+        assertThat(third.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(oldestId);
+        assertThat(third.hasNext()).isFalse();
+        assertThat(refreshed.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(newestId, pastApprovalId);
+    }
+
+    @Test
+    @DisplayName("조회 중 삭제된 사진을 제외한 현재 순서를 사용하며 페이지 이동 중 누락을 허용한다")
+    void getAuthorPosts_deletedPhotos_returnsCurrentOffsetWithoutSnapshot() {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        List<UUID> ids = new ArrayList<>();
+        for (int day = 1; day <= 5; day++) {
+            ids.add(createPost(jdbcTemplate, authorId,
+                    LocalDate.of(2026, 4, day), ModerationStatus.APPROVED));
+        }
+        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(4), ids.get(3));
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                ids.get(3));
+        jdbcTemplate.update("""
+                UPDATE photos SET deleted_at = CURRENT_TIMESTAMP
+                WHERE id = (SELECT photo_id FROM posts WHERE id = ?)
+                """, ids.get(2));
+
+        // When
+        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        AuthorPostListResult pastEnd = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
+
+        // Then
+        assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(0));
+        assertThat(second.hasNext()).isFalse();
+        assertThat(refreshed.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(4), ids.get(1));
+        assertThat(pastEnd.posts()).isEmpty();
+        assertThat(pastEnd.currentPage()).isEqualTo(3);
+        assertThat(pastEnd.pageSize()).isEqualTo(2);
+        assertThat(pastEnd.hasNext()).isFalse();
     }
 }

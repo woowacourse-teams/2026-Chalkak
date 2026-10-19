@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.post.repository.PostSlice;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -58,11 +59,13 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        List<Post> posts = postRepository.findVisibleRecentByAuthorId(authorId, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        List<Post> posts = slice.posts();
 
         // Then
         assertThat(posts).extracting(Post::getId)
                 .containsExactlyElementsOf(expectedIds.subList(0, Math.min(count, 20)));
+        assertThat(slice.hasNext()).isEqualTo(count > 20);
         assertThat(posts).allSatisfy(post -> {
             assertThat(Hibernate.isInitialized(post.getPhoto())).isTrue();
             assertThat(Hibernate.isInitialized(post.getTopic())).isTrue();
@@ -86,7 +89,8 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        List<Post> posts = postRepository.findVisibleRecentByAuthorId(authorId, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        List<Post> posts = slice.posts();
 
         // Then
         assertThat(posts).extracting(Post::getId).containsExactly(approvedId);
@@ -110,7 +114,8 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        List<Post> posts = postRepository.findVisibleRecentByAuthorId(authorId, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        List<Post> posts = slice.posts();
 
         // Then
         assertThat(posts).isEmpty();

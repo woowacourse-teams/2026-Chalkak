@@ -6,12 +6,18 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public record AuthorPostListResponse(List<AuthorPostResponse> posts) {
+public record AuthorPostListResponse(
+        int currentPage,
+        int pageSize,
+        boolean hasNext,
+        List<AuthorPostResponse> posts
+) {
 
     public static AuthorPostListResponse fromAuthorPostListResult(AuthorPostListResult result) {
-        return new AuthorPostListResponse(result.posts().stream()
-                .map(AuthorPostResponse::fromPostSummary)
-                .toList());
+        return new AuthorPostListResponse(result.currentPage(), result.pageSize(), result.hasNext(),
+                result.posts().stream()
+                        .map(AuthorPostResponse::fromPostSummary)
+                        .toList());
     }
 
     public record AuthorPostResponse(
