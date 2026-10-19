@@ -21,7 +21,7 @@ class ArchitectureRulesTest {
     Path temporaryDirectory;
 
     @Test
-    @DisplayName("올바른 계층과 record 요청을 허용한다")
+    @DisplayName("기존 도메인과 관리자 배너의 올바른 계층·record 요청을 허용한다")
     void evaluate_validFixture_passesEveryRule() throws IOException {
         // Given
         var fixture = compileFixture(-1);
@@ -46,8 +46,31 @@ class ArchitectureRulesTest {
                 .anyMatch(detail -> detail.contains("Bad"));
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3, 4})
+    @DisplayName("배너 하위 패키지도 요청 record·서비스 의존성·저장소·Controller 배치 위반을 거절한다")
+    void evaluate_invalidBannerFixture_reportsViolation(int ruleIndex) throws IOException {
+        // Given
+        var fixture = compileFixture(ruleIndex, true);
+
+        // When
+        var result = ArchitectureConventionTest.RULES.get(ruleIndex).evaluate(fixture);
+
+        // Then
+        assertThat(result.hasViolation()).isTrue();
+        assertThat(result.getFailureReport().getDetails())
+                .anyMatch(detail -> detail.contains("Bad"));
+    }
+
     private com.tngtech.archunit.core.domain.JavaClasses compileFixture(int invalidRule)
             throws IOException {
+        return compileFixture(invalidRule, false);
+    }
+
+    private com.tngtech.archunit.core.domain.JavaClasses compileFixture(
+            int invalidRule,
+            boolean banner
+    ) throws IOException {
         // Compile isolated bytecode; these synthetic classes never enter the
         // application classpath.
         var sources = new ArrayList<>(List.of(
@@ -68,17 +91,29 @@ class ArchitectureRulesTest {
                         "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
                 new Source("com.chalkak.backend.sample.api.internal.v1.controller",
                         "GoodController",
+                        "@org.springframework.web.bind.annotation.RestController public class GoodController {}"),
+                new Source("com.chalkak.backend.admin.banner.api.v1.dto.request", "GoodRequest",
+                        "public record GoodRequest(String name) {}"),
+                new Source("com.chalkak.backend.admin.banner.service", "GoodService",
+                        "public class GoodService {}"),
+                new Source("com.chalkak.backend.admin.banner.repository", "GoodRepository",
+                        "public interface GoodRepository {}"),
+                new Source("com.chalkak.backend.admin.banner.infrastructure.persistence",
+                        "GoodJpaRepository",
+                        "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
+                new Source("com.chalkak.backend.admin.banner.api.v1.controller", "GoodController",
                         "@org.springframework.web.bind.annotation.RestController public class GoodController {}")));
+        String domain = banner ? "com.chalkak.backend.admin.banner" : "com.chalkak.backend.sample";
         var invalidSources = List.of(
-                new Source("com.chalkak.backend.sample.api.v1.dto.request", "BadRequest",
+                new Source(domain + ".api.v1.dto.request", "BadRequest",
                         "public class BadRequest {}"),
-                new Source("com.chalkak.backend.sample.service", "BadService",
+                new Source(domain + ".service", "BadService",
                         "public class BadService { software.amazon.awssdk.services.s3.S3Client client; }"),
-                new Source("com.chalkak.backend.sample.repository", "BadRepository",
+                new Source(domain + ".repository", "BadRepository",
                         "public interface BadRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source("com.chalkak.backend.sample.domain", "BadJpaRepository",
+                new Source(domain + ".domain", "BadJpaRepository",
                         "public interface BadJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source("com.chalkak.backend.sample.service", "BadController",
+                new Source(domain + ".service", "BadController",
                         "@org.springframework.web.bind.annotation.RestController public class BadController {}"));
         if (invalidRule >= 0) {
             sources.add(invalidSources.get(invalidRule));

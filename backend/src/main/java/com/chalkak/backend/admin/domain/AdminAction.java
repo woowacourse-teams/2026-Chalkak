@@ -71,7 +71,12 @@ public enum AdminAction {
     NOTICE_DELETED(
             AdminTargetType.NOTICE,
             true,
-            AdminAuditTransitionRules::isNoticeDeleted);
+            AdminAuditTransitionRules::isNoticeDeleted),
+
+    BANNER_CREATED(
+            AdminTargetType.BANNER,
+            false,
+            AdminAuditTransitionRules::isBannerCreated);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;

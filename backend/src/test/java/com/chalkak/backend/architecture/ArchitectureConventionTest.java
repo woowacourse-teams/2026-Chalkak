@@ -19,18 +19,23 @@ class ArchitectureConventionTest {
             noClasses().that().resideInAPackage("..service..")
                     .should().dependOnClassesThat()
                     .resideInAnyPackage("org.springframework.data..", "software.amazon.awssdk.."),
-            noClasses().that().resideInAPackage("com.chalkak.backend.*.repository..")
+            noClasses().that().resideInAnyPackage(
+                    "com.chalkak.backend.*.repository..",
+                    "com.chalkak.backend.admin.banner.repository..")
                     .should()
                     .beAssignableTo(org.springframework.data.jpa.repository.JpaRepository.class),
             classes().that()
                     .areAssignableTo(org.springframework.data.jpa.repository.JpaRepository.class)
                     .and().resideInAPackage("com.chalkak.backend..")
                     .should()
-                    .resideInAPackage("com.chalkak.backend.*.infrastructure.persistence.."),
+                    .resideInAnyPackage(
+                            "com.chalkak.backend.*.infrastructure.persistence..",
+                            "com.chalkak.backend.admin.banner.infrastructure.persistence.."),
             classes().that()
                     .areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
                     .should().resideInAnyPackage(
                             "com.chalkak.backend.*.api.v*.controller",
+                            "com.chalkak.backend.admin.banner.api.v*.controller",
                             "com.chalkak.backend.*.api.internal.v*.controller"));
 
     @Test
