@@ -1,5 +1,6 @@
 package com.chalkak.backend.user.api.v1.controller;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
@@ -23,9 +24,15 @@ import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
 import com.chalkak.backend.user.service.UserWithdrawalService;
 import com.chalkak.backend.support.WithMockLoginUser;
+import com.chalkak.backend.post.service.AuthorPostListResult;
+import com.chalkak.backend.post.service.PostQueryService;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -41,6 +48,7 @@ class UserControllerTest {
 
     private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570b7";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
+    private static final UUID AUTHOR_ID = UUID.randomUUID();
 
     @Autowired
     private MockMvc mockMvc;
@@ -50,6 +58,105 @@ class UserControllerTest {
 
     @MockitoBean
     private UserWithdrawalService userWithdrawalService;
+
+    @MockitoBean
+    private PostQueryService postQueryService;
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("작성자의 사진·게시물 ID·주제만 응답으로 제공한다")
+    void getAuthorPosts_validAuthor_returnsMinimalResponse() throws Exception {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID topicId = UUID.randomUUID();
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+                .willReturn(new AuthorPostListResult(List.of(new AuthorPostListResult.PostSummary(
+                        postId, "https://cdn.example.com/original.webp", null,
+                        new AuthorPostListResult.TopicSummary(topicId, "오늘의 하늘",
+                                LocalDate.of(2026, 4, 1))))));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(aMapWithSize(1)))
+                .andExpect(jsonPath("$.posts[0]").value(aMapWithSize(4)))
+                .andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
+                .andExpect(jsonPath("$.posts[0].originalImageUrl")
+                        .value("https://cdn.example.com/original.webp"))
+                .andExpect(jsonPath("$.posts[0].thumbnailImageUrl").isEmpty())
+                .andExpect(jsonPath("$.posts[0].topic").value(aMapWithSize(3)))
+                .andExpect(jsonPath("$.posts[0].topic.id").value(topicId.toString()))
+                .andExpect(jsonPath("$.posts[0].topic.title").value("오늘의 하늘"))
+                .andExpect(jsonPath("$.posts[0].topic.topicDate").value("2026-04-01"));
+    }
+
+    @ParameterizedTest
+    @WithMockLoginUser(USER_ID_VALUE)
+    @ValueSource(ints = {1, 2, 99, 100})
+    @DisplayName("허용 범위의 조회 개수를 서비스에 전달한다")
+    void getAuthorPosts_validPageSize_passesRequestedSize(int pageSize) throws Exception {
+        // Given
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, pageSize, USER_ID))
+                .willReturn(new AuthorPostListResult(List.of()));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
+                .param("pageSize", Integer.toString(pageSize)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts").isEmpty());
+    }
+
+    @ParameterizedTest
+    @WithMockLoginUser(USER_ID_VALUE)
+    @ValueSource(strings = {"0", "101", "invalid"})
+    @DisplayName("허용 범위 밖이거나 숫자가 아닌 조회 개수를 거절한다")
+    void getAuthorPosts_invalidPageSize_returnsBadRequest(String pageSize) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
+                .param("pageSize", pageSize))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @ParameterizedTest
+    @WithMockLoginUser(USER_ID_VALUE)
+    @ValueSource(strings = {"invalid", "1-1-1-1-1"})
+    @DisplayName("잘못된 작성자 ID와 축약 UUID를 거절한다")
+    void getAuthorPosts_invalidAuthorId_returnsBadRequest(String authorId) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", authorId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("작성자를 찾을 수 없으면 공통 404 응답을 반환한다")
+    void getAuthorPosts_missingAuthor_returnsNotFound() throws Exception {
+        // Given
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+                .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("작성자를 찾을 수 없습니다."));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("조회자 인증 예외를 공통 401 응답으로 변환한다")
+    void getAuthorPosts_invalidViewer_returnsUnauthorized() throws Exception {
+        // Given
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+                .willThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)

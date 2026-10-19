@@ -15,7 +15,7 @@ rule_pages:
     pages:
       작성하기: [POST-001, POST-002, POST-003, POST-004, POST-005, POST-011]
       사진 처리와 검수: [POST-006]
-      공개와 조회: [POST-007, POST-008, POST-009]
+      공개와 조회: [POST-007, POST-008, POST-009, POST-012]
       삭제와 수정: [POST-010]
   docs/business-rules/rules/topic.md:
     domain: 주제
