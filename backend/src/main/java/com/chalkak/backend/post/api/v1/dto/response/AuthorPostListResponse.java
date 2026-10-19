@@ -27,13 +27,15 @@ public record AuthorPostListResponse(List<AuthorPostResponse> posts) {
                     post.id(),
                     post.originalImageUrl(),
                     post.thumbnailImageUrl(),
-                    new AuthorPostTopicResponse(
-                            post.topic().id(),
-                            post.topic().title(),
-                            post.topic().topicDate()));
+                    AuthorPostTopicResponse.fromTopicSummary(post.topic()));
         }
     }
 
     public record AuthorPostTopicResponse(UUID id, String title, LocalDate topicDate) {
+
+        private static AuthorPostTopicResponse fromTopicSummary(
+                AuthorPostListResult.TopicSummary topic) {
+            return new AuthorPostTopicResponse(topic.id(), topic.title(), topic.topicDate());
+        }
     }
 }

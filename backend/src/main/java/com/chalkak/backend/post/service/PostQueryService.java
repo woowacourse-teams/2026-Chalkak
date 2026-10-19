@@ -61,13 +61,12 @@ public class PostQueryService {
     public AuthorPostListResult getAuthorPosts(
             UUID authorId,
             int pageSize,
-            UUID userId
+            UUID viewerId
     ) {
-        validateUser(userId);
-        userRepository.findActiveById(authorId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "작성자를 찾을 수 없습니다."));
+        validateUser(viewerId);
+        if (!userRepository.existsActiveById(authorId)) {
+            throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다.");
+        }
 
         return AuthorPostListResult.fromPosts(
                 postRepository.findVisibleRecentByAuthorId(authorId, pageSize),

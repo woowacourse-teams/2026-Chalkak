@@ -43,13 +43,13 @@ public class UserController implements UserApiDocs {
     @RequiresExistingUser
     @GetMapping("/{userId}/posts")
     public ResponseEntity<AuthorPostListResponse> getAuthorPosts(
-            @PathVariable String userId,
+            @PathVariable("userId") String authorId,
             @Valid @ModelAttribute AuthorPostListRequest request,
             @LoginUser AuthenticatedUser loginUser
     ) {
         return ResponseEntity.ok(AuthorPostListResponse.fromAuthorPostListResult(
                 postQueryService.getAuthorPosts(
-                        CanonicalUuidParser.parse(userId),
+                        CanonicalUuidParser.parse(authorId),
                         request.pageSize(),
                         loginUser.userId())));
     }

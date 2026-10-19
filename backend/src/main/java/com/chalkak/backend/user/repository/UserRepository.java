@@ -10,6 +10,8 @@ public interface UserRepository {
 
     Optional<User> findActiveById(UUID id);
 
+    boolean existsActiveById(UUID id);
+
     Optional<User> findActiveByIdForUpdate(UUID id);
 
     Optional<User> findByIdForUpdate(UUID id);

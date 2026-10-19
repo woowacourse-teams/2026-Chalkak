@@ -37,7 +37,7 @@ public interface UserApiDocs {
             @ApiResponse(responseCode = "404", description = "작성자를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AuthorPostListResponse> getAuthorPosts(
-            @Parameter(description = "사진 작성자의 회원 ID", schema = @Schema(type = "string", format = "uuid")) String userId,
+            @Parameter(name = "userId", description = "사진 작성자의 회원 ID", schema = @Schema(type = "string", format = "uuid")) String authorId,
             @ParameterObject AuthorPostListRequest request,
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
