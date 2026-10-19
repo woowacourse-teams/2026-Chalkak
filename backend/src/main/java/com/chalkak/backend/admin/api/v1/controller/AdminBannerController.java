@@ -7,8 +7,9 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminBannerListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminBannerResponse;
-import com.chalkak.backend.admin.service.banner.AdminBannerResult;
 import com.chalkak.backend.admin.service.banner.AdminBannerService;
+import com.chalkak.backend.banner.service.BannerResult;
+import com.chalkak.backend.banner.service.BannerService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin/banners")
 public class AdminBannerController implements AdminBannerApiDocs {
 
-    private final AdminBannerService bannerService;
+    private final AdminBannerService adminBannerService;
+    private final BannerService bannerService;
 
     @Override
     @PostMapping
@@ -36,7 +38,7 @@ public class AdminBannerController implements AdminBannerApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @RequestBody AdminBannerRequest request
     ) {
-        AdminBannerResult result = bannerService.createBanner(authenticatedAdmin.adminId(),
+        BannerResult result = adminBannerService.createBanner(authenticatedAdmin.adminId(),
                 request.title(), request.subtitle(), request.webViewUrl(), request.thumbnailUrl());
         return ResponseEntity.status(HttpStatus.CREATED).body(AdminBannerResponse.from(result));
     }
@@ -57,7 +59,7 @@ public class AdminBannerController implements AdminBannerApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @PathVariable String bannerId
     ) {
-        bannerService.deleteBanner(CanonicalUuidParser.parse(bannerId),
+        adminBannerService.deleteBanner(CanonicalUuidParser.parse(bannerId),
                 authenticatedAdmin.adminId());
         return ResponseEntity.noContent().build();
     }

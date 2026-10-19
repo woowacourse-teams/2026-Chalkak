@@ -7,6 +7,7 @@ import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerPage;
 import com.chalkak.backend.banner.repository.BannerRepository;
+import com.chalkak.backend.banner.service.BannerService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -37,7 +38,10 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
     private static final String URL = "https://chalkak.vercel.app/event";
 
     @Autowired
-    private AdminBannerService bannerService;
+    private AdminBannerService adminBannerService;
+
+    @Autowired
+    private BannerService bannerService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -204,7 +208,7 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         UUID id = jdbcTemplate.queryForObject("SELECT id FROM banners", UUID.class);
 
         // When & Then
-        assertThatThrownBy(() -> bannerService.deleteBanner(id, UUID.randomUUID()))
+        assertThatThrownBy(() -> adminBannerService.deleteBanner(id, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
                 java.time.OffsetDateTime.class, id)).isNull();
@@ -239,7 +243,7 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
     }
 
     private void createBanner(UUID adminId, String url) {
-        bannerService.createBanner(adminId, "제목", "부제목", url,
+        adminBannerService.createBanner(adminId, "제목", "부제목", url,
                 "https://cdn.example.com/banner.png");
     }
 

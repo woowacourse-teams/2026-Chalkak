@@ -13,9 +13,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
-import com.chalkak.backend.admin.service.banner.AdminBannerListResult;
-import com.chalkak.backend.admin.service.banner.AdminBannerResult;
 import com.chalkak.backend.admin.service.banner.AdminBannerService;
+import com.chalkak.backend.banner.service.BannerListResult;
+import com.chalkak.backend.banner.service.BannerResult;
+import com.chalkak.backend.banner.service.BannerService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -58,7 +59,10 @@ class AdminBannerControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private AdminBannerService bannerService;
+    private AdminBannerService adminBannerService;
+
+    @MockitoBean
+    private BannerService bannerService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -73,8 +77,8 @@ class AdminBannerControllerTest {
     void createBanner_validRequest_returnsCreatedBanner() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-19T00:00:00Z");
-        given(bannerService.createBanner(ADMIN_ID, "제목", "부제목", URL, THUMBNAIL))
-                .willReturn(new AdminBannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL,
+        given(adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL, THUMBNAIL))
+                .willReturn(new BannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL,
                         createdAt));
 
         // When & Then
@@ -112,7 +116,8 @@ class AdminBannerControllerTest {
     @DisplayName("중복 웹뷰 URL은 400과 기존 BUSINESS_ERROR 형식으로 반환한다")
     void createBanner_duplicateUrl_returnsBusinessError() throws Exception {
         // Given
-        given(bannerService.createBanner(any(), anyString(), anyString(), anyString(), anyString()))
+        given(adminBannerService.createBanner(any(), anyString(), anyString(), anyString(),
+                anyString()))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "동일한 웹뷰 URL의 배너가 이미 존재합니다."));
 
@@ -129,8 +134,8 @@ class AdminBannerControllerTest {
     void getBanners_defaultParameters_returnsBannerPage() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-19T00:00:00Z");
-        given(bannerService.getBanners(1, 20)).willReturn(new AdminBannerListResult(1, 20, false,
-                List.of(new AdminBannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL, createdAt))));
+        given(bannerService.getBanners(1, 20)).willReturn(new BannerListResult(1, 20, false,
+                List.of(new BannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL, createdAt))));
 
         // When & Then
         mockMvc.perform(get(PATH))
@@ -151,7 +156,7 @@ class AdminBannerControllerTest {
     void getBanners_explicitParameters_returnsEmptyPage() throws Exception {
         // Given
         given(bannerService.getBanners(2, 100))
-                .willReturn(new AdminBannerListResult(2, 100, false, List.of()));
+                .willReturn(new BannerListResult(2, 100, false, List.of()));
 
         // When & Then
         mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "100"))
@@ -212,7 +217,7 @@ class AdminBannerControllerTest {
     void deleteBanner_missing_returnsNotFound() throws Exception {
         // Given
         willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "배너를 찾을 수 없습니다."))
-                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID);
+                .given(adminBannerService).deleteBanner(BANNER_ID, ADMIN_ID);
 
         // When & Then
         mockMvc.perform(delete(PATH + "/" + BANNER_ID))

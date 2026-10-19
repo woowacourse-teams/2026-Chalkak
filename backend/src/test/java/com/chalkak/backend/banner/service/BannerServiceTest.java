@@ -1,4 +1,4 @@
-package com.chalkak.backend.admin.service.banner;
+package com.chalkak.backend.banner.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,10 +22,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-class AdminBannerListServiceTest extends IntegrationTestSupport {
+class BannerServiceTest extends IntegrationTestSupport {
 
     @Autowired
-    private AdminBannerService bannerService;
+    private BannerService bannerService;
 
     @Autowired
     private BannerRepository bannerRepository;
@@ -55,10 +55,10 @@ class AdminBannerListServiceTest extends IntegrationTestSupport {
                 .sorted(Comparator.comparing(UUID::toString).reversed()).toList();
 
         // When
-        AdminBannerListResult first = bannerService.getBanners(1, 2);
-        AdminBannerListResult last = bannerService.getBanners(2, 2);
-        AdminBannerListResult beyond = bannerService.getBanners(3, 2);
-        AdminBannerListResult exactSize = bannerService.getBanners(1, 3);
+        BannerListResult first = bannerService.getBanners(1, 2);
+        BannerListResult last = bannerService.getBanners(2, 2);
+        BannerListResult beyond = bannerService.getBanners(3, 2);
+        BannerListResult exactSize = bannerService.getBanners(1, 3);
 
         // Then
         assertThat(exactSize.banners()).hasSize(3);
@@ -66,7 +66,7 @@ class AdminBannerListServiceTest extends IntegrationTestSupport {
         assertThat(first.currentPage()).isEqualTo(1);
         assertThat(first.pageSize()).isEqualTo(2);
         assertThat(first.hasNext()).isTrue();
-        assertThat(first.banners()).extracting(AdminBannerResult::id)
+        assertThat(first.banners()).extracting(BannerResult::id)
                 .containsExactlyElementsOf(expectedNewer);
         assertThat(first.banners()).allSatisfy(banner -> {
             assertThat(banner.createdAt()).isEqualTo(newTime);
@@ -77,7 +77,7 @@ class AdminBannerListServiceTest extends IntegrationTestSupport {
         });
         assertThat(last.currentPage()).isEqualTo(2);
         assertThat(last.hasNext()).isFalse();
-        assertThat(last.banners()).extracting(AdminBannerResult::id).containsExactly(older.getId());
+        assertThat(last.banners()).extracting(BannerResult::id).containsExactly(older.getId());
         assertThat(beyond.currentPage()).isEqualTo(3);
         assertThat(beyond.banners()).isEmpty();
         assertThat(beyond.hasNext()).isFalse();
@@ -96,7 +96,7 @@ class AdminBannerListServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        AdminBannerListResult result = bannerService.getBanners(1, 20);
+        BannerListResult result = bannerService.getBanners(1, 20);
 
         // Then
         assertThat(result.banners()).isEmpty();
@@ -114,7 +114,7 @@ class AdminBannerListServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        AdminBannerListResult result = bannerService.getBanners(page, pageSize);
+        BannerListResult result = bannerService.getBanners(page, pageSize);
 
         // Then
         assertThat(result.currentPage()).isEqualTo(page);
