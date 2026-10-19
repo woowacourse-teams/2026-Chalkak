@@ -10,6 +10,27 @@ import UniformTypeIdentifiers
 @MainActor
 @Suite(.serialized)
 struct PhotoEditViewModelTests {
+    @Test("만들기만 해서는 렌더링하지 않고, start를 여러 번 불러도 미리보기 원본과 자동 보정값은 한 번만 준비한다")
+    func startsRenderingOnlyOnce() async throws {
+        let recorder = PhotoEditRenderRecorder()
+        let original = Self.image(width: 40, height: 30)
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: original),
+            renderer: recorder.renderer
+        )
+        // 화면을 다시 그릴 때 만들어졌다 버려지는 인스턴스는 아무 작업도 하지 않아야 한다.
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(recorder.calls.isEmpty)
+        #expect(recorder.analyzeCount == 0)
+
+        viewModel.start()
+        viewModel.start()
+        try await waitUntil { viewModel.viewState.previewImage != nil && !viewModel.viewState.thumbnails.isEmpty }
+        #expect(recorder.analyzeCount == 1)
+        // 미리보기 원본은 원본을 줄여 한 번만 만든다. 썸네일은 그 미리보기 원본으로 만든다.
+        #expect(recorder.calls.filter { $0.image === original && $0.maxLongEdge != nil }.count == 1)
+    }
+
     @Test("완료하면 선택한 필터를 원본 크기로 한 번만 렌더링하고 편집 상태를 함께 전달한다")
     func completesWithFullSizeRender() async throws {
         let recorder = PhotoEditRenderRecorder()
@@ -18,6 +39,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.start()
         try await waitUntil { viewModel.viewState.previewImage != nil && !viewModel.viewState.thumbnails.isEmpty }
 
         viewModel.handle(.toolSelected(.filter))
@@ -47,6 +69,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.noir))
@@ -66,6 +89,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.chrome))
         viewModel.handle(.toolApplied)
@@ -117,6 +141,7 @@ struct PhotoEditViewModelTests {
             ),
             renderer: recorder.renderer
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.crop))
         try await waitUntil { viewModel.viewState.cropperSource != nil }
@@ -145,6 +170,7 @@ struct PhotoEditViewModelTests {
             ),
             renderer: recorder.renderer
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.crop))
         let firstSource = try #require(viewModel.viewState.cropperSource)
 
@@ -173,6 +199,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.crop))
         let firstSource = try #require(viewModel.viewState.cropperSource)
 
@@ -209,6 +236,7 @@ struct PhotoEditViewModelTests {
                 }
             )
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.crop))
         let firstSource = try #require(viewModel.viewState.cropperSource)
         #expect(firstSource.animatesRotation == false)
@@ -240,6 +268,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
             renderer: recorder.renderer
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.crop))
         viewModel.handle(.flipClicked)
         viewModel.handle(.aspectRatioSelected(.square))
@@ -256,6 +285,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
             renderer: PhotoEditRenderRecorder().renderer
         )
+        viewModel.start()
         viewModel.handle(.toolSelected(.crop))
         let source = try #require(viewModel.viewState.cropperSource)
         viewModel.handle(.flipClicked)
@@ -276,6 +306,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30), filter: .fade),
             renderer: PhotoEditRenderRecorder().renderer
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.mono))
@@ -297,6 +328,7 @@ struct PhotoEditViewModelTests {
             ),
             renderer: PhotoEditRenderRecorder().renderer
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.crop))
         viewModel.handle(.rotateClicked)
@@ -320,6 +352,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: original),
             renderer: recorder.renderer
         )
+        viewModel.start()
         try await waitUntil { viewModel.viewState.previewImage != nil && !viewModel.viewState.thumbnails.isEmpty }
         #expect(recorder.analyzeCount == 1)
         #expect(viewModel.viewState.autoAdjustments == PhotoEditRenderRecorder.autoAdjustments)
@@ -377,6 +410,7 @@ struct PhotoEditViewModelTests {
         session.autoAdjustmentIntensity = 0.3
         session.manualAdjustments[.warmth] = 0.4
         let viewModel = PhotoEditViewModel(session: session, renderer: PhotoEditRenderRecorder().renderer)
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.adjust))
         #expect(viewModel.viewState.selectedAdjustItem == .auto)
@@ -403,6 +437,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
             renderer: PhotoEditRenderRecorder().renderer
         )
+        viewModel.start()
         try await waitUntil { viewModel.viewState.autoAdjustments != nil }
         viewModel.handle(.toolSelected(.adjust))
         viewModel.handle(.adjustItemSelected(.auto))
@@ -441,6 +476,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
             renderer: recorder.renderer
         )
+        viewModel.start()
         try await waitUntil { recorder.analyzeCount == 1 }
 
         viewModel.handle(.toolSelected(.crop))
@@ -456,6 +492,7 @@ struct PhotoEditViewModelTests {
             session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
             renderer: PhotoEditRenderRecorder().renderer
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.doneClicked)
@@ -524,6 +561,7 @@ struct PhotoEditViewModelTests {
                 maxLongEdge == nil ? nil : image
             }
         )
+        viewModel.start()
 
         viewModel.handle(.toolSelected(.filter))
         viewModel.handle(.filterSelected(.mono))

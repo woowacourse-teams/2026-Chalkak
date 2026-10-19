@@ -44,6 +44,9 @@ struct PhotoEditScreen: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            viewModel.start()
+        }
         .alert(
             viewState.failureMessage ?? "",
             isPresented: failureAlertPresented

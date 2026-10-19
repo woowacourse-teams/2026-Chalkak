@@ -30,10 +30,19 @@ final class PhotoEditViewModel {
     /// 새로 시작할 Mantis를 회전 애니메이션과 함께 보여 준다.
     private var pendingSourceAnimatesRotation = false
     private var completionTask: Task<Void, Never>?
+    private var hasStarted = false
 
+    /// 렌더링은 `start()`에서 시작한다. SwiftUI는 화면을 다시 그릴 때 `PhotoEditScreen.init`을 다시 부르므로
+    /// 그때 만들어졌다 버려지는 인스턴스가 렌더링을 시작하지 않게 한다.
     init(session: PhotoEditSession, renderer: PhotoEditRenderer = .live) {
         self.viewState = PhotoEditViewState(session: session)
         self.renderer = renderer
+    }
+
+    /// 화면이 나타나면 미리보기와 자동 보정 분석을 준비한다. 여러 번 불러도 한 번만 준비한다.
+    func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         prepareRenderSources()
     }
 
