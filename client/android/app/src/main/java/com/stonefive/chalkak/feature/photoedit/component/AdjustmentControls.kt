@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -111,7 +112,7 @@ fun AdjustmentControls(
                 .horizontalScroll(rememberScrollState())
                 .selectableGroup()
                 .padding(contentPadding),
-            horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.md),
         ) {
             PhotoAdjustItem.entries.forEach { item ->
                 AdjustmentItem(
@@ -132,8 +133,10 @@ private fun AdjustmentItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    // iOS 항목 버튼(지름 56pt)과 같은 폭을 차지해 항목 사이가 좁아 보이지 않게 한다.
     Column(
         modifier = Modifier
+            .widthIn(min = AdjustmentItemMinWidth)
             .selectable(
                 selected = selected,
                 role = Role.RadioButton,
@@ -186,6 +189,7 @@ private val PhotoAdjustItem.iconRes: Int
 private fun Float.toDisplayValue(): Int = (this * DISPLAY_SCALE).roundToInt()
 
 private const val DISPLAY_SCALE = 100f
+private val AdjustmentItemMinWidth = 56.dp
 private val AdjustmentIconSize = 24.dp
 private val ChangedDotSize = 4.dp
 
