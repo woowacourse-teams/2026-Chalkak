@@ -261,6 +261,52 @@ struct PhotoEditViewModelTests {
         gate.value?.resume()
     }
 
+    @Test("돌린 원본을 준비하는 동안 반전하면 반전까지 적용한 원본으로 새로 시작한다")
+    func appliesFlipMadeWhileCropperSourceIsPending() async throws {
+        let pending = PhotoEditLockedValue<[CheckedContinuation<Void, Never>]>([])
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
+            renderer: PhotoEditRenderer(
+                render: { image, _, _ in image },
+                orient: { image, quarterTurns, _ in
+                    await withCheckedContinuation { continuation in
+                        pending.update { $0.append(continuation) }
+                    }
+                    return quarterTurns.isMultiple(of: 2) ? image : PhotoEditViewModelTests.image(width: 30, height: 40)
+                }
+            )
+        )
+        viewModel.start()
+        viewModel.handle(.toolSelected(.crop))
+        let firstSource = try #require(viewModel.viewState.cropperSource)
+
+        viewModel.handle(.rotateClicked)
+        // 아직 이전 Mantis가 떠 있어 반전 버튼이 눌린다.
+        viewModel.handle(.flipClicked)
+        #expect(viewModel.viewState.cropperSource?.id == firstSource.id)
+
+        try await waitUntil {
+            pending.update { continuations in
+                continuations.forEach { $0.resume() }
+                continuations.removeAll()
+            }
+            return viewModel.viewState.cropperSource?.id != firstSource.id
+        }
+        var expected = PhotoEditOrientation()
+        expected.rotateCounterclockwise()
+        expected.flipHorizontally()
+        let source = try #require(viewModel.viewState.cropperSource)
+        #expect(source.state.imageOrientation == expected)
+        #expect(source.state.orientation == expected)
+        #expect(source.animatesRotation)
+        // 다음 회전에 쓸 이미지를 만드는 중이라도 가볍게 끝낼 수 있게 풀어 둔다.
+        try await Task.sleep(for: .milliseconds(50))
+        pending.update { continuations in
+            continuations.forEach { $0.resume() }
+            continuations.removeAll()
+        }
+    }
+
     @Test("비율을 고르면 반전까지 적용한 원본으로 새로 시작한다")
     func restartsFromFlippedOriginalForAspectRatio() async throws {
         let recorder = PhotoEditRenderRecorder()

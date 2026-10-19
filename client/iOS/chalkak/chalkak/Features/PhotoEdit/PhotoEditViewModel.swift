@@ -86,7 +86,13 @@ final class PhotoEditViewModel {
             // 반전은 사진 모양이 그대로라 Mantis가 애니메이션으로 처리하고, 여기서는 방향만 기록해 둔다.
             guard viewState.activeTool == .crop else { return }
             viewState.cropDraft.orientation.flipHorizontally()
-            prepareOrientedImages(for: viewState.cropDraft.orientation)
+            if needsCropperSource {
+                // 회전·비율 선택으로 새로 띄울 Mantis를 아직 준비 중이면, 그 Mantis에도 반전을 반영한다.
+                viewState.cropDraft.imageOrientation = viewState.cropDraft.orientation
+                requestCropperSource(animatesRotation: pendingSourceAnimatesRotation)
+            } else {
+                prepareOrientedImages(for: viewState.cropDraft.orientation)
+            }
         case var .cropCompleted(crop):
             guard viewState.activeTool == .crop else { return }
             // Mantis가 반전한 만큼은 `transformation`에 들어 있고, 화면의 최종 방향은 여기서 기록해 둔 값이다.
