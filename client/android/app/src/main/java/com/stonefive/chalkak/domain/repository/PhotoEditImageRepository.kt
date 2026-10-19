@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.domain.repository
 
-import com.stonefive.chalkak.domain.model.PhotoPixels
+import com.stonefive.chalkak.domain.model.photoedit.PhotoPixels
 
 /** 편집 화면이 사진을 분석할 때 쓰는 픽셀을 읽는다. */
 interface PhotoEditImageRepository {

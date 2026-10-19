@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.data.post
 
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.io.File
 
 interface PostImageEncoder {

@@ -21,11 +21,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.CropGeometry
 import com.stonefive.chalkak.feature.photoedit.PhotoImageSize
 import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage

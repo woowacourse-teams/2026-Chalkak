@@ -8,9 +8,9 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
-import com.stonefive.chalkak.domain.model.PhotoColorTransform
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoEditTransform
+import com.stonefive.chalkak.domain.model.photoedit.PhotoColorTransform
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEditTransform
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException

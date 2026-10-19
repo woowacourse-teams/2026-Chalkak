@@ -2,7 +2,7 @@ package com.stonefive.chalkak.data.post
 
 import android.content.ContentResolver
 import android.net.Uri
-import com.stonefive.chalkak.domain.model.PhotoPixels
+import com.stonefive.chalkak.domain.model.photoedit.PhotoPixels
 import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import kotlin.math.max
 import kotlinx.coroutines.CancellationException

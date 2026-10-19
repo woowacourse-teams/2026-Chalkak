@@ -1,8 +1,8 @@
 package com.stonefive.chalkak.feature.photoedit
 
 import androidx.compose.runtime.Immutable
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 
 @Immutable
 data class PhotoEditUiState(

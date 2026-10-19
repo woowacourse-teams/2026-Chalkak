@@ -30,9 +30,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
-import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
 import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
 import kotlin.math.roundToInt

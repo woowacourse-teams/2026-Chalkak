@@ -12,7 +12,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

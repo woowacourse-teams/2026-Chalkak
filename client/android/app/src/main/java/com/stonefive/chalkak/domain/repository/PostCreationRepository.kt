@@ -1,11 +1,11 @@
 package com.stonefive.chalkak.domain.repository
 
-import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.time.LocalDate
 
 interface PostCreationRepository {

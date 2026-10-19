@@ -29,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
 
 @Composable

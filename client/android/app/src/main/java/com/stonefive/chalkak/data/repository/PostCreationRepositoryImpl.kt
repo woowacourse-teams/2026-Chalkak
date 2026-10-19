@@ -10,7 +10,6 @@ import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
-import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -19,6 +18,7 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate

@@ -1,7 +1,7 @@
 package com.stonefive.chalkak.feature.photoedit
 
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

@@ -1,8 +1,8 @@
 package com.stonefive.chalkak.feature.photoedit
 
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoRotation
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoRotation
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min

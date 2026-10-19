@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.domain.model
+package com.stonefive.chalkak.domain.model.photoedit
 
 /** 조정 항목. 선언 순서가 화면 순서다. iOS `PhotoEditAdjustment`와 같은 항목이다. */
 enum class PhotoAdjustment {

@@ -1,7 +1,7 @@
 package com.stonefive.chalkak.feature.photoedit
 
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
-import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 
 val PhotoFilter.label: String
     get() = when (this) {

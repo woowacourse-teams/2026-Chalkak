@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.domain.model
+package com.stonefive.chalkak.domain.model.photoedit
 
 internal object Argb {
     private const val CHANNEL_MASK = 0xFF

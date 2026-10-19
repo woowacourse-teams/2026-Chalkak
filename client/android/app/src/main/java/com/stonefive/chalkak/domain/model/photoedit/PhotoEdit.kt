@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.domain.model
+package com.stonefive.chalkak.domain.model.photoedit
 
 /**
  * 업로드 전에 사진에 적용할 편집 값.

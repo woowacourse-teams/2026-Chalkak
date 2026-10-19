@@ -27,8 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.label
 import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage
 import com.stonefive.chalkak.feature.photoedit.toColorFilter

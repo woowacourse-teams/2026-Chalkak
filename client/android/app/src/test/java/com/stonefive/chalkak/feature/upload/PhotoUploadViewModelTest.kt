@@ -2,9 +2,6 @@ package com.stonefive.chalkak.feature.upload
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -13,6 +10,9 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred

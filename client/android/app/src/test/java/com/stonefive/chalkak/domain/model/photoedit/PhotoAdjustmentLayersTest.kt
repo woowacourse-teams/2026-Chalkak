@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.domain.model
+package com.stonefive.chalkak.domain.model.photoedit
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

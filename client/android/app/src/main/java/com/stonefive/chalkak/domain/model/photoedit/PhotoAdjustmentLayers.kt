@@ -1,4 +1,4 @@
-package com.stonefive.chalkak.domain.model
+package com.stonefive.chalkak.domain.model.photoedit
 
 /** 적용할 조정은 `자동 보정값 × 강도 + 수동 값`이다. 수동 값을 따로 두어 다시 편집해도 잃지 않는다. */
 data class PhotoAdjustmentLayers(

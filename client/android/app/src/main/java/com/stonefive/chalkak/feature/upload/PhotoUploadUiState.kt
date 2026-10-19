@@ -2,7 +2,7 @@ package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.runtime.Immutable
 import com.stonefive.chalkak.core.ui.UiMessage
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.time.LocalDate
 
 @Immutable

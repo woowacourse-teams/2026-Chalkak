@@ -1,14 +1,14 @@
 package com.stonefive.chalkak.feature.photoedit
 
 import com.stonefive.chalkak.MainDispatcherRule
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoAutoAdjuster
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoFilter
-import com.stonefive.chalkak.domain.model.PhotoImageStatistics
-import com.stonefive.chalkak.domain.model.PhotoPixels
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAutoAdjuster
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.PhotoImageStatistics
+import com.stonefive.chalkak.domain.model.photoedit.PhotoPixels
 import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher

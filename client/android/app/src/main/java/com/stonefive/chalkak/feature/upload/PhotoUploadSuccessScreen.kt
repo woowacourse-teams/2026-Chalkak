@@ -22,7 +22,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
-import com.stonefive.chalkak.domain.model.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadSuccessCard
 import java.time.LocalDate
 

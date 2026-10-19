@@ -20,9 +20,9 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoColorTransform
-import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoColorTransform
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

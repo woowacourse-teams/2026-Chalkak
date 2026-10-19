@@ -7,13 +7,13 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
-import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate
