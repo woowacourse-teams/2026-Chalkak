@@ -9,7 +9,7 @@ User=chalkak
 Group=chalkak
 WorkingDirectory=/opt/chalkak
 EnvironmentFile=/etc/chalkak/application.env
-ExecStart=/usr/bin/java -XX:MaxRAMPercentage=70 -jar /opt/chalkak/app/application.jar
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=70 -Xlog:async -Xlog:gc*=info,safepoint*=info:file=/opt/chalkak/logs/gc.log:utctime,uptime,level,tags:filecount=5,filesize=10M -jar /opt/chalkak/app/application.jar
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5
