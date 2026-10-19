@@ -52,30 +52,29 @@ struct FeedScreen: View {
                 .ignoresSafeArea()
                 .opacity(contentProgress)
 
-            VStack(spacing: 0) {
-                FeedTopBar(
-                    onBack: close,
-                    onEdit: {
-                        titleDraft = viewModel.viewState.content?.post.title ?? ""
-                        showsTitleEditDialog = true
-                    },
-                    onDelete: { showsDeleteDialog = true },
-                    isEditVisible: viewModel.viewState.content.map {
-                        $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
-                    } == true,
-                    isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
-                    isEditEnabled: !viewModel.viewState.isDeleting &&
-                        !viewModel.viewState.isUpdatingTitle &&
-                        viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
-                    isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
-                )
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .opacity(contentProgress)
-
-                content
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .overlay(alignment: .top) {
+            FeedTopBar(
+                onBack: close,
+                onEdit: {
+                    titleDraft = viewModel.viewState.content?.post.title ?? ""
+                    showsTitleEditDialog = true
+                },
+                onDelete: { showsDeleteDialog = true },
+                isEditVisible: viewModel.viewState.content.map {
+                    $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
+                } == true,
+                isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
+                isEditEnabled: !viewModel.viewState.isDeleting &&
+                    !viewModel.viewState.isUpdatingTitle &&
+                    viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
+                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
+            )
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
+            .opacity(contentProgress)
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
@@ -206,6 +205,7 @@ struct FeedScreen: View {
                         .opacity(contentProgress)
                 }
             }
+            .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
             .padding(.bottom, Metrics.contentBottom)
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
