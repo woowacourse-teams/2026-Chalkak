@@ -144,10 +144,12 @@ object PhotoAutoAdjuster {
     }
 
     // 흑백에 가까운 사진은 두고, 색이 덜 선명한 사진만 채도를 조금 올린다.
+    // 피부는 조금만 진해져도 어색해 보이므로, 피부색 픽셀 비율만큼 덜 올린다(사진 전체가 피부색이면 0).
     private fun saturation(statistics: PhotoImageStatistics): Double {
         val saturation = statistics.saturation90
         if (saturation <= GRAYSCALE_SATURATION) return 0.0
-        return rounded(((TARGET_SATURATION - saturation) * SATURATION_SLOPE).coerceIn(0.0, MAXIMUM_SATURATION))
+        val value = ((TARGET_SATURATION - saturation) * SATURATION_SLOPE).coerceIn(0.0, MAXIMUM_SATURATION)
+        return rounded(value * (1 - statistics.skinFraction))
     }
 
     // 비율에 0.7제곱을 해서, 어두운·밝은 영역이 좁아도(예: 10%) 값이 너무 작아지지 않게 한다.

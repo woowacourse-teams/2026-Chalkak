@@ -3,6 +3,7 @@ package com.stonefive.chalkak.domain.model.photoedit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,13 +47,60 @@ class PhotoAutoAdjusterTest {
     }
 
     @Test
-    fun `통계는 파랑·초록이 가장 큰 픽셀의 채도를 두 배로 센다`() {
+    fun `채도는 색과 상관없이 같은 기준으로 센다`() {
         val red = PhotoImageStatistics.of(PhotoPixels(1, 1, intArrayOf(0xFF996666.toInt())))
         val blue = PhotoImageStatistics.of(PhotoPixels(1, 1, intArrayOf(0xFF666699.toInt())))
 
         assertEquals(0.2, red.saturation90, 0.01)
-        assertEquals(0.4, blue.saturation90, 0.01)
+        assertEquals(0.2, blue.saturation90, 0.01)
         assertEquals(1.0, red.luminanceHistogram.sum(), 1e-9)
+    }
+
+    @Test
+    fun `피부색은 밝거나 어두워도 피부색으로 보고 하늘·풀·노을·회색은 아니다`() {
+        assertTrue(PhotoImageStatistics.isSkinTone(0.94, 0.78, 0.69))
+        assertTrue(PhotoImageStatistics.isSkinTone(0.45, 0.30, 0.22))
+        assertFalse(PhotoImageStatistics.isSkinTone(0.53, 0.81, 0.92))
+        assertFalse(PhotoImageStatistics.isSkinTone(0.30, 0.60, 0.20))
+        assertFalse(PhotoImageStatistics.isSkinTone(1.0, 0.5, 0.1))
+        assertFalse(PhotoImageStatistics.isSkinTone(0.5, 0.5, 0.5))
+    }
+
+    @Test
+    fun `피부색 사진은 채도를 올리지 않고 하늘·풀 사진은 올린다`() {
+        fun saturationOf(color: Int) =
+            PhotoAutoAdjuster.adjustments(PhotoImageStatistics.of(PhotoPixels(4, 4, IntArray(16) { color }))).saturation
+
+        assertEquals(0f, saturationOf(rgb(0.94, 0.78, 0.69)))
+        assertEquals(0f, saturationOf(rgb(0.45, 0.30, 0.22)))
+        assertTrue(saturationOf(rgb(0.53, 0.81, 0.92)) > 0.1f)
+        assertTrue(saturationOf(rgb(0.30, 0.60, 0.20)) > 0.1f)
+    }
+
+    @Test
+    fun `피부색이 일부인 사진은 그 비율만큼 채도를 덜 올린다`() {
+        val sky = rgb(0.53, 0.81, 0.92)
+        val skin = rgb(0.94, 0.78, 0.69)
+        fun saturationOf(skinPixels: Int) = PhotoAutoAdjuster
+            .adjustments(
+                PhotoImageStatistics.of(
+                    PhotoPixels(
+                        4,
+                        4,
+                        IntArray(16) {
+                            if (it <
+                                skinPixels
+                            ) {
+                                skin
+                            } else {
+                                sky
+                            }
+                        },
+                    ),
+                ),
+            ).saturation
+
+        assertEquals(saturationOf(0) * 0.75f, saturationOf(4), 0.011f)
     }
 
     // 색상 0.08, 채도 0.3이고 명도가 0.35에서 0.6까지 가로로 오르는 뜬 주황빛 회색.
@@ -74,4 +122,13 @@ class PhotoAutoAdjusterTest {
         val levels = argb.map { it shr 8 and 0xFF }
         return levels.max() - levels.min()
     }
+
+    private fun rgb(
+        red: Double,
+        green: Double,
+        blue: Double,
+    ): Int = (0xFF shl 24) or
+        ((red * 255).roundToInt() shl 16) or
+        ((green * 255).roundToInt() shl 8) or
+        (blue * 255).roundToInt()
 }

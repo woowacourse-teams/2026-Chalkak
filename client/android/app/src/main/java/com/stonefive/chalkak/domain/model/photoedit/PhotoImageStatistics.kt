@@ -11,11 +11,10 @@ class PhotoImageStatistics(
      * 밝기는 저장 값(감마 값) R·G·B를 0.2126·R + 0.7152·G + 0.0722·B로 합친 값이다.
      */
     val luminanceHistogram: DoubleArray,
-    /**
-     * 채도가 낮은 쪽부터 90%째 픽셀의 채도(0..1). 채도 = 가장 큰 채널 − 가장 작은 채널이고,
-     * 빨강이 가장 크지 않은 픽셀은 이 채도 값을 2배로 한다(최대 1, [of] 참고).
-     */
+    /** 채도가 낮은 쪽부터 90%째 픽셀의 채도(0..1). 채도 = 가장 큰 채널 − 가장 작은 채널(저장 값 기준). */
     val saturation90: Double,
+    /** 피부색으로 보이는 픽셀의 비율(0..1). 피부색 기준은 [isSkinTone] 참고. */
+    val skinFraction: Double = 0.0,
 ) {
     /** 어두운 쪽부터 [fraction]만큼 센 지점의 밝기(0..1). 예: 0.5면 밝기 중앙값. */
     fun luminancePercentile(fraction: Double): Double = percentile(fraction, luminanceHistogram)
@@ -33,9 +32,16 @@ class PhotoImageStatistics(
         private const val LUMA_GREEN = 0.7152
         private const val LUMA_BLUE = 0.0722
 
+        private const val SKIN_MINIMUM_VALUE = 0.2
+        private const val SKIN_MINIMUM_CHROMA_RATIO = 0.1
+        private const val SKIN_MAXIMUM_CHROMA_RATIO = 0.6
+        private const val SKIN_MAXIMUM_HUE_DEGREES = 50.0
+        private const val HUE_DEGREES_PER_SECTOR = 60.0
+
         fun of(pixels: PhotoPixels): PhotoImageStatistics {
             val histogram = DoubleArray(LEVELS)
             val saturationHistogram = DoubleArray(LEVELS)
+            var skinCount = 0
             for (color in pixels.argb) {
                 val red = Argb.red(color) / MAX_LEVEL
                 val green = Argb.green(color) / MAX_LEVEL
@@ -43,14 +49,8 @@ class PhotoImageStatistics(
                 val luminance = LUMA_RED * red + LUMA_GREEN * green + LUMA_BLUE * blue
                 histogram[level(luminance)] += 1.0
 
-                // 하늘·풀처럼 파랑·초록이 가장 큰 픽셀은 채도 값을 2배로 친다. 그래서 그런 사진은 이미 선명하다고 보고
-                // 채도를 덜 올리고, 빨강이 큰 피부색 위주 사진은 상대적으로 덜 선명하게 보여 조금 더 올린다.
-                val maximum = maxOf(red, green, blue)
-                var saturation = maximum - minOf(red, green, blue)
-                if (maximum != red) {
-                    saturation = minOf(1.0, saturation * 2)
-                }
-                saturationHistogram[level(saturation)] += 1.0
+                saturationHistogram[level(maxOf(red, green, blue) - minOf(red, green, blue))] += 1.0
+                if (isSkinTone(red, green, blue)) skinCount++
             }
             val count = pixels.argb.size
                 .toDouble()
@@ -60,7 +60,30 @@ class PhotoImageStatistics(
                     SATURATION_PERCENTILE,
                     DoubleArray(LEVELS) { saturationHistogram[it] / count },
                 ),
+                skinFraction = skinCount / count,
             )
+        }
+
+        /**
+         * 피부색으로 볼지. 저장 값 R·G·B(0..1)가 모두 맞아야 한다.
+         * - 빨강 ≥ 초록 ≥ 파랑이고, 가장 큰 값(빨강)이 0.2 이상이다(너무 어두운 픽셀 제외).
+         * - (빨강 − 파랑) ÷ 빨강이 0.1..0.6이다. 회색에 가깝거나(0.1 미만) 주황처럼 쨍한 색(0.6 초과)은 뺀다.
+         * - 색상이 0..50°다. 빨강(0°)에서 노랑(60°) 사이 중 노랑에 가까운 쪽은 뺀다.
+         *
+         * 예: 밝은 피부 (0.94, 0.78, 0.69)와 어두운 피부 (0.45, 0.30, 0.22)는 피부색, 하늘 (0.53, 0.81, 0.92)과
+         * 노을 (1.0, 0.5, 0.1)은 아니다.
+         */
+        internal fun isSkinTone(
+            red: Double,
+            green: Double,
+            blue: Double,
+        ): Boolean {
+            if (red < green || green < blue || red < SKIN_MINIMUM_VALUE) return false
+            val chroma = red - blue
+            val chromaRatio = chroma / red
+            if (chromaRatio !in SKIN_MINIMUM_CHROMA_RATIO..SKIN_MAXIMUM_CHROMA_RATIO) return false
+            val hueDegrees = HUE_DEGREES_PER_SECTOR * (green - blue) / chroma
+            return hueDegrees <= SKIN_MAXIMUM_HUE_DEGREES
         }
 
         private fun level(value: Double): Int = minOf(LEVELS - 1, (value * MAX_LEVEL).roundToInt())

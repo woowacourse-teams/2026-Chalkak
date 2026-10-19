@@ -91,7 +91,8 @@ class PhotoColorGoldenTest {
     fun `픽셀 통계와 그 자동 보정값`() {
         val statistics = PhotoImageStatistics.of(PhotoPixels(16, 16, IntArray(256) { pattern(it) }))
 
-        assertEquals(1.0, statistics.saturation90, 0.0)
+        assertEquals(208 / 255.0, statistics.saturation90, 0.0)
+        assertEquals(12 / 256.0, statistics.skinFraction, 0.0)
         assertEquals(127 / 255.0, statistics.luminancePercentile(0.5), 0.0)
         assertEquals(201 / 255.0, statistics.luminancePercentile(0.9), 0.0)
         assertEquals(
