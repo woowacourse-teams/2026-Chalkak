@@ -94,7 +94,7 @@ fun DisplayFeaturedPager(
                     variant = DisplayPhotoCardVariant.FEATURED,
                     transitionSourceId = "display-featured:$page:${photo.id}",
                     modifier = Modifier
-                        .aspectRatio(3f / 4f)
+                        .aspectRatio(FEATURED_PHOTO_ASPECT_RATIO)
                         .graphicsLayer {
                             val scale = 1f - pageOffset * 0.08f
                             scaleX = scale
