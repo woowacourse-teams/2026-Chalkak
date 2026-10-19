@@ -2,17 +2,27 @@ package com.chalkak.backend.post.service;
 
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.repository.PostSlice;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public record AuthorPostListResult(List<PostSummary> posts) {
+public record AuthorPostListResult(
+        int currentPage,
+        int pageSize,
+        boolean hasNext,
+        List<PostSummary> posts) {
 
-    public static AuthorPostListResult fromPosts(List<Post> posts,
-            ImageUrlProvider imageUrlProvider) {
-        return new AuthorPostListResult(posts.stream()
-                .map(post -> PostSummary.fromPost(post, imageUrlProvider))
-                .toList());
+    public static AuthorPostListResult fromPostSlice(
+            PostSlice slice,
+            int currentPage,
+            int pageSize,
+            ImageUrlProvider imageUrlProvider
+    ) {
+        return new AuthorPostListResult(currentPage, pageSize, slice.hasNext(),
+                slice.posts().stream()
+                        .map(post -> PostSummary.fromPost(post, imageUrlProvider))
+                        .toList());
     }
 
     public record PostSummary(
