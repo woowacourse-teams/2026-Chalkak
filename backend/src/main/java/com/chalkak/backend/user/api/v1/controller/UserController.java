@@ -50,8 +50,8 @@ public class UserController implements UserApiDocs {
         return ResponseEntity.ok(AuthorPostListResponse.fromAuthorPostListResult(
                 postQueryService.getAuthorPosts(
                         CanonicalUuidParser.parse(authorId),
+                        request.page(),
                         request.pageSize(),
-                        request.toCursorDate(),
                         loginUser.userId())));
     }
 

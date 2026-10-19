@@ -49,13 +49,17 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
                         + "[?(@.name == 'pageSize')].schema.maximum")
                         .value(containsInAnyOrder(100)))
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters[*].name")
+                                .value(containsInAnyOrder("userId", "page", "pageSize")))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
-                        + "[?(@.name == 'cursor')].in").value(containsInAnyOrder("query")))
+                        + "[?(@.name == 'page')].in").value(containsInAnyOrder("query")))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
-                        + "[?(@.name == 'cursor')].required").value(containsInAnyOrder(false)))
+                        + "[?(@.name == 'page')].required").value(containsInAnyOrder(false)))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
-                        + "[?(@.name == 'cursor')].schema.format")
-                        .value(containsInAnyOrder("date")))
+                        + "[?(@.name == 'page')].schema.default").value(containsInAnyOrder(1)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'page')].schema.minimum").value(containsInAnyOrder(1)))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
                         .value(aMapWithSize(5)))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
@@ -69,16 +73,19 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
                         .value(hasKey("404")))
                 .andExpect(jsonPath("$.components.schemas.AuthorPostListResponse.properties")
-                        .value(aMapWithSize(3)))
+                        .value(aMapWithSize(4)))
                 .andExpect(jsonPath(
                         "$.components.schemas.AuthorPostListResponse.properties.hasNext.type")
                         .value("boolean"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AuthorPostListResponse.properties.nextCursor.type")
-                        .value(containsInAnyOrder("string", "null")))
+                        "$.components.schemas.AuthorPostListResponse.properties.currentPage.type")
+                        .value("integer"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AuthorPostListResponse.properties.nextCursor.format")
-                        .value("date"))
+                        "$.components.schemas.AuthorPostListResponse.properties.pageSize.type")
+                        .value("integer"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostListResponse.properties.nextCursor")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AuthorPostResponse.properties")
                         .value(aMapWithSize(4)))
                 .andExpect(jsonPath(

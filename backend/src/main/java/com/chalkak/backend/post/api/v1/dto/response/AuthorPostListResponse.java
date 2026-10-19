@@ -7,16 +7,17 @@ import java.util.List;
 import java.util.UUID;
 
 public record AuthorPostListResponse(
-        List<AuthorPostResponse> posts,
+        int currentPage,
+        int pageSize,
         boolean hasNext,
-        @Schema(nullable = true)
-        LocalDate nextCursor
+        List<AuthorPostResponse> posts
 ) {
 
     public static AuthorPostListResponse fromAuthorPostListResult(AuthorPostListResult result) {
-        return new AuthorPostListResponse(result.posts().stream()
-                .map(AuthorPostResponse::fromPostSummary)
-                .toList(), result.hasNext(), result.nextCursor());
+        return new AuthorPostListResponse(result.currentPage(), result.pageSize(), result.hasNext(),
+                result.posts().stream()
+                        .map(AuthorPostResponse::fromPostSummary)
+                        .toList());
     }
 
     public record AuthorPostResponse(

@@ -8,19 +8,21 @@ import java.util.List;
 import java.util.UUID;
 
 public record AuthorPostListResult(
-        List<PostSummary> posts,
+        int currentPage,
+        int pageSize,
         boolean hasNext,
-        LocalDate nextCursor) {
+        List<PostSummary> posts) {
 
-    public static AuthorPostListResult fromPostSlice(PostSlice slice,
-            ImageUrlProvider imageUrlProvider) {
-        LocalDate nextCursor = slice.hasNext()
-                ? slice.posts().getLast().getTopic().getTopicDate()
-                : null;
-
-        return new AuthorPostListResult(slice.posts().stream()
-                .map(post -> PostSummary.fromPost(post, imageUrlProvider))
-                .toList(), slice.hasNext(), nextCursor);
+    public static AuthorPostListResult fromPostSlice(
+            PostSlice slice,
+            int currentPage,
+            int pageSize,
+            ImageUrlProvider imageUrlProvider
+    ) {
+        return new AuthorPostListResult(currentPage, pageSize, slice.hasNext(),
+                slice.posts().stream()
+                        .map(post -> PostSummary.fromPost(post, imageUrlProvider))
+                        .toList());
     }
 
     public record PostSummary(

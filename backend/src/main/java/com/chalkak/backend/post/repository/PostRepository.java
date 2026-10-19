@@ -34,7 +34,7 @@ public interface PostRepository {
 
     PostSlice findVisibleRecentByAuthorId(
             UUID authorId,
-            LocalDate cursor,
+            int page,
             int pageSize
     );
 

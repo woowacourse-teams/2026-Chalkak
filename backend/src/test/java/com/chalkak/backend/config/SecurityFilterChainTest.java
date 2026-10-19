@@ -515,8 +515,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         if (state.equals("BANNED")) {
             jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", viewerId);
         }
-        given(postQueryService.getAuthorPosts(authorId, 20, null, viewerId))
-                .willReturn(new AuthorPostListResult(List.of(), false, null));
+        given(postQueryService.getAuthorPosts(authorId, 1, 20, viewerId))
+                .willReturn(new AuthorPostListResult(1, 20, false, List.of()));
         String token = accessTokenProvider.issueForSession(viewerId, UUID.randomUUID()).value();
 
         // When & Then

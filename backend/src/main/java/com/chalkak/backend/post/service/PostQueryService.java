@@ -60,8 +60,8 @@ public class PostQueryService {
 
     public AuthorPostListResult getAuthorPosts(
             UUID authorId,
+            int page,
             int pageSize,
-            LocalDate cursor,
             UUID viewerId
     ) {
         validateUser(viewerId);
@@ -70,7 +70,9 @@ public class PostQueryService {
         }
 
         return AuthorPostListResult.fromPostSlice(
-                postRepository.findVisibleRecentByAuthorId(authorId, cursor, pageSize),
+                postRepository.findVisibleRecentByAuthorId(authorId, page, pageSize),
+                page,
+                pageSize,
                 imageUrlProvider);
     }
 

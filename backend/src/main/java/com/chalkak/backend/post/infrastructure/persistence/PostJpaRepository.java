@@ -103,7 +103,6 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             JOIN post.author author
             WHERE author.id = :authorId
               AND post.moderationStatus = :moderationStatus
-              AND (CAST(:cursor AS LocalDate) IS NULL OR topic.topicDate < :cursor)
               AND post.deletedAt IS NULL
               AND topic.deletedAt IS NULL
               AND photo.deletedAt IS NULL
@@ -113,7 +112,6 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     Slice<Post> findVisibleRecentByAuthorId(
             @Param("authorId") UUID authorId,
             @Param("moderationStatus") ModerationStatus moderationStatus,
-            @Param("cursor") LocalDate cursor,
             Pageable pageable
     );
 

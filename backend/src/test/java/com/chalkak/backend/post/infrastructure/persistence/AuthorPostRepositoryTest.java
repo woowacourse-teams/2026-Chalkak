@@ -59,7 +59,7 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, null, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
         List<Post> posts = slice.posts();
 
         // Then
@@ -89,7 +89,7 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, null, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
         List<Post> posts = slice.posts();
 
         // Then
@@ -114,7 +114,7 @@ class AuthorPostRepositoryTest {
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, null, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
         List<Post> posts = slice.posts();
 
         // Then

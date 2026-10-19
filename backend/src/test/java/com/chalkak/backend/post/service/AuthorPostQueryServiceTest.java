@@ -43,7 +43,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, null, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -73,7 +73,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 """, postId);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, null, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -96,7 +96,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 LocalDate.of(2026, 4, 2), ModerationStatus.APPROVED);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, pageSize, null,
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, pageSize,
                 viewerId);
 
         // Then
@@ -112,7 +112,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 1), ModerationStatus.PENDING);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, null, authorId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, authorId);
 
         // Then
         assertThat(result.posts()).isEmpty();
@@ -131,7 +131,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         }
 
         // When & Then
-        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 20, null, viewerId))
+        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 1, 20, viewerId))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("작성자를 찾을 수 없습니다.");
     }
@@ -144,7 +144,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(
-                () -> postQueryService.getAuthorPosts(authorId, 20, null, UUID.randomUUID()))
+                () -> postQueryService.getAuthorPosts(authorId, 1, 20, UUID.randomUUID()))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
     }
@@ -162,34 +162,34 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                     LocalDate.of(2025, 12, 15).plusDays(day), ModerationStatus.APPROVED));
         }
         List<UUID> actualIds = new ArrayList<>();
-        LocalDate cursor = null;
+        int currentPage = 0;
         boolean hasNext = true;
 
         // When
-        for (int page = 0; page < 21 && hasNext; page++) {
+        for (int page = 1; page <= 21 && hasNext; page++) {
             AuthorPostListResult result = postQueryService.getAuthorPosts(
-                    authorId, pageSize, cursor, viewerId);
+                    authorId, page, pageSize, viewerId);
             assertThat(result.posts()).hasSizeLessThanOrEqualTo(pageSize);
             actualIds.addAll(
                     result.posts().stream().map(AuthorPostListResult.PostSummary::id).toList());
             if (result.hasNext()) {
                 assertThat(result.posts()).hasSize(pageSize);
-                assertThat(result.nextCursor())
-                        .isEqualTo(result.posts().getLast().topic().topicDate());
             }
-            cursor = result.nextCursor();
+            assertThat(result.currentPage()).isEqualTo(page);
+            assertThat(result.pageSize()).isEqualTo(pageSize);
+            currentPage = result.currentPage();
             hasNext = result.hasNext();
         }
 
         // Then
         assertThat(actualIds).containsExactlyElementsOf(expectedIds).doesNotHaveDuplicates();
         assertThat(hasNext).isFalse();
-        assertThat(cursor).isNull();
+        assertThat(currentPage).isEqualTo((21 + pageSize - 1) / pageSize);
     }
 
     @ParameterizedTest
     @ValueSource(ints = {0, 20})
-    @DisplayName("빈 목록과 정확히 한 묶음인 목록은 다음 커서 없이 종료한다")
+    @DisplayName("빈 목록과 정확히 한 페이지인 목록은 요청한 페이지 정보와 함께 종료한다")
     void getAuthorPosts_noExtraPhoto_returnsEndMetadata(int count) {
         // Given
         UUID authorId = createUser(jdbcTemplate);
@@ -200,17 +200,18 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         }
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, null, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
 
         // Then
         assertThat(result.posts()).hasSize(count);
         assertThat(result.hasNext()).isFalse();
-        assertThat(result.nextCursor()).isNull();
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.pageSize()).isEqualTo(20);
     }
 
     @Test
-    @DisplayName("지난 구간의 승인은 새로고침에만 반영하고 미조회 구간의 승인은 이어보기에 반영한다")
-    void getAuthorPosts_lateApproval_respectsDateBoundaryAndRefresh() {
+    @DisplayName("조회 중 승인된 사진을 현재 순서에 반영하며 페이지 사이의 중복을 허용한다")
+    void getAuthorPosts_lateApproval_returnsCurrentPageOrder() {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
@@ -218,34 +219,38 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 LocalDate.of(2026, 4, 5), ModerationStatus.APPROVED);
         UUID pastApprovalId = createPost(jdbcTemplate, authorId,
                 LocalDate.of(2026, 4, 4), ModerationStatus.PENDING);
-        createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 3), ModerationStatus.APPROVED);
+        UUID boundaryId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 3), ModerationStatus.APPROVED);
         UUID nextApprovalId = createPost(jdbcTemplate, authorId,
                 LocalDate.of(2026, 4, 2), ModerationStatus.PENDING);
         UUID oldestId = createPost(jdbcTemplate, authorId,
                 LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
-        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 2, null, viewerId);
-        assertThat(first.nextCursor()).isEqualTo(LocalDate.of(2026, 4, 3));
+        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(newestId, boundaryId);
         jdbcTemplate.update("UPDATE posts SET moderation_status = 'APPROVED' WHERE id IN (?, ?)",
                 pastApprovalId, nextApprovalId);
 
         // When
-        AuthorPostListResult next = postQueryService.getAuthorPosts(
-                authorId, 2, first.nextCursor(), viewerId);
-        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 2, null,
-                viewerId);
+        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
+        AuthorPostListResult third = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
 
         // Then
-        assertThat(next.posts()).extracting(AuthorPostListResult.PostSummary::id)
-                .containsExactly(nextApprovalId, oldestId);
-        assertThat(next.hasNext()).isFalse();
-        assertThat(next.nextCursor()).isNull();
+        assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(boundaryId, nextApprovalId);
+        assertThat(second.currentPage()).isEqualTo(2);
+        assertThat(second.hasNext()).isTrue();
+        assertThat(third.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(oldestId);
+        assertThat(third.hasNext()).isFalse();
         assertThat(refreshed.posts()).extracting(AuthorPostListResult.PostSummary::id)
                 .containsExactly(newestId, pastApprovalId);
     }
 
     @Test
-    @DisplayName("커서 게시물과 다음 구간의 사진이 삭제돼도 남은 과거 사진을 조회한다")
-    void getAuthorPosts_deletedCursorAndNextPhoto_continuesToRemainingPhotos() {
+    @DisplayName("조회 중 삭제된 사진을 제외한 현재 순서를 사용하며 페이지 이동 중 누락을 허용한다")
+    void getAuthorPosts_deletedPhotos_returnsCurrentOffsetWithoutSnapshot() {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
@@ -254,7 +259,9 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
             ids.add(createPost(jdbcTemplate, authorId,
                     LocalDate.of(2026, 4, day), ModerationStatus.APPROVED));
         }
-        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 2, null, viewerId);
+        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(4), ids.get(3));
         jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ids.get(3));
         jdbcTemplate.update("""
@@ -263,18 +270,19 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 """, ids.get(2));
 
         // When
-        AuthorPostListResult next = postQueryService.getAuthorPosts(
-                authorId, 2, first.nextCursor(), viewerId);
-        AuthorPostListResult pastEnd = postQueryService.getAuthorPosts(
-                authorId, 2, LocalDate.of(2026, 4, 1), viewerId);
+        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        AuthorPostListResult pastEnd = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
 
         // Then
-        assertThat(next.posts()).extracting(AuthorPostListResult.PostSummary::id)
-                .containsExactly(ids.get(1), ids.get(0));
-        assertThat(next.hasNext()).isFalse();
-        assertThat(next.nextCursor()).isNull();
+        assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(0));
+        assertThat(second.hasNext()).isFalse();
+        assertThat(refreshed.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(ids.get(4), ids.get(1));
         assertThat(pastEnd.posts()).isEmpty();
+        assertThat(pastEnd.currentPage()).isEqualTo(3);
+        assertThat(pastEnd.pageSize()).isEqualTo(2);
         assertThat(pastEnd.hasNext()).isFalse();
-        assertThat(pastEnd.nextCursor()).isNull();
     }
 }
