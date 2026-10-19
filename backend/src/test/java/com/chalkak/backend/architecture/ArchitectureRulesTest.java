@@ -21,7 +21,7 @@ class ArchitectureRulesTest {
     Path temporaryDirectory;
 
     @Test
-    @DisplayName("기존 도메인과 관리자 배너의 올바른 계층·record 요청을 허용한다")
+    @DisplayName("기존 도메인과 독립 배너의 올바른 계층·record 요청을 허용한다")
     void evaluate_validFixture_passesEveryRule() throws IOException {
         // Given
         var fixture = compileFixture(-1);
@@ -48,7 +48,7 @@ class ArchitectureRulesTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 2, 3, 4})
-    @DisplayName("배너 하위 패키지도 요청 record·서비스 의존성·저장소·Controller 배치 위반을 거절한다")
+    @DisplayName("독립 배너도 요청 record·서비스 의존성·저장소·Controller 배치 위반을 거절한다")
     void evaluate_invalidBannerFixture_reportsViolation(int ruleIndex) throws IOException {
         // Given
         var fixture = compileFixture(ruleIndex, true);
@@ -92,18 +92,18 @@ class ArchitectureRulesTest {
                 new Source("com.chalkak.backend.sample.api.internal.v1.controller",
                         "GoodController",
                         "@org.springframework.web.bind.annotation.RestController public class GoodController {}"),
-                new Source("com.chalkak.backend.admin.banner.api.v1.dto.request", "GoodRequest",
+                new Source("com.chalkak.backend.admin.api.v1.dto.request", "GoodRequest",
                         "public record GoodRequest(String name) {}"),
-                new Source("com.chalkak.backend.admin.banner.service", "GoodService",
+                new Source("com.chalkak.backend.admin.service.banner", "GoodService",
                         "public class GoodService {}"),
-                new Source("com.chalkak.backend.admin.banner.repository", "GoodRepository",
+                new Source("com.chalkak.backend.banner.repository", "GoodRepository",
                         "public interface GoodRepository {}"),
-                new Source("com.chalkak.backend.admin.banner.infrastructure.persistence",
+                new Source("com.chalkak.backend.banner.infrastructure.persistence",
                         "GoodJpaRepository",
                         "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source("com.chalkak.backend.admin.banner.api.v1.controller", "GoodController",
+                new Source("com.chalkak.backend.admin.api.v1.controller", "GoodController",
                         "@org.springframework.web.bind.annotation.RestController public class GoodController {}")));
-        String domain = banner ? "com.chalkak.backend.admin.banner" : "com.chalkak.backend.sample";
+        String domain = banner ? "com.chalkak.backend.banner" : "com.chalkak.backend.sample";
         var invalidSources = List.of(
                 new Source(domain + ".api.v1.dto.request", "BadRequest",
                         "public class BadRequest {}"),
