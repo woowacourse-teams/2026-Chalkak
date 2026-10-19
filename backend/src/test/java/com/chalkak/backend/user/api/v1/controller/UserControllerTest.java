@@ -69,16 +69,19 @@ class UserControllerTest {
         // Given
         UUID postId = UUID.randomUUID();
         UUID topicId = UUID.randomUUID();
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, null, USER_ID))
                 .willReturn(new AuthorPostListResult(List.of(new AuthorPostListResult.PostSummary(
                         postId, "https://cdn.example.com/original.webp", null,
                         new AuthorPostListResult.TopicSummary(topicId, "오늘의 하늘",
-                                LocalDate.of(2026, 4, 1))))));
+                                LocalDate.of(2026, 4, 1)))),
+                        false, null));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(aMapWithSize(1)))
+                .andExpect(jsonPath("$").value(aMapWithSize(3)))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").isEmpty())
                 .andExpect(jsonPath("$.posts[0]").value(aMapWithSize(4)))
                 .andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
                 .andExpect(jsonPath("$.posts[0].originalImageUrl")
@@ -90,14 +93,49 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.posts[0].topic.topicDate").value("2026-04-01"));
     }
 
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("날짜 커서를 전달하고 다음 묶음 여부와 날짜 커서를 응답한다")
+    void getAuthorPosts_validCursor_returnsContinuationMetadata() throws Exception {
+        // Given
+        LocalDate boundary = LocalDate.of(2026, 3, 1);
+        LocalDate nextCursor = LocalDate.of(2026, 2, 28);
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 1, boundary, USER_ID))
+                .willReturn(new AuthorPostListResult(List.of(new AuthorPostListResult.PostSummary(
+                        UUID.randomUUID(), "https://cdn.example.com/original.webp", null,
+                        new AuthorPostListResult.TopicSummary(UUID.randomUUID(), "주제",
+                                nextCursor))),
+                        true, nextCursor));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
+                .param("pageSize", "1")
+                .param("cursor", "2026-03-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").value("2026-02-28"));
+    }
+
+    @ParameterizedTest
+    @WithMockLoginUser(USER_ID_VALUE)
+    @ValueSource(strings = {"", "invalid", "2026-02-30", "2025-02-29", "2026-2-01",
+            "2026-04-01T00:00:00Z", "2026-04-01extra"})
+    @DisplayName("빈 값·잘못된 형식·존재하지 않는 날짜 커서를 거절한다")
+    void getAuthorPosts_invalidCursor_returnsBadRequest(String cursor) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID).param("cursor", cursor))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
     @ParameterizedTest
     @WithMockLoginUser(USER_ID_VALUE)
     @ValueSource(ints = {1, 2, 99, 100})
     @DisplayName("허용 범위의 조회 개수를 서비스에 전달한다")
     void getAuthorPosts_validPageSize_passesRequestedSize(int pageSize) throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, pageSize, USER_ID))
-                .willReturn(new AuthorPostListResult(List.of()));
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, pageSize, null, USER_ID))
+                .willReturn(new AuthorPostListResult(List.of(), false, null));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
@@ -134,7 +172,7 @@ class UserControllerTest {
     @DisplayName("작성자를 찾을 수 없으면 공통 404 응답을 반환한다")
     void getAuthorPosts_missingAuthor_returnsNotFound() throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, null, USER_ID))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다."));
 
         // When & Then
@@ -149,7 +187,7 @@ class UserControllerTest {
     @DisplayName("조회자 인증 예외를 공통 401 응답으로 변환한다")
     void getAuthorPosts_invalidViewer_returnsUnauthorized() throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, USER_ID))
+        given(postQueryService.getAuthorPosts(AUTHOR_ID, 20, null, USER_ID))
                 .willThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
 
         // When & Then

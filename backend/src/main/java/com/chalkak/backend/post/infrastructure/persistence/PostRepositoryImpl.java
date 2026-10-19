@@ -90,11 +90,18 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
-    public List<Post> findVisibleRecentByAuthorId(UUID authorId, int limit) {
-        return postJpaRepository.findVisibleRecentByAuthorId(
+    public PostSlice findVisibleRecentByAuthorId(
+            UUID authorId,
+            LocalDate cursor,
+            int pageSize
+    ) {
+        Slice<Post> result = postJpaRepository.findVisibleRecentByAuthorId(
                 authorId,
                 ModerationStatus.APPROVED,
-                PageRequest.of(0, limit));
+                cursor,
+                PageRequest.of(0, pageSize));
+
+        return new PostSlice(result.getContent(), result.hasNext());
     }
 
     @Override

@@ -26,6 +26,8 @@ public interface UserApiDocs {
 
     @Operation(summary = "작성자의 최근 공개 사진 조회", description = """
             작성자의 공개 사진을 주제 날짜 최신순으로 반환합니다. 기본 20개이며 1~100개를 지정할 수 있습니다.
+            다음 조회에는 응답의 nextCursor를 cursor로 전달합니다. 마지막 묶음은 hasNext=false, nextCursor=null입니다.
+            이미 지나온 구간의 새 승인은 새로고침 때 반영하며, 미조회 구간은 요청 시점의 공개 조건을 따릅니다.
             정지 회원도 조회할 수 있고 공개 사진이 없으면 빈 목록을 반환합니다.
             본인 조회에도 승인 대기·반려 사진은 포함하지 않습니다.
             """)

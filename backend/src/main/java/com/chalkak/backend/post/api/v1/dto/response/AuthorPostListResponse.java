@@ -6,12 +6,17 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public record AuthorPostListResponse(List<AuthorPostResponse> posts) {
+public record AuthorPostListResponse(
+        List<AuthorPostResponse> posts,
+        boolean hasNext,
+        @Schema(nullable = true)
+        LocalDate nextCursor
+) {
 
     public static AuthorPostListResponse fromAuthorPostListResult(AuthorPostListResult result) {
         return new AuthorPostListResponse(result.posts().stream()
                 .map(AuthorPostResponse::fromPostSummary)
-                .toList());
+                .toList(), result.hasNext(), result.nextCursor());
     }
 
     public record AuthorPostResponse(

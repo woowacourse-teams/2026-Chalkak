@@ -51,6 +51,7 @@ public class UserController implements UserApiDocs {
                 postQueryService.getAuthorPosts(
                         CanonicalUuidParser.parse(authorId),
                         request.pageSize(),
+                        request.toCursorDate(),
                         loginUser.userId())));
     }
 

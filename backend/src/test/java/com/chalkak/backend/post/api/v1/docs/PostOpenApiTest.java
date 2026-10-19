@@ -49,6 +49,13 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
                         + "[?(@.name == 'pageSize')].schema.maximum")
                         .value(containsInAnyOrder(100)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'cursor')].in").value(containsInAnyOrder("query")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'cursor')].required").value(containsInAnyOrder(false)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'cursor')].schema.format")
+                        .value(containsInAnyOrder("date")))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
                         .value(aMapWithSize(5)))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
@@ -62,7 +69,16 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
                         .value(hasKey("404")))
                 .andExpect(jsonPath("$.components.schemas.AuthorPostListResponse.properties")
-                        .value(aMapWithSize(1)))
+                        .value(aMapWithSize(3)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostListResponse.properties.hasNext.type")
+                        .value("boolean"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostListResponse.properties.nextCursor.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostListResponse.properties.nextCursor.format")
+                        .value("date"))
                 .andExpect(jsonPath("$.components.schemas.AuthorPostResponse.properties")
                         .value(aMapWithSize(4)))
                 .andExpect(jsonPath(
