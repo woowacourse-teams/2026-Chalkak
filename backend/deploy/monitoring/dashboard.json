@@ -25,11 +25,11 @@
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ec2-status-check",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-disk-used",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-memory-used",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-gc-pause",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-rds-free-storage",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-no-open-topic",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-app-heartbeat",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-gc-pause"
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing"
         ]
       }
     },
@@ -318,22 +318,9 @@
       }
     },
     {
-      "type": "log",
+      "type": "metric",
       "x": 12,
       "y": 44,
-      "width": 12,
-      "height": 6,
-      "properties": {
-        "title": "API별 5xx 건수 (method·route)",
-        "region": "ap-northeast-2",
-        "view": "table",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status >= 500\n| stats count(*) as n by method, route\n| sort n desc\n| limit 20"
-      }
-    },
-    {
-      "type": "metric",
-      "x": 0,
-      "y": 50,
       "width": 12,
       "height": 6,
       "properties": {
@@ -359,6 +346,19 @@
             }
           ]
         ]
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 50,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "API별 5xx 건수 (method·route)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and status >= 500\n| stats count(*) as n by method, route\n| sort n desc\n| limit 20"
       }
     },
     {
@@ -688,6 +688,309 @@
       "x": 0,
       "y": 94,
       "width": 24,
+      "height": 3,
+      "properties": {
+        "markdown": "# prod 알림 파이프라인\nDB 발행 대기 → SQS → Worker → FCM. SQS 수치는 근사치이고, FCM ACCEPTED는 기기 수신이 아닌 요청 수락입니다.\n\nDB·ERROR 그래프는 Chalkak/prod/Notification 메트릭 필터가 있어야 표시됩니다."
+      }
+    },
+    {
+      "type": "alarm",
+      "x": 0,
+      "y": 97,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "title": "prod 알림 파이프라인 알람",
+        "alarms": [
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-db-backlog",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-dlq",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-monitor-missing",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-notification-errors",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-publication-errors",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-queue-age",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-push-worker-errors"
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 100,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/SQS",
+            "ApproximateNumberOfMessagesVisible",
+            "QueueName",
+            "chalkak-prod-push",
+            {
+              "label": "처리 대기",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "ApproximateNumberOfMessagesNotVisible",
+            ".",
+            ".",
+            {
+              "label": "수신 후 숨김",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod 푸시 큐 — 대기·숨김 메시지 수",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 100,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/SQS",
+            "ApproximateAgeOfOldestMessage",
+            "QueueName",
+            "chalkak-prod-push",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod 푸시 큐 — 가장 오래된 대기 시간(초)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 100,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/SQS",
+            "ApproximateNumberOfMessagesVisible",
+            "QueueName",
+            "chalkak-prod-push-dlq",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod 푸시 DLQ — 메시지 수",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 106,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Chalkak/prod/Notification",
+            "PendingPublicationCount",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod DB — 발행 대기 건수",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 106,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Chalkak/prod/Notification",
+            "OldestPendingPublicationAge",
+            {
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod DB — 가장 오래된 발행 대기 시간(초)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 106,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Chalkak/prod/Notification",
+            "PublicationMonitorHeartbeat",
+            {
+              "stat": "Sum",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod DB — 정상 관측 횟수(1분)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 112,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Chalkak/prod/Notification",
+            "NotificationErrors",
+            {
+              "label": "전체 ERROR",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "WorkerErrors",
+            {
+              "label": "Worker 오류·FCM 일시 오류",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "PublicationErrors",
+            {
+              "label": "발행 오류",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "FcmConfigurationErrors",
+            {
+              "label": "FCM 인증·프로젝트 오류",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod 알림 — 단계별 오류 로그 수(5분)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 112,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "Chalkak/prod/Notification",
+            "SqsAccepted",
+            {
+              "label": "승인·반려 Relay 수락",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "PublicationFailed",
+            {
+              "label": "발행 실패",
+              "region": "ap-northeast-2"
+            }
+          ],
+          [
+            ".",
+            "PublicationExpired",
+            {
+              "label": "발행 만료",
+              "region": "ap-northeast-2"
+            }
+          ]
+        ],
+        "title": "prod Relay — SQS 수락·발행 실패·만료(5분)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 118,
+      "width": 24,
       "height": 1,
       "properties": {
         "markdown": "# dev 서버"
@@ -696,7 +999,7 @@
     {
       "type": "alarm",
       "x": 0,
-      "y": 95,
+      "y": 119,
       "width": 12,
       "height": 6,
       "properties": {
@@ -712,7 +1015,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 95,
+      "y": 119,
       "width": 12,
       "height": 6,
       "properties": {
@@ -744,7 +1047,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 101,
+      "y": 125,
       "width": 12,
       "height": 6,
       "properties": {
@@ -766,7 +1069,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 101,
+      "y": 125,
       "width": 12,
       "height": 6,
       "properties": {
@@ -792,17 +1095,17 @@
     {
       "type": "text",
       "x": 0,
-      "y": 107,
+      "y": 131,
       "width": 24,
-      "height": 3,
+      "height": 2,
       "properties": {
-        "markdown": "# dev 알림 파이프라인\nDB 발행 대기 → SQS → Worker → FCM. SQS 수치는 근사치이고, FCM ACCEPTED는 기기 수신이 아닌 요청 수락입니다.\n\nDB·ERROR 그래프는 Chalkak/dev/Notification 메트릭 필터가 있어야 표시됩니다."
+        "markdown": "# dev 알림 파이프라인\nprod 알림 파이프라인과 같은 구성입니다. DB·ERROR 그래프는 Chalkak/dev/Notification 메트릭 필터가 있어야 표시됩니다."
       }
     },
     {
       "type": "metric",
       "x": 0,
-      "y": 110,
+      "y": 133,
       "width": 8,
       "height": 6,
       "properties": {
@@ -841,7 +1144,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 110,
+      "y": 133,
       "width": 8,
       "height": 6,
       "properties": {
@@ -868,7 +1171,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 110,
+      "y": 133,
       "width": 8,
       "height": 6,
       "properties": {
@@ -895,7 +1198,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 116,
+      "y": 139,
       "width": 8,
       "height": 6,
       "properties": {
@@ -920,7 +1223,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 116,
+      "y": 139,
       "width": 8,
       "height": 6,
       "properties": {
@@ -945,7 +1248,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 116,
+      "y": 139,
       "width": 8,
       "height": 6,
       "properties": {
@@ -973,7 +1276,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 122,
+      "y": 145,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1017,7 +1320,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 122,
+      "y": 145,
       "width": 12,
       "height": 6,
       "properties": {
