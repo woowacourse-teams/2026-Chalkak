@@ -106,7 +106,7 @@ private struct LiquidGlassBottomBar: View {
             itemButton(.settings)
         }
         .padding(barPadding)
-        // 드래그 중에는 렌즈에 걸친 부분을 선택 아이콘으로 보여 준다. 현재 탭은 렌즈가 떠나도 선택 아이콘을 유지한다.
+        // 선택 아이콘은 렌즈에 걸친 부분에만 보인다. 렌즈 밖은 현재 탭이라도 기본 아이콘으로 보인다.
         .mask { lensMask(inverted: true) }
         .overlay {
             hoveredIcons
@@ -198,7 +198,7 @@ private struct LiquidGlassBottomBar: View {
         return Button {
             performAction { onSelect(item) }
         } label: {
-            itemIcon(item, isSelected: isSelected)
+            itemIcon(item, isSelected: false)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -254,7 +254,7 @@ private struct LiquidGlassBottomBar: View {
         .accessibilityHidden(true)
     }
 
-    /// 드래그 중인 렌즈 모양. `inverted`이면 렌즈 바깥만 남긴다.
+    /// 렌즈 모양. `inverted`이면 렌즈 바깥만 남긴다.
     @ViewBuilder
     private func lensMask(inverted: Bool) -> some View {
         let lens = GeometryReader { proxy in
@@ -262,7 +262,6 @@ private struct LiquidGlassBottomBar: View {
                 Capsule().frame(width: width, height: lensHeight)
             }
         }
-        .opacity(isDragging ? 1 : 0)
 
         if inverted {
             Rectangle()
