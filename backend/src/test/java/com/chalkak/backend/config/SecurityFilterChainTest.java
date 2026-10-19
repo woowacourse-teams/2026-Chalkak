@@ -27,6 +27,7 @@ import com.chalkak.backend.auth.service.token.TokenRefreshResult;
 import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.like.service.PostLikeResult;
 import com.chalkak.backend.like.service.PostLikeService;
+import com.chalkak.backend.post.service.AuthorPostListResult;
 import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
@@ -42,6 +43,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -496,6 +499,52 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 )
                 """, userId);
         return userId;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("작성자 사진 조회는 정상·정지 회원을 허용하고 탈퇴한 조회자는 거절한다")
+    void authorPosts_viewerState_appliesExistingUserPolicy(String state) throws Exception {
+        // Given
+        UUID viewerId = createUser();
+        UUID authorId = UUID.randomUUID();
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    viewerId);
+        }
+        if (state.equals("BANNED")) {
+            jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", viewerId);
+        }
+        given(postQueryService.getAuthorPosts(authorId, 20, viewerId))
+                .willReturn(new AuthorPostListResult(List.of()));
+        String token = accessTokenProvider.issueForSession(viewerId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", authorId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(state.equals("WITHDRAWN") ? status().isUnauthorized() : status().isOk());
+    }
+
+    @Test
+    @DisplayName("작성자 사진 조회는 토큰이 없으면 필터에서 거절한다")
+    void authorPosts_withoutToken_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("작성자 사진 조회는 관리자 토큰을 거절한다")
+    void authorPosts_adminToken_returnsForbidden() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", UUID.randomUUID())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
     @Test

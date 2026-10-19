@@ -90,6 +90,14 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public List<Post> findVisibleRecentByAuthorId(UUID authorId, int limit) {
+        return postJpaRepository.findVisibleRecentByAuthorId(
+                authorId,
+                ModerationStatus.APPROVED,
+                PageRequest.of(0, limit));
+    }
+
+    @Override
     public Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId) {
         return postJpaRepository.findByPostImageUploadIdForUpdate(
                 postImageUploadId,

@@ -58,6 +58,21 @@ public class PostQueryService {
                 postLikeRepository.existsByPostIdAndUserId(postId, userId));
     }
 
+    public AuthorPostListResult getAuthorPosts(
+            UUID authorId,
+            int pageSize,
+            UUID viewerId
+    ) {
+        validateUser(viewerId);
+        if (!userRepository.existsActiveById(authorId)) {
+            throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다.");
+        }
+
+        return AuthorPostListResult.fromPosts(
+                postRepository.findVisibleRecentByAuthorId(authorId, pageSize),
+                imageUrlProvider);
+    }
+
     /**
      * 지금 참여할 수 있는 주제에 게시물을 새로 쓸 수 있는지 미리 알려 준다. 판정은 게시물 생성이 거절하는 규칙과 같아야 한다. 여기서
      * 통과시킨 요청이 생성에서 거절되면 클라이언트가 잘못된 안내를 하게 된다.

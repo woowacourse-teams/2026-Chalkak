@@ -17,6 +17,9 @@ import org.slf4j.MDC;
 import org.springframework.boot.logging.LoggingInitializationContext;
 import org.springframework.boot.logging.logback.LogbackLoggingSystem;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerMapping;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -76,6 +79,40 @@ class JsonFileLogTest {
         assertThat(json.get(LogFields.TYPE).asString()).isEqualTo("access");
         assertThat(json.get(LogFields.ROUTE).asString()).isEqualTo("/api/v1/posts/{postId}");
         assertThat(json.get(LogFields.STATUS).asInt()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    @DisplayName("피드 접근 로그는 조회 조건만 JSON 한 줄에 기록하고 게시물 ID 목록은 남기지 않는다")
+    void initialize_deployedProfile_writesFeedConditionsWithoutPostIds(String profile)
+            throws Exception {
+        // Given
+        Path logFile = tempDir.resolve("feed.log");
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("chalkak.logging.file", logFile.toString())
+                .withProperty("chalkak.logging.notification-file",
+                        tempDir.resolve("notification.log").toString());
+        environment.setActiveProfiles(profile);
+        initialize(environment);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
+        request.setParameter("topicDate", "2026-08-12");
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
+        request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
+                new FeedQueryLog("popular", 2, 20));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        // When
+        new RequestIdFilter().doFilter(request, response, (req, res) -> response.setStatus(200));
+
+        // Then
+        List<String> lines = Files.readAllLines(logFile);
+        assertThat(lines).hasSize(1);
+        JsonNode json = STRICT_MAPPER.readTree(lines.getFirst());
+        assertThat(json.has("postIds")).isFalse();
+        assertThat(json.get("sort").asString()).isEqualTo("popular");
+        assertThat(json.get("page").asInt()).isEqualTo(2);
+        assertThat(json.get("pageSize").asInt()).isEqualTo(20);
+        assertThat(json.get("requestId").asString()).isEqualTo(response.getHeader("X-Request-Id"));
     }
 
     @ParameterizedTest

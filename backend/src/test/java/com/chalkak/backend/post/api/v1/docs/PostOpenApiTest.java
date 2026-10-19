@@ -22,6 +22,58 @@ class PostOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("작성자 사진 조회 문서는 UUID·인증·최소 응답과 오류 계약을 제공한다")
+    void userApiDocs_getAuthorPosts_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters[0].name")
+                                .value("userId"))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters[0].in")
+                        .value("path"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/users/{userId}/posts'].get.parameters[0].schema.format")
+                        .value("uuid"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/users/{userId}/posts'].get.security[0].accessToken")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'pageSize')].in").value(containsInAnyOrder("query")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'pageSize')].required").value(containsInAnyOrder(false)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'pageSize')].schema.default").value(containsInAnyOrder(20)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'pageSize')].schema.minimum").value(containsInAnyOrder(1)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
+                        + "[?(@.name == 'pageSize')].schema.maximum")
+                        .value(containsInAnyOrder(100)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(aMapWithSize(5)))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(hasKey("200")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(hasKey("400")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(hasKey("401")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(hasKey("403")))
+                .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.responses")
+                        .value(hasKey("404")))
+                .andExpect(jsonPath("$.components.schemas.AuthorPostListResponse.properties")
+                        .value(aMapWithSize(1)))
+                .andExpect(jsonPath("$.components.schemas.AuthorPostResponse.properties")
+                        .value(aMapWithSize(4)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostResponse.properties.thumbnailImageUrl.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostTopicResponse.properties.topicDate.format")
+                        .value("date"));
+    }
+
+    @Test
     @DisplayName("user-api 캘린더 문서는 기존 응답 구조에서 승인 대기·승인 상태만 제공한다")
     void userApiDocs_getMyPostCalendar_exposesPendingAndApprovedStatuses() throws Exception {
         // When & Then
@@ -142,10 +194,15 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("게시물 목록 조회는 익명 호출과 accessToken 호출을 모두 허용하는 선택적 인증으로 문서화된다")
-    void userApiDocs_postListEndpoint_declaresOptionalAuth() throws Exception {
+    @DisplayName("게시물 목록 조회는 기존 조회 조건과 선택적 인증만 노출하고 서블릿 요청은 숨긴다")
+    void userApiDocs_postListEndpoint_exposesOnlyQueryConditionsAndOptionalAuth() throws Exception {
+        // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.parameters[*].name")
+                        .value(containsInAnyOrder("topicDate", "sort", "randomSeed", "page",
+                                "pageSize")))
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.requestBody").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security.length()").value(2))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[0]").value(anEmptyMap()))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")

@@ -15,6 +15,9 @@ public final class LogFields {
     public static final String EVENT = "event";
     public static final String POST_ID = "postId";
     public static final String TOPIC_DATE = "topicDate";
+    public static final String SORT = "sort";
+    public static final String PAGE = "page";
+    public static final String PAGE_SIZE = "pageSize";
     public static final String WAIT_SECONDS = "waitSeconds";
     public static final String HEAP_USED_BYTES = "heapUsedBytes";
     public static final String HEAP_MAX_BYTES = "heapMaxBytes";
@@ -25,6 +28,7 @@ public final class LogFields {
     public static final String METRIC_DATE = "metricDate";
 
     public static final String USER_ID_REQUEST_ATTRIBUTE = "chalkak.userId";
+    public static final String FEED_QUERY_REQUEST_ATTRIBUTE = "chalkak.feedQuery";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     public static final String TYPE_ACCESS = "access";

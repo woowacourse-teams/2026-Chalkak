@@ -33,6 +33,7 @@
 | 좋아요 | [like.md](rules/like.md) | 활성 |
 | 피드백 | [feedback.md](rules/feedback.md) | 활성 |
 | 관리자 | [admin.md](rules/admin.md) | 활성 |
+| 배너 | [banner.md](rules/banner.md) | 활성 |
 | 알림함 | [notification.md](rules/notification.md) | 활성 |
 
 새 도메인 문서는 [규칙 템플릿](rules/_template.md)을 복사해 만든다. 템플릿은 이후 규칙도 같은 형식으로 기록하기 위해 유지하며 현재 규칙이나 Notion 동기화 대상으로 보지 않는다.
@@ -43,6 +44,7 @@
 
 | 작업 | 문서 |
 | --- | --- |
+| 작성자의 최근 공개 사진 조회와 기존 상세 조회 연결 | [작성자 공개 사진 연동 안내](guides/author-public-posts.md) |
 | 알림함 조회·읽음, 30일 보관과 만료된 알림 처리 | [알림함 연동 안내](guides/notification-inbox.md) |
 | 푸시 기기 등록·갱신, 이전 JWT의 자동 토큰 갱신 | [푸시 기기 등록 연동 안내](guides/push-device-registration.md) |
 | FCM 메시지 필드·플랫폼별 수신·클릭 후 화면 이동 | [Android·iOS 푸시 메시지 연동 계약](guides/notification-push-contract.md) |
