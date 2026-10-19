@@ -37,6 +37,7 @@ struct ChalkakNavigationButton: View {
             .modifier(ChalkakNavigationButtonStyle())
             .buttonBorderShape(.circle)
             .frame(width: Self.diameter, height: Self.diameter)
+            .contentShape(Circle())
             .accessibilityLabel(kind.title)
     }
 }

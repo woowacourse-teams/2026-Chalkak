@@ -64,6 +64,7 @@ struct FeedTopBar: View {
                 width: ChalkakNavigationButton.diameter,
                 height: ChalkakNavigationButton.diameter
             )
+            .contentShape(Circle())
             .disabled(!isEnabled)
             .accessibilityLabel(title)
     }

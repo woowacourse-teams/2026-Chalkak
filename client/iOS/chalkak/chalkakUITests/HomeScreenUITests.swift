@@ -41,6 +41,24 @@ final class HomeScreenUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["하늘"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["하늘"].isHittable)
     }
+
+    @MainActor
+    func testFlatBackButtonRespondsAcrossTouchTarget() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview", "-use-flat-ios-design"]
+        app.launch()
+
+        let issue = app.buttons["함께 만들어주신 찰캌"]
+        for _ in 0..<6 where !issue.isHittable { app.swipeUp() }
+        XCTAssertTrue(issue.isHittable)
+        issue.tap()
+
+        let backButton = app.buttons["issue.back"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+        backButton.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        XCTAssertTrue(issue.waitForExistence(timeout: 3))
+    }
+
     @MainActor
     func testHeroStatesAndResubmitEntry() {
         let app = XCUIApplication()
