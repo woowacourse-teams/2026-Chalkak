@@ -437,11 +437,25 @@ class OpenAiResponsesReviewGeneratorTest {
         assertFailure(FailureType.INVALID_OUTPUT, false);
     }
 
-    @Test
-    @DisplayName("generate_429 응답이면_재시도 가능한 RATE_LIMITED로 실패하고 사용량은 없다")
-    void generate_http429_failsWithRateLimited() {
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"error\":{\"message\":\"Rate limit reached for requests\","
+                    + "\"type\":\"requests\",\"code\":\"rate_limit_exceeded\"}}",
+            "{\"error\":{\"message\":\"Slow down\","
+                    + "\"type\":\"rate_limit_error\",\"code\":\"slow_down\"}}",
+            "{\"error\":{\"message\":\"unknown\",\"type\":\"other\",\"code\":\"new_code\"}}",
+            "{\"error\":{\"message\":\"no code\"}}",
+            "{\"error\":null}",
+            "{\"error\":\"quota\"}",
+            "[]",
+            "{}",
+            "",
+            "not json"
+    })
+    @DisplayName("generate_일시적 한도이거나 원인을 알 수 없는 429 응답이면_재시도 가능한 RATE_LIMITED로 실패하고 사용량은 없다")
+    void generate_transientHttp429_failsWithRateLimited(String errorBody) {
         // Given
-        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        respondError(HttpStatus.TOO_MANY_REQUESTS, errorBody);
 
         // When & Then
         assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
@@ -450,6 +464,83 @@ class OpenAiResponsesReviewGeneratorTest {
                     assertThat(exception.getFailureType().isRetryable()).isTrue();
                     assertThat(exception.findAttempt()).isEmpty();
                 });
+    }
+
+    @Test
+    @DisplayName("generate_본문 없는 429 응답이면_재시도 가능한 RATE_LIMITED로 실패한다")
+    void generate_http429WithoutBody_failsWithRateLimited() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        // When & Then
+        assertFailure(FailureType.RATE_LIMITED, true);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "insufficient_quota",
+            "credit_balance_exhausted",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded"
+    })
+    @DisplayName("generate_결제·한도 소진 코드의 429 응답이면_재시도 불가한 QUOTA_EXCEEDED로 실패한다")
+    void generate_billingHttp429_failsWithQuotaExceeded(String code) {
+        // Given
+        respondError(HttpStatus.TOO_MANY_REQUESTS,
+                "{\"error\":{\"message\":\"secret billing detail\",\"type\":\"billing\","
+                        + "\"code\":\"" + code + "\"}}");
+
+        // When & Then
+        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(FailureType.QUOTA_EXCEEDED);
+                    assertThat(exception.getFailureType().isRetryable()).isFalse();
+                    assertThat(exception.getMessage()).doesNotContain("secret billing detail");
+                    assertThat(exception.findAttempt()).isEmpty();
+                });
+    }
+
+    @Test
+    @DisplayName("generate_type만 insufficient_quota인 429 응답이면_재시도 불가한 QUOTA_EXCEEDED로 실패한다")
+    void generate_http429WithQuotaType_failsWithQuotaExceeded() {
+        // Given
+        respondError(HttpStatus.TOO_MANY_REQUESTS,
+                "{\"error\":{\"message\":\"quota\",\"type\":\"insufficient_quota\",\"code\":null}}");
+
+        // When & Then
+        assertFailure(FailureType.QUOTA_EXCEEDED, false);
+    }
+
+    @Test
+    @DisplayName("generate_결제 코드가 429가 아닌 응답에 있으면_상태 코드 기준으로 분류한다")
+    void generate_billingCodeOnNon429_classifiedByStatus() {
+        // Given
+        respondError(HttpStatus.BAD_REQUEST,
+                "{\"error\":{\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"}}");
+
+        // When & Then
+        assertFailure(FailureType.BAD_REQUEST, false);
+    }
+
+    @Test
+    @DisplayName("generate_408 응답이면_재시도 가능한 TIMEOUT으로 실패한다")
+    void generate_http408_failsWithTimeout() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.REQUEST_TIMEOUT));
+
+        // When & Then
+        assertFailure(FailureType.TIMEOUT, true);
+    }
+
+    @Test
+    @DisplayName("generate_409 응답이면_재시도 가능한 UPSTREAM_ERROR로 실패한다")
+    void generate_http409_failsWithUpstreamError() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.CONFLICT));
+
+        // When & Then
+        assertFailure(FailureType.UPSTREAM_ERROR, true);
     }
 
     @ParameterizedTest
@@ -535,6 +626,13 @@ class OpenAiResponsesReviewGeneratorTest {
     private void respondOk(String body) {
         server.expect(requestTo(RESPONSES_URL))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    private void respondError(HttpStatus status, String body) {
+        server.expect(requestTo(RESPONSES_URL))
+                .andRespond(withStatus(status)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body));
     }
 
     private void assertFailure(FailureType expected, boolean retryable) {

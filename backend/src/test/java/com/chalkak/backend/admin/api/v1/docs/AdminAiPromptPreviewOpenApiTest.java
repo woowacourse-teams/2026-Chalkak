@@ -43,8 +43,8 @@ class AdminAiPromptPreviewOpenApiTest extends IntegrationTestSupport {
                         "$.components.schemas.AiPromptPreviewRequest.properties.userPromptTemplate.maxLength")
                         .value(2000))
                 .andExpect(jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.failureType.enum")
-                        .value(containsInAnyOrder("TIMEOUT", "RATE_LIMITED", "UPSTREAM_ERROR",
-                                "BAD_REQUEST", "REFUSED", "INCOMPLETE", "INVALID_OUTPUT")))
+                        .value(containsInAnyOrder("TIMEOUT", "RATE_LIMITED", "QUOTA_EXCEEDED",
+                                "UPSTREAM_ERROR", "BAD_REQUEST", "REFUSED", "INCOMPLETE", "INVALID_OUTPUT")))
                 .andExpect(jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.keys()")
                         .value(containsInAnyOrder("succeeded", "failureType", "retryable",
                                 "result", "output", "usage", "latencyMs", "responseId")));

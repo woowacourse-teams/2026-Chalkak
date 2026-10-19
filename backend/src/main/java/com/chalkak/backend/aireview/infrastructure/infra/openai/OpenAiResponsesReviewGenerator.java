@@ -3,6 +3,7 @@ package com.chalkak.backend.aireview.infrastructure.infra.openai;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.BAD_REQUEST;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.INCOMPLETE;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.INVALID_OUTPUT;
+import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.QUOTA_EXCEEDED;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.RATE_LIMITED;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.REFUSED;
 import static com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType.TIMEOUT;
@@ -22,6 +23,7 @@ import com.chalkak.backend.aireview.service.AiReviewGenerationRequest;
 import com.chalkak.backend.aireview.service.AiReviewGenerator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpTimeoutException;
@@ -33,7 +35,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -53,6 +57,13 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final String REFUSAL_TYPE = "refusal";
     private static final String STATUS_INCOMPLETE = "incomplete";
     private static final String STATUS_COMPLETED = "completed";
+    // 429여도 code 또는 type이 결제·한도 소진이면 기다려도 풀리지 않아 재시도 대상이 아니다.
+    private static final Set<String> QUOTA_ERROR_CODES = Set.of(
+            "insufficient_quota",
+            "credit_balance_exhausted",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded");
 
     // OpenAI Structured Outputs 전용 스키마라 도메인이 아닌 이 어댑터가 정의한다.
     // strict 모드는 모든 필드를 required로 두고 additionalProperties를 막아야 한다.
@@ -148,7 +159,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             status -> !status.is2xxSuccessful(),
                             (httpRequest, response) -> {
                                 throw new AiReviewGenerationException(
-                                        failureTypeOf(response.getStatusCode()));
+                                        failureTypeOf(response));
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
@@ -225,14 +236,40 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         }
     }
 
-    private FailureType failureTypeOf(HttpStatusCode status) {
+    private FailureType failureTypeOf(ClientHttpResponse response) throws IOException {
+        HttpStatusCode status = response.getStatusCode();
         if (status.value() == 429) {
-            return RATE_LIMITED;
+            return isQuotaExhausted(readError(response)) ? QUOTA_EXCEEDED : RATE_LIMITED;
+        }
+        if (status.value() == 408) {
+            return TIMEOUT;
+        }
+        if (status.value() == 409) {
+            return UPSTREAM_ERROR;
         }
         if (status.is4xxClientError()) {
             return BAD_REQUEST;
         }
         return UPSTREAM_ERROR;
+    }
+
+    /**
+     * 429의 원인을 가르는 error.code·type만 읽는다. 본문이 비었거나 읽을 수 없으면 비어 있는 값으로 본다.
+     */
+    private ErrorBody readError(ClientHttpResponse response) {
+        try {
+            ErrorEnvelope envelope = objectMapper.readValue(response.getBody(), ErrorEnvelope.class);
+            return envelope == null || envelope.error() == null
+                    ? new ErrorBody(null, null)
+                    : envelope.error();
+        } catch (JacksonException | IOException exception) {
+            return new ErrorBody(null, null);
+        }
+    }
+
+    private boolean isQuotaExhausted(ErrorBody error) {
+        return (error.code() != null && QUOTA_ERROR_CODES.contains(error.code()))
+                || (error.type() != null && QUOTA_ERROR_CODES.contains(error.type()));
     }
 
     private boolean isTimeout(Throwable exception) {
@@ -284,6 +321,12 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     }
 
     private record Reasoning(String effort) {
+    }
+
+    private record ErrorEnvelope(ErrorBody error) {
+    }
+
+    private record ErrorBody(String code, String type) {
     }
 
     private record ResponsesResponse(
