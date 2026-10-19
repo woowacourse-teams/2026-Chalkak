@@ -1,19 +1,17 @@
 package com.stonefive.chalkak.data.post
 
 import android.content.ContentResolver
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.exifinterface.media.ExifInterface
 import com.stonefive.chalkak.domain.model.PhotoPixels
 import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
-import java.io.IOException
 import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class AndroidPhotoEditImageRepository(private val contentResolver: ContentResolver) : PhotoEditImageRepository {
+class AndroidPhotoEditImageRepository(contentResolver: ContentResolver) : PhotoEditImageRepository {
+    private val decoder = OrientedBitmapDecoder(contentResolver)
+
     override suspend fun loadPixels(
         imageUri: String,
         minLongEdge: Int,
@@ -22,8 +20,6 @@ class AndroidPhotoEditImageRepository(private val contentResolver: ContentResolv
             decodePixels(Uri.parse(imageUri), minLongEdge)
         } catch (error: CancellationException) {
             throw error
-        } catch (_: IOException) {
-            null
         } catch (_: RuntimeException) {
             null
         }
@@ -33,33 +29,25 @@ class AndroidPhotoEditImageRepository(private val contentResolver: ContentResolv
         uri: Uri,
         minLongEdge: Int,
     ): PhotoPixels? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        // 크기만 읽을 때는 비트맵 없이 null을 돌려주므로 스트림을 열었는지만 확인한다.
-        val input = contentResolver.openInputStream(uri) ?: return null
-        input.use { BitmapFactory.decodeStream(it, null, bounds) }
-        val longEdge = max(bounds.outWidth, bounds.outHeight)
-        if (longEdge <= 0) return null
+        val decoded = decoder.decode(uri) { width, height -> sampleSizeKeeping(max(width, height), minLongEdge) }
+        val bitmap = (decoded as? OrientedBitmapDecoder.Result.Success)?.bitmap ?: return null
+        return try {
+            val argb = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            PhotoPixels(bitmap.width, bitmap.height, argb)
+        } finally {
+            bitmap.recycle()
+        }
+    }
 
+    private fun sampleSizeKeeping(
+        longEdge: Int,
+        minLongEdge: Int,
+    ): Int {
         var sampleSize = 1
         while (longEdge / (sampleSize * 2) >= minLongEdge) {
             sampleSize *= 2
         }
-        val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        val decoded = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-            ?: return null
-        val orientation = contentResolver.openInputStream(uri)?.use {
-            ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-        } ?: ExifInterface.ORIENTATION_NORMAL
-        val oriented = decoded.applyExifOrientation(orientation)
-        if (oriented !== decoded) decoded.recycle()
-
-        val argb = IntArray(oriented.width * oriented.height)
-        oriented.getPixels(argb, 0, oriented.width, 0, 0, oriented.width, oriented.height)
-        val pixels = PhotoPixels(oriented.width, oriented.height, argb)
-        oriented.recycle()
-        return pixels
+        return sampleSize
     }
 }
