@@ -113,7 +113,7 @@ private fun EditedPhotoImagePreview() {
                 quarterTurns = 1,
                 crop = CropWindow(centerX = 0.5f, centerY = 0.5f, width = 1f, height = 0.6f),
                 filter = PhotoFilter.Mono,
-                adjustmentLayers = PhotoAdjustmentLayers(manual = PhotoAdjustments(contrast = 0.3f)),
+                adjustmentLayers = PhotoAdjustmentLayers.manualOnly(PhotoAdjustments(contrast = 0.3f)),
             ),
             contentDescription = null,
             modifier = Modifier.fillMaxWidth(),

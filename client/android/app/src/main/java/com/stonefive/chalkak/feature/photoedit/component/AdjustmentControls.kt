@@ -37,7 +37,10 @@ import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
 import kotlin.math.roundToInt
 
-/** 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정 몫(자동 보정값 × 강도)을 점으로 표시하고 그 값에서 멈칫한다. */
+/**
+ * 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정 몫(자동 보정값 × 강도)을 점으로 표시하고 그 값에서 멈칫한다.
+ * 그 자리로 되돌리면 직접 만진 값이 지워져 그 항목은 다시 자동 보정을 따른다([PhotoAdjustmentLayers.withValue]).
+ */
 @Composable
 fun AdjustmentControls(
     adjustmentLayers: PhotoAdjustmentLayers,
@@ -195,7 +198,7 @@ private fun AdjustmentControlsPreview() {
             adjustmentLayers = PhotoAdjustmentLayers(
                 automatic = PhotoAdjustments(exposure = 0.14f, shadows = 0.3f),
                 intensity = 1f,
-                manual = PhotoAdjustments(exposure = 0.1f),
+                manual = mapOf(PhotoAdjustment.Exposure to 0.24f),
             ),
             selectedItem = PhotoAdjustItem.Manual(PhotoAdjustment.Exposure),
             canReset = true,

@@ -227,28 +227,26 @@ class PhotoEditViewModelTest {
     }
 
     @Test
-    fun `자동 보정 위에서 항목 값을 바꾸면 자동 보정 몫은 두고 더한 값만 바꾼다`() {
+    fun `자동 보정 위에서 직접 만진 항목은 강도를 바꾸거나 꺼도 그 값을 유지한다`() {
         val viewModel = loadedViewModel(pixels = lowContrastPixels())
         viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
         val automatic = viewModel.uiState.value.edit.adjustments
-        val exposure = PhotoAdjustItem.Manual(PhotoAdjustment.Exposure)
+        assertTrue(automatic.exposure > 0.1f && automatic.contrast > 0f)
+        val lowered = automatic.exposure - 0.1f
 
-        viewModel.onAdjustItemSelect(exposure)
-        viewModel.onAdjustmentChange(automatic.exposure + 0.2f)
-        assertEquals(
-            0.2f,
-            viewModel.uiState.value.edit.adjustmentLayers.manual.exposure,
-            TOLERANCE,
-        )
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Exposure))
+        viewModel.onAdjustmentChange(lowered)
 
-        // 자동 보정을 반으로 줄여도 사용자가 더한 0.2는 남는다.
+        // 강도를 반으로 줄이면 직접 만진 노출은 그대로, 만지지 않은 대비만 반으로 준다.
         viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
         viewModel.onAdjustmentChange(0.5f)
-        assertEquals(
-            automatic.exposure * 0.5f + 0.2f,
-            viewModel.uiState.value.edit.adjustments.exposure,
-            TOLERANCE,
-        )
+        assertEquals(lowered, viewModel.uiState.value.edit.adjustments.exposure, TOLERANCE)
+        assertEquals(automatic.contrast * 0.5f, viewModel.uiState.value.edit.adjustments.contrast, TOLERANCE)
+
+        // 자동 보정을 꺼도 직접 만진 노출은 원본보다 어두워지지 않고 그 값으로 남는다.
+        viewModel.onAdjustmentChange(0f)
+        assertEquals(lowered, viewModel.uiState.value.edit.adjustments.exposure, TOLERANCE)
+        assertEquals(0f, viewModel.uiState.value.edit.adjustments.contrast, TOLERANCE)
     }
 
     @Test
@@ -268,7 +266,7 @@ class PhotoEditViewModelTest {
     }
 
     @Test
-    fun `자동 보정과 합쳐 잘린 사용자 값도 다시 편집한 뒤 자동 보정을 끄면 그대로 돌아온다`() {
+    fun `직접 만진 값은 자동 보정을 켜고 다시 편집해 끄더라도 그대로다`() {
         val first = loadedViewModel(pixels = lowContrastPixels())
         first.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Exposure))
         first.onAdjustmentChange(1f)

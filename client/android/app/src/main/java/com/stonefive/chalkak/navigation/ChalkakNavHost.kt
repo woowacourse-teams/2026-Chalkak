@@ -757,9 +757,9 @@ private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
         height = cropHeight,
     ),
     filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
-    // 성공 화면은 결과만 보여 주므로 적용한 값을 수동 값으로 옮긴다.
-    adjustmentLayers = PhotoAdjustmentLayers(
-        manual = PhotoAdjustments(
+    // 성공 화면은 결과만 보여 주므로 적용한 값을 직접 정한 값으로 옮긴다.
+    adjustmentLayers = PhotoAdjustmentLayers.manualOnly(
+        PhotoAdjustments(
             exposure = exposure,
             contrast = contrast,
             highlights = highlights,
