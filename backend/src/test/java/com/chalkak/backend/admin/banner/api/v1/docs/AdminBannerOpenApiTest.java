@@ -45,4 +45,35 @@ class AdminBannerOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(PATH).doesNotExist());
     }
+    @Test
+    @DisplayName("배너 목록 문서는 페이지 쿼리·보안·응답 계약을 노출한다")
+    void adminApiDocs_getBanners_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(PATH + ".get.responses.keys()")
+                        .value(containsInAnyOrder("200", "400", "401", "403")))
+                .andExpect(jsonPath(PATH + ".get.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(PATH + ".get.parameters[*].name")
+                        .value(containsInAnyOrder("page", "pageSize")))
+                .andExpect(jsonPath(PATH + ".get.parameters[*].in")
+                        .value(containsInAnyOrder("query", "query")))
+                .andExpect(jsonPath(PATH + ".get.parameters[?(@.name == 'page')].schema.default")
+                        .value(org.hamcrest.Matchers.contains(1)))
+                .andExpect(
+                        jsonPath(PATH + ".get.parameters[?(@.name == 'pageSize')].schema.default")
+                                .value(org.hamcrest.Matchers.contains(20)))
+                .andExpect(
+                        jsonPath(PATH + ".get.parameters[?(@.name == 'pageSize')].schema.maximum")
+                                .value(org.hamcrest.Matchers.contains(100)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminBannerListResponse.properties.keys()")
+                        .value(containsInAnyOrder("currentPage", "pageSize", "hasNext", "banners")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminBannerListResponse.properties.banners.items['$ref']")
+                        .value("#/components/schemas/AdminBannerResponse"));
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(PATH).doesNotExist());
+    }
 }

@@ -3,7 +3,9 @@ package com.chalkak.backend.admin.banner.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.banner.api.v1.docs.AdminBannerApiDocs;
+import com.chalkak.backend.admin.banner.api.v1.dto.request.AdminBannerListRequest;
 import com.chalkak.backend.admin.banner.api.v1.dto.request.AdminBannerRequest;
+import com.chalkak.backend.admin.banner.api.v1.dto.response.AdminBannerListResponse;
 import com.chalkak.backend.admin.banner.api.v1.dto.response.AdminBannerResponse;
 import com.chalkak.backend.admin.banner.service.AdminBannerResult;
 import com.chalkak.backend.admin.banner.service.AdminBannerService;
@@ -11,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,5 +36,15 @@ public class AdminBannerController implements AdminBannerApiDocs {
         AdminBannerResult result = bannerService.createBanner(authenticatedAdmin.adminId(),
                 request.title(), request.subtitle(), request.webViewUrl(), request.thumbnailUrl());
         return ResponseEntity.status(HttpStatus.CREATED).body(AdminBannerResponse.from(result));
+    }
+
+    @Override
+    @GetMapping
+    public ResponseEntity<AdminBannerListResponse> getBanners(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @Valid @ModelAttribute AdminBannerListRequest request
+    ) {
+        return ResponseEntity.ok(AdminBannerListResponse.from(
+                bannerService.getBanners(request.page(), request.pageSize())));
     }
 }

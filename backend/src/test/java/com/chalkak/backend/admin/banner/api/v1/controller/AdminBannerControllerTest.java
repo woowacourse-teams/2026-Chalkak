@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.banner.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
+import com.chalkak.backend.admin.banner.service.AdminBannerListResult;
 import com.chalkak.backend.admin.banner.service.AdminBannerResult;
 import com.chalkak.backend.admin.banner.service.AdminBannerService;
 import com.chalkak.backend.exception.BusinessException;
@@ -17,12 +19,14 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -115,6 +119,69 @@ class AdminBannerControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("동일한 웹뷰 URL의 배너가 이미 존재합니다."));
+    }
+
+    @Test
+    @DisplayName("목록은 기본 페이지와 배너 정보·페이지 메타데이터를 반환한다")
+    void getBanners_defaultParameters_returnsBannerPage() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-19T00:00:00Z");
+        given(bannerService.getBanners(1, 20)).willReturn(new AdminBannerListResult(1, 20, false,
+                List.of(new AdminBannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL, createdAt))));
+
+        // When & Then
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(1))
+                .andExpect(jsonPath("$.pageSize").value(20))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.banners[0].id").value(BANNER_ID.toString()))
+                .andExpect(jsonPath("$.banners[0].title").value("제목"))
+                .andExpect(jsonPath("$.banners[0].subtitle").value("부제목"))
+                .andExpect(jsonPath("$.banners[0].webViewUrl").value(URL))
+                .andExpect(jsonPath("$.banners[0].thumbnailUrl").value(THUMBNAIL))
+                .andExpect(jsonPath("$.banners[0].createdAt").value(createdAt.toString()));
+    }
+
+    @Test
+    @DisplayName("명시한 페이지와 크기로 빈 목록을 조회할 수 있다")
+    void getBanners_explicitParameters_returnsEmptyPage() throws Exception {
+        // Given
+        given(bannerService.getBanners(2, 100))
+                .willReturn(new AdminBannerListResult(2, 100, false, List.of()));
+
+        // When & Then
+        mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(2))
+                .andExpect(jsonPath("$.pageSize").value(100))
+                .andExpect(jsonPath("$.banners").isEmpty());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"page, 0", "pageSize, 0", "pageSize, 101", "page, abc", "pageSize, abc",
+            "page, 2147483648"})
+    @DisplayName("잘못된 페이지 쿼리 값은 400을 반환한다")
+    void getBanners_invalidParameter_returnsBadRequest(String parameter, String value)
+            throws Exception {
+        // When & Then
+        mockMvc.perform(get(PATH).param(parameter, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("목록 조회 서비스의 비즈니스 예외는 400으로 변환한다")
+    void getBanners_offsetExceeded_returnsBusinessError() throws Exception {
+        // Given
+        given(bannerService.getBanners(21474838, 100)).willThrow(
+                new BusinessException(ErrorCode.BUSINESS_ERROR, "조회 조건이 올바르지 않습니다."));
+
+        // When & Then
+        mockMvc.perform(get(PATH).param("page", "21474838").param("pageSize", "100"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
     }
 
     private Map<String, String> validRequest() {

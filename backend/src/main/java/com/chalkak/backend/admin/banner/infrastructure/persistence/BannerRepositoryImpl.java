@@ -2,12 +2,16 @@ package com.chalkak.backend.admin.banner.infrastructure.persistence;
 
 import com.chalkak.backend.admin.banner.domain.Banner;
 import com.chalkak.backend.admin.banner.repository.BannerRepository;
+import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -34,6 +38,14 @@ public class BannerRepositoryImpl implements BannerRepository {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public AdminPage<Banner> findBanners(int page, int pageSize) {
+        PageRequest pageable = PageRequest.of(page - 1, pageSize,
+                Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        Slice<Banner> result = jpaRepository.findAllBy(pageable);
+        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
     }
 
     private boolean isDuplicateWebViewUrl(DataIntegrityViolationException exception) {

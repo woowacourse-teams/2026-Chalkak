@@ -2,11 +2,15 @@ package com.chalkak.backend.admin.banner.infrastructure.persistence;
 
 import com.chalkak.backend.admin.banner.domain.Banner;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface BannerJpaRepository extends JpaRepository<Banner, UUID> {
+
+    Slice<Banner> findAllBy(Pageable pageable);
 
     @Query(value = """
             SELECT EXISTS (

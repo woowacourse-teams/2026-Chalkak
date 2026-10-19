@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.banner.api.v1.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,8 +49,8 @@ class AdminBannerApiTest extends IntegrationTestSupport {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    @DisplayName("관리자 토큰으로 등록하면 배너를 저장하고 인증된 관리자를 감사 로그에 기록한다")
-    void createBanner_adminToken_persistsBannerAndActor() throws Exception {
+    @DisplayName("관리자 토큰으로 등록·조회하면 배너를 반환하고 인증된 관리자를 등록 감사 로그에 기록한다")
+    void createAndGetBanners_adminToken_returnsBannerAndRecordsActor() throws Exception {
         // Given
         Admin admin = adminRepository.save(Admin.create("banner-api-manager",
                 passwordEncoder.encode("test-password")));
@@ -69,6 +70,12 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.webViewUrl").value("https://chalkak.vercel.app/event"));
         entityManager.flush();
         entityManager.clear();
+        mockMvc.perform(get("/api/v1/admin/banners")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.banners.length()").value(1))
+                .andExpect(jsonPath("$.banners[0].webViewUrl")
+                        .value("https://chalkak.vercel.app/event"));
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
