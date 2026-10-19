@@ -78,6 +78,7 @@ public class Banner {
         if (isDeleted()) {
             return;
         }
+        // 감사 기록의 삭제 시각이 DB 저장값과 같도록 저장 정밀도에 맞춘다.
         this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
     }
 
