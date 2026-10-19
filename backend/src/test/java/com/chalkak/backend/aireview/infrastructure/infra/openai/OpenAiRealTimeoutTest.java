@@ -15,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +60,8 @@ class OpenAiRealTimeoutTest {
                 "test-key",
                 URI.create("http://127.0.0.1:" + stub.getAddress().getPort() + "/v1"),
                 Duration.ofSeconds(2),
-                Duration.ofMillis(200));
+                Duration.ofMillis(200),
+                List.of("gpt-6.1-sol"));
         OpenAiConfiguration configuration = new OpenAiConfiguration();
         OpenAiResponsesReviewGenerator generator = new OpenAiResponsesReviewGenerator(
                 configuration.openAiRestClient(configuration.openAiHttpClient(properties), properties),

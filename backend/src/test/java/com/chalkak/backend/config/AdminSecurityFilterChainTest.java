@@ -336,6 +336,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PATCH", "/api/v1/admin/users/" + id + "/status"),
                 Arguments.of("GET", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topics"),
+                Arguments.of("POST", "/api/v1/admin/ai-prompt-previews"),
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),
@@ -359,6 +360,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             List<String> states = List.of("ACTIVE");
             String path = (String) values[1];
             if (path.startsWith("/api/v1/admin/topic-push-schedules")
+                    || path.startsWith("/api/v1/admin/ai-prompt-previews")
                     || path.startsWith("/api/v1/admin/notices")) {
                 states = List.of("ACTIVE", "BANNED", "WITHDRAWN");
             }

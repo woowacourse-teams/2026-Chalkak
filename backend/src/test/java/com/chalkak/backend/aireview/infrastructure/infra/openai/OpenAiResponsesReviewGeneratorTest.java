@@ -75,7 +75,8 @@ class OpenAiResponsesReviewGeneratorTest {
                 API_KEY,
                 URI.create("https://openai.test/v1/"),
                 Duration.ofSeconds(5),
-                Duration.ofSeconds(60));
+                Duration.ofSeconds(60),
+                List.of("gpt-6.1-sol", "gpt-6-luna"));
         generator = new OpenAiResponsesReviewGenerator(
                 builder.build(),
                 objectMapper,
@@ -217,6 +218,17 @@ class OpenAiResponsesReviewGeneratorTest {
         // Then
         assertThat(generation.result().distinctivePerspective()).isEqualTo(expected);
         assertThat(generation.output().themeExpressionScore()).isEqualTo(Double.parseDouble(theme));
+    }
+
+    @Test
+    @DisplayName("supportsModel_허용 목록의 모델이면_true이고 그 밖의 모델이면_false이다")
+    void supportsModel_allowedModels_matchesExactly() {
+        // When & Then
+        assertThat(generator.supportsModel("gpt-6.1-sol")).isTrue();
+        assertThat(generator.supportsModel("gpt-6-luna")).isTrue();
+        assertThat(generator.supportsModel("gpt-6.1-SOL")).isFalse();
+        assertThat(generator.supportsModel("gpt-unknown")).isFalse();
+        assertThat(generator.supportsModel(null)).isFalse();
     }
 
     @Test

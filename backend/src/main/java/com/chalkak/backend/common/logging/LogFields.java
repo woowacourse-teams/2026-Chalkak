@@ -32,6 +32,7 @@ public final class LogFields {
     public static final String TYPE_RUNTIME = "runtime";
     public static final String TYPE_MODERATION = "moderation";
     public static final String TYPE_AGGREGATION = "aggregation";
+    public static final String TYPE_AI_REVIEW = "ai_review";
     public static final String UNMATCHED_ROUTE = "UNMATCHED";
 
     private LogFields() {

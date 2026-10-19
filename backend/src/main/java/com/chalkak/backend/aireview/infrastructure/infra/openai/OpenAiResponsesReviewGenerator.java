@@ -76,6 +76,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private final Clock clock;
     private final String apiKey;
     private final URI responsesUri;
+    private final List<String> allowedModels;
 
     public OpenAiResponsesReviewGenerator(
             RestClient restClient,
@@ -87,6 +88,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         this.objectMapper = Objects.requireNonNull(objectMapper);
         this.clock = Objects.requireNonNull(clock);
         this.apiKey = properties.apiKey();
+        this.allowedModels = properties.allowedModels();
         this.responsesUri = URI.create(
                 properties.baseUrl().toString().replaceAll("/+$", "") + "/responses");
     }
@@ -100,6 +102,11 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
         Duration latency = Duration.between(startedAt, clock.instant());
         return parse(responseBody, latency, request.draft().parameters().distinctivePerspectiveThreshold());
+    }
+
+    @Override
+    public boolean supportsModel(String model) {
+        return model != null && allowedModels.contains(model);
     }
 
     private ResponsesRequest createRequestBody(AiReviewGenerationRequest request) {

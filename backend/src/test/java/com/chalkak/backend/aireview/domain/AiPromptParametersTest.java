@@ -42,6 +42,16 @@ class AiPromptParametersTest {
     }
 
     @Test
+    @DisplayName("생성_maxOutputTokens가 null이면_8000으로 정한다")
+    void create_nullMaxOutputTokens_defaultsToEightThousand() {
+        // When
+        AiPromptParameters parameters = new AiPromptParameters(null, null, null, null);
+
+        // Then
+        assertThat(parameters.maxOutputTokens()).isEqualTo(8000);
+    }
+
+    @Test
     @DisplayName("생성_distinctivePerspectiveThreshold가 null이면_7.0으로 정한다")
     void create_nullThreshold_defaultsToSeven() {
         // When
