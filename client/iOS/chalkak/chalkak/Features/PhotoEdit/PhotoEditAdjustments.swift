@@ -79,7 +79,7 @@ nonisolated struct PhotoEditAdjustments: Equatable, Sendable {
 /// - 히스토그램 백분위수로 검은 점·흰 점을 잡되, 끝까지 늘리지 않고 덜어 내서(tempering) 과보정을 피한다.
 /// - 중간 밝기는 옮기지 않고, 중간 대비는 높이기만 하고 낮추지 않는다.
 /// - 그림자 들어 올림은 0.45 정도에서 멈춘다.
-/// - 채도가 이미 높은 사진은 건드리지 않고, 파랑·초록을 두 배로 쳐서 피부색 위주 사진이 과하게 진해지지 않게 한다.
+/// - 채도가 이미 높은 사진은 건드리지 않고, 피부색 픽셀 비율만큼 덜 올려 인물 사진이 과하게 진해지지 않게 한다.
 /// - 단계마다 앞 단계를 적용한 결과를 보고 다음 값을 정한다(노출 → 블랙 포인트 → 그림자·하이라이트 → 대비).
 /// - 문턱 없이 사진 상태에 비례해 값을 정한다. 잘 찍힌 사진도 작은 값이 여러 항목에 채워진다.
 nonisolated enum PhotoEditAutoAdjuster {
@@ -136,11 +136,11 @@ nonisolated enum PhotoEditAutoAdjuster {
         )
 
         // 채도: 흑백에 가까운 사진은 그대로 두고, 덜 선명한 사진만 조금 올린다.
+        // 피부는 조금만 진해져도 어색해 보이므로 피부색 픽셀 비율만큼 덜 올린다(사진 전체가 피부색이면 0).
         let saturation = statistics.saturation90
         if saturation > Constants.grayscaleSaturation {
-            adjustments[.saturation] = rounded(
-                min(max((Constants.targetSaturation - saturation) * Constants.saturationSlope, 0), Constants.maximumSaturation)
-            )
+            let value = min(max((Constants.targetSaturation - saturation) * Constants.saturationSlope, 0), Constants.maximumSaturation)
+            adjustments[.saturation] = rounded(value * (1 - statistics.skinFraction))
         }
         return adjustments
     }
@@ -192,12 +192,15 @@ nonisolated enum PhotoEditAutoAdjuster {
 nonisolated struct PhotoEditImageStatistics: Sendable {
     /// 0...255 밝기(sRGB 감마 공간의 Rec. 709 가중치)의 픽셀 비율.
     let luminanceHistogram: [Double]
-    /// 파랑·초록이 가장 큰 픽셀의 채도를 두 배로 친 채도 분포의 90번째 백분위수.
+    /// 채도(가장 큰 채널 − 가장 작은 채널, 저장 값 기준) 분포의 90번째 백분위수.
     let saturation90: Double
+    /// 피부색으로 보이는 픽셀의 비율(0...1). 기준은 `isSkinTone` 참고.
+    let skinFraction: Double
 
-    init(luminanceHistogram: [Double], saturation90: Double) {
+    init(luminanceHistogram: [Double], saturation90: Double, skinFraction: Double = 0) {
         self.luminanceHistogram = luminanceHistogram
         self.saturation90 = saturation90
+        self.skinFraction = skinFraction
     }
 
     init?(image: UIImage) {
@@ -226,6 +229,7 @@ nonisolated struct PhotoEditImageStatistics: Sendable {
 
         var histogram = [Double](repeating: 0, count: 256)
         var saturationHistogram = [Double](repeating: 0, count: 256)
+        var skinCount = 0
         for index in stride(from: 0, to: pixels.count, by: 4) {
             let red = Double(pixels[index]) / 255
             let green = Double(pixels[index + 1]) / 255
@@ -233,16 +237,29 @@ nonisolated struct PhotoEditImageStatistics: Sendable {
             let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
             histogram[min(255, Int((luminance * 255).rounded()))] += 1
 
-            let maximum = max(red, green, blue)
-            var saturation = maximum - min(red, green, blue)
-            if maximum != red {
-                saturation = min(1, saturation * 2)
-            }
+            let saturation = max(red, green, blue) - min(red, green, blue)
             saturationHistogram[min(255, Int((saturation * 255).rounded()))] += 1
+            if Self.isSkinTone(red: red, green: green, blue: blue) {
+                skinCount += 1
+            }
         }
         let count = Double(width * height)
         luminanceHistogram = histogram.map { $0 / count }
         saturation90 = Self.percentile(0.9, in: saturationHistogram.map { $0 / count })
+        skinFraction = Double(skinCount) / count
+    }
+
+    /// 피부색으로 볼지. 저장 값 R·G·B(0...1)가 모두 맞아야 한다.
+    /// - 빨강 ≥ 초록 ≥ 파랑이고, 가장 큰 값(빨강)이 0.2 이상이다(너무 어두운 픽셀 제외).
+    /// - (빨강 − 파랑) ÷ 빨강이 0.1...0.6이다. 회색에 가깝거나(0.1 미만) 주황처럼 쨍한 색(0.6 초과)은 뺀다.
+    /// - 색상이 0...50°다. 빨강(0°)에서 노랑(60°) 사이 중 노랑에 가까운 쪽은 뺀다.
+    static func isSkinTone(red: Double, green: Double, blue: Double) -> Bool {
+        guard red >= green, green >= blue, red >= Constants.skinMinimumValue else { return false }
+        let chroma = red - blue
+        guard (Constants.skinMinimumChromaRatio...Constants.skinMaximumChromaRatio).contains(chroma / red) else {
+            return false
+        }
+        return 60 * (green - blue) / chroma <= Constants.skinMaximumHueDegrees
     }
 
     func luminancePercentile(_ fraction: Double) -> Double {
@@ -269,6 +286,10 @@ nonisolated struct PhotoEditImageStatistics: Sendable {
 
     private enum Constants {
         static let sampleLongEdge: CGFloat = 256
+        static let skinMinimumValue = 0.2
+        static let skinMinimumChromaRatio = 0.1
+        static let skinMaximumChromaRatio = 0.6
+        static let skinMaximumHueDegrees = 50.0
     }
 }
 

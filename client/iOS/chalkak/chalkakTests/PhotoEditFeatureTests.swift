@@ -848,6 +848,47 @@ struct PhotoEditFilterRendererTests {
         #expect(PhotoEditAutoAdjuster.adjustments(for: grayscale)[.saturation] == 0)
     }
 
+    @Test("채도는 색과 상관없이 같은 기준으로 센다")
+    func measuresSaturationRegardlessOfHue() throws {
+        let red = try #require(PhotoEditImageStatistics(image: Self.solidImage(red: 0.6, green: 0.4, blue: 0.4)))
+        let blue = try #require(PhotoEditImageStatistics(image: Self.solidImage(red: 0.4, green: 0.4, blue: 0.6)))
+
+        #expect(abs(red.saturation90 - 0.2) < 0.01)
+        #expect(abs(blue.saturation90 - 0.2) < 0.01)
+    }
+
+    @Test("피부색은 밝거나 어두워도 피부색으로 보고 하늘·풀·노을·회색은 아니다")
+    func detectsSkinTone() {
+        #expect(PhotoEditImageStatistics.isSkinTone(red: 0.94, green: 0.78, blue: 0.69))
+        #expect(PhotoEditImageStatistics.isSkinTone(red: 0.45, green: 0.30, blue: 0.22))
+        #expect(!PhotoEditImageStatistics.isSkinTone(red: 0.53, green: 0.81, blue: 0.92))
+        #expect(!PhotoEditImageStatistics.isSkinTone(red: 0.30, green: 0.60, blue: 0.20))
+        #expect(!PhotoEditImageStatistics.isSkinTone(red: 1.0, green: 0.5, blue: 0.1))
+        #expect(!PhotoEditImageStatistics.isSkinTone(red: 0.5, green: 0.5, blue: 0.5))
+    }
+
+    @Test("피부색 사진은 채도를 올리지 않고 하늘·풀 사진은 올린다. 일부만 피부색이면 그 비율만큼 덜 올린다")
+    func reducesAutoSaturationBySkinFraction() throws {
+        func saturation(of image: UIImage) throws -> Double {
+            try #require(PhotoEditAutoAdjuster.adjustments(for: image))[.saturation]
+        }
+
+        #expect(try saturation(of: Self.solidImage(red: 0.94, green: 0.78, blue: 0.69)) == 0)
+        #expect(try saturation(of: Self.solidImage(red: 0.45, green: 0.30, blue: 0.22)) == 0)
+        #expect(try saturation(of: Self.solidImage(red: 0.53, green: 0.81, blue: 0.92)) == 0.18)
+        #expect(try saturation(of: Self.solidImage(red: 0.30, green: 0.60, blue: 0.20)) == 0.18)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let quarterSkin = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4), format: format).image { context in
+            UIColor(red: 0.53, green: 0.81, blue: 0.92, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+            UIColor(red: 0.94, green: 0.78, blue: 0.69, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+        }
+        #expect(try saturation(of: quarterSkin) == 0.14)
+    }
+
     @Test("톤 곡선은 어떤 조합에서도 0에서 시작해 1로 끝나고 줄어들지 않는다")
     func keepsToneCurveMonotonic() {
         let extremes: [Double] = [-1, 0, 1]
@@ -921,6 +962,16 @@ struct PhotoEditFilterRendererTests {
     private static func isBlue(_ pixels: [UInt8], x: Int, y: Int, width: Int) -> Bool {
         let index = (y * width + x) * 4
         return pixels[index] < 60 && pixels[index + 2] > 200
+    }
+
+    /// 4×4 단색 이미지.
+    private static func solidImage(red: CGFloat, green: CGFloat, blue: CGFloat) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4), format: format).image { context in
+            UIColor(red: red, green: green, blue: blue, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
     }
 
     /// 왼쪽은 어두운 회색, 오른쪽은 밝은 회색으로 밝기 범위가 좁은 이미지.
