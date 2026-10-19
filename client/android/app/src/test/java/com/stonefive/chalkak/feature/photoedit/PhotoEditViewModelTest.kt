@@ -192,12 +192,14 @@ class PhotoEditViewModelTest {
         viewModel.onRotateClick()
 
         viewModel.onResetClick()
-        assertEquals(1f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertEquals(1f, viewModel.uiState.value.edit.adjustmentLayers.intensity)
         assertFalse(viewModel.uiState.value.edit.adjustments.isIdentity)
 
         viewModel.onRotateClick()
         viewModel.onAdjustmentsResetClick()
-        assertEquals(PhotoEdit(quarterTurns = 1), viewModel.uiState.value.edit)
+        val edit = viewModel.uiState.value.edit
+        assertEquals(1, edit.quarterTurns)
+        assertTrue(edit.adjustments.isIdentity)
         assertFalse(viewModel.uiState.value.canResetAdjustments)
     }
 
@@ -210,7 +212,7 @@ class PhotoEditViewModelTest {
 
         val automatic = PhotoAutoAdjuster.adjustments(PhotoImageStatistics.of(pixels))
         assertTrue(automatic.exposure > 0f)
-        assertEquals(1f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertEquals(1f, viewModel.uiState.value.edit.adjustmentLayers.intensity)
         assertEquals(automatic, viewModel.uiState.value.edit.adjustments)
 
         viewModel.onAdjustmentChange(0.5f)
@@ -220,7 +222,7 @@ class PhotoEditViewModelTest {
         )
 
         viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
-        assertEquals(0f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertEquals(0f, viewModel.uiState.value.edit.adjustmentLayers.intensity)
         assertEquals(PhotoAdjustments(), viewModel.uiState.value.edit.adjustments)
     }
 
@@ -233,32 +235,62 @@ class PhotoEditViewModelTest {
 
         viewModel.onAdjustItemSelect(exposure)
         viewModel.onAdjustmentChange(automatic.exposure + 0.2f)
-        assertEquals(0.2f, viewModel.uiState.value.manualAdjustments.exposure, TOLERANCE)
+        assertEquals(
+            0.2f,
+            viewModel.uiState.value.edit.adjustmentLayers.manual.exposure,
+            TOLERANCE,
+        )
 
         // 자동 보정을 반으로 줄여도 사용자가 더한 0.2는 남는다.
         viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
         viewModel.onAdjustmentChange(0.5f)
-        val state = viewModel.uiState.value
-        assertEquals(automatic.exposure * 0.5f + 0.2f, state.value(exposure), TOLERANCE)
+        assertEquals(
+            automatic.exposure * 0.5f + 0.2f,
+            viewModel.uiState.value.edit.adjustments.exposure,
+            TOLERANCE,
+        )
     }
 
     @Test
-    fun `다시 편집하면 이전 결과에서 자동 보정 몫을 빼 사용자 값을 되찾는다`() {
-        val pixels = lowContrastPixels()
-        val first = loadedViewModel(pixels = pixels)
+    fun `다시 편집하면 자동 보정과 사용자 값을 그대로 이어 가고 같은 자르기는 다시 분석하지 않는다`() {
+        val first = loadedViewModel(pixels = lowContrastPixels())
         first.onAdjustItemSelect(PhotoAdjustItem.Auto)
         first.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Warmth))
         first.onAdjustmentChange(0.3f)
         first.onDoneClick()
         val completed = first.uiState.value.completedEdit!!
 
-        val second = loadedViewModel(initialEdit = completed, pixels = pixels)
+        val second = loadedViewModel(initialEdit = completed, pixels = halfDarkPixels())
 
-        assertEquals(completed.adjustments, second.uiState.value.edit.adjustments)
-        assertEquals(PhotoAdjustments(warmth = 0.3f), second.uiState.value.manualAdjustments)
-        // 자동 보정이 고른 상태라 한 번 누르면 꺼지고 사용자가 더한 값만 남는다.
+        assertEquals(completed.adjustmentLayers, second.uiState.value.edit.adjustmentLayers)
         second.onAdjustItemSelect(PhotoAdjustItem.Auto)
         assertEquals(PhotoAdjustments(warmth = 0.3f), second.uiState.value.edit.adjustments)
+    }
+
+    @Test
+    fun `자동 보정과 합쳐 잘린 사용자 값도 다시 편집한 뒤 자동 보정을 끄면 그대로 돌아온다`() {
+        val first = loadedViewModel(pixels = lowContrastPixels())
+        first.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Exposure))
+        first.onAdjustmentChange(1f)
+        first.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        first.onDoneClick()
+        val completed = first.uiState.value.completedEdit!!
+        assertEquals(1f, completed.adjustments.exposure)
+
+        val second = loadedViewModel(initialEdit = completed, pixels = lowContrastPixels())
+        second.onAdjustItemSelect(PhotoAdjustItem.Auto)
+
+        assertEquals(0f, second.uiState.value.edit.adjustmentLayers.intensity)
+        assertEquals(1f, second.uiState.value.edit.adjustments.exposure)
+    }
+
+    @Test
+    fun `자동 보정을 끄고 완료하면 분석한 값은 결과에 남기지 않는다`() {
+        val viewModel = loadedViewModel(pixels = lowContrastPixels())
+
+        viewModel.onDoneClick()
+
+        assertEquals(PhotoEdit(), viewModel.uiState.value.completedEdit)
     }
 
     @Test

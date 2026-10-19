@@ -22,6 +22,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
@@ -47,10 +48,7 @@ fun EditedPhotoImage(
     val colorFilter = remember(edit.filter) { edit.filter.toColorFilter() }
     val adjustedImage = rememberAdjustedImage(model, edit.adjustments)
     val adjustedPainter = remember(adjustedImage) { adjustedImage?.let(::BitmapPainter) }
-    val isGeometryIdentity = edit
-        .copy(filter = PhotoFilter.Original, adjustments = PhotoAdjustments())
-        .isIdentity
-    if (isGeometryIdentity) {
+    if (edit.isGeometryIdentity) {
         ChalkakImage(
             model = model,
             contentDescription = contentDescription,
@@ -119,7 +117,7 @@ private fun EditedPhotoImagePreview() {
                 quarterTurns = 1,
                 crop = CropWindow(centerX = 0.5f, centerY = 0.5f, width = 1f, height = 0.6f),
                 filter = PhotoFilter.Mono,
-                adjustments = PhotoAdjustments(contrast = 0.3f),
+                adjustmentLayers = PhotoAdjustmentLayers(manual = PhotoAdjustments(contrast = 0.3f)),
             ),
             contentDescription = null,
             modifier = Modifier.fillMaxWidth(),

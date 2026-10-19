@@ -1,9 +1,7 @@
 package com.stonefive.chalkak.feature.photoedit
 
 import androidx.compose.runtime.Immutable
-import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoAdjustment
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 
 @Immutable
@@ -13,33 +11,14 @@ data class PhotoEditUiState(
     val imageSize: PhotoImageSize? = null,
     val selectedTab: PhotoEditTab = PhotoEditTab.Crop,
     val selectedAdjustItem: PhotoAdjustItem = PhotoAdjustItem.Auto,
-    /** 자른 사진을 분석한 자동 보정값. 분석 전에는 null이다. */
-    val autoAdjustments: PhotoAdjustments? = null,
-    /** 자동 보정 위에 더한 항목별 값. [PhotoEdit.adjustments]는 `자동 보정값 × 강도 + 이 값`이다. */
-    val manualAdjustments: PhotoAdjustments = PhotoAdjustments(),
     val aspectRatio: CropAspectRatio = CropAspectRatio.Free,
     val lockedAspectRatio: Float? = null,
     val completedEdit: PhotoEdit? = null,
 ) {
     val canReset: Boolean
-        get() = edit.quarterTurns != 0 ||
-            edit.straightenDegrees != 0f ||
-            edit.crop != CropWindow.Full ||
-            aspectRatio != CropAspectRatio.Free
+        get() = !edit.isGeometryIdentity || aspectRatio != CropAspectRatio.Free
 
-    val canResetAdjustments: Boolean
-        get() = edit.autoAdjustmentIntensity > 0f || !manualAdjustments.isIdentity
-
-    /** 자동 보정이 각 항목에 더한 값. 자동 보정이 꺼져 있거나 분석 전이면 null이다. */
-    val appliedAutoAdjustments: PhotoAdjustments?
-        get() = autoAdjustments
-            ?.takeIf { edit.autoAdjustmentIntensity > 0f }
-            ?.scaled(scale = edit.autoAdjustmentIntensity, offset = PhotoAdjustments())
-
-    fun value(item: PhotoAdjustItem): Float = when (item) {
-        PhotoAdjustItem.Auto -> edit.autoAdjustmentIntensity
-        is PhotoAdjustItem.Manual -> edit.adjustments[item.adjustment]
-    }
+    val canResetAdjustments: Boolean get() = edit.adjustmentLayers.isAdjusted
 
     /** 현재 90° 회전 방향에서 본 원본 비율(가로/세로). 이미지를 불러오기 전에는 null이다. */
     val originalAspectRatio: Float?

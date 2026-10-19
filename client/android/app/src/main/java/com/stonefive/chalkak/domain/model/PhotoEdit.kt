@@ -11,13 +11,15 @@ data class PhotoEdit(
     val straightenDegrees: Float = 0f,
     val crop: CropWindow = CropWindow.Full,
     val filter: PhotoFilter = PhotoFilter.Original,
-    /** 실제로 적용할 조정 값. 자동 보정을 켰다면 자동 보정값을 강도만큼 더한 결과다. */
-    val adjustments: PhotoAdjustments = PhotoAdjustments(),
-    /** 자동 보정 강도(0..1). 적용에는 쓰지 않고, 다시 편집할 때 자동 보정 몫을 되돌리는 데 쓴다. */
-    val autoAdjustmentIntensity: Float = 0f,
+    val adjustmentLayers: PhotoAdjustmentLayers = PhotoAdjustmentLayers(),
 ) {
-    /** 사진을 바꾸지 않는지. 자동 보정 강도는 결과에 영향이 없으므로 보지 않는다. */
-    val isIdentity: Boolean get() = copy(autoAdjustmentIntensity = 0f) == PhotoEdit()
+    val adjustments: PhotoAdjustments get() = adjustmentLayers.applied
+
+    val isGeometryIdentity: Boolean
+        get() = quarterTurns == 0 && straightenDegrees == 0f && crop == CropWindow.Full
+
+    val isIdentity: Boolean
+        get() = isGeometryIdentity && filter == PhotoFilter.Original && adjustments.isIdentity
 
     val rotationDegrees: Float get() = quarterTurns * QUARTER_TURN_DEGREES + straightenDegrees
 

@@ -115,7 +115,6 @@ class ChalkakRouteTest {
             blackPoint = 0.1f,
             saturation = -1f,
             warmth = 0.5f,
-            autoAdjustmentIntensity = 0.8f,
         )
 
         assertEquals(route, roundTrip(route))

@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
@@ -170,9 +171,7 @@ fun PhotoEditScreen(
                 )
 
                 PhotoEditTab.Adjust -> AdjustmentControls(
-                    adjustments = uiState.edit.adjustments,
-                    autoAdjustmentIntensity = uiState.edit.autoAdjustmentIntensity,
-                    appliedAutoAdjustments = uiState.appliedAutoAdjustments,
+                    adjustmentLayers = uiState.edit.adjustmentLayers,
                     selectedItem = uiState.selectedAdjustItem,
                     canReset = uiState.canResetAdjustments,
                     onItemSelect = onAdjustItemSelect,
@@ -325,12 +324,13 @@ private fun PhotoEditScreenAdjustPreview() {
             uiState = PhotoEditUiState(
                 imageUri = drawableResourceUrl(R.drawable.preview_photo),
                 edit = PhotoEdit(
-                    adjustments = PhotoAdjustments(exposure = 0.2f, shadows = 0.3f),
-                    autoAdjustmentIntensity = 1f,
+                    adjustmentLayers = PhotoAdjustmentLayers(
+                        automatic = PhotoAdjustments(exposure = 0.2f, shadows = 0.3f),
+                        intensity = 1f,
+                    ),
                 ),
                 imageSize = PhotoImageSize(width = 4, height = 3),
                 selectedTab = PhotoEditTab.Adjust,
-                autoAdjustments = PhotoAdjustments(exposure = 0.2f, shadows = 0.3f),
             ),
             onCancelClick = {},
             onDoneClick = {},

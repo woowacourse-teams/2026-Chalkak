@@ -99,5 +99,4 @@ data class PhotoUploadSuccess(
     val blackPoint: Float = 0f,
     val saturation: Float = 0f,
     val warmth: Float = 0f,
-    val autoAdjustmentIntensity: Float = 0f,
 )

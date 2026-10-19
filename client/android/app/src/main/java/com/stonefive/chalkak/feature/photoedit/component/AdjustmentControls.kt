@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
@@ -38,13 +39,11 @@ import kotlin.math.roundToInt
 
 /**
  * 조정 탭 조작부. 위에는 고른 항목의 값과 눈금자, 아래에는 맨 앞의 자동 보정과 항목 목록이 있다.
- * [appliedAutoAdjustments]가 있으면 항목 눈금자에 자동 보정이 정한 값을 표시하고 그 값에서 멈춘다.
+ * 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정이 정한 값을 표시하고 그 값에서 멈춘다.
  */
 @Composable
 fun AdjustmentControls(
-    adjustments: PhotoAdjustments,
-    autoAdjustmentIntensity: Float,
-    appliedAutoAdjustments: PhotoAdjustments?,
+    adjustmentLayers: PhotoAdjustmentLayers,
     selectedItem: PhotoAdjustItem,
     canReset: Boolean,
     onItemSelect: (PhotoAdjustItem) -> Unit,
@@ -53,13 +52,14 @@ fun AdjustmentControls(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
+    val applied = adjustmentLayers.applied
     fun valueOf(item: PhotoAdjustItem): Float = when (item) {
-        PhotoAdjustItem.Auto -> autoAdjustmentIntensity
-        is PhotoAdjustItem.Manual -> adjustments[item.adjustment]
+        PhotoAdjustItem.Auto -> adjustmentLayers.intensity
+        is PhotoAdjustItem.Manual -> applied[item.adjustment]
     }
     val value = valueOf(selectedItem)
     val automaticValue = (selectedItem as? PhotoAdjustItem.Manual)
-        ?.let { appliedAutoAdjustments?.get(it.adjustment) }
+        ?.let { adjustmentLayers.appliedAutomatic?.get(it.adjustment) }
         ?.takeIf { it != 0f }
     Column(
         modifier = modifier,
@@ -198,9 +198,11 @@ private val ChangedDotSize = 4.dp
 private fun AdjustmentControlsPreview() {
     ChalkakTheme {
         AdjustmentControls(
-            adjustments = PhotoAdjustments(exposure = 0.24f, shadows = 0.3f),
-            autoAdjustmentIntensity = 1f,
-            appliedAutoAdjustments = PhotoAdjustments(exposure = 0.14f, shadows = 0.3f),
+            adjustmentLayers = PhotoAdjustmentLayers(
+                automatic = PhotoAdjustments(exposure = 0.14f, shadows = 0.3f),
+                intensity = 1f,
+                manual = PhotoAdjustments(exposure = 0.1f),
+            ),
             selectedItem = PhotoAdjustItem.Manual(PhotoAdjustment.Exposure),
             canReset = true,
             onItemSelect = {},

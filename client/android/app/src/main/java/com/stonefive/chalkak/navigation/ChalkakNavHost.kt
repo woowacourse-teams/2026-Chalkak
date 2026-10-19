@@ -50,6 +50,7 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationResult
+import com.stonefive.chalkak.domain.model.PhotoAdjustmentLayers
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
@@ -714,7 +715,6 @@ fun ChalkakNavHost(
                                 blackPoint = submission.edit.adjustments.blackPoint,
                                 saturation = submission.edit.adjustments.saturation,
                                 warmth = submission.edit.adjustments.warmth,
-                                autoAdjustmentIntensity = submission.edit.autoAdjustmentIntensity,
                             ),
                         ) {
                             popUpTo<PhotoUpload> { inclusive = true }
@@ -757,16 +757,18 @@ private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
         height = cropHeight,
     ),
     filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
-    adjustments = PhotoAdjustments(
-        exposure = exposure,
-        contrast = contrast,
-        highlights = highlights,
-        shadows = shadows,
-        blackPoint = blackPoint,
-        saturation = saturation,
-        warmth = warmth,
+    // 성공 화면은 결과만 보여 주므로 적용한 값을 수동 값으로 옮긴다.
+    adjustmentLayers = PhotoAdjustmentLayers(
+        manual = PhotoAdjustments(
+            exposure = exposure,
+            contrast = contrast,
+            highlights = highlights,
+            shadows = shadows,
+            blackPoint = blackPoint,
+            saturation = saturation,
+            warmth = warmth,
+        ),
     ),
-    autoAdjustmentIntensity = autoAdjustmentIntensity,
 )
 
 private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {
