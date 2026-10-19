@@ -38,4 +38,15 @@ public interface AdminBannerApiDocs {
     ResponseEntity<AdminBannerResponse> createBanner(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             AdminBannerRequest request);
+
+    @Operation(summary = "배너 삭제", description = "배너를 논리 삭제합니다. 요청 본문 없이 호출하며 재삭제하면 최초 삭제 결과를 유지하고 감사 기록을 추가하지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공 또는 이미 삭제된 배너"),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "존재하지 않는 배너", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteBanner(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "배너 ID", schema = @Schema(type = "string", format = "uuid")) String bannerId);
 }

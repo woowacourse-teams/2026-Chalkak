@@ -39,6 +39,8 @@ final class AdminAuditTransitionRules {
             "deletedAt");
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> BANNER_STATE_FIELDS = Set.of("titleSha256", "subtitleSha256");
+    private static final Set<String> DELETED_BANNER_STATE_FIELDS = Set.of(
+            "titleSha256", "subtitleSha256", "deletedAt");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -212,6 +214,21 @@ final class AdminAuditTransitionRules {
                 && afterState.hasExactlyFields(BANNER_STATE_FIELDS)
                 && isSha256Hex(afterState.value("titleSha256"))
                 && isSha256Hex(afterState.value("subtitleSha256"));
+    }
+
+    static boolean isBannerDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && afterState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && isSha256Hex(beforeState.value("titleSha256"))
+                && isSha256Hex(beforeState.value("subtitleSha256"))
+                && BANNER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)))
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"));
     }
 
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
