@@ -5,6 +5,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
  * 저장 전에 미리 실행해 볼 프롬프트 초안. 사용자 프롬프트 템플릿의 {@code {{변수}}}는 용도가 허용한 것만 쓸 수 있다.
@@ -51,10 +52,19 @@ public record AiPromptDraft(
             if (value == null) {
                 throw new IllegalArgumentException("프롬프트 변수 값이 없습니다.");
             }
-            matcher.appendReplacement(rendered, Matcher.quoteReplacement(value));
+            matcher.appendReplacement(rendered, Matcher.quoteReplacement(escapeJsonString(value)));
         }
         matcher.appendTail(rendered);
         return rendered.toString();
+    }
+
+    /**
+     * 템플릿이 JSON 문자열 안에 값을 넣는 경우에도 유효한 JSON이 되도록 따옴표·역슬래시·제어 문자를 이스케이프한다.
+     */
+    private static String escapeJsonString(String value) {
+        StringBuilder escaped = new StringBuilder();
+        JsonStringEncoder.getInstance().quoteAsString(value, escaped);
+        return escaped.toString();
     }
 
     private static void validateNotBlank(String value, String message) {

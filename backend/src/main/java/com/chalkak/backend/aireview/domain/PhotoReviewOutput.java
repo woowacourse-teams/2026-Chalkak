@@ -5,14 +5,14 @@ import java.math.RoundingMode;
 import java.util.List;
 
 /**
- * 사진 리뷰 프롬프트가 모델에게 요구하는 출력(스키마 버전 1). 종합 점수는 모델이 아니라 서버가 계산한다.
+ * 사진 리뷰 프롬프트가 모델에게 요구하는 출력(스키마 버전 1). 종합 점수와 독특한 시각 여부는 모델이 아니라 서버가 계산한다.
  *
  * <p>모델 출력은 사용자 입력이 아니므로 검증 실패를 IllegalArgumentException으로 던지고, 어댑터가 INVALID_OUTPUT으로 변환한다.
  * 관리자가 입력한 프롬프트 초안의 검증 실패는 BusinessException을 쓴다.
  */
 public record PhotoReviewOutput(
         double compositionScore,
-        boolean distinctivePerspective,
+        double themeExpressionScore,
         String feedback
 ) {
 
@@ -30,6 +30,9 @@ public record PhotoReviewOutput(
     public PhotoReviewOutput {
         if (!(compositionScore >= MIN_SCORE && compositionScore <= MAX_SCORE)) {
             throw new IllegalArgumentException("구도 점수가 0 이상 10 이하가 아닙니다.");
+        }
+        if (!(themeExpressionScore >= MIN_SCORE && themeExpressionScore <= MAX_SCORE)) {
+            throw new IllegalArgumentException("주제 표현 점수가 0 이상 10 이하가 아닙니다.");
         }
         if (feedback == null || feedback.isBlank()) {
             throw new IllegalArgumentException("피드백이 비어 있습니다.");
@@ -51,14 +54,17 @@ public record PhotoReviewOutput(
         return MAX_SCORE;
     }
 
-    public AiReviewResult toResult() {
+    /**
+     * 주제 표현 점수가 기준 이상이면 독특한 시각으로 판정한다. 원점수는 결과에 드러내지 않는다.
+     */
+    public AiReviewResult toResult(double distinctivePerspectiveThreshold) {
         double composition = round(compositionScore);
         // 현재 종합 점수는 구도 점수 하나로 정한다. 항목이 늘면 이 계산을 바꾼다.
         double overall = composition;
         return new AiReviewResult(
                 overall,
                 List.of(new AiReviewResult.Criterion(COMPOSITION_KEY, COMPOSITION_LABEL, composition)),
-                distinctivePerspective,
+                themeExpressionScore >= distinctivePerspectiveThreshold,
                 feedback);
     }
 

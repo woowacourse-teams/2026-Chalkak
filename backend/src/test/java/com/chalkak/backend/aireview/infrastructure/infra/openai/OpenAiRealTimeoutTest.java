@@ -71,7 +71,7 @@ class OpenAiRealTimeoutTest {
                 "사진을 평가한다.",
                 "주제: {{topicTitle}}",
                 "gpt-5-mini",
-                new AiPromptParameters(null, 500, null));
+                new AiPromptParameters(null, 500, null, null));
 
         // When & Then
         assertThatThrownBy(() -> generator.generate(

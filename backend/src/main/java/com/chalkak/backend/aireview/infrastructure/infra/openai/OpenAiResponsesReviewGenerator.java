@@ -38,6 +38,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -58,13 +59,16 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final Map<String, Object> PHOTO_REVIEW_SCHEMA = Map.of(
             "type", "object",
             "additionalProperties", false,
-            "required", List.of("compositionScore", "distinctivePerspective", "feedback"),
+            "required", List.of("composition", "theme_expression", "feedback"),
             "properties", Map.of(
-                    "compositionScore", Map.of(
+                    "composition", Map.of(
                             "type", "number",
                             "minimum", PhotoReviewOutput.minScore(),
                             "maximum", PhotoReviewOutput.maxScore()),
-                    "distinctivePerspective", Map.of("type", "boolean"),
+                    "theme_expression", Map.of(
+                            "type", "number",
+                            "minimum", PhotoReviewOutput.minScore(),
+                            "maximum", PhotoReviewOutput.maxScore()),
                     "feedback", Map.of("type", "string")));
 
     private final RestClient restClient;
@@ -95,7 +99,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         String responseBody = send(body);
 
         Duration latency = Duration.between(startedAt, clock.instant());
-        return parse(responseBody, latency);
+        return parse(responseBody, latency, request.draft().parameters().distinctivePerspectiveThreshold());
     }
 
     private ResponsesRequest createRequestBody(AiReviewGenerationRequest request) {
@@ -149,7 +153,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         }
     }
 
-    private AiReviewGeneration parse(String responseBody, Duration latency) {
+    private AiReviewGeneration parse(String responseBody, Duration latency, double threshold) {
         ResponsesResponse response = readResponse(responseBody);
         Attempt attempt = new Attempt(response.toUsage(), latency, response.id());
         if (STATUS_INCOMPLETE.equals(response.status())) {
@@ -172,7 +176,10 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
         PhotoReviewOutput output = readOutput(outputText)
                 .orElseThrow(() -> new AiReviewGenerationException(INVALID_OUTPUT, attempt));
-        return new AiReviewGeneration(output.toResult(), attempt);
+        return new AiReviewGeneration(
+                output.toResult(threshold),
+                output,
+                attempt);
     }
 
     private ResponsesResponse readResponse(String responseBody) {
@@ -186,18 +193,26 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         }
     }
 
+    /**
+     * 모델 출력의 JSON 타입을 직접 확인한다. Jackson의 기본 변환은 "7" 같은 문자열도 숫자로 받아들일 수 있어서
+     * 두 점수 모두 변환 없이 숫자 노드만 허용한다.
+     */
     private Optional<PhotoReviewOutput> readOutput(String outputText) {
         try {
             PhotoReviewPayload payload = objectMapper.readValue(outputText, PhotoReviewPayload.class);
             if (payload == null
-                    || payload.compositionScore() == null
-                    || payload.distinctivePerspective() == null) {
+                    || payload.composition() == null
+                    || !payload.composition().isNumber()
+                    || payload.themeExpression() == null
+                    || !payload.themeExpression().isNumber()
+                    || payload.feedback() == null
+                    || !payload.feedback().isString()) {
                 return Optional.empty();
             }
             return Optional.of(new PhotoReviewOutput(
-                    payload.compositionScore(),
-                    payload.distinctivePerspective(),
-                    payload.feedback()));
+                    payload.composition().doubleValue(),
+                    payload.themeExpression().doubleValue(),
+                    payload.feedback().stringValue()));
         } catch (JacksonException | IllegalArgumentException exception) {
             return Optional.empty();
         }
@@ -316,9 +331,9 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     }
 
     private record PhotoReviewPayload(
-            Double compositionScore,
-            Boolean distinctivePerspective,
-            String feedback
+            JsonNode composition,
+            @JsonProperty("theme_expression") JsonNode themeExpression,
+            JsonNode feedback
     ) {
     }
 }

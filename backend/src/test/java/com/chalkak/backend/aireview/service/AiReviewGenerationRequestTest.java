@@ -19,7 +19,7 @@ class AiReviewGenerationRequestTest {
             "사진을 평가한다.",
             "주제: {{topicTitle}}",
             "gpt-5-mini",
-            new AiPromptParameters(null, 500, null));
+            new AiPromptParameters(null, 500, null, null));
 
     @Test
     @DisplayName("생성_모든 값이 있으면_성공한다")

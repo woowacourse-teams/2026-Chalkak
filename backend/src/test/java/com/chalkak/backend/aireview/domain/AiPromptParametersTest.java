@@ -18,7 +18,7 @@ class AiPromptParametersTest {
     @DisplayName("생성_maxOutputTokens가 경계값이면_성공한다")
     void create_boundaryMaxOutputTokens_succeeds(int maxOutputTokens) {
         // When & Then
-        assertThatCode(() -> new AiPromptParameters(ImageDetail.LOW, maxOutputTokens, null))
+        assertThatCode(() -> new AiPromptParameters(ImageDetail.LOW, maxOutputTokens, null, null))
                 .doesNotThrowAnyException();
     }
 
@@ -27,7 +27,7 @@ class AiPromptParametersTest {
     @DisplayName("생성_maxOutputTokens가 범위를 벗어나면_거부한다")
     void create_outOfRangeMaxOutputTokens_throwsBusinessException(int maxOutputTokens) {
         // When & Then
-        assertThatThrownBy(() -> new AiPromptParameters(ImageDetail.LOW, maxOutputTokens, null))
+        assertThatThrownBy(() -> new AiPromptParameters(ImageDetail.LOW, maxOutputTokens, null, null))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -35,17 +35,45 @@ class AiPromptParametersTest {
     @DisplayName("생성_imageDetail이 null이면_HIGH로 정한다")
     void create_nullImageDetail_defaultsToHigh() {
         // When
-        AiPromptParameters parameters = new AiPromptParameters(null, 500, null);
+        AiPromptParameters parameters = new AiPromptParameters(null, 500, null, null);
 
         // Then
         assertThat(parameters.imageDetail()).isEqualTo(ImageDetail.HIGH);
     }
 
     @Test
+    @DisplayName("생성_distinctivePerspectiveThreshold가 null이면_7.0으로 정한다")
+    void create_nullThreshold_defaultsToSeven() {
+        // When
+        AiPromptParameters parameters = new AiPromptParameters(null, 500, null, null);
+
+        // Then
+        assertThat(parameters.distinctivePerspectiveThreshold()).isEqualTo(7.0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {0, 10})
+    @DisplayName("생성_distinctivePerspectiveThreshold가 경계값이면_성공한다")
+    void create_boundaryThreshold_succeeds(double threshold) {
+        // When & Then
+        assertThatCode(() -> new AiPromptParameters(null, 500, null, threshold))
+                .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-0.01, 10.01, Double.NaN})
+    @DisplayName("생성_distinctivePerspectiveThreshold가 범위를 벗어나면_거부한다")
+    void create_outOfRangeThreshold_throwsBusinessException(double threshold) {
+        // When & Then
+        assertThatThrownBy(() -> new AiPromptParameters(null, 500, null, threshold))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     @DisplayName("생성_reasoningEffort가 null이면_허용한다")
     void create_nullReasoningEffort_isAllowed() {
         // When
-        AiPromptParameters parameters = new AiPromptParameters(ImageDetail.HIGH, 500, null);
+        AiPromptParameters parameters = new AiPromptParameters(ImageDetail.HIGH, 500, null, null);
 
         // Then
         assertThat(parameters.reasoningEffort()).isNull();

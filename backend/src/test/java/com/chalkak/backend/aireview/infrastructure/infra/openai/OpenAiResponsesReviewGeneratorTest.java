@@ -19,6 +19,7 @@ import com.chalkak.backend.aireview.domain.AiPromptParameters.ReasoningEffort;
 import com.chalkak.backend.aireview.domain.AiPromptParameters;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewGeneration;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -54,7 +56,7 @@ class OpenAiResponsesReviewGeneratorTest {
     private static final String API_KEY = "sk-test-secret";
     private static final String IMAGE_URL = "https://cdn.test/photo.jpg";
     private static final String OK_OUTPUT =
-            "{\"compositionScore\":8.72,\"distinctivePerspective\":true,\"feedback\":\"구도가 좋습니다.\"}";
+            "{\"composition\":8.72,\"theme_expression\":8,\"feedback\":\"구도가 좋습니다.\"}";
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
@@ -108,10 +110,10 @@ class OpenAiResponsesReviewGeneratorTest {
                     "schema": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["compositionScore", "distinctivePerspective", "feedback"],
+                      "required": ["composition", "theme_expression", "feedback"],
                       "properties": {
-                        "compositionScore": {"type": "number", "minimum": 0, "maximum": 10},
-                        "distinctivePerspective": {"type": "boolean"},
+                        "composition": {"type": "number", "minimum": 0, "maximum": 10},
+                        "theme_expression": {"type": "number", "minimum": 0, "maximum": 10},
                         "feedback": {"type": "string"}
                       }
                     }
@@ -165,9 +167,56 @@ class OpenAiResponsesReviewGeneratorTest {
                 new AiReviewResult.Criterion("COMPOSITION", "구도", 8.7));
         assertThat(result.distinctivePerspective()).isTrue();
         assertThat(result.feedback()).isEqualTo("구도가 좋습니다.");
+        assertThat(generation.output()).isEqualTo(new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다."));
         assertThat(generation.attempt().usage()).isEqualTo(new Usage(1200, 300, 85, 40));
         assertThat(generation.attempt().responseId()).isEqualTo("resp_123");
         assertThat(generation.attempt().latency()).isEqualTo(Duration.ofMillis(1234));
+    }
+
+    @Test
+    @DisplayName("generate_기본 기준 7에서 주제 표현 점수가 6이면_독특한 시각이 아니다")
+    void generate_defaultThreshold_themeSixIsNotDistinctive() {
+        // Given
+        respondOk(successBody(
+                "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
+
+        // When
+        AiReviewGeneration generation = generator.generate(request(ImageDetail.AUTO, 500, null));
+
+        // Then
+        assertThat(generation.result().distinctivePerspective()).isFalse();
+    }
+
+    @Test
+    @DisplayName("generate_프롬프트에 기준 6을 지정하면_주제 표현 점수 6도 독특한 시각이다")
+    void generate_customThreshold_isAppliedToJudgement() {
+        // Given
+        respondOk(successBody(
+                "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
+
+        // When
+        AiReviewGeneration generation =
+                generator.generate(request(ImageDetail.AUTO, 500, null, 6.0));
+
+        // Then
+        assertThat(generation.result().distinctivePerspective()).isTrue();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"7.5, true", "7.4, false", "8.0, true"})
+    @DisplayName("generate_소수 기준 7.5와 소수 주제 표현 점수를_그대로 비교한다")
+    void generate_decimalThreshold_comparesDecimalScores(String theme, boolean expected) {
+        // Given
+        respondOk(successBody(
+                "{\"composition\":8,\"theme_expression\":" + theme + ",\"feedback\":\"좋음\"}"));
+
+        // When
+        AiReviewGeneration generation =
+                generator.generate(request(ImageDetail.AUTO, 500, null, 7.5));
+
+        // Then
+        assertThat(generation.result().distinctivePerspective()).isEqualTo(expected);
+        assertThat(generation.output().themeExpressionScore()).isEqualTo(Double.parseDouble(theme));
     }
 
     @Test
@@ -335,7 +384,7 @@ class OpenAiResponsesReviewGeneratorTest {
     @DisplayName("generate_feedback이 301자면_INVALID_OUTPUT으로 실패한다")
     void generate_tooLongFeedback_failsWithInvalidOutput() {
         // Given
-        respondOk(successBody("{\"compositionScore\":8,\"distinctivePerspective\":true,\"feedback\":\""
+        respondOk(successBody("{\"composition\":8,\"theme_expression\":8,\"feedback\":\""
                 + "가".repeat(301) + "\"}"));
 
         // When & Then
@@ -354,10 +403,18 @@ class OpenAiResponsesReviewGeneratorTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "{\"compositionScore\":8,\"distinctivePerspective\":true}",
-            "{\"distinctivePerspective\":true,\"feedback\":\"좋음\"}",
-            "{\"compositionScore\":11,\"distinctivePerspective\":true,\"feedback\":\"좋음\"}",
-            "{\"compositionScore\":8,\"distinctivePerspective\":true,\"feedback\":\" \"}"
+            "{\"composition\":8,\"theme_expression\":8}",
+            "{\"theme_expression\":8,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"feedback\":\"좋음\"}",
+            "{\"composition\":11,\"theme_expression\":8,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":11,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":99999999999,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":null,\"feedback\":\"좋음\"}",
+            "{\"composition\":null,\"theme_expression\":8,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":\"7\",\"feedback\":\"좋음\"}",
+            "{\"composition\":\"8\",\"theme_expression\":7,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":\" \"}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":null}"
     })
     @DisplayName("generate_필드가 없거나 범위를 벗어나면_INVALID_OUTPUT으로 실패한다")
     void generate_schemaViolation_failsWithInvalidOutput(String output) {
@@ -481,12 +538,21 @@ class OpenAiResponsesReviewGeneratorTest {
             int maxOutputTokens,
             ReasoningEffort reasoningEffort
     ) {
+        return request(imageDetail, maxOutputTokens, reasoningEffort, null);
+    }
+
+    private AiReviewGenerationRequest request(
+            ImageDetail imageDetail,
+            int maxOutputTokens,
+            ReasoningEffort reasoningEffort,
+            Double threshold
+    ) {
         AiPromptDraft draft = new AiPromptDraft(
                 AiPromptType.PHOTO_REVIEW,
                 "사진을 평가한다.",
                 "주제: {{topicTitle}}, 다시 {{topicTitle}}",
                 "gpt-5-mini",
-                new AiPromptParameters(imageDetail, maxOutputTokens, reasoningEffort));
+                new AiPromptParameters(imageDetail, maxOutputTokens, reasoningEffort, threshold));
         return new AiReviewGenerationRequest(draft, IMAGE_URL, "노을");
     }
 

@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AiPromptDraftTest {
 
-    private static final AiPromptParameters PARAMETERS = new AiPromptParameters(null, 500, null);
+    private static final AiPromptParameters PARAMETERS = new AiPromptParameters(null, 500, null, null);
 
     @Test
     @DisplayName("생성_허용된 topicTitle 변수만 쓰면_성공한다")
@@ -50,6 +50,30 @@ class AiPromptDraftTest {
 
         // Then
         assertThat(rendered).isEqualTo("노을: 노을를 담은 사진");
+    }
+
+    @Test
+    @DisplayName("렌더링_JSON 문자열에 쓰는 값은_따옴표 역슬래시 개행을 이스케이프한다")
+    void renderUserPrompt_specialCharacters_areJsonEscaped() {
+        // Given
+        AiPromptDraft draft = draft("사진을 평가한다.", "{\"주제\": \"{{topicTitle}}\"}");
+
+        // When
+        String rendered = draft.renderUserPrompt("a\"b\\c\nd\te");
+
+        // Then
+        assertThat(rendered).isEqualTo("{\"주제\": \"a\\\"b\\\\c\\nd\\te\"}");
+    }
+
+    @Test
+    @DisplayName("렌더링_일반 한글 값은_그대로 넣는다")
+    void renderUserPrompt_ordinaryKorean_isUnchanged() {
+        // Given
+        AiPromptDraft draft = draft("사진을 평가한다.", "{\"주제\": \"{{topicTitle}}\"}");
+
+        // When & Then
+        assertThat(draft.renderUserPrompt("노을 지는 바다 :)"))
+                .isEqualTo("{\"주제\": \"노을 지는 바다 :)\"}");
     }
 
     @Test

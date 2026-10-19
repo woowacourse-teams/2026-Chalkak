@@ -1,10 +1,12 @@
 package com.chalkak.backend.aireview.service;
 
 import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import java.time.Duration;
 
 public record AiReviewGeneration(
         AiReviewResult result,
+        PhotoReviewOutput output,
         Attempt attempt
 ) {
 
