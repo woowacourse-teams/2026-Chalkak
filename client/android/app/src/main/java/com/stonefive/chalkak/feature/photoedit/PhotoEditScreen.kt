@@ -282,7 +282,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-private val PhotoEditControlsHeight = 132.dp
+private val PhotoEditControlsHeight = 156.dp
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
 
