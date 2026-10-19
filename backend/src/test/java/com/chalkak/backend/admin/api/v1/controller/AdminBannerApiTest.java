@@ -102,7 +102,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
     }
     @Test
-    @DisplayName("관리자 삭제 요청은 204를 반환하고 인증된 관리자와 사유를 감사에 기록한다")
+    @DisplayName("본문 없는 관리자 삭제는 204를 반환하고 인증된 관리자를 감사에 기록한다")
     void deleteBanner_adminToken_recordsAuthenticatedActor() throws Exception {
         // Given
         Admin admin = adminRepository
@@ -116,8 +116,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/banners/" + banner.getId())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"종료\"}"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNoContent());
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("""
@@ -128,7 +127,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 """
                         SELECT reason FROM admin_audit_logs WHERE target_id = ? AND action = 'BANNER_DELETED'
                         """,
-                String.class, banner.getId())).isEqualTo("종료");
+                String.class, banner.getId())).isNull();
     }
 
 }

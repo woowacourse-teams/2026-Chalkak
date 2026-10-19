@@ -187,11 +187,10 @@ class AdminBannerControllerTest {
     }
 
     @Test
-    @DisplayName("배너 삭제는 204와 빈 본문을 반환한다")
-    void deleteBanner_validRequest_returnsNoContent() throws Exception {
+    @DisplayName("본문 없는 배너 삭제는 204와 빈 응답을 반환한다")
+    void deleteBanner_withoutBody_returnsNoContent() throws Exception {
         // When & Then
-        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"reason\":\"이벤트 종료\"}"))
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID))
                 .andExpect(status().isNoContent())
                 .andExpect(
                         org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
@@ -199,23 +198,11 @@ class AdminBannerControllerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "{\"reason\":null}", "{\"reason\":\" \"}"})
-    @DisplayName("삭제 사유가 누락되거나 공백이면 400을 반환한다")
-    void deleteBanner_invalidRequest_returnsBadRequest(String body) throws Exception {
-        // When & Then
-        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-    }
-
-    @ParameterizedTest
     @ValueSource(strings = {"invalid", "1-1-1-1-1"})
     @DisplayName("잘못된 배너 ID는 400을 반환한다")
     void deleteBanner_invalidId_returnsBadRequest(String id) throws Exception {
         // When & Then
-        mockMvc.perform(delete(PATH + "/" + id).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"reason\":\"종료\"}"))
+        mockMvc.perform(delete(PATH + "/" + id))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
@@ -225,26 +212,11 @@ class AdminBannerControllerTest {
     void deleteBanner_missing_returnsNotFound() throws Exception {
         // Given
         willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "배너를 찾을 수 없습니다."))
-                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID, "종료");
+                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID);
 
         // When & Then
-        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"reason\":\"종료\"}"))
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-    }
-
-    @Test
-    @DisplayName("삭제 서비스의 잘못된 사유 예외는 400으로 변환한다")
-    void deleteBanner_serviceValidation_returnsBadRequest() throws Exception {
-        // Given
-        willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "잘못된 삭제 사유"))
-                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID, "종료");
-
-        // When & Then
-        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"reason\":\"종료\"}"))
-                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 

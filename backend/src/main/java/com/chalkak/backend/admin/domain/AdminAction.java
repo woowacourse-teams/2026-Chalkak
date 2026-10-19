@@ -80,7 +80,7 @@ public enum AdminAction {
 
     BANNER_DELETED(
             AdminTargetType.BANNER,
-            true,
+            false,
             AdminAuditTransitionRules::isBannerDeleted);
 
     private final AdminTargetType targetType;

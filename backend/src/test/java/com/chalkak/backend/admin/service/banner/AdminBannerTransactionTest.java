@@ -165,12 +165,12 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
                         java.time.ZoneOffset.UTC));
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<?> first = executor.submit(() -> new TransactionTemplate(transactionManager)
-                    .executeWithoutResult(status -> service.deleteBanner(id, ADMIN_ID, "최초 삭제")));
+                    .executeWithoutResult(status -> service.deleteBanner(id, ADMIN_ID)));
             try {
                 await(firstLocked);
                 Future<?> second = executor.submit(() -> new TransactionTemplate(transactionManager)
                         .executeWithoutResult(
-                                status -> service.deleteBanner(id, ADMIN_ID, "중복 삭제")));
+                                status -> service.deleteBanner(id, ADMIN_ID)));
                 await(secondAttempted);
                 // 첫 트랜잭션이 잠금을 유지하는 동안 두 번째 삭제는 완료될 수 없다.
                 assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS))
@@ -190,7 +190,7 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
                 """, Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT reason FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
-                """, String.class)).isEqualTo("최초 삭제");
+                """, String.class)).isNull();
         assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
                 java.time.OffsetDateTime.class, id).toInstant())
                 .isEqualTo(java.time.Instant.parse("2026-10-19T01:00:00Z"));
@@ -204,7 +204,7 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         UUID id = jdbcTemplate.queryForObject("SELECT id FROM banners", UUID.class);
 
         // When & Then
-        assertThatThrownBy(() -> bannerService.deleteBanner(id, UUID.randomUUID(), "종료"))
+        assertThatThrownBy(() -> bannerService.deleteBanner(id, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
                 java.time.OffsetDateTime.class, id)).isNull();

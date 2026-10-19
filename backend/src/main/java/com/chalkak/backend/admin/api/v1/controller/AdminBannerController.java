@@ -3,7 +3,6 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminBannerApiDocs;
-import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerDeletionRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminBannerListResponse;
@@ -56,11 +55,10 @@ public class AdminBannerController implements AdminBannerApiDocs {
     @DeleteMapping("/{bannerId}")
     public ResponseEntity<Void> deleteBanner(
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
-            @PathVariable String bannerId,
-            @Valid @RequestBody AdminBannerDeletionRequest request
+            @PathVariable String bannerId
     ) {
         bannerService.deleteBanner(CanonicalUuidParser.parse(bannerId),
-                authenticatedAdmin.adminId(), request.reason());
+                authenticatedAdmin.adminId());
         return ResponseEntity.noContent().build();
     }
 }
