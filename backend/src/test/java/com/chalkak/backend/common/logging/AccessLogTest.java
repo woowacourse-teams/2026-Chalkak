@@ -231,8 +231,7 @@ class AccessLogTest extends IntegrationTestSupport {
                     CAST(? AS timestamptz), CAST(? AS timestamptz),
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
-                """, UUID.randomUUID(), topicDate, topicDate + "T00:00:00Z",
-                topicDate + "T23:59:59Z");
+                """, UUID.randomUUID(), topicDate, topicDate + "T00:00:00Z", topicDate + "T23:59:59Z");
     }
 
     private Object keyValue(ILoggingEvent event, String key) {

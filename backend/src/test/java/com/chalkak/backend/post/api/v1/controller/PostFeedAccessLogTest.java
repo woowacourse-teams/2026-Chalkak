@@ -80,8 +80,9 @@ class PostFeedAccessLogTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"recent", "popular", "random"})
-    @DisplayName("정상 피드 응답은 정렬과 응답 ID 순서를 기존 접근 로그 한 줄에 남긴다")
-    void getPosts_validSort_logsActualResponseInOneAccessEvent(String sort) throws Exception {
+    @DisplayName("정상 피드 응답은 조회 조건만 접근 로그 한 줄에 남기고 게시물 ID는 제외한다")
+    void getPosts_validSort_logsConditionsWithoutPostIdsInOneAccessEvent(String sort)
+            throws Exception {
         // Given
         PostSort postSort = PostSort.from(sort);
         List<PostListResult.PostSummary> posts = List.of(summary(SECOND_ID), summary(FIRST_ID));
@@ -102,7 +103,9 @@ class PostFeedAccessLogTest {
         assertThat(keyValue(event, "sort")).isEqualTo(sort);
         assertThat(keyValue(event, "page")).isEqualTo(2);
         assertThat(keyValue(event, "pageSize")).isEqualTo(20);
-        assertThat(keyValue(event, "postIds")).isEqualTo(List.of(SECOND_ID, FIRST_ID));
+        for (org.slf4j.event.KeyValuePair pair : event.getKeyValuePairs()) {
+            assertThat(pair.key).isNotEqualTo("postIds");
+        }
         assertThat(keyValue(event, "topicDate")).isEqualTo(TOPIC_DATE.toString());
         assertThat(keyValue(event, "route")).isEqualTo("/api/v1/posts");
         assertThat(keyValue(event, "status")).isEqualTo(200);
@@ -119,8 +122,8 @@ class PostFeedAccessLogTest {
     }
 
     @Test
-    @DisplayName("기본 조건의 빈 피드는 recent와 기본 페이지 크기 및 빈 ID 배열을 남긴다")
-    void getPosts_emptyDefaultFeed_logsDefaultsAndEmptyIds() throws Exception {
+    @DisplayName("기본 조건의 빈 피드는 recent와 기본 페이지 크기를 남긴다")
+    void getPosts_emptyDefaultFeed_logsDefaultConditions() throws Exception {
         // Given
         given(postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.empty()))
                 .willReturn(new PostListResult(1, 20, false, null, List.of()));
@@ -135,18 +138,15 @@ class PostFeedAccessLogTest {
         assertThat(keyValue(event, "sort")).isEqualTo("recent");
         assertThat(keyValue(event, "page")).isEqualTo(1);
         assertThat(keyValue(event, "pageSize")).isEqualTo(20);
-        assertThat(keyValue(event, "postIds")).isEqualTo(List.of());
     }
 
     @Test
-    @DisplayName("최대 페이지 크기에서도 응답의 100개 ID를 생략 없이 기록한다")
-    void getPosts_maximumPageSize_logsAllResponseIds() throws Exception {
+    @DisplayName("최대 페이지 크기도 조회 조건으로 기록하고 응답의 게시물 ID는 남기지 않는다")
+    void getPosts_maximumPageSize_logsPageSizeWithoutPostIds() throws Exception {
         // Given
-        List<UUID> ids = new ArrayList<>();
         List<PostListResult.PostSummary> posts = new ArrayList<>();
         for (int index = 0; index < 100; index++) {
             UUID id = UUID.randomUUID();
-            ids.add(id);
             posts.add(summary(id));
         }
         given(postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 100,
@@ -159,7 +159,9 @@ class PostFeedAccessLogTest {
 
         // Then
         assertThat(appender.list).hasSize(1);
-        assertThat(keyValue(appender.list.getFirst(), "postIds")).isEqualTo(ids);
+        for (org.slf4j.event.KeyValuePair pair : appender.list.getFirst().getKeyValuePairs()) {
+            assertThat(pair.key).isNotEqualTo("postIds");
+        }
         assertThat(keyValue(appender.list.getFirst(), "pageSize")).isEqualTo(100);
     }
 

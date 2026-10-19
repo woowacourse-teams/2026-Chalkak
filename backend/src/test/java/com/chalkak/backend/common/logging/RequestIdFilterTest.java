@@ -7,8 +7,6 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.FilterChain;
-import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,7 +44,7 @@ class RequestIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("recent", 1, 20, List.of(UUID.randomUUID())));
+                new FeedQueryLog("recent", 1, 20));
         MockHttpServletResponse response = new MockHttpServletResponse();
         IllegalStateException failure = new IllegalStateException("예상하지 못한 장애");
         FilterChain failingChain = (req, res) -> {
@@ -83,7 +81,7 @@ class RequestIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, path);
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("recent", 1, 20, List.of(UUID.randomUUID())));
+                new FeedQueryLog("recent", 1, 20));
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = (req, res) -> response.setStatus(status);
 

@@ -33,8 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link UserMetricsAggregationLogMetricsTest}에서 다룬다.
  *
  * <p>
- * 게시물 지표는 2030년 날짜로 한정해 다른 테스트가 남긴 행과 섞이지 않게 한다. 회원·좋아요 지표는 DB 전체의 스냅샷이라 데이터를
- * 넣기 전후의 차이로 검증한다.
+ * 게시물 지표는 2030년 날짜로 한정해 다른 테스트가 남긴 행과 섞이지 않게 한다. 회원·좋아요 지표는 DB 전체의 스냅샷이라
+ * 데이터를 넣기 전후의 차이로 검증한다.
  */
 @Transactional
 class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
@@ -55,8 +55,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    private final Logger aggregationLogger = (Logger) LoggerFactory
-            .getLogger("chalkak.aggregation");
+    private final Logger aggregationLogger = (Logger) LoggerFactory.getLogger("chalkak.aggregation");
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
     private int sequence;
@@ -184,8 +183,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         UUID banned = insertUser("eligible-banned");
         UUID withdrawn = insertUser("eligible-withdrawn");
         jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", banned);
-        jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                withdrawn);
+        jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", withdrawn);
 
         // When
         DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
@@ -256,8 +254,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("일요일 기준일은 1~4주 전 코호트별 인원과 유지 회원 수를 주 경계에 맞춰 센다")
     void aggregate_sunday_countsWeeklyRetentionPerCohort() {
-        // Given: 기준 주 2030-03-11(월)~03-17(일), 코호트 W+1=03-04, W+2=02-25, W+3=02-18,
-        // W+4=02-11
+        // Given: 기준 주 2030-03-11(월)~03-17(일), 코호트 W+1=03-04, W+2=02-25, W+3=02-18, W+4=02-11
         UUID returned = insertUser("retention-returned");
         UUID cohortOnly = insertUser("retention-cohort-only");
         UUID mondayEdge = insertUser("retention-monday-edge");
@@ -285,8 +282,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         insertPost(excluded, kst(LocalDate.of(2030, 3, 12), "10:00:00"), "APPROVED", false);
 
         // When
-        DailyUserMetrics metrics = serviceExcluding(List.of(excluded))
-                .aggregate(SUNDAY_METRIC_DATE);
+        DailyUserMetrics metrics = serviceExcluding(List.of(excluded)).aggregate(SUNDAY_METRIC_DATE);
 
         // Then
         assertThat(metrics.weeklyRetentions()).containsExactly(
@@ -328,8 +324,8 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
     }
 
     private UserMetricsAggregationService serviceExcluding(List<UUID> excludedUserIds) {
-        AnalyticsProperties properties = new AnalyticsProperties(excludedUserIds, LOG_GROUP,
-                LOG_METRICS_START_DATE, 7);
+        AnalyticsProperties properties =
+                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LOG_METRICS_START_DATE, 7);
         AccessLogMetricsReader reader = mock(AccessLogMetricsReader.class);
         when(reader.read(any())).thenReturn(Optional.empty());
         return new UserMetricsAggregationService(
@@ -345,7 +341,8 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow().value;
+                .orElseThrow()
+                .value;
     }
 
     private UUID insertUser(String slug) {

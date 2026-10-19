@@ -1,77 +1,60 @@
-# 피드 좋아요 수 조회 패턴 관측
+# 피드 조회 패턴 관측과 캐시 검토
 
-같은 게시물의 좋아요 수가 사용자·정렬을 넘어 다시 필요한지 관찰한다. 응답에 포함된 게시물은 알 수 있지만 실제 화면 노출이나 DB SQL 실행·캐시 Hit를 기록한 것은 아니다.
+로컬 캐시를 검토하기 전에 최신순·인기순이 얼마나 자주 요청되고 어느 정렬의 응답이 느린지 확인한다. 반복 조회 수요를 파악하는 관측이며, 이것만으로 캐시 도입이나 성능 개선을 증명하지 않는다.
 
-## 기록과 수집 시작
+## 무엇을 기록하나
 
-정상 `GET /api/v1/posts`의 기존 접근 로그 한 줄에 다음을 더한다.
+정상 `GET /api/v1/posts`의 기존 접근 로그 한 줄에 조회 조건만 더한다.
 
 | 필드 | 의미 |
 | --- | --- |
 | `sort` | 기본값을 적용한 `recent`·`popular`·`random` |
 | `page` / `pageSize` | 응답의 현재 페이지·페이지 크기 |
-| `postIds` | 응답 순서의 게시물 ID JSON 배열. 빈 피드는 `[]`, 최대 100개 |
 
-요청 시각은 기존 `@timestamp`, 요청 식별자는 `requestId`를 사용한다. 시각은 접근 로그를 쓰는 **응답 처리 종료 시점**이다. SQL 시작 시각이나 사용자가 본 시각은 아니다. 정상 응답의 메타데이터만 기록하며 실패 요청·다른 경로에는 추가하지 않는다. 제목·사진 URL·토큰·랜덤 시드는 추가하지 않는다.
+기존 `@timestamp`·`requestId`·`topicDate`·`durationMs`·회원 정보가 있는 경우의 `userId`는 유지한다. 시각은 응답 처리 종료 시점이며, SQL 시작이나 실제 화면 노출 시각은 아니다. 실패 요청·다른 경로에는 새 조회 조건을 남기지 않는다.
+
+게시물 ID 목록은 기록하지 않는다. 최신순·인기순은 동일한 데이터 상태에서 날짜·정렬·페이지 조건이 같으면 같은 목록을 반환하므로, 우선 이 조건의 반복 요청으로 재사용 가능성을 추정한다. ID 배열을 기록할 때의 로그 수집·보관·스캔 비용을 줄이기 위한 선택이다. 제목·사진 URL·토큰·랜덤 시드도 추가하지 않는다.
 
 ```json
-{"@timestamp":"2026-10-19T06:00:00Z","type":"access","requestId":"request-1","method":"GET","route":"/api/v1/posts","status":200,"durationMs":18,"topicDate":"2026-10-19","sort":"recent","page":1,"pageSize":20,"postIds":["0198f6c1-62ba-7d30-8b12-0f733b6570d4","0198f6c1-62ba-7d30-8b12-0f733b6570d5"]}
+{"@timestamp":"2026-10-19T06:00:00Z","type":"access","requestId":"request-1","method":"GET","route":"/api/v1/posts","status":200,"durationMs":18,"topicDate":"2026-10-19","sort":"recent","page":1,"pageSize":20}
 ```
 
-앱의 일반 배포 이후 기존 CloudWatch Agent가 같은 파일·로그 그룹으로 수집한다. **운영 배포 전에는 새 데이터가 없고, 과거 요청의 정렬·게시물 목록은 복원할 수 없다.** 환경변수·IAM·메트릭 필터 추가는 필요 없다. `dashboard.json`은 기존 모니터링 런북 9단계에 따라 별도 수동 반영한다. 이 변경 자체가 운영 배포나 대시보드 자동 적용은 아니다.
+## 어떻게 확인하나
 
-## 1. 정렬별 10초 조회량
+앱 배포 후 기존 CloudWatch Agent가 같은 파일과 로그 그룹으로 수집한다. 새 환경변수·IAM·메트릭 필터는 필요 없다. 배포 이전의 정렬·페이지 조건은 복원할 수 없다. 대시보드 위젯은 추가하지 않고, 서울 리전 Logs Insights에서 `/chalkak/prod/application`을 선택해 필요한 기간에 직접 조회한다. 개발은 `/chalkak/dev/application`을 사용한다.
 
-서울 리전 Logs Insights에서 `/chalkak/prod/application`만 선택한다. 개발은 `/chalkak/dev/application`으로 바꾸고, 처음에는 배포 이후 짧은 구간부터 조회한다.
+**정렬별 요청량과 응답 시간**
 
 ```sql
 filter type = "access" and method = "GET"
-  and route = "/api/v1/posts" and status = 200 and ispresent(sort)
-| stats count(*) as requests by bin(10s), `sort`
+  and route = "/api/v1/posts" and status = 200 and ispresent(`sort`)
+| stats count(*) as requests, avg(durationMs) as averageMs,
+    pct(durationMs, 95) as p95Ms by `sort`
 ```
 
-세로축은 **10초 구간의 요청 건수**이며 RPS·캐시 적중률이 아니다. 자동 새로고침 주기와도 다르다. `sort`가 없는 과거 로그는 기본값으로 추정하지 않고 제외한다. 숫자가 안 나오면 배포·로그 유입·조회 기간부터 확인한다. 대시보드에도 이 쿼리를 사용한다.
-
-## 2. 같은 게시물에 요청이 겹친 구간
+**같은 피드 조건에 요청이 몰린 10초 구간**
 
 ```sql
 filter type = "access" and method = "GET"
-  and route = "/api/v1/posts" and status = 200 and ispresent(sort)
-| fields jsonParse(@message) as accessLog
-| unnest accessLog.postIds into postId
-| stats count(*) as lookups, count_distinct(`sort`) as sortKinds
-    by postId, datefloor(@timestamp, 10s) as window
-| filter lookups >= 2
-| sort lookups desc
+  and route = "/api/v1/posts" and status = 200 and ispresent(`sort`)
+| stats count(*) as requests by bin(10s), topicDate, `sort`, page, pageSize
+| filter requests >= 2
+| sort requests desc
 | limit 100
 ```
 
-`lookups`는 해당 게시물의 좋아요 수를 포함한 피드 응답 수다. `sortKinds`가 2 이상이면 서로 다른 정렬에서 요청했다. 사용자 ID를 묶음 기준으로 사용하지 않으므로 여러 사용자의 요청도 함께 센다.
+`requests`는 10초 구간의 피드 요청 건수다. RPS나 게시물별 조회 수가 아니다. 첫 요청도 포함하고 구간 경계를 넘는 재조회는 놓치므로, 결과를 10초 TTL의 적중률로 바꾸지 않는다. `limit 100`은 많이 반복된 상위 구간만 보여주며, 전체 분포나 일주일 전체 자료가 아니다. `sort`가 없는 과거 로그는 기본 정렬로 추정하지 않고 제외한다.
 
-**이 표는 실제 10초 TTL 적중률이 아니다.** 구간 첫 요청도 포함하고, 구간 경계를 넘어 일어난 재조회는 놓친다. 저장 성공 후 TTL·용량 제거·로딩 중 공유·실패까지 재현해야 실제 캐시 효과를 판단할 수 있다.
+## 이 관측으로 알 수 없는 것
 
-## 3. 실제 재조회 간격과 로컬 비교
+새 게시물 등록·삭제·검수 상태 변경이나 좋아요 순위 변화가 있으면 같은 페이지도 다른 목록이 될 수 있다. 정렬 간 게시물 겹침, 서로 다른 페이지 크기의 겹침, 랜덤 시드별 실제 목록도 이 로그로는 알 수 없다. 따라서 **같은 게시물의 정확한 10초 이내 재조회 비율이나 실제 캐시 Hit를 확인했다고 표현하지 않는다.** 필요한 정밀도에 따라 게시물 식별 정보를 별도 관측하는 후속 작업이 필요할 수 있다.
 
-```sql
-filter type = "access" and method = "GET"
-  and route = "/api/v1/posts" and status = 200 and ispresent(sort)
-| fields jsonParse(@message) as accessLog
-| unnest accessLog.postIds into postId
-| fields @timestamp, requestId, `sort`, page, pageSize, postId
-| sort postId asc, @timestamp asc
-| limit 10000
-```
+## 캐시 도입은 어떻게 판단하나
 
-결과를 내보내 같은 `postId`의 연속 응답 시각 차이를 계산하면 10초 이내 재조회 여부를 볼 수 있다. **10,000행은 출력 상한**이다. 전체 일주일이라고 가정하지 말고 짧은 시간대로 나눠 누락 없이 확보한다. 분할 경계에서는 게시물별 마지막 시각을 이어서 비교하고, 겹친 구간을 수집했다면 `requestId + postId`로 중복을 제거한다.
+1. **반복 조회 수요와 현재 비용을 함께 본다.** 위 로그로 정렬·페이지별 요청 패턴과 API p95를 확인한다. 좋아요 수 집계 SQL의 호출 수·총 실행 시간·피드 SQL 시간에서 차지하는 비중은 RDS에서 `pg_stat_statements` 등 실제 사용 가능한 쿼리 관측 수단으로 별도 확인한다. API 응답 시간은 SQL 실행 시간과 다르다.
+2. **동일한 부하에서 OFF/ON을 비교한다.** 관측한 정렬 비율·페이지 분포·요청 간격을 참고하고, 같은 코드·데이터·자원으로 반복 측정한다. API p95·p99·오류율, 좋아요 수 SQL 호출 수·총 실행 시간, DB CPU, 캐시 Hit/Miss, 힙·GC와 값의 지연을 함께 기록한다.
+3. **줄어든 비용이 관리 비용보다 큰지 판단한다.** API 응답 시간이 거의 같아도 SQL 총 실행 시간과 DB 부하가 뚜렷하게 줄면 도입 근거가 될 수 있다. 반대로 SQL 비용이 작고 DB 여유도 충분한데 효과가 작거나 메모리·GC·값 갱신 관리 부담이 커지면 도입을 보류한다. 도입을 판정할 목표 RPS·허용 응답 시간·오류율·필요한 개선 폭은 본 측정 전에 별도 실험 계획에서 확정하며 결과에 맞춰 바꾸지 않는다.
 
-이후 정렬 비율·페이지 분포·요청 간격·게시물 겹침을 참고해 같은 로컬 부하에서 OFF/ON을 비교한다. 재조회 간격이 짧아도 Hit가 만료를 연장하지 않으므로 간격 비율을 곧바로 적중률로 바꾸지 않는다. SQL 횟수·응답 시간·메모리·GC와 함께 측정하고, 인기순 한정 적용은 최신순에서 잃는 재사용도 포함해 판단한다.
+**현재 운영 코드의 인기순은 별도로 본다.** `findVisiblePopularByTopicId`가 후보 게시물의 좋아요를 집계해 순위를 정하고, 목록에 표시할 개수는 `countByPostIds`로 다시 읽는다. 게시물별 좋아요 수 캐시는 후자의 비용을 줄일 수 있지만 전자의 순위 집계까지 없애주지는 않는다. 로컬 실험의 즉시 집계 구현이 운영에도 적용된 것으로 가정하지 않는다.
 
-## 비용과 관측 한계
-
-- 한 요청당 기존 로그 한 줄을 유지하고, 페이지 크기 상한 안에서 ID 배열만 추가한다. 게시물별 로그·추가 SQL·DB 조회수 컬럼은 만들지 않는다.
-- UUID 문자열 배열은 ID당 약 39바이트로, 20개 약 780바이트·100개 약 3.9KB가 추가된다. 다른 필드·전송 비용을 제외한 설명용 추정이다. 실제 수집량과 Logs Insights 스캔량을 확인한다.
-- 기존 로그 그룹 보관 정책을 따른다(prod 60일·dev 7일). 불필요한 장기 조회·자동 새로고침을 피하고 분석 후 필요 기간만 보관한다. 게시물 ID를 메트릭 라벨로 만들지 않는다.
-- 기존 `userId`가 있는 접근 로그와 같은 접근 통제를 적용한다. 요청 ID와 게시물 ID가 포함된 원본을 공개 자료에 그대로 게시하지 않는다. 팀원·테스트 트래픽 포함 여부도 기록한다.
-- 응답 시점의 수요 관찰이며 클라이언트가 실제로 표시한 사진이나 정확한 DB 읽기 시각은 알 수 없다. 운영 관측만으로 캐시 성능 개선을 검증했다고 표현하지 않는다.
-
-공식 문서: [배열 펼치기(unnest)](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Unnest.html), [JSON·시간 함수](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-operations-functions.html).
+이 문서는 로그와 분석 방법을 준비한 상태다. 실제 AWS 쿼리 실행·신규 로그 수집·SQL 비용·캐시 효과는 별도 검증이며, 이 변경만으로 확인했다고 기록하지 않는다. 기존 로그 보관 정책과 접근 통제를 유지하고, 처음에는 짧은 기간부터 조회해 스캔 비용을 확인한다. 원본의 회원·요청 식별 정보를 공개 자료에 그대로 게시하지 않는다.

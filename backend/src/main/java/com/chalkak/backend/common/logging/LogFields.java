@@ -18,7 +18,6 @@ public final class LogFields {
     public static final String SORT = "sort";
     public static final String PAGE = "page";
     public static final String PAGE_SIZE = "pageSize";
-    public static final String POST_IDS = "postIds";
     public static final String WAIT_SECONDS = "waitSeconds";
     public static final String HEAP_USED_BYTES = "heapUsedBytes";
     public static final String HEAP_MAX_BYTES = "heapMaxBytes";

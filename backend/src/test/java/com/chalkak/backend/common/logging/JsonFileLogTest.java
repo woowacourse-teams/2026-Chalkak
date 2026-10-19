@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,8 +83,9 @@ class JsonFileLogTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"dev", "prod"})
-    @DisplayName("피드 접근 로그는 게시물 ID 목록을 JSON 배열로 한 줄에 기록한다")
-    void initialize_deployedProfile_writesFeedIdsAsJsonArray(String profile) throws Exception {
+    @DisplayName("피드 접근 로그는 조회 조건만 JSON 한 줄에 기록하고 게시물 ID 목록은 남기지 않는다")
+    void initialize_deployedProfile_writesFeedConditionsWithoutPostIds(String profile)
+            throws Exception {
         // Given
         Path logFile = tempDir.resolve("feed.log");
         MockEnvironment environment = new MockEnvironment()
@@ -94,12 +94,11 @@ class JsonFileLogTest {
                         tempDir.resolve("notification.log").toString());
         environment.setActiveProfiles(profile);
         initialize(environment);
-        UUID postId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
         request.setParameter("topicDate", "2026-08-12");
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("popular", 2, 20, List.of(postId)));
+                new FeedQueryLog("popular", 2, 20));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         // When
@@ -109,9 +108,7 @@ class JsonFileLogTest {
         List<String> lines = Files.readAllLines(logFile);
         assertThat(lines).hasSize(1);
         JsonNode json = STRICT_MAPPER.readTree(lines.getFirst());
-        assertThat(json.get("postIds").isArray()).isTrue();
-        assertThat(json.get("postIds").size()).isEqualTo(1);
-        assertThat(json.get("postIds").get(0).asString()).isEqualTo(postId.toString());
+        assertThat(json.has("postIds")).isFalse();
         assertThat(json.get("sort").asString()).isEqualTo("popular");
         assertThat(json.get("page").asInt()).isEqualTo(2);
         assertThat(json.get("pageSize").asInt()).isEqualTo(20);

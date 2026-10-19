@@ -15,7 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class AdminAnalyticsOpenApiTest extends IntegrationTestSupport {
 
-    private static final String OPERATION = "$.paths['/api/v1/admin/analytics/aggregations'].post";
+    private static final String OPERATION =
+            "$.paths['/api/v1/admin/analytics/aggregations'].post";
 
     @Autowired
     private MockMvc mockMvc;
@@ -27,8 +28,7 @@ class AdminAnalyticsOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(OPERATION + ".security[0].adminAccessToken").exists())
                 .andExpect(jsonPath(OPERATION + ".requestBody.content['application/json']"
-                        + ".schema['$ref']")
-                        .value("#/components/schemas/AdminUserMetricsAggregationRequest"))
+                        + ".schema['$ref']").value("#/components/schemas/AdminUserMetricsAggregationRequest"))
                 .andExpect(jsonPath("$.components.schemas.AdminUserMetricsAggregationRequest"
                         + ".required").value(containsInAnyOrder("metricDate")))
                 .andExpect(jsonPath("$.components.schemas.AdminUserMetricsAggregationRequest"

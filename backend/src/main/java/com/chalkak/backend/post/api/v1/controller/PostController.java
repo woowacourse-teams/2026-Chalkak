@@ -33,8 +33,6 @@ import com.chalkak.backend.post.service.PostUpdateResult;
 import com.chalkak.backend.post.service.TodayPostStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -201,15 +199,10 @@ public class PostController implements PostApiDocs {
     }
 
     private void setFeedQueryLog(PostListRequest request, PostListResponse response) {
-        List<UUID> postIds = new ArrayList<>(response.posts().size());
-        for (PostListResponse.PostResponse post : response.posts()) {
-            postIds.add(post.id());
-        }
         servletRequest.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE, new FeedQueryLog(
                 request.sort().name().toLowerCase(Locale.ROOT),
                 response.currentPage(),
-                response.pageSize(),
-                postIds));
+                response.pageSize()));
     }
 
     private UUID requireUserId(Optional<AuthenticatedUser> loginUser) {

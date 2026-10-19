@@ -34,8 +34,8 @@ class UserMetricsAggregationLogMetricsTest {
             repository,
             reader);
 
-    private final Logger aggregationLogger = (Logger) LoggerFactory
-            .getLogger("chalkak.aggregation");
+    private final Logger aggregationLogger =
+            (Logger) LoggerFactory.getLogger("chalkak.aggregation");
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
     @BeforeEach
@@ -192,6 +192,7 @@ class UserMetricsAggregationLogMetricsTest {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow().value;
+                .orElseThrow()
+                .value;
     }
 }

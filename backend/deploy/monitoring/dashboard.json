@@ -456,22 +456,9 @@
       }
     },
     {
-      "type": "log",
-      "x": 0,
-      "y": 59,
-      "width": 24,
-      "height": 6,
-      "properties": {
-        "title": "피드 조회량 · 정렬별 요청 수 (10초 구간)",
-        "region": "ap-northeast-2",
-        "view": "timeSeries",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and method=\"GET\" and route=\"/api/v1/posts\" and status=200 and ispresent(sort)\n| stats count(*) as requests by bin(10s), `sort`"
-      }
-    },
-    {
       "type": "text",
       "x": 0,
-      "y": 65,
+      "y": 59,
       "width": 24,
       "height": 1,
       "properties": {
@@ -481,7 +468,7 @@
     {
       "type": "alarm",
       "x": 0,
-      "y": 66,
+      "y": 60,
       "width": 12,
       "height": 6,
       "properties": {
@@ -497,7 +484,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 66,
+      "y": 60,
       "width": 12,
       "height": 6,
       "properties": {
@@ -529,7 +516,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 72,
+      "y": 66,
       "width": 12,
       "height": 6,
       "properties": {
@@ -551,7 +538,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 72,
+      "y": 66,
       "width": 12,
       "height": 6,
       "properties": {
@@ -577,7 +564,7 @@
     {
       "type": "text",
       "x": 0,
-      "y": 78,
+      "y": 72,
       "width": 24,
       "height": 1,
       "properties": {
@@ -587,7 +574,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 79,
+      "y": 73,
       "width": 8,
       "height": 6,
       "properties": {
@@ -609,7 +596,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 79,
+      "y": 73,
       "width": 8,
       "height": 6,
       "properties": {
@@ -631,7 +618,7 @@
     {
       "type": "alarm",
       "x": 16,
-      "y": 79,
+      "y": 73,
       "width": 8,
       "height": 6,
       "properties": {
@@ -647,7 +634,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 85,
+      "y": 79,
       "width": 8,
       "height": 6,
       "properties": {
@@ -681,7 +668,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 85,
+      "y": 79,
       "width": 8,
       "height": 6,
       "properties": {
@@ -703,7 +690,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 85,
+      "y": 79,
       "width": 8,
       "height": 6,
       "properties": {
@@ -723,7 +710,7 @@
     {
       "type": "text",
       "x": 0,
-      "y": 91,
+      "y": 85,
       "width": 24,
       "height": 1,
       "properties": {
@@ -733,7 +720,7 @@
     {
       "type": "log",
       "x": 0,
-      "y": 92,
+      "y": 86,
       "width": 12,
       "height": 6,
       "properties": {
@@ -746,7 +733,7 @@
     {
       "type": "log",
       "x": 0,
-      "y": 98,
+      "y": 92,
       "width": 12,
       "height": 6,
       "properties": {
@@ -759,7 +746,7 @@
     {
       "type": "log",
       "x": 12,
-      "y": 92,
+      "y": 86,
       "width": 12,
       "height": 6,
       "properties": {
@@ -772,7 +759,7 @@
     {
       "type": "log",
       "x": 12,
-      "y": 98,
+      "y": 92,
       "width": 12,
       "height": 6,
       "properties": {

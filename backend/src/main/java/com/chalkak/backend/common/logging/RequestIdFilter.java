@@ -30,7 +30,7 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>
  * 피드 조회의 topicDate는 주제 날짜별 조회 수를 집계하기 위해 남긴다. 상태가 200이면 Spring이 ISO 날짜로 검증을 마친
- * 값이므로 파라미터 원문을 그대로 쓰고, 그 밖의 경로·메서드·상태에서는 검증되지 않은 입력이므로 남기지 않는다. 정렬·페이지·게시물 목록은
+ * 값이므로 파라미터 원문을 그대로 쓰고, 그 밖의 경로·메서드·상태에서는 검증되지 않은 입력이므로 남기지 않는다. 정렬·페이지 조건은
  * Controller에서 검증과 응답 변환을 마친 요청 속성만 사용한다.
  */
 public class RequestIdFilter extends OncePerRequestFilter {
@@ -92,8 +92,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
                     LogFields.FEED_QUERY_REQUEST_ATTRIBUTE) instanceof FeedQueryLog feedQuery) {
                 event = event.addKeyValue(LogFields.SORT, feedQuery.sort())
                         .addKeyValue(LogFields.PAGE, feedQuery.page())
-                        .addKeyValue(LogFields.PAGE_SIZE, feedQuery.pageSize())
-                        .addKeyValue(LogFields.POST_IDS, feedQuery.postIds());
+                        .addKeyValue(LogFields.PAGE_SIZE, feedQuery.pageSize());
             }
         }
         event.log("access");
