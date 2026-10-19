@@ -1,13 +1,12 @@
 package com.stonefive.chalkak.domain.model
 
-import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
  * 조정과 필터를 ARGB 픽셀에 적용한다. 미리보기와 업로드 인코더가 같은 계산을 쓴다.
  *
- * 순서는 iOS `PhotoEditFilterRenderer`와 같다. 노출·따뜻함·채도는 선형 공간에서 계산하고, 톤 곡선은 sRGB 감마 공간에서
- * 채널마다 적용한다. [filterMatrix]가 있으면 마지막에 0..255 값에 곱한다.
+ * 노출·따뜻함·채도는 선형 공간에서, 톤 곡선은 sRGB 감마 공간에서 채널마다 적용하고, [filterMatrix]가 있으면
+ * 마지막에 0..255 값에 곱한다.
  */
 class PhotoColorTransform(
     adjustments: PhotoAdjustments,
@@ -29,17 +28,15 @@ class PhotoColorTransform(
     private val blueTable: IntArray?
 
     init {
-        val exposureGain = 2.0
-            .pow(adjustments.exposure * PhotoToneCurve.EXPOSURE_RANGE_EV)
-            .toFloat()
-        val warmth = adjustments.warmth * PhotoToneCurve.WARMTH_GAIN.toFloat()
+        val exposureGain = PhotoAdjustmentResponse.exposureGain(adjustments.exposure.toDouble()).toFloat()
+        val warmth = adjustments.warmth * PhotoAdjustmentResponse.WARMTH_GAIN.toFloat()
         redGain = exposureGain * (1f + warmth)
         greenGain = exposureGain
         blueGain = exposureGain * (1f - warmth)
 
         val curve = if (PhotoToneCurve.isIdentity(adjustments)) null else PhotoToneCurve.samples(adjustments)
         encode = IntArray(ENCODE_STEPS + 1) { step ->
-            val gamma = PhotoToneCurve.gamma(step.toDouble() / ENCODE_STEPS)
+            val gamma = SrgbTransfer.gamma(step.toDouble() / ENCODE_STEPS)
             val toned = curve?.let { toneAt(it, gamma) } ?: gamma
             (toned * MAX_LEVEL).roundToInt().coerceIn(0, MAX_LEVEL)
         }
@@ -63,10 +60,10 @@ class PhotoColorTransform(
         if (isIdentity) return
         for (index in offset until offset + length) {
             val color = pixels[index]
-            val alpha = color ushr ALPHA_SHIFT
-            var red = color shr RED_SHIFT and CHANNEL_MASK
-            var green = color shr GREEN_SHIFT and CHANNEL_MASK
-            var blue = color and CHANNEL_MASK
+            val alpha = Argb.alpha(color)
+            var red = Argb.red(color)
+            var green = Argb.green(color)
+            var blue = Argb.blue(color)
             if (redTable != null && greenTable != null && blueTable != null) {
                 red = redTable[red]
                 green = greenTable[green]
@@ -81,7 +78,7 @@ class PhotoColorTransform(
                 blue = encodeLinear(luma + saturation * (linearBlue - luma))
             }
             pixels[index] = if (filterMatrix == null) {
-                (alpha shl ALPHA_SHIFT) or (red shl RED_SHIFT) or (green shl GREEN_SHIFT) or blue
+                Argb.of(alpha, red, green, blue)
             } else {
                 applyFilter(filterMatrix, alpha, red, green, blue)
             }
@@ -94,12 +91,8 @@ class PhotoColorTransform(
         private const val LEVELS = 256
         private const val MAX_LEVEL = 255
         private const val ENCODE_STEPS = 4096
-        private const val CHANNEL_MASK = 0xFF
-        private const val ALPHA_SHIFT = 24
-        private const val RED_SHIFT = 16
-        private const val GREEN_SHIFT = 8
 
-        // Core Image `CIColorControls`가 채도에 쓰는 선형 공간 휘도 가중치.
+        // 채도 계산에 쓰는 선형 공간 휘도 가중치.
         private const val LUMA_RED = 0.2125f
         private const val LUMA_GREEN = 0.7154f
         private const val LUMA_BLUE = 0.0721f
@@ -108,9 +101,11 @@ class PhotoColorTransform(
         private const val ALPHA_COLUMN = 3
         private const val OFFSET_COLUMN = 4
 
-        private val LINEAR = FloatArray(LEVELS) { PhotoToneCurve.linear(it.toDouble() / MAX_LEVEL).toFloat() }
+        private val LINEAR = FloatArray(LEVELS) { SrgbTransfer.linear(it.toDouble() / MAX_LEVEL).toFloat() }
 
-        /** iOS `CIColorCurves`처럼 이웃한 표본 사이를 직선으로 잇는다. */
+        fun of(edit: PhotoEdit): PhotoColorTransform = PhotoColorTransform(edit.adjustments, edit.filter.colorMatrix())
+
+        /** 이웃한 표본 사이를 직선으로 잇는다. */
         private fun toneAt(
             samples: DoubleArray,
             value: Double,
@@ -138,7 +133,7 @@ class PhotoColorTransform(
                     matrix[base + OFFSET_COLUMN]
                 return value.roundToInt().coerceIn(0, MAX_LEVEL)
             }
-            return (row(3) shl ALPHA_SHIFT) or (row(0) shl RED_SHIFT) or (row(1) shl GREEN_SHIFT) or row(2)
+            return Argb.of(row(3), row(0), row(1), row(2))
         }
     }
 }

@@ -23,8 +23,6 @@ data class PhotoEdit(
 
     val rotationDegrees: Float get() = quarterTurns * QUARTER_TURN_DEGREES + straightenDegrees
 
-    fun colorTransform(): PhotoColorTransform = PhotoColorTransform(adjustments, filter.colorMatrix())
-
     companion object {
         const val QUARTER_TURN_DEGREES = 90f
         const val MAX_STRAIGHTEN_DEGREES = 45f

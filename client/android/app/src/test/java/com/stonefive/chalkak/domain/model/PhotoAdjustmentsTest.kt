@@ -68,8 +68,8 @@ class PhotoAdjustmentsTest {
         PhotoColorTransform(PhotoAdjustments(exposure = 0.4f)).apply(pixels)
 
         // 선형 공간에서 2^(0.4 × 1.5)배 한 뒤 다시 감마 인코딩한 값.
-        val linear = PhotoToneCurve.linear(GRAY_LEVEL / 255.0) * 2.0.pow(0.4 * PhotoToneCurve.EXPOSURE_RANGE_EV)
-        assertEquals((PhotoToneCurve.gamma(linear) * 255).roundToInt(), red(pixels[0]))
+        val linear = SrgbTransfer.linear(GRAY_LEVEL / 255.0) * 2.0.pow(0.4 * PhotoAdjustmentResponse.EXPOSURE_RANGE_EV)
+        assertEquals((SrgbTransfer.gamma(linear) * 255).roundToInt(), red(pixels[0]))
         assertEquals(gray(0), pixels[1])
         assertEquals(GRAY_LEVEL, pixels[2] ushr ALPHA_SHIFT)
     }

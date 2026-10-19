@@ -232,7 +232,7 @@ class AndroidPostImageEncoder(
         }
         val output = Bitmap.createBitmap(transform.outputWidth, transform.outputHeight, Bitmap.Config.ARGB_8888)
         Canvas(output).drawBitmap(bitmap, matrix, paint)
-        if (hasAdjustments) output.applyColorTransform(edit.colorTransform())
+        if (hasAdjustments) output.applyColorTransform(PhotoColorTransform.of(edit))
         return output
     }
 
