@@ -46,11 +46,12 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 enum class ChalkakBottomBarItem(
     @param:StringRes val labelRes: Int,
     @param:DrawableRes val iconRes: Int,
+    @param:DrawableRes val selectedIconRes: Int = iconRes,
 ) {
-    HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_home),
-    DISPLAY(R.string.bottom_bar_display, R.drawable.ic_bottom_display),
-    RECORD(R.string.bottom_bar_record, R.drawable.ic_bottom_record),
-    SETTINGS(R.string.bottom_bar_settings, R.drawable.ic_bottom_setting),
+    HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_home, R.drawable.ic_bottom_home_selected),
+    DISPLAY(R.string.bottom_bar_display, R.drawable.ic_bottom_display, R.drawable.ic_bottom_display_selected),
+    RECORD(R.string.bottom_bar_record, R.drawable.ic_bottom_record, R.drawable.ic_bottom_record_selected),
+    SETTINGS(R.string.bottom_bar_settings, R.drawable.ic_bottom_setting, R.drawable.ic_bottom_setting_selected),
 }
 
 @Composable
@@ -125,7 +126,7 @@ private fun RowScope.BottomBarItem(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(item.iconRes),
+                painter = painterResource(if (selected) item.selectedIconRes else item.iconRes),
                 contentDescription = null,
                 tint = color,
                 modifier = Modifier.fillMaxSize(),
