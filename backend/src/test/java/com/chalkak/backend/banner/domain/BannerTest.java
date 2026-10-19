@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -199,4 +200,23 @@ class BannerTest {
                 field.equals("webViewUrl") ? value : WEB_VIEW_URL,
                 field.equals("thumbnailUrl") ? value : THUMBNAIL_URL);
     }
+    @Test
+    @DisplayName("삭제는 최초 시각을 기록하고 반복해도 변경하지 않는다")
+    void delete_repeated_preservesFirstDeletionTime() {
+        // Given
+        Banner banner = Banner.create("제목", "부제목", "https://example.com/event",
+                "https://example.com/image.png");
+        Instant first = Instant.parse("2026-10-19T01:00:00.123456789Z");
+        assertThat(banner.isDeleted()).isFalse();
+
+        // When
+        banner.delete(first);
+        banner.delete(first.plusSeconds(1));
+
+        // Then
+        assertThat(banner.isDeleted()).isTrue();
+        assertThat(banner.getDeletedAt()).isEqualTo(
+                Instant.parse("2026-10-19T01:00:00.123456Z"));
+    }
+
 }
