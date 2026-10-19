@@ -6,7 +6,9 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.service.aireview.AdminAiPromptVersionService.CreateCommand;
+import com.chalkak.backend.admin.service.aireview.AdminAiPromptVersionService.VersionListResult;
 import com.chalkak.backend.admin.service.aireview.AdminAiPromptVersionService.VersionResult;
+import com.chalkak.backend.admin.service.aireview.AdminAiPromptVersionService.VersionSummary;
 import com.chalkak.backend.aireview.domain.AiPromptParameters;
 import com.chalkak.backend.aireview.domain.AiPromptParameters.ImageDetail;
 import com.chalkak.backend.aireview.domain.AiPromptParameters.ReasoningEffort;
@@ -16,6 +18,7 @@ import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
@@ -23,6 +26,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -183,6 +188,110 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         assertThat(audit.getAfterState()).hasSize(2)
                 .containsEntry("type", "PHOTO_REVIEW")
                 .containsEntry("version", 1);
+    }
+
+    @Test
+    @DisplayName("목록은 version 내림차순으로 반환하고 본문은 담지 않는다")
+    void getVersions_existing_returnsNewestFirstSummaries() {
+        // Given
+        versionService.createVersion(ADMIN_ID, command("첫 시스템", null));
+        versionService.createVersion(ADMIN_ID, command("둘째 시스템", "둘째 메모"));
+        VersionResult third = versionService.createVersion(ADMIN_ID, command("셋째 시스템", null));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        VersionListResult list = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 20);
+
+        // Then
+        assertThat(list.currentPage()).isEqualTo(1);
+        assertThat(list.pageSize()).isEqualTo(20);
+        assertThat(list.hasNext()).isFalse();
+        assertThat(list.promptVersions()).extracting(VersionSummary::version)
+                .containsExactly(3, 2, 1);
+        assertThat(list.promptVersions().get(0)).isEqualTo(new VersionSummary(
+                third.id(), AiPromptType.PHOTO_REVIEW, 3, MODEL, third.outputSchemaVersion(), null,
+                ADMIN_ID, third.createdAt()));
+        assertThat(list.promptVersions().get(1).memo()).isEqualTo("둘째 메모");
+    }
+
+    @Test
+    @DisplayName("목록은 페이지로 나누고 다음 페이지가 있으면 hasNext가 true다")
+    void getVersions_paging_returnsRequestedPage() {
+        // Given
+        for (int i = 1; i <= 3; i++) {
+            versionService.createVersion(ADMIN_ID, command("시스템 " + i, null));
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        VersionListResult first = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 2);
+        VersionListResult second = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 2, 2);
+
+        // Then
+        assertThat(first.hasNext()).isTrue();
+        assertThat(first.promptVersions()).extracting(VersionSummary::version)
+                .containsExactly(3, 2);
+        assertThat(second.currentPage()).isEqualTo(2);
+        assertThat(second.hasNext()).isFalse();
+        assertThat(second.promptVersions()).extracting(VersionSummary::version)
+                .containsExactly(1);
+    }
+
+    @Test
+    @DisplayName("버전이 없으면 빈 목록이다")
+    void getVersions_noVersion_returnsEmpty() {
+        // When
+        VersionListResult list = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 20);
+
+        // Then
+        assertThat(list.promptVersions()).isEmpty();
+        assertThat(list.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 20", "-1, 20", "1, 0", "1, 101", "21474838, 100"})
+    @DisplayName("페이지 범위를 벗어나면 400 비즈니스 예외다")
+    void getVersions_invalidPaging_throws(int page, int pageSize) {
+        // When & Then
+        assertThatThrownBy(() -> versionService.getVersions(AiPromptType.PHOTO_REVIEW, page, pageSize))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+                    assertThat(exception.getMessage()).isEqualTo("조회 조건이 올바르지 않습니다.");
+                });
+    }
+
+    @Test
+    @DisplayName("상세는 본문과 옵션을 포함해 저장한 값 그대로 반환한다")
+    void getVersion_existing_returnsFullVersion() {
+        // Given
+        VersionResult created = versionService.createVersion(ADMIN_ID, new CreateCommand(
+                AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}", MODEL,
+                ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5, "첫 실험"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        VersionResult found = versionService.getVersion(created.id());
+
+        // Then
+        assertThat(found).isEqualTo(created);
+        assertThat(found.systemPrompt()).isEqualTo("시스템");
+        assertThat(found.userPromptTemplate()).isEqualTo("주제는 {{topicTitle}}");
+        assertThat(found.parameters())
+                .isEqualTo(new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5));
+    }
+
+    @Test
+    @DisplayName("없는 버전 상세는 NotFoundException이다")
+    void getVersion_unknown_throwsNotFound() {
+        // When & Then
+        assertThatThrownBy(() -> versionService.getVersion(UUID.randomUUID()))
+                .isInstanceOfSatisfying(NotFoundException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+                    assertThat(exception.getMessage()).isEqualTo("프롬프트 버전을 찾을 수 없습니다.");
+                });
     }
 
     private CreateCommand command(String systemPrompt, String memo) {

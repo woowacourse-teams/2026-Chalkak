@@ -3,6 +3,8 @@ package com.chalkak.backend.aireview.infrastructure.persistence;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.aireview.domain.AiPromptVersion;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,4 +21,6 @@ public interface AiPromptVersionJpaRepository extends JpaRepository<AiPromptVers
     @Query("SELECT COALESCE(MAX(promptVersion.version), 0) FROM AiPromptVersion promptVersion "
             + "WHERE promptVersion.type = :type")
     int findMaxVersionByType(@Param("type") AiPromptType type);
+
+    Slice<AiPromptVersion> findByType(AiPromptType type, Pageable pageable);
 }
