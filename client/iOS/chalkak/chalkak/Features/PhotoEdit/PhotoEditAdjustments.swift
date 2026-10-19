@@ -63,11 +63,11 @@ nonisolated struct PhotoEditAdjustments: Equatable, Sendable {
         values.isEmpty
     }
 
-    /// `self × scale + offset`을 항목마다 -1...1로 자른다.
-    func scaled(by scale: Double, adding offset: PhotoEditAdjustments) -> PhotoEditAdjustments {
+    /// 항목마다 `overrides`에 값이 있으면 그 값을, 없으면 `self × scale`을 쓴다.
+    func scaled(by scale: Double, overriddenBy overrides: [PhotoEditAdjustment: Double]) -> PhotoEditAdjustments {
         var result = PhotoEditAdjustments()
         for adjustment in PhotoEditAdjustment.allCases {
-            result[adjustment] = min(max(self[adjustment] * scale + offset[adjustment], -1), 1)
+            result[adjustment] = overrides[adjustment] ?? self[adjustment] * scale
         }
         return result
     }

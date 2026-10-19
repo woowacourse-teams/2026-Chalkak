@@ -149,8 +149,11 @@ struct PhotoEditSession {
     var filter: PhotoEditFilter = .original
     /// 자동 보정 강도(0...1). 자동 보정값은 자른 사진을 분석해 다시 구하므로 강도만 보관한다.
     var autoAdjustmentIntensity: Double = 0
-    /// 자동 보정 위에 더한 항목별 조정값. 화면에 보이는 값은 `자동 보정값 × 강도 + 이 값`이다.
-    var manualAdjustments = PhotoEditAdjustments()
+    /// 사용자가 직접 정한 항목별 값(-1...1). 여기 없는 항목은 `자동 보정값 × 강도`를 따른다.
+    ///
+    /// 예: 자동 보정이 노출 0.4·대비 0.2를 정했고 강도가 1일 때 노출을 0.3으로 내리면,
+    /// 강도를 0.5로 낮춰도 노출 0.3·대비 0.1이고 자동 보정을 꺼도 노출 0.3·대비 0이다.
+    var manualAdjustments: [PhotoEditAdjustment: Double] = [:]
 
     var croppedImage: UIImage {
         crop?.image ?? original
@@ -254,7 +257,7 @@ struct PhotoEditViewState {
     /// 실제로 적용하는 항목별 조정값.
     var adjustments: PhotoEditAdjustments {
         (autoAdjustments ?? PhotoEditAdjustments())
-            .scaled(by: session.autoAdjustmentIntensity, adding: session.manualAdjustments)
+            .scaled(by: session.autoAdjustmentIntensity, overriddenBy: session.manualAdjustments)
     }
 
     func value(of item: PhotoEditAdjustItem) -> Double {
@@ -264,7 +267,7 @@ struct PhotoEditViewState {
         }
     }
 
-    /// 자동 보정이 항목에 더한 값. 자동이 꺼져 있거나 더한 값이 없으면 nil이다.
+    /// 자동 보정이 항목에 정한 값(`자동 보정값 × 강도`). 자동이 꺼져 있거나 정한 값이 없으면 nil이다.
     func automaticValue(of item: PhotoEditAdjustItem) -> Double? {
         guard case let .adjustment(adjustment) = item,
               let automatic = autoAdjustments?[adjustment],

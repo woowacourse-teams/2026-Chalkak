@@ -333,15 +333,15 @@ struct PhotoEditViewModelTests {
         viewModel.handle(.adjustValueChanged(0.5))
         #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) - 0.1) < 0.0001)
 
-        // 항목 값을 바꾸면 자동 보정 몫 위에 더한 값만 바뀐다.
+        // 직접 정한 항목은 강도를 바꿔도 그 값 그대로이고, 나머지 항목만 강도를 따른다.
         viewModel.handle(.adjustItemSelected(.adjustment(.exposure)))
         viewModel.handle(.adjustValueChanged(-0.2))
-        #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) + 0.2) < 0.0001)
+        #expect(viewModel.viewState.value(of: .adjustment(.exposure)) == -0.2)
         viewModel.handle(.adjustItemSelected(.auto))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 0.5)
         viewModel.handle(.adjustValueChanged(1.5))
         #expect(viewModel.viewState.autoAdjustmentIntensity == 1)
-        #expect(abs(viewModel.viewState.value(of: .adjustment(.exposure)) + 0.1) < 0.0001)
+        #expect(viewModel.viewState.value(of: .adjustment(.exposure)) == -0.2)
         #expect(viewModel.viewState.value(of: .adjustment(.shadows)) == 0.3)
 
         let expected = viewModel.viewState.adjustments
@@ -367,7 +367,7 @@ struct PhotoEditViewModelTests {
         let fullSizeCall = try #require(recorder.calls.last { $0.image === original && $0.maxLongEdge == nil })
         #expect(fullSizeCall.look.adjustments == expected)
         #expect(result.session.autoAdjustmentIntensity == 1)
-        #expect(abs(result.session.manualAdjustments[.exposure] + 0.3) < 0.0001)
+        #expect(result.session.manualAdjustments == [.exposure: -0.2])
         #expect(recorder.analyzeCount == 1)
     }
 
@@ -391,10 +391,46 @@ struct PhotoEditViewModelTests {
 
         #expect(viewModel.viewState.activeTool == nil)
         #expect(viewModel.viewState.autoAdjustmentIntensity == 0.3)
-        #expect(viewModel.viewState.session.manualAdjustments == PhotoEditAdjustments([.warmth: 0.4]))
+        #expect(viewModel.viewState.session.manualAdjustments == [.warmth: 0.4])
         // 조정 화면 밖에서는 값을 바꾸지 않는다.
         viewModel.handle(.adjustValueChanged(0.8))
         #expect(viewModel.viewState.value(of: .adjustment(.warmth)) == 0.4)
+    }
+
+    @Test("자동 보정보다 낮춘 값은 강도를 바꾸거나 자동 보정을 꺼도 그대로이고, 자동 보정 몫으로 되돌리면 다시 자동 보정을 따른다")
+    func keepsManualValueAcrossAutoAdjustmentChanges() async throws {
+        let viewModel = PhotoEditViewModel(
+            session: PhotoEditSession(original: Self.image(width: 40, height: 30)),
+            renderer: PhotoEditRenderRecorder().renderer
+        )
+        try await waitUntil { viewModel.viewState.autoAdjustments != nil }
+        viewModel.handle(.toolSelected(.adjust))
+        viewModel.handle(.adjustItemSelected(.auto))
+        viewModel.handle(.adjustItemSelected(.adjustment(.exposure)))
+        viewModel.handle(.adjustValueChanged(0.1))
+
+        viewModel.handle(.adjustItemSelected(.auto))
+        viewModel.handle(.adjustValueChanged(0.5))
+        #expect(viewModel.viewState.value(of: .adjustment(.exposure)) == 0.1)
+        #expect(viewModel.viewState.value(of: .adjustment(.shadows)) == 0.15)
+
+        viewModel.handle(.adjustItemSelected(.auto))
+        #expect(viewModel.viewState.autoAdjustmentIntensity == 0)
+        #expect(viewModel.viewState.adjustments == PhotoEditAdjustments([.exposure: 0.1]))
+
+        // 자동 보정이 꺼져 있으면 자동 보정 몫은 0이라 0으로 되돌리면 직접 정한 값이 지워진다.
+        viewModel.handle(.adjustItemSelected(.adjustment(.exposure)))
+        viewModel.handle(.adjustValueChanged(0))
+        #expect(viewModel.viewState.session.manualAdjustments.isEmpty)
+
+        viewModel.handle(.adjustItemSelected(.auto))
+        viewModel.handle(.adjustItemSelected(.adjustment(.exposure)))
+        viewModel.handle(.adjustValueChanged(0.3))
+        viewModel.handle(.adjustValueChanged(0.2))
+        #expect(viewModel.viewState.session.manualAdjustments.isEmpty)
+        viewModel.handle(.adjustItemSelected(.auto))
+        viewModel.handle(.adjustValueChanged(0.5))
+        #expect(viewModel.viewState.value(of: .adjustment(.exposure)) == 0.1)
     }
 
     @Test("자르기를 마치면 자른 사진으로 자동 보정값을 다시 구한다")

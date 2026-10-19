@@ -14,7 +14,7 @@ final class PhotoEditViewModel {
     private var previewSource: UIImage?
     /// 도구 화면에서 취소하면 되돌릴 필터와 조정.
     private var filterBeforeTool: PhotoEditFilter = .original
-    private var adjustmentsBeforeTool = AdjustmentSnapshot(autoIntensity: 0, manual: PhotoEditAdjustments())
+    private var adjustmentsBeforeTool = AdjustmentSnapshot(autoIntensity: 0, manual: [:])
     private var renderGeneration = 0
     private var sourceTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
@@ -151,7 +151,8 @@ final class PhotoEditViewModel {
         }
     }
 
-    /// 항목 값을 바꾸면 자동 보정이 더한 몫은 그대로 두고 그 위에 더한 값만 바꾼다.
+    /// 항목 값을 바꾸면 그 항목은 직접 정한 값으로 고정한다.
+    /// 자동 보정 몫(꺼져 있으면 0)으로 되돌리면 직접 정한 값을 지워 다시 자동 보정을 따르게 한다.
     private func setValue(_ value: Double, of item: PhotoEditAdjustItem) {
         let value = min(max(value, item.range.lowerBound), item.range.upperBound)
         guard value != viewState.value(of: item) else { return }
@@ -159,7 +160,8 @@ final class PhotoEditViewModel {
         case .auto:
             viewState.session.autoAdjustmentIntensity = value
         case let .adjustment(adjustment):
-            viewState.session.manualAdjustments[adjustment] = value - (viewState.automaticValue(of: item) ?? 0)
+            let automatic = viewState.automaticValue(of: item) ?? 0
+            viewState.session.manualAdjustments[adjustment] = value == automatic ? nil : value
         }
         renderPreview()
     }
@@ -356,7 +358,7 @@ final class PhotoEditViewModel {
             if needsAnalysis, let autoAdjustments = await renderer.analyze(session.croppedImage) {
                 look.adjustments = autoAdjustments.scaled(
                     by: session.autoAdjustmentIntensity,
-                    adding: session.manualAdjustments
+                    overriddenBy: session.manualAdjustments
                 )
             }
             let image = await renderer.render(session.croppedImage, look, nil)
@@ -386,7 +388,7 @@ final class PhotoEditViewModel {
 
     private struct AdjustmentSnapshot: Equatable {
         let autoIntensity: Double
-        let manual: PhotoEditAdjustments
+        let manual: [PhotoEditAdjustment: Double]
     }
 
     private struct OrientedImages {
