@@ -5,6 +5,8 @@ import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.auth.api.support.OptionalLoginUser;
 import com.chalkak.backend.auth.api.support.RequiresExistingUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
+import com.chalkak.backend.common.logging.FeedQueryLog;
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
@@ -29,7 +31,9 @@ import com.chalkak.backend.post.service.PostImageUploadResult;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.post.service.PostUpdateResult;
 import com.chalkak.backend.post.service.TodayPostStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -123,17 +127,19 @@ public class PostController implements PostApiDocs {
     @GetMapping
     public ResponseEntity<PostListResponse> getPosts(
             @Valid @ModelAttribute PostListRequest request,
-            @OptionalLoginUser Optional<AuthenticatedUser> loginUser
+            @OptionalLoginUser Optional<AuthenticatedUser> loginUser,
+            HttpServletRequest servletRequest
     ) {
-        return ResponseEntity.ok(
-                PostListResponse.fromPostListResult(
-                        postQueryService.getPosts(
-                                request.topicDate(),
-                                request.sort(),
-                                request.randomSeed(),
-                                request.page(),
-                                request.pageSize(),
-                                loginUser.map(AuthenticatedUser::userId))));
+        PostListResponse response = PostListResponse.fromPostListResult(
+                postQueryService.getPosts(
+                        request.topicDate(),
+                        request.sort(),
+                        request.randomSeed(),
+                        request.page(),
+                        request.pageSize(),
+                        loginUser.map(AuthenticatedUser::userId)));
+        setFeedQueryLog(servletRequest, request, response);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -190,6 +196,17 @@ public class PostController implements PostApiDocs {
         PostDetail detail = postQueryService.getPost(parsedPostId, userId);
 
         return ResponseEntity.ok(PostDetailResponse.fromPostDetail(detail));
+    }
+
+    private void setFeedQueryLog(
+            HttpServletRequest servletRequest,
+            PostListRequest request,
+            PostListResponse response
+    ) {
+        servletRequest.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE, new FeedQueryLog(
+                request.sort().name().toLowerCase(Locale.ROOT),
+                response.currentPage(),
+                response.pageSize()));
     }
 
     private UUID requireUserId(Optional<AuthenticatedUser> loginUser) {
