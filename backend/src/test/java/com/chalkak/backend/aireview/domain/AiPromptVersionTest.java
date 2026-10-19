@@ -1,0 +1,74 @@
+package com.chalkak.backend.aireview.domain;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.chalkak.backend.aireview.domain.AiPromptParameters.ImageDetail;
+import com.chalkak.backend.aireview.domain.AiPromptParameters.ReasoningEffort;
+import com.chalkak.backend.exception.BusinessException;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+class AiPromptVersionTest {
+
+    private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000688");
+    private static final AiPromptParameters PARAMETERS =
+            new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5);
+
+    @Test
+    @DisplayName("버전 생성은 초안 값과 유형의 출력 스키마 버전을 그대로 담는다")
+    void create_validDraft_keepsDraftAndSchemaVersion() {
+        // When
+        AiPromptVersion version = AiPromptVersion.create(draft(), 3, "메모", ADMIN_ID);
+
+        // Then
+        assertThat(version.getType()).isEqualTo(AiPromptType.PHOTO_REVIEW);
+        assertThat(version.getVersion()).isEqualTo(3);
+        assertThat(version.getSystemPrompt()).isEqualTo("시스템");
+        assertThat(version.getUserPromptTemplate()).isEqualTo("주제는 {{topicTitle}}");
+        assertThat(version.getModel()).isEqualTo("gpt-6.1-sol");
+        assertThat(version.getParameters()).isEqualTo(PARAMETERS);
+        assertThat(version.getOutputSchemaVersion())
+                .isEqualTo(String.valueOf(PhotoReviewOutput.schemaVersion()));
+        assertThat(version.getMemo()).isEqualTo("메모");
+        assertThat(version.getCreatedByAdminId()).isEqualTo(ADMIN_ID);
+    }
+
+    @Test
+    @DisplayName("메모는 앞뒤 공백을 제거하고 비어 있으면 null로 저장한다")
+    void create_blankMemo_storesNull() {
+        // When & Then
+        assertThat(AiPromptVersion.create(draft(), 1, "  ", ADMIN_ID).getMemo()).isNull();
+        assertThat(AiPromptVersion.create(draft(), 1, " 메모 ", ADMIN_ID).getMemo())
+                .isEqualTo("메모");
+    }
+
+    @Test
+    @DisplayName("메모가 500자를 넘으면 거절하고 500자까지는 받는다")
+    void create_memoLength_validatesLimit() {
+        // When & Then
+        assertThatCode(() -> AiPromptVersion.create(draft(), 1, "가".repeat(500), ADMIN_ID))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, "가".repeat(501), ADMIN_ID))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("버전이 1 미만이거나 초안·관리자가 없으면 거절한다")
+    void create_invalidArguments_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 0, null, ADMIN_ID))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> AiPromptVersion.create(null, 1, null, ADMIN_ID))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, null, null))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private AiPromptDraft draft() {
+        return new AiPromptDraft(AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}",
+                "gpt-6.1-sol", PARAMETERS);
+    }
+}
