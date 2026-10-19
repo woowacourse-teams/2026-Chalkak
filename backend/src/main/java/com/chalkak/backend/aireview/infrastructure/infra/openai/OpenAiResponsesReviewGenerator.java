@@ -57,6 +57,29 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final String REFUSAL_TYPE = "refusal";
     private static final String STATUS_INCOMPLETE = "incomplete";
     private static final String STATUS_COMPLETED = "completed";
+    private static final String STATUS_FAILED = "failed";
+    private static final String RATE_LIMIT_ERROR_CODE = "rate_limit_exceeded";
+    // status=failed의 error.code 중 정책 위반은 같은 입력을 다시 보내도 거절되므로 재시도 대상이 아니다.
+    private static final Set<String> REFUSED_ERROR_CODES = Set.of(
+            "image_content_policy_violation",
+            "bio_policy",
+            "misalignment_policy_violation");
+    // 프롬프트나 이미지 자체가 잘못된 경우라 재시도해도 같은 결과다. 목록에 없는 코드는 일시 장애로 본다.
+    private static final Set<String> BAD_REQUEST_ERROR_CODES = Set.of(
+            "invalid_prompt",
+            "data_residency_mismatch",
+            "invalid_image",
+            "invalid_image_format",
+            "invalid_base64_image",
+            "invalid_image_url",
+            "image_too_large",
+            "image_too_small",
+            "image_parse_error",
+            "invalid_image_mode",
+            "image_file_too_large",
+            "unsupported_image_media_type",
+            "empty_image_file",
+            "image_file_not_found");
     // 429여도 code 또는 type이 결제·한도 소진이면 기다려도 풀리지 않아 재시도 대상이 아니다.
     private static final Set<String> QUOTA_ERROR_CODES = Set.of(
             "insufficient_quota",
@@ -88,6 +111,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private final String apiKey;
     private final URI responsesUri;
     private final List<String> allowedModels;
+    private final Duration readTimeout;
 
     public OpenAiResponsesReviewGenerator(
             RestClient restClient,
@@ -100,6 +124,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         this.clock = Objects.requireNonNull(clock);
         this.apiKey = properties.apiKey();
         this.allowedModels = properties.allowedModels();
+        this.readTimeout = properties.readTimeout();
         this.responsesUri = URI.create(
                 properties.baseUrl().toString().replaceAll("/+$", "") + "/responses");
     }
@@ -109,7 +134,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         ResponsesRequest body = createRequestBody(request);
         Instant startedAt = clock.instant();
 
-        String responseBody = send(body);
+        String responseBody = send(body, startedAt);
 
         Duration latency = Duration.between(startedAt, clock.instant());
         return parse(responseBody, latency, request.draft().parameters().distinctivePerspectiveThreshold());
@@ -147,7 +172,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                 reasoning);
     }
 
-    private String send(ResponsesRequest body) {
+    private String send(ResponsesRequest body, Instant startedAt) {
         try {
             return restClient.post()
                     .uri(responsesUri)
@@ -163,12 +188,17 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
-            throw new AiReviewGenerationException(
-                    isTimeout(exception) ? TIMEOUT : UPSTREAM_ERROR,
-                    exception);
+            throw new AiReviewGenerationException(transportFailureType(exception, startedAt), exception);
         } catch (RestClientException exception) {
-            throw new AiReviewGenerationException(UPSTREAM_ERROR);
+            throw new AiReviewGenerationException(transportFailureType(exception, startedAt));
         }
+    }
+
+    // Spring의 읽기 제한 시간은 본문을 읽는 중이면 스트림만 닫아 원인에 시간 초과 예외가 남지 않으므로 경과 시간도 본다.
+    private FailureType transportFailureType(RestClientException exception, Instant startedAt) {
+        boolean deadlineExceeded =
+                Duration.between(startedAt, clock.instant()).compareTo(readTimeout) >= 0;
+        return isTimeout(exception) || deadlineExceeded ? TIMEOUT : UPSTREAM_ERROR;
     }
 
     private AiReviewGeneration parse(String responseBody, Duration latency, double threshold) {
@@ -177,8 +207,14 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         if (STATUS_INCOMPLETE.equals(response.status())) {
             throw new AiReviewGenerationException(INCOMPLETE, attempt);
         }
+        if (STATUS_FAILED.equals(response.status())) {
+            throw new AiReviewGenerationException(failureTypeOf(response.error()), attempt);
+        }
         if (!STATUS_COMPLETED.equals(response.status())) {
             throw new AiReviewGenerationException(UPSTREAM_ERROR, attempt);
+        }
+        if (response.hasNullElement()) {
+            throw new AiReviewGenerationException(INVALID_OUTPUT, attempt);
         }
 
         List<ContentPart> parts = response.contentParts();
@@ -205,7 +241,11 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             throw new AiReviewGenerationException(INVALID_OUTPUT);
         }
         try {
-            return objectMapper.readValue(responseBody, ResponsesResponse.class);
+            ResponsesResponse response = objectMapper.readValue(responseBody, ResponsesResponse.class);
+            if (response == null) {
+                throw new AiReviewGenerationException(INVALID_OUTPUT);
+            }
+            return response;
         } catch (JacksonException exception) {
             throw new AiReviewGenerationException(INVALID_OUTPUT);
         }
@@ -234,6 +274,23 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         } catch (JacksonException | IllegalArgumentException exception) {
             return Optional.empty();
         }
+    }
+
+    private FailureType failureTypeOf(ErrorBody error) {
+        if (error == null || error.code() == null) {
+            return UPSTREAM_ERROR;
+        }
+        String code = error.code();
+        if (RATE_LIMIT_ERROR_CODE.equals(code)) {
+            return RATE_LIMITED;
+        }
+        if (REFUSED_ERROR_CODES.contains(code)) {
+            return REFUSED;
+        }
+        if (BAD_REQUEST_ERROR_CODES.contains(code)) {
+            return BAD_REQUEST;
+        }
+        return UPSTREAM_ERROR;
     }
 
     private FailureType failureTypeOf(ClientHttpResponse response) throws IOException {
@@ -333,8 +390,17 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             String id,
             String status,
             List<OutputItem> output,
-            UsageBody usage
+            UsageBody usage,
+            ErrorBody error
     ) {
+
+        private boolean hasNullElement() {
+            if (output == null) {
+                return false;
+            }
+            return output.stream().anyMatch(item -> item == null
+                    || (item.content() != null && item.content().stream().anyMatch(Objects::isNull)));
+        }
 
         private Usage toUsage() {
             if (usage == null) {

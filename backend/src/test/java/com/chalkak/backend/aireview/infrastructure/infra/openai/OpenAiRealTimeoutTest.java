@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -44,6 +45,20 @@ class OpenAiRealTimeoutTest {
                 exchange.close();
             }
         });
+        stub.createContext("/partial/responses", exchange -> {
+            try {
+                // 헤더와 본문 일부만 보낸 채 멈춰, 헤더 수신 뒤 본문을 읽다 제한 시간이 지나는 상황을 만든다.
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, 10_000);
+                exchange.getResponseBody().write("{\"id\":\"resp_1\",".getBytes(StandardCharsets.UTF_8));
+                exchange.getResponseBody().flush();
+                Thread.sleep(RESPONSE_DELAY_MILLIS);
+            } catch (Exception ignored) {
+                // 클라이언트가 먼저 끊으면 응답할 필요가 없다.
+            } finally {
+                exchange.close();
+            }
+        });
         stub.start();
     }
 
@@ -55,10 +70,22 @@ class OpenAiRealTimeoutTest {
     @Test
     @DisplayName("generate_응답이 읽기 제한 시간보다 늦으면_재시도 가능한 TIMEOUT으로 실패한다")
     void generate_slowResponse_failsWithTimeout() {
+        // When & Then
+        assertTimeout("/v1");
+    }
+
+    @Test
+    @DisplayName("generate_헤더를 받은 뒤 본문이 제한 시간 안에 끝나지 않으면_재시도 가능한 TIMEOUT으로 실패한다")
+    void generate_slowBody_failsWithTimeout() {
+        // When & Then
+        assertTimeout("/partial");
+    }
+
+    private void assertTimeout(String basePath) {
         // Given
         OpenAiProperties properties = new OpenAiProperties(
                 "test-key",
-                URI.create("http://127.0.0.1:" + stub.getAddress().getPort() + "/v1"),
+                URI.create("http://127.0.0.1:" + stub.getAddress().getPort() + basePath),
                 Duration.ofSeconds(2),
                 Duration.ofMillis(200),
                 List.of("gpt-6.1-sol"));

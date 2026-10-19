@@ -26,6 +26,8 @@ import com.chalkak.backend.aireview.service.AiReviewGeneration;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException;
 import com.chalkak.backend.aireview.service.AiReviewGenerationRequest;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
@@ -44,6 +46,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -343,6 +346,115 @@ class OpenAiResponsesReviewGeneratorTest {
         assertFailure(FailureType.UPSTREAM_ERROR, true);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "invalid_prompt, BAD_REQUEST, false",
+            "data_residency_mismatch, BAD_REQUEST, false",
+            "invalid_image, BAD_REQUEST, false",
+            "invalid_image_format, BAD_REQUEST, false",
+            "invalid_base64_image, BAD_REQUEST, false",
+            "invalid_image_url, BAD_REQUEST, false",
+            "image_too_large, BAD_REQUEST, false",
+            "image_too_small, BAD_REQUEST, false",
+            "image_parse_error, BAD_REQUEST, false",
+            "invalid_image_mode, BAD_REQUEST, false",
+            "image_file_too_large, BAD_REQUEST, false",
+            "unsupported_image_media_type, BAD_REQUEST, false",
+            "empty_image_file, BAD_REQUEST, false",
+            "image_file_not_found, BAD_REQUEST, false",
+            "image_content_policy_violation, REFUSED, false",
+            "bio_policy, REFUSED, false",
+            "misalignment_policy_violation, REFUSED, false",
+            "rate_limit_exceeded, RATE_LIMITED, true",
+            "server_error, UPSTREAM_ERROR, true",
+            "vector_store_timeout, UPSTREAM_ERROR, true",
+            "failed_to_download_image, UPSTREAM_ERROR, true",
+            "brand_new_code, UPSTREAM_ERROR, true"
+    })
+    @DisplayName("generate_status가 failed이면_error.code로 실패 유형을 가르고 시도 정보를 담는다")
+    void generate_failedStatus_classifiesByErrorCode(
+            String code, FailureType expected, boolean retryable
+    ) {
+        // Given
+        respondOk("{\"id\":\"resp_f\",\"status\":\"failed\",\"output\":[],"
+                + "\"error\":{\"code\":\"" + code + "\",\"message\":\"secret detail\"}}");
+
+        // When & Then
+        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(expected);
+                    assertThat(exception.getFailureType().isRetryable()).isEqualTo(retryable);
+                    assertThat(exception.getMessage()).doesNotContain("secret detail");
+                    assertThat(exception.findAttempt().orElseThrow().responseId())
+                            .isEqualTo("resp_f");
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "\"error\":null",
+            "\"error\":{}",
+            "\"error\":{\"code\":null,\"message\":\"x\"}"
+    })
+    @DisplayName("generate_status가 failed인데 error.code가 없으면_재시도 가능한 UPSTREAM_ERROR로 실패한다")
+    void generate_failedWithoutErrorCode_failsWithUpstreamError(String error) {
+        // Given
+        respondOk("{\"id\":\"resp_f\",\"status\":\"failed\",\"output\":[]," + error + "}");
+
+        // When & Then
+        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(FailureType.UPSTREAM_ERROR);
+                    assertThat(exception.getFailureType().isRetryable()).isTrue();
+                    assertThat(exception.findAttempt().orElseThrow().responseId())
+                            .isEqualTo("resp_f");
+                });
+    }
+
+    @Test
+    @DisplayName("generate_본문이 JSON null이면_INVALID_OUTPUT으로 실패하고 시도 정보는 없다")
+    void generate_nullBody_failsWithInvalidOutput() {
+        // Given
+        respondOk("null");
+
+        // When & Then
+        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(FailureType.INVALID_OUTPUT);
+                    assertThat(exception.findAttempt()).isEmpty();
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[null]",
+            "[{\"type\":\"message\",\"content\":[null]}]"
+    })
+    @DisplayName("generate_output이나 content에 null 요소가 있으면_시도 정보를 담아 INVALID_OUTPUT으로 실패한다")
+    void generate_nullElementInOutput_failsWithInvalidOutputAndAttempt(String output) {
+        // Given
+        respondOk("{\"id\":\"resp_x\",\"status\":\"completed\",\"output\":" + output + "}");
+
+        // When & Then
+        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(FailureType.INVALID_OUTPUT);
+                    assertThat(exception.findAttempt().orElseThrow().responseId())
+                            .isEqualTo("resp_x");
+                });
+    }
+
+    @Test
+    @DisplayName("generate_message의 content가 null이면_INVALID_OUTPUT으로 실패한다")
+    void generate_nullContent_failsWithInvalidOutput() {
+        // Given
+        respondOk("{\"id\":\"resp_1\",\"status\":\"completed\","
+                + "\"output\":[{\"type\":\"message\",\"content\":null}]}");
+
+        // When & Then
+        assertFailure(FailureType.INVALID_OUTPUT, false);
+    }
+
     @Test
     @DisplayName("generate_status가 없으면_UPSTREAM_ERROR로 실패한다")
     void generate_missingStatus_failsWithUpstreamError() {
@@ -609,6 +721,42 @@ class OpenAiResponsesReviewGeneratorTest {
     }
 
     @Test
+    @DisplayName("generate_본문을 읽다 실패했고 경과 시간이 제한 미만이면_재시도 가능한 UPSTREAM_ERROR로 실패한다")
+    void generate_bodyReadFailureBeforeDeadline_failsWithUpstreamError() {
+        // Given
+        respondWithBrokenBody();
+
+        // When & Then
+        assertFailure(FailureType.UPSTREAM_ERROR, true);
+    }
+
+    @Test
+    @DisplayName("generate_본문을 읽다 실패했고 경과 시간이 제한 이상이면_재시도 가능한 TIMEOUT으로 실패한다")
+    void generate_bodyReadFailureAfterDeadline_failsWithTimeout() {
+        // Given
+        Instant start = Instant.parse("2026-10-19T00:00:00Z");
+        when(clock.instant()).thenReturn(start, start.plusSeconds(60));
+        respondWithBrokenBody();
+
+        // When & Then
+        assertFailure(FailureType.TIMEOUT, true);
+    }
+
+    @Test
+    @DisplayName("generate_연결 오류가 제한 시간 이상 지난 뒤 나면_TIMEOUT으로 실패한다")
+    void generate_networkErrorAfterDeadline_failsWithTimeout() {
+        // Given
+        Instant start = Instant.parse("2026-10-19T00:00:00Z");
+        when(clock.instant()).thenReturn(start, start.plusSeconds(61));
+        server.expect(requestTo(RESPONSES_URL)).andRespond(request -> {
+            throw new ConnectException("Connection reset");
+        });
+
+        // When & Then
+        assertFailure(FailureType.TIMEOUT, true);
+    }
+
+    @Test
     @DisplayName("generate_실패해도_예외 메시지에 API 키 프롬프트 이미지 주소를 담지 않는다")
     void generate_failure_doesNotLeakSensitiveValues() {
         // Given
@@ -626,6 +774,20 @@ class OpenAiResponsesReviewGeneratorTest {
     private void respondOk(String body) {
         server.expect(requestTo(RESPONSES_URL))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    private void respondWithBrokenBody() {
+        server.expect(requestTo(RESPONSES_URL)).andRespond(request -> {
+            InputStream broken = new InputStream() {
+                @Override
+                public int read() throws IOException {
+                    throw new IOException("closed");
+                }
+            };
+            MockClientHttpResponse response = new MockClientHttpResponse(broken, HttpStatus.OK);
+            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            return response;
+        });
     }
 
     private void respondError(HttpStatus status, String body) {
