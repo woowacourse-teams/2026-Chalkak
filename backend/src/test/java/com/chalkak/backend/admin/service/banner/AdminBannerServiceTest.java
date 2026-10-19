@@ -92,16 +92,6 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("관리자 ID가 없으면 배너를 저장하지 않는다")
-    void createBanner_nullAdmin_throwsBeforeSaving() {
-        // When & Then
-        assertThatThrownBy(() -> bannerService.createBanner(null, "제목", "부제목", URL,
-                "https://cdn.example.com/banner.png")).isInstanceOf(BusinessException.class);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
-                .isZero();
-    }
-
-    @Test
     @DisplayName("잘못된 도메인 입력이면 배너와 감사 기록을 저장하지 않는다")
     void createBanner_invalidInput_throwsBeforeSaving() {
         // When & Then
@@ -140,7 +130,7 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> bannerService.createBanner(ADMIN_ID, "다른 제목", "다른 부제목",
-                " " + URL + " ", "https://cdn.example.com/other.png"))
+                "\u2003" + URL + "\u2003", "https://cdn.example.com/other.png"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("동일한 웹뷰 URL의 배너가 이미 존재합니다.");
         // DB 제약 오류가 발생했다면 PostgreSQL 트랜잭션이 중단돼 이 조회도 실패한다.

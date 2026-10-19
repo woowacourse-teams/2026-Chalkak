@@ -26,13 +26,12 @@ public interface AdminBannerApiDocs {
             @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminBannerListResponse> getBanners(
-            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @ParameterObject AdminBannerListRequest request);
 
     @Operation(summary = "배너 등록", description = "외부 페이지의 URL과 배너 정보를 등록합니다. 웹뷰 URL의 앞뒤 공백을 제거한 전체 문자열이 기존 배너와 같으면 거절합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공", useReturnTypeSchema = true),
-            @ApiResponse(responseCode = "400", description = "필수 값 누락·공백, 길이 초과, 잘못된 HTTPS 주소 또는 중복 웹뷰 URL", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "필수 값 누락·공백, 길이 초과, 잘못된 HTTPS 주소·포트 범위 초과 또는 중복 웹뷰 URL", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminBannerResponse> createBanner(

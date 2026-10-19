@@ -3,16 +3,13 @@ package com.chalkak.backend.admin.service.banner;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.admin.domain.AdminAction;
+import com.chalkak.backend.admin.domain.AdminAuditHash;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -36,14 +33,13 @@ public class AdminBannerService {
             String webViewUrl,
             String thumbnailUrl
     ) {
-        validateAdminId(adminId);
         Banner banner = Banner.create(title, subtitle, webViewUrl, thumbnailUrl);
         validateDuplicateWebView(banner.getWebViewUrl());
         Banner saved = bannerRepository.save(banner);
-        // URL은 감사 대상에서 제외하고, 공개 문구도 민감 정보가 섞일 수 있어 해시만 남긴다.
+        // URL·문구 원문의 노출을 막고, 문구가 감사 민감값 검증에 걸려 등록이 실패하지 않도록 해시만 남긴다.
         AdminAuditSnapshot afterState = AdminAuditSnapshot.from(Map.of(
-                "titleSha256", createSha256(saved.getTitle()),
-                "subtitleSha256", createSha256(saved.getSubtitle())));
+                "titleSha256", AdminAuditHash.createSha256(saved.getTitle()),
+                "subtitleSha256", AdminAuditHash.createSha256(saved.getSubtitle())));
         auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId, AdminAction.BANNER_CREATED, AdminTargetType.BANNER, saved.getId(), null,
                 AdminAuditSnapshot.from(Map.of()), afterState));
@@ -64,12 +60,6 @@ public class AdminBannerService {
         }
     }
 
-    private void validateAdminId(UUID adminId) {
-        if (adminId == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "관리자 정보가 올바르지 않습니다.");
-        }
-    }
-
     private void validateDuplicateWebView(String webViewUrl) {
         if (bannerRepository.existsByWebViewUrl(webViewUrl)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
@@ -77,13 +67,4 @@ public class AdminBannerService {
         }
     }
 
-    private String createSha256(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", exception);
-        }
-    }
 }

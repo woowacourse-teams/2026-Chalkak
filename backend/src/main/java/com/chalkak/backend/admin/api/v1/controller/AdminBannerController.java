@@ -41,7 +41,6 @@ public class AdminBannerController implements AdminBannerApiDocs {
     @Override
     @GetMapping
     public ResponseEntity<AdminBannerListResponse> getBanners(
-            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @ModelAttribute AdminBannerListRequest request
     ) {
         return ResponseEntity.ok(AdminBannerListResponse.from(

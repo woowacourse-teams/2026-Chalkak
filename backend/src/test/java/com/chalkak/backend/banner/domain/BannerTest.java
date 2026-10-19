@@ -123,6 +123,76 @@ class BannerTest {
         assertThat(banner.getWebViewUrl()).isEqualTo(url);
     }
 
+    @ParameterizedTest
+    @CsvSource({"title,1", "title,49", "title,50", "subtitle,1", "subtitle,99", "subtitle,100"})
+    @DisplayName("제목·부제목은 유니코드 공백을 제거한 뒤 길이를 검사한다")
+    void create_unicodeWhitespaceAroundText_normalizesBeforeLengthValidation(String field,
+            int length) {
+        // Given
+        String text = "가".repeat(length);
+
+        // When
+        Banner banner = createWith(field, "\u2003" + text + "\u2003");
+
+        // Then
+        assertThat(field.equals("title") ? banner.getTitle() : banner.getSubtitle())
+                .isEqualTo(text);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"webViewUrl,1999", "webViewUrl,2000", "thumbnailUrl,1999", "thumbnailUrl,2000"})
+    @DisplayName("두 URL은 유니코드 공백을 제거한 뒤 최대 길이까지 허용한다")
+    void create_unicodeWhitespaceAroundUrl_normalizesBeforeLengthValidation(String field,
+            int length) {
+        // Given
+        String url = WEB_VIEW_URL + "가".repeat(length - WEB_VIEW_URL.length());
+
+        // When
+        Banner banner = createWith(field, "\u2003" + url + "\u2003");
+
+        // Then
+        assertThat(field.equals("webViewUrl") ? banner.getWebViewUrl() : banner.getThumbnailUrl())
+                .isEqualTo(url);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"webViewUrl,65534", "webViewUrl,65535", "thumbnailUrl,65534", "thumbnailUrl,65535"})
+    @DisplayName("두 URL은 포트 최댓값까지 허용한다")
+    void create_portWithinRange_preservesUrl(String field, int port) {
+        // Given
+        String url = "https://example.com:" + port + "/event";
+
+        // When
+        Banner banner = createWith(field, url);
+
+        // Then
+        assertThat(field.equals("webViewUrl") ? banner.getWebViewUrl() : banner.getThumbnailUrl())
+                .isEqualTo(url);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"webViewUrl,65536", "webViewUrl,2147483647", "thumbnailUrl,65536",
+            "thumbnailUrl,2147483647"})
+    @DisplayName("두 URL은 포트 최댓값을 초과하면 거절한다")
+    void create_portOverRange_throwsBusinessException(String field, int port) {
+        // When & Then
+        assertThatThrownBy(() -> createWith(field, "https://example.com:" + port + "/event"))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"webViewUrl,배너 웹뷰 URL", "thumbnailUrl,배너 썸네일 URL"})
+    @DisplayName("URL 형식과 길이 오류 메시지는 잘못된 필드를 구분한다")
+    void create_invalidUrl_reportsFieldName(String field, String label) {
+        // When & Then
+        assertThatThrownBy(() -> createWith(field, "http://example.com"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(label + "은 호스트가 있는 HTTPS 절대 주소여야 합니다.");
+        assertThatThrownBy(() -> createWith(field, WEB_VIEW_URL + "a".repeat(2000)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(label + "은 1자 이상 2,000자 이하여야 합니다.");
+    }
+
     private Banner createWith(String field, String value) {
         return Banner.create(field.equals("title") ? value : "제목",
                 field.equals("subtitle") ? value : "부제목",

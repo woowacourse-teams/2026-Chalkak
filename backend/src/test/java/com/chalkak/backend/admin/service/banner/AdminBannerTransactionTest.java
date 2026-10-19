@@ -3,6 +3,10 @@ package com.chalkak.backend.admin.service.banner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
+import com.chalkak.backend.banner.domain.Banner;
+import com.chalkak.backend.banner.repository.BannerPage;
+import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -14,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +26,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class AdminBannerTransactionTest extends IntegrationTestSupport {
 
@@ -32,6 +39,15 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private BannerRepository bannerRepository;
+
+    @Autowired
+    private AdminAuditLogService auditLogService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUp() {
@@ -66,28 +82,29 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("동일 URL을 동시에 등록하면 하나만 성공하고 감사 로그도 한 건만 남는다")
-    void createBanner_concurrentDuplicateUrl_persistsOnlyOne() throws Exception {
+    @DisplayName("두 요청이 사전 검사를 통과한 뒤 경쟁하면 DB 중복을 업무 예외로 변환하고 한 건만 저장한다")
+    void createBanner_concurrentDuplicateAfterPrecheck_persistsOnlyOne() throws Exception {
         // Given
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger saveAttempts = new AtomicInteger();
+        AtomicInteger duplicateSaveFailures = new AtomicInteger();
+        BannerRepository racingRepository = new RacingBannerRepository(bannerRepository,
+                new CountDownLatch(2), saveAttempts, duplicateSaveFailures);
+        AdminBannerService racingService = new AdminBannerService(racingRepository,
+                auditLogService);
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            List<Future<String>> results = List.of(
-                    executor.submit(() -> createAfterBarrier(ready, start)),
-                    executor.submit(() -> createAfterBarrier(ready, start)));
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-
             // When
-            start.countDown();
-            List<String> outcomes = List.of(results.get(0).get(10, TimeUnit.SECONDS),
-                    results.get(1).get(10, TimeUnit.SECONDS));
+            List<Future<String>> results = List.of(
+                    executor.submit(() -> createInTransaction(racingService)),
+                    executor.submit(() -> createInTransaction(racingService)));
+            List<String> outcomes = List.of(results.get(0).get(15, TimeUnit.SECONDS),
+                    results.get(1).get(15, TimeUnit.SECONDS));
 
             // Then
             assertThat(outcomes).containsExactlyInAnyOrder("created", "duplicate");
+            assertThat(saveAttempts.get()).isEqualTo(2);
+            assertThat(duplicateSaveFailures.get()).isEqualTo(1);
             assertThat(countBanners()).isEqualTo(1);
             assertThat(countAudits()).isEqualTo(1);
-        } finally {
-            start.countDown();
         }
     }
 
@@ -101,15 +118,14 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         assertThat(countAudits()).isZero();
     }
 
-    private String createAfterBarrier(CountDownLatch ready, CountDownLatch start) throws Exception {
-        ready.countDown();
-        if (!start.await(5, TimeUnit.SECONDS)) {
-            throw new IllegalStateException("동시 등록 시작 대기 시간 초과");
-        }
+    private String createInTransaction(AdminBannerService service) {
         try {
-            createBanner(ADMIN_ID, URL);
+            new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(status -> service.createBanner(ADMIN_ID, "제목", "부제목", URL,
+                            "https://cdn.example.com/banner.png"));
             return "created";
         } catch (BusinessException exception) {
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
             assertThat(exception.getMessage()).isEqualTo("동일한 웹뷰 URL의 배너가 이미 존재합니다.");
             return "duplicate";
         }
@@ -134,5 +150,43 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         new DatabaseCleaner(jdbcTemplate).clean();
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE actor_admin_id = ?", ADMIN_ID);
         jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
+    }
+    private record RacingBannerRepository(
+            BannerRepository delegate,
+            CountDownLatch prechecks,
+            AtomicInteger saveAttempts,
+            AtomicInteger duplicateSaveFailures) implements BannerRepository {
+
+        @Override
+        public boolean existsByWebViewUrl(String webViewUrl) {
+            boolean exists = delegate.existsByWebViewUrl(webViewUrl);
+            assertThat(exists).isFalse();
+            prechecks.countDown();
+            try {
+                if (!prechecks.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("사전 검사 완료 대기 시간 초과");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("사전 검사 대기 중 중단", exception);
+            }
+            return exists;
+        }
+
+        @Override
+        public Banner save(Banner banner) {
+            saveAttempts.incrementAndGet();
+            try {
+                return delegate.save(banner);
+            } catch (BusinessException exception) {
+                duplicateSaveFailures.incrementAndGet();
+                throw exception;
+            }
+        }
+
+        @Override
+        public BannerPage findBanners(int page, int pageSize) {
+            return delegate.findBanners(page, pageSize);
+        }
     }
 }
