@@ -10,7 +10,7 @@
 > 사진을 고르거나 찍으면 먼저 편집 화면(자르기·회전·조정·필터)을 띄우고, 이 준비 작업은 **편집을 완료하는 즉시**
 > 백그라운드에서 시작한다. 실제 S3 전송은 사용자가 `전시하기`를 누른 뒤에만 수행한다.
 
-구현: `data/post/AndroidPostImageEncoder.kt`
+구현: `data/post/AndroidPostImageEncoder.kt`, 디코딩은 `data/post/OrientedBitmapDecoder.kt`
 
 ## 배경
 
@@ -29,7 +29,7 @@ decode       inSampleSize로 긴 변 ≤ 4096 다운샘플 후 디코딩
    ↓
 EXIF 보정   방향 태그대로 픽셀을 돌린다
    ↓
-applyEdit    편집이 있으면 Matrix(이동·회전·자르기)로 Canvas에 그린다
+applyEdit    편집이 있으면 PhotoEditTransform의 행렬(이동·회전·자르기)로 Canvas에 그린다
              조정이 없으면 필터를 Paint(ColorMatrixColorFilter)로 함께 입히고,
              조정이 있으면 그린 뒤 PhotoColorTransform으로 픽셀마다 조정·필터를 적용한다
              편집하지 않은 사진(PhotoEdit.isIdentity)은 건너뛰어 결과가 이전과 같다
@@ -46,11 +46,15 @@ repeat(4 라운드):
 - 편집 값(`PhotoEdit`)은 해상도와 무관한 비율 좌표다. 자르기 중심은 EXIF를 보정한 원본 기준, 크기는
   90° 단위 회전을 적용한 원본 기준 비율이다. 그래서 화면 미리보기, 다운샘플한 인코더 입력, URL 만료 후
   재인코딩이 모두 같은 값으로 같은 영역을 만든다.
-- 필터 계수는 `domain`의 `PhotoFilter`에 4×5 색 행렬로 둔다. 인코더는 `android.graphics.ColorMatrix`,
+- 회전·자르기 좌표 변환과 결과 크기는 `PhotoEditTransform` 하나가 정한다. 인코더는 이 행렬을 `Matrix`로 쓰고,
+  자동 보정 분석(`PhotoPixels.sampled`)은 같은 변환을 거꾸로 따라가므로 분석하는 영역과 업로드되는 영역이 같다.
+- 사진 편집 계산은 `domain/model/photoedit`에 순수 Kotlin으로 둔다. 비즈니스 모델이라서가 아니라 미리보기(feature)와
+  인코더(data)가 함께 쓰려면 둘 다 의존할 수 있는 층이 domain뿐이기 때문이다.
+- 필터 계수는 `PhotoFilter`에 4×5 색 행렬로 둔다. 인코더는 `android.graphics.ColorMatrix`,
   미리보기는 Compose `ColorFilter.colorMatrix`로 같은 계수를 써서 색을 맞춘다.
-- 조정(`PhotoAdjustments`, 모두 -1..1)은 iOS(`PhotoEditFilterRenderer`, `PhotoEditToneCurve`)와 같은 식·상수를
-  `domain`의 `PhotoToneCurve`·`PhotoColorTransform`에 순수 Kotlin으로 둔다. 인코더와 미리보기가 같은 코드를 쓴다.
-  순서는 노출·따뜻함 → 채도 → 톤 곡선 → 필터다.
+- 조정(`PhotoAdjustments`, 모두 -1..1)은 `PhotoColorTransform`이 적용하고 인코더와 미리보기가 같은 코드를 쓴다.
+  항목 값을 실제 변화량으로 옮기는 식은 `PhotoAdjustmentResponse`, sRGB 변환은 `SrgbTransfer`, 톤 곡선은
+  `PhotoToneCurve`에 있다. 순서는 노출·따뜻함 → 채도 → 톤 곡선 → 필터다.
 
   | 단계 | 식 (v = 조정 값) |
   |---|---|
@@ -58,10 +62,11 @@ repeat(4 라운드):
   | 채도 | 선형 공간 휘도(0.2125·R + 0.7154·G + 0.0721·B)와 원래 색을 1 + v 비율로 보간 |
   | 톤 곡선 | sRGB 감마 공간에서 채널마다. 블랙 포인트(입력 검정 v·0.3, 음수면 출력 검정을 띄움) → 그림자·하이라이트(0.25·4t(1−t)² / 0.25·4t²(1−t)) → 대비(0.5 축 S자, 0.6·sin(2πt)/2π) |
 
-- 자동 보정(`PhotoAutoAdjuster`)도 iOS `PhotoEditAutoAdjuster`를 상수까지 옮겼다. 편집 화면이 자른 영역을 긴 변
-  256px로 표본 추출해 밝기 히스토그램·채도 분포를 세고 노출·블랙 포인트·그림자·하이라이트·대비·채도 값을 정한다.
-  `PhotoEdit.adjustments`에는 `자동 보정값 × 강도 + 사용자 값`을 담아 인코더는 그대로 적용하고,
-  `autoAdjustmentIntensity`는 다시 편집할 때 자동 보정 몫을 빼 사용자 값을 되찾는 데만 쓴다.
+- 자동 보정(`PhotoAutoAdjuster`)은 편집 화면이 자른 영역을 긴 변 256px로 표본 추출해 밝기 히스토그램·채도 분포를
+  세고(`PhotoImageStatistics`) 노출 → 블랙 포인트 → 그림자·하이라이트·대비 → 채도 순서로 값을 정한다.
+  `PhotoEdit.adjustmentLayers`(`PhotoAdjustmentLayers`)는 자동 보정값·강도·사용자 값을 따로 보관하고, 인코더는
+  `자동 보정값 × 강도 + 사용자 값`을 항목마다 -1..1로 자른 `PhotoEdit.adjustments`를 적용한다. 사용자 값을 따로 두므로
+  다시 편집해도 잃지 않는다. 자동 보정을 끄고 완료하면 자동 보정값은 보관하지 않는다.
 - 자르기는 4096으로 줄인 뒤 적용한다. 48MP 사진의 작은 영역만 잘라내면 해상도가 그만큼 낮아진다.
 - 미리보기(Coil)는 JPEG의 EXIF 방향을 적용한 이미지를 기준으로 편집 값을 만든다. 인코더도 같은 보정을 먼저
   하므로 좌표계가 같다. 조정은 미리보기 이미지를 긴 변 1440px로 불러와 픽셀에 적용하고, 필터는 그릴 때 색 필터로
