@@ -16,6 +16,5 @@ public record AccessLogMetrics(
         long server5xx,
         long latencyAvgMs,
         long latencyP95Ms,
-        long postCreations
-) {
+        long postCreations) {
 }

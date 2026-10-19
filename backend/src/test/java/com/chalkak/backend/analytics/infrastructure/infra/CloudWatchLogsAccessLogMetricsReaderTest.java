@@ -100,8 +100,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
 
         // Then
         String clause = "| filter userId not in [\"" + first + "\",\"" + second + "\"]";
-        List<String> queries =
-                startRequests(5).stream().map(StartQueryRequest::queryString).toList();
+        List<String> queries = startRequests(5).stream().map(StartQueryRequest::queryString)
+                .toList();
         assertThat(queries.get(0)).contains(clause);
         assertThat(queries.get(1)).contains(clause);
         assertThat(queries.get(2)).doesNotContain("not in");
@@ -178,8 +178,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     void read_runningThenComplete_pollsWithInterval() {
         // Given
         when(client.startQuery(any(StartQueryRequest.class))).thenReturn(started("q"));
-        GetQueryResultsResponse running =
-                GetQueryResultsResponse.builder().status(QueryStatus.RUNNING).build();
+        GetQueryResultsResponse running = GetQueryResultsResponse.builder()
+                .status(QueryStatus.RUNNING).build();
         when(client.getQueryResults(any(GetQueryResultsRequest.class)))
                 .thenReturn(running, running, completed("1"));
 
@@ -287,7 +287,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     @Test
     @DisplayName("하루의 시작이 보존 기간 경계보다 1초라도 앞서면 쿼리 없이 빈 값을 돌려준다")
     void read_dayStartJustBeforeRetentionBoundary_returnsEmptyWithoutQueries() {
-        // Given: 현재가 10-09 00:00:01 KST이면 경계는 10-02 00:00:01 KST라 10-02 00:00:00은 1초 만료됐다
+        // Given: 현재가 10-09 00:00:01 KST이면 경계는 10-02 00:00:01 KST라 10-02 00:00:00은 1초
+        // 만료됐다
         clock = Clock.fixed(instant("2026-10-09T00:00:01+09:00"), KST);
 
         // When
@@ -319,7 +320,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     private CloudWatchLogsAccessLogMetricsReader reader(List<UUID> excludedUserIds) {
         return new CloudWatchLogsAccessLogMetricsReader(
                 client,
-                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LocalDate.of(2026, 10, 2), RETENTION_DAYS),
+                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LocalDate.of(2026, 10, 2),
+                        RETENTION_DAYS),
                 clock,
                 sleeps::add,
                 Duration.ofSeconds(1),

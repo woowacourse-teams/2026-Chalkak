@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,9 @@ import org.slf4j.MDC;
 import org.springframework.boot.logging.LoggingInitializationContext;
 import org.springframework.boot.logging.logback.LogbackLoggingSystem;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerMapping;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -76,6 +80,42 @@ class JsonFileLogTest {
         assertThat(json.get(LogFields.TYPE).asString()).isEqualTo("access");
         assertThat(json.get(LogFields.ROUTE).asString()).isEqualTo("/api/v1/posts/{postId}");
         assertThat(json.get(LogFields.STATUS).asInt()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    @DisplayName("피드 접근 로그는 게시물 ID 목록을 JSON 배열로 한 줄에 기록한다")
+    void initialize_deployedProfile_writesFeedIdsAsJsonArray(String profile) throws Exception {
+        // Given
+        Path logFile = tempDir.resolve("feed.log");
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("chalkak.logging.file", logFile.toString())
+                .withProperty("chalkak.logging.notification-file",
+                        tempDir.resolve("notification.log").toString());
+        environment.setActiveProfiles(profile);
+        initialize(environment);
+        UUID postId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
+        request.setParameter("topicDate", "2026-08-12");
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
+        request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
+                new FeedQueryLog("popular", 2, 20, List.of(postId)));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        // When
+        new RequestIdFilter().doFilter(request, response, (req, res) -> response.setStatus(200));
+
+        // Then
+        List<String> lines = Files.readAllLines(logFile);
+        assertThat(lines).hasSize(1);
+        JsonNode json = STRICT_MAPPER.readTree(lines.getFirst());
+        assertThat(json.get("postIds").isArray()).isTrue();
+        assertThat(json.get("postIds").size()).isEqualTo(1);
+        assertThat(json.get("postIds").get(0).asString()).isEqualTo(postId.toString());
+        assertThat(json.get("sort").asString()).isEqualTo("popular");
+        assertThat(json.get("page").asInt()).isEqualTo(2);
+        assertThat(json.get("pageSize").asInt()).isEqualTo(20);
+        assertThat(json.get("requestId").asString()).isEqualTo(response.getHeader("X-Request-Id"));
     }
 
     @ParameterizedTest

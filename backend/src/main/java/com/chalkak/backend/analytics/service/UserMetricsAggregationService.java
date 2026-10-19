@@ -35,9 +35,9 @@ public class UserMetricsAggregationService {
      *
      * <p>
      * 로그 지표 관측 시작일 이후 날짜는 접근 로그 지표도 같은 줄에 남기고, 로그의 게시물 생성 수가 DB의 {@code posts}와 다르면
-     * 경고를 남긴다. 일요일 기준일은 그 주(월~일)를 기준으로 1~4주 전 주에 게시물을 올린 회원 중 기준 주에도 올린 회원 수와
-     * 유지율을 {@code retentionW{k}Cohort/Retained/Rate}로 남기며, 코호트가 비면 Rate는 남기지 않는다.
-     * 로그 조회가 하나라도 실패하면 성공 로그 없이 예외를 던진다.
+     * 경고를 남긴다. 일요일 기준일은 그 주(월~일)를 기준으로 1~4주 전 주에 게시물을 올린 회원 중 기준 주에도 올린 회원 수와 유지율을
+     * {@code retentionW{k}Cohort/Retained/Rate}로 남기며, 코호트가 비면 Rate는 남기지 않는다. 로그 조회가
+     * 하나라도 실패하면 성공 로그 없이 예외를 던진다.
      */
     public DailyUserMetrics aggregate(LocalDate metricDate) {
         Instant dayStart = startOf(metricDate);

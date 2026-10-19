@@ -7,14 +7,19 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.FilterChain;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerMapping;
 
 class RequestIdFilterTest {
 
@@ -39,6 +44,9 @@ class RequestIdFilterTest {
     void doFilter_chainThrows_logsStatus500AndRethrowsAndClearsMdc() {
         // Given
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
+        request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
+                new FeedQueryLog("recent", 1, 20, List.of(UUID.randomUUID())));
         MockHttpServletResponse response = new MockHttpServletResponse();
         IllegalStateException failure = new IllegalStateException("예상하지 못한 장애");
         FilterChain failingChain = (req, res) -> {
@@ -59,6 +67,34 @@ class RequestIdFilterTest {
         assertThat(response.getHeader("X-Request-Id")).isEqualTo(
                 event.getMDCPropertyMap().get("requestId"));
         assertThat(MDC.get("requestId")).isNull();
+        assertThat(event.getKeyValuePairs()).noneSatisfy(
+                pair -> assertThat(pair.key).isIn("sort", "page", "pageSize", "postIds"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"GET, /api/v1/topics, 200", "POST, /api/v1/posts, 201", "GET, /api/v1/posts, 500"})
+    @DisplayName("정상 피드가 아닌 요청은 준비된 피드 메타데이터도 기록하지 않는다")
+    void doFilter_nonSuccessfulFeed_doesNotLogFeedMetadata(
+            String method,
+            String path,
+            int status
+    ) throws Exception {
+        // Given
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, path);
+        request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
+                new FeedQueryLog("recent", 1, 20, List.of(UUID.randomUUID())));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = (req, res) -> response.setStatus(status);
+
+        // When
+        filter.doFilter(request, response, chain);
+
+        // Then
+        assertThat(appender.list).hasSize(1);
+        for (org.slf4j.event.KeyValuePair pair : appender.list.getFirst().getKeyValuePairs()) {
+            assertThat(pair.key).isNotIn("sort", "page", "pageSize", "postIds");
+        }
     }
 
     @Test
