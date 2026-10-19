@@ -81,6 +81,7 @@ struct PhotoEditScreen: View {
             PhotoEditAdjustControls(
                 selectedItem: viewState.selectedAdjustItem,
                 value: viewState.value(of:),
+                automaticValue: viewState.automaticValue(of:),
                 onSelect: { viewModel.handle(.adjustItemSelected($0)) },
                 onValueChange: { viewModel.handle(.adjustValueChanged($0)) }
             )

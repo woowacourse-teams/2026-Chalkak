@@ -159,8 +159,7 @@ final class PhotoEditViewModel {
         case .auto:
             viewState.session.autoAdjustmentIntensity = value
         case let .adjustment(adjustment):
-            let automatic = (viewState.autoAdjustments?[adjustment] ?? 0) * viewState.autoAdjustmentIntensity
-            viewState.session.manualAdjustments[adjustment] = value - automatic
+            viewState.session.manualAdjustments[adjustment] = value - (viewState.automaticValue(of: item) ?? 0)
         }
         renderPreview()
     }

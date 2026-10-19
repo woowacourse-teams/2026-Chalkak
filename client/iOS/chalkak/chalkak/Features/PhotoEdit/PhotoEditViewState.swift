@@ -264,6 +264,16 @@ struct PhotoEditViewState {
         }
     }
 
+    /// 자동 보정이 항목에 더한 값. 자동이 꺼져 있거나 더한 값이 없으면 nil이다.
+    func automaticValue(of item: PhotoEditAdjustItem) -> Double? {
+        guard case let .adjustment(adjustment) = item,
+              let automatic = autoAdjustments?[adjustment],
+              automatic != 0,
+              autoAdjustmentIntensity > 0
+        else { return nil }
+        return automatic * autoAdjustmentIntensity
+    }
+
     var displayedImage: UIImage {
         previewImage ?? session.croppedImage
     }
