@@ -32,7 +32,11 @@ public interface PostRepository {
 
     Optional<Post> findVisibleByIdForShare(UUID postId);
 
-    List<Post> findVisibleRecentByAuthorId(UUID authorId, int limit);
+    PostSlice findVisibleRecentByAuthorId(
+            UUID authorId,
+            int page,
+            int pageSize
+    );
 
     Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId);
 

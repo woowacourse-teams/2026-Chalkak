@@ -64,6 +64,30 @@ class BannerRepositoryTest extends IntegrationTestSupport {
                 .hasMessage("동일한 웹뷰 URL의 배너가 이미 존재합니다.");
     }
 
+    @Test
+    @DisplayName("부분 고유 인덱스는 삭제된 URL 재등록을 허용하고 활성 중복은 거절한다")
+    void save_deletedUrl_allowsReplacementButRejectsActiveDuplicate() {
+        // Given
+        Banner old = repository.save(banner(URL));
+        old.delete(java.time.Instant.now());
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(repository.existsByWebViewUrl(URL)).isFalse();
+
+        // When
+        Banner replacement = repository.save(banner(URL));
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(repository.existsByWebViewUrl(URL)).isTrue();
+        assertThat(repository.findBanners(1, 1).items()).extracting(Banner::getId)
+                .containsExactly(replacement.getId());
+        assertThat(repository.findBanners(1, 1).hasNext()).isFalse();
+        assertThatThrownBy(() -> repository.save(banner(URL)))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private Banner banner(String url) {
         return Banner.create("제목", "부제목", url, "https://cdn.example.com/banner.png");
     }

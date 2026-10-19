@@ -76,4 +76,26 @@ class AdminBannerOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(PATH).doesNotExist());
     }
+    @Test
+    @DisplayName("배너 삭제 문서는 UUID 경로·본문 없음·관리자 보안·응답 코드를 노출한다")
+    void adminApiDocs_deleteBanner_exposesContract() throws Exception {
+        // When & Then
+        String path = "$.paths['/api/v1/admin/banners/{bannerId}'].delete";
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(path + ".responses.keys()")
+                        .value(containsInAnyOrder("204", "400", "401", "403", "404")))
+                .andExpect(jsonPath(path + ".security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(path + ".parameters[*].name")
+                        .value(org.hamcrest.Matchers.contains("bannerId")))
+                .andExpect(jsonPath(path + ".parameters[0].in").value("path"))
+                .andExpect(jsonPath(path + ".parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(path + ".requestBody").doesNotExist())
+                .andExpect(
+                        jsonPath("$.components.schemas.AdminBannerDeletionRequest").doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/banners/{bannerId}']").doesNotExist());
+    }
+
 }

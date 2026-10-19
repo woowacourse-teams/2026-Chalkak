@@ -109,7 +109,7 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
               AND author.deletedAt IS NULL
             ORDER BY topic.topicDate DESC, post.id DESC
             """)
-    List<Post> findVisibleRecentByAuthorId(
+    Slice<Post> findVisibleRecentByAuthorId(
             @Param("authorId") UUID authorId,
             @Param("moderationStatus") ModerationStatus moderationStatus,
             Pageable pageable

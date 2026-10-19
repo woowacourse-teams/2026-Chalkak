@@ -3,6 +3,8 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +19,7 @@ import com.chalkak.backend.admin.service.banner.AdminBannerService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.NotFoundException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -181,6 +184,40 @@ class AdminBannerControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
+    }
+
+    @Test
+    @DisplayName("본문 없는 배너 삭제는 204와 빈 응답을 반환한다")
+    void deleteBanner_withoutBody_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID))
+                .andExpect(status().isNoContent())
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .string(""));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "1-1-1-1-1"})
+    @DisplayName("잘못된 배너 ID는 400을 반환한다")
+    void deleteBanner_invalidId_returnsBadRequest(String id) throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + id))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 대상이 없으면 404와 BUSINESS_ERROR를 반환한다")
+    void deleteBanner_missing_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "배너를 찾을 수 없습니다."))
+                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID);
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 
     private Map<String, String> validRequest() {

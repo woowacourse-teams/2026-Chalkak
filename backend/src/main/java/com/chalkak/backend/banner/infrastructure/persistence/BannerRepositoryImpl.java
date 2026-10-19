@@ -1,10 +1,12 @@
 package com.chalkak.backend.banner.infrastructure.persistence;
 
 import com.chalkak.backend.banner.domain.Banner;
-import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.banner.repository.BannerPage;
+import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
@@ -24,7 +26,7 @@ public class BannerRepositoryImpl implements BannerRepository {
 
     @Override
     public boolean existsByWebViewUrl(String webViewUrl) {
-        return jpaRepository.existsByWebViewUrl(webViewUrl);
+        return jpaRepository.existsByWebViewUrlAndDeletedAtIsNull(webViewUrl);
     }
 
     @Override
@@ -44,8 +46,13 @@ public class BannerRepositoryImpl implements BannerRepository {
     public BannerPage findBanners(int page, int pageSize) {
         PageRequest pageable = PageRequest.of(page - 1, pageSize,
                 Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-        Slice<Banner> result = jpaRepository.findAllBy(pageable);
+        Slice<Banner> result = jpaRepository.findByDeletedAtIsNull(pageable);
         return new BannerPage(result.getContent(), page, pageSize, result.hasNext());
+    }
+
+    @Override
+    public Optional<Banner> findByIdForUpdate(UUID bannerId) {
+        return jpaRepository.findByIdForUpdate(bannerId);
     }
 
     private boolean isDuplicateWebViewUrl(DataIntegrityViolationException exception) {

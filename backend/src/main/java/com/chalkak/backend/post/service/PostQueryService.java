@@ -60,6 +60,7 @@ public class PostQueryService {
 
     public AuthorPostListResult getAuthorPosts(
             UUID authorId,
+            int page,
             int pageSize,
             UUID viewerId
     ) {
@@ -68,8 +69,10 @@ public class PostQueryService {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다.");
         }
 
-        return AuthorPostListResult.fromPosts(
-                postRepository.findVisibleRecentByAuthorId(authorId, pageSize),
+        return AuthorPostListResult.fromPostSlice(
+                postRepository.findVisibleRecentByAuthorId(authorId, page, pageSize),
+                page,
+                pageSize,
                 imageUrlProvider);
     }
 

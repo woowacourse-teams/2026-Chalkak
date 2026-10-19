@@ -11,7 +11,9 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -90,7 +92,7 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         BannerRepository racingRepository = new RacingBannerRepository(bannerRepository,
                 new CountDownLatch(2), saveAttempts, duplicateSaveFailures);
         AdminBannerService racingService = new AdminBannerService(racingRepository,
-                auditLogService);
+                auditLogService, Clock.systemUTC());
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             // When
             List<Future<String>> results = List.of(
@@ -116,6 +118,111 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(countBanners()).isZero();
         assertThat(countAudits()).isZero();
+    }
+
+    @Test
+    @DisplayName("동시 삭제는 같은 행 잠금으로 직렬화하고 최초 시각·감사 한 건을 유지한다")
+    void deleteBanner_concurrent_preservesFirstAudit() throws Exception {
+        // Given
+        createBanner(ADMIN_ID, URL);
+        UUID id = jdbcTemplate.queryForObject("SELECT id FROM banners", UUID.class);
+        CountDownLatch firstLocked = new CountDownLatch(1);
+        CountDownLatch secondAttempted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger reads = new AtomicInteger();
+        BannerRepository lockingRepository = new BannerRepository() {
+            @Override
+            public Optional<Banner> findByIdForUpdate(UUID bannerId) {
+                int attempt = reads.incrementAndGet();
+                if (attempt == 2) {
+                    secondAttempted.countDown();
+                }
+                Optional<Banner> result = bannerRepository.findByIdForUpdate(bannerId);
+                if (attempt == 1) {
+                    firstLocked.countDown();
+                    await(releaseFirst);
+                }
+                return result;
+            }
+
+            @Override
+            public boolean existsByWebViewUrl(String url) {
+                return bannerRepository.existsByWebViewUrl(url);
+            }
+
+            @Override
+            public Banner save(Banner banner) {
+                return bannerRepository.save(banner);
+            }
+
+            @Override
+            public BannerPage findBanners(int page, int pageSize) {
+                return bannerRepository.findBanners(page, pageSize);
+            }
+        };
+        AdminBannerService service = new AdminBannerService(lockingRepository, auditLogService,
+                Clock.fixed(java.time.Instant.parse("2026-10-19T01:00:00Z"),
+                        java.time.ZoneOffset.UTC));
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> first = executor.submit(() -> new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(status -> service.deleteBanner(id, ADMIN_ID)));
+            try {
+                await(firstLocked);
+                Future<?> second = executor.submit(() -> new TransactionTemplate(transactionManager)
+                        .executeWithoutResult(
+                                status -> service.deleteBanner(id, ADMIN_ID)));
+                await(secondAttempted);
+                // 첫 트랜잭션이 잠금을 유지하는 동안 두 번째 삭제는 완료될 수 없다.
+                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS))
+                        .isInstanceOf(java.util.concurrent.TimeoutException.class);
+                releaseFirst.countDown();
+                first.get(10, TimeUnit.SECONDS);
+                second.get(10, TimeUnit.SECONDS);
+            } finally {
+                releaseFirst.countDown();
+            }
+        }
+
+        // Then
+        assertThat(reads.get()).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
+                """, Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT reason FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
+                """, String.class)).isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
+                java.time.OffsetDateTime.class, id).toInstant())
+                .isEqualTo(java.time.Instant.parse("2026-10-19T01:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("삭제 감사 기록 실패 시 삭제 시각도 롤백된다")
+    void deleteBanner_auditFailure_rollsBackDeletion() {
+        // Given
+        createBanner(ADMIN_ID, URL);
+        UUID id = jdbcTemplate.queryForObject("SELECT id FROM banners", UUID.class);
+
+        // When & Then
+        assertThatThrownBy(() -> bannerService.deleteBanner(id, UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
+                java.time.OffsetDateTime.class, id)).isNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
+                """, Integer.class)).isZero();
+        assertThat(bannerService.getBanners(1, 20).banners()).hasSize(1);
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("삭제 동기화 대기 시간 초과");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("삭제 동기화 중 중단", exception);
+        }
     }
 
     private String createInTransaction(AdminBannerService service) {
@@ -171,6 +278,11 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
                 throw new IllegalStateException("사전 검사 대기 중 중단", exception);
             }
             return exists;
+        }
+
+        @Override
+        public Optional<Banner> findByIdForUpdate(UUID bannerId) {
+            return delegate.findByIdForUpdate(bannerId);
         }
 
         @Override
