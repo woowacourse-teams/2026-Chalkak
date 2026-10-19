@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -55,6 +56,9 @@ public class Banner {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     public static Banner create(
             String title,
             String subtitle,
@@ -68,6 +72,17 @@ public class Banner {
         banner.webViewUrl = normalizeUrl(webViewUrl, "배너 웹뷰 URL");
         banner.thumbnailUrl = normalizeUrl(thumbnailUrl, "배너 썸네일 URL");
         return banner;
+    }
+
+    public void delete(Instant deletedAt) {
+        if (isDeleted()) {
+            return;
+        }
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     private static String normalizeText(

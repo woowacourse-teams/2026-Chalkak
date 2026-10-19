@@ -3,6 +3,8 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +19,7 @@ import com.chalkak.backend.admin.service.banner.AdminBannerService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.NotFoundException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -181,6 +184,68 @@ class AdminBannerControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
+    }
+
+    @Test
+    @DisplayName("배너 삭제는 204와 빈 본문을 반환한다")
+    void deleteBanner_validRequest_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"이벤트 종료\"}"))
+                .andExpect(status().isNoContent())
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .string(""));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"reason\":null}", "{\"reason\":\" \"}"})
+    @DisplayName("삭제 사유가 누락되거나 공백이면 400을 반환한다")
+    void deleteBanner_invalidRequest_returnsBadRequest(String body) throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "1-1-1-1-1"})
+    @DisplayName("잘못된 배너 ID는 400을 반환한다")
+    void deleteBanner_invalidId_returnsBadRequest(String id) throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"종료\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 대상이 없으면 404와 BUSINESS_ERROR를 반환한다")
+    void deleteBanner_missing_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "배너를 찾을 수 없습니다."))
+                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID, "종료");
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"종료\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("삭제 서비스의 잘못된 사유 예외는 400으로 변환한다")
+    void deleteBanner_serviceValidation_returnsBadRequest() throws Exception {
+        // Given
+        willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "잘못된 삭제 사유"))
+                .given(bannerService).deleteBanner(BANNER_ID, ADMIN_ID, "종료");
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + BANNER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"종료\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 
     private Map<String, String> validRequest() {

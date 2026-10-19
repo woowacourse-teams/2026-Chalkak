@@ -3,18 +3,22 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminBannerApiDocs;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerDeletionRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerListRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminBannerRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminBannerListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminBannerResponse;
 import com.chalkak.backend.admin.service.banner.AdminBannerResult;
 import com.chalkak.backend.admin.service.banner.AdminBannerService;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,5 +50,17 @@ public class AdminBannerController implements AdminBannerApiDocs {
     ) {
         return ResponseEntity.ok(AdminBannerListResponse.from(
                 bannerService.getBanners(request.page(), request.pageSize())));
+    }
+
+    @Override
+    @DeleteMapping("/{bannerId}")
+    public ResponseEntity<Void> deleteBanner(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String bannerId,
+            @Valid @RequestBody AdminBannerDeletionRequest request
+    ) {
+        bannerService.deleteBanner(CanonicalUuidParser.parse(bannerId),
+                authenticatedAdmin.adminId(), request.reason());
+        return ResponseEntity.noContent().build();
     }
 }
