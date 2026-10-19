@@ -11,10 +11,22 @@ data class PhotoEdit(
     val straightenDegrees: Float = 0f,
     val crop: CropWindow = CropWindow.Full,
     val filter: PhotoFilter = PhotoFilter.Original,
+    val adjustments: PhotoAdjustments = PhotoAdjustments(),
 ) {
     val isIdentity: Boolean get() = this == PhotoEdit()
 
     val rotationDegrees: Float get() = quarterTurns * QUARTER_TURN_DEGREES + straightenDegrees
+
+    /** 조정을 먼저, 필터를 나중에 적용하는 색 행렬. 색을 바꾸지 않으면 `null`이다. */
+    fun colorMatrix(): FloatArray? {
+        val adjustment = adjustments.colorMatrix()
+        val filter = filter.colorMatrix()
+        return when {
+            adjustment == null -> filter
+            filter == null -> adjustment
+            else -> ColorMatrices.concat(second = filter, first = adjustment)
+        }
+    }
 
     companion object {
         const val QUARTER_TURN_DEGREES = 90f

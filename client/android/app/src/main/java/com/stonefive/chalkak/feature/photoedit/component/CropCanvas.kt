@@ -84,7 +84,7 @@ fun CropCanvas(
             ),
             size = Size(frameWidth, frameHeight),
         )
-        val colorFilter = remember(edit.filter) { edit.filter.toColorFilter() }
+        val colorFilter = remember(edit.filter, edit.adjustments) { edit.toColorFilter() }
         var isAdjusting by remember { mutableStateOf(false) }
         val currentFrame by rememberUpdatedState(frame)
         val currentScale by rememberUpdatedState(scale)

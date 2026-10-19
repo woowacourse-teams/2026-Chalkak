@@ -50,6 +50,7 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationResult
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.domain.model.Post
@@ -706,6 +707,14 @@ fun ChalkakNavHost(
                                 cropWidth = submission.edit.crop.width,
                                 cropHeight = submission.edit.crop.height,
                                 filter = submission.edit.filter.name,
+                                brightness = submission.edit.adjustments.brightness,
+                                contrast = submission.edit.adjustments.contrast,
+                                whitePoint = submission.edit.adjustments.whitePoint,
+                                blackPoint = submission.edit.adjustments.blackPoint,
+                                saturation = submission.edit.adjustments.saturation,
+                                warmth = submission.edit.adjustments.warmth,
+                                tint = submission.edit.adjustments.tint,
+                                vignette = submission.edit.adjustments.vignette,
                             ),
                         ) {
                             popUpTo<PhotoUpload> { inclusive = true }
@@ -748,6 +757,16 @@ private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
         height = cropHeight,
     ),
     filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
+    adjustments = PhotoAdjustments(
+        brightness = brightness,
+        contrast = contrast,
+        whitePoint = whitePoint,
+        blackPoint = blackPoint,
+        saturation = saturation,
+        warmth = warmth,
+        tint = tint,
+        vignette = vignette,
+    ),
 )
 
 private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {

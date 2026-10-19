@@ -25,17 +25,20 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.label
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
 
-/** 필터 썸네일 목록. 같은 작은 이미지에 색 필터만 바꿔 그린다. */
+/** 필터 썸네일 목록. 같은 작은 이미지에 지금 조정 값과 각 필터를 합친 색만 바꿔 그린다. */
 @Composable
 fun FilterStrip(
     imageModel: Any?,
     selectedFilter: PhotoFilter,
     onFilterSelect: (PhotoFilter) -> Unit,
     modifier: Modifier = Modifier,
+    adjustments: PhotoAdjustments = PhotoAdjustments(),
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     LazyRow(
@@ -47,6 +50,7 @@ fun FilterStrip(
             FilterThumbnail(
                 imageModel = imageModel,
                 filter = filter,
+                adjustments = adjustments,
                 selected = filter == selectedFilter,
                 onClick = { onFilterSelect(filter) },
             )
@@ -58,10 +62,12 @@ fun FilterStrip(
 private fun FilterThumbnail(
     imageModel: Any?,
     filter: PhotoFilter,
+    adjustments: PhotoAdjustments,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val colorFilter = remember(filter) { filter.toColorFilter() }
+    val colorFilter =
+        remember(filter, adjustments) { PhotoEdit(filter = filter, adjustments = adjustments).toColorFilter() }
     Column(
         modifier = Modifier.selectable(
             selected = selected,

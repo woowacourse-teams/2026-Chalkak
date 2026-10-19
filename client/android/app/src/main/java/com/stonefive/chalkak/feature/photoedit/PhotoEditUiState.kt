@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.photoedit
 
 import androidx.compose.runtime.Immutable
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoEdit
 
 @Immutable
@@ -10,6 +11,7 @@ data class PhotoEditUiState(
     val edit: PhotoEdit = PhotoEdit(),
     val imageSize: PhotoImageSize? = null,
     val selectedTab: PhotoEditTab = PhotoEditTab.Crop,
+    val selectedAdjustment: PhotoAdjustment = PhotoAdjustment.Brightness,
     val aspectRatio: CropAspectRatio = CropAspectRatio.Free,
     val lockedAspectRatio: Float? = null,
     val completedEdit: PhotoEdit? = null,
@@ -39,6 +41,7 @@ data class PhotoImageSize(
 
 enum class PhotoEditTab {
     Crop,
+    Adjust,
     Filter,
 }
 

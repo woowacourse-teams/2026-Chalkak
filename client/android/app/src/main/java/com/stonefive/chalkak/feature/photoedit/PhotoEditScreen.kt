@@ -38,8 +38,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.feature.photoedit.component.AdjustmentControls
 import com.stonefive.chalkak.feature.photoedit.component.AspectRatioFrames
 import com.stonefive.chalkak.feature.photoedit.component.CropCanvas
 import com.stonefive.chalkak.feature.photoedit.component.EditedPhotoImage
@@ -85,6 +88,9 @@ fun PhotoEditRoute(
         onRotateClick = viewModel::onRotateClick,
         onAspectRatioSelect = viewModel::onAspectRatioSelect,
         onResetClick = viewModel::onResetClick,
+        onAdjustmentSelect = viewModel::onAdjustmentSelect,
+        onAdjustmentChange = viewModel::onAdjustmentChange,
+        onAdjustmentsResetClick = viewModel::onAdjustmentsResetClick,
         onFilterSelect = viewModel::onFilterSelect,
         modifier = modifier,
     )
@@ -102,6 +108,9 @@ fun PhotoEditScreen(
     onRotateClick: () -> Unit,
     onAspectRatioSelect: (CropAspectRatio) -> Unit,
     onResetClick: () -> Unit,
+    onAdjustmentSelect: (PhotoAdjustment) -> Unit,
+    onAdjustmentChange: (Float) -> Unit,
+    onAdjustmentsResetClick: () -> Unit,
     onFilterSelect: (PhotoFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -136,7 +145,7 @@ fun PhotoEditScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                PhotoEditTab.Filter -> EditedPhotoImage(
+                PhotoEditTab.Adjust, PhotoEditTab.Filter -> EditedPhotoImage(
                     model = uiState.imageUri,
                     edit = uiState.edit,
                     contentDescription = "편집한 사진",
@@ -161,11 +170,22 @@ fun PhotoEditScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                PhotoEditTab.Adjust -> AdjustmentControls(
+                    adjustments = uiState.edit.adjustments,
+                    selectedAdjustment = uiState.selectedAdjustment,
+                    onAdjustmentSelect = onAdjustmentSelect,
+                    onAdjustmentChange = onAdjustmentChange,
+                    onResetClick = onAdjustmentsResetClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.lg),
+                )
+
                 PhotoEditTab.Filter -> FilterStrip(
                     imageModel = uiState.imageUri,
                     selectedFilter = uiState.edit.filter,
                     onFilterSelect = onFilterSelect,
                     modifier = Modifier.fillMaxWidth(),
+                    adjustments = uiState.edit.adjustments,
                     contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.lg),
                 )
             }
@@ -287,6 +307,37 @@ private fun PhotoEditScreenCropPreview() {
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
+            onAdjustmentSelect = {},
+            onAdjustmentChange = {},
+            onAdjustmentsResetClick = {},
+            onFilterSelect = {},
+        )
+    }
+}
+
+@Preview(widthDp = 402, heightDp = 874)
+@Composable
+private fun PhotoEditScreenAdjustPreview() {
+    ChalkakTheme {
+        PhotoEditScreen(
+            uiState = PhotoEditUiState(
+                imageUri = drawableResourceUrl(R.drawable.preview_photo),
+                edit = PhotoEdit(adjustments = PhotoAdjustments(brightness = 0.2f, vignette = 0.5f)),
+                imageSize = PhotoImageSize(width = 4, height = 3),
+                selectedTab = PhotoEditTab.Adjust,
+            ),
+            onCancelClick = {},
+            onDoneClick = {},
+            onTabSelect = {},
+            onImageLoaded = { _, _ -> },
+            onCropMove = { _, _ -> },
+            onCropResize = { _, _, _ -> },
+            onRotateClick = {},
+            onAspectRatioSelect = {},
+            onResetClick = {},
+            onAdjustmentSelect = {},
+            onAdjustmentChange = {},
+            onAdjustmentsResetClick = {},
             onFilterSelect = {},
         )
     }
@@ -312,6 +363,9 @@ private fun PhotoEditScreenFilterPreview() {
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
+            onAdjustmentSelect = {},
+            onAdjustmentChange = {},
+            onAdjustmentsResetClick = {},
             onFilterSelect = {},
         )
     }

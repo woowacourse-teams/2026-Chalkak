@@ -7,11 +7,13 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -148,6 +150,42 @@ class AndroidPostImageEncoderTest {
         }
     }
 
+    @Test
+    fun brightnessAdjustmentBrightensPixels() = runBlocking {
+        val gray = Color.rgb(GRAY_LEVEL, GRAY_LEVEL, GRAY_LEVEL)
+        val source = createJpeg(width = QUADRANT_SIZE, height = QUADRANT_SIZE) { _, _ -> gray }
+        try {
+            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(brightness = 0.4f)))
+            try {
+                val brightened = GRAY_LEVEL + (0.4f * 0.25f * 255f).roundToInt()
+                assertColorNear(
+                    Color.rgb(brightened, brightened, brightened),
+                    output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2),
+                )
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun vignetteDarkensCornersOnly() = runBlocking {
+        val source = createJpeg(width = QUADRANT_SIZE * 2, height = QUADRANT_SIZE * 2) { _, _ -> Color.WHITE }
+        try {
+            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(vignette = 1f)))
+            try {
+                assertColorNear(Color.WHITE, output.getPixel(QUADRANT_SIZE, QUADRANT_SIZE))
+                assertTrue(Color.red(output.getPixel(0, 0)) < VIGNETTE_CORNER_MAX)
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
     private suspend fun encodeToBitmap(
         source: File,
         edit: PhotoEdit,
@@ -244,6 +282,8 @@ class AndroidPostImageEncoderTest {
         const val QUADRANT_SIZE = 32
         const val COLOR_TOLERANCE = 40
         const val NEUTRAL_TOLERANCE = 6
+        const val GRAY_LEVEL = 100
+        const val VIGNETTE_CORNER_MAX = 120
         val ORIENTATIONS = intArrayOf(
             ExifInterface.ORIENTATION_NORMAL,
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL,

@@ -92,4 +92,12 @@ data class PhotoUploadSuccess(
     val cropWidth: Float = 1f,
     val cropHeight: Float = 1f,
     val filter: String = "Original",
+    val brightness: Float = 0f,
+    val contrast: Float = 0f,
+    val whitePoint: Float = 0f,
+    val blackPoint: Float = 0f,
+    val saturation: Float = 0f,
+    val warmth: Float = 0f,
+    val tint: Float = 0f,
+    val vignette: Float = 0f,
 )

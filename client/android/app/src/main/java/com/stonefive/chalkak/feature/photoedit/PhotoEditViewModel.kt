@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import kotlin.math.abs
@@ -105,11 +107,30 @@ class PhotoEditViewModel(
     fun onResetClick() {
         _uiState.update {
             it.copy(
-                edit = PhotoEdit(filter = it.edit.filter),
+                edit = PhotoEdit(filter = it.edit.filter, adjustments = it.edit.adjustments),
                 aspectRatio = CropAspectRatio.Free,
                 lockedAspectRatio = null,
             )
         }
+    }
+
+    fun onAdjustmentSelect(adjustment: PhotoAdjustment) {
+        _uiState.update { it.copy(selectedAdjustment = adjustment) }
+    }
+
+    fun onAdjustmentChange(value: Float) {
+        _uiState.update {
+            it.copy(
+                edit = it.edit.copy(
+                    adjustments = it.edit.adjustments
+                        .with(it.selectedAdjustment, value),
+                ),
+            )
+        }
+    }
+
+    fun onAdjustmentsResetClick() {
+        _uiState.update { it.copy(edit = it.edit.copy(adjustments = PhotoAdjustments())) }
     }
 
     fun onFilterSelect(filter: PhotoFilter) {

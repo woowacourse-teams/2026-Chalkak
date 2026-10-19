@@ -108,6 +108,14 @@ class ChalkakRouteTest {
             cropWidth = 0.5f,
             cropHeight = 0.7f,
             filter = "Mono",
+            brightness = 0.2f,
+            contrast = -0.3f,
+            whitePoint = 0.1f,
+            blackPoint = 0.4f,
+            saturation = -1f,
+            warmth = 0.5f,
+            tint = -0.6f,
+            vignette = 0.7f,
         )
 
         assertEquals(route, roundTrip(route))

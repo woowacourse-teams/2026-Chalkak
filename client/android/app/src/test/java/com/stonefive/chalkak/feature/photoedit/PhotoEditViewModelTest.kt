@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.photoedit
 
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import org.junit.Assert.assertEquals
@@ -153,6 +155,34 @@ class PhotoEditViewModelTest {
         assertEquals(CropAspectRatio.Free, viewModel.uiState.value.aspectRatio)
         assertNull(viewModel.uiState.value.lockedAspectRatio)
         assertFalse(viewModel.uiState.value.canReset)
+    }
+
+    @Test
+    fun `조정 값은 고른 항목에만 적용한다`() {
+        val viewModel = loadedViewModel()
+
+        viewModel.onAdjustmentChange(0.3f)
+        viewModel.onAdjustmentSelect(PhotoAdjustment.Vignette)
+        viewModel.onAdjustmentChange(-0.5f)
+
+        assertEquals(
+            PhotoAdjustments(brightness = 0.3f, vignette = -0.5f),
+            viewModel.uiState.value.edit.adjustments,
+        )
+    }
+
+    @Test
+    fun `조정 초기화는 조정만 되돌리고 자르기 초기화는 조정을 유지한다`() {
+        val viewModel = loadedViewModel()
+        viewModel.onAdjustmentChange(0.3f)
+        viewModel.onRotateClick()
+
+        viewModel.onResetClick()
+        assertEquals(PhotoAdjustments(brightness = 0.3f), viewModel.uiState.value.edit.adjustments)
+
+        viewModel.onRotateClick()
+        viewModel.onAdjustmentsResetClick()
+        assertEquals(PhotoEdit(quarterTurns = 1), viewModel.uiState.value.edit)
     }
 
     @Test

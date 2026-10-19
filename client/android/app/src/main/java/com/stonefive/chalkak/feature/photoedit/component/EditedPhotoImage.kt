@@ -21,11 +21,13 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
+import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.CropGeometry
 import com.stonefive.chalkak.feature.photoedit.PhotoImageSize
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
+import com.stonefive.chalkak.feature.photoedit.vignette
 
 /**
  * 편집 값을 적용한 사진. 비트맵을 새로 만들지 않고 잘라낸 영역만 보이도록 원본을 돌리고 옮겨 그린다.
@@ -40,8 +42,12 @@ fun EditedPhotoImage(
     imageSize: PhotoImageSize? = null,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
-    val colorFilter = remember(edit.filter) { edit.filter.toColorFilter() }
-    if (edit.copy(filter = PhotoFilter.Original).isIdentity) {
+    val colorFilter = remember(edit.filter, edit.adjustments) { edit.toColorFilter() }
+    // 비네트는 사진 영역에만 그려야 하므로 사진 비율의 상자가 필요하다.
+    val isGeometryIdentity = edit
+        .copy(filter = PhotoFilter.Original, adjustments = PhotoAdjustments())
+        .isIdentity
+    if (isGeometryIdentity && edit.adjustments.vignette == 0f) {
         ChalkakImage(
             model = model,
             contentDescription = contentDescription,
@@ -76,7 +82,8 @@ fun EditedPhotoImage(
     BoxWithConstraints(
         modifier = modifier
             .aspectRatio(cropRect.width / cropRect.height)
-            .clipToBounds(),
+            .clipToBounds()
+            .vignette(edit.adjustments),
         contentAlignment = Alignment.Center,
     ) {
         val scale = constraints.maxWidth / cropRect.width
@@ -108,6 +115,7 @@ private fun EditedPhotoImagePreview() {
                 quarterTurns = 1,
                 crop = CropWindow(centerX = 0.5f, centerY = 0.5f, width = 1f, height = 0.6f),
                 filter = PhotoFilter.Mono,
+                adjustments = PhotoAdjustments(contrast = 0.3f, vignette = 0.6f),
             ),
             contentDescription = null,
             modifier = Modifier.fillMaxWidth(),

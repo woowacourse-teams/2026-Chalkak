@@ -1,11 +1,7 @@
 package com.stonefive.chalkak.feature.photoedit
 
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
+import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoFilter
-
-/** 인코더와 같은 계수로 미리보기 색을 맞춘다. */
-fun PhotoFilter.toColorFilter(): ColorFilter? = colorMatrix()?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
 
 val PhotoFilter.label: String
     get() = when (this) {
@@ -33,5 +29,18 @@ val CropAspectRatio.label: String
 val PhotoEditTab.label: String
     get() = when (this) {
         PhotoEditTab.Crop -> "자르기"
+        PhotoEditTab.Adjust -> "조정"
         PhotoEditTab.Filter -> "필터"
+    }
+
+val PhotoAdjustment.label: String
+    get() = when (this) {
+        PhotoAdjustment.Brightness -> "밝기"
+        PhotoAdjustment.Contrast -> "대비"
+        PhotoAdjustment.WhitePoint -> "화이트 포인트"
+        PhotoAdjustment.BlackPoint -> "블랙 포인트"
+        PhotoAdjustment.Saturation -> "채도"
+        PhotoAdjustment.Warmth -> "따뜻함"
+        PhotoAdjustment.Tint -> "색조"
+        PhotoAdjustment.Vignette -> "비네트"
     }
