@@ -14,7 +14,7 @@ class PhotoEditTransformTest {
                     crop = CropWindow(centerX = 0.4f, centerY = 0.55f, width = 0.5f, height = 0.6f),
                 )
                 val transform = PhotoEditTransform(edit, sourceWidth = 400, sourceHeight = 300)
-                val matrix = transform.matrixValues()
+                val matrix = transform.sourceToOutputMatrix()
 
                 for ((sourceX, sourceY) in listOf(0f to 0f, 160f to 165f, 399f to 120f, 250f to 299f)) {
                     val outputX = matrix[0] * sourceX + matrix[1] * sourceY + matrix[2]
@@ -38,6 +38,21 @@ class PhotoEditTransformTest {
 
         assertEquals(120f, transform.sourceX(transform.outputWidth / 2f, transform.outputHeight / 2f), TOLERANCE)
         assertEquals(210f, transform.sourceY(transform.outputWidth / 2f, transform.outputHeight / 2f), TOLERANCE)
+    }
+
+    @Test
+    fun `주석과 문서의 예시대로 돌린 사진의 왼쪽 절반은 원본의 아래쪽 절반이다`() {
+        val edit = PhotoEdit(
+            quarterTurns = 1,
+            crop = CropWindow(centerX = 0.5f, centerY = 0.75f, width = 0.5f, height = 1f),
+        )
+        val transform = PhotoEditTransform(edit, sourceWidth = 4000, sourceHeight = 3000)
+
+        assertEquals(1500 to 4000, transform.outputWidth to transform.outputHeight)
+        assertEquals(2000f, transform.sourceX(750f, 2000f), TOLERANCE)
+        assertEquals(2250f, transform.sourceY(750f, 2000f), TOLERANCE)
+        assertEquals(0f, transform.sourceX(0f, 0f), TOLERANCE)
+        assertEquals(3000f, transform.sourceY(0f, 0f), TOLERANCE)
     }
 
     @Test

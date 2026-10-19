@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.domain.model.photoedit
 
-/** 선언 순서가 화면 순서다. */
+/** 조정 항목. 선언 순서대로 화면에 나온다. */
 enum class PhotoAdjustment {
     Exposure,
     Contrast,
@@ -11,7 +11,10 @@ enum class PhotoAdjustment {
     Warmth,
 }
 
-/** 항목마다 -1..1이고 0이면 바꾸지 않는다. */
+/**
+ * 항목별 조정 값. 모두 -1..1이고 0이면 그 항목은 사진을 바꾸지 않는다. 화면에는 100을 곱해 -100..100으로 보인다.
+ * 각 값이 실제로 얼마나 바꾸는지는 [PhotoAdjustmentScale] 참고.
+ */
 data class PhotoAdjustments(
     val exposure: Float = 0f,
     val contrast: Float = 0f,
@@ -33,7 +36,7 @@ data class PhotoAdjustments(
         PhotoAdjustment.Warmth -> warmth
     }
 
-    // -0은 0과 같은 값이지만 data class 비교에서는 다르므로 0으로 바꿔 둔다.
+    // `+ 0f`는 -0을 0으로 바꾼다. -0은 0과 같은 값이지만 data class 비교에서는 달라서 isIdentity가 틀어진다.
     fun with(
         adjustment: PhotoAdjustment,
         value: Float,
@@ -47,6 +50,7 @@ data class PhotoAdjustments(
         PhotoAdjustment.Warmth -> copy(warmth = value + 0f)
     }
 
+    /** 항목마다 `이 값 × scale + offset`을 계산해 -1..1로 자른다. 자동 보정 × 강도 + 사용자 값을 만들 때 쓴다. */
     fun scaled(
         scale: Float,
         offset: PhotoAdjustments,

@@ -4,7 +4,10 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** EXIF 방향을 반영한 사진의 ARGB 픽셀. 행 우선이다. */
+/**
+ * 자동 보정 분석에 쓰는 사진 픽셀. (x, y)의 색은 `argb[y * width + x]`이고, 한 값에 A·R·G·B가 8비트씩 들어 있다.
+ * data 레이어가 EXIF 회전 정보까지 반영해, 화면에 보이는 방향 그대로의 픽셀을 넘겨야 한다.
+ */
 class PhotoPixels(
     val width: Int,
     val height: Int,
@@ -14,7 +17,10 @@ class PhotoPixels(
         require(width > 0 && height > 0 && argb.size == width * height)
     }
 
-    /** [edit]의 회전·자르기를 적용한 결과를 긴 변 [maxLongEdge] 이하로 가장 가까운 픽셀만 골라 만든다. */
+    /**
+     * [edit]대로 회전·자르기한 사진을 긴 변 [maxLongEdge] 이하로 줄여 만든다. 분석용이라 보간 없이
+     * 결과 픽셀마다 원본에서 가장 가까운 픽셀 하나를 고른다.
+     */
     fun sampled(
         edit: PhotoEdit,
         maxLongEdge: Int,

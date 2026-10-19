@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.domain.model.photoedit
 
+/** 픽셀 값 하나(Int)에 8비트씩 들어 있는 A·R·G·B(각 0..255)를 꺼내고 합친다. */
 internal object Argb {
     private const val CHANNEL_MASK = 0xFF
     private const val ALPHA_SHIFT = 24

@@ -40,6 +40,7 @@ class AndroidPhotoEditImageRepository(contentResolver: ContentResolver) : PhotoE
         }
     }
 
+    // 긴 변이 minLongEdge 아래로 내려가지 않는 범위에서 가장 많이 줄이는 배율.
     private fun sampleSizeKeeping(
         longEdge: Int,
         minLongEdge: Int,

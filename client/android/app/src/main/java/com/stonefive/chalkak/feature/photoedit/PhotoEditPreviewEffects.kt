@@ -29,8 +29,11 @@ import kotlinx.coroutines.withContext
 fun PhotoFilter.toColorFilter(): ColorFilter? = colorMatrix()?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
 
 /**
- * 조정이 없거나 아직 만들지 못했으면 null이다.
- * 끄는 동안 값이 빠르게 바뀌면 만들고 있던 이미지를 끝낸 뒤 가장 최근 값으로 다시 만든다.
+ * 편집 화면 미리보기에 쓸, 조정을 적용한 사진. 사진을 긴 변 1440px로 불러와 업로드와 같은
+ * [PhotoColorTransform]으로 픽셀마다 바꾼다. 필터는 여기서 적용하지 않고 그릴 때 [toColorFilter]로 입힌다.
+ *
+ * 조정이 없거나 아직 만들지 못했으면 null이고, 이때는 원본을 그리면 된다.
+ * 눈금자를 끄는 동안 값이 빠르게 바뀌면, 만들던 이미지를 끝낸 뒤 가장 최근 값으로 다시 만든다.
  */
 @Composable
 fun rememberAdjustedImage(

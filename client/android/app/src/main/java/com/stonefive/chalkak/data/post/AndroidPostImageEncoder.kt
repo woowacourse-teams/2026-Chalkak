@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
+/** 업로드할 사진 파일(WEBP)을 만든다. 처리 순서와 용량 맞추는 방식은 docs/architecture/post-image-encoding.md 참고. */
 class AndroidPostImageEncoder(
     contentResolver: ContentResolver,
     private val cacheDir: File,
@@ -152,7 +153,7 @@ class AndroidPostImageEncoder(
         edit: PhotoEdit,
     ): Bitmap {
         val transform = PhotoEditTransform(edit, bitmap.width, bitmap.height)
-        val matrix = Matrix().apply { setValues(transform.matrixValues()) }
+        val matrix = Matrix().apply { setValues(transform.sourceToOutputMatrix()) }
         val hasAdjustments = !edit.adjustments.isIdentity
         val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
             if (!hasAdjustments) {

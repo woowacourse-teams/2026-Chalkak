@@ -27,6 +27,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/**
+ * 사진 편집 화면의 상태를 관리하고, 완료하면 [PhotoEditUiState.completedEdit]로 결과를 내보낸다.
+ *
+ * - 자르기·회전: 사진 크기를 알게 된 뒤([onImageLoaded]) [CropGeometry]로 프레임을 계산한다.
+ * - 조정: [PhotoAdjustmentLayers]에 자동 보정값·강도·사용자 값을 나눠 담는다.
+ * - 자동 보정 분석: 처음 열 때, 그리고 자르기가 바뀐 뒤 탭을 옮기거나 자동 보정을 켠 채 완료할 때 자른 영역을 다시 분석한다.
+ */
 class PhotoEditViewModel(
     imageUri: String,
     initialEdit: PhotoEdit,
@@ -145,7 +152,10 @@ class PhotoEditViewModel(
         }
     }
 
-    /** 자동 보정은 처음 고를 때 켜고, 고른 상태에서 다시 누르면 껐다 켠다. */
+    /**
+     * 다른 항목에서 자동 보정으로 옮겨 오면, 꺼져 있을 때만 켠다(강도 1). 이미 자동 보정을 고른 상태에서 다시 누르면 켜고 끈다.
+     * 조정 탭의 처음 선택이 자동 보정이므로, 탭에 들어와 처음 누르는 것도 "다시 누름"이라 꺼져 있던 자동 보정이 켜진다.
+     */
     fun onAdjustItemSelect(item: PhotoAdjustItem) {
         val state = _uiState.value
         _uiState.update { it.copy(selectedAdjustItem = item) }
@@ -240,7 +250,8 @@ class PhotoEditViewModel(
 
         private const val NORMALIZE_EPSILON = 1e-3f
 
-        // 작게 자른 영역도 분석용 크기(긴 변 256px)를 채울 만큼 크게 읽는다.
+        // 분석은 자른 영역을 긴 변 256px로 줄여 한다. 긴 변 1024px 이상으로 읽어 두면 원본 긴 변의 1/4 이상을 자른 영역은
+        // 256px를 채운다. 그보다 작게 자르면 256px보다 작은 표본으로 분석한다.
         private const val ANALYSIS_SOURCE_LONG_EDGE = 1024
     }
 }

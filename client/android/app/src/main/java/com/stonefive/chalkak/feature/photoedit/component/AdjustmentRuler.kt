@@ -49,8 +49,9 @@ import kotlinx.coroutines.launch
 /**
  * 가운데 표시선 아래로 눈금을 밀어 값을 고른다. 왼쪽으로 밀면 값이 커진다.
  *
- * 표시선을 지난 눈금은 잠깐 솟았다가 가라앉고, 손을 튕기듯 떼면 감속하며 더 굴러간다.
- * [automaticValue]가 있으면 그 자리에 점을 찍고, 기준값(자동 보정값, 없으면 0)에서는 조금 더 밀어야 벗어나도록 멈춘다.
+ * 표시선을 막 지난 눈금은 잠깐 길게 솟았다가 가라앉는다(이하 "잔상"). 손을 튕기듯 떼면 감속하며 더 굴러간다.
+ * [automaticValue](자동 보정 몫 = 자동 보정값 × 강도)가 있으면 그 자리에 점을 찍는다.
+ * 기준값(자동 보정 몫, 없으면 0)에서는 멈칫한다. 앞뒤 8dp씩, 합쳐서 16dp를 밀어야 지나간다([RulerScale] 참고).
  */
 @Composable
 fun AdjustmentRuler(
@@ -249,7 +250,7 @@ private const val MAJOR_TICK_INTERVAL = 10
 private const val TICK_ALPHA = 0.4f
 private const val MAJOR_TICK_ALPHA = 0.75f
 
-/** 잔상이 남는 눈금 수. */
+/** 표시선에서 이 칸 수만큼 떨어진 눈금은 잔상으로 솟아오르지 않는다. 가까울수록 높게 솟는다. */
 private const val LIFTED_TICK_SPAN = 8f
 private const val LIFT_DURATION_NANOS = 300_000_000L
 
@@ -266,7 +267,7 @@ private val RulerHeight = 44.dp
 /** 값 1.0이 차지하는 너비. 눈금 50칸 × 8dp. */
 private val RulerUnitWidth = 400.dp
 
-/** 기준값에서 멈추는 구간의 절반. 손가락으로 8dp를 더 밀어야 벗어난다. */
+/** 기준값 앞뒤 멈춤 구간의 한쪽 폭. 기준값에 멈춘 상태에서 8dp를 밀어야 벗어나고, 지나쳐 가려면 16dp가 든다. */
 private val RulerDetentWidth = 8.dp
 private val RulerTickWidth = 2.dp
 private val RulerTickHeight = 20.dp

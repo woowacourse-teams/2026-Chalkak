@@ -37,7 +37,7 @@ import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
 import kotlin.math.roundToInt
 
-/** 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정이 정한 값을 표시하고 그 값에서 멈춘다. */
+/** 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정 몫(자동 보정값 × 강도)을 점으로 표시하고 그 값에서 멈칫한다. */
 @Composable
 fun AdjustmentControls(
     adjustmentLayers: PhotoAdjustmentLayers,

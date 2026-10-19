@@ -324,7 +324,7 @@ class PhotoEditViewModelTest {
     }
 
     private fun outputAspectRatio(edit: PhotoEdit): Float {
-        val rect = CropGeometry(4000f, 3000f).outputRect(edit)
+        val rect = CropGeometry(4000f, 3000f).centeredRect(edit)
         return rect.width / rect.height
     }
 

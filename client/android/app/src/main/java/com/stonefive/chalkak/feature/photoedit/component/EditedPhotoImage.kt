@@ -75,7 +75,7 @@ fun EditedPhotoImage(
     }
 
     val geometry = remember(size) { CropGeometry(size.width.toFloat(), size.height.toFloat()) }
-    val cropRect = geometry.outputRect(edit)
+    val cropRect = geometry.centeredRect(edit)
     val density = LocalDensity.current
     BoxWithConstraints(
         modifier = modifier

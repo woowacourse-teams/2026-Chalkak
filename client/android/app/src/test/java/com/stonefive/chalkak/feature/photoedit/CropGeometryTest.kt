@@ -14,7 +14,7 @@ class CropGeometryTest {
     @Test
     fun `편집하지 않은 전체 영역은 이미지 안에 있다`() {
         assertTrue(geometry.isInside(PhotoEdit()))
-        assertRect(CropRect(0f, 0f, 1f, 0.75f), geometry.outputRect(PhotoEdit()))
+        assertRect(CenteredCropRect(0f, 0f, 1f, 0.75f), geometry.centeredRect(PhotoEdit()))
     }
 
     @Test
@@ -38,7 +38,7 @@ class CropGeometryTest {
         assertTrue(geometry.isInside(straightened))
         assertTrue(constrained.width < 1f)
         assertEquals(constrained.width, constrained.height, TOLERANCE)
-        val rect = geometry.outputRect(straightened)
+        val rect = geometry.centeredRect(straightened)
         assertEquals(4f / 3f, rect.width / rect.height, TOLERANCE)
     }
 
@@ -74,8 +74,8 @@ class CropGeometryTest {
             lockedAspectRatio = null,
         )
 
-        val before = geometry.outputRect(edit)
-        val after = geometry.outputRect(edit.copy(crop = resized))
+        val before = geometry.centeredRect(edit)
+        val after = geometry.centeredRect(edit.copy(crop = resized))
         assertEquals(before.left, after.left, TOLERANCE)
         assertEquals(before.top, after.top, TOLERANCE)
         assertEquals(0.4f, resized.width, TOLERANCE)
@@ -98,10 +98,10 @@ class CropGeometryTest {
 
         val resized = geometry.resize(edit, CropCorner.TopStart, deltaX = -10f, deltaY = 0f, lockedAspectRatio = 1f)
 
-        val rect = geometry.outputRect(edit.copy(crop = resized))
+        val rect = geometry.centeredRect(edit.copy(crop = resized))
         assertEquals(1f, rect.width / rect.height, TOLERANCE)
         assertTrue(geometry.isInside(edit.copy(crop = resized)))
-        assertTrue(rect.width > geometry.outputRect(edit).width)
+        assertTrue(rect.width > geometry.centeredRect(edit).width)
     }
 
     @Test
@@ -116,7 +116,7 @@ class CropGeometryTest {
             lockedAspectRatio = null,
         )
 
-        val rect = geometry.outputRect(edit.copy(crop = resized))
+        val rect = geometry.centeredRect(edit.copy(crop = resized))
         assertEquals(0.075f, rect.width, TOLERANCE)
         assertEquals(0.075f, rect.height, TOLERANCE)
     }
@@ -127,7 +127,7 @@ class CropGeometryTest {
         assertCrop(CropWindow(0.5f, 0.5f, 0.75f, 1f), square)
 
         val wide = geometry.largestCrop(PhotoEdit(), aspectRatio = 16f / 9f)
-        val rect = geometry.outputRect(PhotoEdit(crop = wide))
+        val rect = geometry.centeredRect(PhotoEdit(crop = wide))
         assertEquals(1f, rect.width, TOLERANCE)
         assertEquals(9f / 16f, rect.height, TOLERANCE)
     }
@@ -147,8 +147,8 @@ class CropGeometryTest {
 
         assertEquals(1, rotated.quarterTurns)
         assertCrop(CropWindow(0.3f, 0.4f, 0.2f, 0.4f), rotated.crop)
-        val before = geometry.outputRect(edit)
-        val after = geometry.outputRect(rotated)
+        val before = geometry.centeredRect(edit)
+        val after = geometry.centeredRect(rotated)
         assertEquals(before.width, after.height, TOLERANCE)
         assertEquals(before.height, after.width, TOLERANCE)
         assertTrue(geometry.isInside(rotated))
@@ -161,8 +161,8 @@ class CropGeometryTest {
         val rotated = geometry.rotateQuarterKeepingFrame(edit)
 
         assertEquals(1, rotated.quarterTurns)
-        val before = geometry.outputRect(edit)
-        val after = geometry.outputRect(rotated)
+        val before = geometry.centeredRect(edit)
+        val after = geometry.centeredRect(rotated)
         assertEquals(before.width, after.width, TOLERANCE)
         assertEquals(before.height, after.height, TOLERANCE)
         assertTrue(geometry.isInside(rotated))
@@ -172,7 +172,7 @@ class CropGeometryTest {
     fun `프레임을 유지한 회전에서 사진을 벗어나면 비율을 지키며 줄인다`() {
         val rotated = geometry.rotateQuarterKeepingFrame(PhotoEdit())
 
-        val rect = geometry.outputRect(rotated)
+        val rect = geometry.centeredRect(rotated)
         assertEquals(0.75f, rect.width, TOLERANCE)
         assertEquals(4f / 3f, rect.width / rect.height, TOLERANCE)
         assertTrue(geometry.isInside(rotated))
@@ -190,9 +190,9 @@ class CropGeometryTest {
 
     @Test
     fun `90도 회전한 이미지의 결과 영역은 세로 방향이다`() {
-        val rect = geometry.outputRect(PhotoEdit(quarterTurns = 1))
+        val rect = geometry.centeredRect(PhotoEdit(quarterTurns = 1))
 
-        assertRect(CropRect(0f, 0f, 0.75f, 1f), rect)
+        assertRect(CenteredCropRect(0f, 0f, 0.75f, 1f), rect)
     }
 
     @Test
@@ -201,8 +201,8 @@ class CropGeometryTest {
         assertEquals(400f, geometry.fitScale(90f, viewportWidth = 300f, viewportHeight = 400f), TOLERANCE)
     }
 
-    private val CropRect.left get() = centerX - width / 2f
-    private val CropRect.top get() = centerY - height / 2f
+    private val CenteredCropRect.left get() = centerX - width / 2f
+    private val CenteredCropRect.top get() = centerY - height / 2f
 
     private fun assertCrop(
         expected: CropWindow,
@@ -215,13 +215,28 @@ class CropGeometryTest {
     }
 
     private fun assertRect(
-        expected: CropRect,
-        actual: CropRect,
+        expected: CenteredCropRect,
+        actual: CenteredCropRect,
     ) {
         assertEquals("centerX", expected.centerX, actual.centerX, TOLERANCE)
         assertEquals("centerY", expected.centerY, actual.centerY, TOLERANCE)
         assertEquals("width", expected.width, actual.width, TOLERANCE)
         assertEquals("height", expected.height, actual.height, TOLERANCE)
+    }
+
+    @Test
+    fun `문서 예시대로 돌린 사진의 왼쪽 절반은 중심 단위 좌표에서 왼쪽에 놓인다`() {
+        val edit = PhotoEdit(
+            quarterTurns = 1,
+            crop = CropWindow(centerX = 0.5f, centerY = 0.75f, width = 0.5f, height = 1f),
+        )
+
+        val rect = CropGeometry(4000f, 3000f).centeredRect(edit)
+
+        assertEquals(-0.1875f, rect.centerX, TOLERANCE)
+        assertEquals(0f, rect.centerY, TOLERANCE)
+        assertEquals(0.375f, rect.width, TOLERANCE)
+        assertEquals(1f, rect.height, TOLERANCE)
     }
 
     private companion object {

@@ -2,12 +2,22 @@ package com.stonefive.chalkak.domain.model.photoedit
 
 import kotlin.math.roundToInt
 
+/**
+ * 자동 보정이 보는 사진 통계. [of]로 픽셀에서 센다. 통계만 있으면 되므로 테스트에서는 직접 만들 수도 있다.
+ */
 class PhotoImageStatistics(
-    /** 0..255 밝기(sRGB 감마 공간의 Rec. 709 가중치)의 픽셀 비율. */
+    /**
+     * 밝기별 픽셀 비율. i번째 값은 밝기가 i(0..255)인 픽셀의 비율이고 전체 합은 1이다.
+     * 밝기는 저장 값(감마 값) R·G·B를 0.2126·R + 0.7152·G + 0.0722·B로 합친 값이다.
+     */
     val luminanceHistogram: DoubleArray,
-    /** 파랑·초록이 가장 큰 픽셀의 채도를 두 배로 친 채도 분포의 90번째 백분위수. */
+    /**
+     * 채도가 낮은 쪽부터 90%째 픽셀의 채도(0..1). 채도 = 가장 큰 채널 − 가장 작은 채널이고,
+     * 빨강이 가장 크지 않은 픽셀은 이 채도 값을 2배로 한다(최대 1, [of] 참고).
+     */
     val saturation90: Double,
 ) {
+    /** 어두운 쪽부터 [fraction]만큼 센 지점의 밝기(0..1). 예: 0.5면 밝기 중앙값. */
     fun luminancePercentile(fraction: Double): Double = percentile(fraction, luminanceHistogram)
 
     fun fraction(predicate: (Double) -> Boolean): Double =
@@ -33,7 +43,8 @@ class PhotoImageStatistics(
                 val luminance = LUMA_RED * red + LUMA_GREEN * green + LUMA_BLUE * blue
                 histogram[level(luminance)] += 1.0
 
-                // 피부색처럼 빨강이 큰 사진이 과하게 진해지지 않도록 파랑·초록 쪽 채도를 더 크게 센다.
+                // 하늘·풀처럼 파랑·초록이 가장 큰 픽셀은 채도 값을 2배로 친다. 그래서 그런 사진은 이미 선명하다고 보고
+                // 채도를 덜 올리고, 빨강이 큰 피부색 위주 사진은 상대적으로 덜 선명하게 보여 조금 더 올린다.
                 val maximum = maxOf(red, green, blue)
                 var saturation = maximum - minOf(red, green, blue)
                 if (maximum != red) {

@@ -5,8 +5,12 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * 위치는 값과 같은 단위지만 기준값([anchor]) 앞뒤에 [detentHalfWidth]만큼 멈춤 구간을 끼워 넣는다.
- * 그래서 기준값에 닿은 뒤 그 구간만큼 더 밀어야 값이 다시 바뀐다.
+ * 눈금자에서 손가락 위치와 조정 값을 서로 바꾼다.
+ *
+ * 기준값([anchor]: 이 항목의 자동 보정 몫 `자동 보정값 × 강도`가 있으면 그 값, 없으면 0)을 지나칠 때 살짝 멈칫하도록,
+ * 기준값 앞뒤에 값이 바뀌지 않는 "멈춤 구간"을 [detentHalfWidth]씩(합쳐서 두 배) 끼워 넣는다.
+ * 위치는 값과 같은 단위지만 기준값을 지난 쪽은 이 구간만큼 밀려 있다.
+ * 예: anchor 0, detentHalfWidth 0.02면 위치 0.01 → 값 0, 위치 0.05 → 값 0.03.
  */
 internal class RulerScale(
     val range: ClosedFloatingPointRange<Float>,
@@ -42,7 +46,7 @@ internal class RulerScale(
     fun isAnchor(value: Float): Boolean = abs(value - anchor) < ANCHOR_TOLERANCE
 
     companion object {
-        /** 값 1.0을 50칸(2 단위 눈금)으로 나눈다. */
+        /** 값 1.0을 50칸으로 나눈다. 눈금 한 칸은 화면 값(×100)으로 2다. */
         const val TICKS_PER_UNIT = 50
 
         private const val PERCENT = 100f

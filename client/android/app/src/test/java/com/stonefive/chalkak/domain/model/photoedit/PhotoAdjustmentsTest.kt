@@ -29,7 +29,7 @@ class PhotoAdjustmentsTest {
             for (shadows in extremes) {
                 for (highlights in extremes) {
                     for (contrast in extremes) {
-                        val samples = PhotoToneCurve.samples(
+                        val samples = PhotoToneCurve.lookupTable(
                             PhotoAdjustments(
                                 blackPoint = blackPoint,
                                 shadows = shadows,
@@ -68,7 +68,7 @@ class PhotoAdjustmentsTest {
         PhotoColorTransform(PhotoAdjustments(exposure = 0.4f)).apply(pixels)
 
         // 선형 공간에서 2^(0.4 × 1.5)배 한 뒤 다시 감마 인코딩한 값.
-        val linear = SrgbTransfer.linear(GRAY_LEVEL / 255.0) * 2.0.pow(0.4 * PhotoAdjustmentResponse.EXPOSURE_RANGE_EV)
+        val linear = SrgbTransfer.linear(GRAY_LEVEL / 255.0) * 2.0.pow(0.4 * PhotoAdjustmentScale.EXPOSURE_RANGE_EV)
         assertEquals((SrgbTransfer.gamma(linear) * 255).roundToInt(), red(pixels[0]))
         assertEquals(gray(0), pixels[1])
         assertEquals(GRAY_LEVEL, pixels[2] ushr ALPHA_SHIFT)

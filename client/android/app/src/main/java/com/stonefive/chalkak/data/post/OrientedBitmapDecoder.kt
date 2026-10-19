@@ -9,15 +9,25 @@ import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 
+/**
+ * 사진을 메모리에 맞게 줄여 읽고, EXIF 회전 정보대로 픽셀을 돌려 화면에 보이는 방향으로 맞춘다.
+ * 업로드 인코더와 자동 보정용 픽셀 로더가 함께 쓴다.
+ */
 internal class OrientedBitmapDecoder(private val contentResolver: ContentResolver) {
     sealed interface Result {
+        /** 파일을 열 수 없다(권한이 없거나 지워짐). */
         data object Unreadable : Result
 
+        /** 열었지만 사진으로 읽지 못했다. */
         data object Failed : Result
 
         data class Success(val bitmap: Bitmap) : Result
     }
 
+    /**
+     * [sampleSize]는 원본 가로·세로를 받아 줄일 배율을 돌려준다. 2의 거듭제곱이어야 하고, 2면 가로·세로가 절반이 된다.
+     * 돌려받은 비트맵은 호출부가 recycle한다.
+     */
     fun decode(
         uri: Uri,
         sampleSize: (width: Int, height: Int) -> Int,

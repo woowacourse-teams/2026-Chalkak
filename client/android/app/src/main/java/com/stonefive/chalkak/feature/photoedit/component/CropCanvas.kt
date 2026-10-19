@@ -76,7 +76,7 @@ fun CropCanvas(
             viewportWidth = viewportWidth - inset * 2,
             viewportHeight = viewportHeight - inset * 2,
         )
-        val cropRect = geometry.outputRect(edit)
+        val cropRect = geometry.centeredRect(edit)
         val frameWidth = cropRect.width * scale
         val frameHeight = cropRect.height * scale
         val frame = Rect(
