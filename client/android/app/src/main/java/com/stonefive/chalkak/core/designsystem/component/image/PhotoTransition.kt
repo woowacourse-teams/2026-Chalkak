@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
@@ -59,14 +60,16 @@ fun Modifier.sharedPhotoElement(
             // Let each image preserve its aspect ratio as the crop bounds change.
             resizeMode = ResizeMode.RemeasureToBounds,
             placeholderSize = SharedTransitionScope.PlaceholderSize.ContentSize,
-            clipInOverlayDuringTransition = OverlayClip(overlayShape),
+            // The overlay clip path only refreshes on redraw and can lag behind the settled bounds.
+            // Clip inside the recorded layer instead so the overlay and in-place frames match.
+            clipInOverlayDuringTransition = NoOverlayClip,
             boundsTransform = { _, _ ->
                 tween(
                     durationMillis = PHOTO_TRANSITION_DURATION_MILLIS,
                     easing = FastOutSlowInEasing,
                 )
             },
-        ).then(if (roundedShape != null) Modifier.clip(overlayShape) else Modifier)
+        ).clip(overlayShape)
     }
 }
 
@@ -89,6 +92,16 @@ fun Modifier.photoTransitionChrome(animateVisibility: Boolean = true): Modifier 
             )
         },
     )
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+private object NoOverlayClip : SharedTransitionScope.OverlayClip {
+    override fun getClipPath(
+        sharedContentState: SharedTransitionScope.SharedContentState,
+        bounds: Rect,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Path? = null
 }
 
 fun PhotoTransitionKey.signatureKey() = copy(sourceId = "$sourceId:signature")
