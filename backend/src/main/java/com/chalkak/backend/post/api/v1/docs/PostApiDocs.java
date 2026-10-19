@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
@@ -108,7 +109,8 @@ public interface PostApiDocs {
     })
     ResponseEntity<PostListResponse> getPosts(
             @ParameterObject PostListRequest request,
-            @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
+            @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser,
+            HttpServletRequest servletRequest
     );
 
     @Operation(summary = "오늘 게시물 작성 여부 조회", description = """

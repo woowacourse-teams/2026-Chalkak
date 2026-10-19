@@ -142,10 +142,15 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("게시물 목록 조회는 익명 호출과 accessToken 호출을 모두 허용하는 선택적 인증으로 문서화된다")
-    void userApiDocs_postListEndpoint_declaresOptionalAuth() throws Exception {
+    @DisplayName("게시물 목록 조회는 기존 조회 조건과 선택적 인증만 노출하고 서블릿 요청은 숨긴다")
+    void userApiDocs_postListEndpoint_exposesOnlyQueryConditionsAndOptionalAuth() throws Exception {
+        // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.parameters[*].name")
+                        .value(containsInAnyOrder("topicDate", "sort", "randomSeed", "page",
+                                "pageSize")))
+                .andExpect(jsonPath("$.paths['/api/v1/posts'].get.requestBody").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security.length()").value(2))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[0]").value(anEmptyMap()))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[1]")
