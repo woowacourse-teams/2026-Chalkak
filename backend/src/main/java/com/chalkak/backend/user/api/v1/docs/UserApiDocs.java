@@ -2,6 +2,8 @@ package com.chalkak.backend.user.api.v1.docs;
 
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.exception.ErrorResponse;
+import com.chalkak.backend.post.api.v1.dto.request.AuthorPostListRequest;
+import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
@@ -14,12 +16,31 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Users", description = "사용자 API")
 @SecurityRequirement(name = "accessToken")
 public interface UserApiDocs {
+
+    @Operation(summary = "작성자의 최근 공개 사진 조회", description = """
+            작성자의 공개 사진을 주제 날짜 최신순으로 반환합니다. 기본 20개이며 1~100개를 지정할 수 있습니다.
+            정지 회원도 조회할 수 있고 공개 사진이 없으면 빈 목록을 반환합니다.
+            본인 조회에도 승인 대기·반려 사진은 포함하지 않습니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "최근 공개 사진 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 작성자 ID 형식 또는 조회 조건", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "작성자를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AuthorPostListResponse> getAuthorPosts(
+            @Parameter(description = "사진 작성자의 회원 ID", schema = @Schema(type = "string", format = "uuid")) String userId,
+            @ParameterObject AuthorPostListRequest request,
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
 
     @Operation(summary = "회원 탈퇴", description = "회원 탈퇴와 함께 모든 로그인 RT를 폐기하고 "
             + "연결된 푸시 기기를 비활성화하며 FCM 토큰을 제거합니다. 별도 기기 해제 요청은 필요하지 않습니다.")

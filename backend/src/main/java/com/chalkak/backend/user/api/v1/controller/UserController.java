@@ -4,6 +4,10 @@ import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.auth.api.support.RequiresExistingUser;
 import com.chalkak.backend.auth.api.support.RequiresUsableUser;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
+import com.chalkak.backend.post.api.v1.dto.request.AuthorPostListRequest;
+import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
+import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
@@ -18,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +37,22 @@ public class UserController implements UserApiDocs {
 
     private final UserService userService;
     private final UserWithdrawalService userWithdrawalService;
+    private final PostQueryService postQueryService;
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/{userId}/posts")
+    public ResponseEntity<AuthorPostListResponse> getAuthorPosts(
+            @PathVariable String userId,
+            @Valid @ModelAttribute AuthorPostListRequest request,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        return ResponseEntity.ok(AuthorPostListResponse.fromAuthorPostListResult(
+                postQueryService.getAuthorPosts(
+                        CanonicalUuidParser.parse(userId),
+                        request.pageSize(),
+                        loginUser.userId())));
+    }
 
     @Override
     @RequiresExistingUser

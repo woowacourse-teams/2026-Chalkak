@@ -32,6 +32,8 @@ public interface PostRepository {
 
     Optional<Post> findVisibleByIdForShare(UUID postId);
 
+    List<Post> findVisibleRecentByAuthorId(UUID authorId, int limit);
+
     Optional<Post> findValidatingByPostImageUploadIdForUpdate(UUID postImageUploadId);
 
     List<Post> findCalendarPostsByAuthorIdAndTopicDateBetween(
