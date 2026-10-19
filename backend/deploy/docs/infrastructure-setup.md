@@ -145,6 +145,7 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - `ADMIN_CORS_ALLOWED_ORIGIN`에는 해당 환경의 Vercel 관리자 웹 Origin 하나를 `https://`부터 정확히 입력한다. 쉼표 목록과 와일드카드는 허용하지 않는다.
 - `ADMIN_NOTIFICATION_DELIVERY_ENABLED=false`이면 Slack 알림을 전송하지 않는다. Slack 설정과 관리자 웹 링크의 모바일 이동 검증이 끝난 환경에서만 `true`로 바꾼다.
 - `ADMIN_SLACK_WEBHOOK_URL`에는 해당 환경의 Slack Incoming Webhook 비밀 URL을 넣는다. 저장소, 명령 출력, 애플리케이션 로그에 이 값을 기록하지 않는다.
+- `OPENAI_API_KEY`에는 관리자 AI 프롬프트 미리보기가 호출할 OpenAI API 키를 넣는다. dev·prod에서 서로 다른 키를 쓰고, 저장소, 명령 출력, 애플리케이션 로그에 이 값을 기록하지 않는다.
 - `ADMIN_WEB_BASE_URL`에는 경로와 마지막 `/`가 없는 관리자 웹 HTTPS Origin을 넣고, `ADMIN_CORS_ALLOWED_ORIGIN`과 정확히 같은 값을 사용한다. dev 관리자 웹을 prod에 재사용하지 않는다.
 - `DB_PASSWORD`는 공백, 따옴표, `#`, `$`가 없는 URL-safe 문자로 20자 이상 생성한다.
 - `IMAGE_PROCESSOR_CALLBACK_SECRET`는 같은 문자 규칙으로 32자 이상 생성한다. Lambda의
