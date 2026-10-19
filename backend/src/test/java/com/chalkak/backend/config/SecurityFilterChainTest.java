@@ -457,6 +457,71 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
     }
 
+    @Test
+    @DisplayName("배너 목록은 익명 조회와 관리자 토큰을 모두 허용한다")
+    void banners_anonymousAndAdmin_returnsPublicList() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners"))
+                .andExpect(status().isOk());
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+        mockMvc.perform(get("/api/v1/banners")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("기존 관리자 배너 목록 경로는 더 이상 GET을 제공하지 않는다")
+    void banners_oldAdminList_returnsMethodNotAllowed() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/banners")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("공개 배너는 유효한 회원 토큰의 회원 상태와 무관하게 같은 목록을 반환한다")
+    void banners_memberStates_returnsPublicList(String state) throws Exception {
+        // Given
+        UUID userId = createUser();
+        if (state.equals("BANNED")) {
+            jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", userId);
+        }
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    userId);
+        }
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("공개 배너도 잘못된 토큰과 scope 없는 토큰은 거절한다")
+    void banners_invalidCredentials_returnsAuthenticationOrScopeError() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION, "Bearer invalid"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION,
+                "Bearer " + issueTokenWithoutScope(UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("배너의 공개 허용은 목록 GET 경로에만 적용한다")
+    void banners_otherPathsAndMethods_remainProtected() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/banners"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/banners/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
     /**
      * {@link JwtAccessTokenProvider}는 언제나 scope를 담으므로 여기서만 직접 서명한다. 서명과 나머지 클레임이 모두
      * 유효한데 scope만 없어야 필터가 무엇을 보고 막는지 드러난다.

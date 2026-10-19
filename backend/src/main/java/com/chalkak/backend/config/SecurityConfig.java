@@ -96,6 +96,14 @@ public class SecurityConfig {
                     }
                     request.requestMatchers("/api/v1/admin/**")
                             .hasAuthority(AccessTokenScope.ADMIN.toAuthority());
+                    // 배너는 회원 식별자를 해석하지 않는 공통 공개 목록이다.
+                    request.requestMatchers(HttpMethod.GET, "/api/v1/banners")
+                            .access(AuthorizationManagers.anyOf(
+                                    AuthenticatedAuthorizationManager.anonymous(),
+                                    AuthorityAuthorizationManager.hasAuthority(
+                                            AccessTokenScope.USER.toAuthority()),
+                                    AuthorityAuthorizationManager.hasAuthority(
+                                            AccessTokenScope.ADMIN.toAuthority())));
                     // 비로그인 조회를 허용하되 관리자 토큰까지 받지는 않는다. 통과시키면
                     // 선택적 회원 인증이 관리자 식별자를 회원 식별자로 해석한다.
                     request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)

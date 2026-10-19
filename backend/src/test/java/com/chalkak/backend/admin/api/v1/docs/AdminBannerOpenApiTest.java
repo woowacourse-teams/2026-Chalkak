@@ -33,49 +33,27 @@ class AdminBannerOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.AdminBannerRequest.required")
                         .value(containsInAnyOrder("title", "subtitle", "webViewUrl",
                                 "thumbnailUrl")))
-                .andExpect(jsonPath("$.components.schemas.AdminBannerResponse.properties.keys()")
+                .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.keys()")
                         .value(containsInAnyOrder("id", "title", "subtitle", "webViewUrl",
                                 "thumbnailUrl", "createdAt")))
-                .andExpect(jsonPath("$.components.schemas.AdminBannerResponse.properties.id.format")
+                .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.id.format")
                         .value("uuid"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.AdminBannerResponse.properties.createdAt.format")
+                        "$.components.schemas.BannerResponse.properties.createdAt.format")
                         .value("date-time"));
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(PATH).doesNotExist());
     }
     @Test
-    @DisplayName("배너 목록 문서는 페이지 쿼리·보안·응답 계약을 노출한다")
-    void adminApiDocs_getBanners_exposesContract() throws Exception {
+    @DisplayName("기존 관리자 목록 GET은 문서에서 제거한다")
+    void adminApiDocs_getBanners_isRemoved() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath(PATH + ".get.responses.keys()")
-                        .value(containsInAnyOrder("200", "400", "401", "403")))
-                .andExpect(jsonPath(PATH + ".get.security[0].adminAccessToken").isArray())
-                .andExpect(jsonPath(PATH + ".get.parameters[*].name")
-                        .value(containsInAnyOrder("page", "pageSize")))
-                .andExpect(jsonPath(PATH + ".get.parameters[*].in")
-                        .value(containsInAnyOrder("query", "query")))
-                .andExpect(jsonPath(PATH + ".get.parameters[?(@.name == 'page')].schema.default")
-                        .value(org.hamcrest.Matchers.contains(1)))
-                .andExpect(
-                        jsonPath(PATH + ".get.parameters[?(@.name == 'pageSize')].schema.default")
-                                .value(org.hamcrest.Matchers.contains(20)))
-                .andExpect(
-                        jsonPath(PATH + ".get.parameters[?(@.name == 'pageSize')].schema.maximum")
-                                .value(org.hamcrest.Matchers.contains(100)))
-                .andExpect(jsonPath(
-                        "$.components.schemas.AdminBannerListResponse.properties.keys()")
-                        .value(containsInAnyOrder("currentPage", "pageSize", "hasNext", "banners")))
-                .andExpect(jsonPath(
-                        "$.components.schemas.AdminBannerListResponse.properties.banners.items['$ref']")
-                        .value("#/components/schemas/AdminBannerResponse"));
-        mockMvc.perform(get("/v3/api-docs/user-api"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath(PATH).doesNotExist());
+                .andExpect(jsonPath(PATH + ".get").doesNotExist());
     }
+
     @Test
     @DisplayName("배너 삭제 문서는 UUID 경로·본문 없음·관리자 보안·응답 코드를 노출한다")
     void adminApiDocs_deleteBanner_exposesContract() throws Exception {
