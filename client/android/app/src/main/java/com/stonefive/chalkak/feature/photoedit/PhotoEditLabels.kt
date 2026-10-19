@@ -35,12 +35,17 @@ val PhotoEditTab.label: String
 
 val PhotoAdjustment.label: String
     get() = when (this) {
-        PhotoAdjustment.Brightness -> "밝기"
+        PhotoAdjustment.Exposure -> "노출"
         PhotoAdjustment.Contrast -> "대비"
-        PhotoAdjustment.WhitePoint -> "화이트 포인트"
+        PhotoAdjustment.Highlights -> "하이라이트"
+        PhotoAdjustment.Shadows -> "그림자"
         PhotoAdjustment.BlackPoint -> "블랙 포인트"
         PhotoAdjustment.Saturation -> "채도"
         PhotoAdjustment.Warmth -> "따뜻함"
-        PhotoAdjustment.Tint -> "색조"
-        PhotoAdjustment.Vignette -> "비네트"
+    }
+
+val PhotoAdjustItem.label: String
+    get() = when (this) {
+        PhotoAdjustItem.Auto -> "자동"
+        is PhotoAdjustItem.Manual -> adjustment.label
     }

@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
@@ -26,12 +28,12 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.label
+import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
 
-/** 필터 썸네일 목록. 같은 작은 이미지에 지금 조정 값과 각 필터를 합친 색만 바꿔 그린다. */
+/** 필터 썸네일 목록. 지금 조정 값을 적용한 같은 이미지에 각 필터 색만 바꿔 그린다. */
 @Composable
 fun FilterStrip(
     imageModel: Any?,
@@ -41,6 +43,8 @@ fun FilterStrip(
     adjustments: PhotoAdjustments = PhotoAdjustments(),
     contentPadding: PaddingValues = PaddingValues(),
 ) {
+    val adjustedImage = rememberAdjustedImage(imageModel, adjustments)
+    val adjustedPainter = remember(adjustedImage) { adjustedImage?.let(::BitmapPainter) }
     LazyRow(
         modifier = modifier.selectableGroup(),
         contentPadding = contentPadding,
@@ -50,7 +54,7 @@ fun FilterStrip(
             FilterThumbnail(
                 imageModel = imageModel,
                 filter = filter,
-                adjustments = adjustments,
+                adjustedPainter = adjustedPainter,
                 selected = filter == selectedFilter,
                 onClick = { onFilterSelect(filter) },
             )
@@ -62,12 +66,11 @@ fun FilterStrip(
 private fun FilterThumbnail(
     imageModel: Any?,
     filter: PhotoFilter,
-    adjustments: PhotoAdjustments,
+    adjustedPainter: Painter?,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val colorFilter =
-        remember(filter, adjustments) { PhotoEdit(filter = filter, adjustments = adjustments).toColorFilter() }
+    val colorFilter = remember(filter) { filter.toColorFilter() }
     Column(
         modifier = Modifier.selectable(
             selected = selected,
@@ -89,6 +92,7 @@ private fun FilterThumbnail(
                 ),
             contentScale = ContentScale.Crop,
             colorFilter = colorFilter,
+            loadedPainter = adjustedPainter,
         )
         Text(
             text = filter.label,

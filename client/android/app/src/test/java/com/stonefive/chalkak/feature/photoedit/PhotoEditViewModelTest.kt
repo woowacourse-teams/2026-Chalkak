@@ -1,17 +1,30 @@
 package com.stonefive.chalkak.feature.photoedit
 
+import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.PhotoAutoAdjuster
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.PhotoImageStatistics
+import com.stonefive.chalkak.domain.model.PhotoPixels
+import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PhotoEditViewModelTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     private val imageUri = "content://media/photo/1"
 
     @Test
@@ -39,7 +52,7 @@ class PhotoEditViewModelTest {
 
     @Test
     fun `이미지를 불러오기 전에는 자르기 조작을 무시한다`() {
-        val viewModel = PhotoEditViewModel(imageUri, PhotoEdit())
+        val viewModel = PhotoEditViewModel(imageUri, PhotoEdit(), FakeImageRepository(pixels = null))
 
         viewModel.onRotateClick()
         viewModel.onAspectRatioSelect(CropAspectRatio.Square)
@@ -161,28 +174,105 @@ class PhotoEditViewModelTest {
     fun `조정 값은 고른 항목에만 적용한다`() {
         val viewModel = loadedViewModel()
 
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Exposure))
         viewModel.onAdjustmentChange(0.3f)
-        viewModel.onAdjustmentSelect(PhotoAdjustment.Vignette)
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Shadows))
         viewModel.onAdjustmentChange(-0.5f)
 
         assertEquals(
-            PhotoAdjustments(brightness = 0.3f, vignette = -0.5f),
+            PhotoAdjustments(exposure = 0.3f, shadows = -0.5f),
             viewModel.uiState.value.edit.adjustments,
         )
     }
 
     @Test
     fun `조정 초기화는 조정만 되돌리고 자르기 초기화는 조정을 유지한다`() {
-        val viewModel = loadedViewModel()
-        viewModel.onAdjustmentChange(0.3f)
+        val viewModel = loadedViewModel(pixels = lowContrastPixels())
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
         viewModel.onRotateClick()
 
         viewModel.onResetClick()
-        assertEquals(PhotoAdjustments(brightness = 0.3f), viewModel.uiState.value.edit.adjustments)
+        assertEquals(1f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertFalse(viewModel.uiState.value.edit.adjustments.isIdentity)
 
         viewModel.onRotateClick()
         viewModel.onAdjustmentsResetClick()
         assertEquals(PhotoEdit(quarterTurns = 1), viewModel.uiState.value.edit)
+        assertFalse(viewModel.uiState.value.canResetAdjustments)
+    }
+
+    @Test
+    fun `자동 보정은 처음 고르면 분석한 값을 그대로 채우고 다시 누르면 끈다`() {
+        val pixels = lowContrastPixels()
+        val viewModel = loadedViewModel(pixels = pixels)
+
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+
+        val automatic = PhotoAutoAdjuster.adjustments(PhotoImageStatistics.of(pixels))
+        assertTrue(automatic.exposure > 0f)
+        assertEquals(1f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertEquals(automatic, viewModel.uiState.value.edit.adjustments)
+
+        viewModel.onAdjustmentChange(0.5f)
+        assertEquals(
+            automatic.scaled(scale = 0.5f, offset = PhotoAdjustments()),
+            viewModel.uiState.value.edit.adjustments,
+        )
+
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        assertEquals(0f, viewModel.uiState.value.edit.autoAdjustmentIntensity)
+        assertEquals(PhotoAdjustments(), viewModel.uiState.value.edit.adjustments)
+    }
+
+    @Test
+    fun `자동 보정 위에서 항목 값을 바꾸면 자동 보정 몫은 두고 더한 값만 바꾼다`() {
+        val viewModel = loadedViewModel(pixels = lowContrastPixels())
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        val automatic = viewModel.uiState.value.edit.adjustments
+        val exposure = PhotoAdjustItem.Manual(PhotoAdjustment.Exposure)
+
+        viewModel.onAdjustItemSelect(exposure)
+        viewModel.onAdjustmentChange(automatic.exposure + 0.2f)
+        assertEquals(0.2f, viewModel.uiState.value.manualAdjustments.exposure, TOLERANCE)
+
+        // 자동 보정을 반으로 줄여도 사용자가 더한 0.2는 남는다.
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        viewModel.onAdjustmentChange(0.5f)
+        val state = viewModel.uiState.value
+        assertEquals(automatic.exposure * 0.5f + 0.2f, state.value(exposure), TOLERANCE)
+    }
+
+    @Test
+    fun `다시 편집하면 이전 결과에서 자동 보정 몫을 빼 사용자 값을 되찾는다`() {
+        val pixels = lowContrastPixels()
+        val first = loadedViewModel(pixels = pixels)
+        first.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        first.onAdjustItemSelect(PhotoAdjustItem.Manual(PhotoAdjustment.Warmth))
+        first.onAdjustmentChange(0.3f)
+        first.onDoneClick()
+        val completed = first.uiState.value.completedEdit!!
+
+        val second = loadedViewModel(initialEdit = completed, pixels = pixels)
+
+        assertEquals(completed.adjustments, second.uiState.value.edit.adjustments)
+        assertEquals(PhotoAdjustments(warmth = 0.3f), second.uiState.value.manualAdjustments)
+        // 자동 보정이 고른 상태라 한 번 누르면 꺼지고 사용자가 더한 값만 남는다.
+        second.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        assertEquals(PhotoAdjustments(warmth = 0.3f), second.uiState.value.edit.adjustments)
+    }
+
+    @Test
+    fun `자르기를 바꾸고 완료하면 자른 사진으로 자동 보정값을 다시 구한다`() {
+        val viewModel = loadedViewModel(pixels = halfDarkPixels())
+        viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+        val whole = viewModel.uiState.value.edit.adjustments
+
+        viewModel.onCropResize(CropCorner.BottomEnd, deltaX = -2000f, deltaY = 0f)
+        viewModel.onDoneClick()
+
+        val completed = viewModel.uiState.value.completedEdit!!
+        assertNotEquals(whole, completed.adjustments)
+        assertTrue(completed.adjustments.exposure > whole.exposure)
     }
 
     @Test
@@ -206,12 +296,43 @@ class PhotoEditViewModelTest {
         return rect.width / rect.height
     }
 
-    private fun loadedViewModel(initialEdit: PhotoEdit = PhotoEdit()) =
-        PhotoEditViewModel(imageUri, initialEdit).apply {
-            onImageLoaded(width = 4000, height = 3000)
-        }
+    private fun loadedViewModel(
+        initialEdit: PhotoEdit = PhotoEdit(),
+        pixels: PhotoPixels? = null,
+    ) = PhotoEditViewModel(
+        imageUri = imageUri,
+        initialEdit = initialEdit,
+        imageRepository = FakeImageRepository(pixels),
+        analysisDispatcher = UnconfinedTestDispatcher(),
+    ).apply {
+        onImageLoaded(width = 4000, height = 3000)
+    }
+
+    // 4:3 비율에 밝기 90..150 사이를 가로로 오가는 뜬 회색.
+    private fun lowContrastPixels() = pixels { x -> 90 + x * 60 / (PIXELS_WIDTH - 1) }
+
+    // 왼쪽 절반은 어둡고 오른쪽 절반은 밝은 사진.
+    private fun halfDarkPixels() = pixels { x -> if (x < PIXELS_WIDTH / 2) 30 else 220 }
+
+    private fun pixels(levelAt: (Int) -> Int) = PhotoPixels(
+        width = PIXELS_WIDTH,
+        height = PIXELS_HEIGHT,
+        argb = IntArray(PIXELS_WIDTH * PIXELS_HEIGHT) { index ->
+            val level = levelAt(index % PIXELS_WIDTH)
+            (0xFF shl 24) or (level shl 16) or (level shl 8) or level
+        },
+    )
+
+    private class FakeImageRepository(private val pixels: PhotoPixels?) : PhotoEditImageRepository {
+        override suspend fun loadPixels(
+            imageUri: String,
+            minLongEdge: Int,
+        ): PhotoPixels? = pixels
+    }
 
     private companion object {
         const val TOLERANCE = 1e-3f
+        const val PIXELS_WIDTH = 40
+        const val PIXELS_HEIGHT = 30
     }
 }

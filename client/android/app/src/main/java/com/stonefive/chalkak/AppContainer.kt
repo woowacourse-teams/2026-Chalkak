@@ -16,6 +16,7 @@ import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStor
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
+import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
@@ -39,6 +40,7 @@ import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
+import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -156,6 +158,10 @@ class AppContainer(context: Context) {
             topicApi = networkModule.topicApi,
             requestExecutor = networkModule.apiRequestExecutor,
         )
+    }
+
+    val photoEditImageRepository: PhotoEditImageRepository by lazy {
+        AndroidPhotoEditImageRepository(contentResolver = context.contentResolver)
     }
 
     val postCreationRepository: PostCreationRepository by lazy {

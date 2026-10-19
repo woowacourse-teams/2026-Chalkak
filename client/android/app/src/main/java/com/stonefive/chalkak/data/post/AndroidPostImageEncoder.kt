@@ -4,23 +4,18 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
-import androidx.core.graphics.ColorUtils
 import androidx.exifinterface.media.ExifInterface
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.PhotoColorTransform
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -83,7 +78,7 @@ class AndroidPostImageEncoder(
             return PostImageEncodeResult.DecodeFailed
         }
         val orientedBitmap = try {
-            applyOrientation(sampledBitmap, orientation)
+            sampledBitmap.applyExifOrientation(orientation)
         } catch (error: CancellationException) {
             sampledBitmap.recycle()
             throw error
@@ -219,41 +214,10 @@ class AndroidPostImageEncoder(
         }
     }
 
-    private fun applyOrientation(
-        bitmap: Bitmap,
-        orientation: Int,
-    ): Bitmap {
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
-
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
-
-            ExifInterface.ORIENTATION_FLIP_VERTICAL -> {
-                matrix.setRotate(180f)
-                matrix.postScale(-1f, 1f)
-            }
-
-            ExifInterface.ORIENTATION_TRANSPOSE -> {
-                matrix.setRotate(90f)
-                matrix.postScale(-1f, 1f)
-            }
-
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
-
-            ExifInterface.ORIENTATION_TRANSVERSE -> {
-                matrix.setRotate(-90f)
-                matrix.postScale(-1f, 1f)
-            }
-
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
-
-            else -> return bitmap
-        }
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-    }
-
-    /** 자르기 중심을 결과 이미지 가운데로 옮기고 회전한 뒤, 조정·필터 색과 함께 한 번에 그리고 비네트를 덧그린다. */
+    /**
+     * 자르기 중심을 결과 이미지 가운데로 옮기고 회전해 그린다. 조정이 없으면 필터 색을 그리면서 함께 입히고,
+     * 조정이 있으면 그린 뒤 픽셀마다 조정과 필터를 적용한다.
+     */
     private fun applyEdit(
         bitmap: Bitmap,
         edit: PhotoEdit,
@@ -269,39 +233,32 @@ class AndroidPostImageEncoder(
             postRotate(edit.rotationDegrees)
             postTranslate(outputWidth / 2f, outputHeight / 2f)
         }
+        val hasAdjustments = !edit.adjustments.isIdentity
         val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-            colorFilter = edit.colorMatrix()?.let(::ColorMatrixColorFilter)
+            if (!hasAdjustments) {
+                colorFilter = edit.filter
+                    .colorMatrix()
+                    ?.let(::ColorMatrixColorFilter)
+            }
         }
         val output = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(output)
-        canvas.drawBitmap(bitmap, matrix, paint)
-        drawVignette(canvas, outputWidth.toFloat(), outputHeight.toFloat(), edit.adjustments)
+        Canvas(output).drawBitmap(bitmap, matrix, paint)
+        if (hasAdjustments) output.applyColorTransform(edit.colorTransform())
         return output
     }
 
-    private fun drawVignette(
-        canvas: Canvas,
-        width: Float,
-        height: Float,
-        adjustments: PhotoAdjustments,
-    ) {
-        if (adjustments.vignette == 0f) return
-        val edgeColor = if (adjustments.vignette > 0f) Color.BLACK else Color.WHITE
-        val radius = hypot(width, height) / 2f
-        val paint = Paint().apply {
-            shader = RadialGradient(
-                width / 2f,
-                height / 2f,
-                radius,
-                intArrayOf(
-                    ColorUtils.setAlphaComponent(edgeColor, 0),
-                    ColorUtils.setAlphaComponent(edgeColor, (adjustments.vignetteAlpha * MAX_ALPHA).roundToInt()),
-                ),
-                floatArrayOf(PhotoAdjustments.VIGNETTE_INNER_RADIUS, 1f),
-                Shader.TileMode.CLAMP,
-            )
+    // 큰 사진도 픽셀 배열을 한 번에 만들지 않도록 몇 줄씩 나눠 처리한다.
+    private fun Bitmap.applyColorTransform(transform: PhotoColorTransform) {
+        val rowsPerBand = max(1, TRANSFORM_BAND_PIXELS / width)
+        val band = IntArray(width * rowsPerBand)
+        var top = 0
+        while (top < height) {
+            val rows = minOf(rowsPerBand, height - top)
+            getPixels(band, 0, width, 0, top, width, rows)
+            transform.apply(band, length = width * rows)
+            setPixels(band, 0, width, 0, top, width, rows)
+            top += rows
         }
-        canvas.drawRect(0f, 0f, width, height, paint)
     }
 
     private fun resize(bitmap: Bitmap): Bitmap? {
@@ -376,7 +333,7 @@ class AndroidPostImageEncoder(
         const val INITIAL_MAX_LONG_EDGE = 4096
         const val RESCALE_FACTOR = 0.85f
         const val MAX_RESCALE_ROUNDS = 3
-        const val MAX_ALPHA = 255
+        const val TRANSFORM_BAND_PIXELS = 1 shl 20
         const val OUTPUT_PREFIX = "post-upload-"
         const val OUTPUT_SUFFIX = ".webp"
         val QUALITY_LADDER = intArrayOf(90, 80, 60, 40)

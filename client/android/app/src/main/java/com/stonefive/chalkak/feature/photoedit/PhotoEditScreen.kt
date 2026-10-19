@@ -38,7 +38,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
@@ -88,7 +87,7 @@ fun PhotoEditRoute(
         onRotateClick = viewModel::onRotateClick,
         onAspectRatioSelect = viewModel::onAspectRatioSelect,
         onResetClick = viewModel::onResetClick,
-        onAdjustmentSelect = viewModel::onAdjustmentSelect,
+        onAdjustItemSelect = viewModel::onAdjustItemSelect,
         onAdjustmentChange = viewModel::onAdjustmentChange,
         onAdjustmentsResetClick = viewModel::onAdjustmentsResetClick,
         onFilterSelect = viewModel::onFilterSelect,
@@ -108,7 +107,7 @@ fun PhotoEditScreen(
     onRotateClick: () -> Unit,
     onAspectRatioSelect: (CropAspectRatio) -> Unit,
     onResetClick: () -> Unit,
-    onAdjustmentSelect: (PhotoAdjustment) -> Unit,
+    onAdjustItemSelect: (PhotoAdjustItem) -> Unit,
     onAdjustmentChange: (Float) -> Unit,
     onAdjustmentsResetClick: () -> Unit,
     onFilterSelect: (PhotoFilter) -> Unit,
@@ -172,9 +171,12 @@ fun PhotoEditScreen(
 
                 PhotoEditTab.Adjust -> AdjustmentControls(
                     adjustments = uiState.edit.adjustments,
-                    selectedAdjustment = uiState.selectedAdjustment,
-                    onAdjustmentSelect = onAdjustmentSelect,
-                    onAdjustmentChange = onAdjustmentChange,
+                    autoAdjustmentIntensity = uiState.edit.autoAdjustmentIntensity,
+                    appliedAutoAdjustments = uiState.appliedAutoAdjustments,
+                    selectedItem = uiState.selectedAdjustItem,
+                    canReset = uiState.canResetAdjustments,
+                    onItemSelect = onAdjustItemSelect,
+                    onValueChange = onAdjustmentChange,
                     onResetClick = onAdjustmentsResetClick,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.lg),
@@ -307,7 +309,7 @@ private fun PhotoEditScreenCropPreview() {
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
-            onAdjustmentSelect = {},
+            onAdjustItemSelect = {},
             onAdjustmentChange = {},
             onAdjustmentsResetClick = {},
             onFilterSelect = {},
@@ -322,9 +324,13 @@ private fun PhotoEditScreenAdjustPreview() {
         PhotoEditScreen(
             uiState = PhotoEditUiState(
                 imageUri = drawableResourceUrl(R.drawable.preview_photo),
-                edit = PhotoEdit(adjustments = PhotoAdjustments(brightness = 0.2f, vignette = 0.5f)),
+                edit = PhotoEdit(
+                    adjustments = PhotoAdjustments(exposure = 0.2f, shadows = 0.3f),
+                    autoAdjustmentIntensity = 1f,
+                ),
                 imageSize = PhotoImageSize(width = 4, height = 3),
                 selectedTab = PhotoEditTab.Adjust,
+                autoAdjustments = PhotoAdjustments(exposure = 0.2f, shadows = 0.3f),
             ),
             onCancelClick = {},
             onDoneClick = {},
@@ -335,7 +341,7 @@ private fun PhotoEditScreenAdjustPreview() {
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
-            onAdjustmentSelect = {},
+            onAdjustItemSelect = {},
             onAdjustmentChange = {},
             onAdjustmentsResetClick = {},
             onFilterSelect = {},
@@ -363,7 +369,7 @@ private fun PhotoEditScreenFilterPreview() {
             onRotateClick = {},
             onAspectRatioSelect = {},
             onResetClick = {},
-            onAdjustmentSelect = {},
+            onAdjustItemSelect = {},
             onAdjustmentChange = {},
             onAdjustmentsResetClick = {},
             onFilterSelect = {},

@@ -1,26 +1,60 @@
 package com.stonefive.chalkak.feature.photoedit
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.PhotoAutoAdjuster
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.PhotoImageStatistics
+import com.stonefive.chalkak.domain.model.PhotoPixels
+import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import kotlin.math.abs
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 class PhotoEditViewModel(
     imageUri: String,
     initialEdit: PhotoEdit,
+    private val imageRepository: PhotoEditImageRepository,
+    private val analysisDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private var geometry: CropGeometry? = null
-    private val _uiState = MutableStateFlow(PhotoEditUiState(imageUri = imageUri, edit = initialEdit))
+    private val _uiState = MutableStateFlow(
+        PhotoEditUiState(imageUri = imageUri, edit = initialEdit, manualAdjustments = initialEdit.adjustments),
+    )
     val uiState: StateFlow<PhotoEditUiState> = _uiState.asStateFlow()
+
+    /** 자동 보정값을 구할 때 쓰는 사진. 불러오지 못하면 자동 보정은 아무것도 바꾸지 않는다. */
+    private val analysisSource = CompletableDeferred<PhotoPixels?>()
+    private val analysisMutex = Mutex()
+
+    /** 자동 보정값을 구한 회전·자르기. 바뀌면 다시 분석한다. */
+    private var analyzedGeometry: PhotoEdit? = null
+
+    // 다시 편집할 때는 이전 결과에 자동 보정 몫이 섞여 있으므로, 첫 분석 뒤 그 몫을 빼서 사용자 값을 되찾는다.
+    private var restoresManualAdjustments = initialEdit.autoAdjustmentIntensity > 0f
+
+    init {
+        viewModelScope.launch {
+            analysisSource.complete(imageRepository.loadPixels(imageUri, ANALYSIS_SOURCE_LONG_EDGE))
+            refreshAutoAdjustments()
+        }
+    }
 
     fun onImageLoaded(
         width: Int,
@@ -37,8 +71,10 @@ class PhotoEditViewModel(
         }
     }
 
+    // 자르기를 마치고 다른 탭으로 가면 자른 사진으로 자동 보정값을 다시 구한다.
     fun onTabSelect(tab: PhotoEditTab) {
         _uiState.update { it.copy(selectedTab = tab) }
+        viewModelScope.launch { refreshAutoAdjustments() }
     }
 
     fun onCropMove(
@@ -107,38 +143,106 @@ class PhotoEditViewModel(
     fun onResetClick() {
         _uiState.update {
             it.copy(
-                edit = PhotoEdit(filter = it.edit.filter, adjustments = it.edit.adjustments),
+                edit = PhotoEdit(
+                    filter = it.edit.filter,
+                    adjustments = it.edit.adjustments,
+                    autoAdjustmentIntensity = it.edit.autoAdjustmentIntensity,
+                ),
                 aspectRatio = CropAspectRatio.Free,
                 lockedAspectRatio = null,
             )
         }
     }
 
-    fun onAdjustmentSelect(adjustment: PhotoAdjustment) {
-        _uiState.update { it.copy(selectedAdjustment = adjustment) }
-    }
-
-    fun onAdjustmentChange(value: Float) {
-        _uiState.update {
-            it.copy(
-                edit = it.edit.copy(
-                    adjustments = it.edit.adjustments
-                        .with(it.selectedAdjustment, value),
-                ),
-            )
+    /** 자동 보정은 처음 고를 때 켜고, 고른 상태에서 다시 누르면 껐다 켠다. */
+    fun onAdjustItemSelect(item: PhotoAdjustItem) {
+        val state = _uiState.value
+        _uiState.update { it.copy(selectedAdjustItem = item) }
+        if (item != PhotoAdjustItem.Auto) return
+        val intensity = state.edit.autoAdjustmentIntensity
+        when {
+            state.selectedAdjustItem == item -> setValue(item, if (intensity > 0f) 0f else 1f)
+            intensity == 0f -> setValue(item, 1f)
         }
     }
 
+    fun onAdjustmentChange(value: Float) {
+        setValue(_uiState.value.selectedAdjustItem, value)
+    }
+
     fun onAdjustmentsResetClick() {
-        _uiState.update { it.copy(edit = it.edit.copy(adjustments = PhotoAdjustments())) }
+        _uiState.update {
+            it
+                .copy(
+                    edit = it.edit.copy(autoAdjustmentIntensity = 0f),
+                    manualAdjustments = PhotoAdjustments(),
+                ).withAppliedAdjustments()
+        }
     }
 
     fun onFilterSelect(filter: PhotoFilter) {
         _uiState.update { it.copy(edit = it.edit.copy(filter = filter)) }
     }
 
+    // 자동 보정을 켠 채 자르기를 바꿨다면 바뀐 사진으로 다시 분석한 값으로 완료한다.
     fun onDoneClick() {
-        _uiState.update { it.copy(completedEdit = it.edit.normalized()) }
+        viewModelScope.launch {
+            if (_uiState.value.edit.autoAdjustmentIntensity > 0f) refreshAutoAdjustments()
+            _uiState.update { it.copy(completedEdit = it.edit.normalized()) }
+        }
+    }
+
+    /** 항목 값을 바꾸면 자동 보정이 더한 몫은 그대로 두고 그 위에 더한 값만 바꾼다. */
+    private fun setValue(
+        item: PhotoAdjustItem,
+        value: Float,
+    ) {
+        val clamped = value.coerceIn(item.range)
+        _uiState.update { state ->
+            when (item) {
+                PhotoAdjustItem.Auto -> state.copy(edit = state.edit.copy(autoAdjustmentIntensity = clamped))
+
+                is PhotoAdjustItem.Manual -> {
+                    val automatic = state.appliedAutoAdjustments?.get(item.adjustment) ?: 0f
+                    state.copy(manualAdjustments = state.manualAdjustments.with(item.adjustment, clamped - automatic))
+                }
+            }.withAppliedAdjustments()
+        }
+    }
+
+    private suspend fun refreshAutoAdjustments() = analysisMutex.withLock {
+        val source = analysisSource.await() ?: return@withLock
+        val edit = _uiState.value.edit
+        val geometryEdit = PhotoEdit(
+            quarterTurns = edit.quarterTurns,
+            straightenDegrees = edit.straightenDegrees,
+            crop = edit.crop,
+        )
+        if (geometryEdit == analyzedGeometry) return@withLock
+        analyzedGeometry = geometryEdit
+        val automatic = withContext(analysisDispatcher) {
+            PhotoAutoAdjuster.adjustments(
+                PhotoImageStatistics.of(source.sampled(geometryEdit, PhotoImageStatistics.SAMPLE_LONG_EDGE)),
+            )
+        }
+        _uiState.update { state ->
+            val manual = if (restoresManualAdjustments) {
+                val intensity = state.edit.autoAdjustmentIntensity
+                PhotoAdjustments.of { adjustment ->
+                    state.edit.adjustments[adjustment] - automatic[adjustment] * intensity
+                }
+            } else {
+                state.manualAdjustments
+            }
+            state.copy(autoAdjustments = automatic, manualAdjustments = manual).withAppliedAdjustments()
+        }
+        restoresManualAdjustments = false
+    }
+
+    private fun PhotoEditUiState.withAppliedAdjustments(): PhotoEditUiState {
+        val automatic = autoAdjustments ?: PhotoAdjustments()
+        val applied = automatic.scaled(scale = edit.autoAdjustmentIntensity, offset = manualAdjustments)
+        return copy(edit = edit.copy(adjustments = applied))
     }
 
     // 끌기를 되돌리며 생긴 부동소수점 오차 때문에 편집하지 않은 사진이 다시 인코딩되지 않게 한다.
@@ -157,10 +261,18 @@ class PhotoEditViewModel(
             initialEdit: PhotoEdit,
         ) = viewModelFactory {
             initializer {
-                PhotoEditViewModel(imageUri = imageUri, initialEdit = initialEdit)
+                val application = this[APPLICATION_KEY] as ChalkakApplication
+                PhotoEditViewModel(
+                    imageUri = imageUri,
+                    initialEdit = initialEdit,
+                    imageRepository = application.appContainer.photoEditImageRepository,
+                )
             }
         }
 
         private const val NORMALIZE_EPSILON = 1e-3f
+
+        // 작게 자른 영역도 분석용 크기(긴 변 256px)를 채울 만큼 크게 읽는다.
+        private const val ANALYSIS_SOURCE_LONG_EDGE = 1024
     }
 }

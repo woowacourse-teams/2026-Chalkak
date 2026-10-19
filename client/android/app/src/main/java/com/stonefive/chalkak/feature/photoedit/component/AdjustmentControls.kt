@@ -43,22 +43,36 @@ import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
+import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** 조정 탭 조작부. 위에는 고른 항목의 값과 슬라이더, 아래에는 항목 목록이 있다. */
+/**
+ * 조정 탭 조작부. 위에는 고른 항목의 값과 슬라이더, 아래에는 맨 앞의 자동 보정과 항목 목록이 있다.
+ * [appliedAutoAdjustments]가 있으면 항목 슬라이더에 자동 보정이 정한 값을 표시하고 그 값에 붙는다.
+ */
 @Composable
 fun AdjustmentControls(
     adjustments: PhotoAdjustments,
-    selectedAdjustment: PhotoAdjustment,
-    onAdjustmentSelect: (PhotoAdjustment) -> Unit,
-    onAdjustmentChange: (Float) -> Unit,
+    autoAdjustmentIntensity: Float,
+    appliedAutoAdjustments: PhotoAdjustments?,
+    selectedItem: PhotoAdjustItem,
+    canReset: Boolean,
+    onItemSelect: (PhotoAdjustItem) -> Unit,
+    onValueChange: (Float) -> Unit,
     onResetClick: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    val value = adjustments[selectedAdjustment]
+    fun valueOf(item: PhotoAdjustItem): Float = when (item) {
+        PhotoAdjustItem.Auto -> autoAdjustmentIntensity
+        is PhotoAdjustItem.Manual -> adjustments[item.adjustment]
+    }
+    val value = valueOf(selectedItem)
+    val automaticValue = (selectedItem as? PhotoAdjustItem.Manual)
+        ?.let { appliedAutoAdjustments?.get(it.adjustment) }
+        ?.takeIf { it != 0f }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
@@ -79,23 +93,25 @@ fun AdjustmentControls(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .clickable(
-                        enabled = !adjustments.isIdentity,
+                        enabled = canReset,
                         role = Role.Button,
                         onClick = onResetClick,
                     ),
                 style = ChalkakTheme.typography.footnote,
-                color = if (adjustments.isIdentity) {
-                    ChalkakTheme.colors.photoEditContentMuted
-                } else {
+                color = if (canReset) {
                     ChalkakTheme.colors.photoEditContent
+                } else {
+                    ChalkakTheme.colors.photoEditContentMuted
                 },
             )
         }
 
         AdjustmentSlider(
             value = value,
-            label = selectedAdjustment.label,
-            onValueChange = onAdjustmentChange,
+            range = selectedItem.range,
+            automaticValue = automaticValue,
+            label = selectedItem.label,
+            onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(contentPadding),
@@ -109,12 +125,12 @@ fun AdjustmentControls(
                 .padding(contentPadding),
             horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
         ) {
-            PhotoAdjustment.entries.forEach { adjustment ->
+            PhotoAdjustItem.entries.forEach { item ->
                 AdjustmentItem(
-                    adjustment = adjustment,
-                    isChanged = adjustments[adjustment] != 0f,
-                    selected = adjustment == selectedAdjustment,
-                    onClick = { onAdjustmentSelect(adjustment) },
+                    item = item,
+                    isChanged = valueOf(item) != 0f,
+                    selected = item == selectedItem,
+                    onClick = { onItemSelect(item) },
                 )
             }
         }
@@ -123,7 +139,7 @@ fun AdjustmentControls(
 
 @Composable
 private fun AdjustmentItem(
-    adjustment: PhotoAdjustment,
+    item: PhotoAdjustItem,
     isChanged: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -139,11 +155,11 @@ private fun AdjustmentItem(
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xs),
     ) {
         Text(
-            text = adjustment.label,
+            text = item.label,
             style = ChalkakTheme.typography.footnote,
             color = if (selected) ChalkakTheme.colors.photoEditContent else ChalkakTheme.colors.photoEditContentMuted,
         )
-        // 값을 바꾼 항목은 점으로 표시한다.
+        // 값을 바꾼 항목과 켜진 자동 보정은 점으로 표시한다.
         Box(
             modifier = Modifier
                 .size(ChangedDotSize)
@@ -155,23 +171,32 @@ private fun AdjustmentItem(
     }
 }
 
-/** 가운데가 0인 -1..1 슬라이더. 0 근처에서는 0에 붙으며 진동한다. */
+/**
+ * [range] 안의 값을 고르는 슬라이더. 0에 눈금을 두고, [automaticValue]가 있으면 그 자리에 점을 찍는다.
+ * 기준값(자동 보정값, 없으면 0) 근처에서는 기준값에 붙으며 진동한다.
+ */
 @Composable
 private fun AdjustmentSlider(
     value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    automaticValue: Float?,
     label: String,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val currentValue by rememberUpdatedState(value)
+    val currentRange by rememberUpdatedState(range)
+    val anchor = (automaticValue ?: 0f).coerceIn(range)
+    val currentAnchor by rememberUpdatedState(anchor)
     val currentOnValueChange by rememberUpdatedState(onValueChange)
     val trackColor = ChalkakTheme.colors.photoEditContentMuted
     val activeColor = ChalkakTheme.colors.photoEditContent
 
     fun emit(raw: Float) {
-        val next = raw.coerceIn(-1f, 1f).let { if (abs(it) < SNAP_RANGE) 0f else it }
-        if (next == 0f && currentValue != 0f) {
+        val clamped = raw.coerceIn(currentRange)
+        val next = if (abs(clamped - currentAnchor) < SNAP_RANGE) currentAnchor else clamped
+        if (next == currentAnchor && currentValue != currentAnchor) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
         currentOnValueChange(next)
@@ -183,15 +208,16 @@ private fun AdjustmentSlider(
             .semantics {
                 contentDescription = label
                 stateDescription = value.toDisplayValue().toString()
-                progressBarRangeInfo = ProgressBarRangeInfo(current = value, range = -1f..1f)
+                progressBarRangeInfo = ProgressBarRangeInfo(current = value, range = range)
                 setProgress { target ->
-                    currentOnValueChange(target.coerceIn(-1f, 1f))
+                    currentOnValueChange(target.coerceIn(range))
                     true
                 }
             }.pointerInput(Unit) {
                 val trackStart = SliderThumbRadius.toPx()
                 detectTapGestures { offset ->
-                    emit((offset.x - trackStart) / (size.width - trackStart * 2f) * 2f - 1f)
+                    val fraction = (offset.x - trackStart) / (size.width - trackStart * 2f)
+                    emit(currentRange.start + fraction * currentRange.span)
                 }
             }.pointerInput(Unit) {
                 val trackWidth = size.width - SliderThumbRadius.toPx() * 2f
@@ -200,7 +226,7 @@ private fun AdjustmentSlider(
                     onDragStart = { dragValue = currentValue },
                 ) { change, dragAmount ->
                     change.consume()
-                    dragValue = (dragValue + dragAmount / trackWidth * 2f).coerceIn(-1f, 1f)
+                    dragValue = (dragValue + dragAmount / trackWidth * currentRange.span).coerceIn(currentRange)
                     emit(dragValue)
                 }
             },
@@ -209,20 +235,30 @@ private fun AdjustmentSlider(
         val trackStart = thumbRadius
         val trackEnd = size.width - thumbRadius
         val centerY = size.height / 2f
-        val centerX = (trackStart + trackEnd) / 2f
-        val thumbX = centerX + value * (trackEnd - trackStart) / 2f
+        fun xOf(position: Float) = trackStart + (position - range.start) / range.span * (trackEnd - trackStart)
         val strokeWidth = SliderTrackWidth.toPx()
         drawLine(trackColor, Offset(trackStart, centerY), Offset(trackEnd, centerY), strokeWidth, StrokeCap.Round)
-        drawLine(
-            color = trackColor,
-            start = Offset(centerX, centerY - SliderCenterTickHeight.toPx() / 2f),
-            end = Offset(centerX, centerY + SliderCenterTickHeight.toPx() / 2f),
-            strokeWidth = strokeWidth,
-        )
-        drawLine(activeColor, Offset(centerX, centerY), Offset(thumbX, centerY), strokeWidth, StrokeCap.Round)
-        drawCircle(activeColor, thumbRadius, Offset(thumbX, centerY))
+        if (0f > range.start && 0f < range.endInclusive) {
+            drawLine(
+                color = trackColor,
+                start = Offset(xOf(0f), centerY - SliderCenterTickHeight.toPx() / 2f),
+                end = Offset(xOf(0f), centerY + SliderCenterTickHeight.toPx() / 2f),
+                strokeWidth = strokeWidth,
+            )
+        }
+        drawLine(activeColor, Offset(xOf(anchor), centerY), Offset(xOf(value), centerY), strokeWidth, StrokeCap.Round)
+        if (automaticValue != null) {
+            drawCircle(
+                color = activeColor,
+                radius = AutomaticMarkerRadius.toPx(),
+                center = Offset(xOf(anchor), centerY - SliderCenterTickHeight.toPx()),
+            )
+        }
+        drawCircle(activeColor, thumbRadius, Offset(xOf(value), centerY))
     }
 }
+
+private val ClosedFloatingPointRange<Float>.span: Float get() = endInclusive - start
 
 private fun Float.toDisplayValue(): Int = (this * DISPLAY_SCALE).roundToInt()
 
@@ -233,16 +269,20 @@ private val SliderThumbRadius = 9.dp
 private val SliderTrackWidth = 2.dp
 private val SliderCenterTickHeight = 12.dp
 private val ChangedDotSize = 4.dp
+private val AutomaticMarkerRadius = 2.dp
 
 @Preview(widthDp = 402)
 @Composable
 private fun AdjustmentControlsPreview() {
     ChalkakTheme {
         AdjustmentControls(
-            adjustments = PhotoAdjustments(brightness = 0.24f, warmth = -0.4f),
-            selectedAdjustment = PhotoAdjustment.Brightness,
-            onAdjustmentSelect = {},
-            onAdjustmentChange = {},
+            adjustments = PhotoAdjustments(exposure = 0.24f, shadows = 0.3f),
+            autoAdjustmentIntensity = 1f,
+            appliedAutoAdjustments = PhotoAdjustments(exposure = 0.14f, shadows = 0.3f),
+            selectedItem = PhotoAdjustItem.Manual(PhotoAdjustment.Exposure),
+            canReset = true,
+            onItemSelect = {},
+            onValueChange = {},
             onResetClick = {},
             modifier = Modifier
                 .fillMaxWidth()

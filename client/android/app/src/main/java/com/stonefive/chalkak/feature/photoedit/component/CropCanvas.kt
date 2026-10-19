@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +31,7 @@ import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.feature.photoedit.CropCorner
 import com.stonefive.chalkak.feature.photoedit.CropGeometry
 import com.stonefive.chalkak.feature.photoedit.PhotoImageSize
+import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
 
 /**
@@ -84,7 +86,9 @@ fun CropCanvas(
             ),
             size = Size(frameWidth, frameHeight),
         )
-        val colorFilter = remember(edit.filter, edit.adjustments) { edit.toColorFilter() }
+        val colorFilter = remember(edit.filter) { edit.filter.toColorFilter() }
+        val adjustedImage = rememberAdjustedImage(imageModel, edit.adjustments)
+        val adjustedPainter = remember(adjustedImage) { adjustedImage?.let(::BitmapPainter) }
         var isAdjusting by remember { mutableStateOf(false) }
         val currentFrame by rememberUpdatedState(frame)
         val currentScale by rememberUpdatedState(scale)
@@ -102,6 +106,7 @@ fun CropCanvas(
                 ).graphicsLayer { rotationZ = edit.rotationDegrees },
             contentScale = ContentScale.FillBounds,
             colorFilter = colorFilter,
+            loadedPainter = adjustedPainter,
         )
 
         CropFrameOverlay(

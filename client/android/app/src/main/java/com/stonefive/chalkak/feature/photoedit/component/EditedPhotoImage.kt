@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -26,11 +27,12 @@ import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
 import com.stonefive.chalkak.feature.photoedit.CropGeometry
 import com.stonefive.chalkak.feature.photoedit.PhotoImageSize
+import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
-import com.stonefive.chalkak.feature.photoedit.vignette
 
 /**
- * 편집 값을 적용한 사진. 비트맵을 새로 만들지 않고 잘라낸 영역만 보이도록 원본을 돌리고 옮겨 그린다.
+ * 편집 값을 적용한 사진. 잘라낸 영역만 보이도록 원본을 돌리고 옮겨 그린다.
+ * 조정은 줄인 사진에 픽셀 단위로 적용하고, 필터는 그릴 때 색 필터로 입힌다.
  * 원본 비율을 알아야 하므로 [imageSize]가 없으면 한 번 불러와 크기를 잰다.
  */
 @Composable
@@ -42,18 +44,20 @@ fun EditedPhotoImage(
     imageSize: PhotoImageSize? = null,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
-    val colorFilter = remember(edit.filter, edit.adjustments) { edit.toColorFilter() }
-    // 비네트는 사진 영역에만 그려야 하므로 사진 비율의 상자가 필요하다.
+    val colorFilter = remember(edit.filter) { edit.filter.toColorFilter() }
+    val adjustedImage = rememberAdjustedImage(model, edit.adjustments)
+    val adjustedPainter = remember(adjustedImage) { adjustedImage?.let(::BitmapPainter) }
     val isGeometryIdentity = edit
         .copy(filter = PhotoFilter.Original, adjustments = PhotoAdjustments())
         .isIdentity
-    if (isGeometryIdentity && edit.adjustments.vignette == 0f) {
+    if (isGeometryIdentity) {
         ChalkakImage(
             model = model,
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale,
             colorFilter = colorFilter,
+            loadedPainter = adjustedPainter,
         )
         return
     }
@@ -82,8 +86,7 @@ fun EditedPhotoImage(
     BoxWithConstraints(
         modifier = modifier
             .aspectRatio(cropRect.width / cropRect.height)
-            .clipToBounds()
-            .vignette(edit.adjustments),
+            .clipToBounds(),
         contentAlignment = Alignment.Center,
     ) {
         val scale = constraints.maxWidth / cropRect.width
@@ -101,6 +104,7 @@ fun EditedPhotoImage(
                 },
             contentScale = ContentScale.FillBounds,
             colorFilter = colorFilter,
+            loadedPainter = adjustedPainter,
         )
     }
 }
@@ -115,7 +119,7 @@ private fun EditedPhotoImagePreview() {
                 quarterTurns = 1,
                 crop = CropWindow(centerX = 0.5f, centerY = 0.5f, width = 1f, height = 0.6f),
                 filter = PhotoFilter.Mono,
-                adjustments = PhotoAdjustments(contrast = 0.3f, vignette = 0.6f),
+                adjustments = PhotoAdjustments(contrast = 0.3f),
             ),
             contentDescription = null,
             modifier = Modifier.fillMaxWidth(),

@@ -10,9 +10,11 @@ import com.stonefive.chalkak.domain.model.CropWindow
 import com.stonefive.chalkak.domain.model.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.PhotoEdit
 import com.stonefive.chalkak.domain.model.PhotoFilter
+import com.stonefive.chalkak.domain.model.PhotoToneCurve
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -151,16 +153,21 @@ class AndroidPostImageEncoderTest {
     }
 
     @Test
-    fun brightnessAdjustmentBrightensPixels() = runBlocking {
+    fun exposureAdjustmentBrightensPixels() = runBlocking {
         val gray = Color.rgb(GRAY_LEVEL, GRAY_LEVEL, GRAY_LEVEL)
         val source = createJpeg(width = QUADRANT_SIZE, height = QUADRANT_SIZE) { _, _ -> gray }
         try {
-            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(brightness = 0.4f)))
+            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(exposure = 0.4f)))
             try {
-                val brightened = GRAY_LEVEL + (0.4f * 0.25f * 255f).roundToInt()
-                assertColorNear(
-                    Color.rgb(brightened, brightened, brightened),
-                    output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2),
+                // 선형 공간에서 2^(0.4 × 1.5)배 한 뒤 다시 감마 인코딩한 값.
+                val linear = PhotoToneCurve.linear(GRAY_LEVEL / 255.0) *
+                    2.0.pow(0.4 * PhotoToneCurve.EXPOSURE_RANGE_EV)
+                val brightened = (PhotoToneCurve.gamma(linear) * 255).roundToInt()
+                val center = output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2)
+                // 단색은 손실 압축에도 거의 그대로라 일반 색 허용치보다 좁게 본다.
+                assertTrue(
+                    "expected $brightened but was ${Color.green(center)}",
+                    abs(Color.green(center) - brightened) <= FLAT_COLOR_TOLERANCE,
                 )
             } finally {
                 output.recycle()
@@ -171,13 +178,21 @@ class AndroidPostImageEncoderTest {
     }
 
     @Test
-    fun vignetteDarkensCornersOnly() = runBlocking {
-        val source = createJpeg(width = QUADRANT_SIZE * 2, height = QUADRANT_SIZE * 2) { _, _ -> Color.WHITE }
+    fun adjustmentsApplyBeforeFilterAndKeepCrop() = runBlocking {
+        val source = createQuadrantJpeg()
         try {
-            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(vignette = 1f)))
+            val edit = PhotoEdit(
+                crop = CropWindow(centerX = 0.25f, centerY = 0.25f, width = 0.5f, height = 0.5f),
+                filter = PhotoFilter.Warm,
+                adjustments = PhotoAdjustments(saturation = -1f),
+            )
+            val output = encodeToBitmap(source, edit)
             try {
-                assertColorNear(Color.WHITE, output.getPixel(QUADRANT_SIZE, QUADRANT_SIZE))
-                assertTrue(Color.red(output.getPixel(0, 0)) < VIGNETTE_CORNER_MAX)
+                assertEquals(QUADRANT_SIZE, output.width)
+                // 빨강 영역만 남고, 채도를 뺀 회색 위에 따뜻한 필터가 입혀져 빨강이 파랑보다 크다.
+                val center = output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2)
+                assertTrue(Color.red(center) > Color.blue(center))
+                assertTrue(abs(Color.red(center) - Color.green(center)) < WARM_GRAY_RED_GREEN_GAP)
             } finally {
                 output.recycle()
             }
@@ -283,7 +298,8 @@ class AndroidPostImageEncoderTest {
         const val COLOR_TOLERANCE = 40
         const val NEUTRAL_TOLERANCE = 6
         const val GRAY_LEVEL = 100
-        const val VIGNETTE_CORNER_MAX = 120
+        const val FLAT_COLOR_TOLERANCE = 4
+        const val WARM_GRAY_RED_GREEN_GAP = 30
         val ORIENTATIONS = intArrayOf(
             ExifInterface.ORIENTATION_NORMAL,
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL,

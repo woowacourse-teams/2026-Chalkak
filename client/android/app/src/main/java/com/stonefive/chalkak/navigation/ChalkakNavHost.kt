@@ -707,14 +707,14 @@ fun ChalkakNavHost(
                                 cropWidth = submission.edit.crop.width,
                                 cropHeight = submission.edit.crop.height,
                                 filter = submission.edit.filter.name,
-                                brightness = submission.edit.adjustments.brightness,
+                                exposure = submission.edit.adjustments.exposure,
                                 contrast = submission.edit.adjustments.contrast,
-                                whitePoint = submission.edit.adjustments.whitePoint,
+                                highlights = submission.edit.adjustments.highlights,
+                                shadows = submission.edit.adjustments.shadows,
                                 blackPoint = submission.edit.adjustments.blackPoint,
                                 saturation = submission.edit.adjustments.saturation,
                                 warmth = submission.edit.adjustments.warmth,
-                                tint = submission.edit.adjustments.tint,
-                                vignette = submission.edit.adjustments.vignette,
+                                autoAdjustmentIntensity = submission.edit.autoAdjustmentIntensity,
                             ),
                         ) {
                             popUpTo<PhotoUpload> { inclusive = true }
@@ -758,15 +758,15 @@ private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
     ),
     filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
     adjustments = PhotoAdjustments(
-        brightness = brightness,
+        exposure = exposure,
         contrast = contrast,
-        whitePoint = whitePoint,
+        highlights = highlights,
+        shadows = shadows,
         blackPoint = blackPoint,
         saturation = saturation,
         warmth = warmth,
-        tint = tint,
-        vignette = vignette,
     ),
+    autoAdjustmentIntensity = autoAdjustmentIntensity,
 )
 
 private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {

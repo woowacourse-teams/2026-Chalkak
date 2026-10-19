@@ -11,22 +11,17 @@ data class PhotoEdit(
     val straightenDegrees: Float = 0f,
     val crop: CropWindow = CropWindow.Full,
     val filter: PhotoFilter = PhotoFilter.Original,
+    /** 실제로 적용할 조정 값. 자동 보정을 켰다면 자동 보정값을 강도만큼 더한 결과다. */
     val adjustments: PhotoAdjustments = PhotoAdjustments(),
+    /** 자동 보정 강도(0..1). 적용에는 쓰지 않고, 다시 편집할 때 자동 보정 몫을 되돌리는 데 쓴다. */
+    val autoAdjustmentIntensity: Float = 0f,
 ) {
-    val isIdentity: Boolean get() = this == PhotoEdit()
+    /** 사진을 바꾸지 않는지. 자동 보정 강도는 결과에 영향이 없으므로 보지 않는다. */
+    val isIdentity: Boolean get() = copy(autoAdjustmentIntensity = 0f) == PhotoEdit()
 
     val rotationDegrees: Float get() = quarterTurns * QUARTER_TURN_DEGREES + straightenDegrees
 
-    /** 조정을 먼저, 필터를 나중에 적용하는 색 행렬. 색을 바꾸지 않으면 `null`이다. */
-    fun colorMatrix(): FloatArray? {
-        val adjustment = adjustments.colorMatrix()
-        val filter = filter.colorMatrix()
-        return when {
-            adjustment == null -> filter
-            filter == null -> adjustment
-            else -> ColorMatrices.concat(second = filter, first = adjustment)
-        }
-    }
+    fun colorTransform(): PhotoColorTransform = PhotoColorTransform(adjustments, filter.colorMatrix())
 
     companion object {
         const val QUARTER_TURN_DEGREES = 90f
@@ -55,7 +50,8 @@ data class CropWindow(
 
 /**
  * 필터 색 변환 계수. 4×5 행 우선 색 행렬이며 마지막 열은 0..255 범위의 더하는 값이다.
- * data에서는 `android.graphics.ColorMatrix`, 미리보기에서는 Compose `ColorMatrix`가 같은 계수를 쓴다.
+ * 조정이 없으면 data에서는 `android.graphics.ColorMatrix`, 미리보기에서는 Compose `ColorMatrix`가 같은 계수를 쓰고,
+ * 조정이 있으면 [PhotoColorTransform]이 조정 뒤에 같은 계수를 곱한다.
  */
 enum class PhotoFilter(private val matrix: FloatArray?) {
     Original(null),
