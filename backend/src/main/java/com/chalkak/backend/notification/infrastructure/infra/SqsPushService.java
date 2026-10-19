@@ -13,7 +13,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.springframework.scheduling.annotation.Scheduled;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
@@ -46,13 +45,13 @@ public class SqsPushService {
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
     }
 
-    @Scheduled(fixedDelay = 1000, scheduler = "notificationPollingScheduler")
     public void poll() {
         try {
             Optional<Message> message = findMessage();
             message.ifPresent(this::process);
         } catch (RuntimeException exception) {
             logFailure("worker_poll_failed", exception);
+            waitAfterPollingFailure();
         }
     }
 
@@ -71,6 +70,14 @@ public class SqsPushService {
             if (previousContext != null) {
                 MDC.setContextMap(previousContext);
             }
+        }
+    }
+
+    private void waitAfterPollingFailure() {
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 

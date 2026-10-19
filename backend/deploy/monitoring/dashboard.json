@@ -28,7 +28,8 @@
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-rds-free-storage",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-no-open-topic",
           "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-app-heartbeat",
-          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing"
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-user-metrics-missing",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-gc-pause"
         ]
       }
     },
@@ -91,7 +92,7 @@
       "width": 24,
       "height": 2,
       "properties": {
-        "markdown": "# prod 사용자 활동 (로그 실시간)\n로그 조회라 기간이 길수록 비용이 늘어납니다. 내부 계정을 포함하므로 아래 일별 집계와 다를 수 있습니다."
+        "markdown": "# prod 사용자 활동 (로그 실시간)\n로그 조회라 기간이 길수록 비용이 늘어납니다. 내부 계정은 제외하지만 접근 로그 기준이라 아래 일별 집계와 조금 다를 수 있습니다."
       }
     },
     {
@@ -104,7 +105,7 @@
         "title": "DAU (게시물 업로드 회원, 일별)",
         "region": "ap-northeast-2",
         "view": "bar",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter method=\"POST\" and route=\"/api/v1/posts\" and status=201\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats count_distinct(userId) as dau by day\n| sort day asc"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter userId not in [\"01a0945f-6d5c-7b62-8096-79fd5dbd187d\",\"01a09463-1b97-723c-86b1-8596005cfa37\",\"01a09464-847a-7d9d-b44f-53eb71710637\",\"01a0946a-05af-744e-b15a-3175707c8721\",\"01a0946a-aa90-7a3f-9956-c26d313eafea\",\"01a0946c-7ff3-71a9-ae92-b4b1a0a79641\",\"01a09492-e61e-7172-bb6f-2ad0b8f1be43\",\"01a09822-2461-7649-be66-18d1203e2871\",\"01a09de9-e8af-7034-95f8-20ec7a795745\",\"01a09dee-5ce9-726e-b49e-c4816553f681\",\"01a09e37-d7e8-77c6-8023-0fe770644536\",\"01a09e9f-b243-7a78-b790-51feeab58a15\",\"01a0a366-73e4-76a7-9acc-6d73bbf85913\",\"01a0a36c-f580-78f9-a1fd-dd29c9f47da9\",\"01a0a36e-5721-79f7-95c9-7a3126d464e9\",\"01a0a519-6cbf-7ae1-bcc4-a3710eab5ea8\",\"01a0adcf-06f2-7090-a9ca-6c21c2251e6b\",\"01a0b299-a04b-72cf-bb83-8a7da6b96b97\",\"01a0c381-9856-70a8-a598-e228cb99b028\",\"01a0c386-f89a-7db3-9701-1aea22bc9caa\",\"01a11503-09cf-7366-8d03-81e0c6e6f47b\"]\n| filter method=\"POST\" and route=\"/api/v1/posts\" and status=201\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats count_distinct(userId) as dau by day\n| sort day asc"
       }
     },
     {
@@ -117,7 +118,7 @@
         "title": "당일 접속 사용자 (로그인 회원, 일별)",
         "region": "ap-northeast-2",
         "view": "bar",
-        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats count_distinct(userId) as visitors by day\n| sort day asc"
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"access\" and ispresent(userId)\n| filter userId not in [\"01a0945f-6d5c-7b62-8096-79fd5dbd187d\",\"01a09463-1b97-723c-86b1-8596005cfa37\",\"01a09464-847a-7d9d-b44f-53eb71710637\",\"01a0946a-05af-744e-b15a-3175707c8721\",\"01a0946a-aa90-7a3f-9956-c26d313eafea\",\"01a0946c-7ff3-71a9-ae92-b4b1a0a79641\",\"01a09492-e61e-7172-bb6f-2ad0b8f1be43\",\"01a09822-2461-7649-be66-18d1203e2871\",\"01a09de9-e8af-7034-95f8-20ec7a795745\",\"01a09dee-5ce9-726e-b49e-c4816553f681\",\"01a09e37-d7e8-77c6-8023-0fe770644536\",\"01a09e9f-b243-7a78-b790-51feeab58a15\",\"01a0a366-73e4-76a7-9acc-6d73bbf85913\",\"01a0a36c-f580-78f9-a1fd-dd29c9f47da9\",\"01a0a36e-5721-79f7-95c9-7a3126d464e9\",\"01a0a519-6cbf-7ae1-bcc4-a3710eab5ea8\",\"01a0adcf-06f2-7090-a9ca-6c21c2251e6b\",\"01a0b299-a04b-72cf-bb83-8a7da6b96b97\",\"01a0c381-9856-70a8-a598-e228cb99b028\",\"01a0c386-f89a-7db3-9701-1aea22bc9caa\",\"01a11503-09cf-7366-8d03-81e0c6e6f47b\"]\n| fields formatDate(@timestamp, \"%Y-%m-%d\", \"Asia/Seoul\") as day\n| stats count_distinct(userId) as visitors by day\n| sort day asc"
       }
     },
     {

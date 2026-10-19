@@ -142,7 +142,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 - **주제별 피드 조회 수**: 피드 조회(`GET /api/v1/posts`) 접근 로그에 `topicDate`를 더해 날짜(= 주제)별로 센다. 상세 조회는 세지 않는다.
 - **참여 가능 사용자 수**: 정지·탈퇴가 아닌 회원 수다. 가입 때 사인 등록을 마쳐야 하므로 모두 사인을 등록한 회원이다. 집계를 실행한 시점의 스냅샷이다.
 - **총 좋아요 수**: 삭제되지 않은 게시물에 달린 좋아요 수를 DB(`post_likes`)에서 센다. 집계 시점의 스냅샷이다.
-- **내부·테스트 계정 제외**: 제외할 회원 ID 목록을 `application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 두고 집계에 적용한다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, 리텐션)과 로그 기반 `visitors`, `topicViewers`가 제외 대상이고 `requests`, `server5xx`, 지연 시간은 제외하지 않는다. 대시보드의 실시간 Logs Insights 위젯(DAU, 당일 접속 사용자)에는 적용되지 않아 집계 메트릭과 값이 다를 수 있다.
+- **내부·테스트 계정 제외**: 제외할 회원 ID 목록을 `application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 두고 집계에 적용한다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, 리텐션)과 로그 기반 `visitors`, `topicViewers`가 제외 대상이고 `requests`, `server5xx`, 지연 시간은 제외하지 않는다. 대시보드의 실시간 Logs Insights 위젯 중 DAU와 당일 접속 사용자에도 같은 ID를 쿼리 필터로 넣는다. 실시간 값은 접근 로그 기준이라 DB 집계 메트릭과 조금 다를 수 있다.
 - **`userId` 취급**: MVP에서는 가명화하지 않고 접근 로그에 원본 회원 ID를 남긴다. 로그 접근은 회사 AWS 계정 권한으로 통제한다. 로그 접근 범위가 넓어지거나 로그를 외부로 내보내게 되면 다시 검토한다.
 - 사용자 단위 데이터는 저장하지 않는다. 로그와 메트릭에는 결과 숫자만 남긴다.
 
