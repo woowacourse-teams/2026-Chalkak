@@ -31,10 +31,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.photoedit.CropAspectRatio
 import com.stonefive.chalkak.feature.photoedit.label
 
-/**
- * 자르기 비율 선택. 비율마다 그 모양의 프레임과 이름을 함께 보여 주고, 화면보다 길면 가로로 넘긴다.
- * [originalAspectRatio]는 원본 프레임 모양에 쓰고, 모르면 가로 사진 모양으로 그린다.
- */
+/** [originalAspectRatio]를 모르면 원본 프레임을 가로 사진 모양으로 그린다. */
 @Composable
 fun AspectRatioFrames(
     selectedAspectRatio: CropAspectRatio,

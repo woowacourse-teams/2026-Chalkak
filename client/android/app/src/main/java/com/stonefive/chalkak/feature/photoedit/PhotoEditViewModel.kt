@@ -41,7 +41,6 @@ class PhotoEditViewModel(
     private val analysisSource = CompletableDeferred<PhotoPixels?>()
     private val analysisMutex = Mutex()
 
-    /** 자동 보정값을 구한 회전·자르기. 바뀌면 다시 분석한다. */
     private var analyzedGeometry: PhotoEdit? =
         initialEdit.geometry().takeIf { initialEdit.adjustmentLayers.automatic != null }
 

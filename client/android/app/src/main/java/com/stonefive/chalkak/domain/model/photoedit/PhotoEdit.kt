@@ -1,11 +1,6 @@
 package com.stonefive.chalkak.domain.model.photoedit
 
-/**
- * 업로드 전에 사진에 적용할 편집 값.
- *
- * 모든 좌표는 해상도와 무관한 비율로 둔다. 화면 미리보기, 다운샘플한 인코더 입력, URL 만료 후 재인코딩이
- * 서로 다른 해상도를 쓰더라도 같은 값으로 같은 결과를 만든다.
- */
+/** 좌표는 해상도와 무관한 비율이라 미리보기·인코더·재인코딩이 해상도가 달라도 같은 결과를 만든다. */
 data class PhotoEdit(
     val quarterTurns: Int = 0,
     val straightenDegrees: Float = 0f,
@@ -48,11 +43,7 @@ data class CropWindow(
     }
 }
 
-/**
- * 필터 색 변환 계수. 4×5 행 우선 색 행렬이며 마지막 열은 0..255 범위의 더하는 값이다.
- * 조정이 없으면 data에서는 `android.graphics.ColorMatrix`, 미리보기에서는 Compose `ColorMatrix`가 같은 계수를 쓰고,
- * 조정이 있으면 [PhotoColorTransform]이 조정 뒤에 같은 계수를 곱한다.
- */
+/** 4×5 행 우선 색 행렬. 마지막 열은 0..255 범위의 더하는 값이다. */
 enum class PhotoFilter(private val matrix: FloatArray?) {
     Original(null),
     Mono(
@@ -97,6 +88,6 @@ enum class PhotoFilter(private val matrix: FloatArray?) {
     ),
     ;
 
-    /** 호출부가 계수를 바꿔도 다른 곳에 영향이 없도록 복사본을 돌려준다. 원본 필터는 `null`이다. */
+    /** 원본 필터는 `null`이다. */
     fun colorMatrix(): FloatArray? = matrix?.copyOf()
 }

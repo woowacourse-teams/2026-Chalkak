@@ -47,8 +47,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * 사진 앱의 조정 눈금자처럼 가운데 표시선 아래로 눈금을 밀어 값을 고른다. 왼쪽으로 밀면 값이 커진다.
- * iOS `PhotoEditValueRuler`와 같은 크기·속도를 쓴다.
+ * 가운데 표시선 아래로 눈금을 밀어 값을 고른다. 왼쪽으로 밀면 값이 커진다.
  *
  * 표시선을 지난 눈금은 잠깐 솟았다가 가라앉고, 손을 튕기듯 떼면 감속하며 더 굴러간다.
  * [automaticValue]가 있으면 그 자리에 점을 찍고, 기준값(자동 보정값, 없으면 0)에서는 조금 더 밀어야 벗어나도록 멈춘다.
@@ -105,7 +104,6 @@ fun AdjustmentRuler(
         inertia = null
     }
 
-    // 스크롤처럼 손을 뗀 속도에서 감속하며 굴러간다.
     fun decelerate(
         start: Float,
         initialVelocity: Float,
@@ -190,7 +188,6 @@ fun AdjustmentRuler(
             val lift = liftAmount(passedTicks[index], frameNanos) *
                 max(0f, 1f - abs(x - centerX) / (tickSpacing * LIFTED_TICK_SPAN))
             val height = tickHeight + (liftedHeight - tickHeight) * lift
-            // 10칸마다 눈금을 밝게 그린다.
             val baseAlpha = if (index % MAJOR_TICK_INTERVAL == 0) MAJOR_TICK_ALPHA else TICK_ALPHA
             drawRoundRect(
                 color = tickColor.copy(alpha = baseAlpha + (1f - baseAlpha) * lift),

@@ -37,10 +37,7 @@ import com.stonefive.chalkak.feature.photoedit.PhotoAdjustItem
 import com.stonefive.chalkak.feature.photoedit.label
 import kotlin.math.roundToInt
 
-/**
- * 조정 탭 조작부. 위에는 고른 항목의 값과 눈금자, 아래에는 맨 앞의 자동 보정과 항목 목록이 있다.
- * 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정이 정한 값을 표시하고 그 값에서 멈춘다.
- */
+/** 자동 보정이 켜져 있으면 항목 눈금자에 자동 보정이 정한 값을 표시하고 그 값에서 멈춘다. */
 @Composable
 fun AdjustmentControls(
     adjustmentLayers: PhotoAdjustmentLayers,
@@ -133,7 +130,6 @@ private fun AdjustmentItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    // iOS 항목 버튼(지름 56pt)과 같은 폭을 차지해 항목 사이가 좁아 보이지 않게 한다.
     Column(
         modifier = Modifier
             .widthIn(min = AdjustmentItemMinWidth)
@@ -157,7 +153,6 @@ private fun AdjustmentItem(
             style = ChalkakTheme.typography.caption,
             color = color,
         )
-        // 값을 바꾼 항목과 켜진 자동 보정은 점으로 표시한다.
         Box(
             modifier = Modifier
                 .size(ChangedDotSize)
@@ -169,7 +164,6 @@ private fun AdjustmentItem(
     }
 }
 
-// iOS의 SF Symbols 대신 뜻이 같은 Material Symbols를 쓴다.
 @get:DrawableRes
 private val PhotoAdjustItem.iconRes: Int
     get() = when (this) {

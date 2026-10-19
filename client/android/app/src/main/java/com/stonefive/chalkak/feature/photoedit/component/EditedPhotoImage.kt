@@ -31,11 +31,7 @@ import com.stonefive.chalkak.feature.photoedit.PhotoImageSize
 import com.stonefive.chalkak.feature.photoedit.rememberAdjustedImage
 import com.stonefive.chalkak.feature.photoedit.toColorFilter
 
-/**
- * 편집 값을 적용한 사진. 잘라낸 영역만 보이도록 원본을 돌리고 옮겨 그린다.
- * 조정은 줄인 사진에 픽셀 단위로 적용하고, 필터는 그릴 때 색 필터로 입힌다.
- * 원본 비율을 알아야 하므로 [imageSize]가 없으면 한 번 불러와 크기를 잰다.
- */
+/** 원본 비율을 알아야 하므로 [imageSize]가 없으면 한 번 불러와 크기를 잰다. */
 @Composable
 fun EditedPhotoImage(
     model: Any?,

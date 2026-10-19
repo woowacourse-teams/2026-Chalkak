@@ -5,8 +5,6 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * 눈금자의 끄는 위치와 값 사이 변환. iOS `PhotoEditValueRuler`와 같은 계산이다.
- *
  * 위치는 값과 같은 단위지만 기준값([anchor]) 앞뒤에 [detentHalfWidth]만큼 멈춤 구간을 끼워 넣는다.
  * 그래서 기준값에 닿은 뒤 그 구간만큼 더 밀어야 값이 다시 바뀐다.
  */

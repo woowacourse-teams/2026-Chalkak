@@ -2,12 +2,7 @@ package com.stonefive.chalkak.domain.model.photoedit
 
 import kotlin.math.roundToInt
 
-/**
- * 조정과 필터를 ARGB 픽셀에 적용한다. 미리보기와 업로드 인코더가 같은 계산을 쓴다.
- *
- * 노출·따뜻함·채도는 선형 공간에서, 톤 곡선은 sRGB 감마 공간에서 채널마다 적용하고, [filterMatrix]가 있으면
- * 마지막에 0..255 값에 곱한다.
- */
+/** 노출·따뜻함·채도는 선형 공간에서, 톤 곡선은 sRGB 감마 공간에서 적용하고 [filterMatrix]는 마지막에 곱한다. */
 class PhotoColorTransform(
     adjustments: PhotoAdjustments,
     private val filterMatrix: FloatArray? = null,
@@ -92,7 +87,7 @@ class PhotoColorTransform(
         private const val MAX_LEVEL = 255
         private const val ENCODE_STEPS = 4096
 
-        // 채도 계산에 쓰는 선형 공간 휘도 가중치.
+        // PhotoImageStatistics의 가중치와 조금 다르다. 바꾸면 결과 색이 달라진다.
         private const val LUMA_RED = 0.2125f
         private const val LUMA_GREEN = 0.7154f
         private const val LUMA_BLUE = 0.0721f
@@ -105,7 +100,6 @@ class PhotoColorTransform(
 
         fun of(edit: PhotoEdit): PhotoColorTransform = PhotoColorTransform(edit.adjustments, edit.filter.colorMatrix())
 
-        /** 이웃한 표본 사이를 직선으로 잇는다. */
         private fun toneAt(
             samples: DoubleArray,
             value: Double,

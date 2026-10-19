@@ -26,11 +26,10 @@ import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** 인코더와 같은 계수로 미리보기 필터 색을 맞춘다. 조정은 [rememberAdjustedImage]가 픽셀에 적용한다. */
 fun PhotoFilter.toColorFilter(): ColorFilter? = colorMatrix()?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
 
 /**
- * 인코더와 같은 [PhotoColorTransform]으로 조정을 적용한 미리보기 이미지. 조정이 없거나 아직 만들지 못했으면 null이다.
+ * 조정이 없거나 아직 만들지 못했으면 null이다.
  * 끄는 동안 값이 빠르게 바뀌면 만들고 있던 이미지를 끝낸 뒤 가장 최근 값으로 다시 만든다.
  */
 @Composable

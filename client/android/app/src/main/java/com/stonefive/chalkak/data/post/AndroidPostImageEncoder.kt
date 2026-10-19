@@ -147,7 +147,6 @@ class AndroidPostImageEncoder(
         return PostImageEncodeResult.SizeLimitExceeded
     }
 
-    // 조정이 없으면 필터 색을 그리면서 함께 입히고, 조정이 있으면 그린 뒤 픽셀마다 조정과 필터를 적용한다.
     private fun applyEdit(
         bitmap: Bitmap,
         edit: PhotoEdit,

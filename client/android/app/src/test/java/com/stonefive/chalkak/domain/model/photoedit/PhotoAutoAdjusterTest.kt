@@ -55,7 +55,7 @@ class PhotoAutoAdjusterTest {
         assertEquals(1.0, red.luminanceHistogram.sum(), 1e-9)
     }
 
-    // iOS 테스트와 같은 64×64 사진: 색상 0.08, 채도 0.3이고 명도가 0.35에서 0.6까지 가로로 오르는 뜬 주황빛 회색.
+    // 색상 0.08, 채도 0.3이고 명도가 0.35에서 0.6까지 가로로 오르는 뜬 주황빛 회색.
     private fun lowContrastPixels(): PhotoPixels {
         val size = 64
         val argb = IntArray(size * size) { index ->
@@ -69,7 +69,7 @@ class PhotoAutoAdjusterTest {
         return PhotoPixels(size, size, argb)
     }
 
-    // iOS 테스트처럼 가장 밝은 픽셀과 가장 어두운 픽셀의 녹색 채널 차이.
+    // 가장 밝은 픽셀과 가장 어두운 픽셀의 녹색 채널 차이.
     private fun brightnessRange(argb: IntArray): Int {
         val levels = argb.map { it shr 8 and 0xFF }
         return levels.max() - levels.min()

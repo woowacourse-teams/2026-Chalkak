@@ -9,7 +9,6 @@ import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 
-/** 사진을 줄여 디코딩하고 EXIF 방향을 픽셀에 반영한다. */
 internal class OrientedBitmapDecoder(private val contentResolver: ContentResolver) {
     sealed interface Result {
         data object Unreadable : Result
@@ -19,7 +18,6 @@ internal class OrientedBitmapDecoder(private val contentResolver: ContentResolve
         data class Success(val bitmap: Bitmap) : Result
     }
 
-    /** [sampleSize]는 원본 가로·세로로 `inSampleSize`를 정한다. */
     fun decode(
         uri: Uri,
         sampleSize: (width: Int, height: Int) -> Int,

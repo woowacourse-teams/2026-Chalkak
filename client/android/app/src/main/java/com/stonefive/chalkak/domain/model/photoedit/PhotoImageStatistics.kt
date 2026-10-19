@@ -2,7 +2,6 @@ package com.stonefive.chalkak.domain.model.photoedit
 
 import kotlin.math.roundToInt
 
-/** 자동 보정에 쓰는 밝기 히스토그램과 채도 통계. */
 class PhotoImageStatistics(
     /** 0..255 밝기(sRGB 감마 공간의 Rec. 709 가중치)의 픽셀 비율. */
     val luminanceHistogram: DoubleArray,
@@ -11,12 +10,10 @@ class PhotoImageStatistics(
 ) {
     fun luminancePercentile(fraction: Double): Double = percentile(fraction, luminanceHistogram)
 
-    /** 밝기가 조건을 만족하는 픽셀의 비율. */
     fun fraction(predicate: (Double) -> Boolean): Double =
         luminanceHistogram.withIndex().sumOf { (index, value) -> if (predicate(index / MAX_LEVEL)) value else 0.0 }
 
     companion object {
-        /** 자동 보정은 긴 변을 이만큼 줄인 사진으로 센다. */
         const val SAMPLE_LONG_EDGE = 256
 
         private const val LEVELS = 256

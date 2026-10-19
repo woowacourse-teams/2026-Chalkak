@@ -1,6 +1,6 @@
 package com.stonefive.chalkak.domain.model.photoedit
 
-/** 조정 항목. 선언 순서가 화면 순서다. iOS `PhotoEditAdjustment`와 같은 항목이다. */
+/** 선언 순서가 화면 순서다. */
 enum class PhotoAdjustment {
     Exposure,
     Contrast,
@@ -11,11 +11,7 @@ enum class PhotoAdjustment {
     Warmth,
 }
 
-/**
- * 항목별 조정 값. 화면에서 고르는 값은 -1..1이고 0이면 바꾸지 않는다.
- *
- * iOS와 같은 결과를 내도록 계산식은 [PhotoToneCurve]와 [PhotoColorTransform]에 플랫폼 API에 기대지 않는 형태로 둔다.
- */
+/** 항목마다 -1..1이고 0이면 바꾸지 않는다. */
 data class PhotoAdjustments(
     val exposure: Float = 0f,
     val contrast: Float = 0f,
@@ -51,7 +47,6 @@ data class PhotoAdjustments(
         PhotoAdjustment.Warmth -> copy(warmth = value + 0f)
     }
 
-    /** `this × scale + offset`을 항목마다 -1..1로 자른다. */
     fun scaled(
         scale: Float,
         offset: PhotoAdjustments,

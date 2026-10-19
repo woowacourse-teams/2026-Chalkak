@@ -28,10 +28,8 @@ class CropGeometry(
         height = imageHeight / longEdge
     }
 
-    /** 90° 단위 회전을 적용한 원본의 가로 대 세로 비율. */
     fun turnedAspectRatio(quarterTurns: Int): Float = turnedWidth(quarterTurns) / turnedHeight(quarterTurns)
 
-    /** 결과 이미지 좌표계에서 본 자르기 사각형. */
     fun outputRect(edit: PhotoEdit): CropRect {
         val rotation = PhotoRotation.of(edit.rotationDegrees)
         val sourceX = edit.crop.centerX * width - width / 2f
@@ -111,7 +109,7 @@ class CropGeometry(
         return rotated.copy(crop = constrain(rotated))
     }
 
-    /** 프레임 모양을 유지한 90° 회전. 사진만 돌리고 결과 사각형의 가로·세로는 그대로 두며, 원본을 벗어나면 비율을 유지한 채 줄인다. */
+    /** 사진만 돌리고 결과 사각형의 가로·세로는 그대로 둔다. 원본을 벗어나면 비율을 유지한 채 줄인다. */
     fun rotateQuarterKeepingFrame(edit: PhotoEdit): PhotoEdit {
         val rect = outputRect(edit)
         val quarterTurns = (edit.quarterTurns + 1).mod(QUARTER_TURNS)

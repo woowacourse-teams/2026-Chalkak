@@ -8,11 +8,8 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * 사진 통계로 자동 보정값을 정한다.
- *
- * 노출 → 블랙 포인트 → 그림자·하이라이트·대비 순서로, 앞 단계를 적용한 밝기 분포를 보고 다음 값을 정한다.
- * 보정은 단조 증가라 백분위수 순서가 유지되므로 히스토그램을 다시 세지 않고 위치만 옮긴다.
- * 값은 문턱 없이 사진 상태에 비례하고, 끝까지 늘리지 않고 덜어 내서 과보정을 피한다.
+ * 앞 단계를 적용한 밝기 분포를 보고 다음 값을 정한다. 보정은 단조 증가라 백분위수 순서가 유지되므로
+ * 히스토그램을 다시 세지 않고 위치만 옮긴다. 과보정을 피하려고 목표까지 다 옮기지 않고 덜어 낸다.
  */
 object PhotoAutoAdjuster {
     private const val WHITE_PERCENTILE = 0.995
@@ -94,7 +91,6 @@ object PhotoAutoAdjuster {
         return SrgbTransfer.gamma(minOf(1.0, linear))
     }
 
-    // 가장 어두운 쪽이 떠 있는 만큼 일부만 끌어내린다.
     private fun blackPoint(
         statistics: PhotoImageStatistics,
         exposed: (Double) -> Double,
@@ -104,7 +100,6 @@ object PhotoAutoAdjuster {
         return rounded(inputBlack / PhotoAdjustmentResponse.BLACK_POINT_RANGE)
     }
 
-    // 어두운 영역·밝은 영역이 넓을수록 살린다. 좁은 영역에도 반응하도록 1보다 작은 지수로 올린다.
     private fun shadows(
         statistics: PhotoImageStatistics,
         leveled: (Double) -> Double,
@@ -121,7 +116,6 @@ object PhotoAutoAdjuster {
         return rounded(-MAXIMUM_HIGHLIGHT_RECOVERY * response(brightFraction / FULL_HIGHLIGHT_FRACTION))
     }
 
-    // 중간 50%가 좁게 몰려 있으면 넓힌다. 낮추지는 않는다.
     private fun contrast(
         statistics: PhotoImageStatistics,
         leveled: (Double) -> Double,
@@ -131,13 +125,13 @@ object PhotoAutoAdjuster {
         return rounded(((TARGET_MID_SPREAD - midSpread) * CONTRAST_SLOPE).coerceIn(0.0, MAXIMUM_CONTRAST))
     }
 
-    // 흑백에 가까운 사진은 그대로 두고, 덜 선명한 사진만 조금 올린다.
     private fun saturation(statistics: PhotoImageStatistics): Double {
         val saturation = statistics.saturation90
         if (saturation <= GRAYSCALE_SATURATION) return 0.0
         return rounded(((TARGET_SATURATION - saturation) * SATURATION_SLOPE).coerceIn(0.0, MAXIMUM_SATURATION))
     }
 
+    // 좁은 영역에도 반응하도록 1보다 작은 지수로 올린다.
     private fun response(ratio: Double): Double = ratio.coerceIn(0.0, 1.0).pow(RESPONSE_EXPONENT)
 
     // 0.5는 0에서 먼 쪽으로 반올림하고 -0은 0으로 바꾼다.
