@@ -56,6 +56,32 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         });
     }
 
+    @Test
+    @DisplayName("썸네일이 없는 사진도 원본 URL과 null 썸네일로 조회한다")
+    void getAuthorPosts_missingThumbnail_returnsOriginalUrlAndNullThumbnail() {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        UUID postId = createPost(jdbcTemplate, authorId,
+                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
+        jdbcTemplate.update("""
+                UPDATE photos
+                SET thumbnail_storage_key = NULL
+                WHERE id = (SELECT photo_id FROM posts WHERE id = ?)
+                """, postId);
+
+        // When
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 20, viewerId);
+
+        // Then
+        assertThat(result.posts()).singleElement().satisfies(post -> {
+            assertThat(post.id()).isEqualTo(postId);
+            assertThat(post.originalImageUrl())
+                    .isEqualTo("https://cdn.example.com/test/posts/" + postId + ".webp");
+            assertThat(post.thumbnailImageUrl()).isNull();
+        });
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {1, 2})
     @DisplayName("요청한 개수만큼 최근 공개 사진을 조회한다")
