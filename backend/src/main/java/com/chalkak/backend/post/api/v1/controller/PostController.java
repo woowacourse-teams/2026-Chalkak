@@ -56,7 +56,6 @@ public class PostController implements PostApiDocs {
 
     private final PostCommandService postCommandService;
     private final PostQueryService postQueryService;
-    private final HttpServletRequest servletRequest;
 
     @Override
     @RequiresUsableUser
@@ -128,7 +127,8 @@ public class PostController implements PostApiDocs {
     @GetMapping
     public ResponseEntity<PostListResponse> getPosts(
             @Valid @ModelAttribute PostListRequest request,
-            @OptionalLoginUser Optional<AuthenticatedUser> loginUser
+            @OptionalLoginUser Optional<AuthenticatedUser> loginUser,
+            HttpServletRequest servletRequest
     ) {
         PostListResponse response = PostListResponse.fromPostListResult(
                 postQueryService.getPosts(
@@ -138,7 +138,7 @@ public class PostController implements PostApiDocs {
                         request.page(),
                         request.pageSize(),
                         loginUser.map(AuthenticatedUser::userId)));
-        setFeedQueryLog(request, response);
+        setFeedQueryLog(servletRequest, request, response);
         return ResponseEntity.ok(response);
     }
 
@@ -198,7 +198,11 @@ public class PostController implements PostApiDocs {
         return ResponseEntity.ok(PostDetailResponse.fromPostDetail(detail));
     }
 
-    private void setFeedQueryLog(PostListRequest request, PostListResponse response) {
+    private void setFeedQueryLog(
+            HttpServletRequest servletRequest,
+            PostListRequest request,
+            PostListResponse response
+    ) {
         servletRequest.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE, new FeedQueryLog(
                 request.sort().name().toLowerCase(Locale.ROOT),
                 response.currentPage(),
