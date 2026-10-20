@@ -15,11 +15,15 @@ final class AiReviewFixture {
     static final UUID AUTHOR_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006a1");
     static final UUID OTHER_USER_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006a2");
     static final UUID POST_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006d1");
+    static final UUID SECOND_POST_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006d2");
+    static final String ORIGINAL_STORAGE_KEY = "chalkak/test/ai-review/original.webp";
     static final String MODEL = "gpt-6.1-sol";
     static final String TOPIC_TITLE = "노을";
 
     private static final UUID TOPIC_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006b1");
     private static final UUID PHOTO_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006c1");
+    private static final UUID SECOND_PHOTO_ID =
+            UUID.fromString("019a0000-0000-7000-8000-0000000006c2");
     private static final String DELETED_AT = "TIMESTAMPTZ '2026-10-01T00:00:00Z'";
     private static final String RESULT_JSON = """
             {"overallScore":7.5,
@@ -41,6 +45,25 @@ final class AiReviewFixture {
         insertAdmin();
         insertUser(AUTHOR_ID, "ai-review-author@example.com", "ACTIVE", false);
         insertPost("APPROVED", false, false, false);
+    }
+
+    /** 같은 주제에 다른 회원이 올린 두 번째 승인 게시물을 넣는다. insertPublicPost 뒤에 부른다. */
+    void insertSecondPublicPost() {
+        insertUser(OTHER_USER_ID, "ai-review-other@example.com", "ACTIVE", false);
+        jdbcTemplate.update("""
+                INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
+                    created_at, updated_at)
+                VALUES (?, 'chalkak/test/ai-review/original-2.webp',
+                    'chalkak/test/ai-review/thumb-2.webp',
+                    CAST('{"width":1024,"height":768}' AS jsonb),
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, SECOND_PHOTO_ID);
+        jdbcTemplate.update("""
+                INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
+                    moderation_status, moderated_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, NULL, '두 번째 리뷰 대상', CAST('APPROVED' AS moderation_status),
+                    NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, SECOND_POST_ID, OTHER_USER_ID, TOPIC_ID, SECOND_PHOTO_ID);
     }
 
     void insertAdmin() {
@@ -104,13 +127,35 @@ final class AiReviewFixture {
     }
 
     UUID insertQueuedReview(UUID promptVersionId, Instant requestedAt) {
+        return insertQueuedReview(POST_ID, AUTHOR_ID, promptVersionId, requestedAt);
+    }
+
+    UUID insertQueuedReview(UUID postId, UUID userId, UUID promptVersionId, Instant requestedAt) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
                     request_id, requested_at)
                 VALUES (?, ?, ?, ?, 'QUEUED', 0, ?, ?)
-                """, id, POST_ID, AUTHOR_ID, promptVersionId, UUID.randomUUID(),
+                """, id, postId, userId, promptVersionId, UUID.randomUUID(),
                 Timestamp.from(requestedAt));
+        return id;
+    }
+
+    UUID insertProcessingReview(
+            UUID postId,
+            UUID userId,
+            UUID promptVersionId,
+            int attempt,
+            Instant requestedAt,
+            Instant leaseExpiresAt
+    ) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
+                    lease_expires_at, request_id, requested_at, started_at)
+                VALUES (?, ?, ?, ?, 'PROCESSING', ?, ?, ?, ?, ?)
+                """, id, postId, userId, promptVersionId, attempt, Timestamp.from(leaseExpiresAt),
+                UUID.randomUUID(), Timestamp.from(requestedAt), Timestamp.from(requestedAt));
         return id;
     }
 

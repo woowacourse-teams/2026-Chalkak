@@ -1,10 +1,12 @@
 package com.chalkak.backend.aireview.infrastructure.persistence;
 
 import com.chalkak.backend.aireview.domain.AiReview;
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,4 +36,21 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
     );
 
     Optional<AiReview> findByPostId(UUID postId);
+
+    @Query(
+            value = """
+                    SELECT * FROM ai_reviews
+                    WHERE status = 'QUEUED'
+                        OR (status = 'PROCESSING' AND lease_expires_at < :now)
+                    ORDER BY requested_at, id
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                    """,
+            nativeQuery = true
+    )
+    Optional<AiReview> findClaimableForUpdate(@Param("now") Instant now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT review FROM AiReview review WHERE review.id = :id")
+    Optional<AiReview> findByIdForUpdate(@Param("id") UUID id);
 }

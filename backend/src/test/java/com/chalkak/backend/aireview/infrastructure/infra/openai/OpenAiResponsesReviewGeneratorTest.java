@@ -172,6 +172,7 @@ class OpenAiResponsesReviewGeneratorTest {
         assertThat(result.distinctivePerspective()).isTrue();
         assertThat(result.feedback()).isEqualTo("구도가 좋습니다.");
         assertThat(generation.output()).isEqualTo(new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다."));
+        assertThat(generation.rawOutput()).isEqualTo(OK_OUTPUT);
         assertThat(generation.attempt().usage()).isEqualTo(new Usage(1200, 300, 85, 40));
         assertThat(generation.attempt().responseId()).isEqualTo("resp_123");
         assertThat(generation.attempt().latency()).isEqualTo(Duration.ofMillis(1234));

@@ -102,6 +102,10 @@ public class AiPromptVersion {
         return outputSchemaVersion.equals(type.outputSchemaVersion());
     }
 
+    public AiPromptDraft toDraft() {
+        return new AiPromptDraft(type, systemPrompt, userPromptTemplate, model, parameters);
+    }
+
     private static String normalizeMemo(String memo) {
         if (memo == null || memo.isBlank()) {
             return null;

@@ -309,7 +309,7 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     private AiReviewGeneration successGeneration() {
         PhotoReviewOutput output = new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다.");
         AiReviewResult result = output.toResult(7.0);
-        return new AiReviewGeneration(result, output,
+        return new AiReviewGeneration(result, output, "{}",
                 new Attempt(new Usage(1200, 300, 85, 40), Duration.ofMillis(1234), "resp_1"));
     }
 

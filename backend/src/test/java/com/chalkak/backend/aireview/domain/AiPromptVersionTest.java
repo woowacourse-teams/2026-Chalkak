@@ -106,6 +106,16 @@ class AiPromptVersionTest {
         assertThat(version.isCompatibleWith()).isFalse();
     }
 
+    @Test
+    @DisplayName("버전에서 만든 초안은 버전을 만든 초안과 같은 값이다")
+    void toDraft_createdVersion_returnsSameDraft() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(draft(), 1, "메모", ADMIN_ID);
+
+        // When & Then
+        assertThat(version.toDraft()).isEqualTo(draft());
+    }
+
     private AiPromptDraft draft() {
         return new AiPromptDraft(AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}",
                 "gpt-6.1-sol", PARAMETERS);

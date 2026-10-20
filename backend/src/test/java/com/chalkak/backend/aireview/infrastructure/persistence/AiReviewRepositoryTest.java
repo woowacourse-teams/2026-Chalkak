@@ -6,11 +6,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.aireview.domain.AiPromptVersion;
 import com.chalkak.backend.aireview.domain.AiReview;
+import com.chalkak.backend.aireview.domain.AiReview.Invocation;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
+import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
+import com.chalkak.backend.aireview.domain.AiReview.StoredResult.Criterion;
 import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 @Transactional
 class AiReviewRepositoryTest extends IntegrationTestSupport {
@@ -36,6 +44,12 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private UUID promptVersionId;
 
@@ -146,6 +160,94 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
                 """, POST_ID, USER_ID, promptVersionId, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_ai_reviews");
+    }
+
+    @Test
+    @DisplayName("가져갈 후보는 대기 행과 임대가 끝난 처리 중 행뿐이다")
+    void findClaimableForUpdate_returnsOnlyQueuedOrExpiredProcessing() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        Instant now = REQUESTED_AT.plusSeconds(600);
+
+        // When & Then
+        assertThat(reviewRepository.findClaimableForUpdate(now)).isPresent();
+
+        setProcessing(now.plusSeconds(1));
+        assertThat(reviewRepository.findClaimableForUpdate(now)).isEmpty();
+
+        setProcessing(now.minusSeconds(1));
+        assertThat(reviewRepository.findClaimableForUpdate(now)).isPresent();
+
+        jdbcTemplate.update("""
+                UPDATE ai_reviews SET status = 'FAILED', lease_expires_at = NULL,
+                    error_code = 'TIMEOUT', completed_at = CURRENT_TIMESTAMP
+                """);
+        entityManager.clear();
+        assertThat(reviewRepository.findClaimableForUpdate(now)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("행 식별자로 잠그고 읽는다")
+    void findByIdForUpdate_returnsReview() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        UUID id = reviewRepository.findByPostId(POST_ID).orElseThrow().getId();
+
+        // When & Then
+        assertThat(reviewRepository.findByIdForUpdate(id)).map(AiReview::getId).contains(id);
+        assertThat(reviewRepository.findByIdForUpdate(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("가져가기와 완료로 바뀐 모든 열이 CHECK 제약을 지켜 저장되고 원출력은 그대로 읽힌다")
+    void transitions_persistAllColumns() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        AiReview review = reviewRepository.findClaimableForUpdate(REQUESTED_AT).orElseThrow();
+        String output =
+                "{\"composition\":7.46,\"theme_expression\":8,\"feedback\":\"좋습니다\"}";
+        Instant claimedAt = REQUESTED_AT.plusSeconds(5);
+        Instant completedAt = REQUESTED_AT.plusSeconds(26);
+
+        // When
+        review.claim(claimedAt, claimedAt.plusSeconds(120), 3);
+        entityManager.flush();
+        Map<String, Object> processing = jdbcTemplate.queryForMap("SELECT * FROM ai_reviews");
+        review.complete(
+                1,
+                new StoredResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
+                        "좋습니다"),
+                output,
+                new Invocation(1200, 0, 300, 64, 21_000L, "resp_abc"),
+                completedAt);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(processing).containsEntry("status", "PROCESSING").containsEntry("attempt", 1);
+        assertThat(((Timestamp) processing.get("lease_expires_at")).toInstant())
+                .isEqualTo(claimedAt.plusSeconds(120));
+        Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM ai_reviews");
+        assertThat(row).containsEntry("status", "COMPLETED")
+                .containsEntry("input_tokens", 1200)
+                .containsEntry("cached_input_tokens", 0)
+                .containsEntry("output_tokens", 300)
+                .containsEntry("reasoning_tokens", 64)
+                .containsEntry("latency_ms", 21_000L)
+                .containsEntry("openai_response_id", "resp_abc");
+        assertThat(row.get("lease_expires_at")).isNull();
+        assertThat(((Timestamp) row.get("started_at")).toInstant()).isEqualTo(claimedAt);
+        assertThat(((Timestamp) row.get("completed_at")).toInstant()).isEqualTo(completedAt);
+        AiReview reloaded = reviewRepository.findByPostId(POST_ID).orElseThrow();
+        assertThat(objectMapper.readTree(reloaded.getOutput())).isEqualTo(objectMapper.readTree(output));
+        assertThat(reloaded.getResult().feedback()).isEqualTo("좋습니다");
+    }
+
+    private void setProcessing(Instant leaseExpiresAt) {
+        jdbcTemplate.update("""
+                UPDATE ai_reviews SET status = 'PROCESSING', attempt = 1, lease_expires_at = ?
+                """, Timestamp.from(leaseExpiresAt));
+        entityManager.clear();
     }
 
     private AiReview request(UUID requestId) {

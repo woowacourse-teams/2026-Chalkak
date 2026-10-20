@@ -85,7 +85,7 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
         insertApprovedPost();
         PhotoReviewOutput output = new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다.");
         given(aiReviewGenerator.generate(any())).willReturn(new AiReviewGeneration(
-                output.toResult(7.0), output,
+                output.toResult(7.0), output, "{}",
                 new Attempt(new Usage(1200, null, 85, null), Duration.ofMillis(10), "resp_1")));
 
         // When & Then
