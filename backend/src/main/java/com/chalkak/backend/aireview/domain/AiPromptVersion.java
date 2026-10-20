@@ -95,6 +95,13 @@ public class AiPromptVersion {
         return promptVersion;
     }
 
+    /**
+     * 이 버전이 모델에게 요구하는 출력 스키마가 서버가 지금 해석할 수 있는 버전인지 확인한다.
+     */
+    public boolean isCompatibleWith() {
+        return outputSchemaVersion.equals(type.outputSchemaVersion());
+    }
+
     private static String normalizeMemo(String memo) {
         if (memo == null || memo.isBlank()) {
             return null;

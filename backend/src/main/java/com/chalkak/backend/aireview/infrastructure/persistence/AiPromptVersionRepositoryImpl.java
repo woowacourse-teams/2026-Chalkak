@@ -36,6 +36,11 @@ public class AiPromptVersionRepositoryImpl implements AiPromptVersionRepository 
     }
 
     @Override
+    public Optional<AiPromptVersion> findLatestByType(AiPromptType type) {
+        return jpaRepository.findFirstByTypeOrderByVersionDesc(type);
+    }
+
+    @Override
     public Optional<AiPromptVersion> findById(UUID promptVersionId) {
         return jpaRepository.findById(promptVersionId);
     }

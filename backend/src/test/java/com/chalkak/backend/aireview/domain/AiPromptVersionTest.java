@@ -10,6 +10,7 @@ import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class AiPromptVersionTest {
 
@@ -82,6 +83,27 @@ class AiPromptVersionTest {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, null, null))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("출력 스키마 버전이 유형의 현재 버전과 같으면 호환된다")
+    void isCompatibleWith_sameSchemaVersion_returnsTrue() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
+
+        // When & Then
+        assertThat(version.isCompatibleWith()).isTrue();
+    }
+
+    @Test
+    @DisplayName("출력 스키마 버전이 유형의 현재 버전과 다르면 호환되지 않는다")
+    void isCompatibleWith_differentSchemaVersion_returnsFalse() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
+        ReflectionTestUtils.setField(version, "outputSchemaVersion", "0");
+
+        // When & Then
+        assertThat(version.isCompatibleWith()).isFalse();
     }
 
     private AiPromptDraft draft() {
