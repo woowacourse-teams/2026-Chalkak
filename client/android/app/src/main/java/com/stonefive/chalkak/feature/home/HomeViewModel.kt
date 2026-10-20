@@ -26,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +47,7 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
+    private var feedbackJob: Job? = null
     private var hasBeenPresented = false
     private val isPreloadingEnabled = MutableStateFlow(false)
     private val _isReadyForInitialDisplay = MutableStateFlow(false)
@@ -61,12 +63,12 @@ class HomeViewModel(
 
                         session == UserSessionState.SignedOut -> {
                             loadJob?.cancel()
-                            _uiState.value = HomeUiState(date = dateProvider())
+                            resetState(HomeUiState(date = dateProvider()))
                         }
 
                         else -> {
                             loadJob?.cancel()
-                            _uiState.value = HomeUiState(date = dateProvider())
+                            resetState(HomeUiState(date = dateProvider()))
                         }
                     }
                 }
@@ -103,6 +105,26 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * 피드백 카드의 "분석 시작하기"에서 호출한다. [HomeFeedbackPhase.Ready]일 때만 [HomeFeedbackPhase.Processing]으로
+     * 바꾸고, [MOCK_FEEDBACK_DURATION_MS] 뒤 [HomeFeedbackPhase.Completed]로 바꾼다.
+     * 서버 API가 생기면 이 지연 대신 분석 요청과 결과 조회로 바꾼다.
+     */
+    fun startFeedback() {
+        if (_uiState.value.feedbackPhase != HomeFeedbackPhase.Ready) return
+        _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Processing) }
+        feedbackJob = viewModelScope.launch {
+            delay(MOCK_FEEDBACK_DURATION_MS)
+            _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Completed) }
+        }
+    }
+
+    // 날짜·세션이 바뀌어 화면 상태를 새로 만들 때 이전 사진의 피드백 목업이 새 상태를 완료로 바꾸지 않게 멈춘다.
+    private fun resetState(state: HomeUiState) {
+        feedbackJob?.cancel()
+        _uiState.value = state
+    }
+
     private fun loadHome(
         reset: Boolean,
         showRefreshIndicator: Boolean = false,
@@ -111,10 +133,10 @@ class HomeViewModel(
         val date = dateProvider()
         val authenticated = sessionState.value is UserSessionState.Authenticated
         val previous = _uiState.value
-        _uiState.value = if (reset || previous.date != date) {
-            HomeUiState(date = date, isAuthenticated = authenticated)
+        if (reset || previous.date != date) {
+            resetState(HomeUiState(date = date, isAuthenticated = authenticated))
         } else {
-            previous.copy(isRefreshing = showRefreshIndicator, isAuthenticated = authenticated)
+            _uiState.value = previous.copy(isRefreshing = showRefreshIndicator, isAuthenticated = authenticated)
         }
         loadJob = viewModelScope.launch {
             coroutineScope {
@@ -270,6 +292,7 @@ class HomeViewModel(
 
     companion object {
         private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
+        internal const val MOCK_FEEDBACK_DURATION_MS = 3_000L
 
         val Factory = viewModelFactory {
             initializer {
