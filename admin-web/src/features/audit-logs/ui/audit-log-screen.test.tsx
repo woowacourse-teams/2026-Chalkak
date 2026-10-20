@@ -67,3 +67,17 @@ it("shows schedule audit labels and links to the settings even after deletion", 
   fireEvent.click(screen.getByRole("button", { name: "조회" }));
   expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=TOPIC_PUSH_SCHEDULE");
 });
+
+
+it("shows banner actions and returns to the list without inventing a detail route", async () => {
+  const result = await getApiClient().request<{ id: string }>("/banners", { method: "POST", body: { title: "새 배너", subtitle: "부제목", webViewUrl: "https://example.com/test", thumbnailUrl: "https://example.com/image.png" } });
+  await getApiClient().request(`/banners/${result.id}`, { method: "DELETE" });
+  mount();
+  const links = await screen.findAllByRole("link", { name: "배너 보기 →" });
+  expect(links).toHaveLength(2);
+  for (const link of links) expect(link).toHaveAttribute("href", "/banners");
+  expect(screen.getAllByText("배너 등록")).toHaveLength(2);
+  fireEvent.change(screen.getByRole("combobox", { name: "대상" }), { target: { value: "BANNER" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=BANNER");
+});
