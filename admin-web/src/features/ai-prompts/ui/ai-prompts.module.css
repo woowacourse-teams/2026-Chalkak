@@ -1,0 +1,17 @@
+.intro { display: grid; gap: 8px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 20px; color: #656776; font-size: 13px; line-height: 1.7; }
+.intro p { margin: 0; color: #41434f; font-weight: 600; }
+.typeLabel { display: inline-flex; width: fit-content; max-width: 100%; border-radius: 4px; background: #eeeffb; padding: 5px 8px; color: #4545ab; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; color: #77798d; font-size: 12px; }
+.heading a { display: inline-flex; min-height: 44px; align-items: center; color: #5557a1; }
+.versionCell { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.versionCell a { display: inline-flex; min-height: 44px; align-items: center; color: #5557a1; font-weight: 700; }
+.versionCell a:hover { text-decoration: underline; }
+.memo { max-width: 280px; overflow-wrap: anywhere; color: #656776; }
+.muted { color: #77798d; }
+.prompt { max-height: 480px; margin: 0; overflow: auto; border: 1px solid #e3e4ed; border-radius: 6px; background: #f6f7fb; padding: 14px; color: #252631; font: inherit; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.promptHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.promptHeading h3 { margin: 0; }
+.promptHeading span { color: #77798d; font-size: 12px; }
+.stack { display: grid; min-width: 0; gap: 16px; }
+.defaultNote { color: #77798d; font-size: 11px; }
+@media (max-width: 760px) { .intro { padding: 16px; } }

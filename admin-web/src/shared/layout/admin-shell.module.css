@@ -26,8 +26,8 @@
 @media (max-width: 800px) {
   .header { min-height: 64px; gap: 12px; padding: 10px 20px; }
   .brand { font-size: 17px; }
-  .navigation { position: fixed; inset: auto 0 0; z-index: 30; display: grid; min-height: var(--admin-bottom-nav-height); grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border-top: 1px solid #dde1e7; background: #fff; padding: 5px 6px calc(5px + env(safe-area-inset-bottom)); }
-  .navLink, .activeLink { min-height: 58px; flex-direction: column; gap: 5px; border-radius: 6px; padding: 7px 4px; font-size: 10px; }
+  .navigation { position: fixed; inset: auto 0 0; z-index: 30; display: grid; min-height: var(--admin-bottom-nav-height); grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0; border-top: 1px solid #dde1e7; background: #fff; padding: 5px 6px calc(5px + env(safe-area-inset-bottom)); }
+  .navLink, .activeLink { min-height: 58px; flex-direction: column; gap: 5px; border-radius: 6px; padding: 7px 4px; font-size: 10px; line-height: 1.2; text-align: center; white-space: normal; word-break: keep-all; }
   .navigation svg { display: block; width: 20px; height: 20px; }
   .activeLink { background: #f2f2fb; }
   .mainContent { padding: 24px 20px 32px; }
@@ -42,6 +42,11 @@
   .logoutButton { padding-inline: 9px; font-size: 11px; }
   .mainContent { padding: 20px 16px 28px; }
   .demoNotice { padding: 8px 16px; font-size: 10px; }
+}
+
+@media (max-width: 360px) {
+  .navigation { padding-inline: 2px; }
+  .navLink, .activeLink { padding-inline: 2px; }
 }
 
 @media (max-width: 1024px) {
