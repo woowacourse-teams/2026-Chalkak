@@ -3,9 +3,10 @@ package com.chalkak.backend.admin.service.banner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
-import com.chalkak.backend.admin.domain.AdminAuditLog;
+import com.chalkak.backend.banner.service.BannerResult;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -32,7 +33,7 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     private static final String URL = "https://chalkak.vercel.app/event";
 
     @Autowired
-    private AdminBannerService bannerService;
+    private AdminBannerService adminBannerService;
 
     @Autowired
     private EntityManager entityManager;
@@ -63,7 +64,7 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("배너 등록은 정규화한 정보를 저장하고 URL 없이 감사 로그를 남긴다")
     void createBanner_validInput_persistsBannerAndAudit() throws Exception {
         // When
-        AdminBannerResult result = bannerService.createBanner(ADMIN_ID, " 제목 ", " 부제목 ",
+        BannerResult result = adminBannerService.createBanner(ADMIN_ID, " 제목 ", " 부제목 ",
                 " " + URL + " ", " https://cdn.example.com/banner.png ");
         entityManager.flush();
         entityManager.clear();
@@ -95,7 +96,7 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("잘못된 도메인 입력이면 배너와 감사 기록을 저장하지 않는다")
     void createBanner_invalidInput_throwsBeforeSaving() {
         // When & Then
-        assertThatThrownBy(() -> bannerService.createBanner(ADMIN_ID, "제목", "부제목",
+        assertThatThrownBy(() -> adminBannerService.createBanner(ADMIN_ID, "제목", "부제목",
                 "http://example.com", "https://cdn.example.com/banner.png"))
                 .isInstanceOf(BusinessException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
@@ -107,11 +108,11 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("쿼리나 프래그먼트가 다르면 별도 배너를 등록한다")
     void createBanner_differentCompleteUrl_persistsBoth(String suffix) {
         // Given
-        bannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
+        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
                 "https://cdn.example.com/banner.png");
 
         // When
-        bannerService.createBanner(ADMIN_ID, "제목", "부제목", URL + suffix,
+        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL + suffix,
                 "https://cdn.example.com/banner.png");
         entityManager.flush();
         entityManager.clear();
@@ -125,11 +126,11 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("중복은 사전 검사에서 거절해 DB 제약 오류 없이 기존 데이터를 유지한다")
     void createBanner_existingUrl_rejectsBeforeDatabaseViolation() {
         // Given
-        bannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
+        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
                 "https://cdn.example.com/banner.png");
 
         // When & Then
-        assertThatThrownBy(() -> bannerService.createBanner(ADMIN_ID, "다른 제목", "다른 부제목",
+        assertThatThrownBy(() -> adminBannerService.createBanner(ADMIN_ID, "다른 제목", "다른 부제목",
                 "\u2003" + URL + "\u2003", "https://cdn.example.com/other.png"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("동일한 웹뷰 URL의 배너가 이미 존재합니다.");
@@ -148,7 +149,7 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
         }
 
         // When
-        AdminBannerResult result = bannerService.createBanner(ADMIN_ID, "제목", "부제목",
+        BannerResult result = adminBannerService.createBanner(ADMIN_ID, "제목", "부제목",
                 url.toString(), "https://cdn.example.com/banner.png");
         entityManager.flush();
         entityManager.clear();

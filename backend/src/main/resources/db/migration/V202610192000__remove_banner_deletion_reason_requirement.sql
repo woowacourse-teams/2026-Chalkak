@@ -1,0 +1,1 @@
+ALTER TABLE admin_audit_logs DROP CONSTRAINT ck_admin_audit_logs_banner_deletion_reason;

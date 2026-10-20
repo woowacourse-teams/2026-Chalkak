@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.domain;
 
+import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -39,6 +40,9 @@ final class AdminAuditTransitionRules {
             "deletedAt");
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> BANNER_STATE_FIELDS = Set.of("titleSha256", "subtitleSha256");
+    private static final Set<String> DELETED_BANNER_STATE_FIELDS = Set.of(
+            "titleSha256", "subtitleSha256", "deletedAt");
+    private static final Set<String> AI_PROMPT_VERSION_STATE_FIELDS = Set.of("type", "version");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -212,6 +216,38 @@ final class AdminAuditTransitionRules {
                 && afterState.hasExactlyFields(BANNER_STATE_FIELDS)
                 && isSha256Hex(afterState.value("titleSha256"))
                 && isSha256Hex(afterState.value("subtitleSha256"));
+    }
+
+    static boolean isBannerDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && afterState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && isSha256Hex(beforeState.value("titleSha256"))
+                && isSha256Hex(beforeState.value("subtitleSha256"))
+                && BANNER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)))
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"));
+    }
+
+    static boolean isAiPromptVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty()
+                && afterState.hasExactlyFields(AI_PROMPT_VERSION_STATE_FIELDS)
+                && isAiPromptType(afterState.value("type"))
+                && afterState.value("version") instanceof Integer version
+                && version > 0;
+    }
+
+    private static boolean isAiPromptType(Object value) {
+        return value instanceof String name
+                && Arrays.stream(AiPromptType.values()).anyMatch(type -> type.name().equals(name));
     }
 
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {

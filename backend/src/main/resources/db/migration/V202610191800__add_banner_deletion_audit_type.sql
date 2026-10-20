@@ -1,0 +1,1 @@
+ALTER TYPE admin_action ADD VALUE 'BANNER_DELETED';

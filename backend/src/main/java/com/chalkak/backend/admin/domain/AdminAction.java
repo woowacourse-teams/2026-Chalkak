@@ -76,7 +76,17 @@ public enum AdminAction {
     BANNER_CREATED(
             AdminTargetType.BANNER,
             false,
-            AdminAuditTransitionRules::isBannerCreated);
+            AdminAuditTransitionRules::isBannerCreated),
+
+    BANNER_DELETED(
+            AdminTargetType.BANNER,
+            false,
+            AdminAuditTransitionRules::isBannerDeleted),
+
+    AI_PROMPT_VERSION_CREATED(
+            AdminTargetType.AI_PROMPT_VERSION,
+            false,
+            AdminAuditTransitionRules::isAiPromptVersionCreated);
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;

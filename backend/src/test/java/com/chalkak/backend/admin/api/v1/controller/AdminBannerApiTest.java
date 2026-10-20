@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -72,7 +73,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.webViewUrl").value("https://chalkak.vercel.app/event"));
         entityManager.flush();
         entityManager.clear();
-        mockMvc.perform(get("/api/v1/admin/banners")
+        mockMvc.perform(get("/api/v1/banners")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banners.length()").value(1))
@@ -92,7 +93,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
         String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
 
         // When & Then
-        mockMvc.perform(get("/api/v1/admin/banners")
+        mockMvc.perform(get("/api/v1/banners")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .param("page", Integer.toString(page))
                 .param("pageSize", Integer.toString(pageSize)))
@@ -100,4 +101,33 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
     }
+    @Test
+    @DisplayName("본문 없는 관리자 삭제는 204를 반환하고 인증된 관리자를 감사에 기록한다")
+    void deleteBanner_adminToken_recordsAuthenticatedActor() throws Exception {
+        // Given
+        Admin admin = adminRepository
+                .save(Admin.create("banner-delete-api", passwordEncoder.encode("test-password")));
+        com.chalkak.backend.banner.domain.Banner banner = com.chalkak.backend.banner.domain.Banner
+                .create("제목", "부제목",
+                        "https://example.com/event", "https://example.com/image.png");
+        entityManager.persist(banner);
+        entityManager.flush();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/banners/" + banner.getId())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT actor_admin_id FROM admin_audit_logs
+                WHERE target_id = ? AND action = 'BANNER_DELETED'
+                """, UUID.class, banner.getId())).isEqualTo(admin.getId());
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT reason FROM admin_audit_logs WHERE target_id = ? AND action = 'BANNER_DELETED'
+                        """,
+                String.class, banner.getId())).isNull();
+    }
+
 }

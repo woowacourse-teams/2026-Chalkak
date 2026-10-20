@@ -58,12 +58,16 @@ rule_pages:
       관리자 활동 기록: [ADMIN-006, ADMIN-007]
       검수 요청 알림: [ADMIN-008]
       피드백 조회: [ADMIN-009]
+      AI 프롬프트 미리보기: [ADMIN-010]
+      AI 프롬프트 버전: [ADMIN-011]
   docs/business-rules/rules/banner.md:
     domain: 배너
     pages:
       등록 정보와 입력 조건: [BANNER-001, BANNER-002]
       웹뷰 URL 중복: [BANNER-003]
       관리자 목록 조회: [BANNER-004]
+      관리자 삭제: [BANNER-005]
+      앱 공개 목록 조회: [BANNER-006]
   docs/business-rules/rules/notification.md:
     domain: 알림함
     pages:
