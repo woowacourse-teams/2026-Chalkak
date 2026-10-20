@@ -5,7 +5,7 @@ import android.graphics.Matrix
 import androidx.exifinterface.media.ExifInterface
 
 /** EXIF 방향 값을 픽셀에 반영한다. 바꿀 것이 없으면 같은 비트맵을 돌려준다. */
-internal fun Bitmap.applyExifOrientation(orientation: Int): Bitmap {
+fun Bitmap.applyExifOrientation(orientation: Int): Bitmap {
     val matrix = Matrix()
     when (orientation) {
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)

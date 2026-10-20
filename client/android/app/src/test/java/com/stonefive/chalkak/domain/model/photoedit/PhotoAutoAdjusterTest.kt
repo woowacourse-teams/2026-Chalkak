@@ -58,12 +58,14 @@ class PhotoAutoAdjusterTest {
 
     @Test
     fun `피부색은 밝거나 어두워도 피부색으로 보고 하늘·풀·노을·회색은 아니다`() {
-        assertTrue(PhotoImageStatistics.isSkinTone(0.94, 0.78, 0.69))
-        assertTrue(PhotoImageStatistics.isSkinTone(0.45, 0.30, 0.22))
-        assertFalse(PhotoImageStatistics.isSkinTone(0.53, 0.81, 0.92))
-        assertFalse(PhotoImageStatistics.isSkinTone(0.30, 0.60, 0.20))
-        assertFalse(PhotoImageStatistics.isSkinTone(1.0, 0.5, 0.1))
-        assertFalse(PhotoImageStatistics.isSkinTone(0.5, 0.5, 0.5))
+        fun skinFractionOf(color: Int) = PhotoImageStatistics.of(PhotoPixels(1, 1, intArrayOf(color))).skinFraction
+
+        assertEquals(1.0, skinFractionOf(rgb(0.94, 0.78, 0.69)), 0.0)
+        assertEquals(1.0, skinFractionOf(rgb(0.45, 0.30, 0.22)), 0.0)
+        assertEquals(0.0, skinFractionOf(rgb(0.53, 0.81, 0.92)), 0.0)
+        assertEquals(0.0, skinFractionOf(rgb(0.30, 0.60, 0.20)), 0.0)
+        assertEquals(0.0, skinFractionOf(rgb(1.0, 0.5, 0.1)), 0.0)
+        assertEquals(0.0, skinFractionOf(rgb(0.5, 0.5, 0.5)), 0.0)
     }
 
     @Test

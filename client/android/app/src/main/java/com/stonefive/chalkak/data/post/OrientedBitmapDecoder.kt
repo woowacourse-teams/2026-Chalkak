@@ -13,7 +13,7 @@ import kotlinx.coroutines.CancellationException
  * 사진을 메모리에 맞게 줄여 읽고, EXIF 회전 정보대로 픽셀을 돌려 화면에 보이는 방향으로 맞춘다.
  * 업로드 인코더와 자동 보정용 픽셀 로더가 함께 쓴다.
  */
-internal class OrientedBitmapDecoder(private val contentResolver: ContentResolver) {
+class OrientedBitmapDecoder(private val contentResolver: ContentResolver) {
     sealed interface Result {
         /** 파일을 열 수 없다(권한이 없거나 지워짐). */
         data object Unreadable : Result

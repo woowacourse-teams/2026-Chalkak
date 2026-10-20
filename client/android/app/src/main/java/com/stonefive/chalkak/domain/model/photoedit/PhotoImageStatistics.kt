@@ -73,7 +73,7 @@ class PhotoImageStatistics(
          * 예: 밝은 피부 (0.94, 0.78, 0.69)와 어두운 피부 (0.45, 0.30, 0.22)는 피부색, 하늘 (0.53, 0.81, 0.92)과
          * 노을 (1.0, 0.5, 0.1)은 아니다.
          */
-        internal fun isSkinTone(
+        private fun isSkinTone(
             red: Double,
             green: Double,
             blue: Double,

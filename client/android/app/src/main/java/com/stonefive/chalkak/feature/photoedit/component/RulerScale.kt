@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  * 위치는 값과 같은 단위지만 기준값을 지난 쪽은 이 구간만큼 밀려 있다.
  * 예: anchor 0, detentHalfWidth 0.02면 위치 0.01 → 값 0, 위치 0.05 → 값 0.03.
  */
-internal class RulerScale(
+class RulerScale(
     val range: ClosedFloatingPointRange<Float>,
     anchor: Float,
     private val detentHalfWidth: Float,
