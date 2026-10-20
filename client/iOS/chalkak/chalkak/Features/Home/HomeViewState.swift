@@ -37,6 +37,8 @@ struct HomeViewState: Equatable, Sendable {
     var recordsStatus: HomeSectionStatus = .loading
     var yesterday = HomeRankingState()
     var trending = HomeRankingState()
+    var banner: Banner?
+    var bannerStatus: HomeSectionStatus = .loading
     var isRefreshing = false
     var isAuthenticated = false
 

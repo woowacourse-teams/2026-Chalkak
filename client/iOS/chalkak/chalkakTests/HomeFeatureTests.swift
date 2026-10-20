@@ -241,6 +241,82 @@ struct HomeViewModelTests {
         #expect(viewModel.viewState.isRefreshing == false)
     }
 
+    @Test("게스트도 최신 배너를 조회하며 랭킹 실패와 독립적으로 표시한다")
+    func guestLoadsBannerWhenRankingFails() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .failure(TestError.expected))
+        loader.bannerResult = .success(Self.bannerPage())
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+
+        await viewModel.resume()
+
+        #expect(viewModel.viewState.banner == Self.bannerPage().banners.first)
+        #expect(viewModel.viewState.bannerStatus == .ready)
+        #expect(viewModel.viewState.yesterday.status == .error)
+        #expect(loader.bannerCallCount == 1)
+        #expect(loader.calendarRequests.isEmpty)
+    }
+
+    @Test("최초 배너 조회 실패는 다른 홈 섹션에 영향을 주지 않는다")
+    func initialBannerFailureIsIsolated() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerResult = .failure(TestError.expected)
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+
+        await viewModel.resume()
+
+        #expect(viewModel.viewState.banner == nil)
+        #expect(viewModel.viewState.bannerStatus == .error)
+        #expect(viewModel.viewState.trending.status == .ready)
+        #expect(!viewModel.viewState.isRefreshing)
+    }
+
+    @Test("새로고침 실패는 기존 배너를 유지하며 빈 성공 응답은 기존 배너를 제거한다")
+    func refreshPreservesBannerOnFailureAndClearsOnEmptySuccess() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerResult = .success(Self.bannerPage())
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+
+        loader.bannerResult = .failure(TestError.expected)
+        await viewModel.refresh()
+        #expect(viewModel.viewState.banner == Self.bannerPage().banners.first)
+        #expect(viewModel.viewState.bannerStatus == .error)
+        #expect(!viewModel.viewState.isRefreshing)
+
+        loader.bannerResult = .success(BannerPage(currentPage: 1, pageSize: 1, hasNext: false, banners: []))
+        await viewModel.refresh()
+        #expect(viewModel.viewState.banner == nil)
+        #expect(viewModel.viewState.bannerStatus == .ready)
+    }
+
+    @Test("취소 이후 도착한 배너 응답은 상태를 덮어쓰지 않는다")
+    func cancelledBannerDoesNotApplyStaleResult() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let gate = SuspendedBannerResult()
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerHandler = { try await gate.load() }
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        let task = Task { await viewModel.resume() }
+        await gate.waitUntilStarted()
+        viewModel.cancel()
+        await gate.complete(with: Self.bannerPage())
+        await task.value
+        #expect(viewModel.viewState.banner == nil)
+        #expect(!viewModel.viewState.isRefreshing)
+    }
+
+    private static func bannerPage() -> BannerPage {
+        BannerPage(currentPage: 1, pageSize: 1, hasNext: true, banners: [Banner(
+            id: "banner-id", title: "서버 배너 제목", subtitle: "서버 배너 설명",
+            webViewURL: URL(string: "https://example.com/issue")!,
+            thumbnailURL: URL(string: "https://example.com/banner.jpg")!,
+            createdAt: "2026-10-20T08:08:11.001Z"
+        )])
+    }
+
     private static func viewModel(
         date: Date,
         initialState: HomeViewState? = nil,
@@ -373,6 +449,9 @@ private final class HomeLoaderProbe {
     private(set) var calendarRequests: [RecordMonth] = []
     private(set) var detailRequests: [String] = []
     private(set) var postStatusCallCount = 0
+    private(set) var bannerCallCount = 0
+    var bannerResult: Result<BannerPage, Error> = .success(BannerPage(currentPage: 1, pageSize: 1, hasNext: false, banners: []))
+    var bannerHandler: (@Sendable () async throws -> BannerPage)?
 
     init(
         todayHandler: @escaping @Sendable (Date) async throws -> DisplayContent,
@@ -414,6 +493,7 @@ private final class HomeLoaderProbe {
             detail: { postID in
                 try await self.loadDetail(postID)
             },
+            banners: { try await self.loadBanners() },
             postStatus: {
                 try await self.loadPostStatus()
             }
@@ -437,6 +517,12 @@ private final class HomeLoaderProbe {
     private func loadDetail(_ postID: String) throws -> FeedContent {
         detailRequests.append(postID)
         return try detailResult.get()
+    }
+
+    private func loadBanners() async throws -> BannerPage {
+        bannerCallCount += 1
+        if let bannerHandler { return try await bannerHandler() }
+        return try bannerResult.get()
     }
 
     private func loadPostStatus() throws -> PhotoUploadTodayPostStatus {
@@ -468,6 +554,29 @@ private actor SuspendedTodayResult {
 
     func complete(with result: Result<DisplayContent, Error>) {
         resultContinuation?.resume(with: result)
+        resultContinuation = nil
+    }
+}
+
+private actor SuspendedBannerResult {
+    private var didStart = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var resultContinuation: CheckedContinuation<BannerPage, Error>?
+
+    func waitUntilStarted() async {
+        guard !didStart else { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func load() async throws -> BannerPage {
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+        return try await withCheckedThrowingContinuation { resultContinuation = $0 }
+    }
+
+    func complete(with result: BannerPage) {
+        resultContinuation?.resume(returning: result)
         resultContinuation = nil
     }
 }

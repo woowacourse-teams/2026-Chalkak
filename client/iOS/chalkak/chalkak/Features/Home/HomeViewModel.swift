@@ -59,7 +59,8 @@ final class HomeViewModel {
             async let today: Void = self.loadToday(date, request: request)
             async let yesterday: Void = self.loadYesterday(date, request: request)
             async let personal: Void = self.loadPersonal(date, authenticated: authenticated, request: request)
-            _ = await (today, yesterday, personal)
+            async let banner: Void = self.loadBanner(request: request)
+            _ = await (today, yesterday, personal, banner)
             guard self.isCurrent(request) else { return }
             self.viewState.isRefreshing = false
             self.loadTask = nil
@@ -78,6 +79,18 @@ final class HomeViewModel {
 
     private func isCurrent(_ request: Int) -> Bool {
         request == generation && !Task.isCancelled
+    }
+
+    private func loadBanner(request: Int) async {
+        do {
+            let page = try await loader.banners()
+            guard isCurrent(request) else { return }
+            viewState.banner = page.banners.first
+            viewState.bannerStatus = .ready
+        } catch {
+            guard isCurrent(request) else { return }
+            viewState.bannerStatus = .error
+        }
     }
 
     private func loadToday(_ date: Date, request: Int) async {

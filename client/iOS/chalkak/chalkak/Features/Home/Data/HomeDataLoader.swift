@@ -6,6 +6,7 @@ struct HomeDataLoader: Sendable {
     var ranking: @Sendable (Date) async throws -> [DisplayPhoto]
     var calendar: @Sendable (RecordMonth) async throws -> RecordCalendar
     var detail: @Sendable (String) async throws -> FeedContent
+    var banners: @Sendable () async throws -> BannerPage
     var postStatus: @Sendable () async throws -> PhotoUploadTodayPostStatus
 
     static func live(baseURL: URL) -> Self {
@@ -13,6 +14,7 @@ struct HomeDataLoader: Sendable {
         let display = DisplayAPIClient(configuration: DisplayAPIConfiguration(baseURL: baseURL), accessTokenProvider: token)
         let record = RecordAPIClient(configuration: RecordAPIConfiguration(baseURL: baseURL), accessTokenProvider: token)
         let feed = FeedAPIClient(configuration: FeedAPIConfiguration(baseURL: baseURL), accessTokenProvider: token)
+        let banner = BannerAPIClient(configuration: BannerAPIConfiguration(baseURL: baseURL))
         let upload = PhotoUploadAPIClient(configuration: PhotoUploadAPIConfiguration(baseURL: baseURL), accessTokenProvider: token)
         return Self(
             today: { try await display.fetchDisplay(date: $0, sort: .popular) },
@@ -21,6 +23,7 @@ struct HomeDataLoader: Sendable {
             },
             calendar: { try await record.fetchCalendar(month: $0) },
             detail: { try await feed.fetchPostDetail(postID: $0) },
+            banners: { try await banner.fetchPage(page: 1, pageSize: 1) },
             postStatus: { try await upload.fetchTodayPostStatus() }
         )
     }

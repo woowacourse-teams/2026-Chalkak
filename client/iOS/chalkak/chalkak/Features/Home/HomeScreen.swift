@@ -9,7 +9,7 @@ struct HomeScreen: View {
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
-    var onIssueClick: () -> Void = {}
+    var onIssueClick: (URL) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
 
     @State private var scrollPosition = ScrollPosition()
@@ -79,11 +79,14 @@ struct HomeScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xxl)
 
-                    HomeIssueSection(onIssueClick: onIssueClick)
-                        .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .padding(.top, theme.spacing.xxl)
-                        .padding(.bottom, theme.spacing.xxl)
+                    if viewModel.viewState.banner != nil || viewModel.viewState.bannerStatus == .loading {
+                        HomeIssueSection(banner: viewModel.viewState.banner, onIssueClick: onIssueClick)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, theme.spacing.screenHorizontal)
+                            .padding(.top, theme.spacing.xxl)
+                    }
                 }
+                .padding(.bottom, theme.spacing.xxl)
                 .scrollTargetLayout()
             }
             .feedZoomViewport(.home)
