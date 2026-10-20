@@ -11,6 +11,8 @@ import { isUuid } from "@/shared/api/uuid";
 
 export const AI_PROMPT_TYPE = "PHOTO_REVIEW";
 export const AI_PROMPT_TYPE_LABEL = "사진 AI 리뷰";
+// Remove once the user AI review feature (backend #689, PR #716) is deployed; the latest version then applies immediately.
+export const LATEST_VERSION_APPLY_CAVEAT = "사용자 AI 리뷰 기능 배포 이후";
 export const SYSTEM_PROMPT_MAX = 50_000;
 export const USER_PROMPT_TEMPLATE_MAX = 2_000;
 export const MODEL_MAX = 100;

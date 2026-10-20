@@ -10,7 +10,7 @@ import { ErrorState, LoadingSkeleton } from "@/shared/ui/feedback-states";
 import { useToast } from "@/shared/ui/toast";
 import { useAiPromptPreview, useAiPromptVersion, useAiPromptVersionMutations } from "../api/ai-prompt-hooks";
 import {
-  AI_PROMPT_TYPE_LABEL, DEFAULTS, MAX_OUTPUT_TOKENS_MAX, MEMO_MAX, SYSTEM_PROMPT_MAX, THRESHOLD_MAX,
+  AI_PROMPT_TYPE_LABEL, DEFAULTS, LATEST_VERSION_APPLY_CAVEAT, MAX_OUTPUT_TOKENS_MAX, MEMO_MAX, SYSTEM_PROMPT_MAX, THRESHOLD_MAX,
   USER_PROMPT_TEMPLATE_MAX, TOPIC_TITLE_VARIABLE, checkPostId, codePointLength, draftFingerprint, draftFromVersion,
   emptyDraft, formatVersion, imageDetails, reasoningEfforts, toCreateRequest, toVersionInput, validateDraft,
   type AiPromptDraft, type AiPromptDraftErrors,
@@ -125,7 +125,7 @@ function AiPromptEditor({ initial, loadedVersion, invalidSource = false }: { ini
     <h2 className={common.pageTitle}>새 프롬프트 버전 만들기</h2>
     <div className={styles.notice}>
       <p>먼저 아래에서 게시물로 미리보기를 실행해 결과를 확인한 뒤 버전을 만들 수 있습니다.</p>
-      <p>만든 버전은 {AI_PROMPT_TYPE_LABEL}의 가장 최신 버전이 되어 바로 적용되며(백엔드 #689 적용 이후), 수정하거나 삭제할 수 없습니다.</p>
+      <p>만든 버전은 {AI_PROMPT_TYPE_LABEL}의 가장 최신 버전이 되어 바로 적용되며({LATEST_VERSION_APPLY_CAVEAT}), 수정하거나 삭제할 수 없습니다.</p>
     </div>
     {loadedVersion !== undefined ? <p className={common.readOnly} role="status">{formatVersion(loadedVersion)} 내용을 불러왔습니다. 메모는 새로 입력해 주세요.</p> : null}
     {invalidSource ? <p className={common.readOnly} role="status">불러올 버전 ID가 올바르지 않아 빈 양식으로 시작합니다.</p> : null}
@@ -209,7 +209,7 @@ function AiPromptEditor({ initial, loadedVersion, invalidSource = false }: { ini
       : stale ? "미리보기 이후 내용이 바뀌어 다시 미리보기를 실행해야 합니다."
         : "성공한 미리보기를 실행한 뒤에 버전을 만들 수 있습니다."}</p>
     <ConfirmDialog open={confirming} title="새 버전을 만들까요?"
-      description={`만든 버전은 ${AI_PROMPT_TYPE_LABEL}의 가장 최신 버전이 되어 바로 적용되며(백엔드 #689 적용 이후), 수정하거나 삭제할 수 없습니다.\n모델: ${draft.model.trim()}\n메모: ${draft.memo.trim() || "-"}`}
+      description={`만든 버전은 ${AI_PROMPT_TYPE_LABEL}의 가장 최신 버전이 되어 바로 적용되며(${LATEST_VERSION_APPLY_CAVEAT}), 수정하거나 삭제할 수 없습니다.\n모델: ${draft.model.trim()}\n메모: ${draft.memo.trim() || "-"}`}
       confirmLabel="만들기" pending={create.isPending} error={createError}
       onCancel={() => { setConfirming(false); setCreateError(null); }} onConfirm={() => { void save(); }} />
   </div>;

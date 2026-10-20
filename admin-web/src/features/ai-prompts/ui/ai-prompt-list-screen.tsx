@@ -9,7 +9,7 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 import { Table, type TableColumn } from "@/shared/ui/table";
 import type { AiPromptVersionSummary } from "@/shared/api/contracts";
 import { useAiPromptVersions } from "../api/ai-prompt-hooks";
-import { AI_PROMPT_TYPE, AI_PROMPT_TYPE_LABEL, formatVersion } from "../model/ai-prompt";
+import { AI_PROMPT_TYPE, AI_PROMPT_TYPE_LABEL, LATEST_VERSION_APPLY_CAVEAT, formatVersion } from "../model/ai-prompt";
 import common from "@/shared/ui/management.module.css";
 import styles from "./ai-prompts.module.css";
 
@@ -34,7 +34,7 @@ export function AiPromptListScreen() {
     <div className={styles.intro}>
       <span className={styles.typeLabel}>{AI_PROMPT_TYPE_LABEL} · {AI_PROMPT_TYPE}</span>
       <p>사진 AI 리뷰에 사용하는 프롬프트를 버전으로 관리합니다.</p>
-      <span>버전을 만들면 가장 최신 버전이 바로 사용자 기능에 적용됩니다(백엔드 #689 적용 이후). 버전은 수정하거나 삭제할 수 없으므로 미리보기로 확인한 내용만 만들어 주세요.</span>
+      <span>버전을 만들면 가장 최신 버전이 바로 사용자 기능에 적용됩니다({LATEST_VERSION_APPLY_CAVEAT}). 버전은 수정하거나 삭제할 수 없으므로 미리보기로 확인한 내용만 만들어 주세요.</span>
     </div>
     <div className={styles.heading}><span>버전 최신순</span><Link href="/audit-logs?targetType=AI_PROMPT_VERSION">AI 프롬프트 처리 이력 →</Link></div>
     {query.isPending ? <LoadingSkeleton rows={3} /> : null}
